@@ -35,3 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shell gates in `torve run` execute in a fresh sandbox the agent never
   touched, via a new executor seam in the gate runner; `torve.yaml` carries
   runner configuration.
+- Durability (RFC 0003 phase 2): the attempt loop runs as one durable
+  function over forze's run store — real leases, fenced terminal writes,
+  cancellation riding the lease heartbeat, and recovery via
+  `claim_abandoned`. Mock store for tests and simulation, Postgres for real
+  runs (`torve[postgres]`), with torve-owned DDL and `torve store provision`.
+- `torve cancel` (cooperative, fail-closed on backend capability) and a
+  durable reap path that replaces the heartbeat heuristic under Postgres.
+- Deterministic simulation (forze_dst): the real attempt loop and real
+  TaskStore driven concurrently under one master seed set — four invariants,
+  four reachability targets, and four deliberately broken twins the oracle
+  must catch.
+
+### Changed
+
+- `requires-python` is now `>=3.13,<3.15` (the forze substrate's floor).

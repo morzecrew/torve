@@ -1,0 +1,68 @@
+# Durability and simulation: RFC 0003 phase 2 — TaskStore facade over the
+# forze durable run store, real leases and fenced cancellation, recovery in
+# the reaper, and the forze_dst simulation with invariants, reachability
+# targets and broken twins.
+schema_version: 1
+id: T-0004
+rfc: rfcs/0003-runner-isolation.md
+phase: 2
+role: implement
+depends_on: [T-0003]
+scope:
+  allow:
+    - "src/**"
+    - "tests/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - ".python-version"
+    - "gates.yaml"
+    - "torve.yaml"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+    - ".gitignore"
+    - "rfcs/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest"
+  - "python3 .agents/skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-5
+    grade: LOCKED
+    text: TaskStore is a thin facade over the substrate's durable run store, not hand-written
+    paths: ["src/torve/taskstore.py"]
+  - id: D-5a
+    grade: LOCKED
+    text: The lifecycle is not modelled as a durable workflow; the run store is a leased queue with recovery
+    paths: ["src/torve/taskstore.py", "src/torve/run.py"]
+  - id: D-4b
+    grade: LOCKED
+    text: Agents never hold real credentials; store DSNs are named by env var, never by value
+    paths: ["src/torve/runconfig.py", "src/torve/adapters/**"]
+  - id: D-27
+    grade: LOCKED
+    text: No contract, decision or execution log ever moves from git into a database
+    paths: ["tasks/**", "logs/**"]
+  - id: D-29
+    grade: ASSUMED
+    text: The escalation vocabulary is one closed enum; additions are RFC amendments
+    paths: ["src/torve/domain.py"]
+  - id: D-30
+    grade: ASSUMED
+    text: claimed may transition to escalated; claim_abandoned recovery lands on that edge
+    paths: ["src/torve/reaper.py", "src/torve/taskstore.py"]
+  - id: D-3.5
+    grade: ASSUMED
+    text: Simulation is the primary concurrency-verification tool; each invariant ships with a reachability target and a broken twin
+    paths: ["tests/dst/**"]
+  - id: D-3.6
+    grade: ASSUMED
+    text: Mock for tests, Postgres for real runs
+    paths: ["src/torve/adapters/**", "src/torve/taskstore.py"]
+  - id: D-3.10
+    grade: ASSUMED
+    text: v1 heartbeat liveness is replaced by real leases in T-0004
+    paths: ["src/torve/reaper.py", "src/torve/runstate.py"]
+budget: {}
+tier: executor
