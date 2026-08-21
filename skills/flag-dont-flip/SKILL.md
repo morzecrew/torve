@@ -1,0 +1,98 @@
+---
+name: flag-dont-flip
+description: Executing a task against an RFC with graded decisions — what to do when reality contradicts a decision, and how to write the divergence log that decisions-reported gates.
+roles: [implement, revert]
+gate: decisions-reported
+---
+
+> **Specialisation.** Derived from `agent-skills/flag-dont-flip`, specialised for
+> artefacts that Torve parses. Divergence from upstream is expected and
+> intentional — **do not reconcile**. Improvements of general value flow
+> upstream, not the reverse.
+
+# Flag, Don't Flip
+
+When reality contradicts a decision, **report the contradiction — do not quietly
+pick the other branch.** The decision was made by someone with context you do
+not have; acting on the contradiction without recording it leaves the codebase
+disagreeing with its own specification with nothing to say when or why.
+
+## The grade decides the action
+
+| Grade | On contradiction | Logged action | Never |
+|---|---|---|---|
+| `LOCKED` | **Halt.** Write the entry, stop, escalate. | `halted` | Proceed — even when the alternative is obviously better. |
+| `ASSUMED` | **Depart.** Write the entry, build the better option, carry on. | `departed` | Halt. You were licensed to decide this. |
+| `OPEN` | **Decide.** Write the entry recording the choice and why, carry on. | `decided` | Halt, or hand back half an implementation. |
+| `UNLISTED` | **Decide, and owe a row.** The entry carries the `proposal:` it puts back. | `decided` | Treat it as `OPEN`. Nobody looked; a proposal is owed. |
+
+Two symmetric failures: flipping a lock leaves the spec fiction; halting on an
+assumption costs the round-trip grading exists to avoid. Over-caution is a real
+failure, not a safe default.
+
+## Plan first, and stop
+
+Produce a plan and never write code in the same turn as the plan. It carries:
+files touched, the decision row governing every non-trivial choice, and **the
+decisions the plan needs that the spec does not settle**. Three or more
+load-bearing entries in that last list means the spec is not ready — report and
+stop. Read the rejected-alternatives sections before any code.
+
+## The log: `logs/<task-id>.yaml`
+
+One file per task. Append-only: items are never removed or edited — a wrong
+entry gets a later entry saying so. Write the entry **before** you act; an
+entry written afterwards is a rationalisation. `grade` is copied from the task
+as it stands now, never re-read from the current spec.
+
+```yaml
+schema_version: 1
+task: T-0142
+drift_count: 0            # the declared claim; the gate checks it against entries classed drift
+entries:
+  - decision: D-3         # the spec's identifier, or `unlisted`
+    grade: LOCKED
+    kind: contradicted    # contradicted | departed | resolved | blocked
+    class: spec-gap       # discovery | spec-gap | drift | irreducible (one of kind/class required)
+    at: 2026-08-20T11:04:12Z
+    attempt: 2
+    claim: sessions cannot live in Redis; no Redis service in this deployment
+    evidence: infra/compose.yaml:1-40 — no redis service defined
+    action: halted
+    proposal: LOCKED — sessions live in Postgres until Redis is provisioned
+    notes: |
+      Prose lives here, inside the entry — never in a sibling document.
+```
+
+- **`evidence` must be locatable by someone else**: `path:line`, `path:start-end`,
+  or a backticked command with its output. A sentence is a claim, and `claim`
+  is where claims go; unlocatable evidence is discarded, and a discarded entry
+  counts as none.
+- **`class` answers: could this have been known before code existed?**
+  `discovery` no (healthy) · `spec-gap` yes, spec was silent · `drift` yes, spec
+  covered it and it was built otherwise (**a defect** — should be zero) ·
+  `irreducible` neither: stop and spike.
+- **`kind: resolved` with `action: decided` is the close-out** — the legal
+  attestation of compliance in a touched `LOCKED` area, which the silence check
+  demands an entry for. `kind: blocked` licenses only `halted`.
+- **`drift_count` is a claim.** Revising it edits the scalar (git history keeps
+  prior claims); `entries` stays append-only.
+- Bypass records (RFC 0002 §6a) live in a separate top-level `bypasses:` list
+  in the same file, written by the runner from a human's signed trailer.
+
+## Silence is what gets caught
+
+Violating a lock is not mechanically detectable; the absence of an entry in an
+area a `LOCKED` decision declares trivially is. When in doubt whether a
+contradiction is worth reporting, report it — a surplus entry costs a reader
+ten seconds, a missing one is an unexplained divergence found months later.
+Compliant work in a touched `LOCKED` area owes a close-out entry too.
+
+Halting on a `LOCKED` row is a success. State it plainly ("Halted on D-3 …
+needs a human decision"), never soften it into a flip wearing a disclaimer.
+And never amend the spec from inside a task — your entry *is* the amendment
+proposal; the author accepts it into the decision table, citing your entry.
+
+The enforcing gate is `decisions-reported` in the Torve package: schema,
+grade/action legality, evidence locatability, the drift count, and the silence
+check over the task's declared decision paths.

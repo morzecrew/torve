@@ -1,0 +1,66 @@
+# Apply the corpus amendments A-1..A-6: YAML logs with a single-use migrator,
+# gate implementations under their amendment names, specialised skills shipped
+# as package data with runner-side materialization, hardened rfc_index over a
+# pathed corpus, and config_hash carrying the torve and forze versions.
+schema_version: 1
+id: T-0005
+rfc: rfcs/AMENDMENTS.md
+phase: 1
+role: implement
+depends_on: [T-0004]
+scope:
+  allow:
+    - "src/**"
+    - "tests/**"
+    - "skills/**"
+    - "scripts/**"
+    - "logs/**"
+    - "tasks/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - "gates.yaml"
+    - "torve.yaml"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+    - ".gitignore"
+    - ".agents/**"
+    - ".claude/**"
+    - "skills-lock.json"
+    - "rfcs/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-21a
+    grade: LOCKED
+    text: Execution-log format — one file per task, append-only, grade copied at write time; serialization is YAML per A-1
+    paths: ["logs/**", "src/torve/gates/decisions_reported.py"]
+  - id: D-2.1
+    grade: LOCKED
+    text: Gates ship as an installed package; implementations live in src/torve/gates per A-2
+    paths: ["src/torve/gates/**"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate has a sabotage case; no case, no gate
+    paths: ["src/torve/gates/sabotage.py"]
+  - id: D-2.11
+    grade: LOCKED
+    text: The bypass signature is a Torve-Bypass commit trailer, counted and appended to the task log
+    paths: ["src/torve/runner.py"]
+  - id: D-27
+    grade: LOCKED
+    text: Git and the store are a boundary; contracts, decisions and logs stay in git
+    paths: ["tasks/**", "logs/**"]
+  - id: D-9.7
+    grade: LOCKED
+    text: A skill whose format Torve parses ships with Torve, specialised; skill and gate are one unit of versioning
+    paths: ["skills/**", "src/torve/skills.py"]
+  - id: D-9.8
+    grade: LOCKED
+    text: config_hash includes the Torve package version and the pinned forze version
+    paths: ["src/torve/manifest.py"]
+budget: {}
+tier: executor

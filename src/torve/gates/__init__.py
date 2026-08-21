@@ -8,11 +8,11 @@ from collections.abc import Callable
 from torve.context import GateContext
 from torve.gates.acceptance import check_acceptance
 from torve.gates.base import BuiltinOutcome
-from torve.gates.decisions import check_decisions_reported
+from torve.gates.decisions_reported import check_decisions_reported
+from torve.gates.no_test_tampering import check_no_test_tampering
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 from torve.gates.self_audit import check_self_audit
-from torve.gates.tampering import check_no_test_tampering
 from torve.models import Gate
 
 Builtin = Callable[[Gate, GateContext], BuiltinOutcome]

@@ -1,0 +1,228 @@
+schema_version: 1
+task: T-0002
+drift_count: 0
+notes: '# T-0002 · Gates as a library
+
+
+  Executed rfcs/0002-gates-library.md against this repository. Append-only; one
+
+  file for this task. Entries follow RFC 0001 §6 (`kind`) and carry the
+
+  flag-dont-flip fields (`class`) where the entry is a divergence; compliance
+
+  close-outs carry `kind: resolved` only — see the reconciliation entry below,
+
+  which proposes the amendment making that shape official.
+
+
+  .**
+
+
+  | Class | Test | Meaning |
+
+  |---|---|---|
+
+  | `discovery` | Could not have been known before code existed | Healthy — the spec was right to be silent
+  |
+
+  | `spec-gap` | Could have been known; the spec was silent or at the wrong altitude | The design process
+  missed something |
+
+  | `drift` | The spec covered it and it was built otherwise anyway | **A defect** |
+
+  | `irreducible` | No amount of design settles it | Stop and spike |
+
+
+  ## Decisions made where the spec was silent
+
+
+  ## Close-outs: LOCKED areas touched, decisions honored
+
+
+  .** Restated after the close-outs; no entry above is classed drift.
+
+  '
+entries:
+- decision: D-2.3
+  grade: ASSUMED
+  kind: departed
+  class: spec-gap
+  at: '2026-08-21T09:05:00Z'
+  attempt: 1
+  claim: self-audit cannot consume a worktree deterministically in an increment with no runner and no
+    agent; implemented as a log-presence check (input log), settled with the charter owner 2026-08-21
+  evidence: src/torve/gates/self_audit.py:1-11
+  action: departed
+  proposal: 'ASSUMED — until RFC 0004 ships agent-side audits, self-audit is a deterministic log-presence
+    check (input log): the task''s execution log must exist and carry a Drift count line'
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:10:00Z'
+  attempt: 1
+  claim: D-2.7 requires a human signature for bypass but does not define one for engine-less CI; settled
+    with the charter owner 2026-08-21 as a commit trailer
+  evidence: src/torve/context.py:21
+  action: decided
+  proposal: 'LOCKED — the bypass signature is a `Torve-Bypass: <gate>: <reason>` commit trailer; the record
+    carries the commit''s author, is counted per gate, and is appended to the task log; the secrets gate
+    is exempt from bypass entirely (D-2.8)'
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:14:00Z'
+  attempt: 1
+  claim: the spec says no-test-tampering catches "tests edited where the task did not license it" but
+    never defines a licence
+  evidence: src/torve/gates/tampering.py:1-11
+  action: decided
+  proposal: ASSUMED — a test edit is licensed when the file falls inside the task's scope.allow; adding
+    a new test file is never tampering; modifying or deleting an existing one outside allow is
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:18:00Z'
+  attempt: 1
+  claim: the spec runs gates on human pull requests too, but task- and log-input gates have no input there
+    and the spec does not say what they report
+  evidence: src/torve/gates/base.py:29-35
+  action: decided
+  proposal: ASSUMED — on runs with no task contract, task- and log-input gates report a recorded `skipped`
+    outcome, never a silent green; RFC 0005 §4 already names this degraded mode for review
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:22:00Z'
+  attempt: 1
+  claim: the spec mandates a secret scanner but not its implementation; a noisy scanner gets muted, and
+    D-2.8 forbids bypass so false positives need a sanctioned suppression path
+  evidence: src/torve/gates/secrets.py:19-29
+  action: decided
+  proposal: ASSUMED — the scanner is a built-in high-confidence pattern set (no new dependency); false
+    positives are suppressed only through `secrets.allow_patterns` in the reviewed manifest, which is
+    configuration in a pull request, not a run-time bypass
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:26:00Z'
+  attempt: 1
+  claim: the spec has flake counters pushing commands over a threshold into quarantine automatically,
+    but there is no store to keep a counter in until RFC 0003
+  evidence: src/torve/manifest.py:69-73
+  action: decided
+  proposal: ASSUMED — the quarantine list is a reviewed manifest key; humans move commands into it from
+    the flake counters in telemetry until the RFC 0003 store makes the threshold automatic
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:30:00Z'
+  attempt: 1
+  claim: RFC 0001 §6 entries carry kind (contradicted/departed/resolved/blocked) while the installed flag-dont-flip
+    skill writes class (discovery/spec-gap/drift/irreducible), and neither format has a legal entry for
+    compliant work in a touched LOCKED area, which the silence check nevertheless demands
+  evidence: src/torve/gates/decisions.py:20-27
+  action: decided
+  proposal: 'LOCKED — amendment to RFC 0001 §6: an entry carries kind or class or both; a `kind: resolved`
+    close-out with action `decided` is the legal way to attest compliance in a touched LOCKED area; the
+    skills repository should align log_check.py with the same rule'
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:34:00Z'
+  attempt: 1
+  claim: a task whose scope.allow omits logs/ cannot write the execution log that decisions-reported and
+    self-audit require, which would deadlock every narrowly-scoped task
+  evidence: src/torve/gates/scope.py:1-9
+  action: decided
+  proposal: ASSUMED — the scope gate implicitly allows the task's own contract (tasks/<id>.yaml) and log
+    (logs/<id>.md), and nothing else
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T09:38:00Z'
+  attempt: 1
+  claim: the spec orders gates "cheapest first" without defining cost before any timing data exists
+  evidence: src/torve/runner.py:84-85
+  action: decided
+  proposal: ASSUMED — declared timeout is the cost proxy, ascending, manifest order breaking ties; replace
+    with measured p50 duration once telemetry has enough runs
+- decision: D-3
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:00:00Z'
+  attempt: 1
+  claim: gate outcomes are computed by the runner from exit codes and prepared inputs; no agent-reported
+    outcome exists anywhere in the package
+  evidence: src/torve/runner.py:1-7
+  action: decided
+- decision: D-21a
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:02:00Z'
+  attempt: 1
+  claim: the decisions-reported gate validates the RFC 0001 §6 format, append-only, grade read from the
+    entry as written, never re-resolved from the current spec
+  evidence: src/torve/gates/decisions.py:1-6
+  action: decided
+- decision: D-27
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:04:00Z'
+  attempt: 1
+  claim: contracts, decisions and logs live in git; the only store this increment writes is generated
+    telemetry, appended as JSONL
+  evidence: src/torve/telemetry.py:1-6
+  action: decided
+- decision: D-2.1
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:06:00Z'
+  attempt: 1
+  claim: gates ship as an installed package with a console script; nothing is copied into consuming repositories
+    except the reviewed gates.yaml
+  evidence: pyproject.toml:1-12
+  action: decided
+- decision: D-2.2
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:08:00Z'
+  attempt: 1
+  claim: every builtin gate has at least one red sabotage case and one green twin, run by torve gates
+    check and again by pytest
+  evidence: '`uv run torve gates check` — 17/17 sabotage cases behaved'
+  action: decided
+- decision: D-2.6
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:10:00Z'
+  attempt: 1
+  claim: a command that fails and passes on immediate re-run yields the distinct outcome flaky, counted
+    per command and never a red result
+  evidence: src/torve/shell.py:1-8
+  action: decided
+- decision: D-2.7
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:12:00Z'
+  attempt: 1
+  claim: bypass requires the signed trailer with a mandatory reason, appends to this log, and is counted
+    per gate in every telemetry record
+  evidence: src/torve/runner.py:51-74
+  action: decided
+- decision: D-2.8
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-21T13:14:00Z'
+  attempt: 1
+  claim: the runner refuses to apply any bypass record to the secrets gate; the sabotage suite asserts
+    the refusal
+  evidence: src/torve/runner.py:52-53
+  action: decided

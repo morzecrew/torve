@@ -54,28 +54,28 @@ LOCKED_D1 = [
 ]
 
 
-def entry(**overrides: str) -> str:
-    fields = {
+def entry(**overrides) -> dict:
+    """One A-1 YAML log entry; pass field overrides, or None to drop a field."""
+    fields: dict = {
         "decision": "D-1",
         "grade": "LOCKED",
         "kind": "resolved",
         "at": AT,
-        "attempt": "1",
+        "attempt": 1,
         "claim": "touched the governed area; the decision was honored",
         "evidence": "src/app.py:1",
         "action": "decided",
     }
     fields.update(overrides)
-    body = "\n".join(f"{key}: {value}" for key, value in fields.items())
-    return f"```divergence\n{body}\n```\n"
+    return {key: value for key, value in fields.items() if value is not None}
 
 
-def log_document(*entries: str, drift_line: str | None = "**Drift count: 0.**") -> str:
-    parts = [f"# {TASK_ID} · sabotage scenario\n"]
-    if drift_line:
-        parts.append(drift_line + "\n")
-    parts.extend(entries)
-    return "\n".join(parts)
+def log_document(*entries: dict, drift_count: int | None = 0) -> str:
+    document: dict = {"schema_version": 1, "task": TASK_ID}
+    if drift_count is not None:
+        document["drift_count"] = drift_count
+    document["entries"] = list(entries)
+    return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
 
 class Repo:
@@ -110,7 +110,7 @@ class Repo:
     def task(self, task: dict, log: str | None) -> None:
         self.write(f"tasks/{TASK_ID}.yaml", yaml.safe_dump(task, sort_keys=False))
         if log is not None:
-            self.write(f"logs/{TASK_ID}.md", log)
+            self.write(f"logs/{TASK_ID}.yaml", log)
 
 
 @dataclass
@@ -227,7 +227,7 @@ def _decisions_valid(repo: Repo) -> None:
 
 def _self_audit_bad(repo: Repo) -> None:
     repo.seed()
-    repo.task(base_task(allow=["src/**"]), log_document(drift_line=None))
+    repo.task(base_task(allow=["src/**"]), log_document(drift_count=None))
     repo.write("src/app.py", "print('unexamined')\n")
     repo.commit("log without drift count")
 

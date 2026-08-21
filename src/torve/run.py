@@ -16,12 +16,12 @@ ships (RFC 0003 §6).
 from __future__ import annotations
 
 import asyncio
-import re
 import shutil
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
 from forze.application.contracts.durable.function import (
     DurableRunStatus,
     current_durable_run,
@@ -46,12 +46,13 @@ from torve.ports import (
 from torve.runconfig import RunnerConfig
 from torve.runner import run_gates
 from torve.runstate import RunState
+from torve.skills import materialize
 from torve.taskstore import TaskStore
 from torve.telemetry import append_record, build_record
 
 # A LOCKED conflict is written to the log as a halted entry; the runner reads
 # the fact from the file, the agent cannot cause the transition directly.
-HALTED_ENTRY = re.compile(r"^action:[ \t]*halted[ \t]*$", re.M)
+# The A-1 YAML log is parsed, not pattern-matched.
 
 
 @dataclass
@@ -98,7 +99,7 @@ async def drive_attempts(
             # Terminal by design, not an error: the one case where a task
             # stops on working code (RFC 0001 §4).
             state.escalate(EscalationReason.LOCKED_CONFLICT,
-                           f"halted divergence entry in logs/{task.id}.md")
+                           f"halted divergence entry in logs/{task.id}.yaml")
             return state
 
         if result.timed_out or result.exit_code != 0:
@@ -133,8 +134,17 @@ async def drive_attempts(
 
 
 def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
-    log = worktree / "logs" / f"{task_id}.md"
-    return log.is_file() and bool(HALTED_ENTRY.search(log.read_text(encoding="utf-8")))
+    log = worktree / "logs" / f"{task_id}.yaml"
+    if not log.is_file():
+        return False
+    try:
+        document = yaml.safe_load(log.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        return False  # an unreadable log is the decisions-reported gate's finding
+    entries = document.get("entries") if isinstance(document, dict) else None
+    if not isinstance(entries, list):
+        return False
+    return any(isinstance(e, dict) and str(e.get("action", "")) == "halted" for e in entries)
 
 
 class _SandboxExecutor:
@@ -205,6 +215,10 @@ def _real_hooks(
     root: Path, task: Task, config: RunnerConfig, deps: RunDeps, worktree: Path
 ) -> AttemptHooks:
     async def attempt(state: RunState) -> AgentResult:
+        # The runner composes the sandbox's context: the role's skill set is
+        # written from package data at dispatch (A-3) — the agent does not
+        # "have skills installed", and nothing is checked into the repository.
+        materialize(task.role, worktree / ".torve" / "skills", config.skills.sets)
         spec = SandboxSpec(
             name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
             image=config.runtime.image,

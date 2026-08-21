@@ -60,12 +60,16 @@ def test_crash_dies_mid_write(tmp_path):
 
 
 def test_locked_conflict_appends_a_halted_entry(tmp_path):
-    entry = ("```divergence\ndecision: D-1\ngrade: LOCKED\nkind: contradicted\n"
-             "action: halted\n```")
+    import yaml
+
+    entry = ("  - decision: D-1\n    grade: LOCKED\n    kind: contradicted\n"
+             "    at: 2026-08-21T00:00:00Z\n    attempt: 1\n"
+             "    claim: sim conflict\n    evidence: src/x.py:1\n    action: halted\n")
     ctx, agent = ctx_for(tmp_path, [{"log_entry": entry, "exit": 0}])
     agent.run(ctx)
-    log = (ctx.workspace / "logs" / "T-9001.md").read_text()
-    assert "action: halted" in log
+    document = yaml.safe_load((ctx.workspace / "logs" / "T-9001.yaml").read_text())
+    assert document["entries"][0]["action"] == "halted"
+    assert document["drift_count"] == 0  # the skeleton was created around the entry
 
 
 def test_ignoring_cancellation_is_bounded_by_the_hard_timeout(tmp_path):

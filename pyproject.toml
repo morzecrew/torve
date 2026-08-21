@@ -35,6 +35,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/torve"]
 
+[tool.hatch.build.targets.wheel.force-include]
+# The specialised skills ship inside the wheel (A-3, D-9.7): skill and gate
+# are one unit of versioning by construction.
+"skills" = "torve/_skills"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

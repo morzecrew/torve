@@ -42,8 +42,15 @@ for rel, content in step.get("writes", {}).items():
 entry = step.get("log_entry")
 if entry:
     os.makedirs("logs", exist_ok=True)
-    with open(os.path.join("logs", step["task_id"] + ".md"), "a") as handle:
-        handle.write("\\n" + entry + "\\n")
+    path = os.path.join("logs", step["task_id"] + ".yaml")
+    if not os.path.exists(path):
+        with open(path, "w") as handle:
+            handle.write("schema_version: 1\\ntask: " + step["task_id"]
+                         + "\\ndrift_count: 0\\nentries:\\n")
+    # `entries:` is the last top-level key, so a properly indented item
+    # appends without a YAML parser (none exists in the sandbox image).
+    with open(path, "a") as handle:
+        handle.write(entry.rstrip("\\n") + "\\n")
 
 if step.get("ignore_cancellation"):
     signal.signal(signal.SIGTERM, signal.SIG_IGN)

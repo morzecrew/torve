@@ -15,8 +15,8 @@ from pathlib import Path
 import click
 
 import torve
-from torve import sabotage
 from torve.context import GitError, build_context, load_task
+from torve.gates import sabotage
 from torve.manifest import config_hash, load_manifest
 from torve.runner import run_gates
 from torve.sizing import StaticThresholds

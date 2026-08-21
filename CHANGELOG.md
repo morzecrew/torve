@@ -47,6 +47,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   four reachability targets, and four deliberately broken twins the oracle
   must catch.
 
+- Corpus amendments A-1..A-6 (`rfcs/AMENDMENTS.md`) applied: execution logs
+  are YAML (`logs/<task-id>.yaml`, single-use `scripts/migrate_logs.py`,
+  gate accepts YAML only), gate implementations carry their amendment names
+  (`decisions_reported.py`, `no_test_tampering.py`, `gates/sabotage.py`),
+  D-27 reworded as a git↔store boundary, and the charter records that agents
+  do not communicate (D-31).
+- Three specialised skills ship with the package (`skills/`, A-3/D-9.7):
+  `flag-dont-flip`, `rfc-writer`, `ratchet-what-you-build` — materialized
+  role-scoped into the sandbox at dispatch; no install command by design.
+- Hardened `rfc_index.py` (shipped with the specialised `rfc-writer`):
+  requires a Paths column, paths on every `LOCKED` row, and unique decision
+  identifiers; the corpus decision tables gained Paths columns throughout.
+
 ### Changed
 
 - `requires-python` is now `>=3.13,<3.15` (the forze substrate's floor).
+- `config_hash` now includes the Torve package version and the pinned forze
+  version (D-9.8) — both upgrades are regime changes telemetry must see.

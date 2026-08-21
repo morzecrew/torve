@@ -17,7 +17,7 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     scope = ctx.task.scope if ctx.task is not None else ctx.manifest.scope
     implicit: set[str] = set()
     if ctx.task is not None:
-        implicit.add(f"logs/{ctx.task.id}.md")
+        implicit.add(f"logs/{ctx.task.id}.yaml")
         implicit.add(f"tasks/{ctx.task.id}.yaml")
 
     allow = spec(scope.allow) if scope.allow else None

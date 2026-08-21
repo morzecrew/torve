@@ -5,7 +5,7 @@ import json
 from click.testing import CliRunner
 
 from torve.cli import main
-from torve.sabotage import base_task, log_document
+from torve.gates.sabotage import base_task, log_document
 from torve.sizing import StaticThresholds
 
 

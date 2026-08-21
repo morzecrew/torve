@@ -14,11 +14,11 @@ jobs:
           fetch-depth: 0 # gates diff against git merge-base
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --frozen
-      - run: uv run ruff check src tests
+      - run: uv run ruff check src tests scripts
       - run: uv run pytest
       # The sabotage suite: a gate that cannot be shown to fail is not a check.
       - run: uv run torve gates check
       # Dogfood: the repository's own manifest, on human and agent PRs alike.
       # Task branches (torve/T-nnnn) auto-discover their contract.
       - run: uv run torve gates run --base origin/main
-      - run: python3 .agents/skills/rfc-writer/scripts/rfc_index.py check
+      - run: uv run python skills/rfc-writer/scripts/rfc_index.py check
