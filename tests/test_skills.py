@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from torve.runconfig import RunnerConfig
-from torve.skills import available, materialize, skills_root
+from torve.application.skills import available, materialize, skills_root
+from torve.config.runconfig import RunnerConfig
 
 REPO = Path(__file__).resolve().parent.parent
 RFC_INDEX = REPO / "skills" / "rfc-writer" / "scripts" / "rfc_index.py"

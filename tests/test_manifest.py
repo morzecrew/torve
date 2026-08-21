@@ -3,8 +3,9 @@ from __future__ import annotations
 import pytest
 import yaml
 
+from torve.application.telemetry import config_hash
+from torve.config.manifest import load_manifest
 from torve.gates.sabotage import BASE_MANIFEST
-from torve.manifest import config_hash, load_manifest
 
 
 def write_manifest(tmp_path, data):

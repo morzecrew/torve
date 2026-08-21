@@ -22,14 +22,14 @@ from forze.application.execution.operations.registry import OperationRegistry
 from forze_dst import OperationCase
 from forze_dst.markers import reached, record_event
 
-from torve.adapters.durable_store import open_mock_store
-from torve.domain import TaskState
-from torve.models import Budget, Task
-from torve.ports import AgentResult
-from torve.run import AttemptHooks, drive_attempts
-from torve.runconfig import RunnerConfig, StoreConfig
-from torve.runstate import RunState
-from torve.taskstore import TaskStore
+from torve.adapters.store.durable import open_mock_store
+from torve.application.ports import AgentResult
+from torve.application.runner import AttemptHooks, drive_attempts
+from torve.application.runstate import RunState
+from torve.application.taskstore import TaskStore
+from torve.config.runconfig import RunnerConfig, StoreConfig
+from torve.domain.states import TaskState
+from torve.domain.task import Budget, Task
 
 CEILING = 2
 TASK_POOL = ("T-A", "T-B")

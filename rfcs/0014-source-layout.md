@@ -286,7 +286,7 @@ Do the sweep now rather than scoping the gate to changed files only. At the curr
 | D-14.3 | `LOCKED` | A dash that is not the post-import one carries a one-line label saying why the section is separate | `src/torve/**` | An unlabelled mid-file dash says "something changes" without saying what |
 | D-14.4 | `LOCKED` | Dots never carry labels | `src/torve/**` | They separate peers; the peer names itself on the next line |
 | D-14.5 | `LOCKED` | Dots go between class members — attributes and methods alike — not only between top-level definitions | `src/torve/**` | The indented use is the majority of them and gives the style its feel |
-| D-14.6 | `ASSUMED` | No dots between the members of a body-less Protocol | `src/torve/ports.py` | Signatures without bodies read as one block |
+| D-14.6 | `ASSUMED` | No dots between the members of a body-less Protocol | `src/torve/application/ports.py` | Signatures without bodies read as one block |
 | D-14.7 | `ASSUMED` | More than two dashes in a module is a split, not a layout choice | `src/torve/**` | Observed maximum in forze is two, in a 291-line file |
 | D-14.8 | `LOCKED` | One gate, one file, one section | `src/torve/gates/**` | A gate wanting a second section is two gates |
 | D-14.9 | `ASSUMED` | Lint configuration matches forze: line length 100, same rule selection | `pyproject.toml` | Two codebases read by the same people should not differ in mechanics |

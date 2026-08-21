@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from torve import layout
-from torve.runconfig import load_runner_config
+from torve.config import layout
+from torve.config.runconfig import load_runner_config
 
 
 def test_canonical_wins_over_legacy(tmp_path: Path) -> None:

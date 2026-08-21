@@ -23,9 +23,9 @@ from typing import Any, cast
 
 import yaml
 
-from torve.context import GateContext
-from torve.gates.base import NO_TASK, BuiltinOutcome, spec
-from torve.models import Gate
+from torve.config.manifest import Gate
+from torve.gates.context import GateContext
+from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
 
 # ----------------------- #
 

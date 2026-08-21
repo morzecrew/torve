@@ -1,0 +1,181 @@
+schema_version: 1
+task: T-0014
+repo: morzecrew/torve
+base_sha: e86d1da78ab36e73635317b6cedb5e716ed12aed
+created_at: 2026-08-22T13:00:00Z
+drift_count: 0
+notes: |
+  RFC 0015 adopted (transcribed as accepted, table normalized to the corpus
+  format with Paths per D-A.2/D-32) and executed: the flat package became
+  the layered tree via git mv, imports rewritten, the layer rules landed as
+  import-linter contracts wrapped by the layering gate, and three dependency
+  inversions made the contracts hold. Several of the RFC's rename-table rows
+  assumed different module contents than the tree actually had; each
+  interpretation is logged below.
+entries:
+  - decision: D-15.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:05:00Z
+    attempt: 1
+    claim: 'the package root holds only __init__.py and py.typed beside the eight §2 directories; every move was a git mv so history follows'
+    evidence: src/torve/__init__.py:1-10
+    action: decided
+  - decision: D-15.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:10:00Z
+    attempt: 1
+    claim: 'the "Gates stand alone" forbidden contract holds over the whole graph, and gates/ imports only domain, base and config — context, runner and the builtins moved inside gates/ precisely so the standalone library is one subpackage'
+    evidence: pyproject.toml:75-79
+    action: decided
+  - decision: D-15.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:15:00Z
+    attempt: 1
+    claim: the independence contract covers the five adapter ports and a runtime adapter importing the workspace adapter is a red sabotage case
+    evidence: tests/test_layering.py:110-113
+    action: decided
+  - decision: D-15.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:20:00Z
+    attempt: 1
+    claim: 'adapters are directories per port with technology files — agent/fake.py, runtime/docker.py, runtime/opensandbox.py, workspace/git.py, vcs/git.py, store/durable.py'
+    evidence: src/torve/adapters/runtime/docker.py:1
+    action: decided
+  - decision: D-15.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:25:00Z
+    attempt: 1
+    claim: 'the naming rule lives in the source-layout gate as a path check with its own red sabotage case; the tree''s one offender, gates/base.py, is gates/contract.py now and models.py no longer exists'
+    evidence: src/torve/gates/source_layout.py:29-32
+    action: decided
+  - decision: D-15.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:30:00Z
+    attempt: 1
+    claim: 'cli/ is one module per verb group holding parsing and rendering only, assembled in main.py; the shared plumbing is console.py and options.py, named for what they hold'
+    evidence: src/torve/cli/main.py:49-58
+    action: decided
+  - decision: D-15.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T13:35:00Z
+    attempt: 1
+    claim: '__init__.py resolves a curated table through PEP 562 with a TYPE_CHECKING mirror so checkers see the names; a subprocess test asserts import torve loads neither application, adapters nor cli'
+    evidence: src/torve/__init__.py:25-46
+    action: decided
+  - decision: D-15.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:40:00Z
+    attempt: 1
+    claim: four contracts over the whole package graph, wrapped by the layering manifest entry with worktree input — transitive edges included, which no diff-scoped checker sees
+    evidence: pyproject.toml:60-95
+    action: decided
+  - decision: D-15.9
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T13:45:00Z
+    attempt: 1
+    claim: 'no minted contract''s scope glob broke: T-0002 through T-0013 allow src/** at directory breadth, and the decision-row paths that named exact modules were metadata swept with the corpus'
+    evidence: .torve/tasks/T-0013.yaml:15
+    action: decided
+  - decision: D-15.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:50:00Z
+    attempt: 1
+    claim: import-linter sits in the dev dependency group with a comment saying why, and the layering red/green cases live in the repository test suite rather than the shipped sabotage set
+    evidence: pyproject.toml:30-33
+    action: decided
+  - decision: D-14.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:55:00Z
+    attempt: 1
+    claim: every new module written for the split carries the post-import dash and the moved modules kept theirs; the source-layout gate checks the whole changed set in this diff
+    evidence: src/torve/cli/console.py:19
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T14:00:00Z
+    attempt: 1
+    claim: 'the shipped suite grew the D-15.5 red case (25 cases); layering has three red cases — one per contract shape — and a green twin, exercised through the real gate runner over scratch packages'
+    evidence: tests/test_layering.py:1-12
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T14:05:00Z
+    attempt: 1
+    claim: 'the §3.2 rename table assumed context.py is the RFC 0007 CLI verb and runner.py is the attempt loop; in this tree context.py builds gate inputs and runner.py runs gates, while run.py held the attempt loop and cli parsing already lived apart since T-0013'
+    evidence: src/torve/gates/context.py:1-6
+    action: decided
+    proposal: "ASSUMED — the gate-input builder and the gate runner belong to the standalone library: gates/context.py and gates/runner.py; the attempt loop is application/runner.py; no cli/run.py split was needed because parsing never fused with the loop"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T14:10:00Z
+    attempt: 1
+    claim: 'the table sends runstate.py to domain/states.py, but RunState reads and writes its JSON file and §2 defines domain as no I/O; the state machine (TaskState, transitions, exit-code projection) is what moved to domain/states.py'
+    evidence: src/torve/application/runstate.py:1-8
+    action: decided
+    proposal: ASSUMED — the RFC's own layer definition outranks its rename table; the file-backed RunState is application/runstate.py
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T14:15:00Z
+    attempt: 1
+    claim: '§2.1 prose reads "gates → cli only", but the §6.1 contracts — which D-15.8 names as the enforcement — do not forbid application from importing gates, and the run loop legitimately invokes the gate pass in the worktree'
+    evidence: src/torve/application/runner.py:56
+    action: decided
+    proposal: "ASSUMED — the contracts are authoritative: gates may be imported by application and cli; the load-bearing direction (gates import nothing above domain/base/config) is unchanged"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T14:20:00Z
+    attempt: 1
+    claim: 'three latent violations surfaced exactly as §1 predicted: the run loop and reaper imported the store adapter, the TaskStore facade imported adapter wiring, and config_hash in the manifest module reached application.migrate for the forze pin'
+    evidence: src/torve/application/ports.py:31-35
+    action: decided
+    proposal: "ASSUMED — inverted rather than exempted: RunDeps carries a StoreFactory and reap() takes one, forze context wiring lives in the facade, and config_hash moved to application/telemetry.py where the telemetry it stamps lives; a fourth contract (Config stands alone) pins that last boundary per §6.1's plural"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T14:25:00Z
+    attempt: 1
+    claim: '§7.7 promotes layering to blocking once clean, but D-2.23''s promotion criteria want 30 real changes and a fire; the check is a deterministic graph property with no false-positive rate to soak'
+    evidence: .torve/gates.yaml:60-72
+    action: decided
+    proposal: "ASSUMED — followed §7.7: entered at shadow, report read (four contracts kept), sabotage red on demand, promoted to blocking in the same increment; proposed for RFC 0002: a deterministic self-development gate may promote on clean-plus-sabotage without the soak"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T14:30:00Z
+    attempt: 1
+    claim: 'the §3 target tree lists gates/layering.py and migrations/ inside the package; layering needs no Python module — the gate is a manifest entry wrapping lint-imports, the same shape as acceptance — and migrations/ ships as torve/_migrations wheel data from the repository root per RFC 0012'
+    evidence: .torve/gates.yaml:66-72
+    action: decided
+    proposal: ASSUMED — the target tree is read as the installed view where it conflicts with RFC 0012's source layout, and a tool-wrapping gate contributes no module
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T14:35:00Z
+    attempt: 1
+    claim: 'the moved data-path fallbacks broke silently: migrate and skills resolved development data relative to __file__ three parents up, which the deeper application/ location turned into src/migrations; caught by the CLI end-to-end test'
+    evidence: src/torve/application/migrate.py:34
+    action: decided
+    proposal: ASSUMED — parents[3] with the packaged torve/_migrations resolution unchanged; a moved module's __file__-relative escape is the first thing to re-check in any future move

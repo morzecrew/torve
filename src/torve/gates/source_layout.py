@@ -1,6 +1,8 @@
 """`source-layout` — the checkable half of RFC 0014: separator form, the
 post-import dash, the dash ceiling, dash labels and label-free dots, over the
-changed Python files under `src/` (input `diff`).
+changed Python files under `src/` (input `diff`). RFC 0015 adds the module
+naming rule here (D-15.5): a path rule, not an import rule, so it lives with
+the other file-level layout checks rather than in `layering`.
 
 Width, placement and labelling are script-checked; whether a label says
 something useful, whether a module should split, and whether a dot helps are
@@ -13,9 +15,9 @@ import ast
 import re
 from pathlib import Path
 
-from torve.context import GateContext
-from torve.gates.base import BuiltinOutcome
-from torve.models import Gate
+from torve.config.manifest import Gate
+from torve.gates.context import GateContext
+from torve.gates.contract import BuiltinOutcome
 
 # ----------------------- #
 
@@ -24,6 +26,10 @@ DOT = "# ....................... #"
 # A comment made of nothing but a dash or dot run is claiming to be a
 # separator; four repeats is the floor so a bare `# ...` placeholder is not.
 CANDIDATE = re.compile(r"^#\s*(-{4,}|\.{4,})\s*#?$")
+# Names that admit anything accumulate everything (D-15.5).
+FORBIDDEN_MODULE_NAMES = frozenset(
+    {"models.py", "utils.py", "helpers.py", "common.py", "base.py"}
+)
 
 
 def _top_level_lines(tree: ast.Module) -> tuple[int, int]:
@@ -118,6 +124,11 @@ def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         if not target.is_file():
             continue  # deleted in this diff
         checked += 1
+        if target.name in FORBIDDEN_MODULE_NAMES:
+            problems.append(
+                f"{rel}: module named {target.name!r} — a name that admits anything "
+                "accumulates everything; name the module for what it holds (D-15.5)"
+            )
         problems += _check_file(rel, target.read_text(encoding="utf-8", errors="replace"))
 
     if problems:

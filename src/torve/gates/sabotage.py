@@ -18,10 +18,10 @@ from typing import Any
 
 import yaml
 
-from torve import layout
-from torve.context import build_context
-from torve.manifest import load_manifest
-from torve.runner import run_gates
+from torve.config import layout
+from torve.config.manifest import load_manifest
+from torve.gates.context import build_context
+from torve.gates.runner import run_gates
 
 # ----------------------- #
 
@@ -324,6 +324,15 @@ def _layout_labelled_dot(repo: Repo) -> None:
     repo.commit("labelled dot")
 
 
+def _layout_forbidden_name(repo: Repo) -> None:
+    # D-15.5: the file conforms to RFC 0014 internally; only the name is wrong.
+    repo.seed()
+    repo.write("src/pkg/utils.py",
+               '"""Anything goes here, which is the problem."""\n\nimport os\n\n'
+               + LAYOUT_DASH + "\n\n\ndef sep() -> str:\n    return os.sep\n")
+    repo.commit("catch-all module")
+
+
 def _layout_clean(repo: Repo) -> None:
     body = (
         '"""A conforming module."""\n\nimport os\n\n'
@@ -365,6 +374,8 @@ CASES: list[Case] = [
     Case("source-layout: unlabelled second dash", "source-layout", "fail",
          _layout_unlabelled_second_dash),
     Case("source-layout: labelled dot", "source-layout", "fail", _layout_labelled_dot),
+    Case("source-layout: catch-all module name", "source-layout", "fail",
+         _layout_forbidden_name),
     Case("source-layout: conforming twin", "source-layout", "pass", _layout_clean),
 ]
 

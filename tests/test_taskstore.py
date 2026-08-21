@@ -10,9 +10,9 @@ from datetime import timedelta
 
 from forze.application.contracts.durable.function import DurableRunStatus
 
-from torve.adapters.durable_store import open_mock_store
-from torve.runconfig import StoreConfig
-from torve.taskstore import TaskStore
+from torve.adapters.store.durable import open_mock_store
+from torve.application.taskstore import TaskStore
+from torve.config.runconfig import StoreConfig
 
 FAST = StoreConfig(lease_for=0.2, heartbeat_divisor=2, max_run_duration=10)
 

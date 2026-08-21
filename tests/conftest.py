@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from torve import layout
-from torve.context import build_context
+from torve.config import layout
+from torve.config.manifest import load_manifest
+from torve.gates.context import build_context
 from torve.gates.sabotage import Repo
-from torve.manifest import load_manifest
 
 
 @pytest.fixture

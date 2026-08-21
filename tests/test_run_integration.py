@@ -16,18 +16,19 @@ import pytest
 import yaml
 from test_runtime_conformance import docker_available
 
-from torve import layout
-from torve.adapters.agent_fake import FakeAgent
-from torve.adapters.runtime_docker import DockerRuntime
-from torve.adapters.vcs_git import GitVcs, NullScm
-from torve.adapters.workspace_git import GitWorkspace
-from torve.context import load_task
-from torve.domain import TaskState
+from torve.adapters.agent.fake import FakeAgent
+from torve.adapters.runtime.docker import DockerRuntime
+from torve.adapters.store.durable import open_store
+from torve.adapters.vcs.git import GitVcs, NullScm
+from torve.adapters.workspace.git import GitWorkspace
+from torve.application.reaper import reap
+from torve.application.runner import RunDeps, run_task
+from torve.application.runstate import RunState
+from torve.config import layout
+from torve.config.runconfig import RunnerConfig, RuntimeConfig
+from torve.domain.states import TaskState
+from torve.gates.context import load_task
 from torve.gates.sabotage import TASK_ID, base_task
-from torve.reaper import reap
-from torve.run import RunDeps, run_task
-from torve.runconfig import RunnerConfig, RuntimeConfig
-from torve.runstate import RunState
 
 pytestmark = pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 
@@ -51,7 +52,7 @@ def seed_run_repo(repo) -> None:
 
 def deps_for(repo, agent) -> RunDeps:
     return RunDeps(workspace=GitWorkspace(repo.root), runtime=DockerRuntime(),
-                   agent=agent, vcs=GitVcs(), scm=NullScm())
+                   agent=agent, vcs=GitVcs(), scm=NullScm(), store=open_store)
 
 
 def test_one_task_end_to_end(repo):

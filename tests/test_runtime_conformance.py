@@ -17,11 +17,11 @@ import uuid
 import opensandbox_stub
 import pytest
 
-from torve import naming
-from torve.adapters.runtime_docker import DockerRuntime
-from torve.adapters.runtime_opensandbox import OpenSandboxRuntime
-from torve.ports import SandboxSpec
-from torve.runconfig import OpenSandboxConfig
+from torve.adapters.runtime.docker import DockerRuntime
+from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
+from torve.application.ports import SandboxSpec
+from torve.base import naming
+from torve.config.runconfig import OpenSandboxConfig
 
 # The runtime's default image: guaranteed shell + tar + python, and already
 # cached wherever the integration tests run.

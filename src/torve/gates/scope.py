@@ -8,10 +8,10 @@ to exist, so a scope that forbids writing it would deadlock the task.
 
 from __future__ import annotations
 
-from torve import layout
-from torve.context import GateContext
-from torve.gates.base import BuiltinOutcome, spec
-from torve.models import Gate
+from torve.config import layout
+from torve.config.manifest import Gate
+from torve.gates.context import GateContext
+from torve.gates.contract import BuiltinOutcome, spec
 
 # ----------------------- #
 

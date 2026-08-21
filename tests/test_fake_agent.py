@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import subprocess
 
-from torve.adapters.agent_fake import FakeAgent
-from torve.models import Task
-from torve.ports import AgentContext, ExecResult, SandboxHandle
+from torve.adapters.agent.fake import FakeAgent
+from torve.application.ports import AgentContext, ExecResult, SandboxHandle
+from torve.domain.task import Task
 
 
 class HostShellRuntime:

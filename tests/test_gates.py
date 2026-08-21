@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from conftest import context_for
 
+from torve.config.manifest import Gate
 from torve.gates.decisions_reported import check_decisions_reported
 from torve.gates.sabotage import TASK_ID, base_task, entry, log_document
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
-from torve.models import Gate
 
 GATE = Gate(name="test", run="@scope", state="blocking", origin="structural")  # any handle
 

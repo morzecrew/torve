@@ -9,9 +9,7 @@ import builtins
 import pytest
 import yaml
 
-from torve.gates.sabotage import BASE_MANIFEST
-from torve.manifest import config_hash
-from torve.migrate import (
+from torve.application.migrate import (
     MISSING_EXTRA_EXIT,
     MigrateError,
     check_forze_pin,
@@ -19,6 +17,8 @@ from torve.migrate import (
     status,
     steps_for,
 )
+from torve.application.telemetry import config_hash
+from torve.gates.sabotage import BASE_MANIFEST
 
 
 def test_owner_grouped_layout():
@@ -38,7 +38,7 @@ def test_the_pin_matches_the_installed_forze():
 
 
 def test_a_pin_mismatch_is_a_migration_task_not_a_warning(monkeypatch):
-    monkeypatch.setattr("torve.migrate.forze_pin", lambda: "0.0.1")
+    monkeypatch.setattr("torve.application.migrate.forze_pin", lambda: "0.0.1")
     ok, message = check_forze_pin()
     assert not ok
     assert "migration task" in message
@@ -53,7 +53,7 @@ def test_missing_extra_names_the_install_and_exit_code(monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", no_yoyo)
-    from torve.migrate import apply
+    from torve.application.migrate import apply
 
     with pytest.raises(MigrateError, match=r"torve\[migrate\]") as caught:
         apply("substrate", "postgresql://nowhere/db")
@@ -73,5 +73,5 @@ def test_config_hash_moves_with_the_forze_pin(tmp_path, monkeypatch):
     path = tmp_path / "gates.yaml"
     path.write_text(yaml.safe_dump(BASE_MANIFEST, sort_keys=False), encoding="utf-8")
     before = config_hash(path, tmp_path)
-    monkeypatch.setattr("torve.migrate.forze_pin", lambda: "9.9.9")
+    monkeypatch.setattr("torve.application.migrate.forze_pin", lambda: "9.9.9")
     assert config_hash(path, tmp_path) != before  # the pin is part of the regime

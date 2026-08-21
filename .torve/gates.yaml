@@ -57,6 +57,19 @@ gates:
     state: shadow
     origin: rfc/0014
     added: 2026-08-21
+  # RFC 0015 §6 (D-15.8): the layer contracts, checked by import-linter over
+  # the whole package — a self-development gate (D-15.10), meaningful only in
+  # this repository; the tool is a dev dependency and never ships. Entered at
+  # shadow (§7.6), report read clean, sabotage red on demand, then promoted to
+  # blocking per §7.7 — a deterministic graph check has no false-positive rate
+  # to soak (departure from D-2.23's 30-change criterion, logged in T-0014).
+  - name: layering
+    run: "uv run lint-imports"
+    state: blocking
+    origin: rfc/0015
+    added: 2026-08-22
+    input: worktree
+    timeout: 60
   - name: acceptance
     run: "@task.acceptance"
     state: blocking

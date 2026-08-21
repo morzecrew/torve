@@ -8,10 +8,11 @@ run and are recorded, but their failures stop blocking until fixed
 
 from __future__ import annotations
 
-from torve.context import GateContext
-from torve.gates.base import BuiltinOutcome
-from torve.models import Gate, GateOutcome
-from torve.shell import run_command
+from torve.base.shell import run_command
+from torve.config.manifest import Gate
+from torve.domain.attempt import GateOutcome
+from torve.gates.context import GateContext
+from torve.gates.contract import BuiltinOutcome
 
 # ----------------------- #
 

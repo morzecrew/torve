@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from torve.models import Gate, Task
+from torve.config.manifest import Gate
+from torve.domain.task import Task
 
 
 def test_decisions_must_be_explicit():

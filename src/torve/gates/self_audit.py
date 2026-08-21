@@ -8,10 +8,10 @@ cannot tell a clean run from an unexamined one (D-2.10; YAML per A-1).
 
 from __future__ import annotations
 
-from torve.context import GateContext
-from torve.gates.base import NO_TASK, BuiltinOutcome
+from torve.config.manifest import Gate
+from torve.gates.context import GateContext
+from torve.gates.contract import NO_TASK, BuiltinOutcome
 from torve.gates.decisions_reported import parse_log
-from torve.models import Gate
 
 # ----------------------- #
 

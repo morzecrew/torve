@@ -4,14 +4,14 @@ import itertools
 
 import pytest
 
-from torve.domain import (
+from torve.application.runstate import RunState
+from torve.domain.states import (
     TRANSITIONS,
     EscalationReason,
     IllegalTransition,
     TaskState,
     check_transition,
 )
-from torve.runstate import RunState
 
 
 def test_the_happy_path_is_legal():
@@ -78,7 +78,7 @@ def test_illegal_transition_does_not_corrupt_state(tmp_path):
 def test_every_escalation_reason_has_an_exit_code():
     # D-11.4: one taxonomy, two views — a new reason without a code (or a
     # code without a reason) must fail here, not in a caller's script.
-    from torve.domain import EXIT_BY_REASON, EscalationReason
+    from torve.domain.states import EXIT_BY_REASON, EscalationReason
 
     assert set(EXIT_BY_REASON) == set(EscalationReason)
     assert all(2 <= code <= 5 for code in EXIT_BY_REASON.values())

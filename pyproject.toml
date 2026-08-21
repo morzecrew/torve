@@ -27,6 +27,9 @@ torve = "torve.cli:main"
 [dependency-groups]
 dev = [
     "basedpyright>=1.31",
+    # Backs the layering gate (RFC 0015, D-15.8). Dev-only on purpose
+    # (D-15.10): a check on Torve's internals never ships to consumers.
+    "import-linter>=2",
     "forze[dst,postgres]>=0.6.0",
     "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
@@ -50,6 +53,46 @@ packages = ["src/torve"]
 # Migrations ship as package data (MIGRATIONS.md §2): a wheel that knows how
 # to migrate but has nothing to migrate with is discovered at first deployment.
 "migrations" = "torve/_migrations"
+
+# RFC 0015 §6 (D-15.8): the layer rules as import-linter contracts, wrapped by
+# the `layering` gate. `gates` and `config` sit beside the main stack — they
+# do not fit a total order, so they get their own forbidden contracts.
+[tool.importlinter]
+root_package = "torve"
+
+[[tool.importlinter.contracts]]
+name = "Layers"
+type = "layers"
+layers = [
+    "torve.cli",
+    "torve.adapters",
+    "torve.application",
+    "torve.domain",
+    "torve.base",
+]
+
+[[tool.importlinter.contracts]]
+name = "Gates stand alone"
+type = "forbidden"
+source_modules = ["torve.gates"]
+forbidden_modules = ["torve.application", "torve.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "Config stands alone"
+type = "forbidden"
+source_modules = ["torve.config"]
+forbidden_modules = ["torve.application", "torve.adapters", "torve.cli"]
+
+[[tool.importlinter.contracts]]
+name = "Adapters are independent"
+type = "independence"
+modules = [
+    "torve.adapters.agent",
+    "torve.adapters.runtime",
+    "torve.adapters.workspace",
+    "torve.adapters.vcs",
+    "torve.adapters.store",
+]
 
 [tool.ruff]
 line-length = 100

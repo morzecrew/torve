@@ -4,11 +4,10 @@ import json
 
 from conftest import context_for
 
-from torve import layout
+from torve.application.telemetry import append_record, build_record, config_hash
+from torve.config import layout
+from torve.gates.runner import run_gates
 from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
-from torve.manifest import config_hash
-from torve.runner import run_gates
-from torve.telemetry import append_record, build_record
 
 
 def manifest_with(gates: list[dict], **extra) -> dict:

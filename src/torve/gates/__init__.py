@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from torve.context import GateContext
+from torve.config.manifest import Gate
 from torve.gates.acceptance import check_acceptance
-from torve.gates.base import BuiltinOutcome
+from torve.gates.context import GateContext
+from torve.gates.contract import BuiltinOutcome
 from torve.gates.decisions_reported import check_decisions_reported
 from torve.gates.no_test_tampering import check_no_test_tampering
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 from torve.gates.self_audit import check_self_audit
 from torve.gates.source_layout import check_source_layout
-from torve.models import Gate
 
 # ----------------------- #
 

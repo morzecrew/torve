@@ -14,7 +14,10 @@ rfcs/                      the design corpus; INDEX.md is generated (D-A.6),
 ops/                       one-off procedures, deleted once executed (D-A.1b)
 pages/                     published documentation — links to decisions,
                            never restates them (D-A.1a)
-src/torve/                 the gates library and runner (RFC 0002 + 0003)
+src/torve/                 the gates library and runner (RFC 0002 + 0003),
+                           layered per RFC 0015: base/ domain/ application/
+                           adapters/ gates/ config/ cli/ — enforced by the
+                           layering gate (import-linter contracts)
 skills/                    specialised skills shipped with the package (A-3)
 .torve/                    every Torve file, root stays clean (RFC 0013):
   gates.yaml               this repository's own gate manifest

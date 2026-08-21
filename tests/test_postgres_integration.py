@@ -23,8 +23,8 @@ import pytest
 from forze.application.contracts.durable.function import DurableRunStatus
 from test_runtime_conformance import docker_available
 
-from torve.migrate import apply as migrate_apply
-from torve.runconfig import StoreConfig
+from torve.application.migrate import apply as migrate_apply
+from torve.config.runconfig import StoreConfig
 
 pytestmark = pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 
@@ -70,8 +70,8 @@ def pg_dsn(pg_server):
 
 
 async def make_taskstore(store_config):
-    from torve.adapters.durable_store import open_store
-    from torve.taskstore import TaskStore
+    from torve.adapters.store.durable import open_store
+    from torve.application.taskstore import TaskStore
 
     taskstore = TaskStore(await open_store(store_config), store_config)
 

@@ -150,11 +150,11 @@ progress bars · spinners · colour themes · `status` with live refresh · a TU
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-11.1 | `ASSUMED` | Typer plus Rich | `src/torve/cli.py` `pyproject.toml` | Low cost to adopt, higher to migrate later |
-| D-11.2 | `LOCKED` | `--format json` on every result-producing command from its first implementation | `src/torve/cli.py` | Retrofitting breaks whatever already parses human output |
-| D-11.3 | `LOCKED` | JSON output matches the persisted record shape; no CLI-only schema | `src/torve/cli.py` `src/torve/models.py` | A second contract falls out of sync |
-| D-11.4 | `LOCKED` | Exit codes 0–5 as tabled; a new code requires a new escalation reason | `src/torve/cli.py` `src/torve/domain.py` | Published codes cannot be redefined |
-| D-11.5 | `ASSUMED` | `--plain` implied by `CI`, non-TTY, or `--format json`; `NO_COLOR` honoured | `src/torve/cli.py` | Autodetection alone is not reliable enough |
-| D-11.6 | `LOCKED` | Results on stdout, diagnostics on stderr, never mixed | `src/torve/cli.py` | The basis of every machine consumer |
-| D-11.7 | `LOCKED` | No interactive prompts; if ever added, fail with code 3 on non-TTY stdin | `src/torve/cli.py` | A prompt hangs forever in CI and in a sandbox |
+| D-11.1 | `ASSUMED` | Typer plus Rich | `src/torve/cli/**` `pyproject.toml` | Low cost to adopt, higher to migrate later |
+| D-11.2 | `LOCKED` | `--format json` on every result-producing command from its first implementation | `src/torve/cli/**` | Retrofitting breaks whatever already parses human output |
+| D-11.3 | `LOCKED` | JSON output matches the persisted record shape; no CLI-only schema | `src/torve/cli/**` `src/torve/domain/**` | A second contract falls out of sync |
+| D-11.4 | `LOCKED` | Exit codes 0–5 as tabled; a new code requires a new escalation reason | `src/torve/cli/**` `src/torve/domain/states.py` | Published codes cannot be redefined |
+| D-11.5 | `ASSUMED` | `--plain` implied by `CI`, non-TTY, or `--format json`; `NO_COLOR` honoured | `src/torve/cli/**` | Autodetection alone is not reliable enough |
+| D-11.6 | `LOCKED` | Results on stdout, diagnostics on stderr, never mixed | `src/torve/cli/**` | The basis of every machine consumer |
+| D-11.7 | `LOCKED` | No interactive prompts; if ever added, fail with code 3 on non-TTY stdin | `src/torve/cli/**` | A prompt hangs forever in CI and in a sandbox |
 | D-11.8 | `ASSUMED` | Presentation polish deferred until after Phase 3 | — | Revisit when hand-run commands are known |

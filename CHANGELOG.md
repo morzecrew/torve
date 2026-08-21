@@ -68,6 +68,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- RFC 0015 (source tree structure) adopted and executed: `src/torve` is
+  layered — `base/`, `domain/` (task, attempt, states aggregates),
+  `application/` (ports, run loop, services), `adapters/<port>/<technology>`,
+  `gates/` (standalone, importing only domain/base/config), `config/`,
+  `cli/` (one module per verb group) — with every move a `git mv`. The
+  layer rules are import-linter contracts in pyproject wrapped by the new
+  `layering` gate (worktree input, origin rfc/0015); three dependency
+  inversions made them hold: the run loop and reaper receive a store
+  factory instead of importing the adapter, forze context wiring moved into
+  the TaskStore facade, and `config_hash` moved to `application/telemetry`.
+  `torve/__init__.py` is a curated lazy front door (PEP 562) — `import
+  torve` no longer touches the runner, adapters or CLI. `gates/base.py` is
+  `gates/contract.py`; the D-15.5 module-naming rule (`models`/`utils`/
+  `helpers`/`common`/`base` forbidden) joins the `source-layout` gate with
+  a sabotage case; layering's own red/green cases live in the repository
+  test suite because it is a self-development gate and `import-linter`
+  stays a dev dependency (D-15.10).
 - RFC 0011 (CLI contract) executed: the CLI is Typer plus Rich (D-11.1,
   closing the Click departure logged at RFC promotion); every
   result-producing command takes `--format json` and emits the persisted

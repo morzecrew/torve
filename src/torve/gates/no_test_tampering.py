@@ -10,9 +10,9 @@ check against, so the gate reports skipped, never green.
 
 from __future__ import annotations
 
-from torve.context import GateContext
-from torve.gates.base import NO_TASK, BuiltinOutcome, matches_any, spec
-from torve.models import Gate
+from torve.config.manifest import Gate
+from torve.gates.context import GateContext
+from torve.gates.contract import NO_TASK, BuiltinOutcome, matches_any, spec
 
 # ----------------------- #
 

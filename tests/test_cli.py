@@ -4,9 +4,9 @@ import json
 
 from typer.testing import CliRunner
 
+from torve.application.sizing import StaticThresholds
 from torve.cli import app
 from torve.gates.sabotage import base_task, log_document
-from torve.sizing import StaticThresholds
 
 
 def test_gates_run_end_to_end(repo):
@@ -101,6 +101,6 @@ def test_size_estimate():
 
 
 def base_task_model():
-    from torve.models import Task
+    from torve.domain.task import Task
 
     return Task.model_validate(base_task(allow=["src/**"]) | {"acceptance": ["true"]})

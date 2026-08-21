@@ -118,14 +118,14 @@ Behaviour:
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-10.1 | `LOCKED` | The agent produces code; the runner produces every forge artefact | `src/torve/adapters/vcs_git.py` | The mechanism that makes D-4b achievable |
-| D-10.2 | `LOCKED` | Commit author is the agent identity, never a human | `src/torve/adapters/vcs_git.py` | Attributing machine work to a person corrupts blame and review data |
-| D-10.3 | `LOCKED` | Signing happens outside the sandbox, at the runner boundary | `src/torve/adapters/vcs_git.py` | The agent cannot hold the key |
-| D-10.4 | `LOCKED` | Provenance trailers on every commit, including `config_hash` | `src/torve/adapters/vcs_git.py` | The only durable link from a bad commit back to its regime |
-| D-10.5 | `LOCKED` | Force-push forbidden once review has started | `src/torve/adapters/vcs_git.py` | Protects review freshness and line comments |
-| D-10.6 | `LOCKED` | Pull-request bodies are composed from data, never from agent prose | `src/torve/adapters/vcs_git.py` | A self-report is not evidence |
-| D-10.7 | `LOCKED` | Revert is a role, preferring `git revert`, passing the same gates and the same lane | `src/torve/adapters/vcs_git.py` `src/torve/run.py` | An unreviewed emergency path is how the guarantees get bypassed |
-| D-10.8 | `ASSUMED` | One commit per attempt | `src/torve/adapters/vcs_git.py` | Depart if attempts routinely produce unrelated changes — which is itself a task-size finding |
+| D-10.1 | `LOCKED` | The agent produces code; the runner produces every forge artefact | `src/torve/adapters/vcs/git.py` | The mechanism that makes D-4b achievable |
+| D-10.2 | `LOCKED` | Commit author is the agent identity, never a human | `src/torve/adapters/vcs/git.py` | Attributing machine work to a person corrupts blame and review data |
+| D-10.3 | `LOCKED` | Signing happens outside the sandbox, at the runner boundary | `src/torve/adapters/vcs/git.py` | The agent cannot hold the key |
+| D-10.4 | `LOCKED` | Provenance trailers on every commit, including `config_hash` | `src/torve/adapters/vcs/git.py` | The only durable link from a bad commit back to its regime |
+| D-10.5 | `LOCKED` | Force-push forbidden once review has started | `src/torve/adapters/vcs/git.py` | Protects review freshness and line comments |
+| D-10.6 | `LOCKED` | Pull-request bodies are composed from data, never from agent prose | `src/torve/adapters/vcs/git.py` | A self-report is not evidence |
+| D-10.7 | `LOCKED` | Revert is a role, preferring `git revert`, passing the same gates and the same lane | `src/torve/adapters/vcs/git.py` `src/torve/application/runner.py` | An unreviewed emergency path is how the guarantees get bypassed |
+| D-10.8 | `ASSUMED` | One commit per attempt | `src/torve/adapters/vcs/git.py` | Depart if attempts routinely produce unrelated changes — which is itself a task-size finding |
 | D-10.9 | `OPEN` | Whether review-run artefacts get their own branch or live only as comments | — | Decided when 0005 ships |
 
 ## 9. Exit criteria

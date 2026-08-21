@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import pytest
 
-import torve.run as run_module
-from torve.domain import TaskState
-from torve.models import Budget, Scope, Task
-from torve.ports import AgentResult, ExecResult, SandboxHandle, SandboxInfo
-from torve.run import RunDeps, run_task
-from torve.runconfig import RunnerConfig
+import torve.application.runner as run_module
+from torve.adapters.store.durable import open_store
+from torve.application.ports import AgentResult, ExecResult, SandboxHandle, SandboxInfo
+from torve.application.runner import RunDeps, run_task
+from torve.config.runconfig import RunnerConfig
+from torve.domain.states import TaskState
+from torve.domain.task import Budget, Scope, Task
 
 
 class MockRuntime:
@@ -112,7 +113,7 @@ def rig(repo, monkeypatch):
     repo.seed()  # a real git repo so base resolution works
     runtime, vcs = MockRuntime(), MockVcs()
     deps = RunDeps(workspace=MockWorkspace(repo.root), runtime=runtime,
-                   agent=ScriptedAgent([OK]), vcs=vcs, scm=MockScm())
+                   agent=ScriptedAgent([OK]), vcs=vcs, scm=MockScm(), store=open_store)
     gate_outcomes: list[int] = []
 
     def scripted_gates(*args, **kwargs):

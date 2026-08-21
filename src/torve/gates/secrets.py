@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import re
 
-from torve.context import GateContext
-from torve.gates.base import BuiltinOutcome
-from torve.models import Gate
+from torve.config.manifest import Gate
+from torve.gates.context import GateContext
+from torve.gates.contract import BuiltinOutcome
 
 # ----------------------- #
 

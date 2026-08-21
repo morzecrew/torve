@@ -1,0 +1,80 @@
+# RFC 0015 adopted and executed: src/torve layered per §3 with git mv
+# throughout, the layer rules as import-linter contracts wrapped by the
+# layering gate, three dependency inversions to make them hold, the lazy
+# front door, gates/contract.py, the D-15.5 naming rule in source-layout,
+# and the self-development/product gate split.
+schema_version: 1
+id: T-0014
+rfc: rfcs/0015-source-tree.md
+phase: 1
+role: implement
+depends_on: [T-0011, T-0013]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - ".torve/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-15.1
+    grade: LOCKED
+    text: Five layers plus gates, config, cli, with the §2.1 import directions
+    paths: ["src/torve/**"]
+  - id: D-15.2
+    grade: LOCKED
+    text: gates may import only domain, base and config
+    paths: ["src/torve/gates/**", "pyproject.toml"]
+  - id: D-15.3
+    grade: LOCKED
+    text: Adapters never import each other
+    paths: ["src/torve/adapters/**", "pyproject.toml"]
+  - id: D-15.4
+    grade: LOCKED
+    text: Adapters are organised adapters/<port>/<technology>.py
+    paths: ["src/torve/adapters/**"]
+  - id: D-15.5
+    grade: LOCKED
+    text: No module named models, utils, helpers, common or base; enforced by source-layout
+    paths: ["src/torve/gates/source_layout.py"]
+  - id: D-15.6
+    grade: LOCKED
+    text: A module named after a CLI verb lives in cli/ and holds parsing and rendering only
+    paths: ["src/torve/cli/**"]
+  - id: D-15.7
+    grade: ASSUMED
+    text: __init__.py is a curated lazy front door
+    paths: ["src/torve/__init__.py"]
+  - id: D-15.8
+    grade: LOCKED
+    text: §2.1 enforced by import-linter contracts wrapped in the layering gate
+    paths: ["pyproject.toml", ".torve/gates.yaml"]
+  - id: D-15.9
+    grade: ASSUMED
+    text: The move happens before any task contract references a path under src/torve/
+    paths: [".torve/tasks/**"]
+  - id: D-15.10
+    grade: LOCKED
+    text: Product and self-development gates are distinct sets; import-linter stays dev-only
+    paths: ["pyproject.toml", ".torve/gates.yaml"]
+  - id: D-14.2
+    grade: LOCKED
+    text: One dash after the import block in every module with imports
+    paths: ["src/torve/**"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case observed to fail
+    paths: ["src/torve/gates/sabotage.py", "tests/test_layering.py"]
+budget: {}
+tier: executor
