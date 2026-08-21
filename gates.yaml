@@ -1,0 +1,30 @@
+# Gate manifest for this repository (RFC 0002, D-2.5: manifests live in the
+# consuming repository, not in the package). Torve gates its own development.
+schema_version: 1
+
+# Repository-level scope, used on runs with no task contract. Unconstrained:
+# human work on this repository is not scoped; task branches carry their own.
+scope:
+  allow: []
+  deny: []
+
+gates:
+  - name: scope
+    run: "@scope"
+  - name: secrets
+    run: "@secrets"
+  - name: no-test-tampering
+    run: "@no-test-tampering"
+  - name: decisions-reported
+    run: "@decisions-reported"
+  - name: self-audit
+    run: "@self-audit"
+    blocking: false
+  - name: acceptance
+    run: "@task.acceptance"
+    timeout: 900
+    # Fallback for runs with no task contract (human pull requests).
+    commands:
+      - "uv run ruff check src tests"
+      - "uv run pytest"
+      - "python3 .agents/skills/rfc-writer/scripts/rfc_index.py check"

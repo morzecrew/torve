@@ -1,0 +1,80 @@
+# The bootstrap task: implement RFC 0002 (gates as a library) in this
+# repository. Hand-minted — `torve plan` arrives with RFC 0007.
+schema_version: 1
+id: T-0002
+rfc: rfcs/0002-gates-library.md
+phase: 1
+role: implement
+depends_on: []
+scope:
+  allow:
+    - "src/**"
+    - "tests/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - "gates.yaml"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+    - ".gitignore"
+    - "rfcs/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest"
+  - "python3 .agents/skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-3
+    grade: LOCKED
+    text: Gates execute outside the agent session; an agent cannot report a gate outcome
+    paths: ["src/torve/runner.py"]
+  - id: D-8
+    grade: ASSUMED
+    text: Pydantic is the single contract source
+    paths: ["src/torve/models.py"]
+  - id: D-21a
+    grade: LOCKED
+    text: Execution-log format per RFC 0001 §6 — one file per task, append-only, grade copied at write time
+    paths: ["src/torve/gates/decisions.py", "logs/**"]
+  - id: D-27
+    grade: LOCKED
+    text: No contract, decision or execution log ever moves from git into a database
+    paths: ["tasks/**", "logs/**", "src/torve/telemetry.py"]
+  - id: D-2.1
+    grade: LOCKED
+    text: Gates ship as an installed package, not copied scripts
+    paths: ["pyproject.toml", "src/**"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate has a sabotage case; no case, no gate
+    paths: ["src/torve/sabotage.py"]
+  - id: D-2.3
+    grade: ASSUMED
+    text: The starting set is the five gates plus secrets and grows from observed leaks
+    paths: ["src/torve/gates/**"]
+  - id: D-2.4
+    grade: ASSUMED
+    text: Telemetry is JSONL until a query demands otherwise
+    paths: ["src/torve/telemetry.py"]
+  - id: D-2.5
+    grade: ASSUMED
+    text: Gate manifests live in the consuming repository, not in the package
+    paths: ["gates.yaml"]
+  - id: D-2.6
+    grade: LOCKED
+    text: flaky is a distinct outcome that does not consume an attempt
+    paths: ["src/torve/shell.py", "src/torve/gates/acceptance.py"]
+  - id: D-2.7
+    grade: LOCKED
+    text: Bypass requires a human signature, a mandatory reason, a log entry and a counter
+    paths: ["src/torve/runner.py", "src/torve/context.py"]
+  - id: D-2.8
+    grade: LOCKED
+    text: Secret scanning blocks and cannot be bypassed
+    paths: ["src/torve/gates/secrets.py", "src/torve/runner.py"]
+  - id: D-2.9
+    grade: ASSUMED
+    text: Task size is a port with pre-dispatch estimate and post-hoc calibration
+    paths: ["src/torve/sizing.py"]
+budget: {}
+tier: executor

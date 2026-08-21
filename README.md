@@ -10,7 +10,29 @@ cannot prove it did what it was told.
 
 ```text
 rfcs/                      the design corpus
+src/torve/                 the gates library (RFC 0002 increment)
+gates.yaml                 this repository's own gate manifest
+tasks/  logs/              task contracts and append-only execution logs
 ```
+
+## Gates (RFC 0002, shipped here)
+
+```bash
+pip install torve            # or: uv sync inside this repository
+torve gates run --base origin/main          # all gates; exit code is the outcome
+torve gates run --only scope,acceptance
+torve gates run --format json               # GateResult records for ingestion
+torve gates check                           # the sabotage suite
+torve size tasks/T-0002.yaml                # pre-dispatch size estimate
+```
+
+One CI step per repository, `gates.yaml` at the repository root. Builtin gates:
+`scope`, `acceptance`, `no-test-tampering`, `decisions-reported`, `self-audit`,
+`secrets`; anything else is a shell command in the manifest. On a
+`torve/T-nnnn` branch the task contract in `tasks/` is discovered
+automatically; without one, task-input gates report `skipped`, never a silent
+green. Every run appends a JSONL telemetry record stamped with
+`config_hash`.
 
 ## Reading order
 
