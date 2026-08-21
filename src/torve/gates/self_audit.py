@@ -13,6 +13,8 @@ from torve.gates.base import NO_TASK, BuiltinOutcome
 from torve.gates.decisions_reported import parse_log
 from torve.models import Gate
 
+# ----------------------- #
+
 
 def check_self_audit(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:

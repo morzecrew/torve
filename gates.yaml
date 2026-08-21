@@ -41,14 +41,22 @@ gates:
     origin: structural
     added: 2026-08-21
   # Derived from the document conventions (charter A-7, D-A.3/D-A.6): the
-  # corpus validator as a gate. Enters at shadow per D-2.18 — its own first
-  # test of the lifecycle; CI keeps the blocking dedicated step meanwhile.
-  - name: source-layout
+  # corpus validator as a gate. Enters at shadow per D-2.18; CI keeps the
+  # blocking dedicated step meanwhile. (Named source-layout until RFC 0014
+  # arrived and claimed that name for its own gate.)
+  - name: rfc-index
     run: "uv run python skills/rfc-writer/scripts/rfc_index.py check"
     state: shadow
     origin: rfc/0001
     added: 2026-08-21
     timeout: 60
+  # The checkable half of RFC 0014 (D-14.11), entering at shadow per D-2.18
+  # after the one-time repository sweep (D-14.12).
+  - name: source-layout
+    run: "@source-layout"
+    state: shadow
+    origin: rfc/0014
+    added: 2026-08-21
   - name: acceptance
     run: "@task.acceptance"
     state: blocking

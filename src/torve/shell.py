@@ -13,6 +13,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+# ----------------------- #
+
 OUTPUT_LIMIT = 8000
 
 # One execution of one command: (command, timeout_s) -> (exit code | None on

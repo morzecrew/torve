@@ -6,7 +6,7 @@ from torve.gates.sabotage import CASES, run_all
 def test_every_gate_has_a_red_case_and_a_green_case():
     """D-2.2: no case, no gate — both directions, for every builtin."""
     for gate in ("scope", "acceptance", "no-test-tampering",
-                 "decisions-reported", "self-audit", "secrets"):
+                 "decisions-reported", "self-audit", "secrets", "source-layout"):
         expectations = {c.expected for c in CASES if c.gate == gate}
         assert "fail" in expectations, f"{gate} has no sabotage case"
         assert expectations & {"pass", "flaky", "bypassed"}, f"{gate} has no green twin"

@@ -16,6 +16,8 @@ from torve.context import GateContext
 from torve.gates.base import BuiltinOutcome
 from torve.models import Gate
 
+# ----------------------- #
+
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("private key", re.compile(r"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY(?: BLOCK)?-----")),
     ("aws access key id", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),

@@ -68,6 +68,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- RFC 0014 (source file layout, `kind: convention`) adopted: two 27-character
+  separators (structural dash, rhythmic dot) extracted from forze; the
+  checkable half ships as the `@source-layout` builtin over the diff
+  (separator form, post-import dash, dash ceiling, dash labels, label-free
+  dots) with five red sabotage cases and a green twin; the whole `src` tree
+  swept once (post-import dashes in 33 modules, banners normalized); ruff
+  selection matched to forze (adds RUF/ASYNC/C4/ISC/PIE/T20, RUF001-003
+  ignored for typographic docstrings); the gate enters `gates.yaml` at
+  `shadow` with `origin: rfc/0014`, and the T-0010 corpus-validator gate is
+  renamed `rfc-index`.
 - Gate lifecycle (amendment A-8 to RFC 0002, D-2.18–D-2.23): §7 added with
   the state machine `proposed → shadow → blocking → quarantined → retired`,
   the five filters, the implementation/activation split, health metrics and

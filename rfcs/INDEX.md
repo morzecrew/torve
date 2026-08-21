@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0014**.
+number is **0015**.
 
 | # | Title | Status | Depends on | A | One-line routing description |
 | --- | --- | --- | --- | --- | --- |
@@ -23,5 +23,6 @@ number is **0014**.
 | [0011](0011-cli-contract.md) | CLI contract | accepted | — | 0 | Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed by CI, telemetry and scripts — plus where UX effort actually pays. |
 | [0012](0012-migrations.md) | Migrations | accepted | 0003 | 0 | Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and the conformance battery as the gate. |
 | [0013](0013-configuration-layout.md) | Configuration layout | accepted | — | 0 | Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file. |
+| [0014](0014-source-layout.md) | Source file layout | accepted | — | 0 | Semantic separators and module preamble structure for Torve's Python source, extracted from forze by reading and counting; the checkable half ships as the source-layout gate. |
 
 `A` counts amendments. Statuses: draft · accepted · superseded.

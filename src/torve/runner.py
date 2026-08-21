@@ -19,6 +19,8 @@ from torve.gates.base import BuiltinOutcome
 from torve.models import BypassRecord, Gate, GateOutcome, GateResult
 from torve.shell import run_command
 
+# ----------------------- #
+
 
 @dataclass
 class RunReport:
@@ -121,7 +123,7 @@ def run_gates(ctx: GateContext, only: set[str] | None = None) -> RunReport:
         started = time.monotonic()
         try:
             outcome = _execute(gate, ctx)
-        except Exception as exc:  # noqa: BLE001 — gate machinery broke, not the code under test
+        except Exception as exc:
             outcome = BuiltinOutcome("error", f"gate infrastructure failure: {exc!r}")
         duration = time.monotonic() - started
 

@@ -22,6 +22,8 @@ from torve.context import build_context
 from torve.manifest import load_manifest
 from torve.runner import run_gates
 
+# ----------------------- #
+
 TASK_ID = "T-9001"
 AT = "2026-08-21T00:00:00Z"
 
@@ -36,6 +38,8 @@ BASE_MANIFEST: dict[str, Any] = {
         {"name": "decisions-reported", "run": "@decisions-reported",
          "state": "blocking", "origin": "structural"},
         {"name": "self-audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
+        {"name": "source-layout", "run": "@source-layout",
+         "state": "shadow", "origin": "rfc/0014"},
         {"name": "acceptance", "run": "@task.acceptance",
          "state": "blocking", "origin": "structural", "commands": ["true"]},
     ],
@@ -135,9 +139,9 @@ class Case:
     build: Callable[[Repo], None]
 
 
-# --------------------------------------------------------------------------- #
-# scenarios
-# --------------------------------------------------------------------------- #
+# ----------------------- #
+# Scenario builders — each seeds a repository the gate under test must judge.
+
 
 def _scope_bad(repo: Repo) -> None:
     manifest = dict(BASE_MANIFEST, scope={"allow": ["src/**"], "deny": []})
@@ -276,6 +280,62 @@ def _bypass_refused_for_secrets(repo: Repo) -> None:
              "try to bypass\n\nTorve-Bypass: secrets: just this once")
 
 
+LAYOUT_DASH = "# ----------------------- #"
+LAYOUT_DOT = "# ....................... #"
+
+
+def _layout_bad_width(repo: Repo) -> None:
+    repo.seed()
+    repo.write("src/mod.py", "import os\n\n# -------------------- #\n\n\nx = os.sep\n")
+    repo.commit("20-dash separator")
+
+
+def _layout_missing_dash(repo: Repo) -> None:
+    repo.seed()
+    repo.write("src/mod.py", "import os\n\n\ndef sep() -> str:\n    return os.sep\n")
+    repo.commit("imports with no post-import dash")
+
+
+def _layout_three_dashes(repo: Repo) -> None:
+    body = "import os\n\n" + LAYOUT_DASH + "\n\nA = 1\n\n" \
+        + LAYOUT_DASH + "\n# Second section — labelled, still one too many below.\n\nB = 2\n\n" \
+        + LAYOUT_DASH + "\n# Third section.\n\nC = os.sep\n"
+    repo.seed()
+    repo.write("src/mod.py", body)
+    repo.commit("three structural dashes")
+
+
+def _layout_unlabelled_second_dash(repo: Repo) -> None:
+    body = "import os\n\n" + LAYOUT_DASH + "\n\nA = 1\n\n" \
+        + LAYOUT_DASH + "\n\nB = os.sep\n"
+    repo.seed()
+    repo.write("src/mod.py", body)
+    repo.commit("second dash with no label")
+
+
+def _layout_labelled_dot(repo: Repo) -> None:
+    body = "import os\n\n" + LAYOUT_DASH + "\n\nA = 1\n\n" \
+        + LAYOUT_DOT + "\n# a label the dot must not carry\nB = os.sep\n"
+    repo.seed()
+    repo.write("src/mod.py", body)
+    repo.commit("labelled dot")
+
+
+def _layout_clean(repo: Repo) -> None:
+    body = (
+        '"""A conforming module."""\n\nimport os\n\n'
+        + LAYOUT_DASH + "\n\n\n"
+        + "class Thing:\n"
+        + '    """Two members, dot-paced."""\n\n'
+        + "    a: int = 1\n\n"
+        + "    " + LAYOUT_DOT + "\n\n"
+        + "    def sep(self) -> str:\n        return os.sep\n"
+    )
+    repo.seed()
+    repo.write("src/mod.py", body)
+    repo.commit("conforming module")
+
+
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
@@ -295,6 +355,14 @@ CASES: list[Case] = [
     Case("secrets: clean twin", "secrets", "pass", _secrets_clean),
     Case("bypass: signed trailer converts a red scope", "scope", "bypassed", _bypass_honored),
     Case("bypass: refused for secrets (D-2.8)", "secrets", "fail", _bypass_refused_for_secrets),
+    Case("source-layout: 20-dash separator", "source-layout", "fail", _layout_bad_width),
+    Case("source-layout: missing post-import dash", "source-layout", "fail",
+         _layout_missing_dash),
+    Case("source-layout: three dashes", "source-layout", "fail", _layout_three_dashes),
+    Case("source-layout: unlabelled second dash", "source-layout", "fail",
+         _layout_unlabelled_second_dash),
+    Case("source-layout: labelled dot", "source-layout", "fail", _layout_labelled_dot),
+    Case("source-layout: conforming twin", "source-layout", "pass", _layout_clean),
 ]
 
 

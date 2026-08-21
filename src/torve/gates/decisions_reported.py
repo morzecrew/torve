@@ -27,6 +27,8 @@ from torve.context import GateContext
 from torve.gates.base import NO_TASK, BuiltinOutcome, spec
 from torve.models import Gate
 
+# ----------------------- #
+
 RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(?:Z|\+00:00)$")
 CITATION = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?$")
 BACKTICKED = re.compile(r"^`(?P<command>[^`]+)`(?P<rest>.*)$", re.S)
@@ -139,8 +141,10 @@ def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list
     found = CITATION.match(citation)
     if not found:
         return [
-            f"{where}: evidence {evidence!r} is neither a path:line citation nor a "
-            "backticked command with its output — a sentence is a claim, not evidence"
+            (
+                f"{where}: evidence {evidence!r} is neither a path:line citation nor a "
+                "backticked command with its output — a sentence is a claim, not evidence"
+            )
         ]
     root = ctx.root.resolve()
     try:

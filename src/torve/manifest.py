@@ -13,6 +13,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from torve.models import SCHEMA_VERSION, Gate, Scope
 
+# ----------------------- #
+
 # Builtins: expected input and a cost proxy used for cheapest-first ordering.
 # Diff-, task- and log-input builtins are near-free; only acceptance shells out.
 BUILTIN_INPUTS: dict[str, str] = {
@@ -21,6 +23,7 @@ BUILTIN_INPUTS: dict[str, str] = {
     "no-test-tampering": "diff",
     "decisions-reported": "log",
     "self-audit": "log",
+    "source-layout": "diff",
     "acceptance": "worktree",
 }
 BUILTIN_TIMEOUTS: dict[str, float] = {
@@ -29,6 +32,7 @@ BUILTIN_TIMEOUTS: dict[str, float] = {
     "no-test-tampering": 30,
     "decisions-reported": 30,
     "self-audit": 30,
+    "source-layout": 30,
     "acceptance": 600,
 }
 SHELL_GATE_TIMEOUT = 600.0

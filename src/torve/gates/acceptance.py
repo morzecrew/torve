@@ -13,6 +13,8 @@ from torve.gates.base import BuiltinOutcome
 from torve.models import Gate, GateOutcome
 from torve.shell import run_command
 
+# ----------------------- #
+
 
 def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is not None:

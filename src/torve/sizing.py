@@ -9,6 +9,8 @@ from typing import Protocol
 
 from torve.models import SizeVerdict, Task
 
+# ----------------------- #
+
 
 class SizePolicy(Protocol):
     def estimate(self, task: Task) -> SizeVerdict: ...

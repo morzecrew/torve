@@ -15,6 +15,8 @@ from importlib import import_module, resources
 from pathlib import Path
 from typing import Any
 
+# ----------------------- #
+
 TARGETS = ("torve", "substrate", "telemetry")
 MISSING_EXTRA_EXIT = 3
 

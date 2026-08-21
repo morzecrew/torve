@@ -12,6 +12,8 @@ from torve.context import GateContext
 from torve.gates.base import BuiltinOutcome, spec
 from torve.models import Gate
 
+# ----------------------- #
+
 
 def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     scope = ctx.task.scope if ctx.task is not None else ctx.manifest.scope

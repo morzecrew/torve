@@ -14,6 +14,8 @@ from torve.context import GateContext
 from torve.gates.base import NO_TASK, BuiltinOutcome, matches_any, spec
 from torve.models import Gate
 
+# ----------------------- #
+
 
 def check_no_test_tampering(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:

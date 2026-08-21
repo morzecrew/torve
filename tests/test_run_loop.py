@@ -135,7 +135,7 @@ def test_clean_success(rig):
 
 
 def test_gate_failure_then_success(rig):
-    repo, deps, runtime, vcs, gate_outcomes = rig
+    repo, deps, _runtime, _vcs, gate_outcomes = rig
     gate_outcomes += [1, 0]
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
     assert state.state is TaskState.READY
@@ -172,7 +172,7 @@ def test_agent_timeout_is_a_failed_attempt_not_a_crash(rig):
 
 
 def test_locked_conflict_is_terminal_by_design(rig):
-    repo, deps, runtime, vcs, _ = rig
+    repo, deps, _runtime, vcs, _ = rig
     deps.agent = ScriptedAgent([OK], halted_on_attempt=1)
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
     assert state.state is TaskState.ESCALATED

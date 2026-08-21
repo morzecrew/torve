@@ -1,0 +1,105 @@
+schema_version: 1
+task: T-0011
+repo: morzecrew/torve
+base_sha: 8bf8db56458d52a3c3c3eec1a565ba13feaa4d5e
+created_at: 2026-08-21T19:00:00Z
+drift_count: 0
+notes: |
+  RFC 0014 (source file layout) adopted: transcribed into the corpus as an
+  accepted convention RFC, the @source-layout builtin implemented, sabotage
+  twins added, ruff matched to forze, and the one-time sweep run over src.
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-21T19:05:00Z
+    attempt: 1
+    claim: the source-layout name that T-0010's log assigned to the corpus validator turns out to belong to RFC 0014's own gate — the lifecycle instruction's "0014 §9" reference resolves now that 0014 exists
+    evidence: gates.yaml:47-59
+    action: decided
+    proposal: "ASSUMED — supersedes the T-0010 source-layout proposal: the corpus-validator gate is renamed `rfc-index` (state shadow, origin rfc/0001) and `source-layout` is RFC 0014's builtin (state shadow, origin rfc/0014); both remain shadow until promoted under D-2.23"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T19:10:00Z
+    attempt: 1
+    claim: '§9 checks "a module with imports and no dash immediately after the import block", but byte-exact adjacency is brittle around TYPE_CHECKING blocks and comment runs; the gate needs a robust mechanical reading'
+    evidence: src/torve/gates/source_layout.py:95-104
+    action: decided
+    proposal: ASSUMED — the gate checks that the first dash falls after the last top-level import (a trailing TYPE_CHECKING block counts into the preamble, as forze places it) and before the first definition; exact blank-line spacing stays with review per D-14.10. Scope is changed .py files under src/ — the layer the convention governs
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T19:15:00Z
+    attempt: 1
+    claim: D-14.12 sweeps the whole repository, but only the machine-checked half can redden on untouched files; sweeping the dot rhythm through every class would be a review-level restyle of the entire tree in one diff
+    evidence: '`python -c "..." (the gate''s _check_file over all 36 src modules)` — sweep clean: every src module observes the checkable half'
+    action: decided
+    proposal: ASSUMED — the sweep covers exactly what the gate checks (post-import dashes inserted in 33 modules, the sabotage banners normalized to the 27-character labelled form); the dot rhythm is adopted as files are touched, which D-14.10 already assigns to review
+  - decision: D-14.9
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-21T19:20:00Z
+    attempt: 1
+    claim: ruff now selects forze's rule set (E W F I UP B RUF ASYNC C4 ISC PIE T20 SIM) at line length 100, with RUF001-003 ignored because the docstrings deliberately use typographic punctuation; the thirteen new findings were fixed, not suppressed, except two prints in the dead single-use converter
+    evidence: pyproject.toml:58-67
+    action: decided
+  - decision: D-14.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T19:25:00Z
+    attempt: 1
+    claim: both separator constants are the exact 27-character forms and the gate reddens on any dash or dot run at another width
+    evidence: src/torve/gates/source_layout.py:22-26
+    action: decided
+  - decision: D-14.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T19:30:00Z
+    attempt: 1
+    claim: every src module with imports now carries the post-import dash — 33 inserted by the sweep, the rest already conforming or import-free
+    evidence: '`grep -rl "^# ----------------------- #$" src/torve --include=*.py | wc -l` — 34 files (the rest are import-free)'
+    action: decided
+  - decision: D-14.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T19:35:00Z
+    attempt: 1
+    claim: the only mid-file dash in src (sabotage's scenario banner, previously a 79-character sandwich) is now the 27-character form with a one-line label saying why the section is separate
+    evidence: src/torve/gates/sabotage.py:142-143
+    action: decided
+  - decision: D-14.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T19:40:00Z
+    attempt: 1
+    claim: the new gate is one file with one section — five checks over one concern (separator discipline), one name, one entry in the builtin registry
+    evidence: src/torve/gates/source_layout.py:1-8
+    action: decided
+  - decision: D-14.11
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T19:45:00Z
+    attempt: 1
+    claim: the checkable half ships as the @source-layout builtin with five red sabotage cases (one per §9 check) and a conforming green twin, all observed to behave
+    evidence: '`uv run pytest tests/test_sabotage.py -q` — passed over 23 cases including the six source-layout ones'
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T19:50:00Z
+    attempt: 1
+    claim: the suite grew with the gate, not after it — red and green twins landed in the same change as the implementation, and the roster test now requires them for source-layout permanently
+    evidence: tests/test_sabotage.py:8-12
+    action: decided
+  - decision: D-2.18
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T19:55:00Z
+    attempt: 1
+    claim: source-layout enters the manifest at state shadow with origin rfc/0014 — measured before it may block, promotable under D-2.23 once it has run over 30 real changes
+    evidence: gates.yaml:55-59
+    action: decided

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from torve.domain import (
@@ -15,7 +17,7 @@ from torve.runstate import RunState
 def test_the_happy_path_is_legal():
     order = [TaskState.QUEUED, TaskState.CLAIMED, TaskState.RUNNING,
              TaskState.GATED, TaskState.REVIEWED, TaskState.READY]
-    for current, to in zip(order, order[1:], strict=False):
+    for current, to in itertools.pairwise(order):
         check_transition(current, to)
 
 

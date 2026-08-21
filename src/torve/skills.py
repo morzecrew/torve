@@ -14,6 +14,8 @@ import shutil
 from importlib import resources
 from pathlib import Path
 
+# ----------------------- #
+
 
 def skills_root() -> Path:
     packaged = Path(str(resources.files("torve"))) / "_skills"

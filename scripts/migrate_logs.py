@@ -73,12 +73,12 @@ def main() -> int:
 
     logs = sorted((args.root / "logs").glob("*.md"))
     if not logs:
-        print("nothing to migrate")
+        print("nothing to migrate")  # noqa: T201 — single-use converter; stdout is its interface
         return 0
     for source in logs:
         document = convert(source.read_text(encoding="utf-8"), source.stem)
         target = source.with_suffix(".yaml")
-        print(f"{source} -> {target}  ({len(document['entries'])} entries, "
+        print(f"{source} -> {target}  ({len(document['entries'])} entries, "  # noqa: T201 — single-use converter; stdout is its interface
               f"drift_count={document['drift_count']})")
         if not args.dry_run:
             target.write_text(

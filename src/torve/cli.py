@@ -27,6 +27,8 @@ from torve.runner import run_gates
 from torve.sizing import StaticThresholds
 from torve.telemetry import append_record, build_record
 
+# ----------------------- #
+
 OUTCOME_MARKS = {
     "pass": "✓",
     "flaky": "≈",
@@ -221,7 +223,7 @@ def cancel(task_id: str, root: Path) -> None:
 
     try:
         recorded = asyncio.run(_cancel())
-    except Exception as exc:  # noqa: BLE001 — fail-closed capability gate speaks here
+    except Exception as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo("cancel recorded — the holder observes it on the next lease renewal"
                if recorded else "nothing to stop (run already terminal or ask refused)")

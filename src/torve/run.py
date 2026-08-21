@@ -54,6 +54,8 @@ from torve.skills import materialize
 from torve.taskstore import TaskStore
 from torve.telemetry import append_record, build_record
 
+# ----------------------- #
+
 # A LOCKED conflict is written to the log as a halted entry; the runner reads
 # the fact from the file, the agent cannot cause the transition directly.
 # The A-1 YAML log is parsed, not pattern-matched.
@@ -119,7 +121,7 @@ async def drive_attempts(
             exit_code, summary, digest = await hooks.gates(state)
         except asyncio.CancelledError:
             raise
-        except Exception as exc:  # noqa: BLE001 — the gates broke, not the code
+        except Exception as exc:
             state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
             return state
 

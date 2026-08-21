@@ -12,6 +12,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+# ----------------------- #
+
 SCHEMA_VERSION = 1
 
 Grade = Literal["LOCKED", "ASSUMED", "OPEN"]

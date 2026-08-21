@@ -1,0 +1,61 @@
+# RFC 0014 adopted: the source-layout convention transcribed into the corpus,
+# the @source-layout builtin implemented over the diff with a sabotage case
+# per check, ruff matched to forze's selection, the repository swept once, and
+# the gate entering at shadow. The T-0010 stand-in gate renamed rfc-index.
+schema_version: 1
+id: T-0011
+rfc: rfcs/0014-source-layout.md
+phase: 1
+role: implement
+depends_on: [T-0010]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - "scripts/**"
+    - "gates.yaml"
+    - "tasks/**"
+    - "logs/**"
+    - "pyproject.toml"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-14.1
+    grade: LOCKED
+    text: Two separators, both exactly 27 characters
+    paths: ["src/torve/**"]
+  - id: D-14.2
+    grade: LOCKED
+    text: One dash after the import block in every module with imports
+    paths: ["src/torve/**"]
+  - id: D-14.3
+    grade: LOCKED
+    text: A non-post-import dash carries a one-line label
+    paths: ["src/torve/**"]
+  - id: D-14.8
+    grade: LOCKED
+    text: One gate, one file, one section
+    paths: ["src/torve/gates/**"]
+  - id: D-14.11
+    grade: LOCKED
+    text: The checkable half ships as the source-layout gate with a sabotage case per check
+    paths: ["src/torve/gates/source_layout.py", "gates.yaml"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case observed to fail
+    paths: ["src/torve/gates/sabotage.py", "tests/test_sabotage.py"]
+  - id: D-2.18
+    grade: LOCKED
+    text: A gate enters service through shadow before it may block
+    paths: ["gates.yaml"]
+budget: {}
+tier: executor

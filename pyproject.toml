@@ -56,7 +56,15 @@ target-version = "py311"
 extend-exclude = [".agents", ".claude"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+# forze's selection (RFC 0014 D-14.9): two codebases read by the same people
+# should not differ in mechanics. T20 enforces RFC 0011's boundary — print is
+# the CLI's output contract and belongs nowhere else.
+select = ["E", "W", "F", "I", "UP", "B", "RUF", "ASYNC", "C4", "ISC", "PIE", "T20", "SIM"]
+ignore = [
+    "RUF001", # ambiguous unicode: docstrings deliberately use typographic punctuation (—, §, ·)
+    "RUF002", # see RUF001
+    "RUF003", # see RUF001
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

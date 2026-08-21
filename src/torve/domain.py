@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+# ----------------------- #
+
 
 class TaskState(StrEnum):
     QUEUED = "queued"
