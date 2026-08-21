@@ -33,7 +33,7 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     last_code: int | None = 0
 
     for command in commands:
-        result = run_command(command, ctx.root, timeout)
+        result = run_command(command, ctx.root, timeout, execute=ctx.execute)
         status = "ok" if result.exit_code == 0 else f"exit {result.exit_code}"
         if result.flaky:
             status = "flaky (failed, then passed on immediate re-run)"

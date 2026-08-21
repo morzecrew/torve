@@ -9,10 +9,16 @@ from __future__ import annotations
 
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 OUTPUT_LIMIT = 8000
+
+# One execution of one command: (command, timeout_s) -> (exit code | None on
+# timeout, combined output). The flaky protocol sits above this seam, so it is
+# identical whether the command runs on the host or in a sandbox (D-3, D-4).
+ExecuteOnce = Callable[[str, float], tuple[int | None, str]]
 
 
 def truncate(text: str) -> str:
@@ -31,29 +37,38 @@ class CommandResult:
     flaky: bool = False
 
 
-def _run_once(command: str, cwd: Path, timeout: float) -> tuple[int | None, str]:
-    try:
-        proc = subprocess.run(
-            command,
-            shell=True,
-            cwd=cwd,
-            timeout=timeout,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return None, f"timed out after {timeout:.0f}s"
-    output = (proc.stdout or "") + (proc.stderr or "")
-    return proc.returncode, output
+def host_executor(cwd: Path) -> ExecuteOnce:
+    def execute(command: str, timeout: float) -> tuple[int | None, str]:
+        try:
+            proc = subprocess.run(
+                command,
+                shell=True,
+                cwd=cwd,
+                timeout=timeout,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return None, f"timed out after {timeout:.0f}s"
+        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+    return execute
 
 
-def run_command(command: str, cwd: Path, timeout: float, retry_flaky: bool = True) -> CommandResult:
+def run_command(
+    command: str,
+    cwd: Path,
+    timeout: float,
+    retry_flaky: bool = True,
+    execute: ExecuteOnce | None = None,
+) -> CommandResult:
+    execute = execute or host_executor(cwd)
     started = time.monotonic()
-    code, output = _run_once(command, cwd, timeout)
+    code, output = execute(command, timeout)
     flaky = False
     if code not in (0, None) and retry_flaky:
-        second_code, second_output = _run_once(command, cwd, timeout)
+        second_code, second_output = execute(command, timeout)
         if second_code == 0:
             flaky = True
             code = 0

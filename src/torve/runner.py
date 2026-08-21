@@ -40,7 +40,7 @@ def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     builtin = gate.builtin
     if builtin is not None:
         return BUILTINS[builtin](gate, ctx)
-    result = run_command(gate.run, ctx.root, gate.timeout or 600.0)
+    result = run_command(gate.run, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
     if result.exit_code == 0:
         outcome = "flaky" if result.flaky else "pass"
         flaky = [gate.run] if result.flaky else []
