@@ -11,6 +11,12 @@ runtime:
     domain: localhost:5266
     api_key_env: OPENSANDBOX_API_KEY   # the name of the variable, never the key
 
+store:
+  adapter: mock              # mock | postgres — postgres for real cross-process runs (D-3.6)
+  dsn_env: TORVE_PG_DSN      # the name of the variable, never the DSN itself
+  lease_for: 60              # seconds; a cancel ask rides back on lease renewal
+  max_run_duration: 7200     # the store watchdog's hard cap on one run
+
 poison_ceiling: 3            # checked before dispatch; reached -> escalated
 
 reap:

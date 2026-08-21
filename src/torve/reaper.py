@@ -1,17 +1,20 @@
 """`torve reap` — convention-driven, not tracked (RFC 0003 §4.2): enumerate by
 label and prefix, cross-reference live runs, destroy anything without one.
-This survives a crash of the runner itself, which PID tracking does not.
 
-Liveness in v1 is the state-file heartbeat (real leases arrive in T-0004): a
-non-terminal run whose heartbeat went stale is an orphan. Its sandbox is
-destroyed and the run is escalated as `lease_expired` — the same verdict the
-durable store's recovery will hand out later. Worktrees are removed only for
-terminal runs; a crashed run's worktree may hold un-committed agent output,
-which is triage evidence, not garbage.
+With a Postgres store the lease is the liveness authority (D-3.10 retired):
+`claim_abandoned` decides expiry — the store owns the lease clock — and a
+reclaimed run is landed `lease_expired` under its own fence, the same verdict
+recovery hands out. The engine's state file is escalated on the D-30 edge.
+
+With the in-process mock store there is nothing durable to consult across
+processes (D-3.6: Postgres for real runs), so the v1 heartbeat heuristic
+stays as the fallback. Worktrees are removed only for terminal runs either
+way; a crashed run's worktree is triage evidence, not garbage.
 """
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,6 +25,7 @@ from torve.runconfig import RunnerConfig
 from torve.runstate import RunState
 
 ACTIVE = frozenset({TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED})
+TERMINAL = frozenset({TaskState.READY, TaskState.ABANDONED})
 
 
 @dataclass
@@ -31,18 +35,32 @@ class ReapReport:
     runs_expired: list[str] = field(default_factory=list)
 
 
-def reap(
-    root: Path,
-    config: RunnerConfig,
-    runtime: Runtime,
-    workspace: WorkspacePort,
-    force: bool = False,
+def _sweep_worktrees(
+    workspace: WorkspacePort, by_task: dict[str, RunState], report: ReapReport
+) -> None:
+    for task_id, _path in workspace.list_worktrees():
+        state = by_task.get(task_id)
+        if state is None or state.state in TERMINAL:
+            # No state file at all is pure convention debris; terminal runs
+            # left their commits on the task branch.
+            workspace.remove(task_id)
+            report.worktrees_removed.append(task_id)
+
+
+def _escalate_if_active(state: RunState, reason: EscalationReason, detail: str) -> bool:
+    if state.state in ACTIVE:
+        state.escalate(reason, detail)
+        return True
+    return False
+
+
+def _heartbeat_reap(
+    root: Path, config: RunnerConfig, runtime: Runtime, workspace: WorkspacePort,
+    force: bool,
 ) -> ReapReport:
     report = ReapReport()
     states = RunState.load_all(root / naming.WORKTREE_DIR)
-    by_task = {s.task_id: s for s in states}
 
-    # Expire orphaned runs first, so the sandbox sweep below sees them dead.
     for state in states:
         stale = state.heartbeat_age_s() > config.reap.stale_after
         if state.state in ACTIVE and (stale or force):
@@ -52,20 +70,59 @@ def reap(
 
     live_runs = {s.run_id for s in states
                  if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after}
-
     for sandbox in runtime.list_torve_sandboxes():
         if sandbox.labels.get(naming.LABEL_RUN) not in live_runs:
             runtime.destroy_by_id(sandbox.id)
             report.sandboxes_destroyed.append(sandbox.name)
 
-    for task_id, _path in workspace.list_worktrees():
-        state = by_task.get(task_id)
-        if state is not None and state.state in (TaskState.READY, TaskState.ABANDONED):
-            workspace.remove(task_id)
-            report.worktrees_removed.append(task_id)
-        elif state is None:
-            # A worktree with no state file at all is pure convention debris.
-            workspace.remove(task_id)
-            report.worktrees_removed.append(task_id)
-
+    _sweep_worktrees(workspace, {s.task_id: s for s in states}, report)
     return report
+
+
+async def _durable_reap(
+    root: Path, config: RunnerConfig, runtime: Runtime, workspace: WorkspacePort,
+    force: bool,
+) -> ReapReport:
+    from torve.adapters.durable_store import open_store
+    from torve.taskstore import TaskStore
+
+    report = ReapReport()
+    states = RunState.load_all(root / naming.WORKTREE_DIR)
+    by_task = {s.task_id: s for s in states}
+    by_engine_run = {s.run_id: s for s in states}
+
+    taskstore = TaskStore(await open_store(config.store), config.store)
+    expired = await taskstore.expire_abandoned()
+    if force:
+        expired += await taskstore.force_fail_running()
+
+    reason = EscalationReason.KILLED if force else EscalationReason.LEASE_EXPIRED
+    for record in expired:
+        engine_run = (record.input_json or {}).get("engine_run_id", "")
+        state = by_engine_run.get(str(engine_run))
+        if state is not None and _escalate_if_active(
+            state, reason, f"durable run {record.run_id[:8]} reclaimed at reap"
+        ):
+            report.runs_expired.append(state.task_id)
+
+    live = await taskstore.live_records()
+    live_engine_runs = {str((r.input_json or {}).get("engine_run_id", "")) for r in live}
+    for sandbox in runtime.list_torve_sandboxes():
+        if sandbox.labels.get(naming.LABEL_RUN) not in live_engine_runs:
+            runtime.destroy_by_id(sandbox.id)
+            report.sandboxes_destroyed.append(sandbox.name)
+
+    _sweep_worktrees(workspace, by_task, report)
+    return report
+
+
+def reap(
+    root: Path,
+    config: RunnerConfig,
+    runtime: Runtime,
+    workspace: WorkspacePort,
+    force: bool = False,
+) -> ReapReport:
+    if config.store.adapter == "postgres":
+        return asyncio.run(_durable_reap(root, config, runtime, workspace, force))
+    return _heartbeat_reap(root, config, runtime, workspace, force)

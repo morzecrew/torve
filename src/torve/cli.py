@@ -184,6 +184,73 @@ def run_cmd(task_id: str, agent_name: str, scenario: Path | None,
     sys.exit(0 if str(state.state) == "ready" else 1)
 
 
+@main.command("cancel")
+@click.argument("task_id")
+@click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
+              default=Path("."), show_default=True)
+def cancel(task_id: str, root: Path) -> None:
+    """Ask a running task to stop — cooperative on the ask, fenced on the
+    landing. Fails closed when the store backend cannot deliver a cancel."""
+    import asyncio
+
+    from torve import naming
+    from torve.adapters.durable_store import open_store
+    from torve.runconfig import load_runner_config
+    from torve.runstate import RunState
+    from torve.taskstore import TaskStore
+
+    root = root.resolve()
+    state_path = naming.state_file(root, task_id)
+    if not state_path.exists():
+        raise click.ClickException(f"no run state for {task_id}")
+    state = RunState.load(state_path)
+    if not state.durable_run_id:
+        raise click.ClickException(f"{task_id} has no durable run to cancel")
+
+    config = load_runner_config(root)
+
+    async def _cancel() -> bool:
+        taskstore = TaskStore(await open_store(config.store), config.store)
+        return await taskstore.request_cancel(state.durable_run_id)
+
+    try:
+        recorded = asyncio.run(_cancel())
+    except Exception as exc:  # noqa: BLE001 — fail-closed capability gate speaks here
+        raise click.ClickException(str(exc)) from exc
+    click.echo("cancel recorded — the holder observes it on the next lease renewal"
+               if recorded else "nothing to stop (run already terminal or ask refused)")
+
+
+@main.group()
+def store() -> None:
+    """The durable run store (D-5)."""
+
+
+@store.command("provision")
+@click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
+              default=Path("."), show_default=True)
+def store_provision(root: Path) -> None:
+    """Apply torve's DDL for the durable tables (Postgres only). Migrations
+    belong to the adapter; the substrate documents the schema but ships no
+    provisioning path — see logs/T-0004.md."""
+    import asyncio
+
+    from torve.adapters.durable_store import provision_postgres
+    from torve.runconfig import load_runner_config
+
+    config = load_runner_config(root.resolve())
+    if config.store.adapter != "postgres":
+        raise click.ClickException(
+            f"store.adapter is {config.store.adapter!r}; only postgres needs provisioning"
+        )
+    try:
+        asyncio.run(provision_postgres(config.store))
+    except Exception as exc:  # noqa: BLE001
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"provisioned {config.store.schema_name}.{config.store.run_relation} "
+               f"and {config.store.schema_name}.{config.store.step_relation}")
+
+
 @main.command("status")
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
