@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 TARGETS = ("torve", "substrate", "telemetry")
 MISSING_EXTRA_EXIT = 3
@@ -64,7 +65,7 @@ def check_forze_pin() -> tuple[bool, str]:
     )
 
 
-def _yoyo():
+def _yoyo() -> tuple[Any, Any]:
     try:
         from yoyo import get_backend, read_migrations
     except ImportError as exc:

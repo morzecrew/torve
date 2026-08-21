@@ -45,7 +45,7 @@ class RunState:
     durable_run_id: str | None = None  # the store's run this engine run executes under
     worktree: str | None = None
     escalation: Escalation | None = None
-    history: list[dict] = field(default_factory=list)
+    history: list[dict[str, str]] = field(default_factory=list)
 
     def transition(self, to: TaskState, fact: str) -> None:
         """Transitions are executed from facts; the fact is recorded with the

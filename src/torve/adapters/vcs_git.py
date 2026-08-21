@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 
-def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess:
+def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(worktree), *args], capture_output=True, text=True, check=False
     )

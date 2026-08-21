@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from torve.context import GateContext
 from torve.gates import BUILTINS
 from torve.gates.base import BuiltinOutcome
-from torve.models import BypassRecord, Gate, GateResult
+from torve.models import BypassRecord, Gate, GateOutcome, GateResult
 from torve.shell import run_command
 
 
@@ -42,7 +42,7 @@ def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         return BUILTINS[builtin](gate, ctx)
     result = run_command(gate.run, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
     if result.exit_code == 0:
-        outcome = "flaky" if result.flaky else "pass"
+        outcome: GateOutcome = "flaky" if result.flaky else "pass"
         flaky = [gate.run] if result.flaky else []
         return BuiltinOutcome(outcome, result.output, exit_code=0, flaky_commands=flaky)
     return BuiltinOutcome("fail", result.output, exit_code=result.exit_code)

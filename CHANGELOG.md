@@ -68,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- Strict typing as a house gate: `mypy --strict` over `src` (0 errors),
+  `py.typed` in the wheel, typed against forze's `DurableRunStorePort` /
+  `DurableFunctionHandler` contracts; pytest configuration hardened
+  (`--strict-markers --strict-config`, `pytest-timeout` safety net,
+  src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
+  fallback in `gates.yaml`.
+
 ### Changed
 
 - `requires-python` is now `>=3.13,<3.15` (the forze substrate's floor).

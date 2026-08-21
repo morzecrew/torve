@@ -15,6 +15,7 @@ import os
 from forze.application.contracts.durable.function import (
     DurableRunAdminDepKey,
     DurableRunStoreDepKey,
+    DurableRunStorePort,
 )
 from forze.application.execution import Deps, ExecutionContext
 from forze.testing import context_from_deps
@@ -44,11 +45,11 @@ def context_for(store: object) -> ExecutionContext:
     )
 
 
-def open_mock_store():
+def open_mock_store() -> DurableRunStorePort:
     return MockDurableRunStore(state=MockState())
 
 
-async def open_postgres_store(config: StoreConfig):
+async def open_postgres_store(config: StoreConfig) -> DurableRunStorePort:
     from forze_postgres import PostgresClient
     from forze_postgres.adapters.durable.run_store import PostgresDurableRunStore
     from forze_postgres.execution.deps.configs.durable import PostgresDurableRunConfig
@@ -62,7 +63,7 @@ async def open_postgres_store(config: StoreConfig):
     return store
 
 
-async def open_store(config: StoreConfig):
+async def open_store(config: StoreConfig) -> DurableRunStorePort:
     if config.adapter == "mock":
         return open_mock_store()
     if config.adapter == "postgres":

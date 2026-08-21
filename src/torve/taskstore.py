@@ -20,8 +20,14 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from forze.application.contracts.durable.function import DurableRunRecord, DurableRunStatus
+from forze.application.contracts.durable.function import (
+    DurableRunRecord,
+    DurableRunStatus,
+    DurableRunStorePort,
+)
+from forze.base.primitives import JsonDict
 from forze_kits.integrations.durable import (
+    DurableFunctionHandler,
     DurableFunctionRegistry,
     DurableFunctionRunner,
     resolve_durable_run_admin,
@@ -34,7 +40,7 @@ TASK_FUNCTION = "torve.task"
 
 
 class TaskStore:
-    def __init__(self, store, config: StoreConfig) -> None:
+    def __init__(self, store: DurableRunStorePort, config: StoreConfig) -> None:
         self.store = store
         self.ctx = context_for(store)
         self.registry = DurableFunctionRegistry()
@@ -45,12 +51,12 @@ class TaskStore:
             max_run_duration=timedelta(seconds=config.max_run_duration),
         )
 
-    def register(self, handler, name: str = TASK_FUNCTION) -> None:
+    def register(self, handler: DurableFunctionHandler, name: str = TASK_FUNCTION) -> None:
         self.registry.register(name, handler)
 
     async def run_now(
         self,
-        input_json: dict,
+        input_json: JsonDict,
         *,
         idempotency_key: str | None = None,
         name: str = TASK_FUNCTION,
@@ -59,7 +65,7 @@ class TaskStore:
             self.ctx, name, input_json, idempotency_key=idempotency_key
         )
 
-    async def enqueue(self, input_json: dict, *, name: str = TASK_FUNCTION) -> DurableRunRecord:
+    async def enqueue(self, input_json: JsonDict, *, name: str = TASK_FUNCTION) -> DurableRunRecord:
         return await self.runner.enqueue(self.ctx, name, input_json)
 
     async def recover(self, *, limit: int = 10) -> int:

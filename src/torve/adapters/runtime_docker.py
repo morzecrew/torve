@@ -27,7 +27,7 @@ class DockerRuntime:
     def __init__(self, docker_bin: str = "docker") -> None:
         self.docker = docker_bin
 
-    def _run(self, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess:
+    def _run(self, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [self.docker, *args], capture_output=True, text=True, timeout=timeout, check=False
         )

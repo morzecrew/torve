@@ -18,7 +18,7 @@ class BuiltinOutcome:
     quarantined_failures: list[str] = field(default_factory=list)
 
 
-def spec(patterns: list[str]) -> pathspec.PathSpec:
+def spec(patterns: list[str]) -> pathspec.GitIgnoreSpec:
     return pathspec.GitIgnoreSpec.from_lines(patterns)
 
 
