@@ -221,34 +221,58 @@ def cancel(task_id: str, root: Path) -> None:
                if recorded else "nothing to stop (run already terminal or ask refused)")
 
 
-@main.group()
-def store() -> None:
-    """The durable run store (D-5)."""
-
-
-@store.command("provision")
+@main.command("migrate")
+@click.argument("target", required=False,
+                type=click.Choice(["torve", "substrate", "telemetry"]))
+@click.option("--all", "apply_all", is_flag=True, help="Apply every target's pending steps.")
+@click.option("--status", "show_status", is_flag=True,
+              help="Available and applied steps per target, plus the forze pin.")
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
-def store_provision(root: Path) -> None:
-    """Apply torve's DDL for the durable tables (Postgres only). Migrations
-    belong to the adapter; the substrate documents the schema but ships no
-    provisioning path — see logs/T-0004.md."""
-    import asyncio
+def migrate_cmd(target: str | None, apply_all: bool, show_status: bool, root: Path) -> None:
+    """Owner-grouped, forward-only SQL migrations (rfcs/MIGRATIONS.md).
 
-    from torve.adapters.durable_store import provision_postgres
+    Three histories — torve, substrate (pinned to a forze version), telemetry
+    (stage 3+) — each with its own version counter. No downgrade exists."""
+    from torve.adapters.durable_store import resolve_dsn
+    from torve.migrate import MigrateError, apply
+    from torve.migrate import status as migrate_status
     from torve.runconfig import load_runner_config
 
     config = load_runner_config(root.resolve())
-    if config.store.adapter != "postgres":
-        raise click.ClickException(
-            f"store.adapter is {config.store.adapter!r}; only postgres needs provisioning"
-        )
     try:
-        asyncio.run(provision_postgres(config.store))
-    except Exception as exc:  # noqa: BLE001
+        if show_status:
+            dsn = None
+            if config.store.adapter == "postgres":
+                import contextlib
+
+                with contextlib.suppress(RuntimeError):
+                    dsn = resolve_dsn(config.store)
+            for line in migrate_status(dsn):
+                click.echo(line)
+            return
+        if not apply_all and target is None:
+            raise click.UsageError("give a target, --all, or --status")
+        dsn = resolve_dsn(config.store)
+        for name in (["torve", "substrate", "telemetry"] if apply_all else [target]):
+            applied = apply(name, dsn)
+            click.echo(f"{name}: {applied} step(s) applied")
+    except MigrateError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(exc.exit_code)
+    except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(f"provisioned {config.store.schema_name}.{config.store.run_relation} "
-               f"and {config.store.schema_name}.{config.store.step_relation}")
+
+
+@main.command("doctor")
+def doctor() -> None:
+    """Preflight checks. Today: the forze pin (D-M.7) — a schema mismatch
+    must be a check, not a symptom discovered through adapter behaviour."""
+    from torve.migrate import check_forze_pin
+
+    ok, message = check_forze_pin()
+    click.echo(("ok    " if ok else "FAIL  ") + message)
+    sys.exit(0 if ok else 1)
 
 
 @main.command("status")

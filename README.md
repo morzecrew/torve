@@ -56,7 +56,7 @@ The attempt loop executes as one durable function over the forze run store:
 real leases, fenced terminal writes, `torve cancel` riding the lease
 heartbeat, recovery via `claim_abandoned`. Mock store in-process by default;
 `store.adapter: postgres` (`pip install 'torve[postgres]'`, then
-`torve store provision`) for cross-process durability. A deterministic
+`torve migrate substrate`) for cross-process durability. A deterministic
 simulation drives the real loop and store concurrently under seeded
 interleavings — invariants, reachability targets, and deliberately broken
 twins the oracle must catch.

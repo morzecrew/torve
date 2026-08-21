@@ -109,14 +109,16 @@ def config_hash(manifest_path: Path, root: Path) -> str:
     substrate upgrade is a regime change, and possibly a migration — A-6).
     The tier mapping joins in RFC 0004.
     """
-    import importlib.metadata
-
     import torve
+    from torve.migrate import forze_pin
 
     parts: dict[str, str] = {
         "gates.yaml": manifest_path.read_text(encoding="utf-8"),
         "torve": torve.__version__,
-        "forze": importlib.metadata.version("forze"),
+        # The substrate pin, not the installed version: the pin names the
+        # schema regime the migrations were written against (MIGRATIONS.md §6);
+        # torve doctor is what compares it to the installed version.
+        "forze": forze_pin(),
     }
     lock = root / "skills-lock.json"
     if lock.is_file():

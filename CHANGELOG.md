@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   function over forze's run store — real leases, fenced terminal writes,
   cancellation riding the lease heartbeat, and recovery via
   `claim_abandoned`. Mock store for tests and simulation, Postgres for real
-  runs (`torve[postgres]`), with torve-owned DDL and `torve store provision`.
+  runs (`torve[postgres]`), with torve-owned SQL migrations applied by `torve migrate substrate`.
 - `torve cancel` (cooperative, fail-closed on backend capability) and a
   durable reap path that replaces the heartbeat heuristic under Postgres.
 - Deterministic simulation (forze_dst): the real attempt loop and real
@@ -60,8 +60,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   requires a Paths column, paths on every `LOCKED` row, and unique decision
   identifiers; the corpus decision tables gained Paths columns throughout.
 
+- Migrations per `rfcs/MIGRATIONS.md`: owner-grouped SQL histories
+  (`migrations/{torve,substrate,telemetry}/`), `yoyo-migrations` behind the
+  `torve[migrate]` extra (lazy import, exit code 3 with the install hint),
+  migrations shipped as wheel package data, `torve migrate <target>` with
+  `--all`/`--status`, `torve doctor` enforcing the `FORZE_VERSION` pin, and
+  the conformance battery run against fresh *and* populated databases in CI.
+  Forward-only, checksummed; `torve store provision` is replaced outright.
+
 ### Changed
 
 - `requires-python` is now `>=3.13,<3.15` (the forze substrate's floor).
 - `config_hash` now includes the Torve package version and the pinned forze
-  version (D-9.8) — both upgrades are regime changes telemetry must see.
+  version (D-9.8, from `migrations/substrate/FORZE_VERSION`) — both upgrades
+  are regime changes telemetry must see.

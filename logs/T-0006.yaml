@@ -1,0 +1,125 @@
+schema_version: 1
+task: T-0006
+drift_count: 0
+notes: |
+  Migrations per rfcs/MIGRATIONS.md, executed on branch torve/T-0006:
+  owner-grouped SQL histories, yoyo behind torve[migrate], migrations as
+  package data, torve migrate with a target, the forze pin in config_hash and
+  torve doctor, and the D-M.9 battery over fresh and populated databases.
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T23:40:00Z
+    attempt: 1
+    claim: static SQL files cannot parametrize table names, but StoreConfig made the durable relations configurable; the two must agree on something
+    evidence: migrations/substrate/postgres/0001_durable.sql:11
+    action: decided
+    proposal: ASSUMED — migrations hardcode the canonical names (public.torve_durable_run, public.torve_durable_step), which are StoreConfig's defaults; the config fields remain for embedders and tests, and a deployment that renames them owns its own DDL
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T23:43:00Z
+    attempt: 1
+    claim: torve's own document tables do not exist yet, so the torve owner directory would be empty; MIGRATIONS.md forbids directories for engines that do not exist but is silent on owners without tables
+    evidence: migrations/torve/postgres/README.md:1-4
+    action: decided
+    proposal: ASSUMED — the owner directory exists from day one with a README and no steps, so `torve migrate torve` is a stable no-op rather than an unknown target (D-M.6); the prohibition stays about speculative engines
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T23:46:00Z
+    attempt: 1
+    claim: the §7 upgrade-path run wants a database restored at the previous release's schema, and with exactly one migration no previous release exists
+    evidence: tests/test_postgres_integration.py:1-12
+    action: decided
+    proposal: ASSUMED — until a second migration exists, run 2 is the populated form (rows present, re-apply is a checksummed no-op, battery re-run); the restore-from-previous form becomes real with the first genuine schema change
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T23:49:00Z
+    attempt: 1
+    claim: torve store provision (shipped unreleased three tasks ago) and torve migrate substrate would be two ways to create one schema
+    evidence: src/torve/cli.py:224-231
+    action: decided
+    proposal: ASSUMED — `torve migrate` replaces `torve store provision` outright; no dual support, the same rule A-1 applied to log formats, and nothing was released to deprecate
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T23:52:00Z
+    attempt: 1
+    claim: D-9.8 says the pinned forze version joins config_hash, and two candidates exist — the installed version and the FORZE_VERSION pin file
+    evidence: src/torve/manifest.py:100-110
+    action: decided
+    proposal: ASSUMED — config_hash digests the pin file (the schema regime the migrations were written against); torve doctor is what compares pin to installed, so a mismatch is a failing check rather than a silently different hash
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-21T23:55:00Z
+    attempt: 1
+    claim: yoyo routes bare postgresql:// DSNs through psycopg2, which torve does not ship; forze[postgres] brings psycopg 3
+    evidence: src/torve/migrate.py:78-83
+    action: decided
+    proposal: ASSUMED — the migrate module normalizes DSNs to postgresql+psycopg:// before handing them to yoyo; operator DSNs stay in the standard form everywhere else
+  - decision: D-M.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T00:00:00Z
+    attempt: 1
+    claim: three owner histories with three independent yoyo version tables (_torve_migrations_<owner>); engine is the second directory level
+    evidence: src/torve/migrate.py:86-98
+    action: decided
+  - decision: D-M.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T00:02:00Z
+    attempt: 1
+    claim: forward-only by construction — no rollback steps exist in any migration file and no downgrade surface exists in the module or CLI
+    evidence: migrations/substrate/postgres/0001_durable.sql:1-8
+    action: decided
+  - decision: D-M.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T00:04:00Z
+    attempt: 1
+    claim: yoyo records per-migration hashes; the battery's populated run proves re-apply is a no-op against the recorded checksums
+    evidence: tests/test_postgres_integration.py:126-129
+    action: decided
+  - decision: D-M.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T00:06:00Z
+    attempt: 1
+    claim: torve migrate takes a target from its first release, with --all and --status beside it; telemetry and torve are stable no-ops today
+    evidence: src/torve/cli.py:224-238
+    action: decided
+  - decision: D-M.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T00:08:00Z
+    attempt: 1
+    claim: the FORZE_VERSION pin ships beside the substrate steps, joins config_hash, and torve doctor fails on mismatch with the upgrade routine spelled out
+    evidence: src/torve/migrate.py:50-64
+    action: decided
+  - decision: D-M.9
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T00:10:00Z
+    attempt: 1
+    claim: the battery runs blocking in CI against both a from-scratch migrated database and a populated one, through the real migrations and the real adapter
+    evidence: tests/test_postgres_integration.py:112-130
+    action: decided
+  - decision: D-9.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T00:12:00Z
+    attempt: 1
+    claim: config_hash carries the torve version and the forze pin; a pin change is a new telemetry regime, verified by test
+    evidence: tests/test_migrate.py:72-77
+    action: decided
