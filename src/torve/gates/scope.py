@@ -23,8 +23,8 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     allow = spec(scope.allow) if scope.allow else None
     deny = spec(scope.deny) if scope.deny else None
 
-    denied = []
-    outside = []
+    denied: list[str] = []
+    outside: list[str] = []
     for entry in ctx.diff:
         for path in filter(None, (entry.path, entry.old_path)):
             if path in implicit:

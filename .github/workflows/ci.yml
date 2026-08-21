@@ -16,6 +16,7 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check src tests scripts
       - run: uv run mypy src
+      - run: uv run basedpyright src
       - run: uv run pytest
       # The sabotage suite: a gate that cannot be shown to fail is not a check.
       - run: uv run torve gates check

@@ -68,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- Pyright strict as a second blocking checker: `[tool.pyright]` in
+  pyproject makes the editor's strict mode repo-canonical, the 91
+  Unknown-propagation findings over `src` are fixed (typed yaml/SDK
+  boundaries via `cast`, annotated container inits, named providers for
+  the store deps, `import_module` for the optional yoyo/opensandbox
+  imports), and `uv run basedpyright src` joins CI and the acceptance
+  fallback at 0 errors.
 - Strict typing as a house gate: `mypy --strict` over `src` (0 errors),
   `py.typed` in the wheel, typed against forze's `DurableRunStorePort` /
   `DurableFunctionHandler` contracts; pytest configuration hardened

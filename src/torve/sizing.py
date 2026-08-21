@@ -31,7 +31,7 @@ class StaticThresholds:
         self.max_modules = max_modules
 
     def estimate(self, task: Task) -> SizeVerdict:
-        reasons = []
+        reasons: list[str] = []
         if len(task.scope.allow) > self.max_allow_globs:
             reasons.append(
                 f"{len(task.scope.allow)} allow globs (threshold {self.max_allow_globs})"

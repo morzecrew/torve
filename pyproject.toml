@@ -25,6 +25,7 @@ torve = "torve.cli:main"
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.31",
     "forze[dst,postgres]>=0.6.0",
     "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
@@ -69,6 +70,14 @@ addopts = ["-q", "--tb=short", "--strict-markers", "--strict-config"]
 # can't stick). Generous enough for container startup on a cold runner.
 timeout = 300
 timeout_method = "thread"
+
+[tool.pyright]
+# Read by pylance/cursorpyright/basedpyright alike, so the editor and a CLI
+# run agree on one ruleset. Same scope rule as mypy below: src only.
+include = ["src"]
+exclude = ["tests", "scripts", "skills", ".venv"]
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
 
 [tool.mypy]
 strict = true

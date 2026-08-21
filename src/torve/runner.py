@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from torve.context import GateContext
 from torve.gates import BUILTINS
@@ -65,14 +66,18 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
         return
     import yaml
 
+    document: dict[str, Any]
     if ctx.log_path.is_file():
-        document = yaml.safe_load(ctx.log_path.read_text(encoding="utf-8")) or {}
+        loaded: Any = yaml.safe_load(ctx.log_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(loaded, dict):
+            return  # an unreadable log is the decisions-reported gate's finding
+        document = cast(dict[str, Any], loaded)
     else:
         task_id = ctx.task.id if ctx.task else ""
-        document = {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": []}
-    if not isinstance(document, dict):
-        return  # an unreadable log is the decisions-reported gate's finding
-    document.setdefault("bypasses", []).append({
+        entries: list[Any] = []
+        document = {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}
+    fresh: list[dict[str, str]] = []
+    cast(list[dict[str, str]], document.setdefault("bypasses", fresh)).append({
         "gate": record.gate,
         "reason": record.reason,
         "author": record.author,
