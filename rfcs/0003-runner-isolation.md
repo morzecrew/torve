@@ -7,7 +7,7 @@ depends_on: ["0002"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-6", "A-13"]
+amended_by: ["A-6", "A-13", "A-18"]
 owner: Lev Litvinov
 description: >-
   `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
@@ -112,6 +112,8 @@ What the runner writes into a sandbox before dispatch. Every layer is versioned,
 
 Not included, deliberately: other tasks' state, other tasks' escalations, the divergence logs of adjacent work. An executor that can read them is an executor that can argue its way out of its own scope (D-2a).
 
+Also not included, deliberately (A-18): **the source specification document**. The contract is its projection, and an executor that reads the original is reading rejected alternatives — arguments for the decisions that did not survive — along with the phasing of adjacent tasks. Where a rejected alternative genuinely bears on a task, it belongs in `decisions` as a graded row, not as a document to browse.
+
 ## 6. Tests
 
 Four layers, the first three free of model calls.
@@ -201,3 +203,13 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 **Consequences:** absence and emptiness are equivalent to every reader; `decisions-reported` treats a missing file as an empty log; the silence check is unaffected, since a missing file where a `LOCKED` area was touched is a violation exactly as a file without the matching entry would be.
 
 **Verified by:** a simulation scenario in which the agent writes an entry and then crashes — the entry must be on disk (§6 table).
+
+### A-18 — 2026-08-22 — the source document does not enter the sandbox (amends §5a)
+
+**Found in specialising the `flag-dont-flip` skill for autonomous execution.** Its Torve copy told the executor to produce a plan, stop, and read the RFC's rejected-alternatives sections first. Both instructions come from the interactive world upstream serves — a human at the other end of a checkpoint — and both fail here: an executor that plans and stops produces no diff, gives the gates nothing to run against, and dies on wall-clock or the poison ceiling; a deadlock presenting as a mysterious timeout. The checkpoint did not disappear — it moved earlier and became `torve plan`, D-7.7's readiness refusal, `SizePolicy` and the reviewed contract.
+
+**Changed:** §5a's exclusion list gains the source specification document. The contract is the document's projection — intent, scope, graded decisions, acceptance — and everything the executor is owed. Rejected alternatives are temptations, not constraints: they hand an executor the material for arguing that the rejected option is better *in this case*, precisely the reasoning `LOCKED` forecloses. The document also carries the phasing of adjacent tasks, which D-2a deliberately keeps out of reach. Where a rejected alternative genuinely bears on a task, it becomes a graded decision row — the judgement sits with the author deciding what an executor needs, not with the executor deciding what to read. If a contract proves insufficient, the fix is the projection, never handing over the original behind its back.
+
+**In the skill:** the plan gate is replaced by "underspecification is a halt, not a question" — the readiness threshold survives (three or more load-bearing unsettled decisions means the contract is not executable), but the response is a `kind: blocked` / `action: halted` / `class: spec-gap` entry and an escalation, never a plan awaiting an approval that cannot arrive. Fewer than three: decide, log each as `UNLISTED` with its owed proposal, carry on. Upstream `agent-skills/flag-dont-flip` keeps both instructions for its interactive reader — divergence intended, do not reconcile.
+
+**Verified by:** the end-to-end scenario in which a well-formed contract produces a diff (the deadlock's signature is a run ending with no diff and no `blocked` entry), and a context check that a dispatched sandbox resolves `rfc` as provenance only — the runner never reads or copies the document it names.

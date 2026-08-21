@@ -56,6 +56,10 @@ def deps_for(repo, agent) -> RunDeps:
 
 
 def test_one_task_end_to_end(repo):
+    # Also the plan-gate-deadlock scenario (0003 A-18): a well-formed contract
+    # must end in a diff — a run terminating with no diff and no `blocked`
+    # entry is the deadlock's signature, and this asserting READY plus the
+    # written file is what catches its return.
     seed_run_repo(repo)
     agent = FakeAgent([{"writes": {"src/feature.py": "FEATURE = True\n"}, "exit": 0}])
     task = load_task(layout.task_file(repo.root, TASK_ID))
@@ -128,6 +132,28 @@ def test_reap_cleans_up_after_kill_nine(repo):
         for info in runtime.list_torve_sandboxes():
             if info.labels.get("torve.task") == TASK_ID:
                 runtime.destroy_by_id(info.id)
+
+
+def test_the_sandbox_receives_no_rfc_document(repo):
+    # 0003 §5a as amended by A-18: `rfc` on the contract is provenance — a
+    # reference, never the document. The task names a specification that does
+    # not exist anywhere; a runner that tried to read or copy it would fail,
+    # and the worktree the sandbox sees must contain no corpus at all.
+    seed_run_repo(repo)
+    task_path = layout.task_file(repo.root, TASK_ID)
+    contract = yaml.safe_load(task_path.read_text(encoding="utf-8"))
+    contract["rfc"] = "rfcs/0042-imaginary.md"
+    task_path.write_text(yaml.safe_dump(contract), encoding="utf-8")
+    repo.commit("provenance points at a document this repository does not hold")
+    agent = FakeAgent([{"writes": {"src/feature.py": "FEATURE = True\n"}, "exit": 0}])
+    task = load_task(task_path)
+
+    state = run_task(repo.root, task, CONFIG, deps_for(repo, agent))
+
+    assert state.state is TaskState.READY, state.history
+    worktree = repo.root / ".wt" / TASK_ID
+    assert not (worktree / "rfcs").exists()
+    assert not list(worktree.rglob("0042-imaginary.md"))
 
 
 def test_log_entry_written_before_failure_is_on_disk(repo):

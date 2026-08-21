@@ -94,6 +94,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config.yaml` names the one corpus location (D-13.7). The `rfc-index`
   gate is replaced by the shipped `rfc-valid` product gate (D-7.14,
   shadow, origin rfc/0007); a malformed corpus exits 3 per 0007 §3a.
+- Plan-gate deadlock removed from the shipped `flag-dont-flip` (0003
+  A-18): the skill's "plan and stop" checkpoint assumed a human at the
+  other end — in a sandbox it produces no diff and dies on wall-clock.
+  Underspecification is now a halt (`kind: blocked`, three or more
+  load-bearing unsettled decisions) and fewer are `UNLISTED` decisions
+  with owed proposals; the readiness threshold survives, the waiting
+  goes. The rejected-alternatives reading instruction is deleted and
+  0003 §5a gains the exclusion: the source specification document never
+  enters the sandbox — `rfc` on a contract is provenance, verified by an
+  integration test whose contract cites a document that exists nowhere.
 - Charter decomposition (A-17): the corpus conventions extracted to
   RFC 0016 — nineteen `D-A.*` decisions and amendments A-7/A-9/A-10/
   A-14/A-15 relocated with identifiers preserved, plus the prose those

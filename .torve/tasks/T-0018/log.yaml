@@ -1,0 +1,76 @@
+schema_version: 1
+task: T-0018
+repo: morzecrew/torve
+base_sha: eb04c384e93bbc0802a8f6b54be31b42a30ee018
+created_at: 2026-08-22T21:00:00Z
+drift_count: 0
+notes: |
+  Plan-gate-deadlock patch executed: the skill rewritten for its autonomous
+  reader, 0003 §5a closed against the source document (A-18), and the two
+  deterministic verification cases in the integration suite. The behavioural
+  eval — an underspecified contract must halt, not implement — needs a real
+  agent and waits for the 0009 eval harness.
+entries:
+  - decision: D-A.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:05:00Z
+    attempt: 1
+    claim: '0003 is accepted, so the §5a exclusion lands as amendment A-18 in its Amendments section — the patch asked for "amendment if accepted" and named no number; A-18 is the next free'
+    evidence: rfcs/0003-runner-isolation.md:207-215
+    action: decided
+  - decision: D-31
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:10:00Z
+    attempt: 1
+    claim: 'the exclusion tightens the boundary D-31 draws: the source document carries the phasing of adjacent tasks, so keeping it out of the sandbox is the same rule that keeps agents from reading neighbouring work; the runner already conformed — task.rfc appears once, as a provenance string in a notification, and nothing resolves or copies the document'
+    evidence: src/torve/application/runner.py:278-281
+    action: decided
+  - decision: D-9.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:15:00Z
+    attempt: 1
+    claim: 'the specialised copy diverges further from upstream by design — plan gate replaced with halt-on-underspecification, rejected-alternatives line deleted — while upstream keeps both for its interactive reader; the specialisation header already says do not reconcile'
+    evidence: skills/flag-dont-flip/SKILL.md:33-66
+    action: decided
+  - decision: D-29
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T21:20:00Z
+    attempt: 1
+    claim: 'the patch offers a distinct underspecified escalation reason and prefers it separable in telemetry; the vocabulary is a closed enum whose additions are RFC amendments, so the skill text names no reason and the halt rides the existing escalation path until the enum is amended'
+    evidence: src/torve/domain/states.py:1-40
+    action: decided
+    proposal: "OPEN — add `underspecified` to the escalation vocabulary by charter amendment so spec-defect halts are separable from locked_conflict in telemetry; the patch author wants it and the closed enum (D-29) is the only reason it is not in this diff"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T21:25:00Z
+    attempt: 1
+    claim: 'the patch''s §6 eval — a deliberately underspecified contract must produce a blocked entry and a halt, not an implementation — is agent behaviour, not engine behaviour: no deterministic test can exercise a skill''s judgement, so it lands when real agents (0004) and the eval harness (0009 §4) exist; the two deterministic cases shipped now'
+    evidence: tests/test_run_integration.py:58-63
+    action: decided
+    proposal: "ASSUMED — the underspecification eval enters the 0009 eval set with its regression case (three unsettled load-bearing decisions), flagged as the case most likely to regress when the skill is trimmed for length"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T21:30:00Z
+    attempt: 1
+    claim: 'the step-4 pass over the rest of the skill found one more stale assumption — the log section still taught logs/<task-id>.yaml, the pre-A-12 path — fixed to .torve/tasks/<task-id>/log.yaml, with the example gaining repo/base_sha (D-A.7) and the created-by-first-entry rule (A-13); ratchet-what-you-build carries no plan-gate or document-reading assumptions, and rfc-writer is the author-role exception the patch itself exempts'
+    evidence: skills/flag-dont-flip/SKILL.md:70-90
+    action: decided
+    proposal: "ASSUMED — skill examples track the canonical artefact layout in lockstep; a skill teaching a retired path is teaching agents to write files nothing reads"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T21:35:00Z
+    attempt: 1
+    claim: '0003 §5a cites D-2a for the adjacent-work exclusion, but no decision table in the corpus defines D-2a — the citation-resolution check cannot see it because undotted legacy identifiers are excluded from the scan; surfaced here rather than fixed, since minting or renaming a charter-family identifier is the owner''s call'
+    evidence: rfcs/0003-runner-isolation.md:113-113
+    action: decided
+    proposal: "OPEN — either D-2a gets a row (it reads as a D-2 corollary: an executor never sees neighbouring tasks' context) or the §5a citations move to D-31, which says the same thing and exists"

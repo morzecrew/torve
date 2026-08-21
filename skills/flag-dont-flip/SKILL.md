@@ -30,17 +30,47 @@ Two symmetric failures: flipping a lock leaves the spec fiction; halting on an
 assumption costs the round-trip grading exists to avoid. Over-caution is a real
 failure, not a safe default.
 
-## Plan first, and stop
+## Underspecification is a halt, not a question
 
-Produce a plan and never write code in the same turn as the plan. It carries:
-files touched, the decision row governing every non-trivial choice, and **the
-decisions the plan needs that the spec does not settle**. Three or more
-load-bearing entries in that last list means the spec is not ready — report and
-stop. Read the rejected-alternatives sections before any code.
+You are executing autonomously. There is nobody to hand a plan to, and stopping
+to propose one deadlocks the task — no diff, nothing for the gates to run
+against, and a run that dies on wall-clock rather than saying anything useful.
 
-## The log: `logs/<task-id>.yaml`
+Plan internally, then build. What the plan is *for* is the third list below.
 
-One file per task. Append-only: items are never removed or edited — a wrong
+Before writing code, work out: the files you will touch, the decision row
+governing each non-trivial choice, and **the decisions your plan needs that the
+contract does not settle**.
+
+If that third list has **three or more load-bearing entries**, the contract is
+not executable. Halt:
+
+```yaml
+- decision: unlisted
+  grade: UNLISTED
+  kind: blocked
+  class: spec-gap
+  at: 2026-08-20T11:04:12Z
+  attempt: 1
+  claim: retry policy, backoff bounds and dead-letter behaviour are all unsettled;
+    any implementation of this contract invents three load-bearing decisions
+  evidence: `rg -n "retry|backoff|dead.?letter" rfcs/0009-*.md` — no matches
+  action: halted
+  proposal: three rows needed before this is executable; see claim
+```
+
+Fewer than three: decide them, log each as `UNLISTED`, carry on. That is what
+`UNLISTED` is for, and each entry owes a `proposal:` back.
+
+**Inventing the missing decisions silently is the failure this skill exists to
+prevent.** A contract that needs three load-bearing inventions is not a contract
+you can satisfy — it is a specification defect, and reporting it is the correct
+outcome, not a failure to complete.
+
+## The log: `.torve/tasks/<task-id>/log.yaml`
+
+One file per task, created by its first entry — a run with nothing to report
+owes no file. Append-only: items are never removed or edited — a wrong
 entry gets a later entry saying so. Write the entry **before** you act; an
 entry written afterwards is a rationalisation. `grade` is copied from the task
 as it stands now, never re-read from the current spec.
@@ -48,6 +78,8 @@ as it stands now, never re-read from the current spec.
 ```yaml
 schema_version: 1
 task: T-0142
+repo: morzecrew/torve
+base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7)
 drift_count: 0            # the declared claim; the gate checks it against entries classed drift
 entries:
   - decision: D-3         # the spec's identifier, or `unlisted`

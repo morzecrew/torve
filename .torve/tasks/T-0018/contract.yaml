@@ -1,0 +1,52 @@
+# The plan-gate-deadlock patch: flag-dont-flip rewritten for its autonomous
+# reader, and 0003 §5a closed against the source document (A-18).
+schema_version: 1
+id: T-0018
+rfc: rfcs/0003-runner-isolation.md
+phase: 1
+role: implement
+intent: |
+  The Torve copy of flag-dont-flip stops telling an executor to plan and
+  wait — a checkpoint with nobody at the other end deadlocks the task — and
+  instead makes underspecification a halt: three or more load-bearing
+  unsettled decisions is a blocked entry and an escalation, fewer are
+  UNLISTED decisions with owed proposals. The rejected-alternatives reading
+  instruction goes with it, and 0003 §5a gains the matching exclusion: the
+  source specification document never enters the sandbox — the contract is
+  its projection, and rfc on the contract is provenance, not a document.
+depends_on: [T-0015]
+scope:
+  allow:
+    - "rfcs/**"
+    - "skills/**"
+    - "src/**"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-A.5
+    grade: LOCKED
+    text: Amendments live in an Amendments section of their primary target; numbering is global
+    paths: ["rfcs/**"]
+  - id: D-31
+    grade: LOCKED
+    text: Agents do not communicate; the runner coordinates — what an agent may touch and what was decided are copied into its contract
+    paths: ["src/torve/application/ports.py", "src/torve/application/runner.py"]
+  - id: D-29
+    grade: ASSUMED
+    text: The escalation vocabulary is one closed enum; any addition is an RFC amendment, never a code change
+    paths: ["src/torve/domain/states.py"]
+  - id: D-9.7
+    grade: LOCKED
+    text: Skills ship in the wheel; skill and gate are one unit of versioning
+    paths: ["skills/**"]
+budget: {}
+tier: executor
