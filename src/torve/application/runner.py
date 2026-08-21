@@ -4,8 +4,8 @@ The attempt loop is one durable function executed through the TaskStore
 facade (D-5): forze's runner owns the lease heartbeat, cancel observation and
 fenced terminal writes; this module owns what the loop *means* — transitions
 executed from facts, the poison ceiling checked before dispatch, gates
-outside the agent session (D-3; shell gates in a fresh sandbox, logged in
-logs/T-0003.md).
+outside the agent session (D-3; shell gates in a fresh sandbox, a
+decision logged in T-0003).
 
 `drive_attempts` is the pure core, driven by hooks: `torve run` supplies the
 real sandbox/gates/landing hooks, and the DST simulation supplies simulated

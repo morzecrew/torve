@@ -3,7 +3,7 @@
 This is the RFC-sanctioned first stage, not a hand-rolled TaskStore — the
 durable run store facade (D-5) arrives with T-0004. Until then liveness is a
 heartbeat stamped at each phase boundary, which is what lets the reaper tell
-an orphan from a live run after `kill -9` (see logs/T-0003.md).
+an orphan from a live run after `kill -9` (a decision logged in T-0003).
 
 Writes are atomic (tmp + rename): a crash mid-write must not leave a state
 file that parses halfway.

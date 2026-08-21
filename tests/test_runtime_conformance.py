@@ -1,4 +1,4 @@
-"""One battery, every Runtime adapter (RFC 0003; see logs/T-0003.md).
+"""One battery, every Runtime adapter (RFC 0003; a decision logged in T-0003).
 
 The contract under test is "workspace in, changed files out" plus lifecycle
 and labels — not the mechanism. Docker runs against the real daemon (skipped

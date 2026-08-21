@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from conftest import context_for
 
 from torve.config.manifest import Gate
-from torve.gates.decisions_reported import check_decisions_reported
+from torve.gates.decisions_reported import check_decisions_reported, parse_log
 from torve.gates.sabotage import TASK_ID, base_task, entry, log_document
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
@@ -128,3 +130,16 @@ def test_decisions_no_paths_is_skipped_never_passed(repo):
     result = check_decisions_reported(GATE, context_for(repo))
     assert result.outcome == "pass"
     assert "skipped: D-9" in result.output
+
+
+def test_repository_logs_parse_under_the_gate():
+    # Every execution log this repository carries must satisfy its own gate's
+    # parser (A-1 format; per-task directories per A-12).
+    root = Path(__file__).resolve().parent.parent
+    logs = sorted((root / ".torve" / "tasks").glob("*/log.yaml"))
+    assert logs, "the repository's own execution logs moved — update this path"
+    for log in logs:
+        document, error = parse_log(log.read_text(encoding="utf-8"))
+        assert error is None, f"{log.name}: {error}"
+        assert isinstance(document.get("drift_count"), int), f"{log.name}: no drift_count"
+        assert document["entries"], f"{log.name}: an empty log would simply not exist (A-13)"

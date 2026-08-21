@@ -67,7 +67,7 @@ EXIT_BY_REASON: dict[EscalationReason, int] = {
 # through running, where it increments and meets the poison ceiling.
 # claimed -> escalated covers a runner that died between claim and first
 # dispatch — the reaper's lease_expired verdict needs a legal exit from
-# claimed (logged decision, logs/T-0003.md).
+# claimed (a decision logged in T-0003).
 TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.QUEUED: frozenset({TaskState.CLAIMED}),
     TaskState.CLAIMED: frozenset({TaskState.RUNNING, TaskState.ESCALATED}),

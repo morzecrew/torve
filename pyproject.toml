@@ -18,7 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 opensandbox = ["opensandbox"]
 postgres = ["forze[postgres]>=0.6.0"]
-# Applied in production, absent from a gates-only CI install (MIGRATIONS.md §2).
+# Applied in production, absent from a gates-only CI install (rfcs/0012-migrations.md §2).
 migrate = ["yoyo-migrations>=9"]
 
 [project.scripts]
@@ -50,7 +50,7 @@ packages = ["src/torve"]
 # The specialised skills ship inside the wheel (A-3, D-9.7): skill and gate
 # are one unit of versioning by construction.
 "skills" = "torve/_skills"
-# Migrations ship as package data (MIGRATIONS.md §2): a wheel that knows how
+# Migrations ship as package data (rfcs/0012-migrations.md §2): a wheel that knows how
 # to migrate but has nothing to migrate with is discovered at first deployment.
 "migrations" = "torve/_migrations"
 

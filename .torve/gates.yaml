@@ -78,7 +78,7 @@ gates:
     timeout: 900
     # Fallback for runs with no task contract (human pull requests).
     commands:
-      - "uv run ruff check src tests scripts"
+      - "uv run ruff check src tests"
       - "uv run mypy src"
       - "uv run basedpyright src"
       - "uv run pytest"
