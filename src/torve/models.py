@@ -7,9 +7,10 @@ modelled here — Attempt and ReviewFeedback arrive with the runner (RFC 0003).
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SCHEMA_VERSION = 1
 
@@ -18,6 +19,7 @@ GateInput = Literal["worktree", "diff", "task", "log"]
 # pass/fail per RFC 0002 §3; flaky per D-2.6; bypassed per D-2.7; skipped for
 # gates whose input does not exist on this run (recorded, never silently green);
 # error for gate-infrastructure failures, kept distinct from a red result.
+GateState = Literal["shadow", "blocking", "quarantined"]
 GateOutcome = Literal["pass", "fail", "flaky", "skipped", "bypassed", "error"]
 
 
@@ -72,22 +74,38 @@ class Task(BaseModel):
 
 
 class Gate(BaseModel):
-    """One entry in gates.yaml (RFC 0002 §3).
+    """One entry in gates.yaml (RFC 0002 §3, lifecycle §7 per A-8).
 
     `run` is a shell command, or an `@`-prefixed builtin reference. The RFC's
     `@task.acceptance` is the acceptance builtin; the other builtins follow the
     same convention (`@scope`, `@secrets`, ...). `commands` is the acceptance
     fallback for runs with no task file.
+
+    `state` and `origin` are required on every entry (D-2.19): a boolean
+    cannot express shadow or quarantine, and provenance is unrecoverable
+    later. `shadow` and `quarantined` gates run and report but never affect
+    the exit code (§7.3).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str
     run: str
+    state: GateState
+    origin: str  # structural | leak/<task> | rfc/<id> — why this gate exists
+    added: date | None = None
     input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
-    blocking: bool = True
     timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
     commands: list[str] = Field(default_factory=list)
+
+    @field_validator("origin")
+    @classmethod
+    def _origin_shape(cls, value: str) -> str:
+        if value == "structural" or value.startswith(("leak/", "rfc/")):
+            return value
+        raise ValueError(
+            f"origin {value!r} must be 'structural', 'leak/<task>' or 'rfc/<id>' (D-2.19)"
+        )
 
     @property
     def builtin(self) -> str | None:
@@ -125,7 +143,7 @@ class GateResult(BaseModel):
     schema_version: int = SCHEMA_VERSION
     name: str
     outcome: GateOutcome
-    blocking: bool
+    state: GateState
     exit_code: int | None = None
     duration_s: float = 0.0
     sha: str = ""

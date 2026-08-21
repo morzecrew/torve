@@ -1,5 +1,5 @@
 """gates.yaml — the reviewed gate manifest, one per consuming repository
-(D-2.5), plus the config hash that stamps every telemetry record (RFC 0002 §7).
+(D-2.5), plus the config hash that stamps every telemetry record (RFC 0002 §8).
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def load_manifest(path: Path) -> Manifest:
 
 
 def config_hash(manifest_path: Path, root: Path) -> str:
-    """Digest of the regime a run belongs to (RFC 0002 §7, D-9.8): gates.yaml,
+    """Digest of the regime a run belongs to (RFC 0002 §8, D-9.8): gates.yaml,
     the agent-skills lockfile, the Torve package version (its gates and
     shipped skills change behavior — A-3), and the pinned forze version (a
     substrate upgrade is a regime change, and possibly a migration — A-6).

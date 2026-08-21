@@ -29,12 +29,15 @@ BASE_MANIFEST: dict[str, Any] = {
     "schema_version": 1,
     "scope": {"allow": [], "deny": []},
     "gates": [
-        {"name": "scope", "run": "@scope"},
-        {"name": "secrets", "run": "@secrets"},
-        {"name": "no-test-tampering", "run": "@no-test-tampering"},
-        {"name": "decisions-reported", "run": "@decisions-reported"},
-        {"name": "self-audit", "run": "@self-audit", "blocking": False},
-        {"name": "acceptance", "run": "@task.acceptance", "commands": ["true"]},
+        {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"},
+        {"name": "secrets", "run": "@secrets", "state": "blocking", "origin": "structural"},
+        {"name": "no-test-tampering", "run": "@no-test-tampering",
+         "state": "blocking", "origin": "structural"},
+        {"name": "decisions-reported", "run": "@decisions-reported",
+         "state": "blocking", "origin": "structural"},
+        {"name": "self-audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
+        {"name": "acceptance", "run": "@task.acceptance",
+         "state": "blocking", "origin": "structural", "commands": ["true"]},
     ],
 }
 
@@ -153,7 +156,8 @@ def _scope_clean(repo: Repo) -> None:
 def _acceptance_bad(repo: Repo) -> None:
     manifest = dict(BASE_MANIFEST)
     manifest["gates"] = [
-        {"name": "acceptance", "run": "@task.acceptance", "commands": ["false"], "timeout": 30}
+        {"name": "acceptance", "run": "@task.acceptance", "state": "blocking",
+         "origin": "structural", "commands": ["false"], "timeout": 30}
     ]
     repo.seed(manifest)
     repo.write("src/app.py", "print('red build')\n")
@@ -170,7 +174,8 @@ def _acceptance_flaky(repo: Repo) -> None:
     flaky = "test -e .torve/marker || { mkdir -p .torve; touch .torve/marker; exit 1; }"
     manifest = dict(BASE_MANIFEST)
     manifest["gates"] = [
-        {"name": "acceptance", "run": "@task.acceptance", "commands": [flaky], "timeout": 30}
+        {"name": "acceptance", "run": "@task.acceptance", "state": "blocking",
+         "origin": "structural", "commands": [flaky], "timeout": 30}
     ]
     repo.seed(manifest)
     repo.write("src/app.py", "print('flaky build')\n")

@@ -1,5 +1,9 @@
 # Gate manifest for this repository (RFC 0002, D-2.5: manifests live in the
 # consuming repository, not in the package). Torve gates its own development.
+#
+# Every entry carries `state` and `origin` (D-2.19, A-8): state is the
+# activation lifecycle (shadow | blocking | quarantined — RFC 0002 §7.3),
+# origin answers "why do we have this" for as long as the gate exists.
 schema_version: 1
 
 # Repository-level scope, used on runs with no task contract. Unconstrained:
@@ -11,17 +15,45 @@ scope:
 gates:
   - name: scope
     run: "@scope"
+    state: blocking
+    origin: structural
+    added: 2026-08-21
   - name: secrets
     run: "@secrets"
+    state: blocking
+    origin: structural
+    added: 2026-08-21
   - name: no-test-tampering
     run: "@no-test-tampering"
+    state: blocking
+    origin: structural
+    added: 2026-08-21
   - name: decisions-reported
     run: "@decisions-reported"
+    state: blocking
+    origin: structural
+    added: 2026-08-21
+  # The one gate that was non-blocking, which is what shadow is (A-8): it
+  # runs, reports, and is measured before it may ever block.
   - name: self-audit
     run: "@self-audit"
-    blocking: false
+    state: shadow
+    origin: structural
+    added: 2026-08-21
+  # Derived from the document conventions (charter A-7, D-A.3/D-A.6): the
+  # corpus validator as a gate. Enters at shadow per D-2.18 — its own first
+  # test of the lifecycle; CI keeps the blocking dedicated step meanwhile.
+  - name: source-layout
+    run: "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+    state: shadow
+    origin: rfc/0001
+    added: 2026-08-21
+    timeout: 60
   - name: acceptance
     run: "@task.acceptance"
+    state: blocking
+    origin: structural
+    added: 2026-08-21
     timeout: 900
     # Fallback for runs with no task contract (human pull requests).
     commands:

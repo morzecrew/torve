@@ -23,7 +23,9 @@ def test_load_and_resolve_defaults(tmp_path):
 
 
 def test_unknown_builtin_is_a_load_error(tmp_path):
-    bad = dict(BASE_MANIFEST, gates=[{"name": "x", "run": "@nonsense"}])
+    bad = dict(BASE_MANIFEST,
+               gates=[{"name": "x", "run": "@nonsense",
+                       "state": "blocking", "origin": "structural"}])
     with pytest.raises(ValueError, match="unknown builtin"):
         load_manifest(write_manifest(tmp_path, bad))
 
@@ -31,9 +33,27 @@ def test_unknown_builtin_is_a_load_error(tmp_path):
 def test_duplicate_gate_names_refused(tmp_path):
     bad = dict(
         BASE_MANIFEST,
-        gates=[{"name": "x", "run": "@scope"}, {"name": "x", "run": "@secrets"}],
+        gates=[{"name": "x", "run": "@scope", "state": "blocking", "origin": "structural"},
+               {"name": "x", "run": "@secrets", "state": "blocking", "origin": "structural"}],
     )
     with pytest.raises(ValueError, match="unique"):
+        load_manifest(write_manifest(tmp_path, bad))
+
+
+def test_an_entry_without_state_or_origin_is_refused(tmp_path):
+    # D-2.19: every manifest entry carries origin and state — a boolean (or an
+    # omission) cannot express shadow or quarantine, and provenance is
+    # unrecoverable later.
+    bad = dict(BASE_MANIFEST, gates=[{"name": "x", "run": "@scope"}])
+    with pytest.raises(ValueError):
+        load_manifest(write_manifest(tmp_path, bad))
+
+
+def test_a_shapeless_origin_is_refused(tmp_path):
+    bad = dict(BASE_MANIFEST,
+               gates=[{"name": "x", "run": "@scope",
+                       "state": "blocking", "origin": "because"}])
+    with pytest.raises(ValueError, match="origin"):
         load_manifest(write_manifest(tmp_path, bad))
 
 

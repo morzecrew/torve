@@ -1,4 +1,4 @@
-"""One JSONL record per run (RFC 0002 §7). Three fields must be right from the
+"""One JSONL record per run (RFC 0002 §8). Three fields must be right from the
 first line because none can be reconstructed later: `schema_version`,
 `config_hash`, and decisions denormalised into the record, not referenced.
 """

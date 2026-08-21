@@ -20,12 +20,13 @@ def test_task_rejects_unknown_fields():
 
 
 def test_builtin_resolution():
-    assert Gate(name="a", run="@task.acceptance").builtin == "acceptance"
-    assert Gate(name="s", run="@scope").builtin == "scope"
-    assert Gate(name="t", run="mypy src").builtin is None
+    acceptance = Gate(name="a", run="@task.acceptance", state="blocking", origin="structural")
+    assert acceptance.builtin == "acceptance"
+    assert Gate(name="s", run="@scope", state="blocking", origin="structural").builtin == "scope"
+    assert Gate(name="t", run="mypy src", state="blocking", origin="structural").builtin is None
 
 
 def test_commands_only_for_acceptance():
     with pytest.raises(ValidationError):
-        Gate(name="s", run="@scope", commands=["true"])
-    Gate(name="a", run="@task.acceptance", commands=["true"])
+        Gate(name="s", run="@scope", state="blocking", origin="structural", commands=["true"])
+    Gate(name="a", run="@task.acceptance", state="blocking", origin="structural", commands=["true"])

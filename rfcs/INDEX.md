@@ -11,7 +11,7 @@ number is **0014**.
 | # | Title | Status | Depends on | A | One-line routing description |
 | --- | --- | --- | --- | --- | --- |
 | [0001](0001-torve-charter.md) | Torve: charter | accepted | — | 4 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
-| [0002](0002-gates-library.md) | Gates as a library | accepted | 0001 | 1 | The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment. |
+| [0002](0002-gates-library.md) | Gates as a library | accepted | 0001 | 2 | The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment. |
 | [0003](0003-runner-isolation.md) | Runner and isolation | accepted | 0002 | 1 | `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine. |
 | [0004](0004-agents-tiering.md) | Agent adapters and tiering | draft | 0003 | 0 | Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable. |
 | [0005](0005-review-as-a-run.md) | Review as a run | draft | 0003, 0004 | 0 | Independent automated review as a second run role: isolation rules, the finding contract, calibration, and replacing third-party PR reviewers. |

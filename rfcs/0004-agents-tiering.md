@@ -80,6 +80,8 @@ DuckDB reads JSONL directly, so stage 1 → 2 is a change of reader, not a migra
 
 Mandatory from the first record, because none can be reconstructed: `schema_version`, `config_hash`, and decisions **denormalised** into the record rather than referenced.
 
+Per-gate health rides the same records (RFC 0002 §7.6, added by A-8): hit rate, bypass count, flake rate, duration p50/p95 and first-attempt pass rate are all derivable from attempt telemetry — no separate collection path, reviewed quarterly.
+
 The two hand-entered fields — `human_minutes` and `rework_after_review` — are added after merge and live in a separate `ReviewFeedback` record keyed by task id. Appending is easy; updating a row in an append-only store is not.
 
 ## 6a. Three measurement defects to fix before trusting a number

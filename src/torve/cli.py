@@ -86,7 +86,7 @@ def gates_run(base: str | None, only: str | None, task_path: Path | None,
         click.echo(f"torve gates · {task_note} · config {record['config_hash']}")
         for result in report.results:
             mark = OUTCOME_MARKS.get(result.outcome, "?")
-            block = "blocking" if result.blocking else "non-blocking"
+            block = result.state
             click.echo(f"  {mark} {result.name:<20} {result.outcome:<9} "
                        f"[{block}, {result.duration_s:.1f}s]")
             if result.outcome in ("fail", "error") and result.output:

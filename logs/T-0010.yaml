@@ -1,0 +1,96 @@
+schema_version: 1
+task: T-0010
+repo: morzecrew/torve
+base_sha: 91f9c8d89853df2f5b4e1e4ee715df4e9b61602c
+created_at: 2026-08-21T18:00:00Z
+drift_count: 0
+notes: |
+  Gate lifecycle consolidated into RFC 0002 as amendment A-8, per the
+  one-off instruction (executed, not kept — D-A.1b): §7 with the state
+  machine, D-2.18–D-2.23, the Gate model change while it is still an edit
+  rather than a migration, and the manifest backfill.
+entries:
+  - decision: D-A.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:05:00Z
+    attempt: 1
+    claim: the instruction numbered its new decisions D-2.10–D-2.15, but those identifiers were taken by the T-0002 acceptance rows; identifiers are never reused, so the lifecycle rows landed as D-2.18–D-2.23 and the A-8 entry records the renumbering
+    evidence: '`grep -c "^| D-2\." rfcs/0002-gates-library.md` — 23 rows, D-2.1 through D-2.23, no duplicates (the corpus-unique check would fail otherwise)'
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T18:10:00Z
+    attempt: 1
+    claim: the instruction's step 6 puts a source-layout gate from "0014 §9" into shadow, but no RFC 0014 exists — the document conventions landed as charter amendment A-7, and their machine check is the corpus validator
+    evidence: gates.yaml:46-52
+    action: decided
+    proposal: "ASSUMED — source-layout is the corpus validator (`rfc_index.py check`) as a manifest gate with `origin: rfc/0001`, entering at `state: shadow` as the lifecycle's own first test; CI keeps its blocking dedicated step until the gate earns promotion under D-2.23"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T18:15:00Z
+    attempt: 1
+    claim: the starting-set backfill lists five structural gates but the manifest carries six; self-audit was the one non-blocking gate, and "runs and reports, blocks nothing" is the definition of shadow
+    evidence: gates.yaml:38-44
+    action: decided
+    proposal: "ASSUMED — self-audit is `state: shadow, origin: structural`; it may be promoted under the D-2.23 criteria like any other gate once RFC 0004's agent-side audit gives it something to fire on"
+  - decision: D-2.19
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:20:00Z
+    attempt: 1
+    claim: state and origin are required fields with no defaults — "carries" read as explicit, so an entry omitting either is a load error, and origin must be structural, leak/<task> or rfc/<id>
+    evidence: src/torve/models.py:101-108
+    action: decided
+  - decision: D-2.18
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:25:00Z
+    attempt: 1
+    claim: the runner blocks only on state blocking; shadow and quarantined failures are recorded with full output and never touch the exit code, verified by test for both states
+    evidence: tests/test_runner.py:52-76
+    action: decided
+  - decision: D-2.20
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:30:00Z
+    attempt: 1
+    claim: implementation stays in the package, activation in the repository's gates.yaml; state is a manifest field, so the same gate can be blocking here and shadow elsewhere with no package change
+    evidence: gates.yaml:1-6
+    action: decided
+  - decision: D-2.21
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:35:00Z
+    attempt: 1
+    claim: the sabotage suite still runs on every change with the updated manifest schema — the red twin of every gate observed to fail, which is what distinguishes a dead gate from a clean codebase
+    evidence: '`uv run pytest tests/test_sabotage.py -q` — passed; 17 cases red and green over state-carrying manifests'
+    action: decided
+  - decision: D-2.22
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:40:00Z
+    attempt: 1
+    claim: no gate was retired in this change; the retirement signals and the evidence rule are recorded in §7.7, and the quarantined state exists so removal decisions are made on data
+    evidence: rfcs/0002-gates-library.md:233-251
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:45:00Z
+    attempt: 1
+    claim: every sabotage case moved to the new manifest schema and the suite stays green; no case was weakened — the two acceptance fixtures and the base manifest gained state and origin only
+    evidence: src/torve/gates/sabotage.py:31-45
+    action: decided
+  - decision: D-A.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T18:50:00Z
+    attempt: 1
+    claim: the lifecycle landed as amendment A-8 in RFC 0002's own Amendments section with the section renumbering, the §3 model change marked in place, and amended_by updated — the instruction document itself is executed and not kept
+    evidence: '`grep -n "### A-8" rfcs/0002-gates-library.md` — one heading, in the primary target'
+    action: decided

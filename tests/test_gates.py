@@ -8,7 +8,7 @@ from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 from torve.models import Gate
 
-GATE = Gate(name="test", run="@scope")  # any handle; builtins only read the context
+GATE = Gate(name="test", run="@scope", state="blocking", origin="structural")  # any handle
 
 
 def test_scope_implicitly_allows_task_and_log_files(repo):
@@ -44,7 +44,8 @@ def test_secrets_allow_patterns_suppress_reviewed_false_positives(repo):
     manifest = {
         "schema_version": 1,
         "secrets": {"allow_patterns": ["EXAMPLE'"]},
-        "gates": [{"name": "secrets", "run": "@secrets"}],
+        "gates": [{"name": "secrets", "run": "@secrets",
+                   "state": "blocking", "origin": "structural"}],
     }
     repo.seed(manifest)
     repo.write("src/config.py", "key = '" + "AKIA" + "IOSFODNN7EXAMPLE" + "'\n")

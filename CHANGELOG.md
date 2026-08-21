@@ -68,6 +68,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- Gate lifecycle (amendment A-8 to RFC 0002, D-2.18–D-2.23): §7 added with
+  the state machine `proposed → shadow → blocking → quarantined → retired`,
+  the five filters, the implementation/activation split, health metrics and
+  retirement signals. The `Gate` model's `blocking: bool` is replaced by
+  required `state` plus required `origin` (and optional `added`) while no
+  manifest exists outside this repository; shadow and quarantined failures
+  are recorded but never touch the exit code; bypasses apply only to
+  blocking-state gates. The starting set is backfilled (`origin:
+  structural`, `self-audit` at `shadow`), and `source-layout` — the corpus
+  validator as a gate — enters at `shadow` as the lifecycle's first test.
 - Document conventions (amendment A-7, charter D-A.1–D-A.8) applied to the
   repository: MIGRATIONS/CLI-contract/configuration-layout promoted to RFCs
   0011–0013 (identifiers renumbered to `D-11.*`/`D-12.*`/`D-13.*`), the

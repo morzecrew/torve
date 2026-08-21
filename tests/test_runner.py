@@ -11,6 +11,11 @@ from torve.telemetry import append_record, build_record
 
 
 def manifest_with(gates: list[dict], **extra) -> dict:
+    # Test convenience only: real manifests must carry state and origin
+    # explicitly (D-2.19); the schema requirement has its own test.
+    for gate in gates:
+        gate.setdefault("state", "blocking")
+        gate.setdefault("origin", "structural")
     data = dict(BASE_MANIFEST, gates=gates)
     data.update(extra)
     return data
@@ -27,11 +32,11 @@ def test_cheapest_first_ordering(repo):
     assert [r.name for r in report.results] == ["fast", "slow"]
 
 
-def test_fail_fast_skips_later_blocking_but_runs_non_blocking(repo):
+def test_fail_fast_skips_later_blocking_but_runs_shadow(repo):
     repo.seed(manifest_with([
         {"name": "red", "run": "exit 3", "timeout": 5},
         {"name": "later-blocking", "run": "echo never", "timeout": 100},
-        {"name": "advisory", "run": "echo still-runs", "timeout": 200, "blocking": False},
+        {"name": "advisory", "run": "echo still-runs", "timeout": 200, "state": "shadow"},
     ]))
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
@@ -44,15 +49,30 @@ def test_fail_fast_skips_later_blocking_but_runs_non_blocking(repo):
     assert report.exit_code == 1
 
 
-def test_non_blocking_failure_does_not_gate(repo):
+def test_shadow_failure_does_not_gate(repo):
     repo.seed(manifest_with([
-        {"name": "advisory", "run": "false", "timeout": 5, "blocking": False},
+        {"name": "advisory", "run": "false", "timeout": 5, "state": "shadow"},
         {"name": "real", "run": "true", "timeout": 100},
     ]))
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
     report = run_gates(context_for(repo))
-    assert report.exit_code == 0
+    by_name = {r.name: r for r in report.results}
+    assert by_name["advisory"].outcome == "fail"  # measured, reported —
+    assert report.exit_code == 0                  # — and powerless (§7.3)
+
+
+def test_quarantined_gate_failure_does_not_gate(repo):
+    repo.seed(manifest_with([
+        {"name": "drifted", "run": "false", "timeout": 5, "state": "quarantined"},
+        {"name": "real", "run": "true", "timeout": 100},
+    ]))
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+    report = run_gates(context_for(repo))
+    by_name = {r.name: r for r in report.results}
+    assert by_name["drifted"].outcome == "fail"  # not removed: the retirement
+    assert report.exit_code == 0                 # decision is made on data
 
 
 def test_quarantined_acceptance_failure_does_not_block(repo):

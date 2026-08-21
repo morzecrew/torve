@@ -1,0 +1,64 @@
+# Gate lifecycle (amendment A-8): §7 added to RFC 0002 with the state machine
+# proposed→shadow→blocking→quarantined→retired, decisions D-2.18–D-2.23, the
+# Gate model's blocking:bool replaced by required state plus origin before any
+# manifest exists outside this repository, the starting set backfilled, and
+# source-layout entering at shadow as the lifecycle's own first test.
+schema_version: 1
+id: T-0010
+rfc: rfcs/0002-gates-library.md
+phase: 1
+role: implement
+depends_on: [T-0009]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - "gates.yaml"
+    - "tasks/**"
+    - "logs/**"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case that must be observed to fail
+    paths: ["src/torve/gates/sabotage.py", "tests/test_sabotage.py"]
+  - id: D-2.18
+    grade: LOCKED
+    text: A gate enters service through shadow before it may block
+    paths: ["gates.yaml", "src/torve/runner.py"]
+  - id: D-2.19
+    grade: LOCKED
+    text: Every manifest entry carries origin and state
+    paths: ["src/torve/models.py", "gates.yaml"]
+  - id: D-2.20
+    grade: LOCKED
+    text: Implementation and activation are separate tracks; states may differ per repository
+    paths: ["src/torve/models.py", "gates.yaml"]
+  - id: D-2.21
+    grade: LOCKED
+    text: No fires plus a red sabotage case means broken, not unnecessary
+    paths: ["src/torve/gates/sabotage.py", "tests/test_sabotage.py"]
+  - id: D-2.22
+    grade: LOCKED
+    text: Retirement requires the same evidence as adoption
+    paths: ["gates.yaml"]
+  - id: D-A.4
+    grade: LOCKED
+    text: Decision identifiers are permanent; append, never renumber
+    paths: ["rfcs/**"]
+  - id: D-A.5
+    grade: LOCKED
+    text: Amendments live in an Amendments section of their primary target
+    paths: ["rfcs/**"]
+budget: {}
+tier: executor

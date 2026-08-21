@@ -1,5 +1,6 @@
 """Gate execution (RFC 0002 §3): cheapest first, fail-fast on the first
-blocking failure, non-blocking gates run regardless, every result persisted.
+failure of a blocking-state gate; shadow and quarantined gates run regardless
+and never touch the exit code (RFC 0002 §7.3), every result persisted.
 
 Gates execute here, outside any agent session (D-3): outcomes are computed
 from exit codes and prepared inputs, never reported by a model.
@@ -105,12 +106,12 @@ def run_gates(ctx: GateContext, only: set[str] | None = None) -> RunReport:
     report = RunReport()
     blocking_failed = False
     for _, gate in ordered:
-        if blocking_failed and gate.blocking:
+        if blocking_failed and gate.state == "blocking":
             report.results.append(
                 GateResult(
                     name=gate.name,
                     outcome="skipped",
-                    blocking=True,
+                    state=gate.state,
                     sha=ctx.head_sha,
                     output="not run: an earlier blocking gate failed",
                 )
@@ -125,12 +126,14 @@ def run_gates(ctx: GateContext, only: set[str] | None = None) -> RunReport:
         duration = time.monotonic() - started
 
         bypass = None
-        if outcome.outcome in ("fail", "error"):
+        if outcome.outcome in ("fail", "error") and gate.state == "blocking":
+            # A bypass on a gate that cannot block would be a signature spent
+            # on nothing; shadow failures are measurement, not obstacles.
             bypass = _find_bypass(gate, ctx)
         result = GateResult(
             name=gate.name,
             outcome="bypassed" if bypass else outcome.outcome,
-            blocking=gate.blocking,
+            state=gate.state,
             exit_code=outcome.exit_code,
             duration_s=round(duration, 3),
             sha=ctx.head_sha,
@@ -144,7 +147,7 @@ def run_gates(ctx: GateContext, only: set[str] | None = None) -> RunReport:
             _log_bypass(ctx, bypass)
         report.results.append(result)
 
-        if result.outcome in ("fail", "error") and gate.blocking:
+        if result.outcome in ("fail", "error") and gate.state == "blocking":
             blocking_failed = True
 
     report.exit_code = 1 if blocking_failed else 0
