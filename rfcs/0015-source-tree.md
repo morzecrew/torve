@@ -8,7 +8,7 @@ depends_on: ["0016"]
 informed_by: ["0002", "0003", "0014"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-19"]
 owner: Lev Litvinov
 description: >-
   The package layout of src/torve — layers, permitted import directions,
@@ -308,3 +308,23 @@ Step 6 before step 7 deliberately: run the check first and learn how far the cur
 - `layering` gate at `blocking`; `lint-imports` clean, its three sabotage cases red on demand.
 - `python -c "import torve"` does not import `application` or `adapters`.
 - `torve gates run` works in a repository with no database, no sandbox and no agent credentials.
+
+## Amendments
+
+### A-19 — 2026-08-22 — the RFC format stays at the planner (amends §6.1, §6.2)
+
+**Found while answering an interoperability question.** Foreign spec-driven formats (Spec Kit, OpenSpec) stay out of scope — they produce no graded decisions, so a bridged document carries nothing to inherit (0007 §6b, D-7.17). The option of a different specification source stays open only while the format stays where it is: if a gate or a runtime starts parsing RFC documents directly, interoperability closes, and it closes silently. The rule needed stating so it is not weakened by a plausible-sounding exception later.
+
+**Changed:** §6.1's contract set gains a fourth rule, enforcing 0007's D-7.18:
+
+```toml
+[[tool.importlinter.contracts]]
+name = "The RFC format stays at the planner"
+type = "forbidden"
+source_modules = ["torve.gates", "torve.adapters.runtime", "torve.adapters.agent"]
+forbidden_modules = ["torve.config.rfc_parse"]
+```
+
+§6.2's note: this contract is format containment — a gate or runtime that parses specification documents directly is how the containment breaks, and it breaks quietly. Sabotage case: a gate importing `config.rfc_parse`.
+
+**Unchanged:** everything else about the layering gate. The `rfc-valid` gate keeps calling `torve rfc check` — that is the CLI consuming the format at the planner's side of the line, not a gate parsing documents.

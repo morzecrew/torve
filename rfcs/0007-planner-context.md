@@ -192,6 +192,18 @@ Non-deterministic extraction from unstructured sources — reading a codebase an
 
 The realistic sequence is lazy: start with `RfcDirectory` over what already exists, let `ExecutionLog` accumulate the rest, and write a `Constitution` only for the decisions that keep being rediscovered.
 
+## 6b. Out of scope
+
+**Compatibility with foreign spec-driven formats.** Excluded, and not for effort reasons.
+
+Spec Kit, OpenSpec and similar tools generate phased specifications. They do not produce graded decisions, declared paths, per-task scope, or identifiers a divergence log can cite — so a document bridged from one of them would carry nothing to inherit, and `torve plan` would mint tasks with an empty `decisions` list. The anti-drift contour would not degrade; it would be absent.
+
+Universal compatibility would cost exactly the thing that makes this engine worth having.
+
+The format's surface is narrow by construction: it terminates at the planner. `decisions-reported` reads `InheritedDecision` from the contract; the runner, gates, review, merge and telemetry see task contracts only. Keeping it that way is what keeps a different source possible at all (D-7.18) — a grade is a human judgement about how expensive a decision is to reverse, and it cannot be derived from a document where nobody made that judgement, by any mechanism, ever.
+
+**Reopened when:** a project that already keeps specifications in another format adopts Torve and will not rewrite them. The `DecisionSource` port is the extension point; an adapter is a day's work, and it cannot be deterministic — decisions absent from a document are extracted outside the engine, by a skill, and accepted by a human.
+
 ## 7. Decisions
 
 | # | Grade | Decision | Paths | Consequence |
@@ -212,6 +224,8 @@ The realistic sequence is lazy: start with `RfcDirectory` over what already exis
 | D-7.14 | `ASSUMED` | `rfc-valid` is a product gate, shipped in the package | `src/torve/cli/rfc.py` | Any repository writing specs for `torve plan` needs it |
 | D-7.15 | `ASSUMED` | `torve context` reports asserted `implementation` beside derived per-phase progress, and flags disagreement | `src/torve/application/planner.py` | The disagreement is the informative part |
 | D-7.16 | `LOCKED` | `torve rfc check --with-store` is opt-in; the default check needs no database | `src/torve/config/rfc_parse.py` | `rfc-valid` is a product gate and must run without infrastructure |
+| D-7.17 | `LOCKED` | Foreign spec formats are out of scope; `DecisionSource` is the extension point if that changes | `src/torve/application/ports.py` | A bridged document carries nothing to inherit, so the anti-drift contour is absent rather than degraded |
+| D-7.18 | `LOCKED` | Only `torve plan`, `torve rfc *` and `RfcDirectory` know the RFC format | `src/torve/config/rfc_parse.py` `src/torve/cli/rfc.py` `pyproject.toml` | The format terminating at the planner is what keeps a different source possible at all |
 
 ## 8. Exit criteria
 
