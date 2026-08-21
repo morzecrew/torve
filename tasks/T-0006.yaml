@@ -1,0 +1,71 @@
+# Migrations per rfcs/MIGRATIONS.md: owner-grouped SQL histories, yoyo behind
+# the migrate extra, migrations as package data, torve migrate with a target
+# from the first release, the FORZE_VERSION pin in config_hash and torve
+# doctor, and the conformance battery against fresh and populated databases.
+schema_version: 1
+id: T-0006
+rfc: rfcs/MIGRATIONS.md
+phase: 1
+role: implement
+depends_on: [T-0005]
+scope:
+  allow:
+    - "src/**"
+    - "tests/**"
+    - "migrations/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - "gates.yaml"
+    - "torve.yaml"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+    - "rfcs/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-M.1
+    grade: LOCKED
+    text: Migrations are grouped by schema owner first, engine second
+    paths: ["migrations/**"]
+  - id: D-M.4
+    grade: LOCKED
+    text: No downgrade; forward-only plus backups
+    paths: ["migrations/**"]
+  - id: D-M.5
+    grade: LOCKED
+    text: Checksums enabled; editing an applied migration fails
+    paths: ["src/torve/migrate.py"]
+  - id: D-M.6
+    grade: LOCKED
+    text: torve migrate takes a target from the first release
+    paths: ["src/torve/cli.py"]
+  - id: D-M.7
+    grade: LOCKED
+    text: Substrate migrations pin a forze version; torve doctor enforces it
+    paths: ["migrations/substrate/**", "src/torve/cli.py"]
+  - id: D-M.9
+    grade: LOCKED
+    text: Conformance battery runs against both a from-scratch and an upgraded database, blocking
+    paths: ["tests/test_postgres_integration.py"]
+  - id: D-M.2
+    grade: ASSUMED
+    text: Plain SQL, no migration DSL
+    paths: ["migrations/**"]
+  - id: D-M.3
+    grade: ASSUMED
+    text: yoyo-migrations behind the migrate extra, imported lazily
+    paths: ["src/torve/migrate.py", "pyproject.toml"]
+  - id: D-M.8
+    grade: ASSUMED
+    text: No telemetry migrations before stage 3
+    paths: ["migrations/**"]
+  - id: D-9.8
+    grade: LOCKED
+    text: config_hash includes the Torve package version and the pinned forze version
+    paths: ["src/torve/manifest.py"]
+budget: {}
+tier: executor
