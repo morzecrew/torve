@@ -1,0 +1,20 @@
+# Runner configuration for this repository (RFC 0003; logged decision in
+# logs/T-0003.md — runner knobs live here, gate manifest stays in gates.yaml).
+schema_version: 1
+
+runtime:
+  adapter: docker            # docker | opensandbox
+  image: python:3.13-slim
+  sandbox_timeout: 1800      # platform-enforced lifecycle bound, seconds
+  agent_timeout: 1200        # hard cap per agent attempt
+  opensandbox:
+    domain: localhost:5266
+    api_key_env: OPENSANDBOX_API_KEY   # the name of the variable, never the key
+
+poison_ceiling: 3            # checked before dispatch; reached -> escalated
+
+reap:
+  stale_after: 600           # non-terminal run with an older heartbeat is orphaned
+
+scm:
+  open_pr: false             # no remote yet; the PR leg is recorded as deferred

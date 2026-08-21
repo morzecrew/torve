@@ -22,3 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decisions.
 - Dogfood wiring for this repository: `gates.yaml`, task contract
   `tasks/T-0002.yaml`, execution log `logs/T-0002.md`, GitHub Actions CI.
+- Runner core (RFC 0003 phase 1): `torve run` — one task, synchronous, exit
+  code is the outcome — with the state machine and enumerated escalation
+  reasons, git-worktree workspaces, and JSON run state beside the worktree.
+- Two Runtime adapters behind one "workspace in, changed files out" contract:
+  Docker (bind mount, `--init`, platform-bounded lifecycle) and OpenSandbox
+  (tar sync over the files API; SDK as the `torve[opensandbox]` extra), with a
+  shared conformance battery.
+- `FakeAgent` scripted scenarios (always sandboxed), `torve status`, and
+  `torve reap` — convention-driven sweep that expires stale runs as
+  `lease_expired`, proven after `kill -9`.
+- Shell gates in `torve run` execute in a fresh sandbox the agent never
+  touched, via a new executor seam in the gate runner; `torve.yaml` carries
+  runner configuration.

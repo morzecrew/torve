@@ -1,0 +1,105 @@
+"""Run state, v1: a JSON file beside the worktree (RFC 0003 §2).
+
+This is the RFC-sanctioned first stage, not a hand-rolled TaskStore — the
+durable run store facade (D-5) arrives with T-0004. Until then liveness is a
+heartbeat stamped at each phase boundary, which is what lets the reaper tell
+an orphan from a live run after `kill -9` (see logs/T-0003.md).
+
+Writes are atomic (tmp + rename): a crash mid-write must not leave a state
+file that parses halfway.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+
+from torve.domain import EscalationReason, TaskState, check_transition
+from torve.models import SCHEMA_VERSION
+
+
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+@dataclass
+class Escalation:
+    reason: str
+    detail: str
+
+
+@dataclass
+class RunState:
+    task_id: str
+    path: Path
+    schema_version: int = SCHEMA_VERSION
+    run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    state: TaskState = TaskState.QUEUED
+    attempts: int = 0
+    heartbeat: str = field(default_factory=_now)
+    sandbox_id: str | None = None
+    worktree: str | None = None
+    escalation: Escalation | None = None
+    history: list[dict] = field(default_factory=list)
+
+    def transition(self, to: TaskState, fact: str) -> None:
+        """Transitions are executed from facts; the fact is recorded with the
+        transition so the history explains itself."""
+        check_transition(self.state, to)
+        self.history.append(
+            {"at": _now(), "from": str(self.state), "to": str(to), "fact": fact}
+        )
+        if to is TaskState.RUNNING:
+            # Attempts increment on entry to running (RFC 0001 §4).
+            self.attempts += 1
+        self.state = to
+        self.touch()
+
+    def escalate(self, reason: EscalationReason, detail: str) -> None:
+        self.transition(TaskState.ESCALATED, f"{reason}: {detail}")
+        self.escalation = Escalation(reason=str(reason), detail=detail)
+        self.save()
+
+    def touch(self) -> None:
+        self.heartbeat = _now()
+
+    def heartbeat_age_s(self, now: datetime | None = None) -> float:
+        stamp = datetime.strptime(self.heartbeat, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+        return ((now or datetime.now(UTC)) - stamp).total_seconds()
+
+    def save(self) -> None:
+        data = asdict(self)
+        data.pop("path")
+        data["state"] = str(self.state)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, self.path)
+
+    @classmethod
+    def load(cls, path: Path) -> RunState:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        escalation = data.pop("escalation", None)
+        return cls(
+            path=path,
+            task_id=data["task_id"],
+            schema_version=data.get("schema_version", SCHEMA_VERSION),
+            run_id=data["run_id"],
+            state=TaskState(data["state"]),
+            attempts=data["attempts"],
+            heartbeat=data["heartbeat"],
+            sandbox_id=data.get("sandbox_id"),
+            worktree=data.get("worktree"),
+            escalation=Escalation(**escalation) if escalation else None,
+            history=data.get("history", []),
+        )
+
+    @classmethod
+    def load_all(cls, wt_dir: Path) -> list[RunState]:
+        if not wt_dir.is_dir():
+            return []
+        return [cls.load(p) for p in sorted(wt_dir.glob("*.state.json"))]

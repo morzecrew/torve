@@ -16,6 +16,7 @@ import yaml
 
 from torve.manifest import Manifest
 from torve.models import BypassRecord, Task
+from torve.shell import ExecuteOnce
 
 TASK_BRANCH = re.compile(r"^torve/(T-\d+)")
 BYPASS_TRAILER = re.compile(r"^Torve-Bypass:\s*([A-Za-z0-9_-]+)\s*:\s*(.+?)\s*$", re.M)
@@ -56,6 +57,10 @@ class GateContext:
     log_path: Path | None = None
     log_text: str | None = None
     bypasses: list[BypassRecord] = field(default_factory=list)
+    # Where shell gates execute. None means the host (the CI runner is the
+    # sandbox in that context); `torve run` injects a fresh-sandbox executor
+    # so no gate command ever runs where the agent could have staged a shim.
+    execute: ExecuteOnce | None = None
 
     @property
     def changed_paths(self) -> list[str]:
