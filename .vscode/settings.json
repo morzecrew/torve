@@ -83,15 +83,6 @@
     "[d2]": {
         "editor.tabSize": 2,
     },
-    "emeraldwalk.runonsave": {
-        "shell": "zsh",
-        "commands": [
-            {
-                "match": "\\.d2$",
-                "cmd": "just build-diagrams"
-            }
-        ]
-    },
     "remote.autoForwardPortsFallback": 0,
     "chatgpt.commentCodeLensEnabled": false,
 }

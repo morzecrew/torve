@@ -103,7 +103,21 @@ extend-exclude = [".agents", ".claude"]
 # forze's selection (RFC 0014 D-14.9): two codebases read by the same people
 # should not differ in mechanics. T20 enforces RFC 0011's boundary — print is
 # the CLI's output contract and belongs nowhere else.
-select = ["E", "W", "F", "I", "UP", "B", "RUF", "ASYNC", "C4", "ISC", "PIE", "T20", "SIM"]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "RUF",
+    "ASYNC",
+    "C4",
+    "ISC",
+    "PIE",
+    "T20",
+    "SIM",
+]
 ignore = [
     "RUF001", # ambiguous unicode: docstrings deliberately use typographic punctuation (—, §, ·)
     "RUF002", # see RUF001
@@ -127,7 +141,7 @@ timeout_method = "thread"
 # Read by pylance/cursorpyright/basedpyright alike, so the editor and a CLI
 # run agree on one ruleset. Same scope rule as mypy below: src only.
 include = ["src"]
-exclude = ["tests", "scripts", "skills", ".venv"]
+ignore = ["tests", "scripts", "skills", ".venv"]
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false
 
