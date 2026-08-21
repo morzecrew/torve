@@ -85,3 +85,22 @@ def test_force_expires_even_fresh_runs(tmp_path):
     report = reap(tmp_path, RunnerConfig(), runtime, ListingWorkspace([]), force=True)
     assert report.runs_expired == ["T-9301"]
     assert report.sandboxes_destroyed == [f"torve-{fresh.task_id}"]
+
+
+def test_dry_run_reports_without_touching_anything(tmp_path):
+    # RFC 0011 §6: --dry-run on anything that mutates.
+    stale = state_at(tmp_path, "T-9105", TaskState.RUNNING, age_s=3600)
+    runtime = MockRuntime()
+    runtime.registry = [sandbox_for(stale)]
+    # An orphan worktree with no state file would be removed by a wet run.
+    workspace = ListingWorkspace([("T-9999", tmp_path / ".wt" / "T-9999")])
+
+    report = reap(tmp_path, RunnerConfig(), runtime, workspace, dry_run=True)
+
+    assert report.runs_expired == ["T-9105"]
+    assert report.sandboxes_destroyed == ["torve-T-9105"]
+    assert report.worktrees_removed == ["T-9999"]
+    assert runtime.destroyed == []
+    assert workspace.removed == []
+    reloaded = RunState.load(tmp_path / ".wt" / "T-9105.state.json")
+    assert reloaded.state is TaskState.RUNNING  # nothing escalated, nothing saved

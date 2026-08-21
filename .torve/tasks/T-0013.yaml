@@ -1,0 +1,59 @@
+# RFC 0011 executed to its currently-implementable extent: the CLI migrated
+# to Typer plus Rich, --format json on every result-producing command
+# emitting persisted record shapes, exit codes 0-5 as the escalation
+# vocabulary's projection, --plain/NO_COLOR honoured, results/diagnostics
+# split across stdout/stderr, and --dry-run on reap. Presentation polish
+# stays deferred per D-11.8.
+schema_version: 1
+id: T-0013
+rfc: rfcs/0011-cli-contract.md
+phase: 1
+role: implement
+depends_on: []
+scope:
+  allow:
+    - "src/**"
+    - "tests/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - ".torve/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-11.1
+    grade: ASSUMED
+    text: Typer plus Rich
+    paths: ["src/torve/cli.py", "pyproject.toml"]
+  - id: D-11.2
+    grade: LOCKED
+    text: --format json on every result-producing command from its first implementation
+    paths: ["src/torve/cli.py"]
+  - id: D-11.3
+    grade: LOCKED
+    text: JSON output matches the persisted record shape; no CLI-only schema
+    paths: ["src/torve/cli.py", "src/torve/runstate.py"]
+  - id: D-11.4
+    grade: LOCKED
+    text: Exit codes 0-5 as tabled; a new code requires a new escalation reason
+    paths: ["src/torve/cli.py", "src/torve/domain.py"]
+  - id: D-11.5
+    grade: ASSUMED
+    text: --plain implied by CI, non-TTY, or --format json; NO_COLOR honoured
+    paths: ["src/torve/cli.py"]
+  - id: D-11.6
+    grade: LOCKED
+    text: Results on stdout, diagnostics on stderr, never mixed
+    paths: ["src/torve/cli.py"]
+  - id: D-11.7
+    grade: LOCKED
+    text: No interactive prompts; if ever added, fail with code 3 on non-TTY stdin
+    paths: ["src/torve/cli.py"]
+budget: {}
+tier: executor

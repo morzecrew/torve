@@ -74,13 +74,18 @@ class RunState:
         stamp = datetime.strptime(self.heartbeat, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
         return ((now or datetime.now(UTC)) - stamp).total_seconds()
 
-    def save(self) -> None:
+    def to_record(self) -> dict[str, object]:
+        """The persisted shape — also what `--format json` emits (D-11.3):
+        one record, no parallel CLI-only schema."""
         data = asdict(self)
         data.pop("path")
         data["state"] = str(self.state)
+        return data
+
+    def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        tmp.write_text(json.dumps(self.to_record(), indent=2) + "\n", encoding="utf-8")
         os.replace(tmp, self.path)
 
     @classmethod

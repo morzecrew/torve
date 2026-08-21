@@ -48,8 +48,9 @@ green. Every run appends a JSONL telemetry record stamped with
 ```bash
 torve run T-0142                 # one task, synchronous, exit code is the outcome
 torve run T-0142 --agent fake --scenario demo.yaml
-torve reap                       # sweep orphaned sandboxes and worktrees
-torve status
+torve reap --dry-run             # sweep orphaned sandboxes and worktrees
+torve status --format json       # persisted run records, one JSON document
+
 ```
 
 The run loop: claim → git worktree → sandbox → agent → gates → `ready` or

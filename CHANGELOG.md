@@ -68,6 +68,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- RFC 0011 (CLI contract) executed: the CLI is Typer plus Rich (D-11.1,
+  closing the Click departure logged at RFC promotion); every
+  result-producing command takes `--format json` and emits the persisted
+  record shape — `run`/`status` emit the RunState record, `gates run` the
+  telemetry record (D-11.2/D-11.3); exit codes 0–5 are the escalation
+  vocabulary projected in `torve.domain` with a completeness test (D-11.4,
+  `doctor` failures now exit 3, `torve run` distinguishes escalated/2,
+  infra/4 and exhausted/5); `--plain` global flag implied by `CI`, non-TTY
+  or json, `NO_COLOR` honoured (D-11.5); results on stdout, diagnostics on
+  stderr (D-11.6); `torve reap --dry-run` reports without touching anything.
+  Presentation polish stays deferred (D-11.8).
 - RFC 0013 (configuration layout) executed: every Torve file lives under
   `.torve/` — `gates.yaml`, `config.yaml` (renamed from root `torve.yaml`),
   `tasks/`, `logs/` — with the legacy root-level names resolving as a

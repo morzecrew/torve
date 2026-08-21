@@ -39,6 +39,30 @@ class EscalationReason(StrEnum):
     KILLED = "killed"
 
 
+# The escalation vocabulary projected onto exit codes (RFC 0011 §3, D-11.4).
+# One taxonomy, two views: a new exit code requires a new escalation reason
+# and vice versa, so the projection lives here beside the enum it projects.
+# Codes above 5 stay unassigned — reserve, never reuse.
+EXIT_OK = 0
+EXIT_GATES_RED = 1
+EXIT_ESCALATED = 2
+EXIT_CONFIG = 3
+EXIT_INFRASTRUCTURE = 4
+EXIT_EXHAUSTED = 5
+
+EXIT_BY_REASON: dict[EscalationReason, int] = {
+    EscalationReason.BUDGET_EXHAUSTED: EXIT_EXHAUSTED,
+    EscalationReason.POISON_CEILING: EXIT_EXHAUSTED,
+    EscalationReason.COST_ANOMALY: EXIT_EXHAUSTED,
+    EscalationReason.LOCKED_CONFLICT: EXIT_ESCALATED,
+    EscalationReason.MERGE_CONFLICT: EXIT_ESCALATED,
+    EscalationReason.BLOCKER_FINDING: EXIT_ESCALATED,
+    EscalationReason.KILLED: EXIT_ESCALATED,
+    EscalationReason.GATE_INFRASTRUCTURE_FAILURE: EXIT_INFRASTRUCTURE,
+    EscalationReason.LEASE_EXPIRED: EXIT_INFRASTRUCTURE,
+}
+
+
 # gated -> running is the retry loop: red gates send the attempt counter back
 # through running, where it increments and meets the poison ceiling.
 # claimed -> escalated covers a runner that died between claim and first

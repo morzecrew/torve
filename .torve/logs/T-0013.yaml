@@ -1,0 +1,127 @@
+schema_version: 1
+task: T-0013
+repo: morzecrew/torve
+base_sha: 61935a538fd9d11da1746a2020ba1bf3c4fc12fd
+created_at: 2026-08-22T11:00:00Z
+drift_count: 0
+notes: |
+  RFC 0011 executed to its currently-implementable extent: Typer plus Rich
+  replace Click (the D-11.1 departure T-0009 recorded is closed), every
+  result-producing command takes --format json emitting persisted record
+  shapes, exit codes 0-5 are the escalation vocabulary's projection living
+  in domain.py, --plain/NO_COLOR are honoured, stdout carries results and
+  stderr diagnostics, and reap gained --dry-run. Presentation polish stays
+  deferred per D-11.8, which is the RFC's own instruction.
+entries:
+  - decision: D-11.1
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T11:05:00Z
+    attempt: 1
+    claim: the CLI is Typer over Rich consoles; click left the dependency list (Typer carries it) and no module imports it directly — the departure recorded in T-0009's log is closed
+    evidence: pyproject.toml:9-16
+    action: decided
+  - decision: D-11.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T11:10:00Z
+    attempt: 1
+    claim: 'gates run, gates check, run, status, doctor, reap, size and cancel all take --format json; the two commands without it produce no result: migrate applies steps (--status is its view) and cancel''s ask is included'
+    evidence: tests/test_cli.py:51-95
+    action: decided
+  - decision: D-11.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T11:15:00Z
+    attempt: 1
+    claim: '`run` and `status` emit RunState.to_record() — the exact dict save() persists; gates run emits the telemetry record it appends; nothing invents a CLI-only schema'
+    evidence: src/torve/runstate.py:77-84
+    action: decided
+  - decision: D-11.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T11:20:00Z
+    attempt: 1
+    claim: the projection lives in domain.py beside the enum it projects, every reason is mapped, and a completeness test fails on a reason without a code or a code outside 2-5
+    evidence: src/torve/domain.py:42-64
+    action: decided
+  - decision: D-11.5
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T11:25:00Z
+    attempt: 1
+    claim: '--plain is a global flag and is implied by CI, a non-TTY stdout or --format json; NO_COLOR is honoured by Rich natively'
+    evidence: src/torve/cli.py:104-118
+    action: decided
+  - decision: D-11.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T11:30:00Z
+    attempt: 1
+    claim: json documents are written raw to stdout so no console width wraps them, diagnostics go through a stderr console in both formats, and a test parses gates run --format json as exactly one document
+    evidence: src/torve/cli.py:121-129
+    action: decided
+  - decision: D-11.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T11:35:00Z
+    attempt: 1
+    claim: no command prompts; every question a prompt could ask is a flag, and missing required input is a code-3 refusal, never a wait
+    evidence: src/torve/cli.py:127-131
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T11:40:00Z
+    attempt: 1
+    claim: 'the exit-code table names six codes but nine escalation reasons exist; the RFC does not say which reason maps where beyond the obvious ones'
+    evidence: src/torve/domain.py:53-64
+    action: decided
+    proposal: "ASSUMED — budget_exhausted, poison_ceiling and cost_anomaly project to 5; locked_conflict, merge_conflict, blocker_finding and killed to 2; gate_infrastructure_failure and lease_expired to 4; a run ending non-ready without an escalation exits 1"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T11:45:00Z
+    attempt: 1
+    claim: 'doctor previously exited 1 on a failed check, which the D-11.4 table reserves for red gates; a failed preflight is someone''s environment or pin being wrong'
+    evidence: src/torve/cli.py:444
+    action: decided
+    proposal: ASSUMED — doctor exits 3 (configuration error) on a failed check, matching the table's caller-response semantics
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T11:50:00Z
+    attempt: 1
+    claim: 'gates check --format json used to emit a bare unversioned list; §2 requires a single schema-versioned object, and no consumer existed yet to break'
+    evidence: src/torve/cli.py:239
+    action: decided
+    proposal: "ASSUMED — the shape is now {schema_version: 1, cases: [...]}, changed before first consumption rather than retrofitted after"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T11:55:00Z
+    attempt: 1
+    claim: '§6 wants --dry-run on anything that mutates; reap has it, but a durable dry run cannot predict lease expiry because claim_abandoned IS the mutation, and migrate''s forward-only histories have --status as their preview'
+    evidence: src/torve/reaper.py:99-104
+    action: decided
+    proposal: ASSUMED — reap --dry-run reports read-only candidates and leaves durable expiry unshown (stated in its help text); migrate --status is that command's preview and no separate --dry-run is added
+  - decision: D-3.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T12:00:00Z
+    attempt: 1
+    claim: the exit code is still the outcome — refined, not replaced, by the D-11.4 projection; ready is 0, an escalation exits by its reason, and a non-ready non-escalated end exits 1
+    evidence: src/torve/cli.py:324-330
+    action: decided
+  - decision: D-14.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T12:05:00Z
+    attempt: 1
+    claim: the rewritten cli.py keeps the post-import structural dash and gained two rhythmic dots between its option-plumbing, gates and runner sections
+    evidence: src/torve/cli.py:55
+    action: decided

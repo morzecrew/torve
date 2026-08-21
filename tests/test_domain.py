@@ -73,3 +73,12 @@ def test_illegal_transition_does_not_corrupt_state(tmp_path):
         state.transition(TaskState.READY, "skip everything")
     assert state.state is TaskState.QUEUED
     assert state.history == []
+
+
+def test_every_escalation_reason_has_an_exit_code():
+    # D-11.4: one taxonomy, two views — a new reason without a code (or a
+    # code without a reason) must fail here, not in a caller's script.
+    from torve.domain import EXIT_BY_REASON, EscalationReason
+
+    assert set(EXIT_BY_REASON) == set(EscalationReason)
+    assert all(2 <= code <= 5 for code in EXIT_BY_REASON.values())
