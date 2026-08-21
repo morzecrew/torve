@@ -1,0 +1,97 @@
+{
+    "files.associations": {
+        "*.env*": "env",
+        ".coveragerc": "ini",
+        "uv.lock": "toml",
+        "*.conf.tpl": "toml",
+        "*.json.tpl": "jsonc",
+        "*.conf": "toml",
+        "*.tftpl": "plaintext",
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.ruff_cache": true,
+        "**/.import_linter_cache": true,
+        "**/.mypy_cache": true,
+        "**/__marimo__": true,
+        "**/.coverage": true,
+        "**/.cache": true,
+        "dist/": true,
+        "**/.devcontainer/": true,
+        "**/.venv/": true,
+        ".agent": true,
+        ".claude": true,
+        ".benchmarks": true,
+        ".markdownlint.yaml": true,
+        "CLAUDE.md": true,
+        "CODE_OF_CONDUCT.md": true,
+        "CODEOWNERS": true,
+        "LICENSE": true,
+        "uv.lock": true,
+        "skills-lock.json": true,
+        "SECURITY.md": true,
+        ".gitleaks.toml": true,
+        ".coderabbit.yaml": true,
+        "coverage.json": true,
+        ".pre-commit-config.yaml": true,
+        "**/.hypothesis": true,
+        "dst-campaigns*.jsonl": true,
+    },
+    "cursorpyright.analysis.diagnosticMode": "workspace",
+    "cursorpyright.analysis.typeCheckingMode": "strict",
+    "python.analysis.typeCheckingMode": "strict",
+    "python.analysis.diagnosticMode": "workspace",
+    "cursorpyright.analysis.inlayHints.functionReturnTypes": true,
+    "cursorpyright.analysis.inlayHints.variableTypes": true,
+    "ty.diagnosticMode": "workspace",
+    "cursorpyright.analysis.extraPaths": [
+        "src"
+    ],
+    "cursorpyright.analysis.ignore": [
+        "tests/**",
+        "scripts/**",
+        "skills/**"
+    ],
+    "cursorpyright.analysis.diagnosticSeverityOverrides": {
+        "reportMissingTypeStubs": "none"
+    },
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingTypeStubs": "none"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+    },
+    "[json]": {
+        "editor.tabSize": 2,
+    },
+    "[jsonc]": {
+        "editor.tabSize": 2,
+    },
+    "[toml]": {
+        "editor.tabSize": 4,
+    },
+    "[yaml]": {
+        "editor.tabSize": 2,
+    },
+    "[github-actions-workflow]": {
+        "editor.tabSize": 2,
+    },
+    "[markdown]": {
+        "editor.tabSize": 4,
+    },
+    "[d2]": {
+        "editor.tabSize": 2,
+    },
+    "emeraldwalk.runonsave": {
+        "shell": "zsh",
+        "commands": [
+            {
+                "match": "\\.d2$",
+                "cmd": "just build-diagrams"
+            }
+        ]
+    },
+    "remote.autoForwardPortsFallback": 0,
+    "chatgpt.commentCodeLensEnabled": false,
+}

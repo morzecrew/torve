@@ -90,8 +90,10 @@ def fail(message: str) -> None:
 def find_dir(root: Path) -> Path:
     for name in ("rfcs", "rfc"):
         candidate = root / name
+
         if candidate.is_dir():
             return candidate
+
     fail(f"no rfcs/ or rfc/ directory under {root}")
 
 
@@ -196,7 +198,7 @@ def decision_rows(text: str) -> tuple[list[tuple[str, str, str | None]], bool] |
     heading = DECISIONS_HEADING.search(text)
     if not heading:
         return None
-    section = text[heading.end():]
+    section = text[heading.end() :]
     following = re.search(r"^#{2,3}\s", section, re.M)
     if following:
         section = section[: following.start()]
@@ -216,8 +218,10 @@ def decision_rows(text: str) -> tuple[list[tuple[str, str, str | None]], bool] |
             continue
         first, second = cells[0], cells[1]
         if not inside:
-            if first.strip("* `").lower() in {"#", "no", "num"} and \
-                    second.strip("* `").lower() == "grade":
+            if (
+                first.strip("* `").lower() in {"#", "no", "num"}
+                and second.strip("* `").lower() == "grade"
+            ):
                 inside = True
                 lowered = [c.strip("* `").lower() for c in cells]
                 paths_index = lowered.index("paths") if "paths" in lowered else None
@@ -293,7 +297,9 @@ def check_links(path: Path, text: str, rfc_dir: Path, root: Path) -> list[str]:
             if resolved.is_relative_to(base) and resolved.exists():
                 break
         else:
-            missing.append(f"{path.name}: link target {target!r} does not resolve inside the repository")
+            missing.append(
+                f"{path.name}: link target {target!r} does not resolve inside the repository"
+            )
     return missing
 
 
@@ -333,7 +339,9 @@ def cmd_check(rfc_dir: Path) -> int:
             problems.append(f"{path.name}: H1 says RFC {h1.group(1)}, filename says {number:04d}")
 
         if rows[number]["link"] != path.name:
-            problems.append(f"index row {number:04d}: links to {rows[number]['link']}, file is {path.name}")
+            problems.append(
+                f"index row {number:04d}: links to {rows[number]['link']}, file is {path.name}"
+            )
 
         header_status = status_emoji(text)
         if header_status is None:
@@ -395,8 +403,7 @@ def cmd_check(rfc_dir: Path) -> int:
     verdict = "FAIL " if problems else "OK   "
     tail = f", {len(warnings)} warning(s)" if warnings else ""
     print(
-        f"{verdict} {len(files)} RFC(s), {len(rows)} index row(s), "
-        f"{len(problems)} problem(s){tail}"
+        f"{verdict} {len(files)} RFC(s), {len(rows)} index row(s), {len(problems)} problem(s){tail}"
     )
     return 2 if problems else 0
 
@@ -404,7 +411,9 @@ def cmd_check(rfc_dir: Path) -> int:
 def next_number(rfc_dir: Path) -> int:
     files = rfc_files(rfc_dir)
     on_disk = max(files) + 1 if files else 1
-    index_path = next((rfc_dir / n for n in ("INDEX.md", "README.md") if (rfc_dir / n).is_file()), None)
+    index_path = next(
+        (rfc_dir / n for n in ("INDEX.md", "README.md") if (rfc_dir / n).is_file()), None
+    )
     if index_path:
         claimed = claimed_next(index_path.read_text(encoding="utf-8"))
         if claimed is not None:
@@ -515,8 +524,12 @@ def replace_index(index_path: Path, text: str) -> None:
     the failure often arrived after the guard had already been passed.
     """
     handle = tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", dir=index_path.parent,
-        prefix=f"{index_path.name}.", suffix=".tmp", delete=False,
+        "w",
+        encoding="utf-8",
+        dir=index_path.parent,
+        prefix=f"{index_path.name}.",
+        suffix=".tmp",
+        delete=False,
     )
     temp_path = Path(handle.name)
     try:
@@ -637,9 +650,10 @@ def main() -> int:
     new = sub.add_parser("new", parents=[common])
     new.add_argument("title")
     new.add_argument(
-        "--number", type=int,
+        "--number",
+        type=int,
         help="use this number instead of the next free one (a reserved number, or "
-             "re-creating a deleted RFC); refuses to overwrite an existing file",
+        "re-creating a deleted RFC); refuses to overwrite an existing file",
     )
 
     args = parser.parse_args()
