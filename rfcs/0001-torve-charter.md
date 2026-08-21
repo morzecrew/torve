@@ -7,7 +7,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11", "A-12", "A-14"]
+amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11", "A-12", "A-14", "A-15"]
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
@@ -280,6 +280,11 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-A.13 | `LOCKED` | One directory per task holding contract and log; path resolution lives in one module. Added by amendment A-12 2026-08-22 | `src/torve/config/layout.py` `.torve/tasks/**` | Retention, sharding and pairing all follow from it; scattering path construction makes any later move a hunt |
 | D-A.14 | `LOCKED` | Task deletion is supported; no code assumes a contract is present on disk. Added by amendment A-12 2026-08-22 | `src/torve/**` | Retention later collides with code that assumes the file is always there, which is a refactor rather than a feature |
 | D-A.15 | `LOCKED` | Deletion requires prior promotion of `resolved` and `departed` entries into decision tables. Added by amendment A-12 2026-08-22 | `.torve/tasks/**` `rfcs/**` | That promotion is the only unique information a log carries |
+| D-A.16 | `LOCKED` | One corpus path, configurable as `rfcs.path`, never a list or a glob. Added by amendment A-15 2026-08-22 | `src/torve/config/runconfig.py` `rfcs/**` | Two roots mean two counters and a colliding identifier at the first merge |
+| D-A.17 | `LOCKED` | The next number is derived as the maximum plus one, never stored in a counter file. Added by amendment A-15 2026-08-22 | `skills/rfc-writer/scripts/rfc_index.py` | A counter is state; two branches diverge it and the resolution gives two documents one number |
+| D-A.18 | `LOCKED` | Only `NNNN-slug.md` and `INDEX.md` in the corpus directory, no subdirectories; the check routes offenders to `pages/` or `ops/`. Added by amendment A-15 2026-08-22 | `rfcs/**` `skills/rfc-writer/scripts/rfc_index.py` | Without routing the file lands in the repository root and the mess has moved rather than gone |
+| D-A.19 | `LOCKED` | Documents are never deleted; identifiers are never reused; gaps are acceptable. Added by amendment A-15 2026-08-22 | `rfcs/**` | Amendments, logs and commit trailers cite identifiers, and reuse redirects all of them silently |
+| D-A.20 | `ASSUMED` | A filename is not renamed once the document is on the main branch. Added by amendment A-15 2026-08-22 | `rfcs/**` | Links from `pages/`, amendments and commit messages break; a materially different title is usually a new document |
 
 ### 7.1 Ownership
 
@@ -454,3 +459,18 @@ Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached 
 **Changed:** the rule is now that the index carries everything from the frontmatter and nothing from outside it. `implementation` and `kind` join the generated columns, alongside status, dependencies and amendment identifiers — the `Amends` column is a list of identifiers, never a summary, because the moment the index describes what an amendment changed it becomes a second, staler account. Rows are grouped by `kind`, with documents that are accepted but abandoned separated into their own section — that pairing is the most hazardous in the corpus (decisions still inherited, no implementation ever coming) and two adjacent columns in a flat table are easy to miss. `informed_by` stays out: it constrains nothing (D-7.9).
 
 **Unchanged:** no store-derived data in the index. Progress remains a projection in `torve context` and is never committed. `--check` stays deterministic, which was the whole point of the original restriction.
+
+### A-15 — 2026-08-22 — corpus location, numbering, and contents (amends the document conventions)
+
+**Found in use.** Three things were unstated: where the corpus lives when it is not `rfcs/`, how the next number is chosen, and what may sit in the directory. The last one had already caused one clean-up. *(The source patch numbered this A-13; that was taken, so it lands as A-15 per D-A.5.)*
+
+**Changed:**
+
+- One configurable path, `rfcs.path`, defaulting to `rfcs/`. One path only — two roots mean two counters and a colliding number at the first merge. Specifications that genuinely need two locations are two corpora with two `.torve/` configurations.
+- The next number is derived as the maximum plus one. **No counter file:** a counter is state, two branches diverge it, and resolving that conflict gives two documents the same number. A parallel-creation race instead surfaces as a duplicate-`id` failure at merge, which is loud rather than silent. Resolving that collision means renaming the document merging second, before anything references it — D-A.4 makes identifiers permanent *once a document is on the main branch*, not from the moment of creation, and this is the case that distinction exists for.
+- Only `NNNN-slug.md` and `INDEX.md` may live in the directory, with no subdirectories. The check's message routes the offending file to `pages/` or `ops/` rather than only refusing it — without routing, the file lands in the repository root and the mess has simply moved. The check belongs to `torve rfc check`, not `torve doctor`: `doctor` is about environment readiness, this is about corpus correctness. Two companion checks: the filename's numeric prefix must match `id` (slug loosely against `title`), and a filename is not renamed once the document is on the main branch.
+- **Documents are never deleted.** They leave service via `superseded` or `implementation: abandoned`. Identifiers are cited by amendments, divergence logs and commit trailers, and a reused number silently redirects all of them. Gaps are acceptable; reuse is not — a new document created in a numbering hole is refused.
+
+**Rejected:** checksums in the index. Git already guarantees content, and `--check` compares the rendering itself, which is strictly stronger and says what diverged rather than only that something did. It also protects against nothing that is left over, and puts a meaningless changed line in every diff.
+
+**Also edits:** 0013 (A-16).

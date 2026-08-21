@@ -12,7 +12,7 @@ number is **0016**.
 
 | # | Title | Status | Impl | Depends on | Amends | One-line routing description |
 | --- | --- | --- | --- | --- | --- | --- |
-| [0001](0001-torve-charter.md) | Torve: charter | accepted | partial | — | A-1, A-4, A-5, A-7, A-9, A-10, A-11, A-12, A-14 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
+| [0001](0001-torve-charter.md) | Torve: charter | accepted | partial | — | A-1, A-4, A-5, A-7, A-9, A-10, A-11, A-12, A-14, A-15 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
 | [0002](0002-gates-library.md) | Gates as a library | accepted | partial | 0001 | A-2, A-8 | The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment. |
 | [0003](0003-runner-isolation.md) | Runner and isolation | accepted | partial | 0002 | A-6, A-13 | `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine. |
 | [0004](0004-agents-tiering.md) | Agent adapters and tiering | draft | none | 0003 | — | Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable. |
@@ -24,7 +24,7 @@ number is **0016**.
 | [0010](0010-vcs-provenance-revert.md) | VCS, provenance and revert | draft | none | 0003 | — | How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role. |
 | [0011](0011-cli-contract.md) | CLI contract | accepted | partial | — | — | Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed by CI, telemetry and scripts — plus where UX effort actually pays. |
 | [0012](0012-migrations.md) | Migrations | accepted | complete | 0003 | — | Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and the conformance battery as the gate. |
-| [0013](0013-configuration-layout.md) | Configuration layout | accepted | complete | — | — | Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file. |
+| [0013](0013-configuration-layout.md) | Configuration layout | accepted | complete | — | A-16 | Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file. |
 
 ## Conventions
 

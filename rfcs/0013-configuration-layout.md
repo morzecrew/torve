@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0002", "0011"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-16"]
 owner: Lev Litvinov
 description: >-
   Where Torve's files live in a consuming repository: the .torve/ directory,
@@ -25,7 +25,7 @@ Not urgent — the split already works. This records the reasoning and the one d
 
 ```
 .torve/
-  config.yaml        runner: adapters, tiers, runtime, budgets, promotion
+  config.yaml        runner: adapters, tiers, runtime, budgets, promotion, rfcs.path (A-16)
   gates.yaml         gate manifest
   tasks/             T-0142/contract.yaml + T-0142/log.yaml   (A-12)
   skills/            human-path copies only; the runner does not read these
@@ -89,3 +89,23 @@ That last one is worth being strict about: a gate manifest with `sope:` instead 
 | D-13.4 | `LOCKED` | No layered configuration; overrides are explicit flags | `src/torve/config/runconfig.py` `src/torve/cli/**` | Layering makes an attempt unreproducible |
 | D-13.5 | `LOCKED` | Unknown keys are an error, not ignored | `src/torve/config/manifest.py` `src/torve/config/runconfig.py` | A typo must not silently remove a check |
 | D-13.6 | `ASSUMED` | Both files validated by Pydantic, exit 3 on malformed input | `src/torve/config/manifest.py` `src/torve/config/runconfig.py` | Matches the CLI contract's configuration-error code |
+| D-13.7 | `LOCKED` | `rfcs.path` is a single path with a default of `rfcs/`; never a list or a glob. Added by amendment A-16 2026-08-22 | `src/torve/config/runconfig.py` | Two roots mean two counters and a colliding identifier at the first merge |
+
+## Amendments
+
+### A-16 — 2026-08-22 — corpus path (amends §1, §3)
+
+**Found in use.** `config.yaml` had no setting for where the specification corpus lives, so `rfcs/` was effectively hard-coded. A repository keeping specifications for `torve plan` may reasonably put them elsewhere. *(The source patch numbered this A-14; that was taken, so it lands as A-16 per charter D-A.5. The patch cited D-F.3 for the resolution rule, which does not exist in this corpus — the rule is D-13.3.)*
+
+**Changed:** `config.yaml` gains
+
+```yaml
+rfcs:
+  path: rfcs        # default; usually absent
+```
+
+**One path only** — not a list, not a glob, not several roots. Numbering is continuous across a corpus, so two roots mean two independent counters and a colliding identifier at the first merge. Specifications that genuinely need two locations are two corpora with two configurations.
+
+**Unchanged:** everything else about resolution. The setting is read from the runner's `config.yaml` per D-13.3, not from the repository under work — a repository being operated on does not get to relocate the corpus the engine reads.
+
+**Also edits:** 0001 (A-15).
