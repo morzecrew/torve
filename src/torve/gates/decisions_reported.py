@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -53,22 +53,26 @@ def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
     """(document, error). A log that does not parse is a red result, not a
     skipped one — the gate is fail-closed."""
     try:
-        document = yaml.safe_load(text)
+        loaded = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         return None, f"log is not valid YAML: {exc}"
-    if not isinstance(document, dict):
+    if not isinstance(loaded, dict):
         return None, "log must be a mapping (schema_version, task, drift_count, entries)"
-    entries = document.get("entries")
+    document = cast(dict[str, Any], loaded)
+    entries: Any = document.get("entries")
     if entries is None:
-        document["entries"] = []
-    elif not isinstance(entries, list) or any(not isinstance(e, dict) for e in entries):
+        fresh: list[Any] = []
+        document["entries"] = fresh
+    elif not isinstance(entries, list) or any(
+        not isinstance(e, dict) for e in cast(list[object], entries)
+    ):
         return None, "'entries' must be a list of mappings"
     return document, None
 
 
 def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
     where = f"entry {index + 1}"
-    problems = []
+    problems: list[str] = []
     for key in entry:
         if key not in REQUIRED and key not in OPTIONAL:
             problems.append(f"{where}: unknown field {key!r}")
@@ -169,13 +173,15 @@ def _check_drift(document: dict[str, Any]) -> list[str]:
 
 
 def _check_bypasses(document: dict[str, Any]) -> list[str]:
-    bypasses = document.get("bypasses")
+    bypasses: Any = document.get("bypasses")
     if bypasses is None:
         return []
-    if not isinstance(bypasses, list) or any(not isinstance(b, dict) for b in bypasses):
+    if not isinstance(bypasses, list) or any(
+        not isinstance(b, dict) for b in cast(list[object], bypasses)
+    ):
         return ["'bypasses' must be a list of mappings"]
-    problems = []
-    for index, record in enumerate(bypasses):
+    problems: list[str] = []
+    for index, record in enumerate(cast(list[dict[str, Any]], bypasses)):
         missing = BYPASS_FIELDS - set(record)
         if missing:
             problems.append(f"bypass {index + 1}: missing {', '.join(sorted(missing))}")

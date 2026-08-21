@@ -37,10 +37,13 @@ def resolve_dsn(config: StoreConfig) -> str:
 def context_for(store: object) -> ExecutionContext:
     """The store registered under both the data plane and the control plane —
     forze's mock and Postgres stores each implement both."""
+    def provide(_ctx: ExecutionContext) -> object:
+        return store
+
     return context_from_deps(
         Deps.plain({
-            DurableRunStoreDepKey: lambda _ctx: store,
-            DurableRunAdminDepKey: lambda _ctx: store,
+            DurableRunStoreDepKey: provide,
+            DurableRunAdminDepKey: provide,
         })
     )
 

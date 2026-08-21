@@ -34,7 +34,7 @@ MAX_UNTRACKED_BYTES = 1_000_000
 
 def _added_lines(patch: str) -> list[tuple[str, int, str]]:
     """(path, new-file line number, line text) for every added line."""
-    added = []
+    added: list[tuple[str, int, str]] = []
     path = ""
     line_no = 0
     for raw in patch.splitlines():
@@ -55,7 +55,7 @@ def _added_lines(patch: str) -> list[tuple[str, int, str]]:
 
 
 def _untracked_lines(ctx: GateContext) -> list[tuple[str, int, str]]:
-    lines = []
+    lines: list[tuple[str, int, str]] = []
     for rel in ctx.untracked:
         target = ctx.root / rel
         try:
@@ -70,7 +70,7 @@ def _untracked_lines(ctx: GateContext) -> list[tuple[str, int, str]]:
 
 def check_secrets(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     allow = [re.compile(p) for p in ctx.manifest.secrets.allow_patterns]
-    hits = []
+    hits: list[str] = []
     for path, line_no, text in _added_lines(ctx.patch) + _untracked_lines(ctx):
         for label, pattern in PATTERNS:
             if not pattern.search(text):

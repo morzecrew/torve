@@ -1,0 +1,36 @@
+schema_version: 1
+task: T-0008
+drift_count: 0
+notes: |
+  Pyright-strict cleanliness on branch torve/T-0008: the editor's strict
+  mode made repo-canonical via [tool.pyright], 91 Unknown-propagation
+  findings over src fixed, basedpyright gated blocking beside mypy.
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T15:00:00Z
+    attempt: 1
+    claim: mypy strict reported zero while the editor's basedpyright strict still reported 91 problems — the Unknown-propagation class mypy does not count; two checkers with two configs is one checker too many unless both are canonical and gated
+    evidence: pyproject.toml:74-80
+    action: decided
+    proposal: ASSUMED — a [tool.pyright] block (read by pylance/cursorpyright/basedpyright alike) pins strict over src in the repository, and `uv run basedpyright src` is a blocking acceptance command beside `mypy src`; the editor and CI now fail on the same findings
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-21T15:05:00Z
+    attempt: 1
+    claim: every Unknown finding sat at a data boundary — yaml.safe_load documents, the optional yoyo/opensandbox modules, bare container literals — not in domain code; the fix is a pattern, not point repairs
+    evidence: src/torve/gates/decisions_reported.py:52-61
+    action: decided
+    proposal: ASSUMED — parsed-YAML documents are cast to dict[str, Any] at exactly one boundary per reader and stay typed inward; optional dependencies load via import_module (explicit Any) rather than from-imports of partially-unknown names; container initialisers are always annotated
+  - decision: D-7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-21T15:10:00Z
+    attempt: 1
+    claim: the toolchain gains a second typechecker in the same gate lane; no language or substrate choice moved
+    evidence: pyproject.toml:26-36
+    action: decided

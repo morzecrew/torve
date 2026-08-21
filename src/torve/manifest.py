@@ -76,7 +76,7 @@ class Manifest(BaseModel):
 
     def resolved_gates(self) -> list[Gate]:
         """Gates with input and timeout filled in from builtin defaults."""
-        resolved = []
+        resolved: list[Gate] = []
         for gate in self.gates:
             builtin = gate.builtin
             if builtin is not None and builtin not in BUILTIN_INPUTS:

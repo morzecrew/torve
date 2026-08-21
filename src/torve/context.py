@@ -67,14 +67,12 @@ class GateContext:
         return [e.path for e in self.diff]
 
 
-def _resolve_base(root: Path, base: str | None) -> str | None:
+def resolve_base(root: Path, base: str | None) -> str | None:
     """The requested base ref, or the first of origin/main and main that
     exists. None means no base is resolvable (fresh repository) and diff-input
     gates run against an empty diff."""
     candidates = [base] if base else ["origin/main", "main"]
     for candidate in candidates:
-        if candidate is None:
-            continue
         try:
             git(root, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}")
         except GitError:
@@ -89,7 +87,7 @@ def _diff_entries(root: Path, merge_base: str) -> list[DiffEntry]:
     # No second revision: the diff includes uncommitted changes, so a local run
     # sees what a CI run of the same tree would. -M keeps renames as renames.
     out = git(root, "diff", "--name-status", "-M", merge_base)
-    entries = []
+    entries: list[DiffEntry] = []
     for line in out.splitlines():
         parts = line.split("\t")
         if len(parts) < 2:
@@ -115,7 +113,7 @@ def parse_bypasses(root: Path, merge_base: str, head: str) -> list[BypassRecord]
     a trailer minted by an agent is visible for exactly what it is.
     """
     out = git(root, "log", "--format=%H%x00%an <%ae>%x00%B%x01", f"{merge_base}..{head}")
-    records = []
+    records: list[BypassRecord] = []
     for chunk in out.split("\x01"):
         chunk = chunk.strip("\n")
         if not chunk.strip():
@@ -158,7 +156,7 @@ def build_context(
     task_path: Path | None = None,
 ) -> GateContext:
     head_sha = git(root, "rev-parse", "HEAD").strip()
-    resolved = _resolve_base(root, base)
+    resolved = resolve_base(root, base)
 
     merge_base = None
     diff: list[DiffEntry] = []

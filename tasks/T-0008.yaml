@@ -1,0 +1,44 @@
+# Pyright-strict cleanliness over src: the [tool.pyright] block makes the
+# editor's strict mode repo-canonical, the Unknown-propagation findings
+# (implicit Any at yaml/SDK boundaries, bare container inits, untyped
+# lambdas) are fixed, and basedpyright joins the blocking gate commands so
+# the zero cannot regress.
+schema_version: 1
+id: T-0008
+rfc: rfcs/0001-torve-charter.md
+phase: 1
+role: implement
+depends_on: [T-0007]
+scope:
+  allow:
+    - "src/**"
+    - "tests/**"
+    - "scripts/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - "gates.yaml"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-7
+    grade: ASSUMED
+    text: Python on the forze substrate; Go rejected
+    paths: ["pyproject.toml"]
+  - id: D-8
+    grade: ASSUMED
+    text: Pydantic is the single contract source
+    paths: ["src/torve/models.py"]
+  - id: D-22
+    grade: LOCKED
+    text: Three aggregates, each with domain, create and read models and no update command
+    paths: ["src/torve/models.py"]
+budget: {}
+tier: executor

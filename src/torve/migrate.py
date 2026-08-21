@@ -11,7 +11,7 @@ migrate but has nothing to migrate with is discovered at first deployment.
 
 from __future__ import annotations
 
-from importlib import resources
+from importlib import import_module, resources
 from pathlib import Path
 from typing import Any
 
@@ -67,13 +67,13 @@ def check_forze_pin() -> tuple[bool, str]:
 
 def _yoyo() -> tuple[Any, Any]:
     try:
-        from yoyo import get_backend, read_migrations
+        yoyo = import_module("yoyo")
     except ImportError as exc:
         raise MigrateError(
             "yoyo-migrations is not installed — install the extra: pip install 'torve[migrate]'",
             exit_code=MISSING_EXTRA_EXIT,
         ) from exc
-    return get_backend, read_migrations
+    return yoyo.get_backend, yoyo.read_migrations
 
 
 def _yoyo_dsn(dsn: str) -> str:
@@ -102,7 +102,7 @@ def apply(target: str, dsn: str) -> int:
 def status(dsn: str | None) -> list[str]:
     """One line per target: available steps, applied count where a database
     is reachable — the first question during a forze upgrade (§5)."""
-    lines = []
+    lines: list[str] = []
     for target in TARGETS:
         steps = steps_for(target)
         if not steps:

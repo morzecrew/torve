@@ -22,7 +22,7 @@ def check_no_test_tampering(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     patterns = ctx.manifest.tests.patterns
     allow = spec(ctx.task.scope.allow) if ctx.task.scope.allow else None
 
-    unlicensed = []
+    unlicensed: list[str] = []
     for entry in ctx.diff:
         if entry.status == "A":
             continue

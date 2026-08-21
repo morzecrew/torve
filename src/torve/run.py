@@ -20,6 +20,7 @@ import shutil
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 from forze.application.contracts.durable.function import (
@@ -31,7 +32,7 @@ from forze.base.primitives import JsonDict
 
 from torve import naming
 from torve.adapters.durable_store import open_store
-from torve.context import _resolve_base, build_context
+from torve.context import build_context, resolve_base
 from torve.domain import EscalationReason, TaskState
 from torve.manifest import config_hash, load_manifest
 from torve.models import Task
@@ -144,10 +145,15 @@ def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
         document = yaml.safe_load(log.read_text(encoding="utf-8"))
     except yaml.YAMLError:
         return False  # an unreadable log is the decisions-reported gate's finding
-    entries = document.get("entries") if isinstance(document, dict) else None
+    if not isinstance(document, dict):
+        return False
+    entries: Any = cast(dict[str, Any], document).get("entries")
     if not isinstance(entries, list):
         return False
-    return any(isinstance(e, dict) and str(e.get("action", "")) == "halted" for e in entries)
+    return any(
+        isinstance(e, dict) and str(cast(dict[str, Any], e).get("action", "")) == "halted"
+        for e in cast(list[object], entries)
+    )
 
 
 class _SandboxExecutor:
@@ -199,7 +205,7 @@ def _run_gates_in_worktree(
     try:
         ctx = build_context(
             worktree, manifest,
-            base=_resolve_base(worktree, config.base),
+            base=resolve_base(worktree, config.base),
             task_path=task_file if task_file.is_file() else None,
         )
         ctx.execute = executor
@@ -275,7 +281,7 @@ def _real_hooks(
 async def _run_task_async(
     root: Path, task: Task, config: RunnerConfig, deps: RunDeps, state: RunState
 ) -> RunState:
-    worktree = deps.workspace.create(task.id, _resolve_base(root, config.base))
+    worktree = deps.workspace.create(task.id, resolve_base(root, config.base))
     state.worktree = str(worktree)
     state.save()
     hooks = _real_hooks(root, task, config, deps, worktree)

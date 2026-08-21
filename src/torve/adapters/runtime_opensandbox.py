@@ -25,6 +25,7 @@ import os
 import tarfile
 import time
 from datetime import timedelta
+from importlib import import_module
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -40,10 +41,9 @@ _IMPORT_HINT = (
 
 def _sdk() -> Any:
     try:
-        import opensandbox
+        return import_module("opensandbox")
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
         raise RuntimeError(_IMPORT_HINT) from exc
-    return opensandbox
 
 
 def _workspace_tar(workspace: Path) -> bytes:
@@ -70,9 +70,10 @@ def _extract_tar(data: bytes, workspace: Path) -> None:
 def _exec_result(execution: Any, started: float) -> ExecResult:
     exit_code = getattr(execution, "exit_code", None)
     logs = getattr(execution, "logs", None)
-    parts = []
+    parts: list[str] = []
     for stream in ("stdout", "stderr"):
-        for entry in getattr(logs, stream, None) or []:
+        entries: list[Any] = getattr(logs, stream, None) or []
+        for entry in entries:
             parts.append(getattr(entry, "text", str(entry)))
     return ExecResult(
         exit_code=exit_code,
@@ -146,7 +147,7 @@ class OpenSandboxRuntime:
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:
             infos = manager.list_sandbox_infos(self._sdk.SandboxFilter(states=["RUNNING"]))
-        found = []
+        found: list[SandboxInfo] = []
         for info in infos:
             metadata = dict(getattr(info, "metadata", None) or {})
             if naming.LABEL_TASK not in metadata:

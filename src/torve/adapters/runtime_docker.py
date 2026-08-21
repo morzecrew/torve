@@ -80,7 +80,7 @@ class DockerRuntime:
                          "--format", "{{.ID}}\t{{.Names}}\t{{.Labels}}")
         if proc.returncode != 0:
             raise DockerError(proc.stderr.strip() or "docker ps failed")
-        infos = []
+        infos: list[SandboxInfo] = []
         for line in proc.stdout.splitlines():
             parts = line.split("\t")
             if len(parts) != 3:

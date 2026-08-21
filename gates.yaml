@@ -27,5 +27,6 @@ gates:
     commands:
       - "uv run ruff check src tests scripts"
       - "uv run mypy src"
+      - "uv run basedpyright src"
       - "uv run pytest"
       - "uv run python skills/rfc-writer/scripts/rfc_index.py check"

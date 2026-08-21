@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -65,14 +65,16 @@ sys.exit(step.get("exit", 0))
 
 
 def load_scenario(path: Path) -> list[dict[str, Any]]:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    steps = raw.get("attempts") if isinstance(raw, dict) else raw
+    raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
+    steps: Any = cast(dict[str, Any], raw).get("attempts") if isinstance(raw, dict) else raw
     if not isinstance(steps, list) or not steps:
         raise ValueError(f"{path}: scenario must carry a non-empty 'attempts' list")
-    return steps
+    return cast(list[dict[str, Any]], steps)
 
 
-DEFAULT_SCENARIO = [{"writes": {"TORVE_FAKE.md": "written by the fake agent\n"}, "exit": 0}]
+DEFAULT_SCENARIO: list[dict[str, Any]] = [
+    {"writes": {"TORVE_FAKE.md": "written by the fake agent\n"}, "exit": 0}
+]
 
 
 class FakeAgent:

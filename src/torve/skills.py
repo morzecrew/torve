@@ -37,7 +37,7 @@ def materialize(role: str, dest: Path, sets: dict[str, list[str]]) -> list[str]:
     telemetry lie (D-9.2)."""
     names = sets.get(role, [])
     root = skills_root()
-    written = []
+    written: list[str] = []
     for name in names:
         source = root / name
         if not (source / "SKILL.md").is_file():
