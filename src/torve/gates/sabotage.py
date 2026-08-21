@@ -14,6 +14,7 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -24,7 +25,7 @@ from torve.runner import run_gates
 TASK_ID = "T-9001"
 AT = "2026-08-21T00:00:00Z"
 
-BASE_MANIFEST: dict = {
+BASE_MANIFEST: dict[str, Any] = {
     "schema_version": 1,
     "scope": {"allow": [], "deny": []},
     "gates": [
@@ -38,7 +39,7 @@ BASE_MANIFEST: dict = {
 }
 
 
-def base_task(allow: list[str], decisions: list[dict] | None = None) -> dict:
+def base_task(allow: list[str], decisions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "id": TASK_ID,
@@ -54,9 +55,9 @@ LOCKED_D1 = [
 ]
 
 
-def entry(**overrides) -> dict:
+def entry(**overrides: Any) -> dict[str, Any]:
     """One A-1 YAML log entry; pass field overrides, or None to drop a field."""
-    fields: dict = {
+    fields: dict[str, Any] = {
         "decision": "D-1",
         "grade": "LOCKED",
         "kind": "resolved",
@@ -70,8 +71,8 @@ def entry(**overrides) -> dict:
     return {key: value for key, value in fields.items() if value is not None}
 
 
-def log_document(*entries: dict, drift_count: int | None = 0) -> str:
-    document: dict = {"schema_version": 1, "task": TASK_ID}
+def log_document(*entries: dict[str, Any], drift_count: int | None = 0) -> str:
+    document: dict[str, Any] = {"schema_version": 1, "task": TASK_ID}
     if drift_count is not None:
         document["drift_count"] = drift_count
     document["entries"] = list(entries)
@@ -96,7 +97,7 @@ class Repo:
         self.git("add", "-A")
         self.git("commit", "-q", "--no-gpg-sign", "-m", message)
 
-    def seed(self, manifest: dict | None = None) -> None:
+    def seed(self, manifest: dict[str, Any] | None = None) -> None:
         self.git("init", "-q", "-b", "main")
         self.git("config", "user.name", "Sabotage Human")
         self.git("config", "user.email", "human@example.invalid")
@@ -107,7 +108,7 @@ class Repo:
         self.commit("init")
         self.git("checkout", "-q", "-b", f"torve/{TASK_ID}")
 
-    def task(self, task: dict, log: str | None) -> None:
+    def task(self, task: dict[str, Any], log: str | None) -> None:
         self.write(f"tasks/{TASK_ID}.yaml", yaml.safe_dump(task, sort_keys=False))
         if log is not None:
             self.write(f"logs/{TASK_ID}.yaml", log)

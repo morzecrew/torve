@@ -13,7 +13,7 @@ from torve.models import SizeVerdict, Task
 class SizePolicy(Protocol):
     def estimate(self, task: Task) -> SizeVerdict: ...
 
-    def observe(self, attempt: dict) -> None: ...
+    def observe(self, attempt: dict[str, object]) -> None: ...
 
 
 class StaticThresholds:
@@ -53,7 +53,7 @@ class StaticThresholds:
             )
         return SizeVerdict(size="ok")
 
-    def observe(self, attempt: dict) -> None:
+    def observe(self, attempt: dict[str, object]) -> None:
         """Calibration is retrospective (iterations-to-green) and needs the
         attempt store from RFC 0003; until then observations are carried by
         the telemetry records themselves."""

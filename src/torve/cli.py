@@ -11,8 +11,13 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
+
+if TYPE_CHECKING:
+    from torve.ports import Runtime
+    from torve.runconfig import RunnerConfig
 
 import torve
 from torve.context import GitError, build_context, load_task
@@ -126,7 +131,7 @@ def size(task_file: Path) -> None:
     sys.exit(0 if verdict.size == "ok" else 1)
 
 
-def _runtime_for(config, override: str | None):
+def _runtime_for(config: RunnerConfig, override: str | None) -> Runtime:
     from torve.adapters.runtime_docker import DockerRuntime
     from torve.adapters.runtime_opensandbox import OpenSandboxRuntime
 
@@ -204,14 +209,15 @@ def cancel(task_id: str, root: Path) -> None:
     if not state_path.exists():
         raise click.ClickException(f"no run state for {task_id}")
     state = RunState.load(state_path)
-    if not state.durable_run_id:
+    run_id = state.durable_run_id
+    if not run_id:
         raise click.ClickException(f"{task_id} has no durable run to cancel")
 
     config = load_runner_config(root)
 
     async def _cancel() -> bool:
         taskstore = TaskStore(await open_store(config.store), config.store)
-        return await taskstore.request_cancel(state.durable_run_id)
+        return await taskstore.request_cancel(run_id)
 
     try:
         recorded = asyncio.run(_cancel())
@@ -251,10 +257,14 @@ def migrate_cmd(target: str | None, apply_all: bool, show_status: bool, root: Pa
             for line in migrate_status(dsn):
                 click.echo(line)
             return
-        if not apply_all and target is None:
+        if apply_all:
+            targets = ["torve", "substrate", "telemetry"]
+        elif target is None:
             raise click.UsageError("give a target, --all, or --status")
+        else:
+            targets = [target]
         dsn = resolve_dsn(config.store)
-        for name in (["torve", "substrate", "telemetry"] if apply_all else [target]):
+        for name in targets:
             applied = apply(name, dsn)
             click.echo(f"{name}: {applied} step(s) applied")
     except MigrateError as exc:

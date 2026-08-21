@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from torve.context import GateContext
 from torve.gates.base import BuiltinOutcome
-from torve.models import Gate
+from torve.models import Gate, GateOutcome
 from torve.shell import run_command
 
 
@@ -58,7 +58,7 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             flaky_commands=flaky,
             quarantined_failures=quarantined_failures,
         )
-    outcome = "flaky" if flaky else "pass"
+    outcome: GateOutcome = "flaky" if flaky else "pass"
     return BuiltinOutcome(
         outcome,
         output,

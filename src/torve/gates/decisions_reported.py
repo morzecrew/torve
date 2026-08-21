@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import Any
 
 import yaml
 
@@ -40,7 +41,7 @@ LEGAL = {"LOCKED": "halted", "ASSUMED": "departed", "OPEN": "decided", "UNLISTED
 BYPASS_FIELDS = {"gate", "reason", "author", "commit", "at"}
 
 
-def _norm(value) -> str:
+def _norm(value: object) -> str:
     """YAML types scalars (timestamps, ints); the checks read strings."""
     if isinstance(value, datetime):
         text = value.isoformat().replace("+00:00", "Z")
@@ -48,7 +49,7 @@ def _norm(value) -> str:
     return "" if value is None else str(value)
 
 
-def parse_log(text: str) -> tuple[dict | None, str | None]:
+def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
     """(document, error). A log that does not parse is a red result, not a
     skipped one — the gate is fail-closed."""
     try:
@@ -65,7 +66,7 @@ def parse_log(text: str) -> tuple[dict | None, str | None]:
     return document, None
 
 
-def _check_schema(index: int, entry: dict) -> list[str]:
+def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
     where = f"entry {index + 1}"
     problems = []
     for key in entry:
@@ -85,7 +86,8 @@ def _check_schema(index: int, entry: dict) -> list[str]:
     at = entry.get("at")
     if at is not None:
         if isinstance(at, datetime):
-            if at.utcoffset() is not None and at.utcoffset().total_seconds() != 0:
+            offset = at.utcoffset()
+            if offset is not None and offset.total_seconds() != 0:
                 problems.append(f"{where}: at must be UTC")
         elif not RFC3339.match(_norm(at)):
             problems.append(f"{where}: at {_norm(at)!r} is not a UTC RFC 3339 timestamp")
@@ -97,7 +99,7 @@ def _check_schema(index: int, entry: dict) -> list[str]:
     return problems
 
 
-def _check_legality(index: int, entry: dict) -> list[str]:
+def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
     grade, action = _norm(entry.get("grade")), _norm(entry.get("action"))
     kind = _norm(entry.get("kind"))
     if grade not in GRADES or action not in ACTIONS:
@@ -117,7 +119,7 @@ def _check_legality(index: int, entry: dict) -> list[str]:
     ]
 
 
-def _check_evidence(index: int, entry: dict, ctx: GateContext) -> list[str]:
+def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list[str]:
     where = f"entry {index + 1}"
     evidence = _norm(entry.get("evidence")).strip()
     if not evidence:
@@ -154,7 +156,7 @@ def _check_evidence(index: int, entry: dict, ctx: GateContext) -> list[str]:
     return []
 
 
-def _check_drift(document: dict) -> list[str]:
+def _check_drift(document: dict[str, Any]) -> list[str]:
     declared = document.get("drift_count")
     if declared is None:
         return []  # the declared claim's presence is self-audit's finding
@@ -166,7 +168,7 @@ def _check_drift(document: dict) -> list[str]:
     return []
 
 
-def _check_bypasses(document: dict) -> list[str]:
+def _check_bypasses(document: dict[str, Any]) -> list[str]:
     bypasses = document.get("bypasses")
     if bypasses is None:
         return []
@@ -180,7 +182,7 @@ def _check_bypasses(document: dict) -> list[str]:
     return problems
 
 
-def _check_silence(ctx: GateContext, document: dict) -> tuple[list[str], list[str]]:
+def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str], list[str]]:
     problems: list[str] = []
     skipped: list[str] = []
     logged = {_norm(e.get("decision")) for e in document["entries"]}
@@ -215,8 +217,8 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         )
 
     document, parse_error = parse_log(ctx.log_text)
-    if parse_error is not None:
-        return BuiltinOutcome("fail", parse_error)
+    if document is None:
+        return BuiltinOutcome("fail", parse_error or "log did not parse")
 
     problems: list[str] = []
     for index, entry in enumerate(document["entries"]):

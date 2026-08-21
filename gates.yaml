@@ -26,5 +26,6 @@ gates:
     # Fallback for runs with no task contract (human pull requests).
     commands:
       - "uv run ruff check src tests scripts"
+      - "uv run mypy src"
       - "uv run pytest"
       - "uv run python skills/rfc-writer/scripts/rfc_index.py check"

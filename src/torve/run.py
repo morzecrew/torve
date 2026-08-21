@@ -26,6 +26,8 @@ from forze.application.contracts.durable.function import (
     DurableRunStatus,
     current_durable_run,
 )
+from forze.application.execution import ExecutionContext
+from forze.base.primitives import JsonDict
 
 from torve import naming
 from torve.adapters.durable_store import open_store
@@ -38,6 +40,7 @@ from torve.ports import (
     AgentContext,
     AgentResult,
     Runtime,
+    SandboxHandle,
     SandboxSpec,
     Scm,
     Vcs,
@@ -153,7 +156,7 @@ class _SandboxExecutor:
 
     def __init__(self, runtime: Runtime, spec: SandboxSpec, workspace: Path) -> None:
         self.runtime, self.spec, self.workspace = runtime, spec, workspace
-        self.handle = None
+        self.handle: SandboxHandle | None = None
 
     def __call__(self, command: str, timeout: float) -> tuple[int | None, str]:
         if self.handle is None:
@@ -277,7 +280,7 @@ async def _run_task_async(
     state.save()
     hooks = _real_hooks(root, task, config, deps, worktree)
 
-    async def body(_fctx, _input_json):
+    async def body(_fctx: ExecutionContext, _input_json: JsonDict | None) -> JsonDict:
         bound = current_durable_run()
         if bound is not None:
             state.durable_run_id = bound.run_id

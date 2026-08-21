@@ -24,8 +24,8 @@ def check_self_audit(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             "declares 'drift_count: 0'",
         )
     document, parse_error = parse_log(ctx.log_text)
-    if parse_error is not None:
-        return BuiltinOutcome("fail", parse_error)
+    if document is None:
+        return BuiltinOutcome("fail", parse_error or "log did not parse")
     declared = document.get("drift_count")
     if not isinstance(declared, int):
         return BuiltinOutcome(

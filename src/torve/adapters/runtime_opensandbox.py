@@ -26,6 +26,7 @@ import tarfile
 import time
 from datetime import timedelta
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from torve import naming
 from torve.ports import ExecResult, SandboxHandle, SandboxInfo, SandboxSpec
@@ -37,7 +38,7 @@ _IMPORT_HINT = (
 )
 
 
-def _sdk():
+def _sdk() -> Any:
     try:
         import opensandbox
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
@@ -66,7 +67,7 @@ def _extract_tar(data: bytes, workspace: Path) -> None:
             tar.extract(member, workspace, filter="data")
 
 
-def _exec_result(execution, started: float) -> ExecResult:
+def _exec_result(execution: Any, started: float) -> ExecResult:
     exit_code = getattr(execution, "exit_code", None)
     logs = getattr(execution, "logs", None)
     parts = []
@@ -81,11 +82,11 @@ def _exec_result(execution, started: float) -> ExecResult:
 
 
 class OpenSandboxRuntime:
-    def __init__(self, config: OpenSandboxConfig, sdk=None) -> None:
+    def __init__(self, config: OpenSandboxConfig, sdk: Any | None = None) -> None:
         self._sdk = sdk or _sdk()
         api_key = os.environ.get(config.api_key_env, "")
         self._connection = self._sdk.ConnectionConfigSync(domain=config.domain, api_key=api_key)
-        self._live: dict[str, tuple] = {}  # handle id -> (sdk sandbox, workdir)
+        self._live: dict[str, tuple[Any, str]] = {}  # handle id -> (sdk sandbox, workdir)
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
         sandbox = self._sdk.SandboxSync.create(
@@ -109,7 +110,7 @@ class OpenSandboxRuntime:
         self._live[handle.id] = (sandbox, spec.workdir)
         return handle
 
-    def _sandbox(self, handle: SandboxHandle):
+    def _sandbox(self, handle: SandboxHandle) -> tuple[Any, str]:
         try:
             return self._live[handle.id]
         except KeyError:

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -63,7 +64,7 @@ sys.exit(step.get("exit", 0))
 """
 
 
-def load_scenario(path: Path) -> list[dict]:
+def load_scenario(path: Path) -> list[dict[str, Any]]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     steps = raw.get("attempts") if isinstance(raw, dict) else raw
     if not isinstance(steps, list) or not steps:
@@ -75,7 +76,7 @@ DEFAULT_SCENARIO = [{"writes": {"TORVE_FAKE.md": "written by the fake agent\n"},
 
 
 class FakeAgent:
-    def __init__(self, steps: list[dict] | None = None) -> None:
+    def __init__(self, steps: list[dict[str, Any]] | None = None) -> None:
         self.steps = steps or DEFAULT_SCENARIO
 
     def run(self, ctx: AgentContext) -> AgentResult:
