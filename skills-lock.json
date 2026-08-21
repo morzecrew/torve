@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "flag-dont-flip": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/flag-dont-flip/SKILL.md",
+      "computedHash": "59fcc223a73e5cef2d7ac1c1a175527c6e2c2e83d30ba836a6c32cf4c7128f89"
+    },
+    "gitmoji-conventional": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gitmoji-conventional/SKILL.md",
+      "computedHash": "066050ab64d99d4517e4b7a51521ce7319f4d7c3d5ab0cc5bcb86b8a45a8fea7"
+    },
+    "keep-a-changelog": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/keep-a-changelog/SKILL.md",
+      "computedHash": "e9a3f0a4f211d7c32335b5d12dd6efb81f5010881e792f1012776659a80d14f3"
+    },
+    "readable-code": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/readable-code/SKILL.md",
+      "computedHash": "247ceec3f96e9e0d9f9b3744580e442df63200ea621df0741b2505128d43352e"
+    },
+    "rfc-writer": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rfc-writer/SKILL.md",
+      "computedHash": "4a6c9b3ed00762841fa48633a7c3aecb5f7601892b24dd69a08ef3ec572d2d72"
+    }
+  }
+}
