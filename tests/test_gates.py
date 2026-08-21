@@ -82,7 +82,7 @@ def test_decisions_skill_style_entry_is_accepted(repo):
     assert "owes a proposal" in result.output
 
     with_proposal = dict(skill_entry, proposal="ASSUMED — retries capped at 3")
-    repo.write(f"logs/{TASK_ID}.yaml", log_document(with_proposal))
+    repo.write(f".torve/logs/{TASK_ID}.yaml", log_document(with_proposal))
     repo.commit("proposal added")
     result = check_decisions_reported(GATE, context_for(repo))
     assert result.outcome == "pass", result.output
@@ -112,7 +112,7 @@ def test_decisions_drift_count_must_match_entries(repo):
 def test_decisions_empty_list_with_no_log_passes(repo):
     """decisions: [] means none apply, explicitly (D-7.5)."""
     repo.seed()
-    repo.write(f"tasks/{TASK_ID}.yaml", "id: " + TASK_ID + "\ndecisions: []\n")
+    repo.write(f".torve/tasks/{TASK_ID}.yaml", "id: " + TASK_ID + "\ndecisions: []\n")
     repo.write("src/app.py", "print('x')\n")
     repo.commit("no decisions apply")
     result = check_decisions_reported(GATE, context_for(repo))

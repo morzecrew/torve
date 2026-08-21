@@ -1,5 +1,7 @@
-"""torve.yaml — runner configuration, reviewed like gates.yaml but on its own
-cadence (see logs/T-0003.md). RFC 0004 adds the tier mapping here.
+""".torve/config.yaml — runner configuration, reviewed like the gate manifest
+but on its own cadence (D-3.7; root `torve.yaml` read as a fallback per RFC
+0013). Read from where the runner was launched, never from the repository
+under work (D-13.3). RFC 0004 adds the tier mapping here.
 
 The OpenSandbox section carries the name of the environment variable holding
 the API key, never the key itself — configuration is committed, credentials
@@ -13,6 +15,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from torve import layout
 from torve.models import SCHEMA_VERSION
 
 # ----------------------- #
@@ -98,13 +101,18 @@ class RunnerConfig(BaseModel):
     scm: ScmConfig = Field(default_factory=ScmConfig)
 
 
-def load_runner_config(root: Path) -> RunnerConfig:
-    path = root / "torve.yaml"
-    if not path.is_file():
+def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
+    """Explicit `path` is a flag-level override (D-13.4); otherwise the file
+    resolves under `.torve/` with the legacy root name as fallback. A missing
+    default file means defaults; a missing explicit file is an error."""
+    resolved = path if path is not None else layout.config_file(root)
+    if not resolved.is_file():
+        if path is not None:
+            raise ValueError(f"no runner configuration at {resolved}")
         return RunnerConfig()
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw = yaml.safe_load(resolved.read_text(encoding="utf-8"))
     if raw is None:
         return RunnerConfig()
     if not isinstance(raw, dict):
-        raise ValueError(f"{path}: torve.yaml must be a mapping")
+        raise ValueError(f"{resolved}: runner configuration must be a mapping")
     return RunnerConfig.model_validate(raw)

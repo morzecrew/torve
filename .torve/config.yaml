@@ -1,5 +1,7 @@
-# Runner configuration for this repository (RFC 0003; logged decision in
-# logs/T-0003.md — runner knobs live here, gate manifest stays in gates.yaml).
+# Runner configuration (D-3.7; located per RFC 0013 — runner knobs live here,
+# the gate manifest stays in gates.yaml beside this file). This file is read
+# from where the runner was launched, never from the repository under work
+# (D-13.3): a worked-on repository must not configure the engine working on it.
 schema_version: 1
 
 runtime:

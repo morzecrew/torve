@@ -30,7 +30,7 @@ from forze.application.contracts.durable.function import (
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 
-from torve import naming
+from torve import layout, naming
 from torve.adapters.durable_store import open_store
 from torve.context import build_context, resolve_base
 from torve.domain import EscalationReason, TaskState
@@ -105,7 +105,7 @@ async def drive_attempts(
             # Terminal by design, not an error: the one case where a task
             # stops on working code (RFC 0001 §4).
             state.escalate(EscalationReason.LOCKED_CONFLICT,
-                           f"halted divergence entry in logs/{task.id}.yaml")
+                           f"halted divergence entry in the {task.id} execution log")
             return state
 
         if result.timed_out or result.exit_code != 0:
@@ -140,7 +140,7 @@ async def drive_attempts(
 
 
 def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
-    log = worktree / "logs" / f"{task_id}.yaml"
+    log = layout.log_file(worktree, task_id)
     if not log.is_file():
         return False
     try:
@@ -184,15 +184,18 @@ def _run_gates_in_worktree(
     run_id: str, root: Path,
 ) -> tuple[int, str, str]:
     """(exit_code, summary, config_hash). Raises on infrastructure failure."""
-    manifest_path = worktree / "gates.yaml"
+    manifest_path = layout.gates_file(worktree)
     if not manifest_path.is_file():
-        raise FileNotFoundError("no gates.yaml in the worktree — gates are fail-closed")
+        raise FileNotFoundError(
+            f"no gate manifest in the worktree ({manifest_path}) — gates are fail-closed"
+        )
     manifest = load_manifest(manifest_path)
 
-    task_file = worktree / "tasks" / f"{task_id}.yaml"
-    if not task_file.is_file() and (root / "tasks" / f"{task_id}.yaml").is_file():
+    task_file = layout.task_file(worktree, task_id)
+    source = layout.task_file(root, task_id)
+    if not task_file.is_file() and source.is_file():
         task_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(root / "tasks" / f"{task_id}.yaml", task_file)
+        shutil.copy(source, task_file)
 
     executor = _SandboxExecutor(
         runtime,

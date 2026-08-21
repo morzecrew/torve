@@ -3,8 +3,9 @@ the entire runner is testable without spending a token, separating "is the
 runner correct" from "is the agent good".
 
 The scenario still executes *inside the sandbox* (D-4): the adapter stages a
-generated Python script under the workspace's gitignored `.torve/` directory
-and asks the Runtime to run it. Scenario steps are indexed by attempt; the
+generated Python script under the workspace's gitignored `.torve/tmp/`
+scratch directory (RFC 0013 §5 — generated, never tracked) and asks the
+Runtime to run it. Scenario steps are indexed by attempt; the
 last step repeats if attempts outnumber steps.
 
 Step fields (all optional):
@@ -86,13 +87,13 @@ class FakeAgent:
     def run(self, ctx: AgentContext) -> AgentResult:
         step = dict(self.steps[min(ctx.attempt - 1, len(self.steps) - 1)])
         step["task_id"] = ctx.task.id
-        stage = ctx.workspace / ".torve"
+        stage = ctx.workspace / ".torve" / "tmp"
         stage.mkdir(parents=True, exist_ok=True)
         script = stage / "fake_agent.py"
         script.write_text(SCRIPT, encoding="utf-8")
         script.with_suffix(".py.json").write_text(json.dumps(step), encoding="utf-8")
 
         result = ctx.runtime.exec(
-            ctx.handle, f"python {ctx.workdir}/.torve/fake_agent.py", ctx.timeout_s
+            ctx.handle, f"python {ctx.workdir}/.torve/tmp/fake_agent.py", ctx.timeout_s
         )
         return AgentResult(exit_code=result.exit_code, output=result.output)

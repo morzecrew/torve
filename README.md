@@ -16,9 +16,10 @@ pages/                     published documentation — links to decisions,
                            never restates them (D-A.1a)
 src/torve/                 the gates library and runner (RFC 0002 + 0003)
 skills/                    specialised skills shipped with the package (A-3)
-gates.yaml                 this repository's own gate manifest
-torve.yaml                 runner configuration (runtime adapter, store, ceilings)
-tasks/  logs/              task contracts and YAML execution logs (A-1),
+.torve/                    every Torve file, root stays clean (RFC 0013):
+  gates.yaml               this repository's own gate manifest
+  config.yaml              runner configuration (runtime adapter, store, ceilings)
+  tasks/  logs/            task contracts and YAML execution logs (A-1),
                            logs pinned to a base_sha (D-A.7)
 ```
 
@@ -30,13 +31,14 @@ torve gates run --base origin/main          # all gates; exit code is the outcom
 torve gates run --only scope,acceptance
 torve gates run --format json               # GateResult records for ingestion
 torve gates check                           # the sabotage suite
-torve size tasks/T-0002.yaml                # pre-dispatch size estimate
+torve size .torve/tasks/T-0002.yaml         # pre-dispatch size estimate
 ```
 
-One CI step per repository, `gates.yaml` at the repository root. Builtin gates:
+One CI step per repository, `.torve/gates.yaml` (legacy root `gates.yaml`
+still resolves). Builtin gates:
 `scope`, `acceptance`, `no-test-tampering`, `decisions-reported`, `self-audit`,
 `secrets`; anything else is a shell command in the manifest. On a
-`torve/T-nnnn` branch the task contract in `tasks/` is discovered
+`torve/T-nnnn` branch the task contract in `.torve/tasks/` is discovered
 automatically; without one, task-input gates report `skipped`, never a silent
 green. Every run appends a JSONL telemetry record stamped with
 `config_hash`.

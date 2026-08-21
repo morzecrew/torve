@@ -291,5 +291,5 @@ Do the sweep now rather than scoping the gate to changed files only. At the curr
 | D-14.8 | `LOCKED` | One gate, one file, one section | `src/torve/gates/**` | A gate wanting a second section is two gates |
 | D-14.9 | `ASSUMED` | Lint configuration matches forze: line length 100, same rule selection | `pyproject.toml` | Two codebases read by the same people should not differ in mechanics |
 | D-14.10 | `ASSUMED` | Width, placement and labelling are script-checked; usefulness is review | `src/torve/gates/source_layout.py` | Checking what cannot be checked yields a linter nobody trusts |
-| D-14.11 | `LOCKED` | The checkable half ships as the `source-layout` gate with a sabotage case per check | `src/torve/gates/source_layout.py` `gates.yaml` | Otherwise this document sits at convention level, which its own neighbour forbids |
+| D-14.11 | `LOCKED` | The checkable half ships as the `source-layout` gate with a sabotage case per check | `src/torve/gates/source_layout.py` `.torve/gates.yaml` | Otherwise this document sits at convention level, which its own neighbour forbids |
 | D-14.12 | `ASSUMED` | The whole repository is swept once on adoption, not scoped to changed files | `src/torve/**` | A gate that reddens on untouched files trains people to ignore it |

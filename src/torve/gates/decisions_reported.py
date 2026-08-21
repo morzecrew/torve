@@ -222,7 +222,7 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             return BuiltinOutcome("pass", "decisions: [] — none apply, explicitly (D-7.5)")
         return BuiltinOutcome(
             "fail",
-            f"no execution log at logs/{ctx.task.id}.yaml, and the task inherits "
+            f"no execution log at .torve/logs/{ctx.task.id}.yaml, and the task inherits "
             f"{len(ctx.task.decisions)} decision(s)",
         )
 

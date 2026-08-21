@@ -22,7 +22,7 @@ def check_self_audit(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.log_text is None:
         return BuiltinOutcome(
             "fail",
-            f"no execution log at logs/{ctx.task.id}.yaml — a clean run still "
+            f"no execution log at .torve/logs/{ctx.task.id}.yaml — a clean run still "
             "declares 'drift_count: 0'",
         )
     document, parse_error = parse_log(ctx.log_text)

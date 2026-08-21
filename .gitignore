@@ -217,6 +217,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Torve
-.torve/
+# Torve — only what the engine generates; the manifest, config, tasks and
+# logs under .torve/ are reviewed artefacts and stay tracked (RFC 0013).
+.torve/telemetry.jsonl
+.torve/skills/
+.torve/tmp/
 .wt/

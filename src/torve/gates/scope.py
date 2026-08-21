@@ -8,6 +8,7 @@ to exist, so a scope that forbids writing it would deadlock the task.
 
 from __future__ import annotations
 
+from torve import layout
 from torve.context import GateContext
 from torve.gates.base import BuiltinOutcome, spec
 from torve.models import Gate
@@ -19,8 +20,11 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     scope = ctx.task.scope if ctx.task is not None else ctx.manifest.scope
     implicit: set[str] = set()
     if ctx.task is not None:
-        implicit.add(f"logs/{ctx.task.id}.yaml")
-        implicit.add(f"tasks/{ctx.task.id}.yaml")
+        # Canonical and legacy locations both (RFC 0013): the gate judges
+        # repositories on either side of the one-move migration.
+        for prefix in (f"{layout.TORVE_DIR}/", ""):
+            implicit.add(f"{prefix}logs/{ctx.task.id}.yaml")
+            implicit.add(f"{prefix}tasks/{ctx.task.id}.yaml")
 
     allow = spec(scope.allow) if scope.allow else None
     deny = spec(scope.deny) if scope.deny else None

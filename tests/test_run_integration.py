@@ -16,6 +16,7 @@ import pytest
 import yaml
 from test_runtime_conformance import docker_available
 
+from torve import layout
 from torve.adapters.agent_fake import FakeAgent
 from torve.adapters.runtime_docker import DockerRuntime
 from torve.adapters.vcs_git import GitVcs, NullScm
@@ -56,7 +57,7 @@ def deps_for(repo, agent) -> RunDeps:
 def test_one_task_end_to_end(repo):
     seed_run_repo(repo)
     agent = FakeAgent([{"writes": {"src/feature.py": "FEATURE = True\n"}, "exit": 0}])
-    task = load_task(repo.root / "tasks" / f"{TASK_ID}.yaml")
+    task = load_task(layout.task_file(repo.root, TASK_ID))
 
     state = run_task(repo.root, task, CONFIG, deps_for(repo, agent))
 

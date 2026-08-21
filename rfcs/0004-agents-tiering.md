@@ -116,7 +116,7 @@ Enforced at dispatch, before a sandbox exists — a task whose repository has no
 | --- | --- | --- | --- | --- |
 | D-4.1 | `LOCKED` | Harnesses run inside the sandbox; no harness SDK in the engine process | `src/torve/adapters/**` | Otherwise the trust boundary collapses |
 | D-4.2 | `ASSUMED` | Subscription auth is per worker slot, never per task, never the host config directory | `src/torve/adapters/**` | Refresh races and host-client interference |
-| D-4.3 | `ASSUMED` | Harness selection is decided by measurement on own tasks, not by reputation | `torve.yaml` | Requires `config_hash` from RFC 0002 |
+| D-4.3 | `ASSUMED` | Harness selection is decided by measurement on own tasks, not by reputation | `.torve/config.yaml` | Requires `config_hash` from RFC 0002 |
 | D-4.4 | `LOCKED` | Shadow runs precede any live loop | `src/torve/shadow/**` | The only risk-free source of baseline comparison |
 | D-4.5 | `ASSUMED` | Telemetry starts as JSONL; record shape is fixed from record one | `src/torve/telemetry.py` | Storage reversible, shape not |
 | D-4.6 | `LOCKED` | Provider version is recorded alongside `config_hash`; unpinnable models are one uncontrolled regime | `src/torve/telemetry.py` | Otherwise every before/after comparison is unfounded |

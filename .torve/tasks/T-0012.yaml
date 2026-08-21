@@ -1,0 +1,59 @@
+# RFC 0013 executed: every Torve file moved under .torve/ with the legacy
+# root names as fallback, resolution centralized in layout.py, --gates and
+# --config as the only overrides, configuration errors exiting 3, and this
+# repository taking the one-move migration itself.
+schema_version: 1
+id: T-0012
+rfc: rfcs/0013-configuration-layout.md
+phase: 1
+role: implement
+depends_on: [T-0011]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - ".torve/**"
+    - "gates.yaml"
+    - "torve.yaml"
+    - "tasks/**"
+    - "logs/**"
+    - ".gitignore"
+    - ".github/**"
+    - "pyproject.toml"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-13.1
+    grade: ASSUMED
+    text: All Torve files live under .torve/; nothing at repository root
+    paths: ["src/torve/layout.py", ".torve/**"]
+  - id: D-13.2
+    grade: LOCKED
+    text: gates.yaml and config.yaml stay separate
+    paths: ["src/torve/manifest.py", "src/torve/runconfig.py"]
+  - id: D-13.3
+    grade: LOCKED
+    text: config.yaml is read from the runner's location, never from the repository under work
+    paths: ["src/torve/runconfig.py"]
+  - id: D-13.4
+    grade: LOCKED
+    text: No layered configuration; overrides are explicit flags
+    paths: ["src/torve/runconfig.py", "src/torve/cli.py"]
+  - id: D-13.5
+    grade: LOCKED
+    text: Unknown keys are an error, not ignored
+    paths: ["src/torve/manifest.py", "src/torve/runconfig.py"]
+  - id: D-13.6
+    grade: ASSUMED
+    text: Both files validated by Pydantic, exit 3 on malformed input
+    paths: ["src/torve/manifest.py", "src/torve/cli.py"]
+budget: {}
+tier: executor

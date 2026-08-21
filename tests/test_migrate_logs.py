@@ -64,7 +64,10 @@ def test_conversion_shape():
 
 
 def test_migrated_torve_logs_parse_under_the_gate():
-    for log in sorted((Path(__file__).resolve().parent.parent / "logs").glob("*.yaml")):
+    root = Path(__file__).resolve().parent.parent
+    logs = sorted((root / ".torve" / "logs").glob("*.yaml"))
+    assert logs, "the repository's own execution logs moved — update this path"
+    for log in logs:
         document, error = parse_log(log.read_text(encoding="utf-8"))
         assert error is None, f"{log.name}: {error}"
         assert isinstance(document.get("drift_count"), int), f"{log.name}: no drift_count"

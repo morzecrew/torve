@@ -4,6 +4,7 @@ import json
 
 from conftest import context_for
 
+from torve import layout
 from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 from torve.manifest import config_hash
 from torve.runner import run_gates
@@ -102,7 +103,7 @@ def test_bypass_is_appended_to_the_task_log(repo):
     assert report.results[0].outcome == "bypassed"
     import yaml
 
-    document = yaml.safe_load((repo.root / "logs" / f"{TASK_ID}.yaml").read_text())
+    document = yaml.safe_load(layout.log_file(repo.root, TASK_ID).read_text())
     record = document["bypasses"][0]
     assert record["gate"] == "scope"
     assert record["reason"] == "allow list is stale"
@@ -120,7 +121,7 @@ def test_telemetry_record_shape(repo, tmp_path):
     repo.commit("change")
     ctx = context_for(repo)
     report = run_gates(ctx, only={"scope"})
-    record = build_record(ctx, report, config_hash(repo.root / "gates.yaml", repo.root))
+    record = build_record(ctx, report, config_hash(layout.gates_file(repo.root), repo.root))
 
     assert record["schema_version"] == 1
     assert record["config_hash"]

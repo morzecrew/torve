@@ -68,6 +68,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- RFC 0013 (configuration layout) executed: every Torve file lives under
+  `.torve/` — `gates.yaml`, `config.yaml` (renamed from root `torve.yaml`),
+  `tasks/`, `logs/` — with the legacy root-level names resolving as a
+  fallback (`src/torve/layout.py`, D-13.1); overrides are the explicit
+  `--gates` and `--config` flags, never a second file merged over the first
+  (D-13.4); a malformed manifest or runner configuration exits 3 per the
+  CLI contract's configuration-error code (D-13.6). This repository took
+  the one-move migration, and the sabotage rig seeds the canonical layout.
 - RFC 0014 (source file layout, `kind: convention`) adopted: two 27-character
   separators (structural dash, rhythmic dot) extracted from forze; the
   checkable half ships as the `@source-layout` builtin over the diff

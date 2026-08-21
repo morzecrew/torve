@@ -41,7 +41,7 @@ torve gates run --only scope,acceptance
 torve gates check                           # the sabotage suite
 ```
 
-One CI step per repository. `gates.yaml` at the repository root. Exit code is the gate outcome; `--format json` emits `GateResult` records for later ingestion.
+One CI step per repository. `gates.yaml` at the repository root *(since RFC 0013: `.torve/gates.yaml`, root read as fallback)*. Exit code is the gate outcome; `--format json` emits `GateResult` records for later ingestion.
 
 ## 3. The gate contract
 
@@ -264,7 +264,7 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 | D-2.2 | `LOCKED` | Every gate has a sabotage case; no case, no gate | `src/torve/gates/sabotage.py` | Enforced in the package's own CI |
 | D-2.3 | `ASSUMED` | The starting set is the five above and grows from observed leaks | `src/torve/gates/**` | Deliberately not exhaustive |
 | D-2.4 | `ASSUMED` | Telemetry is JSONL until a query demands otherwise | `src/torve/telemetry.py` | Storage is reversible, record shape is not |
-| D-2.5 | `ASSUMED` | Gate manifests live in the consuming repository, not in the package | `gates.yaml` | Depart if the same manifest gets duplicated across every repository anyway |
+| D-2.5 | `ASSUMED` | Gate manifests live in the consuming repository, not in the package | `.torve/gates.yaml` | Depart if the same manifest gets duplicated across every repository anyway |
 | D-2.6 | `LOCKED` | `flaky` is a distinct outcome that does not consume an attempt | `src/torve/shell.py` | Otherwise flakes silently eat the poison ceiling |
 | D-2.7 | `LOCKED` | Bypass requires a human signature, a mandatory reason, a log entry and a counter | `src/torve/runner.py` `src/torve/context.py` | An uncounted bypass becomes an invisible workaround |
 | D-2.8 | `LOCKED` | Secret scanning blocks and cannot be bypassed | `src/torve/gates/secrets.py` | The one failure class that a follow-up commit cannot repair |
@@ -277,12 +277,12 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 | D-2.15 | `ASSUMED` | The quarantine list is a reviewed manifest key, maintained from flake telemetry until the RFC 0003 store automates the threshold. Added by execution 2026-08-21 | `src/torve/manifest.py` | Keeps §6a's quarantine honest without a store |
 | D-2.16 | `ASSUMED` | The scope gate implicitly allows the task's own contract and log files, and nothing else. Added by execution 2026-08-21 | `src/torve/gates/scope.py` | Prevents the log-writing deadlock in narrowly-scoped tasks |
 | D-2.17 | `ASSUMED` | Gate cost for cheapest-first ordering is the declared timeout, ascending, manifest order breaking ties. Added by execution 2026-08-21 | `src/torve/runner.py` | Replace with measured p50 duration once telemetry accumulates |
-| D-2.18 | `LOCKED` | A gate enters service through `shadow` before it may block. Added by amendment A-8 2026-08-21 | `gates.yaml` `src/torve/runner.py` | A miscalibrated blocking gate teaches people to route around it, and that becomes habit |
-| D-2.19 | `LOCKED` | Every manifest entry carries `origin` and `state`. Added by amendment A-8 2026-08-21 | `src/torve/models.py` `gates.yaml` | Provenance is unrecoverable later; a boolean cannot express shadow or quarantine |
-| D-2.20 | `LOCKED` | Implementation and activation are separate tracks; a gate may be in different states per repository. Added by amendment A-8 2026-08-21 | `src/torve/models.py` `gates.yaml` | Simultaneous rollout across repositories is how a gate gets rejected everywhere at once |
+| D-2.18 | `LOCKED` | A gate enters service through `shadow` before it may block. Added by amendment A-8 2026-08-21 | `.torve/gates.yaml` `src/torve/runner.py` | A miscalibrated blocking gate teaches people to route around it, and that becomes habit |
+| D-2.19 | `LOCKED` | Every manifest entry carries `origin` and `state`. Added by amendment A-8 2026-08-21 | `src/torve/models.py` `.torve/gates.yaml` | Provenance is unrecoverable later; a boolean cannot express shadow or quarantine |
+| D-2.20 | `LOCKED` | Implementation and activation are separate tracks; a gate may be in different states per repository. Added by amendment A-8 2026-08-21 | `src/torve/models.py` `.torve/gates.yaml` | Simultaneous rollout across repositories is how a gate gets rejected everywhere at once |
 | D-2.21 | `LOCKED` | No fires plus a red sabotage case means broken, not unnecessary. Added by amendment A-8 2026-08-21 | `src/torve/gates/sabotage.py` `tests/test_sabotage.py` | The two look identical without the suite; this is why it runs continuously |
-| D-2.22 | `LOCKED` | Retirement requires the same evidence as adoption. Added by amendment A-8 2026-08-21 | `gates.yaml` | Otherwise the first hard sprint removes half the checks |
-| D-2.23 | `ASSUMED` | Promotion criteria: 30 real changes, at least one fire, acceptable false positives and p95, sabotage green. Added by amendment A-8 2026-08-21 | `gates.yaml` | Numbers tuned once real rates are known |
+| D-2.22 | `LOCKED` | Retirement requires the same evidence as adoption. Added by amendment A-8 2026-08-21 | `.torve/gates.yaml` | Otherwise the first hard sprint removes half the checks |
+| D-2.23 | `ASSUMED` | Promotion criteria: 30 real changes, at least one fire, acceptable false positives and p95, sabotage green. Added by amendment A-8 2026-08-21 | `.torve/gates.yaml` | Numbers tuned once real rates are known |
 
 ## 10. Exit criteria
 

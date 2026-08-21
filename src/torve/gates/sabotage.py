@@ -18,6 +18,7 @@ from typing import Any
 
 import yaml
 
+from torve import layout
 from torve.context import build_context
 from torve.manifest import load_manifest
 from torve.runner import run_gates
@@ -108,17 +109,19 @@ class Repo:
         self.git("init", "-q", "-b", "main")
         self.git("config", "user.name", "Sabotage Human")
         self.git("config", "user.email", "human@example.invalid")
-        self.write("gates.yaml", yaml.safe_dump(manifest or BASE_MANIFEST, sort_keys=False))
-        self.write(".gitignore", ".torve/\n")
+        self.write(".torve/gates.yaml", yaml.safe_dump(manifest or BASE_MANIFEST, sort_keys=False))
+        # Only what the engine generates; the reviewed .torve/ artefacts stay
+        # tracked (RFC 0013 §5).
+        self.write(".gitignore", ".torve/telemetry.jsonl\n.torve/skills/\n.torve/tmp/\n")
         self.write("src/app.py", "print('hello')\n")
         self.write("tests/test_app.py", "def test_app():\n    assert True\n")
         self.commit("init")
         self.git("checkout", "-q", "-b", f"torve/{TASK_ID}")
 
     def task(self, task: dict[str, Any], log: str | None) -> None:
-        self.write(f"tasks/{TASK_ID}.yaml", yaml.safe_dump(task, sort_keys=False))
+        self.write(f".torve/tasks/{TASK_ID}.yaml", yaml.safe_dump(task, sort_keys=False))
         if log is not None:
-            self.write(f"logs/{TASK_ID}.yaml", log)
+            self.write(f".torve/logs/{TASK_ID}.yaml", log)
 
 
 @dataclass
@@ -370,7 +373,7 @@ def run_case(case: Case) -> CaseOutcome:
     with tempfile.TemporaryDirectory(prefix="torve-sabotage-") as tmp:
         repo = Repo(Path(tmp))
         case.build(repo)
-        manifest = load_manifest(repo.root / "gates.yaml")
+        manifest = load_manifest(layout.gates_file(repo.root))
         ctx = build_context(repo.root, manifest, base="main")
         report = run_gates(ctx, only={case.gate})
         result = report.results[0]

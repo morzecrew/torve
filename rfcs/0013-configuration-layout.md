@@ -81,7 +81,7 @@ That last one is worth being strict about: a gate manifest with `sope:` instead 
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-13.1 | `ASSUMED` | All Torve files live under `.torve/`; nothing at repository root | `src/torve/context.py` `src/torve/runconfig.py` | One move per repository; do it before the set grows |
+| D-13.1 | `ASSUMED` | All Torve files live under `.torve/`; nothing at repository root | `src/torve/layout.py` `.torve/**` | One move per repository; do it before the set grows |
 | D-13.2 | `LOCKED` | `gates.yaml` and `config.yaml` stay separate | `src/torve/manifest.py` `src/torve/runconfig.py` | Merging forces gate-only repositories to carry engine configuration and breaks RFC 0002's standalone property |
 | D-13.3 | `LOCKED` | `config.yaml` is read from the runner's location, never from the repository under work | `src/torve/runconfig.py` | Otherwise a worked-on repository can configure the engine working on it |
 | D-13.4 | `LOCKED` | No layered configuration; overrides are explicit flags | `src/torve/runconfig.py` `src/torve/cli.py` | Layering makes an attempt unreproducible |

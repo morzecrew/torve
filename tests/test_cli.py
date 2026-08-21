@@ -37,6 +37,17 @@ def test_gates_run_exit_code_is_the_outcome(repo):
     assert "secrets" in result.output
 
 
+def test_malformed_manifest_exits_3(repo):
+    # D-13.6: a bad file is a configuration error, distinct from red gates.
+    repo.seed()
+    (repo.root / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\nsope: {}\n", encoding="utf-8"
+    )
+    result = CliRunner().invoke(main, ["gates", "run", "--root", str(repo.root), "--base", "main"])
+    assert result.exit_code == 3
+    assert "configuration error" in result.output
+
+
 def test_size_estimate():
     verdict = StaticThresholds().estimate(base_task_model())
     assert verdict.size == "ok"

@@ -14,6 +14,7 @@ from pathlib import Path
 
 import yaml
 
+from torve import layout
 from torve.manifest import Manifest
 from torve.models import BypassRecord, Task
 from torve.shell import ExecuteOnce
@@ -147,7 +148,7 @@ def _discover_task(root: Path, explicit: Path | None) -> Path | None:
     match = TASK_BRANCH.match(branch)
     if not match:
         return None
-    candidate = root / "tasks" / f"{match.group(1)}.yaml"
+    candidate = layout.task_file(root, match.group(1))
     return candidate if candidate.is_file() else None
 
 
@@ -179,7 +180,7 @@ def build_context(
     log_path = None
     log_text = None
     if task is not None:
-        log_path = root / "logs" / f"{task.id}.yaml"
+        log_path = layout.log_file(root, task.id)
         if log_path.is_file():
             log_text = log_path.read_text(encoding="utf-8")
 

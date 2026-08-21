@@ -3,23 +3,31 @@
     torve gates run --base origin/main       # all gates
     torve gates run --only scope,acceptance
     torve gates check                        # the sabotage suite
-    torve size tasks/T-0002.yaml
+    torve size .torve/tasks/T-0002.yaml
+
+Files resolve under `.torve/` with the legacy root-level names as fallback
+(RFC 0013); `--gates` and `--config` are the only overrides (D-13.4). A
+malformed manifest or runner configuration exits 3 (D-13.6), per the CLI
+contract's configuration-error code.
 """
 
 from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
+import yaml
 
 if TYPE_CHECKING:
     from torve.ports import Runtime
     from torve.runconfig import RunnerConfig
 
 import torve
+from torve import layout
 from torve.context import GitError, build_context, load_task
 from torve.gates import sabotage
 from torve.manifest import config_hash, load_manifest
@@ -28,6 +36,8 @@ from torve.sizing import StaticThresholds
 from torve.telemetry import append_record, build_record
 
 # ----------------------- #
+
+CONFIG_ERROR_EXIT = 3
 
 OUTCOME_MARKS = {
     "pass": "✓",
@@ -45,6 +55,25 @@ def main() -> None:
     """Deterministic gates for agent and human pull requests."""
 
 
+def _load_config(root: Path, config_path: Path | None) -> RunnerConfig:
+    """Configuration errors exit 3 (D-13.6): a bad file is the operator's to
+    fix, distinct from red gates (1) and infrastructure failure."""
+    from torve.runconfig import load_runner_config
+
+    try:
+        return load_runner_config(root, config_path)
+    except (ValueError, yaml.YAMLError) as exc:
+        click.echo(f"configuration error: {exc}", err=True)
+        sys.exit(CONFIG_ERROR_EXIT)
+
+
+def _config_option(command: Callable[..., None]) -> Callable[..., None]:
+    return click.option(
+        "--config", "config_path", type=click.Path(exists=True, path_type=Path), default=None,
+        help="Runner configuration; defaults to .torve/config.yaml, then torve.yaml.",
+    )(command)
+
+
 @main.group()
 def gates() -> None:
     """Run or verify the gate set."""
@@ -54,24 +83,32 @@ def gates() -> None:
 @click.option("--base", default=None, help="Base ref; defaults to origin/main, then main.")
 @click.option("--only", default=None, help="Comma-separated gate names.")
 @click.option("--task", "task_path", type=click.Path(exists=True, path_type=Path), default=None,
-              help="Task contract; defaults to tasks/<id>.yaml for a torve/T-nnnn branch.")
-@click.option("--manifest", "manifest_path", type=click.Path(path_type=Path),
-              default=Path("gates.yaml"), show_default=True)
+              help="Task contract; defaults to .torve/tasks/<id>.yaml for a torve/T-nnnn branch.")
+@click.option("--gates", "--manifest", "manifest_path", type=click.Path(path_type=Path),
+              default=None,
+              help="Gate manifest; defaults to .torve/gates.yaml, then legacy gates.yaml.")
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
 @click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text",
               show_default=True)
 def gates_run(base: str | None, only: str | None, task_path: Path | None,
-              manifest_path: Path, root: Path, fmt: str) -> None:
+              manifest_path: Path | None, root: Path, fmt: str) -> None:
     """Run the gates; the exit code is the outcome."""
     root = root.resolve()
-    if not manifest_path.is_absolute():
+    if manifest_path is None:
+        manifest_path = layout.gates_file(root)
+    elif not manifest_path.is_absolute():
         manifest_path = root / manifest_path
     if not manifest_path.is_file():
-        raise click.ClickException(f"no manifest at {manifest_path}")
+        raise click.ClickException(f"no gate manifest at {manifest_path}")
 
     try:
         manifest = load_manifest(manifest_path)
+    except (ValueError, yaml.YAMLError) as exc:
+        click.echo(f"configuration error: {exc}", err=True)
+        sys.exit(CONFIG_ERROR_EXIT)
+
+    try:
         ctx = build_context(root, manifest, base=base, task_path=task_path)
         selected = {name.strip() for name in only.split(",")} if only else None
         report = run_gates(ctx, only=selected)
@@ -152,24 +189,24 @@ def _runtime_for(config: RunnerConfig, override: str | None) -> Runtime:
 @click.option("--scenario", type=click.Path(exists=True, path_type=Path), default=None,
               help="FakeAgent scenario YAML; default writes one marker file and exits 0.")
 @click.option("--runtime", "runtime_name", type=click.Choice(["docker", "opensandbox"]),
-              default=None, help="Override torve.yaml's runtime adapter.")
+              default=None, help="Override the configured runtime adapter.")
+@_config_option
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
 def run_cmd(task_id: str, agent_name: str, scenario: Path | None,
-            runtime_name: str | None, root: Path) -> None:
+            runtime_name: str | None, config_path: Path | None, root: Path) -> None:
     """Run one task synchronously; the exit code is the outcome (RFC 0003)."""
     from torve.adapters.agent_fake import FakeAgent, load_scenario
     from torve.adapters.vcs_git import GhScm, GitVcs, NullScm
     from torve.adapters.workspace_git import GitWorkspace
     from torve.run import RunDeps, run_task
-    from torve.runconfig import load_runner_config
 
     root = root.resolve()
-    task_file = root / "tasks" / f"{task_id}.yaml"
+    task_file = layout.task_file(root, task_id)
     if not task_file.is_file():
         raise click.ClickException(f"no task contract at {task_file}")
     task = load_task(task_file)
-    config = load_runner_config(root)
+    config = _load_config(root, config_path)
 
     deps = RunDeps(
         workspace=GitWorkspace(root),
@@ -193,16 +230,16 @@ def run_cmd(task_id: str, agent_name: str, scenario: Path | None,
 
 @main.command("cancel")
 @click.argument("task_id")
+@_config_option
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
-def cancel(task_id: str, root: Path) -> None:
+def cancel(task_id: str, config_path: Path | None, root: Path) -> None:
     """Ask a running task to stop — cooperative on the ask, fenced on the
     landing. Fails closed when the store backend cannot deliver a cancel."""
     import asyncio
 
     from torve import naming
     from torve.adapters.durable_store import open_store
-    from torve.runconfig import load_runner_config
     from torve.runstate import RunState
     from torve.taskstore import TaskStore
 
@@ -215,7 +252,7 @@ def cancel(task_id: str, root: Path) -> None:
     if not run_id:
         raise click.ClickException(f"{task_id} has no durable run to cancel")
 
-    config = load_runner_config(root)
+    config = _load_config(root, config_path)
 
     async def _cancel() -> bool:
         taskstore = TaskStore(await open_store(config.store), config.store)
@@ -235,9 +272,11 @@ def cancel(task_id: str, root: Path) -> None:
 @click.option("--all", "apply_all", is_flag=True, help="Apply every target's pending steps.")
 @click.option("--status", "show_status", is_flag=True,
               help="Available and applied steps per target, plus the forze pin.")
+@_config_option
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
-def migrate_cmd(target: str | None, apply_all: bool, show_status: bool, root: Path) -> None:
+def migrate_cmd(target: str | None, apply_all: bool, show_status: bool,
+                config_path: Path | None, root: Path) -> None:
     """Owner-grouped, forward-only SQL migrations (rfcs/0012-migrations.md).
 
     Three histories — torve, substrate (pinned to a forze version), telemetry
@@ -245,9 +284,8 @@ def migrate_cmd(target: str | None, apply_all: bool, show_status: bool, root: Pa
     from torve.adapters.durable_store import resolve_dsn
     from torve.migrate import MigrateError, apply
     from torve.migrate import status as migrate_status
-    from torve.runconfig import load_runner_config
 
-    config = load_runner_config(root.resolve())
+    config = _load_config(root.resolve(), config_path)
     try:
         if show_status:
             dsn = None
@@ -312,16 +350,17 @@ def status(root: Path) -> None:
               help="Treat every non-terminal run as orphaned regardless of heartbeat age.")
 @click.option("--runtime", "runtime_name", type=click.Choice(["docker", "opensandbox"]),
               default=None)
+@_config_option
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
-def reap_cmd(force: bool, runtime_name: str | None, root: Path) -> None:
+def reap_cmd(force: bool, runtime_name: str | None, config_path: Path | None,
+             root: Path) -> None:
     """Sweep orphaned sandboxes and worktrees, by convention (RFC 0003 §4.2)."""
     from torve.adapters.workspace_git import GitWorkspace
     from torve.reaper import reap
-    from torve.runconfig import load_runner_config
 
     root = root.resolve()
-    config = load_runner_config(root)
+    config = _load_config(root, config_path)
     report = reap(root, config, _runtime_for(config, runtime_name), GitWorkspace(root),
                   force=force)
     for label, names in (("sandboxes destroyed", report.sandboxes_destroyed),

@@ -1,0 +1,109 @@
+schema_version: 1
+task: T-0012
+repo: morzecrew/torve
+base_sha: 2756f64d9741074214b9c8e0438f725261f9d407
+created_at: 2026-08-22T09:00:00Z
+drift_count: 0
+notes: |
+  RFC 0013 executed: resolution centralized in layout.py (canonical .torve/
+  first, legacy root names as fallback), the CLI grew --gates/--config as the
+  only overrides with exit 3 on malformed configuration, and this repository
+  took the one-move migration — gates.yaml, config.yaml (from torve.yaml),
+  tasks/ and logs/ now live under .torve/.
+entries:
+  - decision: D-13.1
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T09:05:00Z
+    attempt: 1
+    claim: every lookup goes through layout.py — canonical .torve/ path first, the legacy root name as fallback, canonical returned when neither exists so messages point at the layout a repository should have; this repository's own files are moved
+    evidence: src/torve/layout.py:22-28
+    action: decided
+  - decision: D-13.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T09:10:00Z
+    attempt: 1
+    claim: the manifest and runner configuration keep separate models, loaders and files — the move relocated both without merging anything
+    evidence: src/torve/runconfig.py:104-118
+    action: decided
+  - decision: D-13.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T09:15:00Z
+    attempt: 1
+    claim: the runner loads configuration from its launch root and passes it down; the worktree gate pass reads only the gate manifest from the repository under work, never its runner configuration
+    evidence: src/torve/run.py:187-199
+    action: decided
+  - decision: D-13.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T09:20:00Z
+    attempt: 1
+    claim: resolution returns exactly one path with no layering, and the only overrides are the explicit --gates and --config flags; an explicit path that does not exist is an error, never a silent fall-through
+    evidence: src/torve/cli.py:58-75
+    action: decided
+  - decision: D-13.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T09:25:00Z
+    attempt: 1
+    claim: 'both models carry extra="forbid" and a typo-key configuration now has a test proving it errors instead of silently dropping a knob'
+    evidence: tests/test_layout.py:65-72
+    action: decided
+  - decision: D-13.6
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T09:30:00Z
+    attempt: 1
+    claim: a malformed manifest or runner configuration exits 3 through the CLI — distinct from red gates (1) and infrastructure failure — with a test asserting the code
+    evidence: tests/test_cli.py:40-48
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T09:35:00Z
+    attempt: 1
+    claim: '.gitignore ignored .torve/ wholesale (added for telemetry), which would have silently untracked the relocated manifest, config, tasks and logs'
+    evidence: .gitignore:220-225
+    action: decided
+    proposal: "ASSUMED — the ignore narrows to what the engine generates (.torve/telemetry.jsonl, .torve/skills/); reviewed artefacts under .torve/ stay tracked, matching RFC 0013 §5"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T09:40:00Z
+    attempt: 1
+    claim: 'D-13.1 says nothing lives at repository root, but this repository keeps skills/ at root — it is the package source shipped as wheel data (A-3), not a consuming-repository Torve file; .torve/skills/ remains the materialized human-path copies the runner writes'
+    evidence: pyproject.toml:45-48
+    action: decided
+    proposal: ASSUMED — D-13.1 governs the files a consuming repository carries for Torve; the product's own source directories are out of its scope
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T09:45:00Z
+    attempt: 1
+    claim: Paths cells across accepted RFCs pointed at the old locations and the accepted-LOCKED glob check would have gone red after the move; the cells were relocated as metadata per D-32, and D-3.7 — whose decision text names the old root location — carries a dated relocation marker deferring to D-13.1
+    evidence: rfcs/0003-runner-isolation.md:135
+    action: decided
+    proposal: "ASSUMED — Paths cells follow the code and move mechanically; only D-3.7 needed an in-row marker because its decision text, not just its metadata, named the superseded location"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T09:50:00Z
+    attempt: 1
+    claim: 'RFC 0013 §3 names the override flag --gates while the shipped CLI had --manifest; the option now answers to both names so no invocation breaks'
+    evidence: src/torve/cli.py:87-89
+    action: decided
+    proposal: ASSUMED — --gates is the documented name per RFC 0013 and --manifest stays as a compatibility alias until RFC 0011's Typer adoption revisits the surface
+  - decision: D-14.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T09:55:00Z
+    attempt: 1
+    claim: the new layout.py module carries the post-import structural dash
+    evidence: src/torve/layout.py:17
+    action: decided
