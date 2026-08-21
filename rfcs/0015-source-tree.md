@@ -4,7 +4,7 @@ title: Source tree structure
 kind: convention
 status: accepted
 implementation: complete
-depends_on: []
+depends_on: ["0016"]
 informed_by: ["0002", "0003", "0014"]
 supersedes: []
 superseded_by: null

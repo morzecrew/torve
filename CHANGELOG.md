@@ -94,6 +94,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config.yaml` names the one corpus location (D-13.7). The `rfc-index`
   gate is replaced by the shipped `rfc-valid` product gate (D-7.14,
   shadow, origin rfc/0007); a malformed corpus exits 3 per 0007 §3a.
+- Charter decomposition (A-17): the corpus conventions extracted to
+  RFC 0016 — nineteen `D-A.*` decisions and amendments A-7/A-9/A-10/
+  A-14/A-15 relocated with identifiers preserved, plus the prose those
+  rules never had; the charter keeps only engine decisions, and `D-A.*`
+  is closed to new members. 0007, 0011, 0013 and 0015 gain
+  `depends_on: ["0016"]`. `torve rfc check` gains duplicate-heading
+  detection and corpus-wide decision-citation resolution (a warning,
+  pending the retired-identifier convention), both fence-aware.
 - RFC 0015 (source tree structure) adopted and executed: `src/torve` is
   layered — `base/`, `domain/` (task, attempt, states aggregates),
   `application/` (ports, run loop, services), `adapters/<port>/<technology>`,

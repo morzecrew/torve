@@ -3,7 +3,7 @@ id: "0013"
 title: Configuration layout
 status: accepted
 implementation: complete
-depends_on: []
+depends_on: ["0016"]
 informed_by: ["0002", "0011"]
 supersedes: []
 superseded_by: null
@@ -95,7 +95,7 @@ That last one is worth being strict about: a gate manifest with `sope:` instead 
 
 ### A-16 — 2026-08-22 — corpus path (amends §1, §3)
 
-**Found in use.** `config.yaml` had no setting for where the specification corpus lives, so `rfcs/` was effectively hard-coded. A repository keeping specifications for `torve plan` may reasonably put them elsewhere. *(The source patch numbered this A-14; that was taken, so it lands as A-16 per charter D-A.5. The patch cited D-F.3 for the resolution rule, which does not exist in this corpus — the rule is D-13.3.)*
+**Found in use.** `config.yaml` had no setting for where the specification corpus lives, so `rfcs/` was effectively hard-coded. A repository keeping specifications for `torve plan` may reasonably put them elsewhere. *(The source patch numbered this A-14; that was taken, so it lands as A-16 per charter D-A.5. The patch's citation for the resolution rule named a `D-F.*` decision, a family that does not exist in this corpus — the rule here is D-13.3.)*
 
 **Changed:** `config.yaml` gains
 

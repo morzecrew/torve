@@ -3,7 +3,7 @@ id: "0007"
 title: Planner and context
 status: draft
 implementation: none
-depends_on: ["0003"]
+depends_on: ["0003", "0016"]
 informed_by: []
 supersedes: []
 superseded_by: null

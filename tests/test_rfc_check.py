@@ -274,6 +274,48 @@ def test_new_with_convention_kind_lands_in_the_conventions_group(tmp_path: Path)
 
 
 # ....................... #
+# duplicate headings and identifier resolution (charter-decomposition patch §6)
+
+
+def test_two_identically_named_sections_redden(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", "D-T.1",
+                   body_extra="\n## Parts\n\nprose\n\n## 2. Parts\n\nmore\n")
+    seed(tmp_path, ("0001-widget.md", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == EXIT_CONFIG
+    assert "name the same section twice" in result.output
+
+
+def test_an_unresolvable_citation_warns_without_reddening(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\nSee D-9.9 for details.\n")
+    seed(tmp_path, ("0001-widget.md", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+    assert "cites D-9.9" in result.output
+
+
+def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
+    seed(
+        tmp_path,
+        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2",
+                                  body_extra="\nInherits D-T.1 from Alpha.\n")),
+    )
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+    assert "cites" not in result.output
+
+
+def test_a_citation_inside_a_code_fence_is_illustration(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", "D-T.1",
+                   body_extra="\n```yaml\ndecision: D-9.9\n```\n")
+    seed(tmp_path, ("0001-widget.md", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+    assert "cites" not in result.output
+
+
+# ....................... #
 # machine surfaces
 
 

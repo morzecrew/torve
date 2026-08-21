@@ -1,0 +1,63 @@
+# Charter decomposition: the corpus conventions extracted to RFC 0016 with
+# identifiers preserved, plus the two checks that make the split safe.
+schema_version: 1
+id: T-0017
+rfc: rfcs/0016-corpus-conventions.md
+phase: 1
+role: implement
+intent: |
+  The document conventions leave the engine's charter: RFC 0016 takes the
+  nineteen D-A.* corpus rules and the five amendments that grew them, with
+  every identifier preserved so divergence logs and cross-references keep
+  resolving, and gains the prose those rules never had. The charter keeps
+  only its engine decisions (A-17). torve rfc check gains the two checks that
+  keep a split decision family safe: duplicate headings within a document,
+  and corpus-wide resolution of decision citations.
+depends_on: [T-0016]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-A.4
+    grade: LOCKED
+    text: Decision identifiers are permanent; append, never renumber
+    paths: ["rfcs/**"]
+  - id: D-A.5
+    grade: LOCKED
+    text: Amendments live in an Amendments section of their primary target; numbering is global
+    paths: ["rfcs/**"]
+  - id: D-A.6
+    grade: LOCKED
+    text: INDEX.md is generated and CI-checked, never hand-edited
+    paths: ["rfcs/INDEX.md", "src/torve/config/rfc_parse.py"]
+  - id: D-A.9
+    grade: LOCKED
+    text: depends_on constrains planning readiness; shipping order lives in the phasing table
+    paths: ["rfcs/**"]
+  - id: D-A.10
+    grade: LOCKED
+    text: No document inherits decisions from one that is not accepted
+    paths: ["rfcs/**"]
+  - id: D-A.19
+    grade: LOCKED
+    text: Documents are never deleted; identifiers are never reused; gaps are acceptable
+    paths: ["rfcs/**"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case observed to fail
+    paths: ["tests/test_rfc_check.py"]
+budget: {}
+tier: executor

@@ -1,0 +1,118 @@
+schema_version: 1
+task: T-0017
+repo: morzecrew/torve
+base_sha: 690761e667f796b61200f4cb8fc925b86080f65f
+created_at: 2026-08-22T20:00:00Z
+drift_count: 0
+notes: |
+  Charter decomposition executed per the one-off procedure: RFC 0016 minted
+  as accepted-on-arrival (relocated material, not new), the charter halved,
+  and the two split-safety checks added to torve rfc check — which promptly
+  found three real things on its first run.
+entries:
+  - decision: D-A.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:05:00Z
+    attempt: 1
+    claim: 'all nineteen moved identifiers are byte-identical in 0016 — D-A.7 is still D-A.7 — and the corpus-unique check passed with the family split across two documents; the charter marks the move in place of the removed rows'
+    evidence: rfcs/0001-torve-charter.md:264-270
+    action: decided
+  - decision: D-A.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:10:00Z
+    attempt: 1
+    claim: 'amendments A-7/A-9/A-10/A-14/A-15 moved to 0016 whole, numbering still global; the charter''s new amendment lands as A-17 because the procedure''s A-16 was taken this morning by 0013''s corpus-path amendment — the fourth consecutive patch renumbered on arrival'
+    evidence: rfcs/0001-torve-charter.md:394-404
+    action: decided
+  - decision: D-A.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:15:00Z
+    attempt: 1
+    claim: 'INDEX regenerated at 16 documents; 0016 rows into the Conventions group; the four depends_on additions (0007, 0011, 0013, 0015 -> 0016) appear in the generated columns'
+    evidence: rfcs/INDEX.md:1-38
+    action: decided
+  - decision: D-A.9
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:20:00Z
+    attempt: 1
+    claim: '0016 arrives accepted — relocated material, not new — so the four documents gaining depends_on: ["0016"] stay plannable and D-A.10 is satisfied on every new edge'
+    evidence: rfcs/0016-corpus-conventions.md:1-16
+    action: decided
+  - decision: D-A.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:22:00Z
+    attempt: 1
+    claim: 'no new edge inherits from a non-accepted document: 0016 is accepted on arrival because it is relocated material rather than new, so 0007, 0011, 0013 and 0015 depending on it satisfies the rule; the pre-existing 0009 -> 0004 violation is untouched and still surfaced by every check run'
+    evidence: rfcs/0016-corpus-conventions.md:1-16
+    action: decided
+  - decision: D-A.19
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:24:00Z
+    attempt: 1
+    claim: 'the extraction deletes no document and reuses no identifier: the charter loses rows to 0016 but every identifier still resolves — in its new home — and the number 0016 was the derived next-free, not a reused one'
+    evidence: rfcs/0001-torve-charter.md:264-270
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:25:00Z
+    attempt: 1
+    claim: 'both new checks observed to fail: two identically-named sections redden (numbered prose against unnumbered container, the charter''s own defect shape), an unresolvable citation surfaces, a cross-document citation resolves, a fenced-block citation is illustration'
+    evidence: tests/test_rfc_check.py:280-317
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T20:30:00Z
+    attempt: 1
+    claim: 'the duplicate-heading check convicted the new 0016 itself on first run — its §5 prose heading "5. Amendments" collided with the unnumbered container after number-stripping, the exact charter defect the procedure §3 describes — renamed to "Amendment discipline"; the attached document''s numbered "## 9. Amendments" container was also normalized to the unnumbered form every document keeps, or the amendments-vs-amended_by check cannot find the section'
+    evidence: rfcs/0016-corpus-conventions.md:104-110
+    action: decided
+    proposal: "ASSUMED — the Amendments container is unnumbered in every document; prose about the discipline lives in 0016 §5 under a name that does not collide"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T20:35:00Z
+    attempt: 1
+    claim: 'identifier resolution shipped as a warning, not a problem: its first run flagged 0005''s D-5.5 tombstone — the A-11 adoption removed the row and left prose recording the retirement, so the retired id is cited by design and no table defines it; a reddening check would convict the tombstone D-A.4 asks for'
+    evidence: src/torve/config/rfc_parse.py:373-391
+    action: decided
+    proposal: "OPEN — settle the retirement convention: either a retired identifier keeps its row, marked retired in place (then citation resolution can redden), or tombstone prose stays the form and the check stays a warning; the corpus currently has exactly one retired id to decide over"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T20:40:00Z
+    attempt: 1
+    claim: 'the citation check also flagged 0013''s A-16 note quoting the foreign patch id D-F.3 verbatim; reworded to name the family without the dotted form, since a deliberate mention of a nonexistent id is indistinguishable from a typo to a scanner'
+    evidence: rfcs/0013-configuration-layout.md:98-98
+    action: decided
+    proposal: "ASSUMED — renumbering notes name foreign identifiers in a non-citation form (the family, backticked) so the resolution check stays clean without exempting anything"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T20:45:00Z
+    attempt: 1
+    claim: 'the §6a sweep found twelve task artifacts referencing the charter or D-A.* identifiers, every one belonging to a terminal task; per the procedure they stay untouched as historical records, and identifier preservation keeps every log citation resolving — there were no non-terminal tasks to re-mint'
+    evidence: .torve/tasks/T-0016/contract.yaml:1-10
+    action: decided
+    proposal: "ASSUMED — a terminal task's contract and log are historical records: a corpus reorganisation never edits them, and identifier preservation is what keeps their citations resolving"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T20:50:00Z
+    attempt: 1
+    claim: 'the attached 0016 needed three transcription fixes beyond renumbering: the owner placeholder filled, the required description field added, and the five Paths cells still naming the deleted skill script carried over in their current relocated form (src/torve/config/rfc_parse.py) — the attached rows would have reddened the glob check on arrival'
+    evidence: rfcs/0016-corpus-conventions.md:120-140
+    action: decided
+    proposal: "ASSUMED — a relocated decision row carries its current cells, not the source patch's snapshot: the corpus is the truth the patch was written against, and transcription updates the stale parts of the copy, never the truth"

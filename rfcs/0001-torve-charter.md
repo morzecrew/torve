@@ -7,7 +7,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11", "A-12", "A-14", "A-15"]
+amended_by: ["A-1", "A-4", "A-5", "A-11", "A-12", "A-17"]
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
@@ -261,30 +261,13 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-33 | `ASSUMED` | Two strict typecheckers gate `src` as blocking commands — `mypy src` and `basedpyright src` — with `[tool.pyright]` in pyproject as the repo-canonical strict config every editor reads; tests, scripts and skills carry no type floor. Added by execution 2026-08-21 | `pyproject.toml` `.github/**` `.torve/gates.yaml` | — |
 | D-34 | `ASSUMED` | The TaskStore facade and store adapters are typed against forze's exported contracts (`DurableRunStorePort`, `DurableFunctionHandler`, `JsonDict`), so a forze upgrade that changes the durable surface fails typecheck at the pin bump rather than surfacing as adapter behaviour. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` `src/torve/adapters/store/durable.py` | — |
 | D-35 | `ASSUMED` | Typing pattern at data boundaries: parsed-YAML documents are cast to `dict[str, Any]` at exactly one boundary per reader and stay typed inward; optional dependencies load via `import_module` (explicit Any), never from-imports of partially-unknown names; container initialisers are always annotated. Added by execution 2026-08-21 | `src/torve/**` | — |
-| D-A.1 | `LOCKED` | A document with a graded decision table is an RFC and gets a number; published documentation goes to `pages/`, one-off procedures to `ops/`. Added by amendment A-7 2026-08-21 | `rfcs/**` `ops/**` `pages/**` | The sorting rule; without it `rfcs/` mixes kinds again |
-| D-A.1a | `LOCKED` | A page must not contradict an accepted decision, and must not restate rationale that belongs under a number. Documentation is written independently, not generated from `rfcs/`. *(Reworded 2026-08-21 — see the note under A-7.)* | `pages/**` | Derivation produces pages that answer "why was this decided" to a reader asking "how do I use this" |
-| D-A.1b | `ASSUMED` | An `ops/` document is deleted once executed | `ops/**` | A finished procedure kept "for reference" is how the mess restarts |
-| D-A.1c | `LOCKED` | Documentation is versioned with releases; `rfcs/` is not. Neither is generated from the other | `pages/**` `rfcs/**` | Two different axes; synchronising them produces a site with an amendment history and a corpus with release branches |
-| D-A.2 | `LOCKED` | Structured facts in YAML frontmatter; prose in the body | `rfcs/**` | Status and dependencies must be queryable and checkable |
-| D-A.3 | `LOCKED` | Decision tables stay in markdown, hard-validated by `rfc_index.py` | `rfcs/**` `src/torve/config/rfc_parse.py` | Frontmatter would split rows from rationale — two sources of truth in one document |
-| D-A.4 | `LOCKED` | Decision identifiers are permanent; append, never renumber | `rfcs/**` | Divergence logs cite them forever |
-| D-A.5 | `LOCKED` | Amendments live in an `## Amendments` section of their primary target; numbering is global | `rfcs/**` | An amendment must be visible where the decision is read |
-| D-A.6 | `LOCKED` | `INDEX.md` is generated and CI-checked, never hand-edited | `rfcs/INDEX.md` `src/torve/config/rfc_parse.py` | A hand-maintained index drifts, as this repository already showed |
 | D-A.7 | `LOCKED` | Task logs carry `repo` and `base_sha` | `.torve/tasks/**` | Makes evidence resolvable against the commit the agent actually saw |
-| D-A.8 | `ASSUMED` | Keep the term "RFC" | — | Revisit only if `spec` ever justifies the churn |
-| D-A.9 | `LOCKED` | `depends_on` constrains planning readiness; shipping order lives in the phasing table. Added by amendment A-10 2026-08-22 | `rfcs/**` | Conflating the two makes the graph a scheduler, which it is not |
-| D-A.10 | `LOCKED` | No document inherits decisions from one that is not `accepted`. Added by amendment A-10 2026-08-22 | `rfcs/**` | A grade copied from a draft is a grade that may change under an executor |
-| D-A.11 | `LOCKED` | Frontmatter carries `implementation` as a judgement (one of `none`, `partial`, `complete`, `abandoned`); execution progress is never a frontmatter field. Added by amendment A-9 2026-08-22 | `rfcs/**` | Progress is store-derived and would diverge on the first escalation |
-| D-A.12 | `LOCKED` | The index carries every frontmatter field that aids routing, and nothing derived from the store; progress stays a projection and is never committed. Added by amendment A-9 2026-08-22. *(Reworded by A-14 2026-08-22 from "progress never enters INDEX.md" read as general minimalism — the actual concern was store dependence.)* | `rfcs/INDEX.md` `src/torve/config/rfc_parse.py` | Frontmatter is in the same commit the index is checked against; store data would make `--check` flake on every task run |
 | D-1.7 | `LOCKED` | A task contract carries an `intent` paragraph stating what changes and why; it never carries steps. Added by amendment A-11 2026-08-22 | `src/torve/domain/task.py` `.torve/tasks/**` | Without it an executor infers intent from acceptance commands, which is guessing; with steps in it, the plan gate becomes theatre |
 | D-A.13 | `LOCKED` | One directory per task holding contract and log; path resolution lives in one module. Added by amendment A-12 2026-08-22 | `src/torve/config/layout.py` `.torve/tasks/**` | Retention, sharding and pairing all follow from it; scattering path construction makes any later move a hunt |
 | D-A.14 | `LOCKED` | Task deletion is supported; no code assumes a contract is present on disk. Added by amendment A-12 2026-08-22 | `src/torve/**` | Retention later collides with code that assumes the file is always there, which is a refactor rather than a feature |
 | D-A.15 | `LOCKED` | Deletion requires prior promotion of `resolved` and `departed` entries into decision tables. Added by amendment A-12 2026-08-22 | `.torve/tasks/**` `rfcs/**` | That promotion is the only unique information a log carries |
-| D-A.16 | `LOCKED` | One corpus path, configurable as `rfcs.path`, never a list or a glob. Added by amendment A-15 2026-08-22 | `src/torve/config/runconfig.py` `rfcs/**` | Two roots mean two counters and a colliding identifier at the first merge |
-| D-A.17 | `LOCKED` | The next number is derived as the maximum plus one, never stored in a counter file. Added by amendment A-15 2026-08-22 | `src/torve/config/rfc_parse.py` | A counter is state; two branches diverge it and the resolution gives two documents one number |
-| D-A.18 | `LOCKED` | Only `NNNN-slug.md` and `INDEX.md` in the corpus directory, no subdirectories; the check routes offenders to `pages/` or `ops/`. Added by amendment A-15 2026-08-22 | `rfcs/**` `src/torve/config/rfc_parse.py` | Without routing the file lands in the repository root and the mess has moved rather than gone |
-| D-A.19 | `LOCKED` | Documents are never deleted; identifiers are never reused; gaps are acceptable. Added by amendment A-15 2026-08-22 | `rfcs/**` | Amendments, logs and commit trailers cite identifiers, and reuse redirects all of them silently |
-| D-A.20 | `ASSUMED` | A filename is not renamed once the document is on the main branch. Added by amendment A-15 2026-08-22 | `rfcs/**` | Links from `pages/`, amendments and commit messages break; a materially different title is usually a new document |
+
+The nineteen corpus-convention decisions that lived here (D-A.1 – D-A.12, D-A.16 – D-A.20) moved to RFC 0016 with their identifiers preserved (A-17). D-A.7 and D-A.13 – D-A.15 stay: they concern task directories, logs and retention, which are engine artefacts.
 
 ### 7.1 Ownership
 
@@ -352,12 +335,6 @@ Not metrics, and not thresholds — four qualitative signals written down now so
 - **Automatic conflict resolution.** Silently grants a model the right to rewrite other people's work.
 - **Multi-tenancy.** One team, trusted operators.
 
-## 10. Amendments
-
-An accepted RFC is never rewritten in place — divergence logs and telemetry reference text that must still exist. A change to an accepted decision is recorded as an amendment in the `## Amendments` section of the document whose decision it changes (D-A.5), listing secondary edits inside the entry. Numbering is global (`A-1`, `A-2`, …) so an amendment can be cited unambiguously from a log or a commit trailer. Every amendment follows the process this corpus specifies: implementation disagreed with a decision, stopped, and returned to a human — `flag-dont-flip` applied to Torve itself.
-
-This document's own amendments follow.
-
 ## Amendments
 
 ### A-1 — 2026-08-21 — log serialization (amends D-21a, §6)
@@ -385,44 +362,6 @@ This document's own amendments follow.
 **Raised in review:** if execution facts live in a store, how do agents become aware of what other agents are doing? **They do not, by design.** What an agent may touch is copied into its contract; what has already been decided is copied there too, with grades; what others are doing is known to the runner, which uses it to avoid dispatching overlapping tasks. Quality comes from every agent receiving a complete, isolated, non-overlapping contract — not from agents sharing knowledge. Knowledge accumulates as facts in the store and is read once per phase by a human with an expensive model, who writes the next contracts.
 
 **Falsifiable prediction:** if this model is wrong, tasks escalate with "insufficient context about adjacent work". Until that appears in telemetry, no change.
-
-### A-7 — 2026-08-21 — document conventions (adds D-A.1 – D-A.8)
-
-**Found in repository review.** `rfcs/` held three kinds of document with nothing expressing the difference: decision-bearing designs, executed procedures, and a hand-maintained index that had already drifted.
-
-**The sorting rule (D-A.1):** a document with a table of graded decisions is an RFC and gets a number; published documentation goes to `pages/` — written independently for users, versioned with releases, consistent with the corpus but not derived from it; one-off procedures go to `ops/` and are deleted once executed. By this rule the migrations, CLI-contract and configuration-layout documents were promoted to RFCs 0011–0013 (their decision identifiers renumbered to `D-11.*`/`D-12.*`/`D-13.*` while nothing referenced them), and the skill-specialisation guide moved to `ops/`.
-
-**Structure (D-A.2, D-A.3, D-A.6):** structured facts — id, status, dependencies, amendments, owner — live in YAML frontmatter; decision tables stay in markdown, hard-validated by `rfc_index.py`; `INDEX.md` is generated from frontmatter and CI-checked like a lockfile.
-
-**Amendments (D-A.5):** each amendment lives in the `## Amendments` section of its primary target with globally-unique numbering; the standalone `AMENDMENTS.md` file was dispersed into targets (A-1/A-4/A-5/A-7 here, A-2 → RFC 0002, A-3 → RFC 0009, A-6 → RFC 0003) and deleted.
-
-**Logs (D-A.7):** a task log pins `repo` and `base_sha`, so `path:line` evidence resolves six months later to the text the agent actually saw — self-contained means complete relative to a commit, not independent of the repository.
-
-**Executed 2026-08-21:** dev-era task logs were deleted after their divergences were promoted into decision tables, and the discovery-phase history was collapsed to a single commit.
-
-*Note 2026-08-21 — documentation is not derived.* D-A.1a was reworded from "links to decisions and never restates them" to state what it always meant: a page must not contradict an accepted decision and must not restate rationale that belongs under a number. Documentation and the corpus answer different questions ("how do I use this" against "why was this decided"), are read by different people, and move on different axes — pages are versioned with releases and carry no history, while RFCs accumulate amendments and delete nothing (new row D-A.1c). The relationship is **consistency, not derivation**: a constraint, not a generation mechanism. The derived-like-`INDEX.md` analogy was misapplied to `pages/`; the index itself stays generated (D-A.6). Where reasoning would genuinely help a reader, a page links to the RFC rather than summarising it.
-
-### A-9 — 2026-08-22 — implementation status (amends the document conventions)
-
-**Found in use.** `status` describes the document's acceptance and nothing describes the work. In particular there was no way to say "accepted, decisions inherited, implementation deliberately dropped" — the options were to misuse `superseded`, which claims a replacement exists, or to leave `accepted` indefinitely, which says nothing.
-
-**Changed:** frontmatter gains `implementation: none | partial | complete | abandoned`. It is a judgement, on the same footing as `status` — `complete` and `abandoned` are human assertions no count of merged tasks can produce. Backfilled across the corpus at adoption, honestly rather than uniformly.
-
-**Deliberately not changed:** no progress field, and no `in_progress` value. Execution progress is derived from task state and belongs to the store under A-4; a frontmatter copy would diverge the first time a task escalated. Progress is projected per phase by `torve context` and is never committed — and never enters `INDEX.md` (D-A.12).
-
-**Also edits:** 0007 §4 (the projection), 0007 decisions D-7.15/D-7.16.
-
-### A-10 — 2026-08-22 — what the frontmatter edges mean (adds D-A.9, D-A.10)
-
-**Found in planning design.** Within a single RFC the graph is handled; between RFCs, `depends_on`, `informed_by` and `supersedes` were read only by `rfc_index.py` for link validation. Nothing said what the edges *constrain*.
-
-**The correction that shapes it:** a dependency between RFCs is not a dependency between tasks. `depends_on` constrains *planning readiness* — a document cannot be planned until its dependencies are `accepted`, because its decision table inherits their rows and grades are copied at mint time (D-A.4). Shipping order is carried by the phasing table in §2, not by the graph. `informed_by` constrains nothing: it tells a reader what to read first, and making it checkable would turn a reading hint into a blocker.
-
-**A document may not inherit decisions from one that is not `accepted` (D-A.10).** A grade copied from a draft is a grade that may change under an executor.
-
-**Known violation at adoption:** RFC 0009 (`accepted`) depends on RFC 0004 (`draft`) — surfaced by this rule, resolution pending review.
-
-**Also edits:** 0007 §3.1–§3.3 and decisions D-7.7–D-7.11.
 
 ### A-11 — 2026-08-22 — task intent, and removal of the Inference port (amends §3, §5)
 
@@ -452,25 +391,14 @@ Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached 
 
 **Also edits:** 0003 (amendment A-13, logs created by writing), 0013 §1 (layout diagram note).
 
-### A-14 — 2026-08-22 — the index carries the whole frontmatter (amends D-A.12)
+### A-17 — 2026-08-22 — corpus conventions extracted to RFC 0016 (amends §7, §10)
 
-**Found in use.** A-9 added `implementation` and nothing surfaced it. D-A.12 read as a general instruction to keep the index minimal, which was an overreach: the actual concern was store dependence, since a store-derived column would make a committed, CI-checked file depend on a database, and a flaking `--check` is one people learn to re-run rather than read. *(The source patch numbered this A-12; that was taken, so it lands as A-14 per D-A.5.)*
+**Found in review.** Half this document's amendments and forty-five per cent of its decisions were about keeping a corpus of documents rather than about Torve. The mismatch is categorical: those rules apply to a repository with no engine in it. They lived here because A-7 had nowhere else to put them, and every later clarification about numbering or indexing then amended the document that defines what Torve is. *(The source patch numbered this A-16; that was taken by 0013's corpus-path amendment, so it lands as A-17 per D-A.5.)*
 
-**Changed:** the rule is now that the index carries everything from the frontmatter and nothing from outside it. `implementation` and `kind` join the generated columns, alongside status, dependencies and amendment identifiers — the `Amends` column is a list of identifiers, never a summary, because the moment the index describes what an amendment changed it becomes a second, staler account. Rows are grouped by `kind`, with documents that are accepted but abandoned separated into their own section — that pairing is the most hazardous in the corpus (decisions still inherited, no implementation ever coming) and two adjacent columns in a flat table are easy to miss. `informed_by` stays out: it constrains nothing (D-7.9).
+**Changed:** nineteen `D-A.*` decisions and amendments A-7, A-9, A-10, A-14 and A-15 move to RFC 0016, keeping their identifiers exactly. The §10 prose explaining how amendments work is a convention and moves with them; the `## Amendments` container section stays, here and in every document.
 
-**Unchanged:** no store-derived data in the index. Progress remains a projection in `torve context` and is never committed. `--check` stays deterministic, which was the whole point of the original restriction.
+**Deliberately not moved:** D-A.7, D-A.13, D-A.14 and D-A.15. They carry the `D-A.` prefix but concern task directories, logs and retention — engine artefacts. The prefix records when a decision was written, not where it belongs, and the split is by subject. Renumbering was rejected: it would break citations in 0007, 0011, 0013 and 0015 and violate D-A.4.
 
-### A-15 — 2026-08-22 — corpus location, numbering, and contents (amends the document conventions)
+**Closed:** `D-A.*` takes no new members. New decisions use `D-<rfc-number>.<n>`.
 
-**Found in use.** Three things were unstated: where the corpus lives when it is not `rfcs/`, how the next number is chosen, and what may sit in the directory. The last one had already caused one clean-up. *(The source patch numbered this A-13; that was taken, so it lands as A-15 per D-A.5.)*
-
-**Changed:**
-
-- One configurable path, `rfcs.path`, defaulting to `rfcs/`. One path only — two roots mean two counters and a colliding number at the first merge. Specifications that genuinely need two locations are two corpora with two `.torve/` configurations.
-- The next number is derived as the maximum plus one. **No counter file:** a counter is state, two branches diverge it, and resolving that conflict gives two documents the same number. A parallel-creation race instead surfaces as a duplicate-`id` failure at merge, which is loud rather than silent. Resolving that collision means renaming the document merging second, before anything references it — D-A.4 makes identifiers permanent *once a document is on the main branch*, not from the moment of creation, and this is the case that distinction exists for.
-- Only `NNNN-slug.md` and `INDEX.md` may live in the directory, with no subdirectories. The check's message routes the offending file to `pages/` or `ops/` rather than only refusing it — without routing, the file lands in the repository root and the mess has simply moved. The check belongs to `torve rfc check`, not `torve doctor`: `doctor` is about environment readiness, this is about corpus correctness. Two companion checks: the filename's numeric prefix must match `id` (slug loosely against `title`), and a filename is not renamed once the document is on the main branch.
-- **Documents are never deleted.** They leave service via `superseded` or `implementation: abandoned`. Identifiers are cited by amendments, divergence logs and commit trailers, and a reused number silently redirects all of them. Gaps are acceptable; reuse is not — a new document created in a numbering hole is refused.
-
-**Rejected:** checksums in the index. Git already guarantees content, and `--check` compares the rendering itself, which is strictly stronger and says what diverged rather than only that something did. It also protects against nothing that is left over, and puts a meaningless changed line in every diff.
-
-**Also edits:** 0013 (A-16).
+**Also edits:** 0007, 0011, 0013, 0015 gain `depends_on: ["0016"]`.
