@@ -1,45 +1,8 @@
 schema_version: 1
 task: T-0002
 drift_count: 0
-notes: '# T-0002 · Gates as a library
-
-
-  Executed rfcs/0002-gates-library.md against this repository. Append-only; one
-
-  file for this task. Entries follow RFC 0001 §6 (`kind`) and carry the
-
-  flag-dont-flip fields (`class`) where the entry is a divergence; compliance
-
-  close-outs carry `kind: resolved` only — see the reconciliation entry below,
-
-  which proposes the amendment making that shape official.
-
-
-  .**
-
-
-  | Class | Test | Meaning |
-
-  |---|---|---|
-
-  | `discovery` | Could not have been known before code existed | Healthy — the spec was right to be silent
-  |
-
-  | `spec-gap` | Could have been known; the spec was silent or at the wrong altitude | The design process
-  missed something |
-
-  | `drift` | The spec covered it and it was built otherwise anyway | **A defect** |
-
-  | `irreducible` | No amount of design settles it | Stop and spike |
-
-
-  ## Decisions made where the spec was silent
-
-
-  ## Close-outs: LOCKED areas touched, decisions honored
-
-
-  .** Restated after the close-outs; no entry above is classed drift.
+notes: 'Gates as a library (RFC 0002), executed against this repository. Entries follow RFC 0001 §6 as
+  amended by D-21b (kind/class axes; resolved close-outs for touched LOCKED areas).
 
   '
 entries:

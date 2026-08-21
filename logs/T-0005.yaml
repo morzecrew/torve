@@ -1,15 +1,8 @@
 schema_version: 1
 task: T-0005
 drift_count: 0
-notes: 'Executed rfcs/AMENDMENTS.md (A-1..A-6) and skills/SPECIALISATION.md against
-
-  branch torve/T-0005. This log is the first written in the A-1 YAML format.
-
-  Classes per flag-dont-flip: discovery (could not have been known before
-
-  code), spec-gap (could have been), drift (covered and built otherwise — a
-
-  defect), irreducible (no design settles it).
+notes: 'Corpus amendments A-1..A-6 (rfcs/AMENDMENTS.md) and the skill specialisation guide, executed on
+  branch torve/T-0005. First log written natively in the A-1 YAML format.
 
   '
 entries:
@@ -141,3 +134,17 @@ entries:
     the T-0002 decision to record the toolchain only beside the hash
   evidence: src/torve/manifest.py:96-118
   action: decided
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-08-21T23:05:00Z'
+  attempt: 1
+  claim: 'supersedes the alembic-deferral entry above — settled with the charter owner: alembic makes
+    no sense here at all, since torve has no sqlalchemy models for it to autogenerate from; the migration
+    runner, when one is needed, is yoyo over plain SQL files'
+  evidence: src/torve/adapters/durable_store.py:29-33
+  action: decided
+  proposal: ASSUMED — provisioning stays plain idempotent DDL via `torve store provision` until a second,
+    incompatible revision exists; that first real migration adopts yoyo-migrations with raw SQL steps
+    and imports the current DDL as step one; alembic is rejected, not deferred

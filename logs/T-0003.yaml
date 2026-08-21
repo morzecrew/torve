@@ -1,52 +1,8 @@
 schema_version: 1
 task: T-0003
 drift_count: 0
-notes: '# T-0003 · Runner core (RFC 0003 phase 1)
-
-
-  Executed rfcs/0003-runner-isolation.md, phase 1, against branch `torve/T-0003`.
-
-  Append-only; entries per RFC 0001 §6 as amended by D-21b (kind/class axes,
-
-  resolved close-outs).
-
-
-  .**
-
-
-  | Class | Test | Meaning |
-
-  |---|---|---|
-
-  | `discovery` | Could not have been known before code existed | Healthy — the spec was right to be silent
-  |
-
-  | `spec-gap` | Could have been known; the spec was silent or at the wrong altitude | The design process
-  missed something |
-
-  | `drift` | The spec covered it and it was built otherwise anyway | **A defect** |
-
-  | `irreducible` | No amount of design settles it | Stop and spike |
-
-
-  ## Decisions made where the spec was silent
-
-
-  Deliberately not applied: RFC 0003 §5 (lease and cancellation over the durable
-
-  run store) and §6 layer 3 (deterministic simulation) are phase 2, minted as
-
-  T-0004 — RFC 0003 §2 stages exactly this way ("First binary: one task,
-
-  synchronously, state in a JSON file beside the worktree"). The D-5 close-out
-
-  below records the same staging.
-
-
-  ## Close-outs: LOCKED areas touched, decisions honored
-
-
-  .** Restated after the close-outs; no entry above is classed drift.
+notes: 'Runner core (RFC 0003 phase 1), executed on branch torve/T-0003. Phase 2 — durable store and simulation
+  — was deliberately staged as T-0004, per RFC 0003 §2.
 
   '
 entries:

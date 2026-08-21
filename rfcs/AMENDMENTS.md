@@ -151,7 +151,7 @@ Quality here comes from every agent receiving a complete, isolated, non-overlapp
 
 **Changed:** Torve owns migrations for substrate tables (outbox, inbox, run store, step store, schedules, idempotency, distributed locks) as well as for its own document tables. One set, Postgres only.
 
-Multi-backend was already moot under D-3.6 — mock for tests, Postgres for any real run — so this is one alembic tree and a few hundred lines of DDL, not a matrix.
+Multi-backend was already moot under D-3.6 — mock for tests, Postgres for any real run — so this is one migration tree and a few hundred lines of DDL, not a matrix. *(Revised 2026-08-21: the runner is yoyo over raw SQL steps, adopted at the first real migration; alembic is rejected — torve has no sqlalchemy models for it to work from. See logs/T-0005.yaml.)*
 
 **The schema contract is enforced by test, not by file.** The differential conformance battery runs the same properties against the mock and a real Postgres via testcontainers; DDL that does not match what the adapters expect fails it. Running that battery against the migrated database is therefore a **required gate**, not an optional check. The contract exists; it is expressed as a test rather than as a migration file.
 

@@ -139,25 +139,18 @@ RFC 0002 §6a's **gate bypass** is a different concept: a human signing off on s
 
 **Worth generalising from this:** before moving a skill, check that the Torve concept it maps to is genuinely the same concept and not a homonym. The test in §2 — *does Torve parse what this skill produces?* — answers no here: Torve parses bypass records, and bypass records are not produced by this skill.
 
-## 6. Order
+## 6. Status
 
-1. Create `skills/` with the three directories; copy the files in unchanged, one commit, so the diff of the next step is readable.
-2. Add the specialisation header to all four.
-3. Apply the global rules (descriptions, `roles:`, `gate:`, drop duplicated trigger sections).
-4. Specialise `rfc-writer` per §5.1 — the largest piece, and it unblocks `paths:` in decision tables, which `decisions_reported` needs to be useful at all.
-5. Harden `rfc_index.py`.
-6. Specialise `ratchet-what-you-build`.
-7. Wire the runner to resolve skills from package data at dispatch, role-scoped.
-8. Note in `agent-skills` README: these three moved and ship with Torve; upstream versions remain for general use. `escape-hatch-policy` did not move.
+Executed 2026-08-21 (task T-0005): the three skills ship specialised in this
+directory, `rfc_index.py` is hardened (Paths column, paths on every `LOCKED`
+row, unique identifiers) and gates the corpus in CI, and the runner
+materializes the role-scoped set into the sandbox at dispatch
+(`src/torve/skills.py`). The §7-style afterward checks live as tests —
+`tests/test_skills.py` asserts the specialisation headers, the gate lines,
+non-identity with upstream, the redden-on-broken rfc_index cases, and the
+role-set materialization; `tests/test_manifest.py` asserts `config_hash`
+moves with the package version.
 
-**Step 4 is the one that matters.** Without `paths:` on decision rows, the silence check has nothing to match against and `decisions-reported` degrades to validating entries that happen to exist — which is the weaker half of the guarantee.
-
----
-
-## 7. Check afterwards
-
-- No skill in `skills/` is byte-identical to its upstream ancestor.
-- Every one carries the specialisation header and a `gate:` line.
-- A dispatched sandbox contains exactly the role's skill set and nothing else — verify by inspecting a sandbox mid-run.
-- `rfc_index.py` reddens on a decision table with an ungraded row and on a `LOCKED` row missing `paths:` — verify by breaking one of each.
-- `config_hash` changes when the Torve package version changes (A-3).
+What remains normative here for the future: the ownership test in §2 (does
+Torve parse what the skill produces?), the no-install rule in §3, the
+mandatory header in §4, and the homonym lesson in §5.4.

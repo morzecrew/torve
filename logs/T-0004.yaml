@@ -1,39 +1,8 @@
 schema_version: 1
 task: T-0004
 drift_count: 0
-notes: '# T-0004 · Durability and simulation (RFC 0003 phase 2)
-
-
-  Executed rfcs/0003-runner-isolation.md, phase 2, against branch `torve/T-0004`.
-
-  Append-only; entries per RFC 0001 §6 as amended by D-21b.
-
-
-  .**
-
-
-  | Class | Test | Meaning |
-
-  |---|---|---|
-
-  | `discovery` | Could not have been known before code existed | Healthy — the spec was right to be silent
-  |
-
-  | `spec-gap` | Could have been known; the spec was silent or at the wrong altitude | The design process
-  missed something |
-
-  | `drift` | The spec covered it and it was built otherwise anyway | **A defect** |
-
-  | `irreducible` | No amount of design settles it | Stop and spike |
-
-
-  ## Decisions made where the spec disagreed with reality or was silent
-
-
-  ## Close-outs: LOCKED areas touched, decisions honored
-
-
-  .** Restated after the close-outs; no entry above is classed drift.
+notes: 'Durability and simulation (RFC 0003 phase 2), executed on branch torve/T-0004. Transactional outbox
+  notifications deferred to RFC 0006 with the charter owner''s approval — see the entry below.
 
   '
 entries:
