@@ -1,9 +1,11 @@
 """`self-audit` — author-side blind spots (RFC 0002 §4), non-blocking.
 
 Until agents ship (RFC 0004) this is the deterministic core of the
-discipline: the task's execution log must exist and carry the declared
-`drift_count` claim — a log that only appears once something goes wrong
-cannot tell a clean run from an unexamined one (D-2.10; YAML per A-1).
+discipline: a *written* log must carry the declared `drift_count` claim —
+an absent claim and an honest zero must not read identically (D-2.10; YAML
+per A-1). A missing or empty log is legal per A-13/D-3.21: the file is
+created by writing, absence IS the empty log, and this gate does not demand
+one into existence.
 """
 
 from __future__ import annotations
@@ -19,11 +21,9 @@ from torve.gates.decisions_reported import parse_log
 def check_self_audit(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:
         return NO_TASK
-    if ctx.log_text is None:
+    if ctx.log_text is None or not ctx.log_text.strip():
         return BuiltinOutcome(
-            "fail",
-            f"no execution log at .torve/logs/{ctx.task.id}.yaml — a clean run still "
-            "declares 'drift_count: 0'",
+            "pass", "no execution log — absence is an empty log (D-3.21), nothing to audit"
         )
     document, parse_error = parse_log(ctx.log_text)
     if document is None:

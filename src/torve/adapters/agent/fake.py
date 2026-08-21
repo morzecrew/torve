@@ -10,7 +10,7 @@ last step repeats if attempts outnumber steps.
 
 Step fields (all optional):
     writes: {relative/path: content}      files written into the workspace
-    log_entry: str                        appended to logs/<task-id>.md
+    log_entry: str                        appended to .torve/tasks/<id>/log.yaml (A-13)
     exit: int (default 0)
     sleep: float seconds before exiting
     ignore_cancellation: bool             traps SIGTERM and sleeps forever —
@@ -45,8 +45,9 @@ for rel, content in step.get("writes", {}).items():
 
 entry = step.get("log_entry")
 if entry:
-    os.makedirs("logs", exist_ok=True)
-    path = os.path.join("logs", step["task_id"] + ".yaml")
+    task_dir = os.path.join(".torve", "tasks", step["task_id"])
+    os.makedirs(task_dir, exist_ok=True)
+    path = os.path.join(task_dir, "log.yaml")
     if not os.path.exists(path):
         with open(path, "w") as handle:
             handle.write("schema_version: 1\\ntask: " + step["task_id"]

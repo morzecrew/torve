@@ -1,0 +1,59 @@
+# Charter A-12 and 0003 A-13 executed: one directory per task with a
+# three-level fallback chain in layout.py, all fourteen existing tasks moved,
+# a missing log treated as an empty log by every reader (silence still
+# convicts), and the crash-persistence invariant proven end to end.
+schema_version: 1
+id: T-0015
+rfc: rfcs/0001-torve-charter.md
+phase: 1
+role: implement
+intent: |
+  Task contracts and logs move into one directory per task
+  (.torve/tasks/T-nnnn/contract.yaml + log.yaml) so retention is "remove the
+  directory", and the log becomes a file that exists only because something
+  was written: absence and emptiness read identically everywhere, and an
+  entry written before a crash is on disk.
+depends_on: [T-0012]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-A.13
+    grade: LOCKED
+    text: One directory per task holding contract and log; path resolution lives in one module
+    paths: ["src/torve/config/layout.py", ".torve/tasks/**"]
+  - id: D-A.14
+    grade: LOCKED
+    text: Task deletion is supported; no code assumes a contract is present on disk
+    paths: ["src/**"]
+  - id: D-3.20
+    grade: LOCKED
+    text: A log file is created by its first entry; entries are flushed as written
+    paths: ["src/torve/application/runner.py", "src/torve/gates/decisions_reported.py"]
+  - id: D-3.21
+    grade: LOCKED
+    text: A missing log and an empty log are equivalent to every reader
+    paths: ["src/torve/gates/decisions_reported.py", "src/torve/gates/self_audit.py"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case observed to fail
+    paths: ["src/torve/gates/sabotage.py", "tests/test_sabotage.py"]
+  - id: D-13.1
+    grade: ASSUMED
+    text: All Torve files live under .torve/; nothing at repository root
+    paths: ["src/torve/config/layout.py", ".torve/**"]
+budget: {}
+tier: executor

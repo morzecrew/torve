@@ -119,9 +119,11 @@ class Repo:
         self.git("checkout", "-q", "-b", f"torve/{TASK_ID}")
 
     def task(self, task: dict[str, Any], log: str | None) -> None:
-        self.write(f".torve/tasks/{TASK_ID}.yaml", yaml.safe_dump(task, sort_keys=False))
+        # One directory per task (A-12); the log only exists if written (A-13).
+        self.write(f".torve/tasks/{TASK_ID}/contract.yaml",
+                   yaml.safe_dump(task, sort_keys=False))
         if log is not None:
-            self.write(f".torve/logs/{TASK_ID}.yaml", log)
+            self.write(f".torve/tasks/{TASK_ID}/log.yaml", log)
 
 
 @dataclass
@@ -210,6 +212,24 @@ def _decisions_silence(repo: Repo) -> None:
     repo.commit("silent touch of a LOCKED area")
 
 
+def _decisions_silence_no_log(repo: Repo) -> None:
+    # A-13/D-3.21: absence is an empty log — the silence check still convicts.
+    repo.seed()
+    repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), None)
+    repo.write("src/app.py", "print('touched governed area, wrote nothing')\n")
+    repo.commit("silent touch with no log at all")
+
+
+def _decisions_no_log_untouched(repo: Repo) -> None:
+    # The twin: inherited decisions whose area was never touched need no log.
+    decisions = [{"id": "D-1", "grade": "LOCKED",
+                  "text": "docs layout is settled", "paths": ["docs/**"]}]
+    repo.seed()
+    repo.task(base_task(allow=["src/**"], decisions=decisions), None)
+    repo.write("src/app.py", "print('outside the governed area')\n")
+    repo.commit("clean change, no log written")
+
+
 def _decisions_illegal(repo: Repo) -> None:
     repo.seed()
     repo.task(
@@ -243,6 +263,14 @@ def _self_audit_bad(repo: Repo) -> None:
     repo.task(base_task(allow=["src/**"]), log_document(drift_count=None))
     repo.write("src/app.py", "print('unexamined')\n")
     repo.commit("log without drift count")
+
+
+def _self_audit_absent(repo: Repo) -> None:
+    # A-13/D-3.21: no entries, no file — a clean run owes nobody a log.
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+    repo.write("src/app.py", "print('clean, nothing written')\n")
+    repo.commit("clean change without a log")
 
 
 def _self_audit_clean(repo: Repo) -> None:
@@ -357,12 +385,18 @@ CASES: list[Case] = [
     Case("no-test-tampering: unlicensed edit", "no-test-tampering", "fail", _tampering_bad),
     Case("no-test-tampering: clean twin", "no-test-tampering", "pass", _tampering_clean),
     Case("decisions-reported: silence", "decisions-reported", "fail", _decisions_silence),
+    Case("decisions-reported: silence with no log at all", "decisions-reported", "fail",
+         _decisions_silence_no_log),
+    Case("decisions-reported: no log, nothing governed touched", "decisions-reported",
+         "pass", _decisions_no_log_untouched),
     Case("decisions-reported: illegal action", "decisions-reported", "fail", _decisions_illegal),
     Case("decisions-reported: unlocatable evidence", "decisions-reported", "fail",
          _decisions_unlocatable),
     Case("decisions-reported: valid log", "decisions-reported", "pass", _decisions_valid),
     Case("self-audit: no drift count", "self-audit", "fail", _self_audit_bad),
     Case("self-audit: clean twin", "self-audit", "pass", _self_audit_clean),
+    Case("self-audit: absent log is an empty log", "self-audit", "pass",
+         _self_audit_absent),
     Case("secrets: leaked key", "secrets", "fail", _secrets_bad),
     Case("secrets: clean twin", "secrets", "pass", _secrets_clean),
     Case("bypass: signed trailer converts a red scope", "scope", "bypassed", _bypass_honored),

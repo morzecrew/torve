@@ -20,8 +20,10 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     scope = ctx.task.scope if ctx.task is not None else ctx.manifest.scope
     implicit: set[str] = set()
     if ctx.task is not None:
-        # Canonical and legacy locations both (RFC 0013): the gate judges
-        # repositories on either side of the one-move migration.
+        # Canonical and legacy locations alike (RFC 0013, A-12): the gate
+        # judges repositories on either side of the layout migrations.
+        implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/contract.yaml")
+        implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/log.yaml")
         for prefix in (f"{layout.TORVE_DIR}/", ""):
             implicit.add(f"{prefix}logs/{ctx.task.id}.yaml")
             implicit.add(f"{prefix}tasks/{ctx.task.id}.yaml")

@@ -32,11 +32,32 @@ def test_legacy_fallback(tmp_path: Path) -> None:
     assert layout.log_file(tmp_path, "T-1") == tmp_path / "logs" / "T-1.yaml"
 
 
+def test_flat_torve_layout_is_the_middle_fallback(tmp_path: Path) -> None:
+    # The pre-A-12 flat layout sits between per-task dirs and root legacy.
+    (tmp_path / ".torve" / "tasks").mkdir(parents=True)
+    (tmp_path / ".torve" / "logs").mkdir()
+    (tmp_path / ".torve" / "tasks" / "T-1.yaml").write_text("flat")
+    (tmp_path / ".torve" / "logs" / "T-1.yaml").write_text("flat")
+    assert layout.task_file(tmp_path, "T-1") == tmp_path / ".torve" / "tasks" / "T-1.yaml"
+    assert layout.log_file(tmp_path, "T-1") == tmp_path / ".torve" / "logs" / "T-1.yaml"
+    # The per-task directory wins once it exists (A-12).
+    (tmp_path / ".torve" / "tasks" / "T-1").mkdir()
+    (tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml").write_text("canonical")
+    (tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml").write_text("canonical")
+    assert layout.task_file(tmp_path, "T-1") == (
+        tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml")
+    assert layout.log_file(tmp_path, "T-1") == (
+        tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml")
+
+
 def test_missing_resolves_canonical(tmp_path: Path) -> None:
     assert layout.gates_file(tmp_path) == tmp_path / ".torve" / "gates.yaml"
     assert layout.config_file(tmp_path) == tmp_path / ".torve" / "config.yaml"
-    assert layout.task_file(tmp_path, "T-1") == tmp_path / ".torve" / "tasks" / "T-1.yaml"
-    assert layout.log_file(tmp_path, "T-1") == tmp_path / ".torve" / "logs" / "T-1.yaml"
+    assert layout.task_dir(tmp_path, "T-1") == tmp_path / ".torve" / "tasks" / "T-1"
+    assert layout.task_file(tmp_path, "T-1") == (
+        tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml")
+    assert layout.log_file(tmp_path, "T-1") == (
+        tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml")
 
 
 def test_runner_config_reads_canonical_location(tmp_path: Path) -> None:

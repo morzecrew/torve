@@ -72,9 +72,9 @@ class ScriptedAgent:
 
     def run(self, ctx):
         if self.halted_on_attempt == ctx.attempt:
-            log_dir = ctx.workspace / "logs"
+            log_dir = ctx.workspace / ".torve" / "tasks" / ctx.task.id
             log_dir.mkdir(parents=True, exist_ok=True)
-            (log_dir / f"{ctx.task.id}.yaml").write_text(
+            (log_dir / "log.yaml").write_text(
                 "schema_version: 1\ntask: " + ctx.task.id + "\ndrift_count: 0\n"
                 "entries:\n  - decision: D-1\n    grade: LOCKED\n"
                 "    kind: contradicted\n    action: halted\n", encoding="utf-8")

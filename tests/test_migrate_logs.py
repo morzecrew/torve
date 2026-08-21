@@ -65,7 +65,7 @@ def test_conversion_shape():
 
 def test_migrated_torve_logs_parse_under_the_gate():
     root = Path(__file__).resolve().parent.parent
-    logs = sorted((root / ".torve" / "logs").glob("*.yaml"))
+    logs = sorted((root / ".torve" / "tasks").glob("*/log.yaml"))
     assert logs, "the repository's own execution logs moved — update this path"
     for log in logs:
         document, error = parse_log(log.read_text(encoding="utf-8"))

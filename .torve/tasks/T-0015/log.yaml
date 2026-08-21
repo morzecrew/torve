@@ -1,0 +1,88 @@
+schema_version: 1
+task: T-0015
+repo: morzecrew/torve
+base_sha: ac93d630044350723c37a261393d7c3bf243a093
+created_at: 2026-08-22T16:00:00Z
+drift_count: 0
+notes: |
+  A-12 and A-13 executed. This is the first task minted in the layout it
+  ships: .torve/tasks/T-0015/contract.yaml with this log beside it. All
+  fourteen prior tasks moved via git mv; .torve/logs/ is gone.
+entries:
+  - decision: D-A.13
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:05:00Z
+    attempt: 1
+    claim: 'resolution is a three-level chain in one module — per-task directory first, the flat .torve layout second, root legacy third, canonical returned when nothing exists — and task_dir() names the unit retention will remove'
+    evidence: src/torve/config/layout.py:26-65
+    action: decided
+  - decision: D-A.14
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:10:00Z
+    attempt: 1
+    claim: 'the audit the patch called cheap-while-small found no reader outside layout.py constructing contract or log paths; the runner reads the contract to run — which is the one legitimate need — and nothing reads it for triage or telemetry; the store-plus-sha resolution path arrives with the store-backed views'
+    evidence: src/torve/config/layout.py:47-65
+    action: decided
+  - decision: D-3.20
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:15:00Z
+    attempt: 1
+    claim: 'no engine code writes a log at end-of-run from memory: the bypass append is parse-append-dump at gate time, the FakeAgent creates the file on its first entry, and a Docker end-to-end test kills the agent after one entry and finds it on disk'
+    evidence: tests/test_run_integration.py:132-147
+    action: decided
+  - decision: D-3.21
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:20:00Z
+    attempt: 1
+    claim: 'both log readers treat missing and blank-file logs identically: decisions-reported runs the silence check over a synthesized empty document — a touched LOCKED area still convicts, an untouched one passes — and self-audit passes on absence instead of demanding a file into existence'
+    evidence: src/torve/gates/decisions_reported.py:217-240
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:25:00Z
+    attempt: 1
+    claim: 'the suite grew with the semantics: silence-with-no-log-at-all red, no-log-nothing-touched green, absent-log-is-empty green for self-audit — 28 cases, all behaving'
+    evidence: src/torve/gates/sabotage.py:215-231
+    action: decided
+  - decision: D-13.1
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T16:30:00Z
+    attempt: 1
+    claim: everything stays under .torve/ through the move; the flat layout and the root names remain live fallbacks so no consuming repository sees a flag day
+    evidence: src/torve/config/layout.py:1-12
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T16:35:00Z
+    attempt: 1
+    claim: 'self-audit''s deterministic stand-in was a log-presence check (T-0002 interpretation: a clean run still declares drift_count 0); D-3.21 makes absence legal, which retires the presence half while the written-log half — a written log must carry the drift_count claim — survives with its red sabotage case intact'
+    evidence: src/torve/gates/self_audit.py:24-27
+    action: decided
+    proposal: "ASSUMED — supersedes the T-0002 self-audit interpretation: the gate audits what was written, never whether writing happened; a clean run owes nobody a file (A-13)"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T16:40:00Z
+    attempt: 1
+    claim: 'the FakeAgent already implemented A-13''s discipline — file created by its first log entry, appended thereafter — it merely wrote the legacy path; it now writes .torve/tasks/<id>/log.yaml'
+    evidence: src/torve/adapters/agent/fake.py:46-58
+    action: decided
+    proposal: ASSUMED — the fake agent models the convention agents are expected to follow, so its log path tracks the canonical layout in lockstep
+  - decision: D-1.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:45:00Z
+    attempt: 1
+    claim: 'this contract is minted after A-11, so it carries an intent paragraph — which forced the smallest slice of the deferred A-11 execution: Task gains an optional intent field, because extra="forbid" made a D-1.7-compliant contract unloadable without it'
+    evidence: src/torve/domain/task.py:59-66
+    action: decided
+    proposal: "ASSUMED — intent defaults to empty until the A-11 execution makes minting enforce it; the thirteen pre-amendment contracts stay valid, and the full A-11 slice (enforcement, plan minting) remains deferred for review"

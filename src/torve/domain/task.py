@@ -60,6 +60,10 @@ class Task(BaseModel):
     rfc: str | None = None
     phase: int = 0
     role: Literal["implement", "review"] = "implement"
+    # One paragraph: what changes and why — never steps (D-1.7, A-11).
+    # Optional until the A-11 execution makes minting enforce it; contracts
+    # minted before the amendment carry none.
+    intent: str = ""
     depends_on: list[str] = Field(default_factory=list)
     scope: Scope = Field(default_factory=Scope)
     acceptance: list[str] = Field(default_factory=list)  # shell commands; exit 0 == satisfied

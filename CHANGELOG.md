@@ -68,6 +68,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the conformance battery run against fresh *and* populated databases in CI.
   Forward-only, checksummed; `torve store provision` is replaced outright.
 
+- Charter A-12 and 0003 A-13 executed: one directory per task —
+  `.torve/tasks/T-nnnn/` holding `contract.yaml` and, once anything was
+  written, `log.yaml` — with a three-level fallback chain in
+  `config/layout.py` (per-task dir, flat `.torve` layout, root legacy) and
+  `task_dir()` as the retention unit (D-A.13). All fourteen existing tasks
+  moved via `git mv`; `.torve/logs/` is gone. A missing log is an empty
+  log to every reader (D-3.21): `decisions-reported` runs the silence
+  check over a synthesized empty document — a touched `LOCKED` area still
+  convicts — and `self-audit` passes on absence instead of demanding a
+  file into existence (retiring its T-0002 presence check; the
+  written-log drift_count claim survives). The FakeAgent writes its log
+  at the canonical path, created by its first entry (D-3.20), with a
+  Docker end-to-end test proving an entry written before a `kill` is on
+  disk. Sabotage suite at 28 cases.
 - RFC 0015 (source tree structure) adopted and executed: `src/torve` is
   layered — `base/`, `domain/` (task, attempt, states aggregates),
   `application/` (ports, run loop, services), `adapters/<port>/<technology>`,

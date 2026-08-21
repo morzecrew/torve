@@ -1,10 +1,14 @@
-"""Where Torve's files live in a consuming repository (RFC 0013, D-13.1).
+"""Where Torve's files live in a consuming repository (RFC 0013, D-13.1;
+one directory per task per charter A-12, D-A.13).
 
-Everything sits under `.torve/` — the root stays clean. The root-level names
-that predate the move (`gates.yaml`, `torve.yaml`, `tasks/`, `logs/`) resolve
-as a fallback so migrating costs one move, not a flag day. When neither
-location has the file, resolution returns the canonical `.torve/` path, so
-error messages and new writes point at the layout a repository should have.
+Everything sits under `.torve/` — the root stays clean — and each task owns
+one directory, `.torve/tasks/T-nnnn/`, holding `contract.yaml` and (once
+anything was written) `log.yaml`, so retention is "remove the directory".
+The layouts that predate the moves — flat `.torve/tasks/T-nnnn.yaml` with
+`.torve/logs/`, and the root-level `gates.yaml`/`torve.yaml`/`tasks/`/`logs/`
+— resolve as fallbacks so migrating costs one move, not a flag day. When no
+location has the file, resolution returns the canonical path, so error
+messages and new writes point at the layout a repository should have.
 
 No layering (D-13.4): a lookup returns exactly one path, and overrides are
 explicit CLI flags, never a second file merged over the first.
@@ -19,12 +23,12 @@ from pathlib import Path
 TORVE_DIR = ".torve"
 
 
-def _resolve(canonical: Path, legacy: Path) -> Path:
-    if canonical.is_file():
-        return canonical
-    if legacy.is_file():
-        return legacy
-    return canonical
+def _resolve(*candidates: Path) -> Path:
+    """First existing candidate, else the first (canonical) one."""
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return candidates[0]
 
 
 def gates_file(root: Path) -> Path:
@@ -40,8 +44,14 @@ def config_file(root: Path) -> Path:
     return _resolve(root / TORVE_DIR / "config.yaml", root / "torve.yaml")
 
 
+def task_dir(root: Path, task_id: str) -> Path:
+    """One directory per task (A-12, D-A.13) — the unit retention removes."""
+    return root / TORVE_DIR / "tasks" / task_id
+
+
 def task_file(root: Path, task_id: str) -> Path:
     return _resolve(
+        task_dir(root, task_id) / "contract.yaml",
         root / TORVE_DIR / "tasks" / f"{task_id}.yaml",
         root / "tasks" / f"{task_id}.yaml",
     )
@@ -49,6 +59,7 @@ def task_file(root: Path, task_id: str) -> Path:
 
 def log_file(root: Path, task_id: str) -> Path:
     return _resolve(
+        task_dir(root, task_id) / "log.yaml",
         root / TORVE_DIR / "logs" / f"{task_id}.yaml",
         root / "logs" / f"{task_id}.yaml",
     )

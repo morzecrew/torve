@@ -217,13 +217,24 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
 def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:
         return NO_TASK
-    if ctx.log_text is None:
+    if ctx.log_text is None or not ctx.log_text.strip():
+        # A missing log is an empty log (A-13, D-3.21) — the file is created
+        # by writing, so only the silence check can convict its absence: a
+        # touched LOCKED area with no entry is a violation exactly as it
+        # would be in a written log without the matching entry.
+        empty: dict[str, Any] = {"schema_version": 1, "task": ctx.task.id,
+                                 "drift_count": 0, "entries": []}
+        silence_problems, _skipped = _check_silence(ctx, empty)
+        if silence_problems:
+            header = ("no execution log — absence is an empty log (D-3.21), "
+                      "and the silence check still applies:")
+            return BuiltinOutcome("fail", "\n".join([header, *silence_problems]))
         if not ctx.task.decisions:
             return BuiltinOutcome("pass", "decisions: [] — none apply, explicitly (D-7.5)")
         return BuiltinOutcome(
-            "fail",
-            f"no execution log at .torve/logs/{ctx.task.id}.yaml, and the task inherits "
-            f"{len(ctx.task.decisions)} decision(s)",
+            "pass",
+            f"no execution log — absence is an empty log (D-3.21); "
+            f"{len(ctx.task.decisions)} inherited decision(s), none touched",
         )
 
     document, parse_error = parse_log(ctx.log_text)

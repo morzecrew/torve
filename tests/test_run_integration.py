@@ -128,3 +128,20 @@ def test_reap_cleans_up_after_kill_nine(repo):
         for info in runtime.list_torve_sandboxes():
             if info.labels.get("torve.task") == TASK_ID:
                 runtime.destroy_by_id(info.id)
+
+
+def test_log_entry_written_before_failure_is_on_disk(repo):
+    # A-13/D-3.20: the log is created by its first entry, flushed as written —
+    # an abnormal end must not lose what the agent honestly wrote.
+    seed_run_repo(repo)
+    entry = ("  - decision: D-1\n    grade: LOCKED\n    kind: resolved\n"
+             "    action: decided\n    claim: written before dying\n")
+    agent = FakeAgent([{"log_entry": entry, "exit": 137}])
+    task = load_task(layout.task_file(repo.root, TASK_ID))
+
+    state = run_task(repo.root, task, CONFIG, deps_for(repo, agent))
+
+    assert state.state is TaskState.ESCALATED  # poison ceiling; the run never went green
+    log = repo.root / ".wt" / TASK_ID / ".torve" / "tasks" / TASK_ID / "log.yaml"
+    assert log.is_file(), "the entry written before the crash must be on disk"
+    assert "written before dying" in log.read_text()
