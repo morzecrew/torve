@@ -1,6 +1,6 @@
 # RFC 0002 — Gates as a library
 
-- **Status:** 📝 Draft — first shippable increment
+- **Status:** 🚧 In progress — library, six gates, sabotage suite and CI shipped in this repository (2026-08-21); exit criteria outstanding: a second consuming repository and two weeks of telemetry
 - **Scope:** The gate contract, the starting gate set, how gates are verified, and packaging them as a dependency repositories install into CI. No runner, no store, no sandbox, no agents. Excludes anything requiring `torve run`.
 - **Inherits:** D-3 (gates run outside the agent session), D-8, D-21a from RFC 0001
 - **Related:** RFC 0001 §6 (task contract, execution log) · `flag-dont-flip` · `ratchet-what-you-build`
