@@ -26,8 +26,11 @@ torve = "torve.cli:main"
 [dependency-groups]
 dev = [
     "forze[dst,postgres]>=0.6.0",
+    "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
+    "pytest-timeout>=2.3",
     "ruff>=0.6",
+    "types-pyyaml>=6.0.12",
     "yoyo-migrations>=9",
 ]
 
@@ -56,4 +59,26 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+pythonpath = ["src", "tests"]
+addopts = ["-q", "--tb=short", "--strict-markers", "--strict-config"]
+# Safety net: no test may hang the run indefinitely. On timeout, dump all
+# thread stacks and kill the process (the `thread` method guarantees the run
+# can't stick). Generous enough for container startup on a cold runner.
+timeout = 300
+timeout_method = "thread"
+
+[tool.mypy]
+strict = true
+# The gate runs `mypy src`; excluding tests keeps a bare `mypy .` from
+# disagreeing with it. mypy's `exclude` is a regex over paths and does not
+# apply to files named explicitly on the command line.
+exclude = ["^tests/", "^scripts/", "^skills/"]
+
+[[tool.mypy.overrides]]
+# The OpenSandbox SDK ships no type information; the adapter imports it lazily
+# behind the `torve[opensandbox]` extra.
+module = ["opensandbox.*", "yoyo.*"]
+ignore_missing_imports = true
