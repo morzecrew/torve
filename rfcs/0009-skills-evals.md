@@ -2,6 +2,7 @@
 id: "0009"
 title: Skills and evals
 status: accepted
+implementation: partial
 depends_on: ["0004"]
 informed_by: []
 supersedes: []

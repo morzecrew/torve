@@ -2,6 +2,7 @@
 id: "0013"
 title: Configuration layout
 status: accepted
+implementation: complete
 depends_on: []
 informed_by: ["0002", "0011"]
 supersedes: []

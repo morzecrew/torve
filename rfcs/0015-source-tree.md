@@ -3,6 +3,7 @@ id: "0015"
 title: Source tree structure
 kind: convention
 status: accepted
+implementation: complete
 depends_on: []
 informed_by: ["0002", "0003", "0014"]
 supersedes: []

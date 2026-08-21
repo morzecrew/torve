@@ -2,6 +2,7 @@
 id: "0002"
 title: Gates as a library
 status: accepted
+implementation: partial
 depends_on: ["0001"]
 informed_by: []
 supersedes: []
@@ -80,6 +81,8 @@ Each targets a structural property, so none requires mining past pull requests f
 | `self-audit` | worktree | shadow | structural | author-side blind spots |
 
 `review` is a gate in spirit but a run in mechanics — see RFC 0005.
+
+*Added by charter A-11 2026-08-22:* the `acceptance` gate is **skipped** for `role: review`, not passed with an empty list — a review's output is `Finding[]`, not an exit code, and the skip is a property of the role (RFC 0005 §1.1).
 
 *Amendment 2026-08-21 (A-2):* every gate implementation lives in the package (`src/torve/gates/`), never in a skill directory — `decisions-reported` in particular is `src/torve/gates/decisions_reported.py`, not a script shipped with `flag-dont-flip`. A gate in a skill directory is per-repository copy-paste, the exact thing this increment removes. The skill keeps one line naming its enforcing gate; the gate reports that an entry is missing, the skill teaches when one should have been written.
 

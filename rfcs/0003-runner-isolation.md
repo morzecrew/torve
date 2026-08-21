@@ -2,6 +2,7 @@
 id: "0003"
 title: Runner and isolation
 status: accepted
+implementation: partial
 depends_on: ["0002"]
 informed_by: []
 supersedes: []
@@ -90,6 +91,27 @@ Consequence for §3 and RFC 0004: observation latency is one heartbeat, and a bo
 
 Notifications are staged through the outbox in the same transaction as the state change, so "escalated but nobody was told" is not a reachable state.
 
+## 5a. Context assembly
+
+*(Added by charter amendment A-11 2026-08-22.)*
+
+What the runner writes into a sandbox before dispatch. Every layer is versioned, owned, and part of `config_hash`.
+
+| Layer | Source | Supplies |
+| --- | --- | --- |
+| Intent | `intent` on the contract | what is being changed and why |
+| Constraints | `scope`, `decisions`, `budget` | boundaries, and the conflict protocol |
+| Criterion | `acceptance` | what "done" is judged by |
+| How things are done here | role-scoped skills (RFC 0009) | behaviour |
+| What exists here | the repository's `AGENTS.md` | stack, conventions, how to run tests |
+| Provenance | `rfc`, `phase` | where to look if the contract is not enough |
+
+**This is the prompt, decomposed into versioned parts.** The difference from prompting a harness by hand is not that there is less of it — it is that each part has an owner, is checked, and registers in `config_hash`, rather than being rewritten freehand every time.
+
+**The composition is fixed and belongs to the runner.** Nothing else may add to it: not the agent, not the tracker, not a repository-local override. A context that varies silently makes two attempts incomparable and every telemetry conclusion unfounded.
+
+Not included, deliberately: other tasks' state, other tasks' escalations, the divergence logs of adjacent work. An executor that can read them is an executor that can argue its way out of its own scope (D-2a).
+
 ## 6. Tests
 
 Four layers, the first three free of model calls.
@@ -144,6 +166,7 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 | D-3.16 | `ASSUMED` | `torve reap --force` is the one deliberate use of an unfenced terminal write — an operator override so a stuck system is always drainable. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` | Fencing protects runs from stale workers, not from operators |
 | D-3.17 | `ASSUMED` | Cancel observation latency is one lease heartbeat plus the current port call, bounded by the agent hard timeout. Added by execution 2026-08-21 | `src/torve/application/runner.py` | §5's "a body that never awaits" caveat, made concrete |
 | D-3.18 | `ASSUMED` | Transactional notifications and the delivered-notification simulation invariant land with RFC 0006, where the Notifier policy lives. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` | Until then escalations are visible through `torve status` only |
+| D-3.19 | `LOCKED` | Context composition is fixed, owned by the runner, and part of `config_hash`; nothing outside the runner may extend it. Added by charter amendment A-11 2026-08-22 *(the source patch numbered this D-3.7, already taken)* | `src/torve/application/runner.py` | A context that varies silently makes attempts incomparable |
 
 ## 9. Exit criteria
 

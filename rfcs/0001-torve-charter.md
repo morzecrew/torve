@@ -2,11 +2,12 @@
 id: "0001"
 title: "Torve: charter"
 status: accepted
+implementation: partial
 depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-1", "A-4", "A-5", "A-7"]
+amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11"]
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
@@ -76,6 +77,7 @@ class Task(Document):
     rfc: str | None
     phase: int
     role: Literal["implement", "review"]        # see RFC 0005
+    intent: str                                  # one paragraph: what changes and why — never steps (A-11)
     depends_on: list[TaskId]
     scope: Scope                                 # allow/deny globs
     acceptance: list[str]                        # shell commands; exit 0 == satisfied
@@ -143,7 +145,6 @@ queued → claimed → running → gated → reviewed → ready
 | `GateRunner` | shell in the task sandbox (RFC 0002) |
 | `SCM` | `gh` CLI |
 | `Telemetry` | JSONL → analytics contract (RFC 0004) |
-| `Inference` | forze inference contract (RFC 0005) |
 | `Notifier` | outbox destination |
 | `ContextRead` | read-only MCP (RFC 0007) |
 | `Tracker` | outbound projection, restricted inbound commands (RFC 0008) |
@@ -151,6 +152,8 @@ queued → claimed → running → gated → reviewed → ready
 | `SizePolicy` | pre-dispatch size estimate and post-hoc calibration (RFC 0002) |
 | `PromotionPolicy` | what may land without a human (RFC 0006) |
 | `Vcs` | commit, branch, sign, revert (RFC 0010) |
+
+*The `Inference` port was removed by A-11 2026-08-22: a reviewer reached through a separate port stops being a run. The reviewer goes through `Agent` like every other run (RFC 0005).*
 
 `Workspace` (local git) and `SCM` (remote forge) stay separate — merging them binds the domain to GitHub.
 
@@ -168,7 +171,7 @@ Ports are expensive: each is an interface, a mock, a conformance expectation and
 | --- | --- |
 | `Agent`, `Runtime`, `TaskStore`, `Tracker`, `Vcs` | the state machine — pluggability destroys D-5a |
 | `DecisionSource`, `SizePolicy`, `PromotionPolicy` | the escalation-reason vocabulary — an extensible enum makes telemetry incomparable across time |
-| `Telemetry`, `Inference`, `Notifier` | gates — declarative config, not an interface |
+| `Telemetry`, `Notifier` | gates — declarative config, not an interface |
 | | the execution-log format — a second format means two parsers and eventual divergence |
 
 When unsure, ask whether two implementations would ever run in the same organisation. If not, it is configuration.
@@ -269,6 +272,11 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-A.6 | `LOCKED` | `INDEX.md` is generated and CI-checked, never hand-edited | `rfcs/INDEX.md` `skills/rfc-writer/scripts/rfc_index.py` | A hand-maintained index drifts, as this repository already showed |
 | D-A.7 | `LOCKED` | Task logs carry `repo` and `base_sha` | `.torve/logs/**` | Makes evidence resolvable against the commit the agent actually saw |
 | D-A.8 | `ASSUMED` | Keep the term "RFC" | — | Revisit only if `spec` ever justifies the churn |
+| D-A.9 | `LOCKED` | `depends_on` constrains planning readiness; shipping order lives in the phasing table. Added by amendment A-10 2026-08-22 | `rfcs/**` | Conflating the two makes the graph a scheduler, which it is not |
+| D-A.10 | `LOCKED` | No document inherits decisions from one that is not `accepted`. Added by amendment A-10 2026-08-22 | `rfcs/**` | A grade copied from a draft is a grade that may change under an executor |
+| D-A.11 | `LOCKED` | Frontmatter carries `implementation` as a judgement (one of `none`, `partial`, `complete`, `abandoned`); execution progress is never a frontmatter field. Added by amendment A-9 2026-08-22 | `rfcs/**` | Progress is store-derived and would diverge on the first escalation |
+| D-A.12 | `LOCKED` | Progress is projected per phase, and never enters `INDEX.md`. Added by amendment A-9 2026-08-22 | `rfcs/INDEX.md` `skills/rfc-writer/scripts/rfc_index.py` | A committed, CI-checked index must not depend on the store |
+| D-1.7 | `LOCKED` | A task contract carries an `intent` paragraph stating what changes and why; it never carries steps. Added by amendment A-11 2026-08-22 | `src/torve/domain/task.py` `.torve/tasks/**` | Without it an executor infers intent from acceptance commands, which is guessing; with steps in it, the plan gate becomes theatre |
 
 ### 7.1 Ownership
 
@@ -385,3 +393,39 @@ This document's own amendments follow.
 **Executed 2026-08-21:** dev-era task logs were deleted after their divergences were promoted into decision tables, and the discovery-phase history was collapsed to a single commit.
 
 *Note 2026-08-21 — documentation is not derived.* D-A.1a was reworded from "links to decisions and never restates them" to state what it always meant: a page must not contradict an accepted decision and must not restate rationale that belongs under a number. Documentation and the corpus answer different questions ("how do I use this" against "why was this decided"), are read by different people, and move on different axes — pages are versioned with releases and carry no history, while RFCs accumulate amendments and delete nothing (new row D-A.1c). The relationship is **consistency, not derivation**: a constraint, not a generation mechanism. The derived-like-`INDEX.md` analogy was misapplied to `pages/`; the index itself stays generated (D-A.6). Where reasoning would genuinely help a reader, a page links to the RFC rather than summarising it.
+
+### A-9 — 2026-08-22 — implementation status (amends the document conventions)
+
+**Found in use.** `status` describes the document's acceptance and nothing describes the work. In particular there was no way to say "accepted, decisions inherited, implementation deliberately dropped" — the options were to misuse `superseded`, which claims a replacement exists, or to leave `accepted` indefinitely, which says nothing.
+
+**Changed:** frontmatter gains `implementation: none | partial | complete | abandoned`. It is a judgement, on the same footing as `status` — `complete` and `abandoned` are human assertions no count of merged tasks can produce. Backfilled across the corpus at adoption, honestly rather than uniformly.
+
+**Deliberately not changed:** no progress field, and no `in_progress` value. Execution progress is derived from task state and belongs to the store under A-4; a frontmatter copy would diverge the first time a task escalated. Progress is projected per phase by `torve context` and is never committed — and never enters `INDEX.md` (D-A.12).
+
+**Also edits:** 0007 §4 (the projection), 0007 decisions D-7.15/D-7.16.
+
+### A-10 — 2026-08-22 — what the frontmatter edges mean (adds D-A.9, D-A.10)
+
+**Found in planning design.** Within a single RFC the graph is handled; between RFCs, `depends_on`, `informed_by` and `supersedes` were read only by `rfc_index.py` for link validation. Nothing said what the edges *constrain*.
+
+**The correction that shapes it:** a dependency between RFCs is not a dependency between tasks. `depends_on` constrains *planning readiness* — a document cannot be planned until its dependencies are `accepted`, because its decision table inherits their rows and grades are copied at mint time (D-A.4). Shipping order is carried by the phasing table in §2, not by the graph. `informed_by` constrains nothing: it tells a reader what to read first, and making it checkable would turn a reading hint into a blocker.
+
+**A document may not inherit decisions from one that is not `accepted` (D-A.10).** A grade copied from a draft is a grade that may change under an executor.
+
+**Known violation at adoption:** RFC 0009 (`accepted`) depends on RFC 0004 (`draft`) — surfaced by this rule, resolution pending review.
+
+**Also edits:** 0007 §3.1–§3.3 and decisions D-7.7–D-7.11.
+
+### A-11 — 2026-08-22 — task intent, and removal of the Inference port (amends §3, §5)
+
+**Found in implementation.** Two defects surfaced together while wiring the reviewer. *(The source patch numbered this A-8 and its context-assembly decision D-3.7; both were taken, so they land as A-11 and D-3.19 per D-A.4/D-A.5.)*
+
+The task model carried no field stating what a task is *for*: `scope` says where, `acceptance` says how it will be judged, `decisions` says what binds it — and the change itself appeared nowhere. An executor was left inferring intent from acceptance commands, which is guessing.
+
+Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached through a separate port is not a run, and loses sandbox, budget, cancellation, `Attempt` and telemetry with it.
+
+**Changed:** `Task` gains `intent: str` — one paragraph on what changes and why, never steps (D-1.7). The `Inference` port is removed from the port table and from §5; the reviewer runs through `Agent` like every other run, with the cross-model requirement met by pointing `tier: reviewer` at a different vendor.
+
+**Unchanged:** D-5.1 stands, and is the reason for the second change rather than a casualty of it. Everything else about review in 0005 is unaffected.
+
+**Also edits:** 0002 §4 (acceptance skipped for `role: review`), 0003 §5a and D-3.19 (context assembly), 0005 §1.1/§3/decisions, 0007 §3.

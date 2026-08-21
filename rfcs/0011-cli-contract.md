@@ -2,6 +2,7 @@
 id: "0011"
 title: CLI contract
 status: accepted
+implementation: partial
 depends_on: []
 informed_by: ["0002", "0003"]
 supersedes: []

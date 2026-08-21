@@ -2,6 +2,7 @@
 id: "0005"
 title: Review as a run
 status: draft
+implementation: none
 depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
@@ -52,12 +53,36 @@ Consequence is config: any surviving `blocker` → `escalated` with reason `bloc
 
 **The runner posts the comments, not the agent.** Findings come back as data and the runner renders and posts them through the `SCM` port. The reviewer keeps no forge credential at all, which is D-4b applied where it is easiest to forget.
 
-## 3. Two implementations, one contract
+### 1.1 The review contract
 
-- **`Inference` port** — a direct call, structured output, no CLI parsing. Cheaper, simpler, and the default.
-- **Sandboxed harness** — a full agent that can run the code it is reviewing.
+*(Added 2026-08-22, with charter A-11.)*
 
-Start with inference: the reviewer works from a diff and gate results, not from execution. Fall back to the sandboxed form only if findings prove to need runtime evidence — and if they do, that is itself a finding about the gates, which should have produced that evidence already.
+A review is minted as a task, using the same contract shape with a different role:
+
+```yaml
+id: T-0143
+role: review
+targets: [T-0142]
+intent: |
+  Review T-0142's diff against its contract and inherited decisions.
+scope:
+  allow: []                    # writes nothing
+decisions: <inherited from T-0142>
+budget: { iterations: 1, wallclock: 10m, tokens: 120k }
+tier: reviewer
+```
+
+`targets` already exists for `role: revert` (RFC 0010), so a third role needs no new mechanism — the contract shape is parameterised by role and that is all.
+
+**A review task has no `acceptance`.** Its output is `Finding[]`, not an exit code. This is a property of the role, not an omission: `implement` is judged by green commands, `review` by findings whose evidence resolves. The `acceptance` gate is skipped for this role rather than passed with an empty list.
+
+**Who mints it.** `torve plan` mints `implement` tasks from an RFC. The **runner** mints the review task when its target reaches `gated`. The planner has no knowledge of review and needs none — review is a consequence of execution, not of specification.
+
+## 3. One implementation
+
+*(Rewritten 2026-08-22, with charter A-11; the section previously offered an `Inference`-port default beside a sandboxed harness, and D-5.5 with it — both removed, identifier retired per D-A.4.)*
+
+The reviewer runs through `Agent`, like every other run. A reviewer reached through a separate port stops being a run: no sandbox, no contract, no budget, no cancellation, no `Attempt`, no `trace_ref`, no role-scoped skills, no place in telemetry — the special case D-5.1 removed, back wearing a port. Its adapter is chosen by `tier: reviewer` in the usual way, and the cross-model requirement (D-5.1, §2) is met by pointing that tier at a different vendor than `executor`.
 
 ## 4. Triggers
 
@@ -131,10 +156,14 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.2 | `LOCKED` | The reviewer gets a read-only workspace and no forge credential; the runner posts comments | `src/torve/review/**` | An agent that can fix-and-approve is not a reviewer |
 | D-5.3 | `LOCKED` | The reviewer never receives the author's session trace | `src/torve/review/**` | Otherwise it audits reasoning, not the change |
 | D-5.4 | `ASSUMED` | Findings with unlocatable evidence are discarded automatically | `src/torve/review/**` `src/torve/gates/decisions_reported.py` | Shared with the execution-log check; remove if it discards true positives |
-| D-5.5 | `ASSUMED` | The reviewer runs through the `Inference` port by default | `src/torve/review/**` | Depart if findings need runtime evidence |
 | D-5.6 | `LOCKED` | A seeded-defect corpus gates every prompt or model change | `src/torve/review/**` | Prompt tuning without it is guesswork |
 | D-5.7 | `ASSUMED` | Third-party reviewer removal requires shadow-mode numbers, not preference | — | Four-step sequence in §7 |
 | D-5.8 | `ASSUMED` | Reviews on pull requests without a task run in degraded mode and are told so | `src/torve/review/**` | Prevents invented specifications |
+| D-5.9 | `LOCKED` | Review is minted as a task with `role: review` and `targets`, sharing the contract shape | `src/torve/domain/task.py` | A third role must not require a new mechanism |
+| D-5.10 | `LOCKED` | A review task has no `acceptance`; the gate is skipped for the role | `src/torve/gates/acceptance.py` | Its output is findings, not an exit code |
+| D-5.11 | `LOCKED` | Review tasks are minted by the runner at `gated`, never by the planner | `src/torve/application/runner.py` | Review follows execution; the planner would have to predict it |
+
+D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
 
 ## 10. Exit criteria
 
