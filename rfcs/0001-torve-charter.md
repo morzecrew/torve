@@ -114,6 +114,8 @@ queued → claimed → running → gated → reviewed → ready
 4. **Escalation reasons are enumerated:** `budget_exhausted`, `poison_ceiling`, `locked_conflict`, `merge_conflict`, `blocker_finding`, `gate_infrastructure_failure`, `lease_expired`.
 5. **`locked_conflict` is terminal by design, not an error** — the one case where a task stops on working code.
 
+*Amendment 2026-08-21 (D-29, D-30):* the vocabulary above is completed by `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a) and closed as one enum; and `claimed → escalated` is a legal transition, covering a runner that dies between claim and first dispatch.
+
 ## 5. Ports
 
 | Port | Backed by |
@@ -224,6 +226,8 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-27 | `LOCKED` | No contract, decision or execution log ever moves from git into a database |
 | D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode |
 | D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) |
+| D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) |
+| D-30 | `ASSUMED` | `claimed` may transition to `escalated`: a runner that dies between claim and first dispatch needs a legal exit, and the durable store's `claim_abandoned` recovery lands on the same edge. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) |
 
 ### 7.1 Ownership
 

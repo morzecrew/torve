@@ -117,6 +117,12 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 | D-3.4 | `LOCKED` | Names for ports, databases, volumes and sandboxes derive from the task id | Cleanup by convention depends on it entirely |
 | D-3.5 | `ASSUMED` | Simulation is the primary concurrency-verification tool; each invariant ships with a reachability target and a broken twin | Depart if the harness cannot see the invariants |
 | D-3.6 | `ASSUMED` | Mock for tests, Postgres for real runs | Substrate property, not a choice |
+| D-3.7 | `ASSUMED` | Runner configuration lives in `torve.yaml` at the repository root, reviewed like `gates.yaml` but on its own cadence; RFC 0004's tier mapping joins it there. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) | Keeps gate manifest and runner knobs on separate release cadences |
+| D-3.8 | `ASSUMED` | `torve run` executes shell gates in a fresh sandbox from the same image over the same worktree; pure gates run in the engine. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) | An agent-staged PATH shim cannot fake a gate outcome |
+| D-3.9 | `ASSUMED` | Until RFC 0005 ships, the runner auto-transitions gated → reviewed with the recorded fact "review not configured"; the transition table stays unchanged. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) | Review slots in without a state-machine change |
+| D-3.10 | `ASSUMED` | v1 liveness is a heartbeat in the JSON state file; the reaper escalates stale non-terminal runs as `lease_expired`. Replaced by real leases in T-0004. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) | The kill -9 exit criterion holds before the durable store exists |
+| D-3.11 | `ASSUMED` | The Runtime contract is "workspace in, changed files out": Docker satisfies it by bind mount, OpenSandbox by tar-over-files-API sync; the conformance battery asserts the contract, not the mechanism. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) | Server-side runtimes fit the same port as local ones |
+| D-3.12 | `ASSUMED` | The opensandbox SDK ships as the optional extra `torve[opensandbox]`; the adapter import-guards it. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) | Consuming repositories do not pay for an adapter they do not use |
 
 ## 9. Exit criteria
 
