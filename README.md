@@ -10,8 +10,9 @@ cannot prove it did what it was told.
 
 ```text
 rfcs/                      the design corpus
-src/torve/                 the gates library (RFC 0002 increment)
+src/torve/                 the gates library and runner (RFC 0002 + 0003 phase 1)
 gates.yaml                 this repository's own gate manifest
+torve.yaml                 runner configuration (runtime adapter, ceilings, reap)
 tasks/  logs/              task contracts and append-only execution logs
 ```
 
@@ -33,6 +34,23 @@ One CI step per repository, `gates.yaml` at the repository root. Builtin gates:
 automatically; without one, task-input gates report `skipped`, never a silent
 green. Every run appends a JSONL telemetry record stamped with
 `config_hash`.
+
+## Runner (RFC 0003 phase 1, shipped here)
+
+```bash
+torve run T-0142                 # one task, synchronous, exit code is the outcome
+torve run T-0142 --agent fake --scenario demo.yaml
+torve reap                       # sweep orphaned sandboxes and worktrees
+torve status
+```
+
+The run loop: claim → git worktree → sandbox → agent → gates → `ready` or
+`escalated`, with an enumerated escalation vocabulary and a poison ceiling
+checked before dispatch. Everything runs in a sandbox — even the fake agent —
+and shell gates execute in a fresh sandbox the agent never touched. Two
+runtime adapters behind one contract: Docker, and OpenSandbox
+(`pip install 'torve[opensandbox]'`). Run state is a JSON file beside the
+worktree until the durable store lands (T-0004).
 
 ## Reading order
 

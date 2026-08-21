@@ -1,6 +1,6 @@
 # RFC 0003 — Runner and isolation
 
-- **Status:** 📝 Draft — depends on 0002 shipping
+- **Status:** 🚧 In progress — phase 1 shipped 2026-08-21 (T-0003: runner core, both runtime adapters, FakeAgent, reaper, JSON run state); phase 2 outstanding (T-0004: durable store facade, lease/cancellation, DST simulation)
 - **Scope:** `torve run` for a single task, synchronously: workspace, sandbox, dispatch, gates, artefacts, reaper, and the simulation harness that proves the state machine correct. Uses a fake agent only. Excludes real agents (0004), review (0005), merging (0006), planning (0007).
 - **Inherits:** D-1, D-3, D-4, D-4b, D-5, D-5a, D-22 from RFC 0001
 

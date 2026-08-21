@@ -1,0 +1,78 @@
+# Runner core: RFC 0003 phase 1 — state machine, ports, workspace, Docker and
+# OpenSandbox runtimes, FakeAgent, JSON run state, run/status/reap CLI.
+# Phase 2 (forze durable store + DST simulation) is T-0004.
+schema_version: 1
+id: T-0003
+rfc: rfcs/0003-runner-isolation.md
+phase: 1
+role: implement
+depends_on: []
+scope:
+  allow:
+    - "src/**"
+    - "tests/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - "gates.yaml"
+    - "torve.yaml"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+    - ".gitignore"
+    - "rfcs/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest"
+  - "python3 .agents/skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-3
+    grade: LOCKED
+    text: Gates execute outside the agent session; an agent cannot report a gate outcome
+    paths: ["src/torve/run.py", "src/torve/runner.py"]
+  - id: D-4
+    grade: LOCKED
+    text: The sandbox is the unit of lifecycle; nothing runs on a host
+    paths: ["src/torve/run.py", "src/torve/adapters/**"]
+  - id: D-4b
+    grade: LOCKED
+    text: Agents never hold real credentials; outbound secrets are injected by the runtime's vault
+    paths: ["src/torve/adapters/**"]
+  - id: D-5
+    grade: LOCKED
+    text: TaskStore is a thin facade over the substrate's durable run store, not hand-written
+    paths: ["src/torve/runstate.py"]
+  - id: D-22
+    grade: LOCKED
+    text: Aggregates have no update command; the mutable run state lives outside the document models
+    paths: ["src/torve/models.py", "src/torve/runstate.py"]
+  - id: D-27
+    grade: LOCKED
+    text: No contract, decision or execution log ever moves from git into a database
+    paths: ["tasks/**", "logs/**"]
+  - id: D-3.1
+    grade: LOCKED
+    text: v1 is one task, synchronous, no daemon
+    paths: ["src/torve/run.py", "src/torve/cli.py"]
+  - id: D-3.4
+    grade: LOCKED
+    text: Names for ports, databases, volumes and sandboxes derive from the task id
+    paths: ["src/torve/naming.py", "src/torve/reaper.py", "src/torve/adapters/**"]
+  - id: D-3.2
+    grade: ASSUMED
+    text: FakeAgent is the first adapter built
+    paths: ["src/torve/adapters/agent_fake.py"]
+  - id: D-3.3
+    grade: ASSUMED
+    text: Runtime is OpenSandbox, with Docker retained as a fallback
+    paths: ["src/torve/adapters/runtime_docker.py", "src/torve/adapters/runtime_opensandbox.py"]
+  - id: D-3.5
+    grade: ASSUMED
+    text: Simulation is the primary concurrency-verification tool
+    paths: []
+  - id: D-3.6
+    grade: ASSUMED
+    text: Mock for tests, Postgres for real runs
+    paths: []
+budget: {}
+tier: executor
