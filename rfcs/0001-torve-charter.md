@@ -7,7 +7,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11"]
+amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11", "A-12"]
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
@@ -277,6 +277,9 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-A.11 | `LOCKED` | Frontmatter carries `implementation` as a judgement (one of `none`, `partial`, `complete`, `abandoned`); execution progress is never a frontmatter field. Added by amendment A-9 2026-08-22 | `rfcs/**` | Progress is store-derived and would diverge on the first escalation |
 | D-A.12 | `LOCKED` | Progress is projected per phase, and never enters `INDEX.md`. Added by amendment A-9 2026-08-22 | `rfcs/INDEX.md` `skills/rfc-writer/scripts/rfc_index.py` | A committed, CI-checked index must not depend on the store |
 | D-1.7 | `LOCKED` | A task contract carries an `intent` paragraph stating what changes and why; it never carries steps. Added by amendment A-11 2026-08-22 | `src/torve/domain/task.py` `.torve/tasks/**` | Without it an executor infers intent from acceptance commands, which is guessing; with steps in it, the plan gate becomes theatre |
+| D-A.13 | `LOCKED` | One directory per task holding contract and log; path resolution lives in one module. Added by amendment A-12 2026-08-22 | `src/torve/config/layout.py` `.torve/tasks/**` | Retention, sharding and pairing all follow from it; scattering path construction makes any later move a hunt |
+| D-A.14 | `LOCKED` | Task deletion is supported; no code assumes a contract is present on disk. Added by amendment A-12 2026-08-22 | `src/torve/**` | Retention later collides with code that assumes the file is always there, which is a refactor rather than a feature |
+| D-A.15 | `LOCKED` | Deletion requires prior promotion of `resolved` and `departed` entries into decision tables. Added by amendment A-12 2026-08-22 | `.torve/tasks/**` `rfcs/**` | That promotion is the only unique information a log carries |
 
 ### 7.1 Ownership
 
@@ -429,3 +432,17 @@ Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached 
 **Unchanged:** D-5.1 stands, and is the reason for the second change rather than a casualty of it. Everything else about review in 0005 is unaffected.
 
 **Also edits:** 0002 §4 (acceptance skipped for `role: review`), 0003 §5a and D-3.19 (context assembly), 0005 §1.1/§3/decisions, 0007 §3.
+
+### A-12 — 2026-08-22 — task directories and retention (amends §6)
+
+**Found in use.** `tasks/` and `logs/` grew as parallel trees with only a matching filename relating them, so retention would have had to delete from two places and sharding would have had to be decided twice. *(The source patch numbered this A-10; that was taken, so it lands as A-12 per D-A.5.)*
+
+**Changed:** one directory per task — `.torve/tasks/T-0142/` containing `contract.yaml` and, when anything was written, `log.yaml`. If sharding is ever needed it happens by RFC or phase, never by date, and is one function in `config/layout.py` plus a migration — path resolution lives there and nowhere else (D-A.13).
+
+**Added:** task deletion is a supported operation. A contract holds no unique information once its work has landed — the `Attempt` in the store carries `task_id`, `config_hash` and the sha, and the contract is recoverable from the commit that introduced it. Deletion requires that `resolved` and `departed` entries have first been promoted into decision tables, and that no non-terminal task references the directory.
+
+**Consequence to observe now:** no code may assume a contract is present on disk. A task is resolved by `task_id` plus sha through the store; the contract is read from git only when needed, and its absence is tolerated. The retention mechanism itself stays unbuilt — its threshold will be chosen from real volume.
+
+**Not changed:** logs stay in git. Both reasons still hold — evidence arrives in a pull request beside the diff, and `base_sha` keeps it resolvable.
+
+**Also edits:** 0003 (amendment A-13, logs created by writing), 0013 §1 (layout diagram note).

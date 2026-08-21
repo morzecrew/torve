@@ -27,10 +27,11 @@ Not urgent — the split already works. This records the reasoning and the one d
 .torve/
   config.yaml        runner: adapters, tiers, runtime, budgets, promotion
   gates.yaml         gate manifest
-  tasks/             T-0142.yaml …
-  logs/              T-0142.yaml …          (A-1)
+  tasks/             T-0142/contract.yaml + T-0142/log.yaml   (A-12)
   skills/            human-path copies only; the runner does not read these
 ```
+
+*Note 2026-08-22 — charter A-12 replaced the parallel `tasks/` and `logs/` trees with one directory per task (`tasks/T-0142/` holding `contract.yaml` and, when anything was written, `log.yaml`). The move itself is pending execution; the flat layout resolves as legacy fallback meanwhile.*
 
 Repository root stays clean. In a consuming project these files sit beside a dozen other tools' dotfiles, and the root is scarce real estate — a tool that claims two top-level names for itself is a tool being presumptuous.
 

@@ -7,7 +7,7 @@ depends_on: ["0002"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-6"]
+amended_by: ["A-6", "A-13"]
 owner: Lev Litvinov
 description: >-
   `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
@@ -127,6 +127,7 @@ Four layers, the first three free of model calls.
    | Attempt count never exceeds the ceiling | a crash landed between increment and dispatch |
    | Every `escalated` task has exactly one delivered notification | the crash landed between state write and relay |
    | No duplicate PR for one task | a retry followed a push whose result was lost |
+   | An entry written before a crash is on disk (A-13) | the crash landed between an entry write and the end of the run |
 
    Each scenario keeps a deliberately broken twin — remove the ceiling check, drop the lease — that the oracle must catch and reproduce. A simulation that cannot fail proves nothing.
 
@@ -167,6 +168,8 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 | D-3.17 | `ASSUMED` | Cancel observation latency is one lease heartbeat plus the current port call, bounded by the agent hard timeout. Added by execution 2026-08-21 | `src/torve/application/runner.py` | §5's "a body that never awaits" caveat, made concrete |
 | D-3.18 | `ASSUMED` | Transactional notifications and the delivered-notification simulation invariant land with RFC 0006, where the Notifier policy lives. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` | Until then escalations are visible through `torve status` only |
 | D-3.19 | `LOCKED` | Context composition is fixed, owned by the runner, and part of `config_hash`; nothing outside the runner may extend it. Added by charter amendment A-11 2026-08-22 *(the source patch numbered this D-3.7, already taken)* | `src/torve/application/runner.py` | A context that varies silently makes attempts incomparable |
+| D-3.20 | `LOCKED` | A log file is created by its first entry; entries are flushed as written. Added by amendment A-13 2026-08-22 *(the source patch numbered this D-3.8, already taken)* | `src/torve/application/runner.py` `src/torve/gates/decisions_reported.py` | Writing at end-of-run from memory loses entries on any abnormal termination |
+| D-3.21 | `LOCKED` | A missing log and an empty log are equivalent to every reader. Added by amendment A-13 2026-08-22 *(the source patch numbered this D-3.9, already taken)* | `src/torve/gates/decisions_reported.py` `src/torve/gates/self_audit.py` | Otherwise the runner needs a decision about writing, and that decision is a bug waiting to happen |
 
 ## 9. Exit criteria
 
@@ -188,3 +191,13 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 **Rejected — generating migrations inside forze:** it is a backend engine, not a migration generator, and generated migrations need review regardless.
 
 **Consequence, and the real cost of this finding:** substrate schema versions are pinned alongside the forze version (`migrations/substrate/FORZE_VERSION`); the pin joins `config_hash`, and a forze upgrade that changes a substrate schema is a migration task in Torve, not a silent `pip install -U`.
+
+### A-13 — 2026-08-22 — logs are created by writing (amends the execution-log handling, charter §6/A-1)
+
+**Found in design review.** Skipping empty log files is worthwhile — most tasks produce no divergence and an empty `entries:` list is noise — but the obvious implementation is dangerous: writing the file at the end of a run from state held in memory loses entries whenever the run crashes, is killed or times out. "Skipped an empty file" would become "lost a non-empty one". *(The source patch numbered this A-11 and its decisions D-3.8/D-3.9; all were taken, so they land as A-13 and D-3.20/D-3.21 per D-A.4/D-A.5.)*
+
+**Changed:** the log file is created by its first entry and by nothing else. Entries are appended and flushed as they are made. There is no code path in which the runner decides whether to write a log.
+
+**Consequences:** absence and emptiness are equivalent to every reader; `decisions-reported` treats a missing file as an empty log; the silence check is unaffected, since a missing file where a `LOCKED` area was touched is a violation exactly as a file without the matching entry would be.
+
+**Verified by:** a simulation scenario in which the agent writes an entry and then crashes — the entry must be on disk (§6 table).
