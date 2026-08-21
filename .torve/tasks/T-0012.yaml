@@ -7,7 +7,7 @@ id: T-0012
 rfc: rfcs/0013-configuration-layout.md
 phase: 1
 role: implement
-depends_on: [T-0011]
+depends_on: [T-0010]
 scope:
   allow:
     - "rfcs/**"
