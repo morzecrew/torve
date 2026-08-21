@@ -179,6 +179,8 @@ Multi-backend was already moot under D-3.6 — mock for tests, Postgres for any 
 | SKILLS-REFACTOR §4 | four skills marked as relocating; `flag-dont-flip` loses `scripts/` |
 | `agent-skills` README | note that three skills moved to Torve and ship with it — not a silent deletion, or someone recreates them from memory |
 
+*Accepted 2026-08-21 (T-0005): the SKILLS-REFACTOR document named above does not exist in this repository, so its two rows have no local target; they apply where their substance already lands here — the A-2/A-3 markers in RFC 0002/0009 and `skills/SPECIALISATION.md`. If the document is added later, its rows apply there. See logs/T-0005.yaml (unlisted, attempt 1).*
+
 ## 6. Migration order
 
 Four tasks, in this order. The first is a good candidate to run through Torve itself — narrow, clean boundaries, and it inherits exactly the decision being amended.
