@@ -35,6 +35,7 @@ except ImportError:  # pragma: no cover - torve depends on pyyaml
     sys.exit("error: rfc_index.py needs pyyaml (`pip install pyyaml`)")
 
 STATUSES = ("draft", "accepted", "superseded")
+IMPLEMENTATIONS = ("none", "partial", "complete", "abandoned")
 GRADES = ("LOCKED", "ASSUMED", "OPEN")
 TABLE_HEADER = "| # | Grade | Decision | Paths | Consequence |"
 REQUIRED_FIELDS = (
@@ -111,6 +112,12 @@ def check_frontmatter(path: Path, fm: dict[str, Any] | None, number: str) -> lis
         problems.append(f"{path.name}: status {status!r} is not one of {', '.join(STATUSES)}")
     if status == "superseded" and not fm.get("superseded_by"):
         problems.append(f"{path.name}: superseded without superseded_by")
+    implementation = fm.get("implementation")
+    if implementation is not None and implementation not in IMPLEMENTATIONS:
+        problems.append(
+            f"{path.name}: implementation {implementation!r} is not one of "
+            f"{', '.join(IMPLEMENTATIONS)} (D-A.11)"
+        )
     for field in LIST_FIELDS:
         value = fm.get(field)
         if field in fm and not isinstance(value, list):
@@ -243,20 +250,47 @@ def check_links(path: Path, text: str, rfc_dir: Path, root: Path) -> list[str]:
     return missing
 
 
+INDEX_TABLE_HEADER = (
+    "| # | Title | Status | Impl | Depends on | Amends | One-line routing description |"
+)
+INDEX_TABLE_SEPARATOR = "| --- | --- | --- | --- | --- | --- | --- |"
+
+
+def index_row(number: str, path: Path, fm: dict[str, Any]) -> str:
+    deps = ", ".join(str(d) for d in fm.get("depends_on") or []) or "—"
+    # A list of identifiers, never a summary (A-14): the moment the index
+    # describes what an amendment changed, it becomes the stale account.
+    amends = ", ".join(str(a) for a in fm.get("amended_by") or []) or "—"
+    # An absent value renders as the defined default, never as blank.
+    implementation = str(fm.get("implementation") or "none")
+    description = " ".join(str(fm.get("description", "")).split())
+    return (
+        f"| [{number}]({path.name}) | {fm.get('title', '?')} | {fm.get('status', '?')} "
+        f"| {implementation} | {deps} | {amends} | {description} |"
+    )
+
+
 def build_index(files: dict[str, Path]) -> str:
-    rows = []
+    """Everything from the frontmatter, nothing from outside it (D-A.12 as
+    reworded by A-14): grouped by kind, with accepted-but-abandoned documents
+    separated because that pairing — decisions still inherited, no
+    implementation ever coming — is easy to miss as two adjacent cells."""
+    design: list[str] = []
+    conventions: list[str] = []
+    abandoned: list[str] = []
     for number in sorted(files):
         path = files[number]
         fm = parse_frontmatter(path.read_text(encoding="utf-8")) or {}
-        deps = ", ".join(str(d) for d in fm.get("depends_on") or []) or "—"
-        amendments = len(fm.get("amended_by") or [])
-        description = " ".join(str(fm.get("description", "")).split())
-        rows.append(
-            f"| [{number}]({path.name}) | {fm.get('title', '?')} | {fm.get('status', '?')} "
-            f"| {deps} | {amendments} | {description} |"
-        )
+        row = index_row(number, path, fm)
+        if fm.get("status") == "accepted" and fm.get("implementation") == "abandoned":
+            abandoned.append(row)
+        elif str(fm.get("kind", "")) == "convention":
+            conventions.append(row)
+        else:
+            design.append(row)
+
     next_free = f"{max((int(n) for n in files), default=0) + 1:04d}"
-    return "\n".join([
+    lines = [
         "# RFCs",
         "",
         GENERATED_NOTE,
@@ -265,13 +299,28 @@ def build_index(files: dict[str, Path]) -> str:
         "table of graded decisions is an RFC and gets a number. The next free",
         f"number is **{next_free}**.",
         "",
-        "| # | Title | Status | Depends on | A | One-line routing description |",
-        "| --- | --- | --- | --- | --- | --- |",
-        *rows,
+    ]
+    for heading, rows in (("## Design", design), ("## Conventions", conventions)):
+        if rows:
+            lines += [heading, "", INDEX_TABLE_HEADER, INDEX_TABLE_SEPARATOR, *rows, ""]
+    if abandoned:
+        lines += [
+            "## Accepted but not implemented",
+            "",
+            "Decisions from these documents are still inherited. There is no",
+            "implementation.",
+            "",
+            INDEX_TABLE_HEADER,
+            INDEX_TABLE_SEPARATOR,
+            *abandoned,
+            "",
+        ]
+    lines += [
+        "Statuses: draft · accepted · superseded. Impl is the D-A.11 judgement:",
+        "none · partial · complete · abandoned.",
         "",
-        "`A` counts amendments. Statuses: draft · accepted · superseded.",
-        "",
-    ])
+    ]
+    return "\n".join(lines)
 
 
 def cmd_generate(rfc_dir: Path) -> int:
