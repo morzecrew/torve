@@ -53,6 +53,24 @@ class StoreConfig(BaseModel):
     max_run_duration: float = 7200.0  # hard cap on one durable body
 
 
+def _default_skill_sets() -> dict[str, list[str]]:
+    return {
+        "implement": ["flag-dont-flip", "ratchet-what-you-build"],
+        "review": [],
+        "revert": ["flag-dont-flip"],
+        "author": ["rfc-writer"],
+    }
+
+
+class SkillsConfig(BaseModel):
+    """Role-scoped skill sets (RFC 0009 §3, D-9.1) materialized into the
+    sandbox from package data at dispatch (A-3, D-9.7)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sets: dict[str, list[str]] = Field(default_factory=_default_skill_sets)
+
+
 class ReapConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -71,6 +89,7 @@ class RunnerConfig(BaseModel):
     schema_version: int = SCHEMA_VERSION
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
+    skills: SkillsConfig = Field(default_factory=SkillsConfig)
     poison_ceiling: int = 3  # checked before dispatch; ceiling reached -> escalated, never retry
     base: str | None = None  # base ref for worktrees; None -> origin/main, then main
     reap: ReapConfig = Field(default_factory=ReapConfig)

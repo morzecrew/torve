@@ -103,14 +103,14 @@ The realistic sequence is lazy: start with `RfcDirectory` over what already exis
 
 ## 7. Decisions
 
-| # | Grade | Decision | Consequence |
-| --- | --- | --- | --- |
-| D-7.1 | `LOCKED` | No model calls inside the planner, for any reason | The place where they will try to creep in; violation shows up as a new dependency |
-| D-7.2 | `LOCKED` | `torve plan` accepts only a committed, reviewed document | The human signature in the loop |
-| D-7.3 | `LOCKED` | The MCP surface is read-only and never given to an executing agent | A writable planning surface is autonomous planning by another route |
-| D-7.4 | `OPEN` | Output format of `torve context` | Markdown, JSON, or both — decided by use |
-| D-7.5 | `LOCKED` | An empty decision list is legal but must be explicit | Distinguishes "none apply" from "field forgotten" |
-| D-7.6 | `LOCKED` | `DecisionSource` adapters are deterministic; model-assisted extraction runs outside the engine | Keeps D-2 intact while still bootstrapping brownfield repositories |
+| # | Grade | Decision | Paths | Consequence |
+| --- | --- | --- | --- | --- |
+| D-7.1 | `LOCKED` | No model calls inside the planner, for any reason | `src/torve/planner/**` | The place where they will try to creep in; violation shows up as a new dependency |
+| D-7.2 | `LOCKED` | `torve plan` accepts only a committed, reviewed document | `src/torve/planner/**` | The human signature in the loop |
+| D-7.3 | `LOCKED` | The MCP surface is read-only and never given to an executing agent | `src/torve/planner/**` | A writable planning surface is autonomous planning by another route |
+| D-7.4 | `OPEN` | Output format of `torve context` | `src/torve/planner/**` | Markdown, JSON, or both — decided by use |
+| D-7.5 | `LOCKED` | An empty decision list is legal but must be explicit | `src/torve/gates/decisions_reported.py` `src/torve/models.py` | Distinguishes "none apply" from "field forgotten" |
+| D-7.6 | `LOCKED` | `DecisionSource` adapters are deterministic; model-assisted extraction runs outside the engine | `src/torve/planner/**` | Keeps D-2 intact while still bootstrapping brownfield repositories |
 
 ## 8. Exit criteria
 

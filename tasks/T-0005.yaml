@@ -15,6 +15,7 @@ scope:
     - "skills/**"
     - "scripts/**"
     - "logs/**"
+    - "tasks/**"
     - "pyproject.toml"
     - "uv.lock"
     - "gates.yaml"
@@ -23,6 +24,9 @@ scope:
     - "CHANGELOG.md"
     - "README.md"
     - ".gitignore"
+    - ".agents/**"
+    - ".claude/**"
+    - "skills-lock.json"
     - "rfcs/**"
   deny: []
 acceptance:

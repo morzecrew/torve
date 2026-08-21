@@ -95,16 +95,16 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 
 ## 7. Decisions
 
-| # | Grade | Decision | Consequence |
-| --- | --- | --- | --- |
-| D-8.1 | `LOCKED` | The tracker holds no authoritative state; leases, status and history live in the store | Reversing loses transactions, fencing and append-only at once |
-| D-8.2 | `LOCKED` | Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency | At-least-once delivery without duplicate comments |
-| D-8.3 | `LOCKED` | Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change | Two-way state sync is how these systems rot |
-| D-8.4 | `LOCKED` | Task contracts are not editable from a tracker | A silently widened scope defeats the specification layer |
-| D-8.5 | `LOCKED` | Tracker text is untrusted input and is never treated as specification | Injection surface with agent readers |
-| D-8.6 | `ASSUMED` | `reflect` returns applied/refused/unsupported; refusal is a logged divergence | Required by Jira-style transition workflows |
-| D-8.7 | `ASSUMED` | One comment per attempt, never per gate | Readability; revisit if triage needs finer granularity |
-| D-8.8 | `OPEN` | Which tracker ships first | Whichever the team already lives in |
+| # | Grade | Decision | Paths | Consequence |
+| --- | --- | --- | --- | --- |
+| D-8.1 | `LOCKED` | The tracker holds no authoritative state; leases, status and history live in the store | `src/torve/tracker/**` | Reversing loses transactions, fencing and append-only at once |
+| D-8.2 | `LOCKED` | Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency | `src/torve/tracker/**` | At-least-once delivery without duplicate comments |
+| D-8.3 | `LOCKED` | Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change | `src/torve/tracker/**` | Two-way state sync is how these systems rot |
+| D-8.4 | `LOCKED` | Task contracts are not editable from a tracker | `src/torve/tracker/**` | A silently widened scope defeats the specification layer |
+| D-8.5 | `LOCKED` | Tracker text is untrusted input and is never treated as specification | `src/torve/tracker/**` | Injection surface with agent readers |
+| D-8.6 | `ASSUMED` | `reflect` returns applied/refused/unsupported; refusal is a logged divergence | `src/torve/tracker/**` | Required by Jira-style transition workflows |
+| D-8.7 | `ASSUMED` | One comment per attempt, never per gate | `src/torve/tracker/**` | Readability; revisit if triage needs finer granularity |
+| D-8.8 | `OPEN` | Which tracker ships first | — | Whichever the team already lives in |
 
 ## 8. Risks
 

@@ -80,16 +80,16 @@ This also gives a retirement path in the other direction: once a gate exists and
 
 ## 7. Decisions
 
-| # | Grade | Decision | Consequence |
-| --- | --- | --- | --- |
-| D-9.1 | `LOCKED` | Skills are role-scoped; a run loads only its role's set | The cheapest fix for trigger collision |
-| D-9.2 | `LOCKED` | `max_in_prompt` is enforced and truncation is recorded on the attempt | A silently dropped skill makes telemetry wrong |
-| D-9.3 | `LOCKED` | Skills ship as a versioned package with a per-repository lockfile, included in `config_hash` | Otherwise measurements are not comparable across repositories |
-| D-9.4 | `ASSUMED` | A skill that does not beat its without-skill baseline is deleted | Applies first to the taste cluster |
-| D-9.5 | `LOCKED` | Where a rule can be either, prefer the gate and keep the skill only to reduce iterations | Enforcement over hope |
-| D-9.6 | `ASSUMED` | Mechanical-format skills migrate to hooks and linters | Depart where a hook cannot express the rule |
-| D-9.7 | `LOCKED` | A skill whose format Torve parses ships with Torve, specialised: skill and gate are one unit of versioning. Three qualify — `flag-dont-flip`, `rfc-writer`, `ratchet-what-you-build` — and the boundary stays narrow (the test: does Torve parse what the skill produces?). On the engine path the runner writes the role-scoped set into the sandbox from package data at dispatch; nothing is installed into repositories. Added by amendment A-3 2026-08-21 | Versioned apart, the gate tightens and the skill does not know |
-| D-9.8 | `LOCKED` | `config_hash` includes the Torve package version (A-3) and the pinned forze version (A-6), alongside the gate manifest and the agent-skills lockfile — supersedes the D-9.3 composition and the T-0002 decision to record the toolchain beside the hash. Added by amendments A-3/A-6 2026-08-21 | Upgrading either silently changed the regime and telemetry did not notice |
+| # | Grade | Decision | Paths | Consequence |
+| --- | --- | --- | --- | --- |
+| D-9.1 | `LOCKED` | Skills are role-scoped; a run loads only its role's set | `src/torve/skills.py` | The cheapest fix for trigger collision |
+| D-9.2 | `LOCKED` | `max_in_prompt` is enforced and truncation is recorded on the attempt | `src/torve/skills.py` | A silently dropped skill makes telemetry wrong |
+| D-9.3 | `LOCKED` | Skills ship as a versioned package with a per-repository lockfile, included in `config_hash` | `src/torve/manifest.py` | Otherwise measurements are not comparable across repositories |
+| D-9.4 | `ASSUMED` | A skill that does not beat its without-skill baseline is deleted | — | Applies first to the taste cluster |
+| D-9.5 | `LOCKED` | Where a rule can be either, prefer the gate and keep the skill only to reduce iterations | `src/torve/gates/**` `skills/**` | Enforcement over hope |
+| D-9.6 | `ASSUMED` | Mechanical-format skills migrate to hooks and linters | — | Depart where a hook cannot express the rule |
+| D-9.7 | `LOCKED` | A skill whose format Torve parses ships with Torve, specialised: skill and gate are one unit of versioning. Three qualify — `flag-dont-flip`, `rfc-writer`, `ratchet-what-you-build` — and the boundary stays narrow (the test: does Torve parse what the skill produces?). On the engine path the runner writes the role-scoped set into the sandbox from package data at dispatch; nothing is installed into repositories. Added by amendment A-3 2026-08-21 | `skills/**` `src/torve/skills.py` | Versioned apart, the gate tightens and the skill does not know |
+| D-9.8 | `LOCKED` | `config_hash` includes the Torve package version (A-3) and the pinned forze version (A-6), alongside the gate manifest and the agent-skills lockfile — supersedes the D-9.3 composition and the T-0002 decision to record the toolchain beside the hash. Added by amendments A-3/A-6 2026-08-21 | `src/torve/manifest.py` | Upgrading either silently changed the regime and telemetry did not notice |
 
 ## 8. Exit criteria
 

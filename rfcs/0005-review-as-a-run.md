@@ -111,16 +111,16 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 
 ## 9. Decisions
 
-| # | Grade | Decision | Consequence |
-| --- | --- | --- | --- |
-| D-5.1 | `LOCKED` | Review is a run with `role: review`, not a distinct subsystem | Inherits budgets, cancellation, telemetry; reversing duplicates all of it |
-| D-5.2 | `LOCKED` | The reviewer gets a read-only workspace and no forge credential; the runner posts comments | An agent that can fix-and-approve is not a reviewer |
-| D-5.3 | `LOCKED` | The reviewer never receives the author's session trace | Otherwise it audits reasoning, not the change |
-| D-5.4 | `ASSUMED` | Findings with unlocatable evidence are discarded automatically | Shared with the execution-log check; remove if it discards true positives |
-| D-5.5 | `ASSUMED` | The reviewer runs through the `Inference` port by default | Depart if findings need runtime evidence |
-| D-5.6 | `LOCKED` | A seeded-defect corpus gates every prompt or model change | Prompt tuning without it is guesswork |
-| D-5.7 | `ASSUMED` | Third-party reviewer removal requires shadow-mode numbers, not preference | Four-step sequence in §7 |
-| D-5.8 | `ASSUMED` | Reviews on pull requests without a task run in degraded mode and are told so | Prevents invented specifications |
+| # | Grade | Decision | Paths | Consequence |
+| --- | --- | --- | --- | --- |
+| D-5.1 | `LOCKED` | Review is a run with `role: review`, not a distinct subsystem | `src/torve/review/**` | Inherits budgets, cancellation, telemetry; reversing duplicates all of it |
+| D-5.2 | `LOCKED` | The reviewer gets a read-only workspace and no forge credential; the runner posts comments | `src/torve/review/**` | An agent that can fix-and-approve is not a reviewer |
+| D-5.3 | `LOCKED` | The reviewer never receives the author's session trace | `src/torve/review/**` | Otherwise it audits reasoning, not the change |
+| D-5.4 | `ASSUMED` | Findings with unlocatable evidence are discarded automatically | `src/torve/review/**` `src/torve/gates/decisions_reported.py` | Shared with the execution-log check; remove if it discards true positives |
+| D-5.5 | `ASSUMED` | The reviewer runs through the `Inference` port by default | `src/torve/review/**` | Depart if findings need runtime evidence |
+| D-5.6 | `LOCKED` | A seeded-defect corpus gates every prompt or model change | `src/torve/review/**` | Prompt tuning without it is guesswork |
+| D-5.7 | `ASSUMED` | Third-party reviewer removal requires shadow-mode numbers, not preference | — | Four-step sequence in §7 |
+| D-5.8 | `ASSUMED` | Reviews on pull requests without a task run in degraded mode and are told so | `src/torve/review/**` | Prevents invented specifications |
 
 ## 10. Exit criteria
 

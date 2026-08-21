@@ -103,12 +103,21 @@ def load_manifest(path: Path) -> Manifest:
 
 
 def config_hash(manifest_path: Path, root: Path) -> str:
-    """Digest of the regime a run belongs to: gates.yaml plus the pinned skill
-    set (RFC 0002 §7). The tier mapping joins in RFC 0004. The torve package
-    version is recorded beside the hash, not inside it — like the provider
-    version in RFC 0004 §6a, it identifies the toolchain, not the regime.
+    """Digest of the regime a run belongs to (RFC 0002 §7, D-9.8): gates.yaml,
+    the agent-skills lockfile, the Torve package version (its gates and
+    shipped skills change behavior — A-3), and the pinned forze version (a
+    substrate upgrade is a regime change, and possibly a migration — A-6).
+    The tier mapping joins in RFC 0004.
     """
-    parts: dict[str, str] = {"gates.yaml": manifest_path.read_text(encoding="utf-8")}
+    import importlib.metadata
+
+    import torve
+
+    parts: dict[str, str] = {
+        "gates.yaml": manifest_path.read_text(encoding="utf-8"),
+        "torve": torve.__version__,
+        "forze": importlib.metadata.version("forze"),
+    }
     lock = root / "skills-lock.json"
     if lock.is_file():
         parts["skills-lock.json"] = lock.read_text(encoding="utf-8")

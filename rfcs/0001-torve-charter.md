@@ -212,29 +212,29 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 
 ## 7. Decisions
 
-| # | Grade | Decision |
-| --- | --- | --- |
-| D-1 | `LOCKED` | Two modules over one domain; executor is the sole writer of task state, planner is read-only plus task minting |
-| D-2 | `LOCKED` | Models never decide **what work exists** or **whether it is finished**. The planner invokes no model at all. Execution and review invoke models, but their output is data and the consequence is set by config. Stated precisely: a reviewer model does choose a `severity`, and configuration chooses what a severity does — so severity calibration is a **measured quantity** (RFC 0005 §6), not a trusted one |
-| D-3 | `LOCKED` | Gates execute outside the agent session; an agent cannot report a gate outcome |
-| D-4 | `LOCKED` | The sandbox is the unit of lifecycle; nothing runs on a host |
-| D-4b | `LOCKED` | Agents never hold real credentials; outbound secrets are injected by the runtime's vault |
-| D-5 | `LOCKED` | `TaskStore` is a thin facade over the substrate's durable run store, not hand-written |
-| D-5a | `LOCKED` | The lifecycle is not modelled as a durable workflow; the run store is a leased queue with recovery |
-| D-6 | `LOCKED` | The engine never resolves conflicts and never merges without the configured approval |
-| D-21a | `LOCKED` | The execution-log format is defined here; one file per task, append-only, grade copied at write time. *(Amended by A-1 2026-08-21: serialization is YAML, `logs/<task-id>.yaml`; substance unchanged.)* |
-| D-22 | `LOCKED` | Three aggregates, each with domain, create and read models and **no update command** |
-| D-25 | `LOCKED` | The differentiator is the specification layer, not the execution runtime |
-| D-7 | `ASSUMED` | Python on the forze substrate; Go rejected |
-| D-8 | `ASSUMED` | Pydantic is the single contract source |
-| D-16 | `ASSUMED` | `schema_version` on every persisted aggregate |
-| D-26 | `ASSUMED` | Build our own runtime rather than adopt the adjacent one; time-box a teardown of three of its mechanisms first |
-| D-27 | `LOCKED` | Git and the store are a boundary, not a prohibition: git holds what should be (contracts, manifests, RFCs, decision tables, logs — diffable, sha-pinned, reviewed), the store holds what happened (runs, leases, attempts, results, telemetry). The engine may project git-held artefacts into the store for querying, one-way and read-only; the store is never authoritative for them. *(Reworded by A-4 2026-08-21 from "nothing ever moves from git into a database".)* |
-| D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode |
-| D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) |
-| D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) |
-| D-30 | `ASSUMED` | `claimed` may transition to `escalated`: a runner that dies between claim and first dispatch needs a legal exit, and the durable store's `claim_abandoned` recovery lands on the same edge. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) |
-| D-31 | `LOCKED` | Agents do not communicate; the runner coordinates. What an agent may touch and what was already decided are copied into its contract; what others are doing is the runner's knowledge for overlap-free dispatch, never the agent's. Falsifiable: revisit only if telemetry shows tasks escalating with "insufficient context about adjacent work". Added by amendment A-5 2026-08-21 |
+| # | Grade | Decision | Paths |
+| --- | --- | --- | --- |
+| D-1 | `LOCKED` | Two modules over one domain; executor is the sole writer of task state, planner is read-only plus task minting | `src/torve/**` |
+| D-2 | `LOCKED` | Models never decide **what work exists** or **whether it is finished**. The planner invokes no model at all. Execution and review invoke models, but their output is data and the consequence is set by config. Stated precisely: a reviewer model does choose a `severity`, and configuration chooses what a severity does — so severity calibration is a **measured quantity** (RFC 0005 §6), not a trusted one | `src/torve/**` |
+| D-3 | `LOCKED` | Gates execute outside the agent session; an agent cannot report a gate outcome | `src/torve/runner.py` `src/torve/run.py` |
+| D-4 | `LOCKED` | The sandbox is the unit of lifecycle; nothing runs on a host | `src/torve/adapters/**` |
+| D-4b | `LOCKED` | Agents never hold real credentials; outbound secrets are injected by the runtime's vault | `src/torve/adapters/**` |
+| D-5 | `LOCKED` | `TaskStore` is a thin facade over the substrate's durable run store, not hand-written | `src/torve/taskstore.py` |
+| D-5a | `LOCKED` | The lifecycle is not modelled as a durable workflow; the run store is a leased queue with recovery | `src/torve/taskstore.py` |
+| D-6 | `LOCKED` | The engine never resolves conflicts and never merges without the configured approval | `src/torve/run.py` |
+| D-21a | `LOCKED` | The execution-log format is defined here; one file per task, append-only, grade copied at write time. *(Amended by A-1 2026-08-21: serialization is YAML, `logs/<task-id>.yaml`; substance unchanged.)* | `logs/**` `src/torve/gates/decisions_reported.py` |
+| D-22 | `LOCKED` | Three aggregates, each with domain, create and read models and **no update command** | `src/torve/models.py` |
+| D-25 | `LOCKED` | The differentiator is the specification layer, not the execution runtime | `src/torve/**` |
+| D-7 | `ASSUMED` | Python on the forze substrate; Go rejected | `pyproject.toml` |
+| D-8 | `ASSUMED` | Pydantic is the single contract source | `src/torve/models.py` |
+| D-16 | `ASSUMED` | `schema_version` on every persisted aggregate | `src/torve/models.py` |
+| D-26 | `ASSUMED` | Build our own runtime rather than adopt the adjacent one; time-box a teardown of three of its mechanisms first | — |
+| D-27 | `LOCKED` | Git and the store are a boundary, not a prohibition: git holds what should be (contracts, manifests, RFCs, decision tables, logs — diffable, sha-pinned, reviewed), the store holds what happened (runs, leases, attempts, results, telemetry). The engine may project git-held artefacts into the store for querying, one-way and read-only; the store is never authoritative for them. *(Reworded by A-4 2026-08-21 from "nothing ever moves from git into a database".)* | `tasks/**` `logs/**` `rfcs/**` |
+| D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode | — |
+| D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `logs/**` `src/torve/gates/decisions_reported.py` |
+| D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/domain.py` |
+| D-30 | `ASSUMED` | `claimed` may transition to `escalated`: a runner that dies between claim and first dispatch needs a legal exit, and the durable store's `claim_abandoned` recovery lands on the same edge. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/domain.py` |
+| D-31 | `LOCKED` | Agents do not communicate; the runner coordinates. What an agent may touch and what was already decided are copied into its contract; what others are doing is the runner's knowledge for overlap-free dispatch, never the agent's. Falsifiable: revisit only if telemetry shows tasks escalating with "insufficient context about adjacent work". Added by amendment A-5 2026-08-21 | `src/torve/ports.py` `src/torve/run.py` |
 
 ### 7.1 Ownership
 

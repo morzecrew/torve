@@ -184,11 +184,14 @@ def claimed_next(index_text: str) -> int | None:
     return int(match.group(2)) if match else None
 
 
-def decision_rows(text: str) -> list[tuple[str, str]] | None:
-    """(number cell, grade cell) per decision row, or None if there is no table.
+def decision_rows(text: str) -> tuple[list[tuple[str, str, str | None]], bool] | None:
+    """((number, grade, paths-or-None) per row, table-has-paths-column), or
+    None if there is no table. Empty rows with the flag mean the section
+    exists with a header and nothing under it.
 
-    An empty list means the section exists with a header row and nothing under
-    it, which is a different failure from having no section at all.
+    Torve specialisation: the Paths column is what makes the table an
+    executable input — the silence check in decisions-reported matches
+    against it, so its absence is a finding, not a style choice.
     """
     heading = DECISIONS_HEADING.search(text)
     if not heading:
@@ -197,43 +200,60 @@ def decision_rows(text: str) -> list[tuple[str, str]] | None:
     following = re.search(r"^#{2,3}\s", section, re.M)
     if following:
         section = section[: following.start()]
-    # Only the table whose header names a grade column. A Decisions section may
-    # also carry an alternatives table or a trailing risks table, and reading
-    # every three-column table under the heading turned those into decision rows
-    # — failing a sound RFC, and passing one whose real table was missing.
     rows = []
     inside = False
+    paths_index: int | None = None
     for line in section.splitlines():
         stripped = line.strip()
         if not stripped.startswith("|"):
             if inside and stripped:
                 break  # prose after the table ends it
             continue
-        match = TABLE_ROW.match(stripped)
-        if not match:
+        if not stripped.endswith("|"):
             continue
-        first, second = match.group(1).strip(), match.group(2).strip()
+        cells = [c.strip() for c in stripped[1:-1].split("|")]
+        if len(cells) < 2:
+            continue
+        first, second = cells[0], cells[1]
         if not inside:
             if first.strip("* `").lower() in {"#", "no", "num"} and \
                     second.strip("* `").lower() == "grade":
                 inside = True
+                lowered = [c.strip("* `").lower() for c in cells]
+                paths_index = lowered.index("paths") if "paths" in lowered else None
             continue
         if first and set(first) <= set("- :"):
             continue  # the |---|---| separator
-        rows.append((first, second))
+        paths = None
+        if paths_index is not None and paths_index < len(cells):
+            paths = cells[paths_index]
+        rows.append((first, second, paths))
     if not inside:
-        return []
-    return rows
+        return [], False
+    return rows, paths_index is not None
 
 
 def check_decisions(path: Path, text: str) -> list[str]:
-    rows = decision_rows(text)
-    if rows is None:
+    found = decision_rows(text)
+    if found is None:
         return [f"{path.name}: no Decisions section — it is the one section a minimal RFC keeps"]
+    rows, has_paths = found
     if not rows:
         return [f"{path.name}: Decisions section has no table with '#' and 'Grade' columns"]
     problems = []
-    for number, grade in rows:
+    if not has_paths:
+        problems.append(
+            f"{path.name}: decision table has no Paths column — without declared "
+            "areas the decisions-reported silence check has nothing to match against"
+        )
+    seen: set[str] = set()
+    for number, grade, paths in rows:
+        ident = number.strip("`* ")
+        if ident in seen:
+            # Identifiers are permanent: logs cite them forever, so a duplicate
+            # makes every citation ambiguous.
+            problems.append(f"{path.name}: decision identifier {ident!r} appears twice")
+        seen.add(ident)
         bare = grade.strip("`* ")
         if bare not in GRADES:
             # An ungraded row tells an executor nothing about what to do when
@@ -241,6 +261,13 @@ def check_decisions(path: Path, text: str) -> list[str]:
             problems.append(
                 f"{path.name}: decision row {number!r} has grade {bare!r}, "
                 f"not one of {', '.join(GRADES)}"
+            )
+        if bare == "LOCKED" and has_paths and not (paths or "").strip("—- `"):
+            # A lock with no declared area is a silence check that guesses,
+            # and a guessed area approves.
+            problems.append(
+                f"{path.name}: LOCKED row {number!r} declares no Paths — "
+                "the silence check skips it and the lock protects nothing"
             )
     return problems
 

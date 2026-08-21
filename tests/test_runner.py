@@ -4,9 +4,9 @@ import json
 
 from conftest import context_for
 
+from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 from torve.manifest import config_hash
 from torve.runner import run_gates
-from torve.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 from torve.telemetry import append_record, build_record
 
 
@@ -80,9 +80,13 @@ def test_bypass_is_appended_to_the_task_log(repo):
              "widen\n\nTorve-Bypass: scope: allow list is stale")
     report = run_gates(context_for(repo))
     assert report.results[0].outcome == "bypassed"
-    log_text = (repo.root / "logs" / f"{TASK_ID}.md").read_text(encoding="utf-8")
-    assert "```bypass" in log_text
-    assert "allow list is stale" in log_text
+    import yaml
+
+    document = yaml.safe_load((repo.root / "logs" / f"{TASK_ID}.yaml").read_text())
+    record = document["bypasses"][0]
+    assert record["gate"] == "scope"
+    assert record["reason"] == "allow list is stale"
+    assert document["entries"] is not None  # the divergence list survived the append
     assert report.bypass_count_by_gate == {"scope": 1}
 
 

@@ -73,9 +73,10 @@ class ScriptedAgent:
         if self.halted_on_attempt == ctx.attempt:
             log_dir = ctx.workspace / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
-            (log_dir / f"{ctx.task.id}.md").write_text(
-                "```divergence\ndecision: D-1\ngrade: LOCKED\nkind: contradicted\n"
-                "action: halted\n```\n", encoding="utf-8")
+            (log_dir / f"{ctx.task.id}.yaml").write_text(
+                "schema_version: 1\ntask: " + ctx.task.id + "\ndrift_count: 0\n"
+                "entries:\n  - decision: D-1\n    grade: LOCKED\n"
+                "    kind: contradicted\n    action: halted\n", encoding="utf-8")
         return self.results[min(ctx.attempt - 1, len(self.results) - 1)]
 
 

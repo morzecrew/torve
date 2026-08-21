@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from torve.context import build_context
+from torve.gates.sabotage import Repo
 from torve.manifest import load_manifest
-from torve.sabotage import Repo
 
 
 @pytest.fixture

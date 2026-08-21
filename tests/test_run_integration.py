@@ -22,11 +22,11 @@ from torve.adapters.vcs_git import GitVcs, NullScm
 from torve.adapters.workspace_git import GitWorkspace
 from torve.context import load_task
 from torve.domain import TaskState
+from torve.gates.sabotage import TASK_ID, base_task
 from torve.reaper import reap
 from torve.run import RunDeps, run_task
 from torve.runconfig import RunnerConfig, RuntimeConfig
 from torve.runstate import RunState
-from torve.sabotage import TASK_ID, base_task
 
 pytestmark = pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from torve.sabotage import CASES, run_all
+from torve.gates.sabotage import CASES, run_all
 
 
 def test_every_gate_has_a_red_case_and_a_green_case():

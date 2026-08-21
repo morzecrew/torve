@@ -20,9 +20,9 @@ scope:
     - "rfcs/**"
   deny: []
 acceptance:
-  - "uv run ruff check src tests"
+  - "uv run ruff check src tests scripts"
   - "uv run pytest"
-  - "python3 .agents/skills/rfc-writer/scripts/rfc_index.py check"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
 decisions:
   - id: D-3
     grade: LOCKED

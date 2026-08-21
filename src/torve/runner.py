@@ -58,19 +58,31 @@ def _find_bypass(gate: Gate, ctx: GateContext) -> BypassRecord | None:
 
 
 def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
-    """Append the bypass to the task's execution log (D-2.7) — same
-    append-only file; the log checker reads only ```divergence blocks and
-    ignores this one, but a human triaging the task does not."""
+    """Append the bypass to the task's `bypasses:` list (D-2.7) — the same
+    A-1 YAML log, structurally appended: items are never removed or edited,
+    which is what append-only means for a structured file."""
     if ctx.log_path is None:
         return
-    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    entry = (
-        f"\n```bypass\ngate: {record.gate}\nreason: {record.reason}\n"
-        f"author: {record.author}\ncommit: {record.commit}\nat: {stamp}\n```\n"
-    )
+    import yaml
+
+    if ctx.log_path.is_file():
+        document = yaml.safe_load(ctx.log_path.read_text(encoding="utf-8")) or {}
+    else:
+        task_id = ctx.task.id if ctx.task else ""
+        document = {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": []}
+    if not isinstance(document, dict):
+        return  # an unreadable log is the decisions-reported gate's finding
+    document.setdefault("bypasses", []).append({
+        "gate": record.gate,
+        "reason": record.reason,
+        "author": record.author,
+        "commit": record.commit,
+        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    })
     ctx.log_path.parent.mkdir(parents=True, exist_ok=True)
-    with ctx.log_path.open("a", encoding="utf-8") as handle:
-        handle.write(entry)
+    ctx.log_path.write_text(
+        yaml.safe_dump(document, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    )
 
 
 def run_gates(ctx: GateContext, only: set[str] | None = None) -> RunReport:

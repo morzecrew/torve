@@ -179,7 +179,7 @@ def build_context(
     log_path = None
     log_text = None
     if task is not None:
-        log_path = root / "logs" / f"{task.id}.md"
+        log_path = root / "logs" / f"{task.id}.yaml"
         if log_path.is_file():
             log_text = log_path.read_text(encoding="utf-8")
 

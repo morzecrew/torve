@@ -9,11 +9,12 @@ cannot prove it did what it was told.
 ## Contents
 
 ```text
-rfcs/                      the design corpus
-src/torve/                 the gates library and runner (RFC 0002 + 0003 phase 1)
+rfcs/                      the design corpus (+ AMENDMENTS.md, the record of changes)
+src/torve/                 the gates library and runner (RFC 0002 + 0003)
+skills/                    specialised skills shipped with the package (A-3)
 gates.yaml                 this repository's own gate manifest
-torve.yaml                 runner configuration (runtime adapter, ceilings, reap)
-tasks/  logs/              task contracts and append-only execution logs
+torve.yaml                 runner configuration (runtime adapter, store, ceilings)
+tasks/  logs/              task contracts and YAML execution logs (A-1)
 ```
 
 ## Gates (RFC 0002, shipped here)

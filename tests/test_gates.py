@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from conftest import context_for
 
-from torve.gates.decisions import check_decisions_reported
+from torve.gates.decisions_reported import check_decisions_reported
+from torve.gates.sabotage import TASK_ID, base_task, entry, log_document
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 from torve.models import Gate
-from torve.sabotage import TASK_ID, base_task, entry, log_document
 
 GATE = Gate(name="test", run="@scope")  # any handle; builtins only read the context
 
@@ -63,14 +63,15 @@ def test_secrets_scans_untracked_files(repo):
 
 def test_decisions_skill_style_entry_is_accepted(repo):
     """flag-dont-flip logs use `class` instead of `kind`; both vocabularies
-    pass, per the reconciliation decided in logs/T-0002.md."""
+    pass, per the D-21b reconciliation."""
     skill_entry = entry(
         decision="unlisted",
         grade="UNLISTED",
-        kind="",  # dropped below
+        kind=None,  # class-only, skill style
         claim="spec silent on retry budget",
         action="decided",
-    ).replace("kind: \n", "class: spec-gap\n")
+    )
+    skill_entry["class"] = "spec-gap"
     repo.seed()
     repo.task(base_task(allow=["src/**"], decisions=[]), log_document(skill_entry))
     repo.write("src/app.py", "print('x')\n")
@@ -79,10 +80,8 @@ def test_decisions_skill_style_entry_is_accepted(repo):
     assert result.outcome == "fail"  # unlisted owes a proposal
     assert "owes a proposal" in result.output
 
-    with_proposal = skill_entry.replace(
-        "```\n", "proposal: ASSUMED — retries capped at 3\n```\n", 1
-    )
-    repo.write(f"logs/{TASK_ID}.md", log_document(with_proposal))
+    with_proposal = dict(skill_entry, proposal="ASSUMED — retries capped at 3")
+    repo.write(f"logs/{TASK_ID}.yaml", log_document(with_proposal))
     repo.commit("proposal added")
     result = check_decisions_reported(GATE, context_for(repo))
     assert result.outcome == "pass", result.output
@@ -95,7 +94,8 @@ def test_decisions_drift_count_must_match_entries(repo):
         kind="contradicted",
         action="halted",
         claim="built otherwise anyway",
-    ).replace("kind: contradicted\n", "kind: contradicted\nclass: drift\n")
+    )
+    drift_entry["class"] = "drift"
     repo.seed()
     repo.task(
         base_task(allow=["src/**"], decisions=[]),
