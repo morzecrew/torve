@@ -144,9 +144,9 @@ style is fine if the workstreams are named in §5.>
   affected section; what **execution** found does not, since that already lives
   in the task's log and reaches the RFC as an appended row citing its
   entry. Restating the log's narrative here guarantees the two disagree later.
-- **Index row:** generated, never written (charter D-A.6) — `rfc_index.py
-  generate` builds INDEX.md from frontmatter, and `check` fails CI when it
-  drifts. The frontmatter `description` is the routing line: one sentence
+- **Index row:** generated, never written (charter D-A.6) — `torve rfc
+  index` builds INDEX.md from frontmatter, and `torve rfc check` fails CI
+  when it drifts. The frontmatter `description` is the routing line: one sentence
   saying which design this is, so a reader knows whether to open the file.
   What it decided belongs in §1 and §11, and the index never carries history.
   Target 200 characters, ceiling 300.

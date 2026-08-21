@@ -23,4 +23,5 @@ jobs:
       # Dogfood: the repository's own manifest, on human and agent PRs alike.
       # Task branches (torve/T-nnnn) auto-discover their contract.
       - run: uv run torve gates run --base origin/main
-      - run: uv run python skills/rfc-writer/scripts/rfc_index.py check
+      # Blocking here while the rfc-valid gate serves its shadow tenure.
+      - run: uv run torve rfc check

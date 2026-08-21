@@ -76,6 +76,18 @@ class SkillsConfig(BaseModel):
     sets: dict[str, list[str]] = Field(default_factory=_default_skill_sets)
 
 
+class RfcsConfig(BaseModel):
+    """Where the specification corpus lives (0013 A-16, D-13.7): one path,
+    never a list or a glob — numbering is continuous across a corpus, and two
+    roots mean two counters and a colliding identifier at the first merge
+    (D-A.16). Read from the runner's configuration per D-13.3, never from the
+    repository under work."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = "rfcs"
+
+
 class ReapConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -99,6 +111,7 @@ class RunnerConfig(BaseModel):
     base: str | None = None  # base ref for worktrees; None -> origin/main, then main
     reap: ReapConfig = Field(default_factory=ReapConfig)
     scm: ScmConfig = Field(default_factory=ScmConfig)
+    rfcs: RfcsConfig = Field(default_factory=RfcsConfig)
 
 
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:

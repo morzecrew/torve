@@ -1,11 +1,12 @@
 # The four workflows, and the conventions they apply
 
-`scripts/rfc_index.py` enforces most of what follows. This file is the
-procedure a human or an agent follows around it.
+`torve rfc` enforces most of what follows (RFC 0007 §3a — the package owns
+the format, D-7.12). This file is the procedure a human or an agent follows
+around it.
 
 ## Directory and index
 
-**Location.** RFCs live in a single flat directory at the repo root: `rfcs/` (preferred default) or `rfc/`. Before creating anything, look for an existing directory of either name and follow it. If neither exists, create `rfcs/`.
+**Location.** RFCs live in a single flat directory, `rfcs/` by default — configurable as `rfcs.path` in the runner's `.torve/config.yaml`, one path only, never a list or a glob (D-A.16). Only `NNNN-slug.md` and `INDEX.md` belong there, with no subdirectories (D-A.18); anything else is routed by `torve rfc check` to `pages/` or `ops/`.
 
 **Gitignore is the user's call, not yours.** Some projects commit RFCs; others gitignore them as local working notes. Never add or remove a `.gitignore` entry for the RFC directory unless explicitly asked. If the directory is gitignored, the `INDEX.md` header should say so (see the template) so readers know why it isn't in the repo history.
 
@@ -17,14 +18,15 @@ procedure a human or an agent follows around it.
 
 If the directory exists but has a `README.md` in this role, treat it as the index. If asked to set up fresh, use `INDEX.md` — copy `references/index-template.md`.
 
-**Where execution's findings live: `logs/<task-id>.md`, outside this directory.** `flag-dont-flip` writes one per task, holding what execution found wherever the code and these designs disagreed. They are not RFCs — no number, no status, no row in the index table — and `rfc_index.py` ignores anything not named `NNNN-*.md`. Once any of them exist, the index links to `logs/` in prose above the table, because a reader deciding which RFC to open needs to know the document they are about to trust has a companion recording where it turned out to be wrong. Do not create them here: a task log is written by the task that executed.
+**Where execution's findings live: `logs/<task-id>.md`, outside this directory.** `flag-dont-flip` writes one per task, holding what execution found wherever the code and these designs disagreed. They are not RFCs — no number, no status, no row in the index table — and they never live in the corpus directory (D-A.18). Once any of them exist, the index links to `logs/` in prose above the table, because a reader deciding which RFC to open needs to know the document they are about to trust has a companion recording where it turned out to be wrong. Do not create them here: a task log is written by the task that executed.
 
 ## Numbering and filenames
 
 - Numbers are 4-digit, zero-padded, monotonically increasing: `0001`, `0002`, …
-- To allocate: read the "next free number" from `INDEX.md`, cross-check against `ls` of the directory (the index can be stale), and take the next unused integer.
+- To allocate: `torve rfc new "Title"`. The next number is **derived** — the maximum that exists, plus one (D-A.17). There is no counter file, and no way to pick a number by hand.
 - Filename: `NNNN-kebab-case-title.md`. Keep the number in the filename and the `# RFC NNNN — Title` H1 in sync — they drift otherwise, and links break both ways.
 - Never renumber existing RFCs. Numbers are identifiers, not an ordering to be tidied.
+- **Never delete a document, never reuse a number** (D-A.19). A document leaves service through `superseded` or `implementation: abandoned`; gaps in the numbering are fine, filling one is refused.
 
 ## Statuses
 
@@ -35,21 +37,22 @@ If the directory exists but has a `README.md` in this role, treat it as the inde
 
 Status lives in two places that must agree: the `**Status:**` line in the RFC header and the Status column of the index table. Update both in the same change.
 
-The bookkeeping — number allocation, file creation from the template, index-row and next-free-number updates, drift detection — is mechanical, and `scripts/rfc_index.py` does it without the collisions hand-allocation produces:
+The bookkeeping — number allocation, file creation from the template, index regeneration, drift detection — is mechanical, and `torve rfc` does it without the collisions hand-allocation produces:
 
 ```bash
-python3 scripts/rfc_index.py check          # index vs files, H1 vs filename, statuses, next-free
-python3 scripts/rfc_index.py next           # next free number
-python3 scripts/rfc_index.py new "Title"    # allocate + instantiate template + index row + bump
-python3 scripts/rfc_index.py new "Title" --number 42   # a reserved number, or re-creating a deleted RFC
+torve rfc check                    # frontmatter, tables, links, graph, directory, index drift
+torve rfc index                    # regenerate INDEX.md; --check compares without writing
+torve rfc new "Title"              # derive the next number, instantiate the template, regenerate
+torve rfc new "Title" --kind convention
+torve rfc graph                    # depends_on edges with statuses, plus inheritance hazards
 ```
 
-(Paths relative to this skill's directory; from a repository root the script is at `skills/rfc-writer/scripts/rfc_index.py`. Read-only except `new`; add `--root DIR` — before or after the subcommand — if the repo isn't the cwd.) The thinking — what the design says, what the one-liner claims, when a status changes — is yours.
+(Read-only except `new` and `index`; add `--root DIR` if the repository isn't the cwd.) The thinking — what the design says, what the one-liner claims, when a status changes — is yours.
 
 ### A — Create a new RFC
 
-1. Locate the RFC directory (`rfcs/` or `rfc/`); if none exists, run Workflow D first.
-2. Allocate the next number and instantiate the file: `rfc_index.py new "Title"` — it mints the number, writes the template, adds the index row, and bumps the next-free claim. Steps 3 and 4 stay yours: it leaves the template unfilled and writes a literal `TODO: one-line summary` in the index. By hand: read the next-free number from the index and cross-check against `ls` — numbers collide when minted in parallel.
+1. Locate the RFC directory (`rfcs/`, or whatever `rfcs.path` names); if none exists, run Workflow D first.
+2. Allocate the next number and instantiate the file: `torve rfc new "Title"` — it derives the number, writes the template, and regenerates the index. Steps 3 and 4 stay yours: it leaves the template unfilled. Parallel creation on two branches produces the same number twice; that surfaces as a duplicate-id failure at merge, and the one merging second is renamed before anything references it.
 3. Fill the file from `references/rfc-template.md`'s shape, scaled to the design's weight. Investigate the actual code before writing "Current state" — this is most of the work.
 4. Replace the placeholder index one-liner with one sentence that says which design this is — see the one-liner rules above. The summary the RFC deserves goes in the RFC's Summary section.
 
@@ -62,7 +65,7 @@ python3 scripts/rfc_index.py new "Title" --number 42   # a reserved number, or r
 
 ### C — Maintain the index
 
-Run `rfc_index.py check` — it reports every file without an index row and vice versa, H1-vs-filename mismatches, header-vs-table status disagreements, duplicate numbers, and a next-free number that isn't free. Fix what it names (the fixes are judgment: which status is true, what the one-liner should say), then re-run until green. Report what was out of sync.
+Run `torve rfc check` — it reports every file without an index row and vice versa, H1-vs-filename mismatches, malformed frontmatter, decision-table problems, dependency-graph hazards, and index drift. Fix what it names (the fixes are judgment: which status is true, what the one-liner should say), then re-run until green. Report what was out of sync.
 
 ### D — Initialize an RFC directory
 

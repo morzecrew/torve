@@ -17,7 +17,7 @@ from typing import Annotated
 import typer
 
 import torve
-from torve.cli import console, doctor, gates, migrate, run, status
+from torve.cli import console, doctor, gates, migrate, rfc, run, status
 from torve.domain.states import EXIT_OK
 
 # ----------------------- #
@@ -26,6 +26,7 @@ app = typer.Typer(add_completion=False, no_args_is_help=True,
                   help="Deterministic gates for agent and human pull requests.")
 gates_app = typer.Typer(no_args_is_help=True, help="Run or verify the gate set.")
 app.add_typer(gates_app, name="gates")
+app.add_typer(rfc.rfc_app, name="rfc")
 
 
 def _version(value: bool) -> None:

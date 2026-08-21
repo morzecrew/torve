@@ -1,0 +1,75 @@
+# RFC 0007 §3a executed together with charter A-15 and 0013 A-16: RFC
+# validation moves into the package, the corpus directory gets its law, and
+# numbering is derived rather than stored.
+schema_version: 1
+id: T-0016
+rfc: rfcs/0007-planner-context.md
+phase: 1
+role: implement
+intent: |
+  The RFC format becomes the package's property: torve rfc check / index /
+  new / graph replace the rfc-writer skill's script, with the vocabularies
+  defined once in domain/rfc.py and the parser in config/rfc_parse.py, so any
+  repository writing specifications for torve plan validates them with torve
+  alone. The corpus location becomes one configurable path (rfcs.path), the
+  directory admits only NNNN-slug.md and INDEX.md with refusals that route,
+  and the next number is derived as max+1 with no counter file and no way to
+  fill a hole.
+depends_on: [T-0015]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - ".torve/**"
+    - "skills/**"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-7.12
+    grade: LOCKED
+    text: The RFC format is owned by the package; validation does not depend on an installed skill
+    paths: ["src/torve/config/rfc_parse.py"]
+  - id: D-7.13
+    grade: LOCKED
+    text: Grade, Status and Kind are defined once in domain/rfc.py and imported everywhere
+    paths: ["src/torve/domain/rfc.py"]
+  - id: D-7.14
+    grade: ASSUMED
+    text: rfc-valid is a product gate, shipped in the package
+    paths: ["src/torve/cli/rfc.py"]
+  - id: D-7.16
+    grade: LOCKED
+    text: torve rfc check --with-store is opt-in; the default check needs no database
+    paths: ["src/torve/config/rfc_parse.py"]
+  - id: D-A.17
+    grade: LOCKED
+    text: The next number is derived as the maximum plus one, never stored in a counter file
+    paths: ["src/torve/config/rfc_parse.py"]
+  - id: D-A.18
+    grade: LOCKED
+    text: Only NNNN-slug.md and INDEX.md in the corpus directory, no subdirectories; the check routes offenders
+    paths: ["rfcs/**", "src/torve/config/rfc_parse.py"]
+  - id: D-A.19
+    grade: LOCKED
+    text: Documents are never deleted; identifiers are never reused; gaps are acceptable
+    paths: ["rfcs/**"]
+  - id: D-13.7
+    grade: LOCKED
+    text: rfcs.path is a single path with a default of rfcs/; never a list or a glob
+    paths: ["src/torve/config/runconfig.py"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case observed to fail
+    paths: ["tests/test_rfc_check.py"]
+budget: {}
+tier: executor

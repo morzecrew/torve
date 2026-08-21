@@ -82,6 +82,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at the canonical path, created by its first entry (D-3.20), with a
   Docker end-to-end test proving an entry written before a `kill` is on
   disk. Sabotage suite at 28 cases.
+- RFC validation moved into the package (0007 §3a, charter A-15, 0013 A-16):
+  `torve rfc check | index | new | graph` with vocabularies defined once in
+  `domain/rfc.py` (D-7.13) and the format owned by `config/rfc_parse.py`
+  (D-7.12) — the skill's `rfc_index.py` script is deleted and the skill
+  teaches content only. New checks: corpus-directory contents with routing
+  messages (D-A.18), `depends_on` cycles, non-accepted inheritance
+  surfaced as a warning (D-A.10), line-number citations of real paths, and
+  the `kind` vocabulary. Numbering is derived as max+1 with no counter
+  file and no way to fill a hole (D-A.17, D-A.19); `rfcs.path` in
+  `config.yaml` names the one corpus location (D-13.7). The `rfc-index`
+  gate is replaced by the shipped `rfc-valid` product gate (D-7.14,
+  shadow, origin rfc/0007); a malformed corpus exits 3 per 0007 §3a.
 - RFC 0015 (source tree structure) adopted and executed: `src/torve` is
   layered — `base/`, `domain/` (task, attempt, states aggregates),
   `application/` (ports, run loop, services), `adapters/<port>/<technology>`,

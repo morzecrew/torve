@@ -1,10 +1,10 @@
 # INDEX.md — generated, never authored
 
-`INDEX.md` is **output** (charter D-A.6): `rfc_index.py generate` builds it
-from each RFC's YAML frontmatter, and `rfc_index.py check` fails CI when the
-committed file differs from what `generate` writes — the same discipline as a
+`INDEX.md` is **output** (charter D-A.6): `torve rfc index` builds it
+from each RFC's YAML frontmatter, and `torve rfc check` fails CI when the
+committed file differs from what it writes — the same discipline as a
 lockfile. There is no skeleton to copy: initializing an RFC directory means
-writing the first RFC (with frontmatter) and running `generate`.
+writing the first RFC (with frontmatter) and running `torve rfc index`.
 
 What the generated file contains, all derived:
 
@@ -22,7 +22,7 @@ What the generated file contains, all derived:
 - **Never record history in the index.** No shipped dates, no phase progress,
   no defects found. The status field carries state; the RFC carries its own
   story. History in an index turns every lookup into reading a changelog.
-- **Task logs never get rows.** They are not designs and have no numbers;
-  `rfc_index.py` ignores them — only `NNNN-*.md` files are RFCs.
+- **Task logs never get rows.** They are not designs and have no numbers,
+  and they never live in the corpus directory (D-A.18).
 - **Hand edits are a CI failure by design.** If the index looks wrong, fix the
   frontmatter it is derived from and regenerate.

@@ -18,10 +18,10 @@ grades and declared areas, its phasing mints into tasks with scopes, and its
 identifiers are what every divergence log cites. Write it as a document a
 machine derives work from and a human can refuse in a diff.
 
-The mechanical half is a script: location, numbering, filenames, frontmatter,
-decision-table shape and the checks below are applied by
-`scripts/rfc_index.py` (`check` / `generate` / `next` / `new "Title"`), and its
-`check` is the gate. Structured facts — id, status, dependencies, amendments,
+The mechanical half belongs to the package (RFC 0007 §3a, D-7.12): location,
+numbering, filenames, frontmatter, decision-table shape and the checks below
+are applied by `torve rfc` (`check` / `index` / `new "Title"` / `graph`), and
+its `check` is the gate. Structured facts — id, status, dependencies, amendments,
 owner, the routing description — live in YAML frontmatter (charter D-A.2);
 `INDEX.md` is generated from it and CI-checked like a lockfile (D-A.6), never
 edited by hand. Anatomy, prose style and workflows live in `references/`.

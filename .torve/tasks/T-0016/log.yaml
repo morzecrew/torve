@@ -1,0 +1,134 @@
+schema_version: 1
+task: T-0016
+repo: morzecrew/torve
+base_sha: 3cc854a4d16bdc479951b30660fc7cfbeda3edd7
+created_at: 2026-08-22T18:00:00Z
+drift_count: 0
+notes: |
+  RFC 0007 §3a executed with charter A-15 and 0013 A-16, checker before
+  creator per the source patch's own ordering. The rfc-writer skill keeps
+  the teaching; the package keeps the law.
+entries:
+  - decision: D-7.13
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:05:00Z
+    attempt: 1
+    claim: 'Grade, Status, Kind and Implementation live once in domain/rfc.py; domain/task.py now imports Grade instead of restating the literal, and the parser imports the tuples'
+    evidence: src/torve/domain/rfc.py:16-26
+    action: decided
+  - decision: D-7.12
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:10:00Z
+    attempt: 1
+    claim: 'the whole checker is config/rfc_parse.py — frontmatter, decision tables, amendments, links, directory contents, graph, line-cite rot, index drift — and the skill script is deleted; skills/rfc-writer keeps templates and judgment only'
+    evidence: src/torve/config/rfc_parse.py:465-536
+    action: decided
+  - decision: D-7.14
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T18:15:00Z
+    attempt: 1
+    claim: 'rfc-valid replaces the rfc-index gate in this repository''s manifest — run "uv run torve rfc check", worktree input, shadow per the spec''s own yaml, origin rfc/0007 — and any consuming repository gets the same command from the wheel alone'
+    evidence: .torve/gates.yaml:43-54
+    action: decided
+  - decision: D-7.16
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:20:00Z
+    attempt: 1
+    claim: 'the default check reads only the working tree — no store, no network; the --with-store flag itself is not built yet because no store-derived check exists to put behind it'
+    evidence: src/torve/config/rfc_parse.py:1-12
+    action: decided
+    proposal: "OPEN — the --with-store flag arrives with the first store-derived check (implementation-vs-derived-progress disagreement, 0007 §4); building the flag before its check would be an empty promise in --help"
+  - decision: D-A.17
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:25:00Z
+    attempt: 1
+    claim: 'next_number is max(existing)+1, computed from the directory every time; torve rfc new has no --number option at all, so there is no counter to merge and no hand-picked value to collide'
+    evidence: src/torve/config/rfc_parse.py:103-107
+    action: decided
+  - decision: D-A.18
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:30:00Z
+    attempt: 1
+    claim: 'check_directory admits NNNN-slug.md and INDEX.md only; every refusal routes — stray prose to pages/ or ops/, a bare 0016.md to the filename rule, a backup file to deletion, a subdirectory to status: draft'
+    evidence: src/torve/config/rfc_parse.py:117-142
+    action: decided
+  - decision: D-A.19
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:35:00Z
+    attempt: 1
+    claim: 'a hole below the maximum stays a hole: the derived number never descends, and the test deletes 0002 from a three-document corpus and proves new mints 0004'
+    evidence: tests/test_rfc_check.py:253-264
+    action: decided
+  - decision: D-13.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:40:00Z
+    attempt: 1
+    claim: 'RfcsConfig carries one string path defaulting to rfcs/, extra="forbid" like every other section; the CLI resolves the corpus as root / config.rfcs.path and a missing directory is exit 3'
+    evidence: src/torve/config/runconfig.py:79-88
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:45:00Z
+    attempt: 1
+    claim: 'every 0007 §3a sabotage case and every A-15 case is observed to fail: ungraded row, LOCKED without paths, duplicate identifier, two-document cycle, hand-edited index, stray file, slugless filename, subdirectory, id-filename mismatch, stale index, unknown vocabularies, real-path line cite'
+    evidence: tests/test_rfc_check.py:83-250
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T18:50:00Z
+    attempt: 1
+    claim: '0007 §3a lists non-accepted inheritance among the checks, but the corpus carries the known violation the A-10 adoption recorded — 0009 (accepted) depends on 0004 (draft), resolution pending with the owner; the check therefore surfaces it as a warning on every run instead of reddening the corpus the gate must pass on'
+    evidence: src/torve/config/rfc_parse.py:337-345
+    action: decided
+    proposal: "ASSUMED — inheritance-from-non-accepted hardens from warning to problem the moment the 0009/0004 pairing is resolved; until then every check run prints the violation so it cannot be forgotten"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T18:55:00Z
+    attempt: 1
+    claim: 'the line-cite rot check convicts only citations of paths that exist in the repository: the corpus''s two path:line occurrences (charter''s example evidence line, 0005''s fabricated-coordinates illustration) name paths that do not exist and are illustrations, which is exactly the distinction "stale at the first refactor above them" implies'
+    evidence: src/torve/config/rfc_parse.py:321-334
+    action: decided
+    proposal: "ASSUMED — a path:line citation of a nonexistent path is an illustration, not a reference; only real paths rot"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T19:00:00Z
+    attempt: 1
+    claim: 'this task executes a section of a draft document: 0007 is status: draft, so inheriting D-7.12/13/14/16 grades here is itself the D-A.10 shape — done on the operator''s explicit go-ahead, with the grades understood as changeable until 0007 is accepted'
+    evidence: rfcs/0007-planner-context.md:1-16
+    action: decided
+    proposal: "OPEN — either 0007 is accepted, or its §3a (format validation) moves to a document that can be, before further tasks inherit from it"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T19:05:00Z
+    attempt: 1
+    claim: 'the check''s failure exit changed from the script''s 2 to 3 per 0007 §3a — a malformed corpus is a configuration error in the RFC 0011 vocabulary; and the checker''s first live run caught its own migration, five charter Paths cells still naming the deleted script, relocated mechanically to config/rfc_parse.py per the D-32 precedent'
+    evidence: rfcs/0001-torve-charter.md:269-285
+    action: decided
+    proposal: "ASSUMED — Paths cells naming a moved implementation relocate mechanically with it (D-32 precedent from T-0012); the decision text keeps its historical tool name"
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T19:10:00Z
+    attempt: 1
+    claim: 'torve rfc new fills its skeleton from the rfc-writer template shipped as wheel skill data — one template, no package copy to drift; D-7.12 forbids validation depending on the skill, and authoring is the half that stays with it'
+    evidence: src/torve/cli/rfc.py:125-172
+    action: decided
+    proposal: "ASSUMED — the authoring template is skill content riding package data (A-3), not a validation dependency; a torve wheel always carries its skills, so rfc new works in any install"
