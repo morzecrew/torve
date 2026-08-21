@@ -142,6 +142,14 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 | D-2.7 | `LOCKED` | Bypass requires a human signature, a mandatory reason, a log entry and a counter | An uncounted bypass becomes an invisible workaround |
 | D-2.8 | `LOCKED` | Secret scanning blocks and cannot be bypassed | The one failure class that a follow-up commit cannot repair |
 | D-2.9 | `ASSUMED` | Task size is a port with pre-dispatch estimate and post-hoc calibration | Static thresholds first; telemetry-driven later |
+| D-2.10 | `ASSUMED` | `self-audit` is a deterministic log-presence check (input `log`): the execution log must exist and carry a `Drift count` line; agent-side audits arrive with RFC 0004. Added by execution 2026-08-21 — see logs/T-0002.md (D-2.3, attempt 1) | Departs from §4's `worktree` input until a runner exists |
+| D-2.11 | `LOCKED` | The bypass signature is a `Torve-Bypass: <gate>: <reason>` commit trailer; the record carries the commit's author, is counted per gate and appended to the task log; secrets stays exempt. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) | Makes D-2.7 checkable in engine-less CI |
+| D-2.12 | `ASSUMED` | A test edit is licensed when the file falls inside the task's `scope.allow`; adding a new test file is never tampering. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) | Defines the licence `no-test-tampering` checks |
+| D-2.13 | `ASSUMED` | On runs with no task contract, task- and log-input gates report a recorded `skipped`, never a silent green. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) | The degraded mode RFC 0005 §4 names, applied to gates |
+| D-2.14 | `ASSUMED` | The secret scanner is a built-in high-confidence pattern set; false positives are suppressed only via `secrets.allow_patterns` in the reviewed manifest. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) | Reviewed configuration, not a run-time bypass |
+| D-2.15 | `ASSUMED` | The quarantine list is a reviewed manifest key, maintained from flake telemetry until the RFC 0003 store automates the threshold. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) | Keeps §6a's quarantine honest without a store |
+| D-2.16 | `ASSUMED` | The scope gate implicitly allows the task's own contract and log files, and nothing else. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) | Prevents the log-writing deadlock in narrowly-scoped tasks |
+| D-2.17 | `ASSUMED` | Gate cost for cheapest-first ordering is the declared timeout, ascending, manifest order breaking ties. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) | Replace with measured p50 duration once telemetry accumulates |
 
 ## 9. Exit criteria
 

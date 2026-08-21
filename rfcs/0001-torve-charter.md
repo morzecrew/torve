@@ -200,6 +200,8 @@ Grade and action legality — the conflict protocol as a checkable table:
 
 Two rules that make the log worth keeping: **grade is copied at write time, never resolved at read time** — a log that rewrites its own past is not an audit trail; and **silence is a finding** — the gate fires on the absence of an entry in an area a locked decision declares, because a quiet workaround is not detectable while a missing report trivially is.
 
+*Amendment 2026-08-21 (D-21b):* the legality table governs contradictions. An entry carries `kind` as above, or the `flag-dont-flip` skill's `class` (`discovery | spec-gap | drift | irreducible`), or both — the axes are orthogonal: `kind` records what happened to the decision, `class` diagnoses whether the design process failed. A `kind: resolved` close-out with `action: decided` attests compliance in an area a `LOCKED` decision declares, which is how the silence check is satisfiable without a conflict.
+
 ## 7. Decisions
 
 | # | Grade | Decision |
@@ -221,6 +223,7 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-26 | `ASSUMED` | Build our own runtime rather than adopt the adjacent one; time-box a teardown of three of its mechanisms first |
 | D-27 | `LOCKED` | No contract, decision or execution log ever moves from git into a database |
 | D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode |
+| D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) |
 
 ### 7.1 Ownership
 
