@@ -4,10 +4,11 @@ version = "0.1.0"
 description = "Deterministic gates for agent (and human) pull requests — RFC 0002 of the Torve corpus"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.11"
+requires-python = ">=3.13,<3.15"
 authors = [{ name = "morzecrew" }]
 dependencies = [
     "click>=8.1",
+    "forze>=0.6.0",
     "pathspec>=0.12",
     "pydantic>=2.7",
     "pyyaml>=6.0",
@@ -15,12 +16,14 @@ dependencies = [
 
 [project.optional-dependencies]
 opensandbox = ["opensandbox"]
+postgres = ["forze[postgres]>=0.6.0"]
 
 [project.scripts]
 torve = "torve.cli:main"
 
 [dependency-groups]
 dev = [
+    "forze[dst,postgres]>=0.6.0",
     "pytest>=8.0",
     "ruff>=0.6",
 ]

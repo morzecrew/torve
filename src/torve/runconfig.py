@@ -33,6 +33,26 @@ class RuntimeConfig(BaseModel):
     opensandbox: OpenSandboxConfig = Field(default_factory=OpenSandboxConfig)
 
 
+class StoreConfig(BaseModel):
+    """The durable run store (D-5, D-5a): mock for tests and simulation,
+    Postgres for real runs (D-3.6). The mock is in-process, so cross-process
+    guarantees — a reaper seeing another runner's leases — need Postgres.
+
+    `dsn_env` names the environment variable holding the DSN; the value never
+    enters a committed file."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    adapter: str = "mock"  # mock | postgres
+    dsn_env: str = "TORVE_PG_DSN"
+    schema_name: str = "public"
+    run_relation: str = "torve_durable_run"
+    step_relation: str = "torve_durable_step"
+    lease_for: float = 60.0  # lease duration; cancel asks ride back on renewal
+    heartbeat_divisor: int = 3
+    max_run_duration: float = 7200.0  # hard cap on one durable body
+
+
 class ReapConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -50,6 +70,7 @@ class RunnerConfig(BaseModel):
 
     schema_version: int = SCHEMA_VERSION
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    store: StoreConfig = Field(default_factory=StoreConfig)
     poison_ceiling: int = 3  # checked before dispatch; ceiling reached -> escalated, never retry
     base: str | None = None  # base ref for worktrees; None -> origin/main, then main
     reap: ReapConfig = Field(default_factory=ReapConfig)

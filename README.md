@@ -49,8 +49,16 @@ The run loop: claim → git worktree → sandbox → agent → gates → `ready`
 checked before dispatch. Everything runs in a sandbox — even the fake agent —
 and shell gates execute in a fresh sandbox the agent never touched. Two
 runtime adapters behind one contract: Docker, and OpenSandbox
-(`pip install 'torve[opensandbox]'`). Run state is a JSON file beside the
-worktree until the durable store lands (T-0004).
+(`pip install 'torve[opensandbox]'`).
+
+The attempt loop executes as one durable function over the forze run store:
+real leases, fenced terminal writes, `torve cancel` riding the lease
+heartbeat, recovery via `claim_abandoned`. Mock store in-process by default;
+`store.adapter: postgres` (`pip install 'torve[postgres]'`, then
+`torve store provision`) for cross-process durability. A deterministic
+simulation drives the real loop and store concurrently under seeded
+interleavings — invariants, reachability targets, and deliberately broken
+twins the oracle must catch.
 
 ## Reading order
 

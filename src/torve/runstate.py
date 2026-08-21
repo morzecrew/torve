@@ -42,6 +42,7 @@ class RunState:
     attempts: int = 0
     heartbeat: str = field(default_factory=_now)
     sandbox_id: str | None = None
+    durable_run_id: str | None = None  # the store's run this engine run executes under
     worktree: str | None = None
     escalation: Escalation | None = None
     history: list[dict] = field(default_factory=list)
@@ -93,6 +94,7 @@ class RunState:
             attempts=data["attempts"],
             heartbeat=data["heartbeat"],
             sandbox_id=data.get("sandbox_id"),
+            durable_run_id=data.get("durable_run_id"),
             worktree=data.get("worktree"),
             escalation=Escalation(**escalation) if escalation else None,
             history=data.get("history", []),
