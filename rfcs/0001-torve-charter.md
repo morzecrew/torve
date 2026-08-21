@@ -7,7 +7,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11", "A-12"]
+amended_by: ["A-1", "A-4", "A-5", "A-7", "A-9", "A-10", "A-11", "A-12", "A-14"]
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
@@ -275,7 +275,7 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-A.9 | `LOCKED` | `depends_on` constrains planning readiness; shipping order lives in the phasing table. Added by amendment A-10 2026-08-22 | `rfcs/**` | Conflating the two makes the graph a scheduler, which it is not |
 | D-A.10 | `LOCKED` | No document inherits decisions from one that is not `accepted`. Added by amendment A-10 2026-08-22 | `rfcs/**` | A grade copied from a draft is a grade that may change under an executor |
 | D-A.11 | `LOCKED` | Frontmatter carries `implementation` as a judgement (one of `none`, `partial`, `complete`, `abandoned`); execution progress is never a frontmatter field. Added by amendment A-9 2026-08-22 | `rfcs/**` | Progress is store-derived and would diverge on the first escalation |
-| D-A.12 | `LOCKED` | Progress is projected per phase, and never enters `INDEX.md`. Added by amendment A-9 2026-08-22 | `rfcs/INDEX.md` `skills/rfc-writer/scripts/rfc_index.py` | A committed, CI-checked index must not depend on the store |
+| D-A.12 | `LOCKED` | The index carries every frontmatter field that aids routing, and nothing derived from the store; progress stays a projection and is never committed. Added by amendment A-9 2026-08-22. *(Reworded by A-14 2026-08-22 from "progress never enters INDEX.md" read as general minimalism — the actual concern was store dependence.)* | `rfcs/INDEX.md` `skills/rfc-writer/scripts/rfc_index.py` | Frontmatter is in the same commit the index is checked against; store data would make `--check` flake on every task run |
 | D-1.7 | `LOCKED` | A task contract carries an `intent` paragraph stating what changes and why; it never carries steps. Added by amendment A-11 2026-08-22 | `src/torve/domain/task.py` `.torve/tasks/**` | Without it an executor infers intent from acceptance commands, which is guessing; with steps in it, the plan gate becomes theatre |
 | D-A.13 | `LOCKED` | One directory per task holding contract and log; path resolution lives in one module. Added by amendment A-12 2026-08-22 | `src/torve/config/layout.py` `.torve/tasks/**` | Retention, sharding and pairing all follow from it; scattering path construction makes any later move a hunt |
 | D-A.14 | `LOCKED` | Task deletion is supported; no code assumes a contract is present on disk. Added by amendment A-12 2026-08-22 | `src/torve/**` | Retention later collides with code that assumes the file is always there, which is a refactor rather than a feature |
@@ -446,3 +446,11 @@ Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached 
 **Not changed:** logs stay in git. Both reasons still hold — evidence arrives in a pull request beside the diff, and `base_sha` keeps it resolvable.
 
 **Also edits:** 0003 (amendment A-13, logs created by writing), 0013 §1 (layout diagram note).
+
+### A-14 — 2026-08-22 — the index carries the whole frontmatter (amends D-A.12)
+
+**Found in use.** A-9 added `implementation` and nothing surfaced it. D-A.12 read as a general instruction to keep the index minimal, which was an overreach: the actual concern was store dependence, since a store-derived column would make a committed, CI-checked file depend on a database, and a flaking `--check` is one people learn to re-run rather than read. *(The source patch numbered this A-12; that was taken, so it lands as A-14 per D-A.5.)*
+
+**Changed:** the rule is now that the index carries everything from the frontmatter and nothing from outside it. `implementation` and `kind` join the generated columns, alongside status, dependencies and amendment identifiers — the `Amends` column is a list of identifiers, never a summary, because the moment the index describes what an amendment changed it becomes a second, staler account. Rows are grouped by `kind`, with documents that are accepted but abandoned separated into their own section — that pairing is the most hazardous in the corpus (decisions still inherited, no implementation ever coming) and two adjacent columns in a flat table are easy to miss. `informed_by` stays out: it constrains nothing (D-7.9).
+
+**Unchanged:** no store-derived data in the index. Progress remains a projection in `torve context` and is never committed. `--check` stays deterministic, which was the whole point of the original restriction.
