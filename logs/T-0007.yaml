@@ -1,0 +1,36 @@
+schema_version: 1
+task: T-0007
+drift_count: 0
+notes: |
+  Typing and test-configuration hardening on branch torve/T-0007: strict
+  mypy over src as a blocking gate, hardened pytest configuration, py.typed
+  in the wheel, and the src tree brought to zero strict-mode errors.
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T12:00:00Z
+    attempt: 1
+    claim: no RFC governs the typecheck toolchain; the house convention (forze, bloomery) is strict mypy scoped to src with tests carrying no type floor, and the editor's pyright strict is advisory beside it
+    evidence: pyproject.toml:73-78
+    action: decided
+    proposal: ASSUMED — `uv run mypy src` is a blocking acceptance command in CI and the gates.yaml fallback; tests/scripts/skills are excluded so a bare `mypy .` agrees with the gate invocation, and pyright remains editor-side advice
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-21T12:05:00Z
+    attempt: 1
+    claim: the TaskStore facade and store adapters were structurally untyped at the forze boundary; forze exports the exact contracts (DurableRunStorePort, DurableFunctionHandler, JsonDict) the facade wraps
+    evidence: src/torve/taskstore.py:43
+    action: decided
+    proposal: ASSUMED — the facade's signatures are forze's contract types, so a forze upgrade that changes the durable surface fails `mypy src` at the pin bump instead of surfacing as adapter behaviour
+  - decision: D-7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-21T12:10:00Z
+    attempt: 1
+    claim: the Python toolchain gains the house typecheck and pytest configuration; no language or substrate choice moved
+    evidence: pyproject.toml:57-71
+    action: decided
