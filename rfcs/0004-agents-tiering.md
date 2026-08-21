@@ -1,6 +1,20 @@
+---
+id: "0004"
+title: Agent adapters and tiering
+status: draft
+depends_on: ["0003"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Lev Litvinov
+description: >-
+  Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable.
+schema_version: 1
+---
+
 # RFC 0004 — Agent adapters and tiering
 
-- **Status:** 📝 Draft — depends on 0003
 - **Scope:** Real agent adapters behind the `Agent` port, the tiering economics, shadow runs against completed work, and the telemetry that makes harness choice measurable. Excludes review (0005) and merging (0006).
 - **Inherits:** D-2, D-4, D-4b, D-16 from RFC 0001
 

@@ -1,7 +1,7 @@
 -- Substrate: durable run store + step journal (forze, schema per the
 -- adapter docstrings of PostgresDurableRunStore / the step adapter).
 -- Owner: substrate — this file changes when forze is upgraded, never for
--- torve's own reasons (D-M.1). Forward-only (D-M.4).
+-- torve's own reasons (D-12.1). Forward-only (D-12.4).
 --
 -- Do not trim columns: every read projects cancel_requested_at /
 -- cancel_refused_at, and a missing column makes lease renewal raise, which a

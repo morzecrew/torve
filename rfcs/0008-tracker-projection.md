@@ -1,6 +1,20 @@
+---
+id: "0008"
+title: Tracker projection
+status: draft
+depends_on: ["0003"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Lev Litvinov
+description: >-
+  Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board.
+schema_version: 1
+---
+
 # RFC 0008 — Tracker projection
 
-- **Status:** 📝 Draft — depends on 0003; independent of 0005–0007
 - **Scope:** Projecting engine state onto an external task tracker as a presentation surface, the outbound mapping, idempotency rules, the restricted inbound command set, and what each tracker's state vocabulary costs to adapt. Excludes storing any authoritative state in a tracker, and excludes editing task contracts from a tracker.
 - **Inherits:** D-1, D-5, D-22 from RFC 0001 · outbox relay from RFC 0003 §5
 - **Related:** RFC 0006 (escalation routing), RFC 0007 (planner read surface)

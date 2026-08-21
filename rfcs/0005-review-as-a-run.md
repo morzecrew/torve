@@ -1,6 +1,20 @@
+---
+id: "0005"
+title: Review as a run
+status: draft
+depends_on: ["0003", "0004"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Lev Litvinov
+description: >-
+  Independent automated review as a second run role: isolation rules, the finding contract, calibration, and replacing third-party PR reviewers.
+schema_version: 1
+---
+
 # RFC 0005 — Review as a run
 
-- **Status:** 📝 Draft — depends on 0003 and 0004
 - **Scope:** Independent automated review, implemented as a second role of the same run pipeline rather than a special case; its isolation rules, output contract, trigger paths, calibration, and how its quality is measured. Covers replacing a third-party pull-request reviewer. Excludes human review policy and promotion rules, which belong to RFC 0006.
 - **Inherits:** D-2 (models produce data, config decides consequences), D-3, D-4, D-22 from RFC 0001
 

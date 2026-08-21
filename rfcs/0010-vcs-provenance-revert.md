@@ -1,6 +1,20 @@
+---
+id: "0010"
+title: VCS, provenance and revert
+status: draft
+depends_on: ["0003"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Lev Litvinov
+description: >-
+  How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role.
+schema_version: 1
+---
+
 # RFC 0010 — VCS, provenance and revert
 
-- **Status:** 📝 Draft — depends on 0003; required before 0006 lands anything
 - **Scope:** How agent work becomes commits, branches and pull requests; who signs them; how they are attributed so history explains itself; and how landed work is undone. Excludes merge ordering (RFC 0006) and conflict resolution (permanently out of scope).
 - **Inherits:** D-4b (agents hold no credentials), D-6, D-22 from RFC 0001
 

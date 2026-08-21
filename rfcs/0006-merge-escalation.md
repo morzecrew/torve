@@ -1,6 +1,20 @@
+---
+id: "0006"
+title: Merge train and escalation policy
+status: draft
+depends_on: ["0003"]
+informed_by: ["0005"]
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Lev Litvinov
+description: >-
+  Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted.
+schema_version: 1
+---
+
 # RFC 0006 — Merge train and escalation policy
 
-- **Status:** 📝 Draft — depends on 0003, informed by 0005
 - **Scope:** How candidates land, in what order, and how human attention is budgeted. Covers the serialized merge lane, promotion criteria, escalation routing, and parallelism limits. Excludes conflict resolution, which stays permanently out of scope.
 - **Inherits:** D-1, D-6 from RFC 0001
 
@@ -111,7 +125,7 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 | D-6.6 | `LOCKED` | Blocked dispatch is logged with cause and counted per path; `torve kill` always available | `src/torve/reaper.py` `src/torve/cli.py` | Contention must be diagnosable before it is designed for |
 | D-6.7 | `ASSUMED` | Engine health rides the existing telemetry path as `EngineEvent` | `src/torve/telemetry.py` | A second observability stack is a second thing to operate |
 | D-6.8 | `LOCKED` | Escalation queue age is the primary alert | `src/torve/telemetry.py` | The failure that is invisible from inside the runner |
-| D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | `src/torve/lane/**` `src/torve/taskstore.py` | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
+| D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 | `src/torve/lane/**` `src/torve/taskstore.py` | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
 
 ## 7. Exit criteria
 

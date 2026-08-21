@@ -4,7 +4,7 @@ objects directly and hands the runner a three-line testing context — none of
 the forze runtime is adopted.
 
 Provisioning lives in `migrations/substrate/`, applied by `torve migrate
-substrate` (rfcs/MIGRATIONS.md): the substrate documents schemas in adapter
+substrate` (rfcs/0012-migrations.md): the substrate documents schemas in adapter
 docstrings and ships no migrations, so torve owns them (A-6).
 """
 

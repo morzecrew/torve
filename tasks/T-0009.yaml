@@ -1,0 +1,64 @@
+# Document conventions and repository cleanup (A-7): promote the three
+# decision-bearing documents into the numbering (0011-0013), disperse
+# AMENDMENTS.md into each amendment's primary target, frontmatter on every
+# RFC, INDEX.md generated and CI-checked, rfc_index.py hardened per the
+# conventions' validation list, dev-era logs deleted after promotion.
+schema_version: 1
+id: T-0009
+rfc: rfcs/0001-torve-charter.md
+phase: 1
+role: implement
+depends_on: [T-0008]
+scope:
+  allow:
+    - "rfcs/**"
+    - "ops/**"
+    - "pages/**"
+    - "skills/**"
+    - "logs/**"
+    - "tasks/**"
+    - "src/**"
+    - "tests/**"
+    - "migrations/**"
+    - ".github/**"
+    - "CHANGELOG.md"
+    - "README.md"
+    - "gates.yaml"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests scripts"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run python skills/rfc-writer/scripts/rfc_index.py check"
+decisions:
+  - id: D-27
+    grade: LOCKED
+    text: Git and the store are a boundary; git holds contracts, manifests, RFCs, decision tables, logs
+    paths: ["tasks/**", "logs/**", "rfcs/**"]
+  - id: D-21a
+    grade: LOCKED
+    text: The execution-log format is defined in the charter; one file per task, append-only
+    paths: ["logs/**"]
+  - id: D-A.1
+    grade: LOCKED
+    text: A document with a graded decision table is an RFC and gets a number; docs to pages/, procedures to ops/
+    paths: ["rfcs/**", "ops/**", "pages/**"]
+  - id: D-A.3
+    grade: LOCKED
+    text: Decision tables stay in markdown, hard-validated by rfc_index.py
+    paths: ["rfcs/**", "skills/rfc-writer/scripts/rfc_index.py"]
+  - id: D-A.5
+    grade: LOCKED
+    text: Amendments live in an Amendments section of their primary target; numbering is global
+    paths: ["rfcs/**"]
+  - id: D-A.6
+    grade: LOCKED
+    text: INDEX.md is generated and CI-checked, never hand-edited
+    paths: ["rfcs/INDEX.md", "skills/rfc-writer/scripts/rfc_index.py"]
+  - id: D-A.7
+    grade: LOCKED
+    text: Task logs carry repo and base_sha
+    paths: ["logs/**"]
+budget: {}
+tier: executor

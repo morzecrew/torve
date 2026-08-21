@@ -1,6 +1,20 @@
+---
+id: "0001"
+title: "Torve: charter"
+status: accepted
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: ["A-1", "A-4", "A-5", "A-7"]
+owner: Lev Litvinov
+description: >-
+  Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
+schema_version: 1
+---
+
 # RFC 0001 — Torve: charter
 
-- **Status:** 📝 Draft — architecture baseline for RFCs 0002–0007
 - **Scope:** Defines what Torve is, the domain model, the state machine, the port boundaries, the task and decision contracts, and the decisions every child RFC inherits. Deliberately excludes anything shippable: gates, runner, adapters, review, merge and planner each have their own document.
 - **Related:** [`forze`](https://github.com/morzecrew/forze) 0.6 · [`agent-skills`](https://github.com/morzecrew/agent-skills) · OpenSandbox · `digitaldrywood/detent` (prior art)
 - **Supersedes:** the monolithic draft of 0001, split here into a charter plus six phase documents
@@ -184,6 +198,9 @@ Pydantic models are the single source of truth; YAML is their serialization. No 
 ```yaml
 schema_version: 1
 task: T-0142
+repo: morzecrew/torve
+base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7)
+created_at: 2026-08-20T10:58:03Z
 drift_count: 0            # the declared claim, checked against entries classed drift
 entries:
   - decision: D-3
@@ -212,35 +229,45 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 
 ## 7. Decisions
 
-| # | Grade | Decision | Paths |
-| --- | --- | --- | --- |
-| D-1 | `LOCKED` | Two modules over one domain; executor is the sole writer of task state, planner is read-only plus task minting | `src/torve/**` |
-| D-2 | `LOCKED` | Models never decide **what work exists** or **whether it is finished**. The planner invokes no model at all. Execution and review invoke models, but their output is data and the consequence is set by config. Stated precisely: a reviewer model does choose a `severity`, and configuration chooses what a severity does — so severity calibration is a **measured quantity** (RFC 0005 §6), not a trusted one | `src/torve/**` |
-| D-3 | `LOCKED` | Gates execute outside the agent session; an agent cannot report a gate outcome | `src/torve/runner.py` `src/torve/run.py` |
-| D-4 | `LOCKED` | The sandbox is the unit of lifecycle; nothing runs on a host | `src/torve/adapters/**` |
-| D-4b | `LOCKED` | Agents never hold real credentials; outbound secrets are injected by the runtime's vault | `src/torve/adapters/**` |
-| D-5 | `LOCKED` | `TaskStore` is a thin facade over the substrate's durable run store, not hand-written | `src/torve/taskstore.py` |
-| D-5a | `LOCKED` | The lifecycle is not modelled as a durable workflow; the run store is a leased queue with recovery | `src/torve/taskstore.py` |
-| D-6 | `LOCKED` | The engine never resolves conflicts and never merges without the configured approval | `src/torve/run.py` |
-| D-21a | `LOCKED` | The execution-log format is defined here; one file per task, append-only, grade copied at write time. *(Amended by A-1 2026-08-21: serialization is YAML, `logs/<task-id>.yaml`; substance unchanged.)* | `logs/**` `src/torve/gates/decisions_reported.py` |
-| D-22 | `LOCKED` | Three aggregates, each with domain, create and read models and **no update command** | `src/torve/models.py` |
-| D-25 | `LOCKED` | The differentiator is the specification layer, not the execution runtime | `src/torve/**` |
-| D-7 | `ASSUMED` | Python on the forze substrate; Go rejected | `pyproject.toml` |
-| D-8 | `ASSUMED` | Pydantic is the single contract source | `src/torve/models.py` |
-| D-16 | `ASSUMED` | `schema_version` on every persisted aggregate | `src/torve/models.py` |
-| D-26 | `ASSUMED` | Build our own runtime rather than adopt the adjacent one; time-box a teardown of three of its mechanisms first | — |
-| D-27 | `LOCKED` | Git and the store are a boundary, not a prohibition: git holds what should be (contracts, manifests, RFCs, decision tables, logs — diffable, sha-pinned, reviewed), the store holds what happened (runs, leases, attempts, results, telemetry). The engine may project git-held artefacts into the store for querying, one-way and read-only; the store is never authoritative for them. *(Reworded by A-4 2026-08-21 from "nothing ever moves from git into a database".)* | `tasks/**` `logs/**` `rfcs/**` |
-| D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode | — |
-| D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `logs/**` `src/torve/gates/decisions_reported.py` |
-| D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/domain.py` |
-| D-30 | `ASSUMED` | `claimed` may transition to `escalated`: a runner that dies between claim and first dispatch needs a legal exit, and the durable store's `claim_abandoned` recovery lands on the same edge. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/domain.py` |
-| D-31 | `LOCKED` | Agents do not communicate; the runner coordinates. What an agent may touch and what was already decided are copied into its contract; what others are doing is the runner's knowledge for overlap-free dispatch, never the agent's. Falsifiable: revisit only if telemetry shows tasks escalating with "insufficient context about adjacent work". Added by amendment A-5 2026-08-21 | `src/torve/ports.py` `src/torve/run.py` |
-| D-21c | `ASSUMED` | The YAML log carries a top-level `drift_count` scalar checked against entries classed `drift`; revising the claim edits the scalar (git history preserves prior claims) while `entries` stays append-only. Added by execution 2026-08-21 — see logs/T-0005.yaml (unlisted, attempt 1) | `logs/**` `src/torve/gates/decisions_reported.py` |
-| D-21d | `ASSUMED` | Bypass records live in a separate top-level `bypasses:` list in the same log file, appended structurally (parse, append, dump); append-only means items are never removed or edited, not that bytes are only appended. Added by execution 2026-08-21 — see logs/T-0005.yaml (unlisted, attempt 1) | `logs/**` `src/torve/runner.py` |
-| D-32 | `ASSUMED` | Every corpus decision table carries a Paths column naming the module areas a decision governs; `LOCKED` rows must carry paths, enforced by the shipped `rfc_index.py`. For RFCs not yet built the globs name the intended module and are refined when it exists. Added by execution 2026-08-21 — see logs/T-0005.yaml (unlisted, attempt 1) | `rfcs/**` `skills/rfc-writer/scripts/rfc_index.py` |
-| D-33 | `ASSUMED` | Two strict typecheckers gate `src` as blocking commands — `mypy src` and `basedpyright src` — with `[tool.pyright]` in pyproject as the repo-canonical strict config every editor reads; tests, scripts and skills carry no type floor. Added by execution 2026-08-21 | `pyproject.toml` `.github/**` `gates.yaml` |
-| D-34 | `ASSUMED` | The TaskStore facade and store adapters are typed against forze's exported contracts (`DurableRunStorePort`, `DurableFunctionHandler`, `JsonDict`), so a forze upgrade that changes the durable surface fails typecheck at the pin bump rather than surfacing as adapter behaviour. Added by execution 2026-08-21 | `src/torve/taskstore.py` `src/torve/adapters/durable_store.py` |
-| D-35 | `ASSUMED` | Typing pattern at data boundaries: parsed-YAML documents are cast to `dict[str, Any]` at exactly one boundary per reader and stay typed inward; optional dependencies load via `import_module` (explicit Any), never from-imports of partially-unknown names; container initialisers are always annotated. Added by execution 2026-08-21 | `src/torve/**` |
+| # | Grade | Decision | Paths | Consequence |
+| --- | --- | --- | --- | --- |
+| D-1 | `LOCKED` | Two modules over one domain; executor is the sole writer of task state, planner is read-only plus task minting | `src/torve/**` | — |
+| D-2 | `LOCKED` | Models never decide **what work exists** or **whether it is finished**. The planner invokes no model at all. Execution and review invoke models, but their output is data and the consequence is set by config. Stated precisely: a reviewer model does choose a `severity`, and configuration chooses what a severity does — so severity calibration is a **measured quantity** (RFC 0005 §6), not a trusted one | `src/torve/**` | — |
+| D-3 | `LOCKED` | Gates execute outside the agent session; an agent cannot report a gate outcome | `src/torve/runner.py` `src/torve/run.py` | — |
+| D-4 | `LOCKED` | The sandbox is the unit of lifecycle; nothing runs on a host | `src/torve/adapters/**` | — |
+| D-4b | `LOCKED` | Agents never hold real credentials; outbound secrets are injected by the runtime's vault | `src/torve/adapters/**` | — |
+| D-5 | `LOCKED` | `TaskStore` is a thin facade over the substrate's durable run store, not hand-written | `src/torve/taskstore.py` | — |
+| D-5a | `LOCKED` | The lifecycle is not modelled as a durable workflow; the run store is a leased queue with recovery | `src/torve/taskstore.py` | — |
+| D-6 | `LOCKED` | The engine never resolves conflicts and never merges without the configured approval | `src/torve/run.py` | — |
+| D-21a | `LOCKED` | The execution-log format is defined here; one file per task, append-only, grade copied at write time. *(Amended by A-1 2026-08-21: serialization is YAML, `logs/<task-id>.yaml`; substance unchanged.)* | `logs/**` `src/torve/gates/decisions_reported.py` | — |
+| D-22 | `LOCKED` | Three aggregates, each with domain, create and read models and **no update command** | `src/torve/models.py` | — |
+| D-25 | `LOCKED` | The differentiator is the specification layer, not the execution runtime | `src/torve/**` | — |
+| D-7 | `ASSUMED` | Python on the forze substrate; Go rejected | `pyproject.toml` | — |
+| D-8 | `ASSUMED` | Pydantic is the single contract source | `src/torve/models.py` | — |
+| D-16 | `ASSUMED` | `schema_version` on every persisted aggregate | `src/torve/models.py` | — |
+| D-26 | `ASSUMED` | Build our own runtime rather than adopt the adjacent one; time-box a teardown of three of its mechanisms first | — | — |
+| D-27 | `LOCKED` | Git and the store are a boundary, not a prohibition: git holds what should be (contracts, manifests, RFCs, decision tables, logs — diffable, sha-pinned, reviewed), the store holds what happened (runs, leases, attempts, results, telemetry). The engine may project git-held artefacts into the store for querying, one-way and read-only; the store is never authoritative for them. *(Reworded by A-4 2026-08-21 from "nothing ever moves from git into a database".)* | `tasks/**` `logs/**` `rfcs/**` | — |
+| D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode | — | — |
+| D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 | `logs/**` `src/torve/gates/decisions_reported.py` | — |
+| D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 | `src/torve/domain.py` | — |
+| D-30 | `ASSUMED` | `claimed` may transition to `escalated`: a runner that dies between claim and first dispatch needs a legal exit, and the durable store's `claim_abandoned` recovery lands on the same edge. Added by execution 2026-08-21 | `src/torve/domain.py` | — |
+| D-31 | `LOCKED` | Agents do not communicate; the runner coordinates. What an agent may touch and what was already decided are copied into its contract; what others are doing is the runner's knowledge for overlap-free dispatch, never the agent's. Falsifiable: revisit only if telemetry shows tasks escalating with "insufficient context about adjacent work". Added by amendment A-5 2026-08-21 | `src/torve/ports.py` `src/torve/run.py` | — |
+| D-21c | `ASSUMED` | The YAML log carries a top-level `drift_count` scalar checked against entries classed `drift`; revising the claim edits the scalar (git history preserves prior claims) while `entries` stays append-only. Added by execution 2026-08-21 | `logs/**` `src/torve/gates/decisions_reported.py` | — |
+| D-21d | `ASSUMED` | Bypass records live in a separate top-level `bypasses:` list in the same log file, appended structurally (parse, append, dump); append-only means items are never removed or edited, not that bytes are only appended. Added by execution 2026-08-21 | `logs/**` `src/torve/runner.py` | — |
+| D-32 | `ASSUMED` | Every corpus decision table carries a Paths column naming the module areas a decision governs; `LOCKED` rows must carry paths, enforced by the shipped `rfc_index.py`. For RFCs not yet built the globs name the intended module and are refined when it exists. Added by execution 2026-08-21 | `rfcs/**` `skills/rfc-writer/scripts/rfc_index.py` | — |
+| D-33 | `ASSUMED` | Two strict typecheckers gate `src` as blocking commands — `mypy src` and `basedpyright src` — with `[tool.pyright]` in pyproject as the repo-canonical strict config every editor reads; tests, scripts and skills carry no type floor. Added by execution 2026-08-21 | `pyproject.toml` `.github/**` `gates.yaml` | — |
+| D-34 | `ASSUMED` | The TaskStore facade and store adapters are typed against forze's exported contracts (`DurableRunStorePort`, `DurableFunctionHandler`, `JsonDict`), so a forze upgrade that changes the durable surface fails typecheck at the pin bump rather than surfacing as adapter behaviour. Added by execution 2026-08-21 | `src/torve/taskstore.py` `src/torve/adapters/durable_store.py` | — |
+| D-35 | `ASSUMED` | Typing pattern at data boundaries: parsed-YAML documents are cast to `dict[str, Any]` at exactly one boundary per reader and stay typed inward; optional dependencies load via `import_module` (explicit Any), never from-imports of partially-unknown names; container initialisers are always annotated. Added by execution 2026-08-21 | `src/torve/**` | — |
+| D-A.1 | `LOCKED` | A document with a graded decision table is an RFC and gets a number; published documentation goes to `pages/`, one-off procedures to `ops/`. Added by amendment A-7 2026-08-21 | `rfcs/**` `ops/**` `pages/**` | The sorting rule; without it `rfcs/` mixes kinds again |
+| D-A.1a | `LOCKED` | `pages/` links to decisions in `rfcs/` and never restates them | `pages/**` | A restated decision on a published site is a stale copy waiting to happen |
+| D-A.1b | `ASSUMED` | An `ops/` document is deleted once executed | `ops/**` | A finished procedure kept "for reference" is how the mess restarts |
+| D-A.2 | `LOCKED` | Structured facts in YAML frontmatter; prose in the body | `rfcs/**` | Status and dependencies must be queryable and checkable |
+| D-A.3 | `LOCKED` | Decision tables stay in markdown, hard-validated by `rfc_index.py` | `rfcs/**` `skills/rfc-writer/scripts/rfc_index.py` | Frontmatter would split rows from rationale — two sources of truth in one document |
+| D-A.4 | `LOCKED` | Decision identifiers are permanent; append, never renumber | `rfcs/**` | Divergence logs cite them forever |
+| D-A.5 | `LOCKED` | Amendments live in an `## Amendments` section of their primary target; numbering is global | `rfcs/**` | An amendment must be visible where the decision is read |
+| D-A.6 | `LOCKED` | `INDEX.md` is generated and CI-checked, never hand-edited | `rfcs/INDEX.md` `skills/rfc-writer/scripts/rfc_index.py` | A hand-maintained index drifts, as this repository already showed |
+| D-A.7 | `LOCKED` | Task logs carry `repo` and `base_sha` | `logs/**` | Makes evidence resolvable against the commit the agent actually saw |
+| D-A.8 | `ASSUMED` | Keep the term "RFC" | — | Revisit only if `spec` ever justifies the churn |
 
 ### 7.1 Ownership
 
@@ -310,4 +337,48 @@ Not metrics, and not thresholds — four qualitative signals written down now so
 
 ## 10. Amendments
 
-Changes to already-accepted decisions, discovered during implementation, are recorded in [AMENDMENTS.md](AMENDMENTS.md) — what changed, what deliberately did not, and which documents were edited. The inline markers in this corpus (A-1 … A-6) point there.
+An accepted RFC is never rewritten in place — divergence logs and telemetry reference text that must still exist. A change to an accepted decision is recorded as an amendment in the `## Amendments` section of the document whose decision it changes (D-A.5), listing secondary edits inside the entry. Numbering is global (`A-1`, `A-2`, …) so an amendment can be cited unambiguously from a log or a commit trailer. Every amendment follows the process this corpus specifies: implementation disagreed with a decision, stopped, and returned to a human — `flag-dont-flip` applied to Torve itself.
+
+This document's own amendments follow.
+
+## Amendments
+
+### A-1 — 2026-08-21 — log serialization (amends D-21a, §6)
+
+**Found in implementation.** Extracting entries from markdown required a regular expression — a reliable sign the data was in the wrong container. Task contracts were already YAML; the log being markdown was an inconsistency with no reason behind it.
+
+**Changed:** `logs/<task-id>.md` with fenced ```divergence``` blocks → `logs/<task-id>.yaml`, one `entries:` list. Prose stays inside the entry, in `notes:` — a sibling `.md` beside the `.yaml` was considered and rejected as two sources of truth in the one artefact that exists to have exactly one. JSONL was rejected as materially worse to read in a pull request during escalation triage.
+
+**Unchanged — the substance of D-21a stands in full:** one file per task, append-only, grade copied at write time, silence is a finding, evidence must be locatable.
+
+**Migration:** a single-use `scripts/migrate_logs.py`; the gate accepts YAML only — dual-format support is two code paths forever, so compatibility lived in the converter and died with it.
+
+**Also edits:** RFC 0003 §7 (example), the shipped `flag-dont-flip` skill (format section).
+
+### A-4 — 2026-08-21 — git and store: a boundary, not a prohibition (amends D-27)
+
+**Found in review.** D-27 read as "nothing ever moves from git to a database", which raised a fair question: how does anything query execution history, then? The decision was written as a ban when it is a division of authority.
+
+**The boundary:** git holds what should be (task contracts, gate manifests, RFCs, decision tables, divergence logs — diffable, sha-pinned, reviewed); the store holds what happened (run state, leases, attempts, gate results, findings, telemetry). The engine **may** index git-held artefacts into the store for querying; what is forbidden is the reverse — making the store authoritative for them. One direction: git → store, read-only projection.
+
+**Also clarified — task contracts are derived artefacts**, lockfile-grade: `torve plan` mints them mechanically. They belong in git for reproducibility (an attempt is pinned to a sha; six months later the contract the agent saw is retrievable) and refusability (a human can see it in a diff and refuse it). The store holds only `task_id` plus sha.
+
+### A-5 — 2026-08-21 — agents do not communicate; the runner coordinates (records D-31)
+
+**Raised in review:** if execution facts live in a store, how do agents become aware of what other agents are doing? **They do not, by design.** What an agent may touch is copied into its contract; what has already been decided is copied there too, with grades; what others are doing is known to the runner, which uses it to avoid dispatching overlapping tasks. Quality comes from every agent receiving a complete, isolated, non-overlapping contract — not from agents sharing knowledge. Knowledge accumulates as facts in the store and is read once per phase by a human with an expensive model, who writes the next contracts.
+
+**Falsifiable prediction:** if this model is wrong, tasks escalate with "insufficient context about adjacent work". Until that appears in telemetry, no change.
+
+### A-7 — 2026-08-21 — document conventions (adds D-A.1 – D-A.8)
+
+**Found in repository review.** `rfcs/` held three kinds of document with nothing expressing the difference: decision-bearing designs, executed procedures, and a hand-maintained index that had already drifted.
+
+**The sorting rule (D-A.1):** a document with a table of graded decisions is an RFC and gets a number; published documentation goes to `pages/` (which links to decisions and never restates them); one-off procedures go to `ops/` and are deleted once executed. By this rule the migrations, CLI-contract and configuration-layout documents were promoted to RFCs 0011–0013 (their decision identifiers renumbered to `D-11.*`/`D-12.*`/`D-13.*` while nothing referenced them), and the skill-specialisation guide moved to `ops/`.
+
+**Structure (D-A.2, D-A.3, D-A.6):** structured facts — id, status, dependencies, amendments, owner — live in YAML frontmatter; decision tables stay in markdown, hard-validated by `rfc_index.py`; `INDEX.md` is generated from frontmatter and CI-checked like a lockfile.
+
+**Amendments (D-A.5):** each amendment lives in the `## Amendments` section of its primary target with globally-unique numbering; the standalone `AMENDMENTS.md` file was dispersed into targets (A-1/A-4/A-5/A-7 here, A-2 → RFC 0002, A-3 → RFC 0009, A-6 → RFC 0003) and deleted.
+
+**Logs (D-A.7):** a task log pins `repo` and `base_sha`, so `path:line` evidence resolves six months later to the text the agent actually saw — self-contained means complete relative to a commit, not independent of the repository.
+
+**Executed 2026-08-21:** dev-era task logs were deleted after their divergences were promoted into decision tables, and the discovery-phase history was collapsed to a single commit.

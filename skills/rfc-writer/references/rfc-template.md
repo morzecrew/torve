@@ -5,9 +5,24 @@ Copy the skeleton below into `NNNN-kebab-title.md`. Replace `<placeholders>`, de
 ---
 
 ```markdown
+---
+id: "NNNN"
+title: <Title>
+status: draft
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: <name>
+description: >-
+  <One sentence, ~200 chars: which design this is, not what it decided.
+  Becomes the generated index's routing line.>
+schema_version: 1
+---
+
 # RFC NNNN — <Title>
 
-- **Status:** 📝 Draft
 - **Scope:** <One dense paragraph: what this RFC covers and what it deliberately
   does not. New packages/modules touched, contract changes (or "no contract
   changes"), the boundary of the blast radius. This is the paragraph a reader
@@ -115,11 +130,13 @@ style is fine if the workstreams are named in §5.>
   use a different section set or numbering (say, Decisions at §10), match the
   corpus — `§NN` cross-references must stay unambiguous across the directory.
   This skeleton is for directories without an established shape.
-- **Header ↔ filename sync:** the `NNNN` in the H1 must match the filename.
-- **Status annotations:** the status line is allowed to carry nuance —
-  "📝 Draft (execution-ready — one PR)", "📝 Draft — design locked, **not
-  scheduled**", "✅ Complete — Shipped 2026-06-29: …; only P5 remains".
-  Prefer an annotated true status over a clean false one.
+- **Header ↔ filename sync:** the `NNNN` in the H1 and the frontmatter `id`
+  must match the filename; the H1 title must equal the frontmatter `title`.
+- **Status lives in frontmatter** (charter D-A.2): `draft` until reviewed and
+  depended on, then `accepted`; `superseded` only alongside `superseded_by`.
+  Nuance ("phases 1–2 shipped; outstanding: …") goes in a body
+  `- **Implementation state:**` line, not into the status value — an annotated
+  true status beats a clean false one, and the queryable field stays clean.
 - **Amendments over rewrites:** once an RFC leaves Draft, the decision table
   is append-only — a reversed decision gets a new row citing the row it
   reverses, not an edit. History someone relied on stays readable. A change of
@@ -127,8 +144,9 @@ style is fine if the workstreams are named in §5.>
   affected section; what **execution** found does not, since that already lives
   in the task's log and reaches the RFC as an appended row citing its
   entry. Restating the log's narrative here guarantees the two disagree later.
-- **Index row:** written at the same time as the RFC. The one-liner is a
-  routing description, not a summary — one sentence saying which design this
-  is, so a reader knows whether to open the file. What it decided belongs in
-  §1 and §11, and the index never carries history. Target 200 characters,
-  ceiling 300.
+- **Index row:** generated, never written (charter D-A.6) — `rfc_index.py
+  generate` builds INDEX.md from frontmatter, and `check` fails CI when it
+  drifts. The frontmatter `description` is the routing line: one sentence
+  saying which design this is, so a reader knows whether to open the file.
+  What it decided belongs in §1 and §11, and the index never carries history.
+  Target 200 characters, ceiling 300.

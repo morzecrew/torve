@@ -1,6 +1,20 @@
+---
+id: "0007"
+title: Planner and context
+status: draft
+depends_on: ["0003"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Lev Litvinov
+description: >-
+  Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface.
+schema_version: 1
+---
+
 # RFC 0007 — Planner and context
 
-- **Status:** 📝 Draft — depends on enough accumulated execution data to project
 - **Scope:** The planner module: minting tasks from an approved RFC, projecting execution facts back into a planning session, and the read-only MCP surface. Excludes any model call inside the engine, permanently.
 - **Inherits:** D-1, D-2, D-2a, D-25 from RFC 0001
 

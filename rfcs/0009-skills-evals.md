@@ -1,6 +1,20 @@
+---
+id: "0009"
+title: Skills and evals
+status: accepted
+depends_on: ["0004"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: ["A-3"]
+owner: Lev Litvinov
+description: >-
+  Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens.
+schema_version: 1
+---
+
 # RFC 0009 — Skills and evals
 
-- **Status:** 📝 Draft — depends on 0004 for measurement
 - **Scope:** How agent skills are selected, versioned, distributed across repositories, and measured. Covers trigger collision, per-role skill sets, and the eval loop that decides whether a skill earns its tokens. Excludes writing individual skills.
 - **Inherits:** D-3 (skills are convention, gates are enforcement), D-25 from RFC 0001
 - **Related:** `agent-skills` · `skill-creator` · `distill-the-rule` · `ratchet-what-you-build`
@@ -96,3 +110,17 @@ This also gives a retirement path in the other direction: once a gate exists and
 - Role-scoped sets configured and truncation events visible in telemetry.
 - Evals run for the whole library, with at least one skill retired on evidence.
 - Every cluster-C skill paired with a gate, or an explicit written decision that this class is caught by humans.
+
+## Amendments
+
+### A-3 — 2026-08-21 — skills whose format Torve parses ship with Torve (adds D-9.7)
+
+**Found in implementation.** A skill and its gate encode one rule in two forms. Versioned separately, they drift: the gate tightens in the package, the skill in another repository does not know, and agents write to the old rule and redden on every task.
+
+**Changed:** a skill and its gate are **one unit of versioning**. Skills whose output Torve parses ship with the package: `flag-dont-flip` (parsed by `decisions_reported`), `rfc-writer` (parsed by `RfcDirectory` and `rfc_index`), `ratchet-what-you-build` (parsed by `sabotage`). Everything else stays in `agent-skills`. `escape-hatch-policy` was on the list and removed on review — same word, different concept; three skills move, not four.
+
+**The boundary is narrow and should stay narrow.** The test: *does Torve parse what this skill produces?* Without that line, most of the verification cluster gets pulled in and Torve ends up owning fifteen skills instead of three.
+
+**Distribution: none required on the engine path.** The runner writes the role-scoped skill set into the sandbox from package data at dispatch time; nothing is checked into the consuming repository, so nothing can drift, and the skill version is the Torve version by construction. No bespoke installer.
+
+**Consequence for D-9.3:** `config_hash` includes the Torve package version, not only the `agent-skills` lockfile — otherwise upgrading Torve silently changes the regime and telemetry does not notice.

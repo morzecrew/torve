@@ -236,7 +236,7 @@ def cancel(task_id: str, root: Path) -> None:
 @click.option("--root", type=click.Path(exists=True, file_okay=False, path_type=Path),
               default=Path("."), show_default=True)
 def migrate_cmd(target: str | None, apply_all: bool, show_status: bool, root: Path) -> None:
-    """Owner-grouped, forward-only SQL migrations (rfcs/MIGRATIONS.md).
+    """Owner-grouped, forward-only SQL migrations (rfcs/0012-migrations.md).
 
     Three histories — torve, substrate (pinned to a forze version), telemetry
     (stage 3+) — each with its own version counter. No downgrade exists."""
@@ -276,7 +276,7 @@ def migrate_cmd(target: str | None, apply_all: bool, show_status: bool, root: Pa
 
 @main.command("doctor")
 def doctor() -> None:
-    """Preflight checks. Today: the forze pin (D-M.7) — a schema mismatch
+    """Preflight checks. Today: the forze pin (D-12.7) — a schema mismatch
     must be a check, not a symptom discovered through adapter behaviour."""
     from torve.migrate import check_forze_pin
 

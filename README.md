@@ -9,12 +9,17 @@ cannot prove it did what it was told.
 ## Contents
 
 ```text
-rfcs/                      the design corpus (+ AMENDMENTS.md, the record of changes)
+rfcs/                      the design corpus; INDEX.md is generated (D-A.6),
+                           amendments live inside their target RFCs (D-A.5)
+ops/                       one-off procedures, deleted once executed (D-A.1b)
+pages/                     published documentation — links to decisions,
+                           never restates them (D-A.1a)
 src/torve/                 the gates library and runner (RFC 0002 + 0003)
 skills/                    specialised skills shipped with the package (A-3)
 gates.yaml                 this repository's own gate manifest
 torve.yaml                 runner configuration (runtime adapter, store, ceilings)
-tasks/  logs/              task contracts and YAML execution logs (A-1)
+tasks/  logs/              task contracts and YAML execution logs (A-1),
+                           logs pinned to a base_sha (D-A.7)
 ```
 
 ## Gates (RFC 0002, shipped here)
@@ -79,6 +84,9 @@ amendment against 0001 rather than contradicting it locally.
 | `0008-tracker-projection.md` | any task tracker as a presentation surface |
 | `0009-skills-evals.md` | skill routing, distribution, and evals that retire skills |
 | `0010-vcs-provenance-revert.md` | how work lands, how history explains itself, how it is undone |
+| `0011-cli-contract.md` | output contract, exit codes, non-TTY behaviour — decided before anything parses them |
+| `0012-migrations.md` | owner-grouped SQL migrations; the forze pin; the conformance battery as the gate |
+| `0013-configuration-layout.md` | where Torve's files live in a consuming repository, and why two files |
 
 ## Ship order
 

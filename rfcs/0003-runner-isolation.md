@@ -1,6 +1,21 @@
+---
+id: "0003"
+title: Runner and isolation
+status: accepted
+depends_on: ["0002"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: ["A-6"]
+owner: Lev Litvinov
+description: >-
+  `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
+schema_version: 1
+---
+
 # RFC 0003 — Runner and isolation
 
-- **Status:** 🚧 In progress — phases 1–2 shipped 2026-08-21 (T-0003 runner core and both runtime adapters; T-0004 durable store facade with leases/fencing/cancellation, recovery-driven reap, DST simulation with broken twins). Outstanding: live OpenSandbox server integration, the pull-request leg (needs a remote), transactional notifications (deferred to RFC 0006 — see logs/T-0004.yaml)
+- **Implementation state:** phases 1–2 shipped 2026-08-21 (T-0003 runner core and both runtime adapters; T-0004 durable store facade with leases/fencing/cancellation, recovery-driven reap, DST simulation with broken twins). Outstanding: live OpenSandbox server integration, the pull-request leg (needs a remote), transactional notifications (deferred to RFC 0006)
 - **Scope:** `torve run` for a single task, synchronously: workspace, sandbox, dispatch, gates, artefacts, reaper, and the simulation harness that proves the state machine correct. Uses a fake agent only. Excludes real agents (0004), review (0005), merging (0006), planning (0007).
 - **Inherits:** D-1, D-3, D-4, D-4b, D-5, D-5a, D-22 from RFC 0001
 
@@ -117,18 +132,18 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 | D-3.4 | `LOCKED` | Names for ports, databases, volumes and sandboxes derive from the task id | `src/torve/naming.py` | Cleanup by convention depends on it entirely |
 | D-3.5 | `ASSUMED` | Simulation is the primary concurrency-verification tool; each invariant ships with a reachability target and a broken twin | `tests/dst_world.py` `tests/test_dst.py` | Depart if the harness cannot see the invariants |
 | D-3.6 | `ASSUMED` | Mock for tests, Postgres for real runs | `src/torve/adapters/durable_store.py` | Substrate property, not a choice |
-| D-3.7 | `ASSUMED` | Runner configuration lives in `torve.yaml` at the repository root, reviewed like `gates.yaml` but on its own cadence; RFC 0004's tier mapping joins it there. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `torve.yaml` `src/torve/runconfig.py` | Keeps gate manifest and runner knobs on separate release cadences |
-| D-3.8 | `ASSUMED` | `torve run` executes shell gates in a fresh sandbox from the same image over the same worktree; pure gates run in the engine. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/run.py` | An agent-staged PATH shim cannot fake a gate outcome |
-| D-3.9 | `ASSUMED` | Until RFC 0005 ships, the runner auto-transitions gated → reviewed with the recorded fact "review not configured"; the transition table stays unchanged. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/run.py` | Review slots in without a state-machine change |
-| D-3.10 | `ASSUMED` | v1 liveness is a heartbeat in the JSON state file; the reaper escalates stale non-terminal runs as `lease_expired`. Replaced by real leases in T-0004. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/reaper.py` | The kill -9 exit criterion holds before the durable store exists |
-| D-3.11 | `ASSUMED` | The Runtime contract is "workspace in, changed files out": Docker satisfies it by bind mount, OpenSandbox by tar-over-files-API sync; the conformance battery asserts the contract, not the mechanism. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `src/torve/ports.py` `src/torve/adapters/**` | Server-side runtimes fit the same port as local ones |
-| D-3.12 | `ASSUMED` | The opensandbox SDK ships as the optional extra `torve[opensandbox]`; the adapter import-guards it. Added by execution 2026-08-21 — see logs/T-0003.yaml (unlisted, attempt 1) | `pyproject.toml` | Consuming repositories do not pay for an adapter they do not use |
-| D-3.13 | `ASSUMED` | Torve owns the DDL and migrations for the substrate tables it uses, applied by `torve migrate substrate` *(command renamed per MIGRATIONS.md; was `torve store provision`)*; the conformance battery against the migrated database is a required gate (A-6). Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | `src/torve/adapters/durable_store.py` | The substrate documents schemas but ships no provisioning path |
-| D-3.14 | `ASSUMED` | Durable status maps to task state as: COMPLETED wraps every engine verdict (ready and escalated alike), FAILED is an unhandled engine exception, CANCELLED is escalation `killed`, TIMED_OUT is `budget_exhausted`. Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | `src/torve/run.py` | The store records that the run finished deciding, not what it decided |
-| D-3.15 | `ASSUMED` | Under the in-process mock store the reaper keeps the v1 heartbeat heuristic; under Postgres the lease is the liveness authority via `claim_abandoned`. Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | `src/torve/reaper.py` | Cross-process durability requires Postgres (D-3.6), stated in configuration |
-| D-3.16 | `ASSUMED` | `torve reap --force` is the one deliberate use of an unfenced terminal write — an operator override so a stuck system is always drainable. Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | `src/torve/taskstore.py` | Fencing protects runs from stale workers, not from operators |
-| D-3.17 | `ASSUMED` | Cancel observation latency is one lease heartbeat plus the current port call, bounded by the agent hard timeout. Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | `src/torve/run.py` | §5's "a body that never awaits" caveat, made concrete |
-| D-3.18 | `ASSUMED` | Transactional notifications and the delivered-notification simulation invariant land with RFC 0006, where the Notifier policy lives. Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | `src/torve/taskstore.py` | Until then escalations are visible through `torve status` only |
+| D-3.7 | `ASSUMED` | Runner configuration lives in `torve.yaml` at the repository root, reviewed like `gates.yaml` but on its own cadence; RFC 0004's tier mapping joins it there. Added by execution 2026-08-21 | `torve.yaml` `src/torve/runconfig.py` | Keeps gate manifest and runner knobs on separate release cadences |
+| D-3.8 | `ASSUMED` | `torve run` executes shell gates in a fresh sandbox from the same image over the same worktree; pure gates run in the engine. Added by execution 2026-08-21 | `src/torve/run.py` | An agent-staged PATH shim cannot fake a gate outcome |
+| D-3.9 | `ASSUMED` | Until RFC 0005 ships, the runner auto-transitions gated → reviewed with the recorded fact "review not configured"; the transition table stays unchanged. Added by execution 2026-08-21 | `src/torve/run.py` | Review slots in without a state-machine change |
+| D-3.10 | `ASSUMED` | v1 liveness is a heartbeat in the JSON state file; the reaper escalates stale non-terminal runs as `lease_expired`. Replaced by real leases in T-0004. Added by execution 2026-08-21 | `src/torve/reaper.py` | The kill -9 exit criterion holds before the durable store exists |
+| D-3.11 | `ASSUMED` | The Runtime contract is "workspace in, changed files out": Docker satisfies it by bind mount, OpenSandbox by tar-over-files-API sync; the conformance battery asserts the contract, not the mechanism. Added by execution 2026-08-21 | `src/torve/ports.py` `src/torve/adapters/**` | Server-side runtimes fit the same port as local ones |
+| D-3.12 | `ASSUMED` | The opensandbox SDK ships as the optional extra `torve[opensandbox]`; the adapter import-guards it. Added by execution 2026-08-21 | `pyproject.toml` | Consuming repositories do not pay for an adapter they do not use |
+| D-3.13 | `ASSUMED` | Torve owns the DDL and migrations for the substrate tables it uses, applied by `torve migrate substrate` *(command renamed per 0012-migrations.md; was `torve store provision`)*; the conformance battery against the migrated database is a required gate (A-6). Added by execution 2026-08-21 | `src/torve/adapters/durable_store.py` | The substrate documents schemas but ships no provisioning path |
+| D-3.14 | `ASSUMED` | Durable status maps to task state as: COMPLETED wraps every engine verdict (ready and escalated alike), FAILED is an unhandled engine exception, CANCELLED is escalation `killed`, TIMED_OUT is `budget_exhausted`. Added by execution 2026-08-21 | `src/torve/run.py` | The store records that the run finished deciding, not what it decided |
+| D-3.15 | `ASSUMED` | Under the in-process mock store the reaper keeps the v1 heartbeat heuristic; under Postgres the lease is the liveness authority via `claim_abandoned`. Added by execution 2026-08-21 | `src/torve/reaper.py` | Cross-process durability requires Postgres (D-3.6), stated in configuration |
+| D-3.16 | `ASSUMED` | `torve reap --force` is the one deliberate use of an unfenced terminal write — an operator override so a stuck system is always drainable. Added by execution 2026-08-21 | `src/torve/taskstore.py` | Fencing protects runs from stale workers, not from operators |
+| D-3.17 | `ASSUMED` | Cancel observation latency is one lease heartbeat plus the current port call, bounded by the agent hard timeout. Added by execution 2026-08-21 | `src/torve/run.py` | §5's "a body that never awaits" caveat, made concrete |
+| D-3.18 | `ASSUMED` | Transactional notifications and the delivered-notification simulation invariant land with RFC 0006, where the Notifier policy lives. Added by execution 2026-08-21 | `src/torve/taskstore.py` | Until then escalations are visible through `torve status` only |
 
 ## 9. Exit criteria
 
@@ -136,3 +151,17 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 - Simulation sweep passes with every reachability target fired and every broken twin caught.
 - `torve reap` provably cleans up after a `kill -9` mid-run.
 - One task taken end to end to an open pull request, with all artefacts persisted.
+
+## Amendments
+
+### A-6 — 2026-08-21 — substrate schema provisioning is ours (amends §7)
+
+**Found in implementation.** §7 stated that substrate tables have their own provisioning path. They do not — forze documents its schemas in docstrings and ships no migrations. The claim was inferred, never verified.
+
+**Changed:** Torve owns migrations for the substrate tables it uses (run store, step store, and later outbox/inbox/schedules/idempotency/locks) as well as for its own document tables. One set, Postgres only — multi-backend was already moot under D-3.6. The full design is RFC 0012. *(Revised 2026-08-21: the runner is yoyo over raw SQL steps; alembic is rejected — torve has no sqlalchemy models for it to work from.)*
+
+**The schema contract is enforced by test, not by file.** The differential conformance battery runs the same properties against the mock and a migrated real Postgres; running it against the migrated database is a required gate (D-12.9).
+
+**Rejected — generating migrations inside forze:** it is a backend engine, not a migration generator, and generated migrations need review regardless.
+
+**Consequence, and the real cost of this finding:** substrate schema versions are pinned alongside the forze version (`migrations/substrate/FORZE_VERSION`); the pin joins `config_hash`, and a forze upgrade that changes a substrate schema is a migration task in Torve, not a silent `pip install -U`.

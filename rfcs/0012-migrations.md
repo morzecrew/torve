@@ -1,4 +1,21 @@
-# Migrations
+---
+id: "0012"
+title: Migrations
+status: accepted
+depends_on: ["0003"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Lev Litvinov
+description: >-
+  Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a
+  forze version), telemetry from stage 3; yoyo behind the migrate extra,
+  torve doctor, and the conformance battery as the gate.
+schema_version: 1
+---
+
+# RFC 0012 — Migrations
 
 Who owns which schema, how each is versioned, and what must be decided now.
 
@@ -136,18 +153,18 @@ Both are blocking gates in the Torve repository's own CI. A migration that has n
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-M.1 | `LOCKED` | Migrations are grouped by schema owner first, engine second | `migrations/**` | Substrate versioning is driven by forze, not by us; interleaving makes the deployed version unknowable |
-| D-M.2 | `ASSUMED` | Plain SQL, no migration DSL | `migrations/**` | Revisit only if a SQLAlchemy model ever appears to generate from |
-| D-M.3 | `ASSUMED` | `yoyo-migrations` behind the `migrate` extra, imported lazily | `src/torve/migrate.py` `pyproject.toml` | Portable to dbmate without touching the `.sql` files |
-| D-M.4 | `LOCKED` | No `downgrade`; forward-only plus backups | `migrations/**` | A downgrade path that does not work is worse than none |
-| D-M.5 | `LOCKED` | Checksums enabled; editing an applied migration fails | `src/torve/migrate.py` | The main cause of environment divergence |
-| D-M.6 | `LOCKED` | `torve migrate` takes a target from the first release | `src/torve/cli.py` | Adding a required positional later breaks callers |
-| D-M.7 | `LOCKED` | Substrate migrations pin a forze version; `torve doctor` enforces it | `migrations/substrate/FORZE_VERSION` `src/torve/cli.py` | A schema mismatch must be a check, not a symptom |
-| D-M.8 | `ASSUMED` | No telemetry migrations before stage 3; ClickHouse gets its own runner | `migrations/**` | A file has no schema; non-transactional DDL breaks transactional runners |
-| D-M.9 | `LOCKED` | Conformance battery runs against both a from-scratch and an upgraded database, blocking | `tests/test_postgres_integration.py` | The schema contract is a test; an unrun test is not a contract |
-| D-M.10 | `ASSUMED` | Migrations hardcode the canonical relation names (`public.torve_durable_run`, `public.torve_durable_step`), which are `StoreConfig`'s defaults; the config fields remain for embedders and tests, and a deployment that renames them owns its own DDL. Added by execution 2026-08-21 — see logs/T-0006.yaml (unlisted, attempt 1) | `migrations/substrate/postgres/0001_durable.sql` `src/torve/runconfig.py` | Static SQL files cannot parametrize table names |
-| D-M.11 | `ASSUMED` | The `torve` owner directory exists from day one with a README and no steps, so `torve migrate torve` is a stable no-op rather than an unknown target; §1's prohibition stays about speculative engines. Added by execution 2026-08-21 — see logs/T-0006.yaml (unlisted, attempt 1) | `migrations/torve/postgres/**` | D-M.6 needs every target resolvable from the first release |
-| D-M.12 | `ASSUMED` | Until a second migration exists, §7's run 2 is the populated form — rows present, re-apply a checksummed no-op, battery re-run; the restore-from-previous form becomes real with the first genuine schema change. Added by execution 2026-08-21 — see logs/T-0006.yaml (unlisted, attempt 1) | `tests/test_postgres_integration.py` | One migration has no previous release's schema to restore |
-| D-M.13 | `ASSUMED` | `torve migrate` replaces `torve store provision` outright — no dual support, and nothing was released to deprecate. Added by execution 2026-08-21 — see logs/T-0006.yaml (unlisted, attempt 1) | `src/torve/cli.py` | Two ways to create one schema diverge |
-| D-M.14 | `ASSUMED` | `config_hash` digests the `FORZE_VERSION` pin file — the schema regime the migrations were written against — not the installed forze version; `torve doctor` is what compares pin to installed. Added by execution 2026-08-21 — see logs/T-0006.yaml (unlisted, attempt 1) | `src/torve/manifest.py` | A mismatch is a failing check, not a silently different hash |
-| D-M.15 | `ASSUMED` | The migrate module normalizes DSNs to `postgresql+psycopg://` before handing them to yoyo; operator DSNs stay in the standard form everywhere else. Added by execution 2026-08-21 — see logs/T-0006.yaml (unlisted, attempt 1) | `src/torve/migrate.py` | yoyo routes bare `postgresql://` through psycopg2, which torve does not ship |
+| D-12.1 | `LOCKED` | Migrations are grouped by schema owner first, engine second | `migrations/**` | Substrate versioning is driven by forze, not by us; interleaving makes the deployed version unknowable |
+| D-12.2 | `ASSUMED` | Plain SQL, no migration DSL | `migrations/**` | Revisit only if a SQLAlchemy model ever appears to generate from |
+| D-12.3 | `ASSUMED` | `yoyo-migrations` behind the `migrate` extra, imported lazily | `src/torve/migrate.py` `pyproject.toml` | Portable to dbmate without touching the `.sql` files |
+| D-12.4 | `LOCKED` | No `downgrade`; forward-only plus backups | `migrations/**` | A downgrade path that does not work is worse than none |
+| D-12.5 | `LOCKED` | Checksums enabled; editing an applied migration fails | `src/torve/migrate.py` | The main cause of environment divergence |
+| D-12.6 | `LOCKED` | `torve migrate` takes a target from the first release | `src/torve/cli.py` | Adding a required positional later breaks callers |
+| D-12.7 | `LOCKED` | Substrate migrations pin a forze version; `torve doctor` enforces it | `migrations/substrate/FORZE_VERSION` `src/torve/cli.py` | A schema mismatch must be a check, not a symptom |
+| D-12.8 | `ASSUMED` | No telemetry migrations before stage 3; ClickHouse gets its own runner | `migrations/**` | A file has no schema; non-transactional DDL breaks transactional runners |
+| D-12.9 | `LOCKED` | Conformance battery runs against both a from-scratch and an upgraded database, blocking | `tests/test_postgres_integration.py` | The schema contract is a test; an unrun test is not a contract |
+| D-12.10 | `ASSUMED` | Migrations hardcode the canonical relation names (`public.torve_durable_run`, `public.torve_durable_step`), which are `StoreConfig`'s defaults; the config fields remain for embedders and tests, and a deployment that renames them owns its own DDL. Added by execution 2026-08-21 | `migrations/substrate/postgres/0001_durable.sql` `src/torve/runconfig.py` | Static SQL files cannot parametrize table names |
+| D-12.11 | `ASSUMED` | The `torve` owner directory exists from day one with a README and no steps, so `torve migrate torve` is a stable no-op rather than an unknown target; §1's prohibition stays about speculative engines. Added by execution 2026-08-21 | `migrations/torve/postgres/**` | D-12.6 needs every target resolvable from the first release |
+| D-12.12 | `ASSUMED` | Until a second migration exists, §7's run 2 is the populated form — rows present, re-apply a checksummed no-op, battery re-run; the restore-from-previous form becomes real with the first genuine schema change. Added by execution 2026-08-21 | `tests/test_postgres_integration.py` | One migration has no previous release's schema to restore |
+| D-12.13 | `ASSUMED` | `torve migrate` replaces `torve store provision` outright — no dual support, and nothing was released to deprecate. Added by execution 2026-08-21 | `src/torve/cli.py` | Two ways to create one schema diverge |
+| D-12.14 | `ASSUMED` | `config_hash` digests the `FORZE_VERSION` pin file — the schema regime the migrations were written against — not the installed forze version; `torve doctor` is what compares pin to installed. Added by execution 2026-08-21 | `src/torve/manifest.py` | A mismatch is a failing check, not a silently different hash |
+| D-12.15 | `ASSUMED` | The migrate module normalizes DSNs to `postgresql+psycopg://` before handing them to yoyo; operator DSNs stay in the standard form everywhere else. Added by execution 2026-08-21 | `src/torve/migrate.py` | yoyo routes bare `postgresql://` through psycopg2, which torve does not ship |

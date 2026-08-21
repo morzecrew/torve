@@ -1,6 +1,7 @@
 """Skills as package data (A-3, D-9.7): the runner materializes the role's
 set into the sandbox, the specialisation is visible, and the hardened
-rfc_index reddens exactly where the guide promises (SPECIALISATION §7)."""
+rfc_index reddens exactly where the conventions promise (charter D-A.3,
+D-A.6; the four deliberate breakages of ops/skill-specialisation.md §7)."""
 
 from __future__ import annotations
 
@@ -55,12 +56,25 @@ def test_materialize_refuses_an_unknown_skill(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# hardened rfc_index (SPECIALISATION §7: verify by breaking one of each)
+# hardened rfc_index (A-7 §7.6: verify the validator by breaking one of each)
 # --------------------------------------------------------------------------- #
 
-GOOD_RFC = """# RFC 0001 — Widget
+GOOD_RFC = """---
+id: "0001"
+title: Widget
+status: accepted
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: Test Owner
+description: The widget design.
+schema_version: 1
+---
 
-- **Status:** 📝 Draft
+# RFC 0001 — Widget
+
 - **Scope:** A widget.
 
 ## 1. Decisions
@@ -71,58 +85,85 @@ GOOD_RFC = """# RFC 0001 — Widget
 | D-2 | `ASSUMED` | Blue is calming | — | — |
 """
 
-INDEX = """# RFCs
 
-The next free number is **0002**.
-
-## Index
-
-| # | Title | Status | One-line routing description |
-|---|---|---|---|
-| [0001](0001-widget.md) | Widget | 📝 Draft | The widget design. |
-"""
-
-
-def run_check(tmp_path: Path, rfc_text: str) -> subprocess.CompletedProcess:
+def run_check(
+    tmp_path: Path, rfc_text: str, tamper_index: str | None = None
+) -> subprocess.CompletedProcess[str]:
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir()
+    (tmp_path / "src" / "widget").mkdir(parents=True)
+    (tmp_path / "src" / "widget" / "core.py").write_text("x = 1\n", encoding="utf-8")
     (rfcs / "0001-widget.md").write_text(rfc_text, encoding="utf-8")
-    (rfcs / "INDEX.md").write_text(INDEX, encoding="utf-8")
+    subprocess.run(
+        [sys.executable, str(RFC_INDEX), "--root", str(tmp_path), "generate"],
+        capture_output=True, text=True, check=True,
+    )
+    if tamper_index is not None:
+        index = rfcs / "INDEX.md"
+        index.write_text(index.read_text(encoding="utf-8") + tamper_index, encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(RFC_INDEX), "--root", str(tmp_path), "check"],
         capture_output=True, text=True, check=False,
     )
 
 
-def test_a_pathed_graded_table_passes(tmp_path):
+def test_a_conforming_corpus_passes(tmp_path):
     result = run_check(tmp_path, GOOD_RFC)
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_a_locked_row_without_paths_reddens(tmp_path):
-    broken = GOOD_RFC.replace("| `src/widget/**` |", "| — |", 1)
-    result = run_check(tmp_path, broken)
-    assert result.returncode == 2
-    assert "declares no Paths" in result.stdout
-
-
-def test_a_missing_paths_column_reddens(tmp_path):
-    broken = GOOD_RFC.replace(" Paths |", "", 1).replace("| `src/widget/**` ", "", 1)\
-                     .replace("| — | — |\n", "| — |\n")
-    result = run_check(tmp_path, broken)
-    assert result.returncode == 2
-    assert "no Paths column" in result.stdout
-
+# The four deliberate breakages (A-7 §7.6): a validator never observed to
+# fail is not a validator.
 
 def test_an_ungraded_row_reddens(tmp_path):
-    broken = GOOD_RFC.replace("`ASSUMED`", "`PROBABLY`")
-    result = run_check(tmp_path, broken)
+    result = run_check(tmp_path, GOOD_RFC.replace("`ASSUMED`", "`PROBABLY`"))
     assert result.returncode == 2
     assert "PROBABLY" in result.stdout
 
 
+def test_a_locked_row_without_paths_reddens(tmp_path):
+    result = run_check(tmp_path, GOOD_RFC.replace("| `src/widget/**` |", "| — |", 1))
+    assert result.returncode == 2
+    assert "declares no Paths" in result.stdout
+
+
 def test_a_duplicate_identifier_reddens(tmp_path):
-    broken = GOOD_RFC + "| D-1 | `ASSUMED` | A twin | — | — |\n"
+    result = run_check(tmp_path, GOOD_RFC + "| D-1 | `ASSUMED` | A twin | — | — |\n")
+    assert result.returncode == 2
+    assert "already used" in result.stdout
+
+
+def test_a_hand_edited_index_reddens(tmp_path):
+    result = run_check(tmp_path, GOOD_RFC, tamper_index="| hand-added row |\n")
+    assert result.returncode == 2
+    assert "generated output" in result.stdout
+
+
+# And the newer checks past the four:
+
+def test_an_accepted_glob_matching_nothing_reddens(tmp_path):
+    result = run_check(tmp_path, GOOD_RFC.replace("`src/widget/**`", "`src/nothing/**`"))
+    assert result.returncode == 2
+    assert "matches nothing" in result.stdout
+
+
+def test_a_draft_may_name_intended_modules(tmp_path):
+    draft = GOOD_RFC.replace("status: accepted", "status: draft").replace(
+        "`src/widget/**`", "`src/not-built-yet/**`"
+    )
+    result = run_check(tmp_path, draft)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_missing_frontmatter_reddens(tmp_path):
+    body = GOOD_RFC.split("---\n", 2)[2]
+    result = run_check(tmp_path, body)
+    assert result.returncode == 2
+    assert "frontmatter" in result.stdout
+
+
+def test_a_leftover_prose_status_line_reddens(tmp_path):
+    broken = GOOD_RFC.replace("- **Scope:**", "- **Status:** 📝 Draft\n- **Scope:**")
     result = run_check(tmp_path, broken)
     assert result.returncode == 2
-    assert "appears twice" in result.stdout
+    assert "frontmatter (D-A.2)" in result.stdout or "prose" in result.stdout

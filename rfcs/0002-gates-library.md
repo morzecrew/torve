@@ -1,6 +1,21 @@
+---
+id: "0002"
+title: Gates as a library
+status: accepted
+depends_on: ["0001"]
+informed_by: []
+supersedes: []
+superseded_by: null
+amended_by: ["A-2"]
+owner: Lev Litvinov
+description: >-
+  The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment.
+schema_version: 1
+---
+
 # RFC 0002 — Gates as a library
 
-- **Status:** 🚧 In progress — library, six gates, sabotage suite and CI shipped in this repository (2026-08-21); exit criteria outstanding: a second consuming repository and two weeks of telemetry
+- **Implementation state:** library, six gates, sabotage suite and CI shipped in this repository (2026-08-21); exit criteria outstanding: a second consuming repository and two weeks of telemetry
 - **Scope:** The gate contract, the starting gate set, how gates are verified, and packaging them as a dependency repositories install into CI. No runner, no store, no sandbox, no agents. Excludes anything requiring `torve run`.
 - **Inherits:** D-3 (gates run outside the agent session), D-8, D-21a from RFC 0001
 - **Related:** RFC 0001 §6 (task contract, execution log) · `flag-dont-flip` · `ratchet-what-you-build`
@@ -146,17 +161,27 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 | D-2.7 | `LOCKED` | Bypass requires a human signature, a mandatory reason, a log entry and a counter | `src/torve/runner.py` `src/torve/context.py` | An uncounted bypass becomes an invisible workaround |
 | D-2.8 | `LOCKED` | Secret scanning blocks and cannot be bypassed | `src/torve/gates/secrets.py` | The one failure class that a follow-up commit cannot repair |
 | D-2.9 | `ASSUMED` | Task size is a port with pre-dispatch estimate and post-hoc calibration | `src/torve/sizing.py` | Static thresholds first; telemetry-driven later |
-| D-2.10 | `ASSUMED` | `self-audit` is a deterministic log-presence check (input `log`): the execution log must exist and carry a `Drift count` line; agent-side audits arrive with RFC 0004. Added by execution 2026-08-21 — see logs/T-0002.yaml (D-2.3, attempt 1) | `src/torve/gates/self_audit.py` | Departs from §4's `worktree` input until a runner exists |
-| D-2.11 | `LOCKED` | The bypass signature is a `Torve-Bypass: <gate>: <reason>` commit trailer; the record carries the commit's author, is counted per gate and appended to the task log; secrets stays exempt. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `src/torve/runner.py` `src/torve/context.py` | Makes D-2.7 checkable in engine-less CI |
-| D-2.12 | `ASSUMED` | A test edit is licensed when the file falls inside the task's `scope.allow`; adding a new test file is never tampering. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `src/torve/gates/no_test_tampering.py` | Defines the licence `no-test-tampering` checks |
-| D-2.13 | `ASSUMED` | On runs with no task contract, task- and log-input gates report a recorded `skipped`, never a silent green. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `src/torve/gates/base.py` | The degraded mode RFC 0005 §4 names, applied to gates |
-| D-2.14 | `ASSUMED` | The secret scanner is a built-in high-confidence pattern set; false positives are suppressed only via `secrets.allow_patterns` in the reviewed manifest. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `src/torve/gates/secrets.py` | Reviewed configuration, not a run-time bypass |
-| D-2.15 | `ASSUMED` | The quarantine list is a reviewed manifest key, maintained from flake telemetry until the RFC 0003 store automates the threshold. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `src/torve/manifest.py` | Keeps §6a's quarantine honest without a store |
-| D-2.16 | `ASSUMED` | The scope gate implicitly allows the task's own contract and log files, and nothing else. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `src/torve/gates/scope.py` | Prevents the log-writing deadlock in narrowly-scoped tasks |
-| D-2.17 | `ASSUMED` | Gate cost for cheapest-first ordering is the declared timeout, ascending, manifest order breaking ties. Added by execution 2026-08-21 — see logs/T-0002.yaml (unlisted, attempt 1) | `src/torve/runner.py` | Replace with measured p50 duration once telemetry accumulates |
+| D-2.10 | `ASSUMED` | `self-audit` is a deterministic log-presence check (input `log`): the execution log must exist and carry a `Drift count` line; agent-side audits arrive with RFC 0004. Added by execution 2026-08-21 | `src/torve/gates/self_audit.py` | Departs from §4's `worktree` input until a runner exists |
+| D-2.11 | `LOCKED` | The bypass signature is a `Torve-Bypass: <gate>: <reason>` commit trailer; the record carries the commit's author, is counted per gate and appended to the task log; secrets stays exempt. Added by execution 2026-08-21 | `src/torve/runner.py` `src/torve/context.py` | Makes D-2.7 checkable in engine-less CI |
+| D-2.12 | `ASSUMED` | A test edit is licensed when the file falls inside the task's `scope.allow`; adding a new test file is never tampering. Added by execution 2026-08-21 | `src/torve/gates/no_test_tampering.py` | Defines the licence `no-test-tampering` checks |
+| D-2.13 | `ASSUMED` | On runs with no task contract, task- and log-input gates report a recorded `skipped`, never a silent green. Added by execution 2026-08-21 | `src/torve/gates/base.py` | The degraded mode RFC 0005 §4 names, applied to gates |
+| D-2.14 | `ASSUMED` | The secret scanner is a built-in high-confidence pattern set; false positives are suppressed only via `secrets.allow_patterns` in the reviewed manifest. Added by execution 2026-08-21 | `src/torve/gates/secrets.py` | Reviewed configuration, not a run-time bypass |
+| D-2.15 | `ASSUMED` | The quarantine list is a reviewed manifest key, maintained from flake telemetry until the RFC 0003 store automates the threshold. Added by execution 2026-08-21 | `src/torve/manifest.py` | Keeps §6a's quarantine honest without a store |
+| D-2.16 | `ASSUMED` | The scope gate implicitly allows the task's own contract and log files, and nothing else. Added by execution 2026-08-21 | `src/torve/gates/scope.py` | Prevents the log-writing deadlock in narrowly-scoped tasks |
+| D-2.17 | `ASSUMED` | Gate cost for cheapest-first ordering is the declared timeout, ascending, manifest order breaking ties. Added by execution 2026-08-21 | `src/torve/runner.py` | Replace with measured p50 duration once telemetry accumulates |
 
 ## 9. Exit criteria
 
 - Five gates green in CI in at least two repositories, applied to human pull requests as well as agent ones.
 - Sabotage suite passing, and observed to fail when a gate is deliberately broken.
 - Two weeks of JSONL telemetry with `config_hash` populated — the baseline RFC 0004 will compare against.
+
+## Amendments
+
+### A-2 — 2026-08-21 — gate implementations belong to the package (amends §4)
+
+**Found in implementation.** `log_check.py` was shipped inside the `flag-dont-flip` skill directory, so every repository installing the skill got its own copy — precisely the cross-repository copy-paste this RFC exists to remove.
+
+**Changed:** gate implementations live in `src/torve/gates/` (`scope.py`, `decisions_reported.py`, `no_test_tampering.py`, `secrets.py`, `sabotage.py`), not in skill directories. The skill keeps one line naming its enforcing gate and loses its `scripts/` directory.
+
+**A skill is not replaced by its gate.** The gate reports that an entry is missing; it cannot say when one should have been written. `flag-dont-flip` retains the plan gate, the readiness gate, the unlisted-decision rule, and how to phrase `claim` and `evidence`. Per D-9.5: the gate is the source of truth, the skill is how it is passed on the first attempt.

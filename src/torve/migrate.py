@@ -1,11 +1,11 @@
 """`torve migrate` — owner-grouped, forward-only SQL migrations
-(rfcs/MIGRATIONS.md): torve's own document tables, the substrate tables a
+(rfcs/0012-migrations.md): torve's own document tables, the substrate tables a
 forze version dictates, and telemetry from stage 3 onward.
 
 yoyo is an implementation detail behind this module, imported lazily so a
 missing `torve[migrate]` extra produces an instruction, not an ImportError
-(D-M.3); its checksum verification is what fails an edited-after-apply file
-(D-M.5). The `.sql` files ship as package data — a wheel that knows how to
+(D-12.3); its checksum verification is what fails an edited-after-apply file
+(D-12.5). The `.sql` files ship as package data — a wheel that knows how to
 migrate but has nothing to migrate with is discovered at first deployment.
 """
 
@@ -51,7 +51,7 @@ def forze_pin() -> str:
 def check_forze_pin() -> tuple[bool, str]:
     """(ok, message). The pin is the schema regime the substrate migrations
     were written against; a mismatch is a migration task, not a warning
-    (D-M.7)."""
+    (D-12.7)."""
     import importlib.metadata
 
     pin = forze_pin()
@@ -86,7 +86,7 @@ def _yoyo_dsn(dsn: str) -> str:
 
 def apply(target: str, dsn: str) -> int:
     """Apply the target's pending steps; return how many were applied.
-    Forward-only by construction (D-M.4): no rollback path exists here."""
+    Forward-only by construction (D-12.4): no rollback path exists here."""
     steps = steps_for(target)
     if not steps:
         return 0

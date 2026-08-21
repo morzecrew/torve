@@ -18,10 +18,13 @@ grades and declared areas, its phasing mints into tasks with scopes, and its
 identifiers are what every divergence log cites. Write it as a document a
 machine derives work from and a human can refuse in a diff.
 
-The mechanical half is a script: location, numbering, filenames, statuses,
-index rows, decision-table shape and the checks below are applied by
-`scripts/rfc_index.py` (`check` / `next` / `new "Title"`), and its `check` is
-the gate. Anatomy, prose style and workflows live in `references/`.
+The mechanical half is a script: location, numbering, filenames, frontmatter,
+decision-table shape and the checks below are applied by
+`scripts/rfc_index.py` (`check` / `generate` / `next` / `new "Title"`), and its
+`check` is the gate. Structured facts — id, status, dependencies, amendments,
+owner, the routing description — live in YAML frontmatter (charter D-A.2);
+`INDEX.md` is generated from it and CI-checked like a lockfile (D-A.6), never
+edited by hand. Anatomy, prose style and workflows live in `references/`.
 
 ## Decision grades
 
@@ -63,10 +66,11 @@ arrives first, invisibly.
    renumbering orphans every entry that cites it. Append new rows; never
    renumber, never reuse an identifier.
 
-5. **Amendments, not edits.** An accepted RFC is amended — a dated marker on
-   the affected row or section pointing at the amendment record — never
-   rewritten in place: the logs and telemetry that cite it assume the text
-   they cited still exists.
+5. **Amendments, not edits.** An accepted RFC is amended — an entry in its own
+   `## Amendments` section (globally numbered `A-n`, charter D-A.5), with a
+   dated marker on the affected row — never rewritten in place: the logs and
+   telemetry that cite it assume the text they cited still exists. The
+   frontmatter `amended_by` list is checked against the section headings.
 
 ## Reconciling what execution learned
 
@@ -77,8 +81,9 @@ replacement. An accepted row cites the entry it came from (`Added by execution
 … — see logs/T-0142.yaml`); without the link it reads as something the author
 thought of, losing the one fact that makes it credible.
 
-The index one-liner **routes** (which RFC to open — one sentence, ~200 chars,
-300 ceiling); it never summarises and never records history.
+The frontmatter `description` **routes** (which RFC to open — one sentence,
+~200 chars, 300 ceiling); it never summarises and never records history. The
+index renders it; nobody edits the index.
 
 ## References
 

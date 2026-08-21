@@ -1,0 +1,129 @@
+schema_version: 1
+task: T-0009
+repo: morzecrew/torve
+base_sha: 5a91ef9dc10312ec6246496f268ae67995380eaa
+created_at: 2026-08-21T16:00:00Z
+drift_count: 0
+notes: |
+  Document conventions and repository cleanup (A-7), executed per the
+  conventions document's §7: promotion of the three decision-bearing
+  documents, amendments dispersed into their targets, frontmatter, a
+  generated index, and the hardened validator. The squash (§7.1) and the
+  dev-era log deletion (§7.2) are operator actions run by the charter owner.
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T16:05:00Z
+    attempt: 1
+    claim: the conventions document's table examples show a "# | Decision | Grade" column order while the whole corpus (and the T-0005 Paths back-fill) standardized "# | Grade | Decision | Paths | Consequence"; the validator can enforce exactly one header
+    evidence: '`grep -c "| # | Grade | Decision | Paths | Consequence |" rfcs/*.md` — 13 of 13 numbered RFCs carry the corpus header'
+    action: decided
+    proposal: ASSUMED — the corpus column order stands and the validator enforces that exact header; the conventions document's examples are illustrative of "fixed columns, hard validation", not a reordering instruction
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T16:10:00Z
+    attempt: 1
+    claim: the validation list requires failing on "a paths glob matching nothing in the repository", but D-32 lets draft RFCs name intended modules that do not exist yet; both rules cannot apply to the same row
+    evidence: rfcs/0001-torve-charter.md:257
+    action: decided
+    proposal: ASSUMED — the glob-must-match check applies to LOCKED rows of accepted RFCs only; draft RFCs keep D-32's intended-module globs and are checked when they are accepted
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T16:15:00Z
+    attempt: 1
+    claim: the conventions document itself carries a graded decision table, which by its own D-A.1 would make it RFC 0014 — but its §7.4 routes it as amendment A-7 with the charter as primary target
+    evidence: rfcs/0001-torve-charter.md:261
+    action: decided
+    proposal: ASSUMED — §7.4 wins; the D-A.1–D-A.8 rows live in the charter's decision table under amendment A-7, the conventions prose is condensed into the A-7 entry, and the §7 procedure is executed rather than kept (D-A.1b)
+  - decision: D-11.1
+    grade: ASSUMED
+    kind: contradicted
+    class: discovery
+    at: 2026-08-21T16:20:00Z
+    attempt: 1
+    claim: RFC 0011 settles Typer plus Rich, but the shipped CLI is plain Click; the contract arrived after the implementation
+    evidence: src/torve/cli.py:16
+    action: departed
+    proposal: adopt Typer (which sits on Click) and Rich in a dedicated task together with D-11.2's `--format json` retrofit, before any external consumer parses the human output
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T16:25:00Z
+    attempt: 1
+    claim: RFC 0013's D-13.1 puts every Torve file under .torve/, but this repository still carries root-level gates.yaml, torve.yaml, tasks/ and logs/; the move touches context discovery, runner config, CI and the sabotage fixtures
+    evidence: '`ls gates.yaml torve.yaml tasks logs` — all four still at repository root'
+    action: decided
+    proposal: ASSUMED — the .torve/ migration is its own increment (it changes code paths, not documents); root-level files stand until it runs, which is within D-13.1's "before the file set grows" window
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T16:30:00Z
+    attempt: 1
+    claim: D-A.7 makes repo and base_sha part of the log format, but the decisions-reported gate does not yet require them; this log carries both voluntarily
+    evidence: logs/T-0009.yaml:3-5
+    action: decided
+    proposal: ASSUMED — gate enforcement of the pin lands with the next gates increment (schema check plus a sabotage red twin); every log written from T-0009 on carries the fields so enforcement finds nothing to grandfather
+  - decision: D-27
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T16:35:00Z
+    attempt: 1
+    claim: everything this cleanup moved, promoted or dispersed stayed inside git — documents between documents, nothing into the store; the dev-era log deletion removes git history the squash already collapses, not authority
+    evidence: '`git status --short` — every change is a working-tree edit under rfcs/, ops/, pages/, tasks/, logs/, skills/, src/, tests/'
+    action: decided
+  - decision: D-21a
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T16:40:00Z
+    attempt: 1
+    claim: the log format's substance is untouched by A-7 — one file per task, append-only entries, grade at write time, locatable evidence; the format gains the repo/base_sha pin and this log is written natively in it
+    evidence: logs/T-0009.yaml:1-6
+    action: decided
+  - decision: D-A.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T16:45:00Z
+    attempt: 1
+    claim: the three decision-bearing documents are numbered 0011-0013 with identifiers renumbered to D-11/D-12/D-13; the executed specialisation guide moved to ops/; pages/ exists holding only the never-restate rule
+    evidence: '`ls rfcs/ ops/ pages/` — thirteen numbered RFCs plus INDEX.md; ops/skill-specialisation.md; pages/README.md'
+    action: decided
+  - decision: D-A.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T16:50:00Z
+    attempt: 1
+    claim: decision tables stayed in the bodies; the validator now fails on a missing table, a bad grade, a LOCKED row without paths, a duplicate identifier corpus-wide, an unmatched glob in an accepted RFC, and an unresolvable link or dependency
+    evidence: skills/rfc-writer/scripts/rfc_index.py:1-30
+    action: decided
+  - decision: D-A.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T16:55:00Z
+    attempt: 1
+    claim: A-1/A-4/A-5/A-7 live in the charter's Amendments section, A-2 in 0002, A-6 in 0003, A-3 in 0009; AMENDMENTS.md is deleted and frontmatter amended_by lists are checked against the section headings both ways
+    evidence: '`grep -l "^## Amendments" rfcs/*.md` — 0001, 0002, 0003, 0009'
+    action: decided
+  - decision: D-A.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T17:00:00Z
+    attempt: 1
+    claim: INDEX.md is generated from frontmatter by rfc_index.py; check regenerates and fails on drift, and the four deliberate breakages (bad grade, dropped paths on LOCKED, duplicate identifier, hand-edited index) each redden in the test suite
+    evidence: tests/test_skills.py:115-146
+    action: decided
+  - decision: D-A.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-21T17:05:00Z
+    attempt: 1
+    claim: this log opens with repo, base_sha and created_at, so its path:line evidence resolves against the commit the work started from; the charter's §6 example shows the pin
+    evidence: logs/T-0009.yaml:1-6
+    action: decided
