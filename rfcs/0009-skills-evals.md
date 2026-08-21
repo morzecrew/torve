@@ -88,6 +88,8 @@ This also gives a retirement path in the other direction: once a gate exists and
 | D-9.4 | `ASSUMED` | A skill that does not beat its without-skill baseline is deleted | Applies first to the taste cluster |
 | D-9.5 | `LOCKED` | Where a rule can be either, prefer the gate and keep the skill only to reduce iterations | Enforcement over hope |
 | D-9.6 | `ASSUMED` | Mechanical-format skills migrate to hooks and linters | Depart where a hook cannot express the rule |
+| D-9.7 | `LOCKED` | A skill whose format Torve parses ships with Torve, specialised: skill and gate are one unit of versioning. Three qualify — `flag-dont-flip`, `rfc-writer`, `ratchet-what-you-build` — and the boundary stays narrow (the test: does Torve parse what the skill produces?). On the engine path the runner writes the role-scoped set into the sandbox from package data at dispatch; nothing is installed into repositories. Added by amendment A-3 2026-08-21 | Versioned apart, the gate tightens and the skill does not know |
+| D-9.8 | `LOCKED` | `config_hash` includes the Torve package version (A-3) and the pinned forze version (A-6), alongside the gate manifest and the agent-skills lockfile — supersedes the D-9.3 composition and the T-0002 decision to record the toolchain beside the hash. Added by amendments A-3/A-6 2026-08-21 | Upgrading either silently changed the regime and telemetry did not notice |
 
 ## 8. Exit criteria
 

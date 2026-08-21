@@ -111,6 +111,7 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 | D-6.6 | `LOCKED` | Blocked dispatch is logged with cause and counted per path; `torve kill` always available | Contention must be diagnosable before it is designed for |
 | D-6.7 | `ASSUMED` | Engine health rides the existing telemetry path as `EngineEvent` | A second observability stack is a second thing to operate |
 | D-6.8 | `LOCKED` | Escalation queue age is the primary alert | The failure that is invisible from inside the runner |
+| D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 — see logs/T-0004.yaml (unlisted, attempt 1) | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
 
 ## 7. Exit criteria
 

@@ -62,6 +62,8 @@ Each targets a structural property, so none requires mining past pull requests f
 
 `review` is a gate in spirit but a run in mechanics — see RFC 0005.
 
+*Amendment 2026-08-21 (A-2):* every gate implementation lives in the package (`src/torve/gates/`), never in a skill directory — `decisions-reported` in particular is `src/torve/gates/decisions_reported.py`, not a script shipped with `flag-dont-flip`. A gate in a skill directory is per-repository copy-paste, the exact thing this increment removes. The skill keeps one line naming its enforcing gate; the gate reports that an entry is missing, the skill teaches when one should have been written.
+
 **Everything else accumulates from evidence.** Each time a defect reaches review, either a gate appears or a written decision records that this class is caught by humans. Deriving gates from actual leaks beats designing a set up front, and it is why this list is short.
 
 ## 5. Gates are themselves verified
@@ -101,6 +103,8 @@ bypass:
 ```
 
 A bypass that is counted is data — it tells you which gate is miscalibrated. A bypass that does not exist becomes a workaround you find out about later.
+
+*Amendment 2026-08-21 (A-3):* the bypass record's shape is stated here and only here — no skill is involved, because **the signer is always a human** and humans read RFCs, not skills. The record: the gate name, a mandatory free-text reason, the signer's identity (the authoring of a reviewed commit carrying the `Torve-Bypass: <gate>: <reason>` trailer, per D-2.11), the commit sha, and a timestamp — appended to the task's execution log and counted per gate (`bypass_count_by_gate`, the `bypass-count` metric). A gate bypassed repeatedly is a signal about the gate, not the person.
 
 **Secrets.** One more gate, and it belongs in the starting set precisely because its failure class is irreversible once landed: a secret scanner over the diff, blocking, no bypass. Cheap to run, and unlike other gates a miss cannot be fixed by a follow-up commit.
 

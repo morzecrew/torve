@@ -100,6 +100,8 @@ class Finding(BaseModel):
 
 Read models earn their place by diverging: `TaskRead` adds `is_dispatchable` and `blocked_by`, `AttemptRead` adds `duration` and `gates_passed` — both as computed fields **in Python, above the port**, because anything derived below a port is invisible to simulation.
 
+*Amendment 2026-08-21 (A-4):* task contracts are **derived artefacts**, lockfile-grade — `torve plan` mints them mechanically, and "reviewed intent" overstated it. They belong in git for two reasons stronger than review: **reproducibility** (an attempt pins to a sha, so reconstructing why something landed retrieves exactly the contract the agent saw — replayable in a way no database row is) and **refusability** (the test is not "a human wrote this" but "a human can see it in a diff and refuse it"). The store holds only a reference: `task_id` plus sha.
+
 ## 4. State machine
 
 ```text
@@ -177,20 +179,24 @@ The task contract (`tasks/T-nnnn.yaml`) and gate manifest (`gates.yaml`) live in
 
 Pydantic models are the single source of truth; YAML is their serialization. No hand-maintained JSON Schema until a non-Python consumer exists.
 
-**Execution log format** — `logs/<task-id>.md`, one file per task, append-only, one fenced YAML block per entry:
+**Execution log format** — `logs/<task-id>.yaml`, one file per task, append-only, one `entries:` list *(amended by A-1 2026-08-21: serialization moved from markdown with fenced blocks to YAML; every rule below is unchanged)*:
 
-````markdown
-```divergence
-decision: D-3
-grade: LOCKED
-kind: contradicted        # contradicted | departed | resolved | blocked
-at: 2026-08-20T11:04:12Z
-attempt: 2
-claim: sessions cannot live in Redis; this deployment has no Redis service
-evidence: infra/compose.yaml:1-40 — no redis service defined
-action: halted            # halted | departed | decided
+```yaml
+schema_version: 1
+task: T-0142
+drift_count: 0            # the declared claim, checked against entries classed drift
+entries:
+  - decision: D-3
+    grade: LOCKED
+    kind: contradicted    # contradicted | departed | resolved | blocked
+    at: 2026-08-20T11:04:12Z
+    attempt: 2
+    claim: sessions cannot live in Redis; this deployment has no Redis service
+    evidence: infra/compose.yaml:1-40 — no redis service defined
+    action: halted        # halted | departed | decided
+    notes: |
+      Prose lives inside the entry, never in a sibling document.
 ```
-````
 
 Grade and action legality — the conflict protocol as a checkable table:
 
@@ -216,18 +222,19 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-5 | `LOCKED` | `TaskStore` is a thin facade over the substrate's durable run store, not hand-written |
 | D-5a | `LOCKED` | The lifecycle is not modelled as a durable workflow; the run store is a leased queue with recovery |
 | D-6 | `LOCKED` | The engine never resolves conflicts and never merges without the configured approval |
-| D-21a | `LOCKED` | The execution-log format is defined here; one file per task, append-only, grade copied at write time |
+| D-21a | `LOCKED` | The execution-log format is defined here; one file per task, append-only, grade copied at write time. *(Amended by A-1 2026-08-21: serialization is YAML, `logs/<task-id>.yaml`; substance unchanged.)* |
 | D-22 | `LOCKED` | Three aggregates, each with domain, create and read models and **no update command** |
 | D-25 | `LOCKED` | The differentiator is the specification layer, not the execution runtime |
 | D-7 | `ASSUMED` | Python on the forze substrate; Go rejected |
 | D-8 | `ASSUMED` | Pydantic is the single contract source |
 | D-16 | `ASSUMED` | `schema_version` on every persisted aggregate |
 | D-26 | `ASSUMED` | Build our own runtime rather than adopt the adjacent one; time-box a teardown of three of its mechanisms first |
-| D-27 | `LOCKED` | No contract, decision or execution log ever moves from git into a database |
+| D-27 | `LOCKED` | Git and the store are a boundary, not a prohibition: git holds what should be (contracts, manifests, RFCs, decision tables, logs — diffable, sha-pinned, reviewed), the store holds what happened (runs, leases, attempts, results, telemetry). The engine may project git-held artefacts into the store for querying, one-way and read-only; the store is never authoritative for them. *(Reworded by A-4 2026-08-21 from "nothing ever moves from git into a database".)* |
 | D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode |
 | D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 — see logs/T-0002.md (unlisted, attempt 1) |
 | D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) |
 | D-30 | `ASSUMED` | `claimed` may transition to `escalated`: a runner that dies between claim and first dispatch needs a legal exit, and the durable store's `claim_abandoned` recovery lands on the same edge. Added by execution 2026-08-21 — see logs/T-0003.md (unlisted, attempt 1) |
+| D-31 | `LOCKED` | Agents do not communicate; the runner coordinates. What an agent may touch and what was already decided are copied into its contract; what others are doing is the runner's knowledge for overlap-free dispatch, never the agent's. Falsifiable: revisit only if telemetry shows tasks escalating with "insufficient context about adjacent work". Added by amendment A-5 2026-08-21 |
 
 ### 7.1 Ownership
 
@@ -294,3 +301,7 @@ Not metrics, and not thresholds — four qualitative signals written down now so
 - **Model-side planning and decomposition.** The exact non-determinism this project removes.
 - **Automatic conflict resolution.** Silently grants a model the right to rewrite other people's work.
 - **Multi-tenancy.** One team, trusted operators.
+
+## 10. Amendments
+
+Changes to already-accepted decisions, discovered during implementation, are recorded in [AMENDMENTS.md](AMENDMENTS.md) — what changed, what deliberately did not, and which documents were edited. The inline markers in this corpus (A-1 … A-6) point there.

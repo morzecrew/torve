@@ -1,0 +1,60 @@
+schema_version: 1
+task: T-0005
+drift_count: 0
+notes: |
+  Executed rfcs/AMENDMENTS.md (A-1..A-6) and skills/SPECIALISATION.md against
+  branch torve/T-0005. This log is the first written in the A-1 YAML format.
+  Classes per flag-dont-flip: discovery (could not have been known before
+  code), spec-gap (could have been), drift (covered and built otherwise — a
+  defect), irreducible (no design settles it).
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T21:05:00Z
+    attempt: 1
+    claim: the A-1 schema shows entries but not the drift-count claim the flag-dont-flip discipline requires; without it an absent count and an honest zero read identically
+    evidence: rfcs/AMENDMENTS.md:22-36
+    action: decided
+    proposal: ASSUMED — the YAML log carries a top-level `drift_count` scalar checked against entries classed drift; revising the claim edits the scalar (git history preserves prior claims), while `entries` stays append-only
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T21:08:00Z
+    attempt: 1
+    claim: bypass records are appended to the same task log (D-2.7) but the A-1 schema types entries as divergences; a bypass in `entries` would fail the entry schema
+    evidence: src/torve/runner.py:1-8
+    action: decided
+    proposal: ASSUMED — bypass records live in a separate top-level `bypasses:` list in the same file; the runner appends structurally (parse, append, dump), and append-only means items are never removed or edited, not that bytes are only appended
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-21T21:11:00Z
+    attempt: 1
+    claim: the amendments' edit table names a SKILLS-REFACTOR document that does not exist in this repository; its two rows have no local target
+    evidence: "`ls rfcs/` — no SKILLS-REFACTOR file"
+    action: decided
+    proposal: ASSUMED — the SKILLS-REFACTOR edits apply where their substance already lands here (the A-2/A-3 markers in RFC 0002/0009 and skills/SPECIALISATION.md); if the document is added later, its rows apply there
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T21:14:00Z
+    attempt: 1
+    claim: A-6 sketches one alembic tree, but torve has exactly one schema set and zero migration history; alembic machinery with a single revision is scaffolding without a subject
+    evidence: src/torve/adapters/durable_store.py:29-33
+    action: decided
+    proposal: ASSUMED — provisioning stays plain idempotent DDL applied by `torve store provision` until a second, incompatible revision exists; the first real schema change adopts alembic and imports the current DDL as revision one
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-21T21:17:00Z
+    attempt: 1
+    claim: the hardened rfc_index reddens on a LOCKED row missing paths, which the existing corpus tables did not carry; the guide specifies the check but not the corpus back-fill
+    evidence: skills/SPECIALISATION.md:143-149
+    action: decided
+    proposal: ASSUMED — the corpus decision tables gain a Paths column (| # | Grade | Decision | Paths | Consequence |) with the module areas each LOCKED decision governs; for RFCs not yet built the globs name the intended module and are refined when the module exists
