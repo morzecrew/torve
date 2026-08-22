@@ -1,7 +1,7 @@
 ---
 id: "0017"
 title: Sandbox provisioning and harness configuration
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0003", "0004"]
 informed_by: ["0013", "0016"]
