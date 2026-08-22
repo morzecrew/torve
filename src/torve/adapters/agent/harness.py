@@ -1,0 +1,129 @@
+"""Harness-backed agents (RFC 0004 §1): api, harness and subscription are one
+mechanism with three authentication routes — the adapters differ only in how
+authentication and the harness reach the process, and that difference lives in
+the sandbox spec (env passthrough vs. an auth volume), not here.
+
+The harness runs *inside* the sandbox (D-4.1): this adapter stages a prompt
+file under the workspace's gitignored `.torve/tmp/` and asks the Runtime to
+run the tier's configured command — the engine never links a harness SDK. The
+prompt points at the role's materialized skills and the execution log the
+`decisions-reported` gate reads; everything else the harness learns from the
+workspace itself (`AGENTS.md`, `SKILL.md` — §1).
+
+The session trace is captured beside the worktree and referenced from the
+attempt record (`trace_ref`). A trace is not gate evidence (§4): it records
+what the model saw, not what the code did.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import TYPE_CHECKING, Any, cast
+
+from torve.application.ports import AgentContext, AgentResult
+from torve.base import naming
+
+if TYPE_CHECKING:
+    from torve.config.runconfig import TierConfig
+    from torve.domain.task import Task
+
+# ----------------------- #
+
+PROMPT_RELPATH = ".torve/tmp/prompt.md"
+
+
+def build_prompt(task: Task) -> str:
+    lines: list[str] = [f"# Torve task {task.id}", ""]
+    if task.intent:
+        lines += [task.intent.strip(), ""]
+    if task.rfc:
+        lines += [f"Specification: see the decisions below, inherited from `{task.rfc}`.", ""]
+    lines += ["## Decisions", ""]
+    if task.decisions:
+        for decision in task.decisions:
+            paths = f" — paths: {', '.join(decision.paths)}" if decision.paths else ""
+            lines.append(f"- `{decision.id}` ({decision.grade}): {decision.text}{paths}")
+    else:
+        lines.append("- none apply (explicitly).")
+    lines += ["", "## Scope", ""]
+    lines.append(f"- allow: {', '.join(task.scope.allow) if task.scope.allow else 'unconstrained'}")
+    if task.scope.deny:
+        lines.append(f"- deny: {', '.join(task.scope.deny)}")
+    lines += ["", "## Acceptance", ""]
+    lines += [f"- `{command}`" for command in task.acceptance] or ["- none declared."]
+    lines += [
+        "",
+        "## Working rules",
+        "",
+        ("- Skills for your role are under `.torve/skills/` — read every"
+         " `SKILL.md` there before writing code."),
+        (f"- Divergences from the decisions above go to"
+         f" `.torve/tasks/{task.id}/log.yaml` as the `flag-dont-flip` skill"
+         f" specifies; the `decisions-reported` gate reads that file."),
+        ("- Gates run outside this session, against the working tree you leave"
+         " behind. Exit 0 when you consider the work complete."),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+# ....................... #
+
+
+def parse_metadata(output: str) -> tuple[float | None, str | None]:
+    """(cost_usd, model_version) from a harness result, best effort: the last
+    JSON object line wins (`claude -p --output-format json` and friends emit
+    one). Absence is not an error — it is an uncontrolled regime (D-4.6)."""
+    for line in reversed(output.strip().splitlines()):
+        line = line.strip()
+        if not (line.startswith("{") and line.endswith("}")):
+            continue
+        try:
+            data: Any = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        record = cast("dict[str, Any]", data)
+        cost: Any = next(
+            (record[k] for k in ("total_cost_usd", "cost_usd", "cost") if k in record), None
+        )
+        model: Any = next(
+            (record[k] for k in ("model_version", "model") if k in record), None
+        )
+        return (
+            float(cost) if isinstance(cost, (int, float)) else None,
+            str(model) if isinstance(model, str) and model else None,
+        )
+    return None, None
+
+
+class HarnessAgent:
+    kind: str
+
+    def __init__(self, tier: TierConfig) -> None:
+        self.tier = tier
+        self.kind = tier.adapter  # api | harness | subscription
+
+    def run(self, ctx: AgentContext) -> AgentResult:
+        stage = ctx.workspace / ".torve" / "tmp"
+        stage.mkdir(parents=True, exist_ok=True)
+        (ctx.workspace / PROMPT_RELPATH).write_text(build_prompt(ctx.task), encoding="utf-8")
+
+        # str.replace, not str.format: the command template is shell and may
+        # legitimately contain braces of its own.
+        command = (self.tier.command
+                   .replace("{prompt}", PROMPT_RELPATH)
+                   .replace("{model}", self.tier.model))
+        result = ctx.runtime.exec(ctx.handle, command, ctx.timeout_s)
+
+        trace = naming.trace_file(ctx.workspace, ctx.attempt)
+        trace.write_text(result.output, encoding="utf-8")
+        cost_usd, model_version = parse_metadata(result.output)
+        return AgentResult(
+            exit_code=result.exit_code,
+            output=result.output,
+            cost_usd=cost_usd,
+            model_version=model_version,
+            trace_ref=str(trace),
+        )

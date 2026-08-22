@@ -43,6 +43,12 @@ class DockerRuntime:
             args += ["--label", f"{key}={value}"]
         for key, value in spec.env.items():
             args += ["-e", f"{key}={value}"]
+        for name in spec.env_passthrough:
+            # Name only: docker reads the value from the invoking environment,
+            # so the secret never transits torve or the spec (D-4b).
+            args += ["-e", name]
+        for volume, mount in spec.volumes.items():
+            args += ["-v", f"{volume}:{mount}"]
         args += [spec.image, "sleep", str(int(spec.timeout_s))]
         proc = self._run(*args)
         if proc.returncode != 0:

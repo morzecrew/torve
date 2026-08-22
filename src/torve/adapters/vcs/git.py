@@ -6,6 +6,7 @@ are the forward-compatible subset.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -16,6 +17,18 @@ def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(worktree), *args], capture_output=True, text=True, check=False
     )
+
+
+def repository_name(root: Path) -> str:
+    """The name provider routing keys on (RFC 0004 §6b): `org/repo` from the
+    origin remote when one exists, the directory name otherwise — stable
+    across checkouts, which a path is not."""
+    proc = _git(root, "remote", "get-url", "origin")
+    if proc.returncode == 0:
+        found = re.search(r"[:/]([^/:]+/[^/:]+?)(?:\.git)?/?$", proc.stdout.strip())
+        if found:
+            return found.group(1)
+    return root.resolve().name
 
 
 class GitVcs:

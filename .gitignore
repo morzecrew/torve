@@ -220,6 +220,7 @@ __marimo__/
 # Torve — only what the engine generates; the manifest, config, tasks and
 # logs under .torve/ are reviewed artefacts and stay tracked (RFC 0013).
 .torve/telemetry.jsonl
+.torve/feedback.jsonl
 .torve/skills/
 .torve/tmp/
 .wt/

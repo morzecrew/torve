@@ -29,6 +29,7 @@ from forze.application.contracts.durable.function import (
 )
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
+from pathspec import GitIgnoreSpec
 
 from torve.application.ports import (
     Agent,
@@ -49,7 +50,7 @@ from torve.application.telemetry import append_record, build_record, config_hash
 from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import load_manifest
-from torve.config.runconfig import RunnerConfig
+from torve.config.runconfig import RunnerConfig, TierConfig, tier_for
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import build_context, resolve_base
@@ -160,6 +161,44 @@ def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
     )
 
 
+def _withhold_never_send(worktree: Path, globs: list[str]) -> dict[Path, bytes]:
+    """Lift `never_send` files out of the worktree for the attempt (RFC 0004
+    §6b): the sandbox mounts the worktree, so anything present may reach the
+    provider. A worktree's `.git` is a host-side pointer the sandbox cannot
+    follow, so removal here is removal from the sandbox's world. Contents are
+    restored from memory after `sync_out`; an agent edit to a withheld path is
+    discarded — the policy protects the file in both directions."""
+    if not globs:
+        return {}
+    spec = GitIgnoreSpec.from_lines(globs)
+    withheld: dict[Path, bytes] = {}
+    for path in sorted(worktree.rglob("*")):
+        rel = path.relative_to(worktree)
+        if rel.parts and rel.parts[0] == ".git":
+            continue
+        if path.is_file() and spec.match_file(str(rel)):
+            withheld[path] = path.read_bytes()
+            path.unlink()
+    return withheld
+
+
+def _restore_never_send(withheld: dict[Path, bytes]) -> None:
+    for path, content in withheld.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+
+def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
+    """(env_passthrough, volumes) for the tier's authentication route (RFC
+    0004 §1): key names for api and harness, a per-slot volume for
+    subscription (D-4.2), nothing for fake."""
+    if tier.adapter in ("api", "harness"):
+        return tuple(tier.api_key_env), {}
+    if tier.adapter == "subscription":
+        return (), {f"{tier.auth_volume}-{worker_slot}": tier.auth_mount}
+    return (), {}
+
+
 class _SandboxExecutor:
     """ExecuteOnce over a fresh sandbox, created lazily so gate passes with no
     shell gates cost nothing, destroyed by the caller when the pass ends."""
@@ -183,7 +222,7 @@ class _SandboxExecutor:
 
 def _run_gates_in_worktree(
     worktree: Path, task_id: str, config: RunnerConfig, runtime: Runtime,
-    run_id: str, root: Path,
+    run_id: str, root: Path, agent_meta: dict[str, Any] | None = None,
 ) -> tuple[int, str, str]:
     """(exit_code, summary, config_hash). Raises on infrastructure failure."""
     manifest_path = layout.gates_file(worktree)
@@ -220,8 +259,8 @@ def _run_gates_in_worktree(
     finally:
         executor.close()
 
-    digest = config_hash(manifest_path, worktree)
-    record = build_record(ctx, report, digest)
+    digest = config_hash(manifest_path, worktree, config)
+    record = build_record(ctx, report, digest, agent=agent_meta)
     append_record(root / manifest.telemetry, record)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
     return report.exit_code, summary, digest
@@ -230,17 +269,37 @@ def _run_gates_in_worktree(
 def _real_hooks(
     root: Path, task: Task, config: RunnerConfig, deps: RunDeps, worktree: Path
 ) -> AttemptHooks:
+    tier = tier_for(config, task.tier)
+    # What actually runs, not what the tier configured — an --agent fake
+    # override must not masquerade as a model in the telemetry.
+    kind = getattr(deps.agent, "kind", tier.adapter)
+    real = kind != "fake"
+    # Denormalised into every record this run appends (RFC 0004 §6): which
+    # adapter and model did the work cannot be reconstructed later.
+    agent_meta: dict[str, Any] = {
+        "tier": task.tier, "adapter": kind,
+        "provider": (tier.provider or None) if real else None,
+        "model": (tier.model or None) if real else None,
+        "model_version": None, "cost_usd": None, "trace_ref": None,
+    }
+
     async def attempt(state: RunState) -> AgentResult:
         # The runner composes the sandbox's context: the role's skill set is
         # written from package data at dispatch (A-3) — the agent does not
         # "have skills installed", and nothing is checked into the repository.
         materialize(task.role, worktree / ".torve" / "skills", config.skills.sets)
+        env_passthrough, volumes = (
+            _sandbox_auth(tier, config.worker_slot) if real else ((), {})
+        )
         spec = SandboxSpec(
             name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
             image=config.runtime.image,
             labels=naming.labels(task.id, state.run_id),
             timeout_s=config.runtime.sandbox_timeout,
+            env_passthrough=env_passthrough,
+            volumes=volumes,
         )
+        withheld = _withhold_never_send(worktree, config.providers.never_send)
         handle = deps.runtime.create(spec, worktree)
         state.sandbox_id = handle.id
         state.save()
@@ -251,11 +310,14 @@ def _real_hooks(
                 timeout_s=config.runtime.agent_timeout,
             ))
             deps.runtime.sync_out(handle, worktree)
+            agent_meta.update(model_version=result.model_version,
+                              cost_usd=result.cost_usd, trace_ref=result.trace_ref)
             return result
         finally:
             # Synchronous on purpose: a cancelled task cannot await its own
             # cleanup, and the sandbox must die regardless (D-4).
             deps.runtime.destroy(handle)
+            _restore_never_send(withheld)
             state.sandbox_id = None
             state.save()
 
@@ -265,7 +327,7 @@ def _real_hooks(
     async def gates(state: RunState) -> tuple[int, str, str]:
         return await asyncio.to_thread(
             _run_gates_in_worktree, worktree, task.id, config, deps.runtime,
-            state.run_id, root,
+            state.run_id, root, agent_meta,
         )
 
     async def land(state: RunState, digest: str) -> str:

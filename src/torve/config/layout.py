@@ -57,6 +57,12 @@ def task_file(root: Path, task_id: str) -> Path:
     )
 
 
+def feedback_file(root: Path) -> Path:
+    """ReviewFeedback records (RFC 0004 §6) — generated data, gitignored like
+    the telemetry stream it sits beside."""
+    return root / TORVE_DIR / "feedback.jsonl"
+
+
 def log_file(root: Path, task_id: str) -> Path:
     return _resolve(
         task_dir(root, task_id) / "log.yaml",

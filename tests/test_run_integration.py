@@ -171,3 +171,39 @@ def test_log_entry_written_before_failure_is_on_disk(repo):
     log = repo.root / ".wt" / TASK_ID / ".torve" / "tasks" / TASK_ID / "log.yaml"
     assert log.is_file(), "the entry written before the crash must be on disk"
     assert "written before dying" in log.read_text()
+
+
+def test_harness_tier_end_to_end(repo):
+    """RFC 0004 §1 through the whole loop: the executor tier maps to an api
+    adapter, routing admits the provider, the harness command runs inside the
+    sandbox against the staged prompt, and the attempt record carries the
+    adapter block plus a trace_ref (§6)."""
+    from torve.adapters.agent.harness import HarnessAgent
+    from torve.config.runconfig import ProvidersConfig, TierConfig
+
+    seed_run_repo(repo)
+    tier = TierConfig(
+        adapter="api", provider="test-vendor", model="fake-model-9",
+        command=("grep -q 'Torve task' {prompt} && echo FEATURE = True > src/feature.py"
+                 " && echo '{\"total_cost_usd\": 0.05, \"model\": \"{model}\"}'"),
+        api_key_env=["TORVE_TEST_KEY"],
+    )
+    config = CONFIG.model_copy(update={
+        "tiers": {"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
+        "providers": ProvidersConfig(default=["test-vendor"]),
+    })
+    task = load_task(layout.task_file(repo.root, TASK_ID))
+
+    state = run_task(repo.root, task, config, deps_for(repo, HarnessAgent(tier)))
+
+    assert state.state is TaskState.READY, state.history
+    record = json.loads(
+        (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()[-1])
+    agent_block = record["agent"]
+    assert agent_block["adapter"] == "api"
+    assert agent_block["provider"] == "test-vendor"
+    assert agent_block["model"] == "fake-model-9"
+    assert agent_block["model_version"] == "fake-model-9"  # echoed by the command
+    assert agent_block["cost_usd"] == 0.05
+    trace = agent_block["trace_ref"]
+    assert trace and (repo.root / ".wt" / f"{TASK_ID}.a1.trace.log").is_file()

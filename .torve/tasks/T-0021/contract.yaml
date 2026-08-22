@@ -1,0 +1,63 @@
+# RFC 0004 phase 1: tiering configuration, real agent adapter mechanics,
+# provider routing, and the telemetry fields no later record can reconstruct.
+# Shadow runs (§5) are phase 2 (T-0022); the exit criteria's fifteen measured
+# runs need live keys and are operator work.
+schema_version: 1
+id: T-0021
+rfc: rfcs/0004-agents-tiering.md
+phase: 1
+role: implement
+intent: |
+  A task's tier maps to a real adapter through the runner configuration:
+  harness-backed agents run a configured command inside the sandbox — never an
+  SDK in the engine — with authentication reaching the process as named
+  environment passthrough (api, harness) or a per-worker-slot auth volume
+  (subscription). Provider routing is enforced at dispatch, before a sandbox
+  exists, and the attempt record gains the fields nothing can reconstruct
+  later: adapter, model, provider version, cost and trace reference, with the
+  tier mapping joining the config hash.
+depends_on: []
+scope:
+  allow:
+    - "src/torve/**"
+    - "tests/**"
+    - ".torve/**"
+    - "rfcs/0004-agents-tiering.md"
+    - "rfcs/INDEX.md"
+    - "CHANGELOG.md"
+    - ".gitignore"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-4.1
+    grade: LOCKED
+    text: Harnesses run inside the sandbox; no harness SDK in the engine process
+    paths: ["src/torve/adapters/**"]
+  - id: D-4.2
+    grade: ASSUMED
+    text: Subscription auth is per worker slot, never per task, never the host config directory
+    paths: ["src/torve/adapters/**"]
+  - id: D-4.5
+    grade: ASSUMED
+    text: Telemetry starts as JSONL; record shape is fixed from record one
+    paths: ["src/torve/application/telemetry.py"]
+  - id: D-4.6
+    grade: LOCKED
+    text: Provider version is recorded alongside config_hash; unpinnable models are one uncontrolled regime
+    paths: ["src/torve/application/telemetry.py"]
+  - id: D-4.8
+    grade: LOCKED
+    text: Provider allow/deny per repository, enforced before a sandbox exists
+    paths: ["src/torve/config/runconfig.py"]
+  - id: D-11.2
+    grade: LOCKED
+    text: --format json on every result-producing command from its first implementation
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor

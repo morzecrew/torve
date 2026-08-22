@@ -82,6 +82,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at the canonical path, created by its first entry (D-3.20), with a
   Docker end-to-end test proving an entry written before a `kill` is on
   disk. Sabotage suite at 28 cases.
+- Real agent adapter mechanics (RFC 0004 phase 1, `implementation:
+  partial`): `tier` on the task maps to an adapter through `tiers:` in
+  the runner configuration — `api`, `harness` and `subscription` are
+  one `HarnessAgent` mechanism whose configured command runs *inside*
+  the sandbox (D-4.1, never an SDK in the engine), differing only in
+  how authentication reaches the process: named env passthrough (the
+  runtime forwards `-e NAME`, the value never transits torve — D-4b)
+  or a per-worker-slot auth volume mounted read-write (D-4.2;
+  OpenSandbox refuses volumes, its credentials belong to the vault).
+  The staged prompt carries the contract's intent, decisions, scope
+  and acceptance; the session trace lands beside the worktree as
+  `trace_ref`.
+- Provider routing enforced at dispatch (RFC 0004 §6b, D-4.8), before
+  a sandbox exists: `providers:` names default and per-repository
+  allow-lists — no permitted provider for the tier exits 3, and empty
+  policy denies every real provider (silence is not a policy).
+  `never_send` globs are withheld from the worktree for the attempt
+  (a worktree's `.git` is a host-side pointer, so removal is removal
+  from the sandbox's world) and restored from memory afterwards.
+- Attempt telemetry grew the fields nothing reconstructs later (RFC
+  0004 §6): an `agent` block (tier, adapter-that-ran, provider, model,
+  `model_version` — None marks an uncontrolled regime per D-4.6,
+  `cost_usd`, `trace_ref`), the tier mapping and provider policy
+  joined `config_hash` (D-4.3), and `torve feedback` appends the two
+  hand-entered `ReviewFeedback` fields to their own stream.
 - RFC validation moved into the package (0007 §3a, charter A-15, 0013 A-16):
   `torve rfc check | index | new | graph` with vocabularies defined once in
   `domain/rfc.py` (D-7.13) and the format owned by `config/rfc_parse.py`

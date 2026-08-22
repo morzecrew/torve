@@ -2,7 +2,7 @@
 id: "0004"
 title: Agent adapters and tiering
 status: accepted
-implementation: none
+implementation: partial
 depends_on: ["0003"]
 informed_by: []
 supersedes: []

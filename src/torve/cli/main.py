@@ -17,7 +17,7 @@ from typing import Annotated
 import typer
 
 import torve
-from torve.cli import console, doctor, gates, migrate, rfc, run, status
+from torve.cli import console, doctor, feedback, gates, migrate, rfc, run, status
 from torve.domain.states import EXIT_OK
 
 # ----------------------- #
@@ -54,6 +54,7 @@ app.command("run")(run.run_cmd)
 app.command("cancel")(run.cancel)
 app.command("migrate")(migrate.migrate_cmd)
 app.command("doctor")(doctor.doctor)
+app.command("feedback")(feedback.feedback)
 app.command("status")(status.status)
 app.command("reap")(status.reap_cmd)
 

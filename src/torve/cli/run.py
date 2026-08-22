@@ -35,8 +35,9 @@ from torve.gates.context import load_task
 
 def run_cmd(
     task_id: Annotated[str, typer.Argument()],
-    agent_name: Annotated[str, typer.Option(
-        "--agent", help="Only 'fake' today; real adapters arrive with RFC 0004.")] = "fake",
+    agent_name: Annotated[str | None, typer.Option(
+        "--agent", help="Override the tier's adapter with 'fake' (scenario replay); "
+                        "by default the task's tier picks the adapter (RFC 0004 §1).")] = None,
     scenario: Annotated[Path | None, typer.Option(
         exists=True,
         help="FakeAgent scenario YAML; default writes one marker file and exits 0.")] = None,
@@ -50,11 +51,12 @@ def run_cmd(
     projected onto codes 0–5 per D-11.4)."""
     from torve.adapters.agent.fake import FakeAgent, load_scenario
     from torve.adapters.store.durable import open_store
-    from torve.adapters.vcs.git import GhScm, GitVcs, NullScm
+    from torve.adapters.vcs.git import GhScm, GitVcs, NullScm, repository_name
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.runner import RunDeps, run_task
+    from torve.config.runconfig import ProviderDenied, route_provider, tier_for
 
-    if agent_name != "fake":
+    if agent_name not in (None, "fake"):
         raise fail(f"configuration error: unknown agent {agent_name!r}", EXIT_CONFIG)
     root = root.resolve()
     task_file = layout.task_file(root, task_id)
@@ -63,10 +65,33 @@ def run_cmd(
     task = load_task(task_file)
     config = load_config(root, config_path)
 
+    try:
+        tier = tier_for(config, task.tier)
+        # Provider routing is enforced here — at dispatch, before a sandbox
+        # exists (D-4.8). A repository with no permitted provider for its
+        # tier is a configuration error, never a quiet fallback. The --agent
+        # fake override sends nothing anywhere, so it routes as fake does.
+        if agent_name is None:
+            route_provider(config.providers, repository_name(root), tier.provider)
+    except (ProviderDenied, ValueError) as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    from torve.application.ports import Agent
+
+    agent: Agent
+    if agent_name == "fake" or tier.adapter == "fake":
+        agent = FakeAgent(load_scenario(scenario) if scenario else None)
+    else:
+        from torve.adapters.agent.harness import HarnessAgent
+
+        if scenario is not None:
+            raise fail("configuration error: --scenario is FakeAgent-only", EXIT_CONFIG)
+        agent = HarnessAgent(tier)
+
     deps = RunDeps(
         workspace=GitWorkspace(root),
         runtime=runtime_for(config, runtime_name),
-        agent=FakeAgent(load_scenario(scenario) if scenario else None),
+        agent=agent,
         vcs=GitVcs(),
         scm=GhScm() if config.scm.open_pr else NullScm(),
         store=open_store,

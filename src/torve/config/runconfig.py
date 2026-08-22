@@ -1,7 +1,7 @@
 """.torve/config.yaml — runner configuration, reviewed like the gate manifest
 but on its own cadence (D-3.7; root `torve.yaml` read as a fallback per RFC
 0013). Read from where the runner was launched, never from the repository
-under work (D-13.3). RFC 0004 adds the tier mapping here.
+under work (D-13.3). The tier mapping and provider policy are RFC 0004's.
 
 The OpenSandbox section carries the name of the environment variable holding
 the API key, never the key itself — configuration is committed, credentials
@@ -13,12 +13,108 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from torve.config import layout
 from torve.domain.task import SCHEMA_VERSION
 
 # ----------------------- #
+
+ADAPTERS = ("fake", "api", "harness", "subscription")
+
+
+class TierConfig(BaseModel):
+    """One tier's adapter (RFC 0004 §1): `tier` on the task maps to an entry
+    here, and the concern leaks no further into the design. The command runs
+    *inside* the sandbox (D-4.1) — the engine never links a harness SDK, it
+    only shells a line into a container it created.
+
+    `api_key_env` carries names, never values (D-4b): the runtime forwards the
+    variables from its own environment, so the secret never transits a spec.
+    `auth_volume` is the subscription route (§2, D-4.2): one volume per worker
+    slot, `-<slot>` appended, mounted read-write because token refresh writes.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    adapter: str = "fake"  # fake | api | harness | subscription
+    command: str = ""  # in-sandbox command line; {prompt} and {model} substituted
+    model: str = ""  # recorded in telemetry, substituted into the command
+    provider: str = ""  # routing identity (§6b); empty only for fake
+    api_key_env: list[str] = Field(default_factory=list)
+    auth_volume: str = "torve-auth"
+    auth_mount: str = "/auth"
+
+    @model_validator(mode="after")
+    def _real_adapters_are_fully_named(self) -> TierConfig:
+        if self.adapter not in ADAPTERS:
+            raise ValueError(f"unknown agent adapter {self.adapter!r}; one of {ADAPTERS}")
+        if self.adapter != "fake":
+            if not self.command:
+                raise ValueError(f"adapter {self.adapter!r} needs a command to run in the sandbox")
+            if not self.provider:
+                # Silence is not a policy (§6b): a real adapter sends the
+                # repository somewhere, and routing needs to know where.
+                raise ValueError(f"adapter {self.adapter!r} needs a provider for routing (D-4.8)")
+        return self
+
+
+def _default_tiers() -> dict[str, TierConfig]:
+    return {name: TierConfig() for name in ("planner", "executor", "reviewer")}
+
+
+class RepositoryProviders(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    allow: list[str] = Field(default_factory=list)
+    deny_reason: str = ""
+
+
+class ProvidersConfig(BaseModel):
+    """Which providers a repository's contents may reach (RFC 0004 §6b):
+    repository contents, fixtures and diffs leave the building for whichever
+    provider an adapter is pointed at, so the policy is explicit and enforced
+    at dispatch, before a sandbox exists (D-4.8)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    default: list[str] = Field(default_factory=list)
+    repositories: dict[str, RepositoryProviders] = Field(default_factory=dict)
+    never_send: list[str] = Field(default_factory=list)  # gitwildmatch globs
+
+
+class ProviderDenied(ValueError):
+    """No permitted provider for this repository and tier — a configuration
+    error at dispatch (exit 3), never a quiet fallback (D-4.8)."""
+
+
+def route_provider(providers: ProvidersConfig, repository: str, provider: str) -> None:
+    """Raises ProviderDenied unless `provider` may see `repository`. An empty
+    provider is the fake adapter: nothing leaves the building, nothing to
+    route."""
+    if not provider:
+        return
+    rules = providers.repositories.get(repository)
+    allowed = rules.allow if rules is not None and rules.allow else providers.default
+    if provider in allowed:
+        return
+    reason = f" — {rules.deny_reason}" if rules is not None and rules.deny_reason else ""
+    raise ProviderDenied(
+        f"provider {provider!r} is not permitted for repository {repository!r}{reason}; "
+        f"allowed: {', '.join(allowed) if allowed else 'none configured'}"
+    )
+
+
+def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
+    """The task's tier resolved against the mapping — a missing entry is a
+    configuration error, never a quiet default."""
+    try:
+        return config.tiers[tier_name]
+    except KeyError:
+        configured = ", ".join(sorted(config.tiers)) or "none"
+        raise ValueError(
+            f"no tier {tier_name!r} in the runner configuration; configured: {configured}"
+        ) from None
 
 
 class OpenSandboxConfig(BaseModel):
@@ -112,6 +208,9 @@ class RunnerConfig(BaseModel):
     reap: ReapConfig = Field(default_factory=ReapConfig)
     scm: ScmConfig = Field(default_factory=ScmConfig)
     rfcs: RfcsConfig = Field(default_factory=RfcsConfig)
+    tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)
+    providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
+    worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not
 
 
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:

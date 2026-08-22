@@ -105,3 +105,86 @@ def test_listing_and_destroy_by_id(runtime_case):
                  if i.labels.get("torve.task") == "T-9902"]
     assert not remaining
     runtime.destroy(handle)  # idempotent cleanup
+
+
+# ....................... #
+# Authentication routes (RFC 0004 §1, §2) — Docker-only: OpenSandbox refuses
+# volumes by contract, and its env passthrough resolves in the stub below.
+
+
+@pytest.fixture
+def docker_case(tmp_path):
+    if not docker_available():
+        pytest.skip("docker daemon not available")
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    yield DockerRuntime(), workspace
+
+
+def auth_spec(**overrides) -> SandboxSpec:
+    return SandboxSpec(
+        name=f"torve-auth-{uuid.uuid4().hex[:8]}",
+        image=TEST_IMAGE,
+        labels=naming.labels("T-9903", uuid.uuid4().hex),
+        timeout_s=120,
+        **overrides,
+    )
+
+
+def test_docker_env_passthrough_carries_the_value_not_the_spec(docker_case, monkeypatch):
+    runtime, workspace = docker_case
+    monkeypatch.setenv("TORVE_TEST_KEY", "s3cr3t-value")
+    spec = auth_spec(env_passthrough=("TORVE_TEST_KEY", "TORVE_TEST_ABSENT"))
+    assert "s3cr3t-value" not in str(spec)  # the value never enters the spec (D-4b)
+    handle = runtime.create(spec, workspace)
+    try:
+        seen = runtime.exec(handle, 'printf "%s" "$TORVE_TEST_KEY"', 30)
+        assert seen.output == "s3cr3t-value"
+    finally:
+        runtime.destroy(handle)
+
+
+def test_docker_auth_volume_outlives_the_sandbox(docker_case):
+    """The D-4.2 property: sandboxes are ephemeral, the slot's volume is not —
+    a token refresh written by one run is there for the next."""
+    import os
+
+    runtime, workspace = docker_case
+    volume = f"torve-test-auth-{uuid.uuid4().hex[:8]}"
+    subprocess.run(["docker", "volume", "create", volume], capture_output=True, check=True)
+    # A fresh named volume mounts root-owned; seeding ownership is the
+    # operator's one-time step when the slot is provisioned (§2).
+    subprocess.run(
+        ["docker", "run", "--rm", "-u", "0:0", "-v", f"{volume}:/auth", TEST_IMAGE,
+         "chown", f"{os.getuid()}:{os.getgid()}", "/auth"],
+        capture_output=True, check=True,
+    )
+    try:
+        first = runtime.create(auth_spec(volumes={volume: "/auth"}), workspace)
+        try:
+            wrote = runtime.exec(first, "echo refreshed-token > /auth/credentials", 30)
+            assert wrote.exit_code == 0
+        finally:
+            runtime.destroy(first)
+
+        second = runtime.create(auth_spec(volumes={volume: "/auth"}), workspace)
+        try:
+            seen = runtime.exec(second, "cat /auth/credentials", 30)
+            assert seen.output.strip() == "refreshed-token"
+        finally:
+            runtime.destroy(second)
+    finally:
+        subprocess.run(["docker", "volume", "rm", "-f", volume], capture_output=True, check=False)
+
+
+def test_opensandbox_refuses_volumes(tmp_path):
+    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
+    workspace = tmp_path / "ws2"
+    workspace.mkdir()
+    spec = SandboxSpec(
+        name="torve-refuse", image=TEST_IMAGE, labels=naming.labels("T-9904", "r"),
+        timeout_s=60, workdir=str(tmp_path / "remote"), volumes={"torve-auth-0": "/auth"},
+    )
+    with pytest.raises(RuntimeError, match="no per-slot auth volumes"):
+        runtime.create(spec, workspace)
+    opensandbox_stub.REGISTRY.clear()

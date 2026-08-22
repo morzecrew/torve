@@ -92,11 +92,22 @@ class OpenSandboxRuntime:
         self._live: dict[str, tuple[Any, str]] = {}  # handle id -> (sdk sandbox, workdir)
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
+        if spec.volumes:
+            raise RuntimeError(
+                "OpenSandbox has no per-slot auth volumes — subscription adapters "
+                "need the Docker runtime (D-4.2); OpenSandbox credentials belong "
+                "to its vault (RFC 0003 §4.1)"
+            )
+        # Passthrough resolves here, at the API boundary — the last host-side
+        # point before the value must exist. This is where the vault would sit.
+        passthrough = {
+            name: os.environ[name] for name in spec.env_passthrough if name in os.environ
+        }
         sandbox = self._sdk.SandboxSync.create(
             spec.image,
             connection_config=self._connection,
             timeout=timedelta(seconds=spec.timeout_s),
-            env=dict(spec.env),
+            env={**passthrough, **spec.env},
             metadata={**spec.labels, "torve.name": spec.name},
         )
         payload = base64.b64encode(_workspace_tar(workspace)).decode()

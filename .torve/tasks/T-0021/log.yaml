@@ -1,0 +1,142 @@
+schema_version: 1
+task: T-0021
+repo: morzecrew/torve
+base_sha: fa0bf2a142917fd1d2412cebec5ad84e1ed4213a
+drift_count: 0
+entries:
+  - decision: D-4.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T12:20:00Z
+    attempt: 1
+    claim: harnesses run inside the sandbox and no harness SDK enters the engine;
+      the adapter only stages a prompt file and asks the Runtime to exec the
+      tier's configured command line
+    evidence: src/torve/adapters/agent/harness.py:101-129 — HarnessAgent.run
+      builds the command from TierConfig and calls ctx.runtime.exec; no SDK
+      import exists anywhere under src/torve (`uv run lint-imports` — 5 kept)
+    action: decided
+  - decision: D-4.2
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T12:21:00Z
+    attempt: 1
+    claim: subscription auth is one named volume per worker slot, mounted
+      read-write, never the host config directory; sandboxes are ephemeral,
+      the volume is not
+    evidence: src/torve/application/runner.py:191-200 — `_sandbox_auth` names
+      `{auth_volume}-{worker_slot}`; tests/test_runtime_conformance.py
+      test_docker_auth_volume_outlives_the_sandbox proves persistence across
+      two sandboxes against real Docker
+    action: decided
+    notes: |
+      A fresh named volume mounts root-owned while sandboxes run as the
+      invoking user; seeding ownership is part of the operator's one-time
+      slot provisioning (the interactive login §2 already requires).
+  - decision: D-4.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T12:22:00Z
+    attempt: 1
+    claim: provider version rides the attempt record beside config_hash;
+      absence is recorded as null (an uncontrolled regime), never invented
+    evidence: src/torve/application/ports.py:115-121 — AgentResult.model_version;
+      src/torve/application/telemetry.py:71-76 — the agent block in the record;
+      parse in src/torve/adapters/agent/harness.py:73-98
+    action: decided
+    notes: |
+      The tier mapping and provider policy also joined config_hash
+      (telemetry.py:47-51) — both real call sites pass the runner config, so
+      the run path and `torve gates run` digest the same regime.
+  - decision: D-4.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T12:23:00Z
+    attempt: 1
+    claim: provider allow/deny per repository is enforced at dispatch, before
+      a sandbox or worktree exists; no permitted provider exits 3, and an
+      unconfigured policy denies every real provider
+    evidence: src/torve/config/runconfig.py:86-105 — route_provider raises
+      ProviderDenied; src/torve/cli/run.py:70-77 — enforcement before RunDeps;
+      tests/test_tiering.py test_run_refuses_an_unrouted_provider_with_exit_3
+    action: decided
+  - decision: D-11.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T12:24:00Z
+    attempt: 1
+    claim: the new result-producing command carries --format json from its
+      first implementation
+    evidence: src/torve/cli/feedback.py:21-43 — `torve feedback` emits the
+      persisted record shape under --format json
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T12:25:00Z
+    attempt: 1
+    claim: api, harness and subscription are one HarnessAgent mechanism —
+      the RFC's own words, "the adapters differ only in how authentication
+      and the harness reach the process", and that difference lives in the
+      sandbox spec, not the adapter; the Agent port gained `kind` so telemetry
+      records the adapter that actually ran, not the tier's configured one
+      (an --agent fake override must not masquerade as a model)
+    evidence: src/torve/application/runner.py:272-285 — kind read from the
+      agent that runs, meta keyed on it; the port attribute is
+      src/torve/application/ports.py:128-134 and the shared adapter is
+      src/torve/adapters/agent/harness.py:101-107
+    action: decided
+    proposal: 0004 row — one harness mechanism, three auth routes; adapter
+      identity in telemetry is what ran, never what was configured
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T12:26:00Z
+    attempt: 1
+    claim: never_send is enforced by withholding matching files from the
+      worktree for the attempt and restoring them from memory afterwards —
+      a worktree's .git is a host-side pointer the sandbox cannot follow, so
+      removal from the worktree is removal from the sandbox's world; an agent
+      edit to a withheld path is discarded on restore
+    evidence: src/torve/application/runner.py:164-188 — withhold reads bytes
+      and unlinks, restore rewrites; pinned by tests/test_tiering.py
+      test_never_send_files_are_withheld_and_restored and
+      test_an_agent_edit_to_a_withheld_path_is_discarded
+    action: decided
+    proposal: 0004 row — never_send as dispatch-time withholding; note that
+      workspaces which carry their own history (shadow clones, D-4.7) need
+      the truncation guarantee instead, since deletion cannot unsend history
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T12:27:00Z
+    attempt: 1
+    claim: the session trace lives beside the worktree (`.wt/<id>.a<n>.trace.log`,
+      same rationale as the state file — triage outlives the workspace) and
+      cost/model metadata parses from the last JSON object line of harness
+      output, tolerantly; nothing parseable is recorded as null
+    evidence: src/torve/base/naming.py:52-55 — trace_file derives beside the
+      worktree; the tolerant parse is src/torve/adapters/agent/harness.py:73-98
+    action: decided
+    proposal: 0004 row — trace beside the worktree, metadata from the trailing
+      JSON line, absence recorded rather than invented
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T12:28:00Z
+    attempt: 1
+    claim: >-
+      worker slot identity is a runner-config scalar (`worker_slot: 0`), set
+      per worker process by the operator; ReviewFeedback lives in its own
+      gitignored stream `.torve/feedback.jsonl` beside the telemetry it joins
+      at analysis time
+    evidence: src/torve/config/runconfig.py:213 — the worker_slot scalar; the
+      stream path is src/torve/config/layout.py:60-63 and .gitignore carries
+      `.torve/feedback.jsonl`
+    action: decided
+    proposal: 0013 row — feedback.jsonl under .torve/ as generated data;
+      0004 row — slot identity is configuration, one slot per worker process

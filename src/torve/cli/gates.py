@@ -14,7 +14,7 @@ import yaml
 from torve.application.sizing import StaticThresholds
 from torve.application.telemetry import append_record, build_record, config_hash
 from torve.cli.console import Format, emit_json, fail, out
-from torve.cli.options import FormatOption, RootOption
+from torve.cli.options import FormatOption, RootOption, load_config
 from torve.config import layout
 from torve.config.manifest import load_manifest
 from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
@@ -72,7 +72,10 @@ def gates_run(
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-    record = build_record(ctx, report, config_hash(manifest_path, root))
+    # The runner configuration joins the hash (RFC 0004 §6, D-4.3): the tier
+    # mapping and provider policy are part of the regime a number belongs to.
+    record = build_record(
+        ctx, report, config_hash(manifest_path, root, load_config(root, None)))
     append_record(root / manifest.telemetry, record)
 
     if fmt is Format.JSON:

@@ -49,6 +49,12 @@ def state_file(root: Path, task_id: str) -> Path:
     return root / WORKTREE_DIR / f"{task_id}.state.json"
 
 
+def trace_file(worktree: Path, attempt: int) -> Path:
+    """Session trace, one per attempt (RFC 0004 §4) — beside the worktree for
+    the same reason as the state file: triage outlives the workspace."""
+    return worktree.parent / f"{worktree.name}.a{attempt}.trace.log"
+
+
 def sandbox_name(task_id: str, run_id: str) -> str:
     return f"torve-{task_id.lower()}-{run_id[:8]}"
 

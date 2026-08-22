@@ -82,6 +82,8 @@ DEFAULT_SCENARIO: list[dict[str, Any]] = [
 
 
 class FakeAgent:
+    kind: str = "fake"
+
     def __init__(self, steps: list[dict[str, Any]] | None = None) -> None:
         self.steps = steps or DEFAULT_SCENARIO
 

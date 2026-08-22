@@ -42,6 +42,13 @@ class SandboxSpec:
     timeout_s: float  # platform-enforced lifecycle bound (RFC 0003 §4.1)
     env: dict[str, str] = field(default_factory=dict)
     workdir: str = "/work"
+    # Names of variables the runtime forwards from its own environment — the
+    # value never enters the spec (D-4b), the runtime is the boundary.
+    env_passthrough: tuple[str, ...] = ()
+    # Named auth volume -> mount path, read-write because token refresh
+    # writes (RFC 0004 §2, D-4.2). One per worker slot, never the host
+    # config directory.
+    volumes: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -105,6 +112,13 @@ class AgentContext:
 class AgentResult:
     exit_code: int | None
     output: str
+    # None of these can be reconstructed after the fact (RFC 0004 §6):
+    # model_version is whatever version string the provider returned — None
+    # marks an uncontrolled regime (D-4.6); trace_ref turns escalation triage
+    # from archaeology into replay (§4). A trace is never gate evidence.
+    cost_usd: float | None = None
+    model_version: str | None = None
+    trace_ref: str | None = None
 
     @property
     def timed_out(self) -> bool:
@@ -112,6 +126,11 @@ class AgentResult:
 
 
 class Agent(Protocol):
+    # Which adapter this is ("fake", "api", "harness", "subscription") — the
+    # telemetry records what actually ran, not what the tier configured
+    # (RFC 0004 §6: an --agent fake override must not masquerade as a model).
+    kind: str
+
     def run(self, ctx: AgentContext) -> AgentResult: ...
 
 
