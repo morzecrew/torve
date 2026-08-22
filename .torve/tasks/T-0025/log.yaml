@@ -1,0 +1,146 @@
+schema_version: 1
+task: T-0025
+repo: morzecrew/torve
+base_sha: 4cb37b6f8a100147e47bd0634d9325283af1bd26
+drift_count: 0
+entries:
+  - decision: D-7.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:10:00Z
+    attempt: 1
+    claim: no model call exists anywhere in the planner — the module's imports
+      are git-via-subprocess, yaml, pathspec and torve's own layers; a
+      violation would show up as a new dependency, and there is none
+    evidence: src/torve/application/planner.py:21-36 — the whole import block
+    action: decided
+  - decision: D-7.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:11:00Z
+    attempt: 1
+    claim: only a committed, tracked document is admitted — untracked and
+      dirty both refuse, naming the document, because the commit is the human
+      signature in the loop
+    evidence: src/torve/application/planner.py:58-73 — _require_committed;
+      tests/test_plan.py test_uncommitted_changes_are_refused
+    action: decided
+  - decision: D-7.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:12:00Z
+    attempt: 1
+    claim: admission refuses a non-accepted document, a non-accepted
+      dependency, supersession and a reachable cycle, each by name with exit
+      3 at the CLI
+    evidence: src/torve/application/planner.py:76-122 — _admit; four refusal
+      tests in tests/test_plan.py plus the live corpus smoke (RFC 0017 draft
+      refused with the §3.1 wording)
+    action: decided
+  - decision: D-7.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:13:00Z
+    attempt: 1
+    claim: torve plan takes exactly one positional identifier; no set, no
+      subgraph, no --all exists on the command
+    evidence: src/torve/cli/plan.py:21-24 — the single Argument
+    action: decided
+  - decision: D-7.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:14:00Z
+    attempt: 1
+    claim: the DecisionSource port landed with RfcDirectory as its first
+      adapter — a markdown table parse over accepted documents, deterministic
+      by construction, no model call possible
+    evidence: src/torve/application/ports.py:144-149 — the protocol;
+      src/torve/adapters/decisions/rfc_directory.py — the adapter and its
+      standing-rows test
+    action: decided
+  - decision: D-7.12
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:15:00Z
+    attempt: 1
+    claim: the Phasing format and the full decision-table accessor live in
+      rfc_parse — the planner imports the format, never reimplements it, and
+      torve rfc check validates a Phasing fence with the same code the
+      planner mints from
+    evidence: src/torve/config/rfc_parse.py:262-360 — decision_table,
+      check_phasing, PhasingEntry, parse_phasing;
+      tests/test_plan.py test_rfc_check_reddens_on_a_broken_phasing_fence
+    action: decided
+  - decision: D-1.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:16:00Z
+    attempt: 1
+    claim: intent is required at the source — a Phasing entry without one
+      does not validate, so a contract without an intent paragraph cannot be
+      minted
+    evidence: src/torve/config/rfc_parse.py:313-329 — intent with min_length
+      1 and the D-1.7 comment; tests/test_plan.py
+      test_parse_phasing_rejects_missing_intent
+    action: decided
+  - decision: D-11.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:17:00Z
+    attempt: 1
+    claim: torve plan emits its report under --format json from its first
+      implementation, dry-run flagged in the document
+    evidence: src/torve/cli/plan.py:45-57 — emit_json with tasks and written
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T19:18:00Z
+    attempt: 1
+    claim: the RFC says "parse the Phasing section" without defining its
+      format; it is now a fenced YAML block of units (phase, title, intent,
+      scope, acceptance, depends_on as phase numbers) — deterministic,
+      pydantic-validated, documented in the rfc-writer template; prose-only
+      Phasing stays legal for documents nobody plans to mint, and a fence
+      that exists but does not validate is a corpus problem
+    evidence: src/torve/config/rfc_parse.py:331-360 — parse_phasing;
+      skills/rfc-writer/references/rfc-template.md carries the format
+    action: decided
+    proposal: 0007 row — the Phasing format is the fenced YAML unit list,
+      owned by rfc_parse; prose-only sections are legal but unmintable
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T19:19:00Z
+    attempt: 1
+    claim: four minting mechanics the RFC leaves open, decided — a contract
+      inherits the planned document's FULL decision table (over-inheritance
+      is safe because the silence check fires only for touched paths, and
+      "relevant" filtering would be a judgement the planner must not make);
+      task ids derive max+1 over .torve/tasks and are never reused; a phase
+      already minted from the same document refuses (duplicate work is a
+      human decision); scope intersection is checked conservatively —
+      identical globs or literal-prefix overlap refuse, cleverly disjoint
+      passes
+    evidence: src/torve/application/planner.py:205-289 — plan_document;
+      tests/test_plan.py covers inheritance, ids, replanning refusal and
+      the intersection check
+    action: decided
+    proposal: 0007 rows — full-table inheritance at mint; ids max+1 never
+      reused; already-minted phases refuse; conservative scope-overlap
+      refusal
+  - decision: D-7.18
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:25:00Z
+    attempt: 1
+    claim: the format's knowers grew by exactly the names the decision allows
+      — torve plan (application/planner.py, cli/plan.py) and RfcDirectory —
+      and the import-linter containment contract still holds over the whole
+      graph, so no gate or runtime/agent adapter gained the format
+    evidence: src/torve/config/rfc_parse.py:248-360 — the format additions
+      stay in the owning module; `uv run lint-imports` — 5 contracts kept,
+      0 broken
+    action: decided

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
+from pydantic import BaseModel, ConfigDict, Field
 
 from torve.domain.rfc import GRADES, IMPLEMENTATIONS, KINDS, STATUSES
 
@@ -242,6 +243,119 @@ def paths_globs(cell: str) -> list[str]:
     if not cleaned or set(cleaned) <= set("—- "):
         return []
     return cleaned.split()
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class DecisionRow:
+    identifier: str
+    grade: str
+    text: str
+    paths: list[str]
+
+
+def decision_table(text: str) -> list[DecisionRow]:
+    """Every row of the document's decision table with all cells — what a
+    minted contract inherits (grade and paths copied at write time)."""
+    heading = DECISIONS_HEADING.search(text)
+    if not heading:
+        return []
+    section = text[heading.end():]
+    following = re.search(r"^#{2,3}\s", section, re.M)
+    if following:
+        section = section[: following.start()]
+    rows: list[DecisionRow] = []
+    inside = False
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if inside and stripped:
+                break
+            continue
+        if not inside:
+            inside = stripped.lower().startswith("| #")
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if cells and cells[0] and set(cells[0]) <= set("- :"):
+            continue
+        if len(cells) < 5:
+            continue
+        rows.append(DecisionRow(
+            identifier=cells[0].strip("`* "),
+            grade=cells[1].strip("`* "),
+            text=cells[2],
+            paths=paths_globs(cells[3]),
+        ))
+    return rows
+
+
+def check_phasing(path: Path, text: str) -> list[str]:
+    """A Phasing section carrying a YAML fence must mint (RFC 0007 §3): the
+    planner and the validator reading the same section differently is the
+    drift D-7.12 exists to prevent. Prose-only Phasing stays legal."""
+    try:
+        parse_phasing(text)
+    except ValueError as exc:
+        first = str(exc).splitlines()[0]
+        return [f"{path.name}: Phasing section does not mint — {first}"]
+    return []
+
+
+PHASING_HEADING = re.compile(r"^#{2,3}\s*(?:\d+[a-z]?\.\s*)?Phasing\b.*$", re.M | re.I)
+YAML_FENCE = re.compile(r"^```ya?ml[ \t]*\n(.*?)^```[ \t]*$", re.M | re.S)
+
+
+class PhasingEntry(BaseModel):
+    """One mintable unit of a Phasing section (RFC 0007 §3; rfc-writer rule 2:
+    a phase is a list of units, not prose about sequence). Several entries may
+    share a phase number — they run in parallel, so their scopes must not
+    intersect."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    phase: int = Field(ge=1)
+    title: str = Field(min_length=1)
+    # One paragraph: what changes and why — never steps (D-1.7). Required at
+    # the source: a phase entry without an intent is not mintable.
+    intent: str = Field(min_length=1)
+    scope: list[str] = Field(min_length=1)
+    acceptance: list[str] = Field(default_factory=list)
+    depends_on: list[int] = Field(default_factory=list)  # phase numbers
+
+
+def parse_phasing(text: str) -> list[PhasingEntry] | None:
+    """The Phasing section's fenced YAML block as validated entries; None when
+    the document has no Phasing section or the section carries no YAML fence
+    (prose-only phasing is legal for documents nobody plans to mint). Raises
+    ValueError when a fence exists but does not validate — a half-mintable
+    section is a defect, not a style."""
+    heading = PHASING_HEADING.search(text)
+    if not heading:
+        return None
+    section = text[heading.end():]
+    following = re.search(r"^##\s", section, re.M)
+    if following:
+        section = section[: following.start()]
+    fence = YAML_FENCE.search(section)
+    if not fence:
+        return None
+    raw: Any = yaml.safe_load(fence.group(1))
+    if not isinstance(raw, list):
+        raise ValueError("the Phasing YAML block must be a list of phase entries")
+    entries = [PhasingEntry.model_validate(item) for item in cast("list[object]", raw)]
+    known = {entry.phase for entry in entries}
+    for entry in entries:
+        unknown = [p for p in entry.depends_on if p not in known]
+        if unknown:
+            raise ValueError(
+                f"phase {entry.phase} ({entry.title}) depends on undefined phase(s) "
+                f"{', '.join(map(str, unknown))}"
+            )
+        if entry.phase in entry.depends_on:
+            raise ValueError(f"phase {entry.phase} ({entry.title}) depends on itself")
+    return entries
 
 
 def check_decisions(
@@ -617,6 +731,7 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
         report.problems += decision_problems
         report.warnings += decision_warnings
         report.problems += check_amendments(path, text, fm)
+        report.problems += check_phasing(path, text)
         report.problems += check_line_cites(path, text, root)
         report.problems += check_headings(path, text)
         report.problems += check_citations(path, text, resolvable)

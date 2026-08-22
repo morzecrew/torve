@@ -118,8 +118,30 @@ worded carefully (e.g. migration honesty, threat-model caveats).>
 
 ## 12. Phasing
 
-<What lands first, what is gated on what, what is demand-gated. "P1 = W1+W2"
-style is fine if the workstreams are named in §5.>
+<What lands first, what is gated on what, what is demand-gated. Prose is fine
+for a document nobody plans to mint; for `torve plan` to consume it, carry a
+fenced YAML block — a list of units, each with a phase number, a title, one
+intent paragraph (what changes and why — never steps), the scope it may
+touch, its acceptance commands, and the phase numbers it waits on. Several
+entries may share a phase number: they run in parallel, so their scopes must
+not intersect.>
+
+```yaml
+- phase: 1
+  title: the-first-unit
+  intent: >-
+    One paragraph: what changes and why.
+  scope: ["src/thing/**", "tests/**"]
+  acceptance: ["make test"]
+  depends_on: []
+- phase: 2
+  title: the-follow-up
+  intent: >-
+    What this phase changes, and why it waits for phase 1.
+  scope: ["src/other/**"]
+  acceptance: ["make test"]
+  depends_on: [1]
+```
 ```
 
 ---

@@ -107,6 +107,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- `torve plan` — the deterministic minter (RFC 0007 §3, phase 1): one
+  accepted, committed specification in, implement-task contracts out,
+  no model call at any point (D-7.1). Admission refuses drafts,
+  unsettled dependencies, supersession, cycles and uncommitted text by
+  name with exit 3; exactly one document per invocation (D-7.8). The
+  Phasing section became a mintable format — a fenced YAML block of
+  units (phase, title, intent, scope, acceptance, depends_on), owned
+  by `rfc_parse` (D-7.12), validated by `torve rfc check`, documented
+  in the rfc-writer template. Minted contracts inherit the document's
+  decision table grade-and-paths at write time, same-phase scopes must
+  not intersect, ids derive max+1 and are never reused, dry-run is the
+  default. The `DecisionSource` port landed with its first adapter
+  (`RfcDirectory` — standing rows for an area, accepted documents
+  only). With `planner.py` real, the corpus's last standing warning
+  cleared: 17 RFCs, zero problems, zero warnings.
 - RFC 0017 drafted (sandbox provisioning and harness configuration),
   from the first shadow campaign's findings: the image digest as the
   sandbox's identity joining `config_hash` (a mutable tag is the D-4.6

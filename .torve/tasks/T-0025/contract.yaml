@@ -1,0 +1,73 @@
+# RFC 0007 phase 1: `torve plan` — the deterministic minter. torve context,
+# the MCP surface and --reconcile (needs the stale_inheritance amendment)
+# are later phases.
+schema_version: 1
+id: T-0025
+rfc: rfcs/0007-planner-context.md
+phase: 1
+role: implement
+intent: |
+  `torve plan <id>` deterministically transforms one accepted, committed
+  specification into implement-task contracts: admission refuses drafts,
+  unsettled dependencies, supersession and cycles by name with exit 3; the
+  Phasing section becomes the task set with intent, scope, acceptance and
+  the document's decision table inherited grade-and-paths intact; same-phase
+  scopes must not intersect; dry-run is the default and minting writes
+  contracts under .torve/tasks/. No model call at any point — the planner is
+  the place where they would try to creep in.
+depends_on: []
+scope:
+  allow:
+    - "src/torve/**"
+    - "tests/**"
+    - ".torve/**"
+    - "skills/rfc-writer/**"
+    - "rfcs/INDEX.md"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-7.1
+    grade: LOCKED
+    text: No model calls inside the planner, for any reason
+    paths: ["src/torve/application/planner.py"]
+  - id: D-7.2
+    grade: LOCKED
+    text: torve plan accepts only a committed, reviewed document
+    paths: ["src/torve/application/planner.py"]
+  - id: D-7.7
+    grade: LOCKED
+    text: torve plan refuses unless the document and every depends_on target are accepted
+    paths: ["src/torve/application/planner.py"]
+  - id: D-7.8
+    grade: LOCKED
+    text: torve plan takes exactly one document; no sets, no subgraphs, no --all
+    paths: ["src/torve/application/planner.py"]
+  - id: D-7.6
+    grade: LOCKED
+    text: DecisionSource adapters are deterministic; model-assisted extraction runs outside the engine
+    paths: ["src/torve/application/planner.py", "src/torve/application/ports.py"]
+  - id: D-7.12
+    grade: LOCKED
+    text: The RFC format is owned by the package; validation does not depend on an installed skill
+    paths: ["src/torve/config/rfc_parse.py"]
+  - id: D-7.18
+    grade: LOCKED
+    text: Only torve plan, torve rfc * and RfcDirectory know the RFC format
+    paths: ["src/torve/config/rfc_parse.py", "src/torve/cli/rfc.py", "pyproject.toml"]
+  - id: D-1.7
+    grade: LOCKED
+    text: Task intent is one paragraph — what changes and why, never steps
+    paths: ["src/torve/application/planner.py", "src/torve/domain/task.py"]
+  - id: D-11.2
+    grade: LOCKED
+    text: --format json on every result-producing command from its first implementation
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor
