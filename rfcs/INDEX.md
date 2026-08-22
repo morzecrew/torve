@@ -26,7 +26,7 @@ number is **0019**.
 | [0012](0012-migrations.md) | Migrations | accepted | complete | 0003 | — | Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and the conformance battery as the gate. |
 | [0013](0013-configuration-layout.md) | Configuration layout | accepted | complete | 0016 | A-16 | Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file. |
 | [0017](0017-sandbox-provisioning.md) | Sandbox provisioning and harness configuration | draft | none | 0003, 0004 | — | How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory. |
-| [0018](0018-cli-presentation.md) | CLI presentation | accepted | partial | 0011 | — | One visual vocabulary for the human side of every verb — components, colour semantics, formats and live status — now that the hand-run commands are known. The machine contracts of RFC 0011 are untouched. |
+| [0018](0018-cli-presentation.md) | CLI presentation | accepted | complete | 0011 | — | One visual vocabulary for the human side of every verb — components, colour semantics, formats and live status — now that the hand-run commands are known. The machine contracts of RFC 0011 are untouched. |
 
 ## Conventions
 

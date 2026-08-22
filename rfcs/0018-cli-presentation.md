@@ -2,7 +2,7 @@
 id: "0018"
 title: CLI presentation
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0011"]
 informed_by: ["0007", "0016"]
 supersedes: []

@@ -107,6 +107,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0018 phase 2 (T-0028, the second planner-minted contract) plus
+  owner-reported phase-1 fixes: every verb renders through the shared
+  components (plan and reconcile as tables, doctor speaks verdict
+  marks, rfc check/graph style PROBLEM/WARN with the words intact),
+  table footnotes print after the table instead of inflating its first
+  column, id lists are bounded, and the single-line TTY-only live
+  status (spinner + elapsed, stderr, absent under --plain/CI/json)
+  covers the two longest hand-run waits: the gate pass and the shadow
+  replay. 0018 is implementation: complete.
 - RFC 0018 phase 1 executed from the first planner-minted contract
   (`torve plan 0018 --no-dry-run` minted T-0027/T-0028; T-0027 executed
   against its minted scope and decisions): the component vocabulary in
