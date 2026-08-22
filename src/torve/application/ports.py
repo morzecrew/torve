@@ -33,6 +33,13 @@ if TYPE_CHECKING:
 # (RFC 0015 §2.1: application does not import adapters).
 StoreFactory = Callable[["StoreConfig"], Awaitable["DurableRunStorePort"]]
 
+# The standard proxy convention: a sandbox on the host's egress path must see
+# the same variables the host's own processes do, or its traffic silently
+# takes a different (often blocked) route. Runtimes forward these by name —
+# the values ride the runtime's own environment, never a spec.
+PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy",
+             "socks_proxy", "no_proxy")
+
 
 @dataclass(frozen=True)
 class SandboxSpec:

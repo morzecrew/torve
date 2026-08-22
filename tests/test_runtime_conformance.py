@@ -223,3 +223,27 @@ def test_docker_default_network_forwards_no_proxy_vars(docker_case, monkeypatch)
         assert seen.output == ""
     finally:
         runtime.destroy(handle)
+
+
+def test_opensandbox_forwards_proxy_and_passthrough_values(tmp_path, monkeypatch):
+    # Server-side sandboxes get the same convention as Docker's host mode —
+    # resolved at the API boundary; reachability is the server's business.
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
+    monkeypatch.setenv("TORVE_TEST_KEY", "k-123")
+    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
+    workspace = tmp_path / "ws3"
+    workspace.mkdir()
+    spec = SandboxSpec(
+        name="torve-proxy", image=TEST_IMAGE, labels=naming.labels("T-9905", "r"),
+        timeout_s=60, workdir=str(tmp_path / "remote3"),
+        env_passthrough=("TORVE_TEST_KEY",), env={"EXPLICIT": "wins"},
+    )
+    handle = runtime.create(spec, workspace)
+    try:
+        recorded = opensandbox_stub.REGISTRY[handle.id].env
+        assert recorded["HTTPS_PROXY"] == "http://127.0.0.1:9999"
+        assert recorded["TORVE_TEST_KEY"] == "k-123"
+        assert recorded["EXPLICIT"] == "wins"
+    finally:
+        runtime.destroy(handle)
+    opensandbox_stub.REGISTRY.clear()

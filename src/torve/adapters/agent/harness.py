@@ -91,6 +91,12 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
         model: Any = next(
             (record[k] for k in ("model_version", "model") if k in record), None
         )
+        if not isinstance(model, str) or not model:
+            # The claude CLI reports models as modelUsage keys — the dated
+            # snapshot ids, which are exactly the drift-catcher D-4.6 wants.
+            usage: Any = record.get("modelUsage")
+            if isinstance(usage, dict) and usage:
+                model = "+".join(sorted(cast("dict[str, Any]", usage)))
         return (
             float(cost) if isinstance(cost, (int, float)) else None,
             str(model) if isinstance(model, str) and model else None,

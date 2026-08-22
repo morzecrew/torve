@@ -92,6 +92,7 @@ class SandboxSync:
     def create(cls, image: str, *, connection_config=None, timeout=None,
                env=None, metadata=None, **_kwargs) -> SandboxSync:
         sandbox = cls(image, dict(metadata or {}))
+        sandbox.env = dict(env or {})  # recorded so tests can assert what the SDK was told
         REGISTRY[sandbox.id] = sandbox
         return sandbox
 

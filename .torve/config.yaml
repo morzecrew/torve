@@ -9,10 +9,11 @@ runtime:
   image: python:3.13-slim
   sandbox_timeout: 1800      # platform-enforced lifecycle bound, seconds
   agent_timeout: 1200        # hard cap per agent attempt
-  network: ""                # "" = docker's default bridge; "host" shares the
-                             # host stack AND forwards the standard proxy env
-                             # (http_proxy et al., names only) — for hosts
-                             # whose egress runs through a local proxy/VPN
+  network: host              # this host's egress runs through a local proxy
+                             # (Outline VPN): "host" shares the host stack AND
+                             # forwards the standard proxy env (http_proxy et
+                             # al., names only). "" = docker's default bridge,
+                             # which is region-blocked from here.
   opensandbox:
     domain: localhost:5266
     api_key_env: OPENSANDBOX_API_KEY   # the name of the variable, never the key

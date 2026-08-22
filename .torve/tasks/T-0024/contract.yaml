@@ -1,0 +1,42 @@
+# Findings from the first live shadow replay (claude in the sandbox, host
+# proxy egress): the model identity hides in modelUsage keys, this host runs
+# host networking by default, and OpenSandbox gets the proxy convention too.
+schema_version: 1
+id: T-0024
+rfc: rfcs/0004-agents-tiering.md
+phase: 2
+role: implement
+intent: |
+  Three follow-ups the first real replay surfaced: metadata parsing learns
+  the claude CLI's actual shape (models as modelUsage keys — the dated
+  snapshot ids D-4.6 exists to record); this repository's runner config
+  defaults to host networking because its egress is region-blocked without
+  the host proxy; and the OpenSandbox adapter forwards the same proxy
+  convention at its API boundary, with the caveat that reachability from a
+  server-side sandbox is the server's networking, not the client's.
+depends_on: [T-0023]
+scope:
+  allow:
+    - "src/torve/**"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-4.6
+    grade: LOCKED
+    text: Provider version is recorded alongside config_hash; unpinnable models are one uncontrolled regime
+    paths: ["src/torve/application/telemetry.py"]
+  - id: D-15.3
+    grade: LOCKED
+    text: Adapters never import each other
+    paths: ["src/torve/adapters/**", "pyproject.toml"]
+budget: {}
+tier: executor

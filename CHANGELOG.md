@@ -107,6 +107,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- First live shadow replays (claude CLI in the sandbox, host-proxy
+  egress): both green in one attempt with real cost figures. Metadata
+  parsing learned the claude CLI's actual shape — models arrive as
+  `modelUsage` keys, the dated snapshot ids D-4.6 exists to record —
+  and the proxy convention became one vocabulary (`PROXY_ENV` in
+  `application.ports`) forwarded by Docker under the network opt-in and
+  by the OpenSandbox adapter at its API boundary.
 - Sandbox egress through the host: `runtime.network: host` puts Docker
   sandboxes on the host's network stack and forwards the standard proxy
   environment by name — for hosts whose provider access runs through a

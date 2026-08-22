@@ -29,7 +29,13 @@ from importlib import import_module
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from torve.application.ports import ExecResult, SandboxHandle, SandboxInfo, SandboxSpec
+from torve.application.ports import (
+    PROXY_ENV,
+    ExecResult,
+    SandboxHandle,
+    SandboxInfo,
+    SandboxSpec,
+)
 from torve.base import naming
 from torve.base.shell import truncate
 from torve.config.runconfig import OpenSandboxConfig
@@ -103,11 +109,20 @@ class OpenSandboxRuntime:
         passthrough = {
             name: os.environ[name] for name in spec.env_passthrough if name in os.environ
         }
+        # The proxy convention rides along like it does for Docker under a
+        # network opt-in — but whether the address is *reachable* from a
+        # server-side sandbox is the server's networking, not ours: this
+        # only guarantees the sandbox sees the same variables the runner did.
+        proxies = {
+            variant: os.environ[variant]
+            for name in PROXY_ENV for variant in (name, name.upper())
+            if variant in os.environ
+        }
         sandbox = self._sdk.SandboxSync.create(
             spec.image,
             connection_config=self._connection,
             timeout=timedelta(seconds=spec.timeout_s),
-            env={**passthrough, **spec.env},
+            env={**proxies, **passthrough, **spec.env},
             metadata={**spec.labels, "torve.name": spec.name},
         )
         payload = base64.b64encode(_workspace_tar(workspace)).decode()

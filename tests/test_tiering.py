@@ -340,3 +340,12 @@ def test_feedback_appends_a_keyed_record(tmp_path):
     assert emitted["rework_after_review"] is True
     lines = (root / ".torve" / "feedback.jsonl").read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[0])["task_id"] == "T-0042"
+
+
+def test_parse_metadata_reads_claude_model_usage_keys():
+    # The claude CLI's json result names models as modelUsage keys — the
+    # dated snapshot ids D-4.6 wants recorded (found in the first live run).
+    line = json.dumps({"total_cost_usd": 0.0999,
+                       "modelUsage": {"claude-haiku-4-5-20251001": {},
+                                      "claude-sonnet-5": {}}})
+    assert parse_metadata(line) == (0.0999, "claude-haiku-4-5-20251001+claude-sonnet-5")

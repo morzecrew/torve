@@ -1,0 +1,56 @@
+schema_version: 1
+task: T-0024
+repo: morzecrew/torve
+base_sha: bb8d89d9bf740722ce8f7c8da6375f921b8624e5
+drift_count: 0
+entries:
+  - decision: D-4.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T15:10:00Z
+    attempt: 1
+    claim: the first live replay recorded no model version — the claude CLI
+      names models as modelUsage keys, not a model field; the parser now
+      reads those keys (dated snapshot ids, joined sorted with +), and the
+      second live replay recorded claude-haiku-4-5-20251001+claude-sonnet-5
+    evidence: src/torve/adapters/agent/harness.py:93-99 — the modelUsage
+      fallback; tests/test_tiering.py
+      test_parse_metadata_reads_claude_model_usage_keys pins the shape
+    action: decided
+    notes: |
+      Found by dogfooding, which is the point of shadow runs: the machinery
+      measured a real harness and its record shape disagreed with the
+      assumption. Two live replays of T-0100 both ended ready in 1 attempt
+      ($0.0999 and $0.0590), same file produced, nothing merged.
+  - decision: D-15.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T15:11:00Z
+    attempt: 1
+    claim: PROXY_ENV moved to application.ports so both runtime adapters use
+      one convention without importing each other; lint-imports keeps all
+      five contracts
+    evidence: src/torve/application/ports.py:36-41 — the shared constant;
+      `uv run lint-imports` — 5 kept, 0 broken
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T15:12:00Z
+    attempt: 1
+    claim: this repository's runner config now defaults to network host —
+      measured, not assumed, that api.anthropic.com region-blocks the bridge
+      path from this host and answers through the local proxy; the code
+      default stays "" (a consuming repository keeps Docker's isolation
+      unless its operator opts in). OpenSandbox's create now forwards the
+      resolved proxy convention lowest-precedence into sandbox env, with
+      reachability explicitly the server's business
+    evidence: src/torve/adapters/runtime/opensandbox.py:110-125 — proxies
+      merged below passthrough and spec env; stub records env and
+      tests/test_runtime_conformance.py
+      test_opensandbox_forwards_proxy_and_passthrough_values asserts it
+    action: decided
+    proposal: 0004 row — the proxy convention is one vocabulary across
+      runtimes (PROXY_ENV in ports); per-host egress mode is repository
+      configuration, never a code default

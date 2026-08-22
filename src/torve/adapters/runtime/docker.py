@@ -14,7 +14,13 @@ import os
 import subprocess
 from pathlib import Path
 
-from torve.application.ports import ExecResult, SandboxHandle, SandboxInfo, SandboxSpec
+from torve.application.ports import (
+    PROXY_ENV,
+    ExecResult,
+    SandboxHandle,
+    SandboxInfo,
+    SandboxSpec,
+)
 from torve.base import naming
 from torve.base.shell import truncate
 
@@ -25,14 +31,9 @@ class DockerError(RuntimeError):
     pass
 
 
-# The standard proxy convention, forwarded by name when set in the runner's
-# environment (values ride the docker CLI's env, never torve): a sandbox
-# whose host routes egress through a proxy must see the same variables the
-# host's own processes do, or its traffic silently takes a different path.
-# Forwarded only when a network mode was chosen — a host-loopback proxy
-# address is reachable under "host" and poison under the default bridge.
-PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy",
-             "socks_proxy", "no_proxy")
+# The PROXY_ENV convention is forwarded only when a network mode was chosen —
+# a host-loopback proxy address is reachable under "host" and poison under
+# the default bridge.
 
 
 class DockerRuntime:
