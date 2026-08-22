@@ -17,7 +17,7 @@ schema_version: 1
 # RFC 0007 — Planner and context
 
 - **Scope:** The planner module: minting tasks from an approved RFC, projecting execution facts back into a planning session, and the read-only MCP surface. Excludes any model call inside the engine, permanently.
-- **Inherits:** D-1, D-2, D-2a, D-25 from RFC 0001
+- **Inherits:** D-1, D-2, D-25, D-31 from RFC 0001
 
 ---
 

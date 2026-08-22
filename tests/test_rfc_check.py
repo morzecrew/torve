@@ -224,6 +224,30 @@ def test_an_unknown_kind_reddens(tmp_path: Path) -> None:
 
 
 # ....................... #
+# LOCKED paths globs (D-32): an implemented RFC cites real areas; a document
+# not yet built names intended modules
+
+
+def locked_doc(implementation: str) -> str:
+    doc = rfc_text("0001", "Widget", "D-T.1", status="accepted",
+                   implementation=implementation)
+    return doc.replace("| D-T.1 | `ASSUMED` | Something is decided | — | — |",
+                       "| D-T.1 | `LOCKED` | Something is decided | `src/ghost/**` | — |")
+
+
+def test_an_implemented_rfc_citing_a_missing_area_reddens(tmp_path: Path) -> None:
+    seed(tmp_path, ("0001-widget.md", locked_doc("partial")))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == EXIT_CONFIG
+    assert "matches nothing" in result.output
+
+def test_an_accepted_but_unbuilt_rfc_may_name_intended_modules(tmp_path: Path) -> None:
+    seed(tmp_path, ("0001-widget.md", locked_doc("none")))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+
+
+# ....................... #
 # line-cite rot (0007 §3a): real paths redden, illustrations do not
 
 

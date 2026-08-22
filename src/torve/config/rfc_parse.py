@@ -245,8 +245,15 @@ def paths_globs(cell: str) -> list[str]:
 
 
 def check_decisions(
-    path: Path, text: str, status: str, root: Path, seen: dict[str, str]
+    path: Path, text: str, fm: dict[str, Any], root: Path, seen: dict[str, str]
 ) -> list[str]:
+    # D-32: for RFCs not yet built the globs name the intended module and are
+    # refined when it exists. "Not yet built" is `implementation: none` — an
+    # accepted document awaiting execution may cite modules that do not exist,
+    # while partial or complete implementation means the cited areas are real.
+    check_globs = (
+        fm.get("status") == "accepted" and (fm.get("implementation") or "none") != "none"
+    )
     found = decision_rows(text)
     if found is None:
         return [
@@ -277,7 +284,7 @@ def check_decisions(
                     f"{path.name}: LOCKED row {ident!r} declares no Paths — "
                     "the silence check skips it and the lock protects nothing"
                 )
-            elif status == "accepted":
+            elif check_globs:
                 for pattern in globs:
                     try:
                         matched = next(root.glob(pattern), None)
@@ -286,7 +293,8 @@ def check_decisions(
                     if matched is None:
                         problems.append(
                             f"{path.name}: LOCKED row {ident!r} paths glob {pattern!r} "
-                            "matches nothing in the repository (accepted RFCs cite real areas)"
+                            "matches nothing in the repository (an implemented "
+                            "RFC cites real areas, D-32)"
                         )
     return problems
 
@@ -583,7 +591,7 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
                 if ref not in files:
                     report.problems.append(f"{path.name}: {fname} names {ref!r}, no such RFC")
 
-        report.problems += check_decisions(path, text, str(fm.get("status")), root, seen_ids)
+        report.problems += check_decisions(path, text, fm, root, seen_ids)
         report.problems += check_amendments(path, text, fm)
         report.problems += check_line_cites(path, text, root)
         report.problems += check_headings(path, text)
