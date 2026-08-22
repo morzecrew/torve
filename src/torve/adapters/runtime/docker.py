@@ -51,6 +51,12 @@ class DockerRuntime:
                 "--user", f"{os.getuid()}:{os.getgid()}",
                 "-v", f"{workspace.resolve()}:{spec.workdir}",
                 "-w", spec.workdir]
+        if "HOME" not in spec.env:
+            # The container runs as the invoking uid with no passwd entry, so
+            # HOME is `/` — and every tool that caches under ~ (uv, pip, git,
+            # npm) dies on permissions. A writable container-local default
+            # fixes the class; a spec or command-level HOME still wins.
+            args += ["-e", "HOME=/tmp"]
         if self.network:
             args += ["--network", self.network]
             for name in PROXY_ENV:

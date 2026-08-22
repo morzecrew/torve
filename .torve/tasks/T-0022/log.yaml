@@ -106,3 +106,22 @@ entries:
     action: decided
     proposal: closes the discovery-order half of this log's earlier proposal;
       the squash caveat stands
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T17:05:00Z
+    attempt: 3
+    claim: two discoveries from the first real-task replay attempt — the
+      widened fallback matched a later commit whose BODY quoted the id (git
+      log --grep searches whole messages), so the fallback now scans subjects
+      only via a %H%s listing; and gate commands died in the sandbox on
+      "Failed to initialize cache at /.cache/uv" because a uid-mapped
+      container has no HOME — DockerRuntime now defaults HOME=/tmp unless the
+      spec provides one
+    evidence: src/torve/adapters/workspace/git.py:109-137 — subject-only
+      scan with a body-mention regression test in tests/test_shadow.py;
+      src/torve/adapters/runtime/docker.py:53-58 — the HOME default
+    action: decided
+    proposal: fold into the pending 0004 shipped-commit-discovery row; the
+      HOME default belongs in a 0003 runtime-contract note
