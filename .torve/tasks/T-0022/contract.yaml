@@ -1,0 +1,53 @@
+# RFC 0004 phase 2: shadow runs — replay completed tasks from their parent
+# commit in truncated-history workspaces, never merging, and record the
+# comparison. The fifteen measured runs of the exit criteria are operator
+# work with live keys; this builds the machinery that makes them one command.
+schema_version: 1
+id: T-0022
+rfc: rfcs/0004-agents-tiering.md
+phase: 2
+role: implement
+intent: |
+  `torve shadow <task-id>` replays an already-completed task from the parent
+  of the commit that shipped it: the workspace is a truncated clone holding
+  no refs beyond that parent — the fix being in the repository's history is
+  the leak that makes shadow numbers flattering fiction — the loop runs the
+  same attempt-and-gates machinery as a live run, nothing is ever merged,
+  and one telemetry record captures cost, iterations and the diff compared
+  against what actually shipped.
+depends_on: [T-0021]
+scope:
+  allow:
+    - "src/torve/**"
+    - "tests/**"
+    - ".torve/**"
+    - "rfcs/0004-agents-tiering.md"
+    - "rfcs/INDEX.md"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-4.4
+    grade: LOCKED
+    text: Shadow runs precede any live loop
+    paths: ["src/torve/application/shadow.py"]
+  - id: D-4.7
+    grade: LOCKED
+    text: Shadow worktrees carry truncated history and no later refs
+    paths: ["src/torve/adapters/workspace/git.py"]
+  - id: D-4.5
+    grade: ASSUMED
+    text: Telemetry starts as JSONL; record shape is fixed from record one
+    paths: ["src/torve/application/telemetry.py", "src/torve/application/shadow.py"]
+  - id: D-11.2
+    grade: LOCKED
+    text: --format json on every result-producing command from its first implementation
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor

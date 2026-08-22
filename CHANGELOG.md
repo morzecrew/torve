@@ -107,6 +107,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Shadow runs (RFC 0004 phase 2, §5): `torve shadow <task-id>` replays a
+  completed task from the parent of the commit that shipped it — found by
+  its `Torve-Task:` trailer — through the same attempt-and-gates loop a
+  live run executes, never merging (the landing hook records prose; no
+  vcs call exists on the shadow path, D-4.4). The workspace is a
+  truncated clone built by exact-SHA fetch at bounded depth: no refs or
+  objects beyond the parent exist in it, so the agent cannot read the
+  answer out of the repository's future (D-4.7, §6a). One `kind: shadow`
+  telemetry record captures cost, iterations, outcome and the diffstat
+  comparison against what shipped; gate passes inside a replay are
+  marked `agent.shadow` so the measurement population stays separable in
+  the shared stream. The exit criteria's fifteen measured runs are now
+  one command per task plus live keys.
 - RFC validation moved into the package (0007 §3a, charter A-15, 0013 A-16):
   `torve rfc check | index | new | graph` with vocabularies defined once in
   `domain/rfc.py` (D-7.13) and the format owned by `config/rfc_parse.py`

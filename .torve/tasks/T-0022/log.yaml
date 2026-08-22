@@ -1,0 +1,93 @@
+schema_version: 1
+task: T-0022
+repo: morzecrew/torve
+base_sha: 3f9f213f81cda69c1a6a09ebc8fde1410110ba22
+drift_count: 0
+entries:
+  - decision: D-4.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:10:00Z
+    attempt: 1
+    claim: shadow runs are one command and never merge — the landing hook
+      records prose, and no vcs call exists on the shadow path, so "never
+      merging" is a construction fact rather than a policy
+    evidence: src/torve/application/shadow.py:97-100 — the land hook returns
+      a fact string; tests/test_shadow.py test_shadow_replay_end_to_end
+      asserts the source repository's HEAD is untouched after a READY replay
+    action: decided
+    notes: |
+      The Paths cell relocated mechanically from src/torve/shadow/** to the
+      0015 tree (src/torve/application/shadow.py), the D-32 precedent set by
+      T-0012 and the 0007 planner rows. Precedence over live use (the row's
+      actual clause) remains an operating rule for the operator: the engine
+      cannot know whether a tier's first live run was preceded by replays —
+      recorded shadow telemetry is the auditable trace that it was.
+  - decision: D-4.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:11:00Z
+    attempt: 1
+    claim: shadow workspaces carry truncated history and no later refs by
+      construction — a git worktree cannot satisfy this (it shares the whole
+      object store), so the workspace is a fresh clone fetched by exact
+      parent SHA at bounded depth; later objects are never transferred
+    evidence: src/torve/adapters/workspace/git.py:69-106 — init + fetch
+      --depth with allowanysha1inwant upload-pack + checkout FETCH_HEAD;
+      tests/test_shadow.py proves the shipped commit is unreachable and the
+      only ref is refs/heads/shadow, in the unit and in the Docker replay
+    action: decided
+  - decision: D-4.5
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T13:12:00Z
+    attempt: 1
+    claim: shadow measurements ride the same JSONL stream as attempt records,
+      separable by shape — the summary is kind:shadow, and gate passes inside
+      a replay carry agent.shadow true
+    evidence: src/torve/application/shadow.py:106-134 — the record; marked
+      gate passes via src/torve/application/runner.py real_hooks(shadow=True)
+    action: decided
+  - decision: D-11.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T13:13:00Z
+    attempt: 1
+    claim: torve shadow emits its persisted record under --format json from
+      its first implementation
+    evidence: src/torve/cli/shadow.py:119-121 — emit_json(record)
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T13:14:00Z
+    attempt: 1
+    claim: a shadow replay exits 0 whenever the measurement completed — a red
+      replay is a successful measurement of a red outcome, so the exit code
+      reports the measurement, not the replay's fortunes; 3 stays
+      configuration (no shipped commit findable), 4 infrastructure
+    evidence: src/torve/cli/shadow.py:1-10 — the module contract states it;
+      the ValueError and RuntimeError mappings follow at 113-117
+    action: decided
+    proposal: 0004 row — shadow exit semantics measure completion; outcome
+      lives in the record, not the exit code
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T13:15:00Z
+    attempt: 1
+    claim: the shipped commit is found by the Torve-Task trailer with the
+      hand-committed "(T-nnnn)" subject convention as fallback, overridable
+      by --commit; the replay diffs gates against the parent SHA explicitly
+      because a truncated clone has no origin/main for resolve_base to find;
+      shadow infrastructure derives from a synthetic shadow-<id> so a live
+      run of the same task and the reaper's sweep both coexist with it
+    evidence: src/torve/adapters/workspace/git.py:109-122 — the two-pattern
+      lookup; src/torve/application/shadow.py:81-82 — gates_base=parent;
+      src/torve/base/naming.py:68-73 — shadow_id
+    action: decided
+    proposal: 0004 row — shipped-commit discovery order and the shadow-<id>
+      infrastructure namespace; revisit the subject fallback when history is
+      squashed

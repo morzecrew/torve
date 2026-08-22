@@ -65,3 +65,10 @@ def labels(task_id: str, run_id: str) -> dict[str, str]:
 
 def branch(task_id: str) -> str:
     return f"torve/{task_id}"
+
+
+def shadow_id(task_id: str) -> str:
+    """The synthetic id shadow infrastructure derives from (RFC 0004 §5):
+    worktree, state file and sandbox names all key on it, so a shadow run
+    coexists with a live run of the same task and the reaper sweeps both."""
+    return f"shadow-{task_id}"

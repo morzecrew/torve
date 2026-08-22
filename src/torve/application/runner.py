@@ -223,6 +223,7 @@ class _SandboxExecutor:
 def _run_gates_in_worktree(
     worktree: Path, task_id: str, config: RunnerConfig, runtime: Runtime,
     run_id: str, root: Path, agent_meta: dict[str, Any] | None = None,
+    base: str | None = None,
 ) -> tuple[int, str, str]:
     """(exit_code, summary, config_hash). Raises on infrastructure failure."""
     manifest_path = layout.gates_file(worktree)
@@ -251,7 +252,7 @@ def _run_gates_in_worktree(
     try:
         ctx = build_context(
             worktree, manifest,
-            base=resolve_base(worktree, config.base),
+            base=resolve_base(worktree, base or config.base),
             task_path=task_file if task_file.is_file() else None,
         )
         ctx.execute = executor
@@ -266,8 +267,9 @@ def _run_gates_in_worktree(
     return report.exit_code, summary, digest
 
 
-def _real_hooks(
-    root: Path, task: Task, config: RunnerConfig, deps: RunDeps, worktree: Path
+def real_hooks(
+    root: Path, task: Task, config: RunnerConfig, deps: RunDeps, worktree: Path,
+    shadow: bool = False, gates_base: str | None = None,
 ) -> AttemptHooks:
     tier = tier_for(config, task.tier)
     # What actually runs, not what the tier configured — an --agent fake
@@ -275,12 +277,15 @@ def _real_hooks(
     kind = getattr(deps.agent, "kind", tier.adapter)
     real = kind != "fake"
     # Denormalised into every record this run appends (RFC 0004 §6): which
-    # adapter and model did the work cannot be reconstructed later.
+    # adapter and model did the work cannot be reconstructed later. Shadow
+    # gate passes are marked so the measurement population stays separable
+    # from live attempts in one stream.
     agent_meta: dict[str, Any] = {
         "tier": task.tier, "adapter": kind,
         "provider": (tier.provider or None) if real else None,
         "model": (tier.model or None) if real else None,
         "model_version": None, "cost_usd": None, "trace_ref": None,
+        "shadow": shadow,
     }
 
     async def attempt(state: RunState) -> AgentResult:
@@ -291,10 +296,11 @@ def _real_hooks(
         env_passthrough, volumes = (
             _sandbox_auth(tier, config.worker_slot) if real else ((), {})
         )
+        infra_id = naming.shadow_id(task.id) if shadow else task.id
         spec = SandboxSpec(
-            name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
+            name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
             image=config.runtime.image,
-            labels=naming.labels(task.id, state.run_id),
+            labels=naming.labels(infra_id, state.run_id),
             timeout_s=config.runtime.sandbox_timeout,
             env_passthrough=env_passthrough,
             volumes=volumes,
@@ -327,7 +333,7 @@ def _real_hooks(
     async def gates(state: RunState) -> tuple[int, str, str]:
         return await asyncio.to_thread(
             _run_gates_in_worktree, worktree, task.id, config, deps.runtime,
-            state.run_id, root, agent_meta,
+            state.run_id, root, agent_meta, gates_base,
         )
 
     async def land(state: RunState, digest: str) -> str:
@@ -353,7 +359,7 @@ async def _run_task_async(
     worktree = deps.workspace.create(task.id, resolve_base(root, config.base))
     state.worktree = str(worktree)
     state.save()
-    hooks = _real_hooks(root, task, config, deps, worktree)
+    hooks = real_hooks(root, task, config, deps, worktree)
 
     async def body(_fctx: ExecutionContext, _input_json: JsonDict | None) -> JsonDict:
         bound = current_durable_run()
