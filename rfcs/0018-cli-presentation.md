@@ -1,7 +1,7 @@
 ---
 id: "0018"
 title: CLI presentation
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0011"]
 informed_by: ["0007", "0016"]
