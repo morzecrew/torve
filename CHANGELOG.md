@@ -107,6 +107,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0017 executed (T-0036 mechanism, T-0037 definitions): the sandbox
+  image is an input — the runtime resolves the configured image to its
+  content digest at dispatch, the digest joins `config_hash` and rides
+  attempt and shadow records, and tiers may name their own image
+  (harness identity) over the runtime default. `torve sandbox build`
+  builds reviewed definitions under `.torve/sandbox/<name>/` and
+  reports digests; `torve doctor` reds on a configured image the
+  runtime cannot resolve or a torve-agent image with no definition.
+  The four-harness roster is committed as definitions, and the drift
+  the hash catches was demonstrated live: one tag, a deliberate
+  rebuild, two digests, two regimes.
 - Spacing pass (T-0035): footer notes render at column 0 — the dim
   style is the separation — and the graph gains blank lines after its
   header and before the omitted-documents note.

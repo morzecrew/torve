@@ -2,7 +2,7 @@
 id: "0017"
 title: Sandbox provisioning and harness configuration
 status: accepted
-implementation: none
+implementation: partial
 depends_on: ["0003", "0004"]
 informed_by: ["0013", "0016"]
 supersedes: []
@@ -18,6 +18,10 @@ schema_version: 1
 
 # RFC 0017 — Sandbox provisioning and harness configuration
 
+- **Implementation state:** executed 2026-08-22 (T-0036 mechanism, T-0037
+  definitions; all three §7 exit criteria measured live). Outstanding, as
+  specified: `tier.home` until a harness needs it (D-17.5); `--push` and
+  registry-side doctor checks with the live OpenSandbox server (RFC 0003)
 - **Scope:** How sandbox images are defined, built and identified; how a
   harness's configuration, tools and state reach the sandbox. Extends
   RFC 0003 §4 (the runtime) and RFC 0004 §1/§6 (adapters, telemetry).
