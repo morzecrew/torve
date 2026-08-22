@@ -8,6 +8,7 @@ informed_by: []
 supersedes: []
 superseded_by: null
 amended_by: []
+retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
   Independent automated review as a second run role: isolation rules, the finding contract, calibration, and replacing third-party PR reviewers.

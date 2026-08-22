@@ -8,7 +8,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-7", "A-9", "A-10", "A-14", "A-15"]
+amended_by: ["A-7", "A-9", "A-10", "A-14", "A-15", "A-20"]
 owner: Lev Litvinov
 description: >-
   How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved.
@@ -64,6 +64,7 @@ informed_by: []
 supersedes: []
 superseded_by: null
 amended_by: []
+retired: []               # identifiers once defined here — removed, never reusable (A-20)
 owner: <name>
 schema_version: 1
 ---
@@ -126,6 +127,7 @@ Only `NNNN-slug.md` and `INDEX.md`, no subdirectories. The check's message route
 | D-A.18 | `LOCKED` | Only `NNNN-slug.md` and `INDEX.md` in the corpus directory, no subdirectories; the check routes offenders to `pages/` or `ops/`. Added by amendment A-15 2026-08-22 | `rfcs/**` `src/torve/config/rfc_parse.py` | Without routing the file lands in the repository root and the mess has moved rather than gone |
 | D-A.19 | `LOCKED` | Documents are never deleted; identifiers are never reused; gaps are acceptable. Added by amendment A-15 2026-08-22 | `rfcs/**` | Amendments, logs and commit trailers cite identifiers, and reuse redirects all of them silently |
 | D-A.20 | `ASSUMED` | A filename is not renamed once the document is on the main branch. Added by amendment A-15 2026-08-22 | `rfcs/**` | Links from `pages/`, amendments and commit messages break; a materially different title is usually a new document |
+| D-16.1 | `LOCKED` | A retired identifier's row is removed; the document keeps a prose tombstone and lists the id in `retired:` frontmatter, where it stays resolvable and is never redefined. Added by amendment A-20 2026-08-22 | `rfcs/**` `src/torve/config/rfc_parse.py` | Dead rows would pile up at the one surface executors inherit from; without the structured list, every tombstone citation reads as a typo to the checker |
 
 ## Amendments
 
@@ -191,3 +193,15 @@ Carried over with the decisions they introduced. Numbering stays global, so cita
 **Rejected:** checksums in the index. Git already guarantees content, and `--check` compares the rendering itself, which is strictly stronger and says what diverged rather than only that something did. It also protects against nothing that is left over, and puts a meaningless changed line in every diff.
 
 **Also edits:** 0013 (A-16).
+
+### A-20 — 2026-08-22 — how an identifier retires (adds D-16.1, amends §3, §4)
+
+**Found by the citation-resolution check on its first day.** 0005 retired D-5.5 the correct way for readers — row removed, prose tombstone — and the checker flagged the tombstone's own citation as unresolvable, because nothing structured recorded that the identifier had ever existed. The alternative, keeping retired rows in the table marked dead, was rejected: the table is the surface executors inherit from, and rows existing only to say "don't use me" are noise exactly where density matters most.
+
+**Changed:** frontmatter gains an optional `retired:` list — the identifiers this document once defined, since removed. Three consequences, all checked:
+
+- A retired identifier **resolves**: the citation check treats it as defined, so a tombstone reads clean — which lets unresolvable citations harden from warning to problem, the form in which the check actually catches typos.
+- A retired identifier is **never redefined**: a decision table anywhere in the corpus claiming an id from any `retired:` list is a problem (D-A.19 made checkable for the retired case).
+- The retirement itself stays prose — the tombstone says *why* the row went; the frontmatter says only *that* it did (D-A.2's split, applied to endings).
+
+Retirement should stay rare: one identifier in sixteen documents so far. The list scales at a line per id, not a row per corpse.

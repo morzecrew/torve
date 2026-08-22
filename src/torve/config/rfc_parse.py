@@ -29,7 +29,7 @@ REQUIRED_FIELDS = (
     "id", "title", "status", "depends_on", "informed_by", "supersedes",
     "amended_by", "owner", "description", "schema_version",
 )
-LIST_FIELDS = ("depends_on", "informed_by", "supersedes", "amended_by")
+LIST_FIELDS = ("depends_on", "informed_by", "supersedes", "amended_by", "retired")
 
 RFC_FILENAME = re.compile(r"^(\d{4})-([a-z0-9-]+)\.md$")
 NUMBER_ONLY = re.compile(r"^\d{4}(\.md)?$")
@@ -378,24 +378,23 @@ def check_headings(path: Path, text: str) -> list[str]:
     return problems
 
 
-def check_citations(path: Path, text: str, defined: set[str]) -> list[str]:
+def check_citations(path: Path, text: str, resolvable: set[str]) -> list[str]:
     """Every dotted `D-*` citation resolves to a definition somewhere in the
     corpus — what keeps a decision family split across documents (A-17) a
     cosmetic wart rather than a real problem. Uniqueness of definitions is
-    D-A.4's check; this is the other direction. A warning, not a problem: a
-    retired identifier's tombstone (0005's D-5.5 note) legitimately cites an
-    id no table defines — see T-0017's log for the promotion condition."""
-    warnings: list[str] = []
+    D-A.4's check; this is the other direction. Retired identifiers resolve
+    too (D-16.1): a tombstone's citation is history, not a typo."""
+    problems: list[str] = []
     reported: set[str] = set()
     for match in DECISION_CITE.finditer(strip_fences(text)):
         cited = match.group(0)
-        if cited not in defined and cited not in reported:
+        if cited not in resolvable and cited not in reported:
             reported.add(cited)
-            warnings.append(
+            problems.append(
                 f"{path.name}: cites {cited}, which no decision table in the "
-                "corpus defines"
+                "corpus defines and no `retired:` list records"
             )
-    return warnings
+    return problems
 
 
 def defined_identifiers(files: dict[str, Path]) -> set[str]:
@@ -407,6 +406,17 @@ def defined_identifiers(files: dict[str, Path]) -> set[str]:
         ) or []:
             defined.add(ident)
     return defined
+
+
+def retired_identifiers(files: dict[str, Path]) -> dict[str, str]:
+    """Identifier -> filename for every id in a `retired:` frontmatter list
+    (D-16.1): once defined, since removed, never reusable."""
+    retired: dict[str, str] = {}
+    for path in files.values():
+        fm = parse_frontmatter(path.read_text(encoding="utf-8")) or {}
+        for ident in fm_list(fm, "retired"):
+            retired.setdefault(ident, path.name)
+    return retired
 
 
 def check_graph(
@@ -557,6 +567,8 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
     files = rfc_files(rfc_dir)
     report.count = len(files)
     defined = defined_identifiers(files)
+    retired = retired_identifiers(files)
+    resolvable = defined | set(retired)
     frontmatter: dict[str, dict[str, Any]] = {}
     seen_ids: dict[str, str] = {}
     for number, path in sorted(files.items()):
@@ -595,9 +607,16 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
         report.problems += check_amendments(path, text, fm)
         report.problems += check_line_cites(path, text, root)
         report.problems += check_headings(path, text)
-        report.warnings += check_citations(path, text, defined)
+        report.problems += check_citations(path, text, resolvable)
         report.warnings += check_slug(path, fm)
         report.warnings += check_links(path, text, rfc_dir, root)
+
+    for ident, definer in sorted(seen_ids.items()):
+        if ident in retired:
+            report.problems.append(
+                f"{definer}: defines {ident}, which {retired[ident]} retired — "
+                "identifiers are never reused (D-A.19, D-16.1)"
+            )
 
     graph_problems, graph_warnings = check_graph(files, frontmatter)
     report.problems += graph_problems

@@ -94,6 +94,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config.yaml` names the one corpus location (D-13.7). The `rfc-index`
   gate is replaced by the shipped `rfc-valid` product gate (D-7.14,
   shadow, origin rfc/0007); a malformed corpus exits 3 per 0007 §3a.
+- Identifier retirement made structural (0016 A-20, D-16.1): a retired
+  decision's row is removed and its id recorded in new `retired:`
+  frontmatter beside the prose tombstone. Retired ids resolve in
+  citations and can never be redefined anywhere in the corpus — which
+  let citation resolution harden from warning to problem. First fully
+  clean `torve rfc check` run: zero problems, zero warnings.
 - Format containment made checkable (0015 A-19, enforcing 0007's
   D-7.18): a fifth import-linter contract forbids gates and the runtime
   and agent adapters from importing `config.rfc_parse`, so the RFC

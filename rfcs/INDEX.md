@@ -32,7 +32,7 @@ number is **0017**.
 | --- | --- | --- | --- | --- | --- | --- |
 | [0014](0014-source-layout.md) | Source file layout | accepted | complete | — | — | Semantic separators and module preamble structure for Torve's Python source, extracted from forze by reading and counting; the checkable half ships as the source-layout gate. |
 | [0015](0015-source-tree.md) | Source tree structure | accepted | complete | 0016 | A-19 | The package layout of src/torve — layers, permitted import directions, module naming, adapter organisation, and the layering gate that enforces the enforceable half. |
-| [0016](0016-corpus-conventions.md) | Specification corpus conventions | accepted | partial | — | A-7, A-9, A-10, A-14, A-15 | How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved. |
+| [0016](0016-corpus-conventions.md) | Specification corpus conventions | accepted | partial | — | A-7, A-9, A-10, A-14, A-15, A-20 | How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved. |
 
 Statuses: draft · accepted · superseded. Impl is the D-A.11 judgement:
 none · partial · complete · abandoned.

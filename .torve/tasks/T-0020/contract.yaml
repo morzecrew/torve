@@ -1,0 +1,50 @@
+# 0016 A-20 adopted and executed in one task on the owner's decision: the
+# retirement convention, structured, and the citation check hardened.
+schema_version: 1
+id: T-0020
+rfc: rfcs/0016-corpus-conventions.md
+phase: 1
+role: implement
+intent: |
+  An identifier retires by row removal plus a prose tombstone — never by a
+  dead row in the table executors inherit from — and the document records
+  the id in a new optional retired: frontmatter list. The checker treats
+  retired ids as resolvable but never redefinable, which lets citation
+  resolution harden from warning to problem: an unresolvable citation is now
+  a typo by definition, and D-A.19's never-reuse rule is machine-checked for
+  the retired case.
+depends_on: [T-0017]
+scope:
+  allow:
+    - "rfcs/**"
+    - "src/**"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-16.1
+    grade: LOCKED
+    text: A retired identifier's row is removed; the document keeps a prose tombstone and lists the id in retired frontmatter, resolvable and never redefined
+    paths: ["rfcs/**", "src/torve/config/rfc_parse.py"]
+  - id: D-A.19
+    grade: LOCKED
+    text: Documents are never deleted; identifiers are never reused; gaps are acceptable
+    paths: ["rfcs/**"]
+  - id: D-A.2
+    grade: LOCKED
+    text: Structured facts in YAML frontmatter; prose in the body
+    paths: ["rfcs/**"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case observed to fail
+    paths: ["tests/test_rfc_check.py"]
+budget: {}
+tier: executor

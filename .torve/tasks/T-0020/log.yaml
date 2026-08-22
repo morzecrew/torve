@@ -1,0 +1,44 @@
+schema_version: 1
+task: T-0020
+repo: morzecrew/torve
+base_sha: 0d6906aa50bfdcce0612338d2cce328a2ac2d8d9
+created_at: 2026-08-22T23:00:00Z
+drift_count: 0
+notes: |
+  A-20 settled by the owner in review (remove the row; my counter-proposal
+  of the structured retired: list accepted), adopted and executed together
+  on the explicit go-ahead. First fully clean check run of the corpus's
+  life: zero problems, zero warnings.
+entries:
+  - decision: D-16.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:05:00Z
+    attempt: 1
+    claim: '0005 carries retired: ["D-5.5"] beside its prose tombstone; the checker resolves retired ids in citations and refuses their redefinition anywhere in the corpus — closing T-0017''s OPEN retirement proposal'
+    evidence: src/torve/config/rfc_parse.py:411-421
+    action: decided
+  - decision: D-A.19
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:10:00Z
+    attempt: 1
+    claim: 'never-reuse is now machine-checked for the retired case: any table claiming an id from any retired: list is a problem naming both documents'
+    evidence: src/torve/config/rfc_parse.py:614-619
+    action: decided
+  - decision: D-A.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:15:00Z
+    attempt: 1
+    claim: 'the split applied to endings: the frontmatter records only that the identifier retired (queryable), the tombstone prose keeps why (readable) — no dead rows at the surface executors inherit from'
+    evidence: rfcs/0016-corpus-conventions.md:197-207
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:20:00Z
+    attempt: 1
+    claim: 'three twins observed: an unresolvable citation now reddens (hardened from warning), a retired identifier''s tombstone citation passes, and a document redefining a retired identifier reddens'
+    evidence: tests/test_rfc_check.py:316-342
+    action: decided

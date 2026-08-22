@@ -5,7 +5,10 @@ contents with routing messages (D-A.18), derived numbering over a hole
 (D-A.17/D-A.19), staleness against the generated index, and line-cite rot.
 
 Inheriting from a non-accepted document surfaces as a warning, not a problem,
-until the known 0009 -> 0004 violation is resolved (D-A.10; see T-0016's log).
+while the corpus may legitimately carry accepted documents ahead of their
+dependencies (D-A.10). Citation resolution is a problem: retired identifiers
+resolve through `retired:` frontmatter (D-16.1), so an unresolvable citation
+is a typo, and a retired identifier can never be redefined.
 """
 
 from __future__ import annotations
@@ -310,12 +313,33 @@ def test_two_identically_named_sections_redden(tmp_path: Path) -> None:
     assert "name the same section twice" in result.output
 
 
-def test_an_unresolvable_citation_warns_without_reddening(tmp_path: Path) -> None:
+def test_an_unresolvable_citation_reddens(tmp_path: Path) -> None:
     doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\nSee D-9.9 for details.\n")
     seed(tmp_path, ("0001-widget.md", doc))
     result = invoke(tmp_path, "check")
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == EXIT_CONFIG
     assert "cites D-9.9" in result.output
+
+
+def test_a_retired_identifier_resolves(tmp_path: Path) -> None:
+    # D-16.1: the tombstone's citation is history, not a typo.
+    doc = rfc_text("0001", "Widget", "D-T.1", extra_front='retired: ["D-T.9"]\n',
+                   body_extra="\nD-T.9 was removed 2026-08-22; the identifier is retired.\n")
+    seed(tmp_path, ("0001-widget.md", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+
+
+def test_redefining_a_retired_identifier_reddens(tmp_path: Path) -> None:
+    seed(
+        tmp_path,
+        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1",
+                                   extra_front='retired: ["D-T.9"]\n')),
+        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.9")),
+    )
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == EXIT_CONFIG
+    assert "never reused" in result.output
 
 
 def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
