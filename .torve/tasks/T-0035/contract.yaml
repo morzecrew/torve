@@ -1,0 +1,40 @@
+# Owner spacing findings on T-0034's output: the footer indent reads as a
+# stray table cell, the graph tree starts flush against its header, and the
+# omitted-note starts flush against the last tree row.
+schema_version: 1
+id: T-0035
+rfc: rfcs/0018-cli-presentation.md
+phase: 2
+role: implement
+intent: |
+  Footer notes render at column 0 — the dim style already separates them
+  from table content, and the indent read as misalignment; the graph prints
+  a blank line after its header and another between the tree and the
+  omitted-documents note.
+depends_on: [T-0034]
+scope:
+  allow:
+    - "src/torve/cli/console.py"
+    - "src/torve/cli/rfc.py"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-18.1
+    grade: LOCKED
+    text: The JSON byte-shape is the only machine contract; tests assert human output by content, never layout
+    paths: ["tests/**"]
+  - id: D-18.3
+    grade: ASSUMED
+    text: One component vocabulary in torve.cli.console, used by every verb
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor

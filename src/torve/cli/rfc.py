@@ -235,6 +235,7 @@ def graph(
         return
     console = out(fmt)
     header(console, "rfc graph", f"{len(files)} RFC(s), {len(edges)} edge(s)")
+    console.print()
     dependents: dict[str, list[str]] = {}
     for number, targets in depends.items():
         for target in targets:
@@ -287,6 +288,7 @@ def graph(
             grow(tree, number)
     console.print(tree)
     if omitted:
+        console.print()
         footer(console, f"… {len(omitted)} accepted and complete, omitted: "
                         f"{id_list(sorted(omitted))}")
     for problem in problems:

@@ -107,6 +107,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Spacing pass (T-0035): footer notes render at column 0 — the dim
+  style is the separation — and the graph gains blank lines after its
+  header and before the omitted-documents note.
 - Finished business collapses to a count (T-0034): `rfc graph` nodes
   carry their implementation state and documents both accepted and
   complete are omitted from the tree — their dependents attach where

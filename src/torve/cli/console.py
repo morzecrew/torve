@@ -144,9 +144,10 @@ def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]],
 
 def footer(console: Console, text: str) -> None:
     """The dim line after a table — truncation counts, likely-landed notes,
-    anything that describes the table rather than belonging in it. Ends with
-    a blank line so a note never runs into the next section's title."""
-    console.print(Text(f"  {text}", style=STYLE_DIM))
+    anything that describes the table rather than belonging in it. Column 0
+    (the dim style is the separation; an indent reads as misalignment) and a
+    trailing blank line so a note never runs into the next section's title."""
+    console.print(Text(text, style=STYLE_DIM))
     console.print()
 
 

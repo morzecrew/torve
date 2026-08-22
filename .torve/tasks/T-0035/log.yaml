@@ -1,0 +1,29 @@
+schema_version: 1
+task: T-0035
+repo: morzecrew/torve
+base_sha: 9138e541044faae320b75f2383313ef1064e2f0c
+drift_count: 0
+entries:
+  - decision: D-18.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T19:25:00Z
+    attempt: 1
+    claim: the de-indent went into the footer component so every note across
+      every verb changed together; the graph's two blank lines are call-site
+      spacing, not component behaviour, because tables carry their own
+      trailing space and a tree does not
+    evidence: src/torve/cli/console.py:145-152 — footer at column 0 with the
+      docstring stating why
+    action: decided
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T19:26:00Z
+    attempt: 1
+    claim: pure layout — no string content, no JSON byte, no test assertion
+      changed; the content-only test discipline is what let a spacing pass
+      touch nothing else
+    evidence: src/torve/cli/rfc.py:229-231 — the blank line after the
+      header; the diff contains no test edits
+    action: decided
