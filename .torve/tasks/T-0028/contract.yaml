@@ -1,0 +1,84 @@
+# Minted by `torve plan 0018` — phase 2: verb-sweep-and-live-status
+schema_version: 1
+id: T-0028
+rfc: rfcs/0018-cli-presentation.md
+phase: 2
+role: implement
+intent: Every remaining verb — plan, shadow, rfc, migrate, doctor, feedback, reap, cancel
+  — renders through the shared components, and steps longer than a moment show the single-line
+  TTY-only live status, absent under --plain, CI and JSON. No interactive prompt appears anywhere,
+  and the verdict-mark vocabulary is byte-identical to phase 1's.
+depends_on:
+- T-0027
+scope:
+  allow:
+  - src/torve/cli/plan.py
+  - src/torve/cli/shadow.py
+  - src/torve/cli/rfc.py
+  - src/torve/cli/migrate.py
+  - src/torve/cli/doctor.py
+  - src/torve/cli/feedback.py
+  - src/torve/cli/status.py
+  - tests/test_plan.py
+  - tests/test_shadow.py
+  - tests/test_rfc_check.py
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+decisions:
+- id: D-18.1
+  grade: LOCKED
+  text: The JSON byte-shape is the only machine contract; tests assert human output by content,
+    never layout
+  paths:
+  - tests/**
+- id: D-18.2
+  grade: LOCKED
+  text: Presentation lives in `cli/` only; application returns data and no Rich renderable
+    crosses the boundary
+  paths:
+  - src/torve/cli/**
+  - src/torve/application/**
+- id: D-18.3
+  grade: ASSUMED
+  text: One component vocabulary in `torve.cli.console` — header, table, verdict marks, failure
+    detail, closing line — used by every verb
+  paths:
+  - src/torve/cli/**
+- id: D-18.4
+  grade: LOCKED
+  text: Colour is never the only carrier of a distinction; styling is applied via renderables,
+    never inline markup in data strings
+  paths:
+  - src/torve/cli/**
+- id: D-18.5
+  grade: ASSUMED
+  text: Verdict marks (`✓ ✗ ∅ ≈ ⤳ !`) are stable vocabulary, kept across releases
+  paths:
+  - src/torve/cli/**
+- id: D-18.6
+  grade: ASSUMED
+  text: '`--format markdown` exists only on document-producing commands; `torve context` keeps
+    its pasteable rendering there while `text` becomes rich'
+  paths:
+  - src/torve/cli/context.py
+- id: D-18.7
+  grade: ASSUMED
+  text: One single-line TTY-only live status for long steps; absent under `--plain`, CI and
+    JSON; everything larger stays deferred
+  paths:
+  - src/torve/cli/**
+- id: D-18.8
+  grade: ASSUMED
+  text: Tables truncate to the terminal with an explicit `… N more` line; the full data is
+    always in the JSON
+  paths:
+  - src/torve/cli/**
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
