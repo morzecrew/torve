@@ -136,3 +136,21 @@ def test_markdown_json_and_rich_render_one_report(plan_repo):  # noqa: F811
     parsed = json.loads(raw.stdout)
     assert parsed["schema_version"] == 1
     assert render_markdown(parsed).startswith("# torve context")
+
+
+def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # noqa: F811
+    import subprocess
+
+    root, _, _git = plan_repo
+    seed_facts(root)
+    # T-0003 never ran through the engine, but history records its shipping —
+    # both spellings: mid-parenthesis and trailer.
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "--allow-empty",
+                    "-m", "feat: wire together (A-1, T-0003, minted by torve plan)"],
+                   capture_output=True, check=True)
+    report = context_report(root, root / "rfcs")
+    states = {t["id"]: t["state"] for t in report["tasks"]}
+    assert states["T-0003"] == "shipped"
+    assert states["T-0001"] == "ready"  # a run state still outranks history
+    doc = next(d for d in report["programme"] if d["rfc"] == "0090")
+    assert doc["progress"]["2"] == "shipped"  # phase 2's only task shipped

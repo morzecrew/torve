@@ -114,7 +114,8 @@ def _render_rich(report: dict[str, Any]) -> None:
     fresh = [p for p in report["proposals"] if not p.get("possibly_landed")]
     if report["proposals"]:
         proposals = make_table("decision", "from", "proposal",
-                               title="Proposals awaiting the author")
+                               title="Proposals awaiting the author",
+                               lines=True, last_max_width=76)
         withheld = add_rows_truncated(proposals, [
             (styled(str(item["decision"]), STYLE_ID),
              styled(str(item["task"]), STYLE_ID),

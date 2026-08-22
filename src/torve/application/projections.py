@@ -14,6 +14,8 @@ judgement stays with the human reading it.
 from __future__ import annotations
 
 import json
+import re
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -29,6 +31,32 @@ from torve.domain.task import SCHEMA_VERSION
 # ----------------------- #
 
 ACTIVE = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED}
+
+# The shipping spellings the repository's history carries: the Torve-Task
+# trailer the runner writes, and any subject mentioning the id — real
+# subjects read `(T-0019)`, `(A-19, T-0019)`, `merge torve/T-0006 (…)` and
+# `accept T-0005 and T-0006 proposals` alike. A subject mention is evidence
+# of record, not proof of merge — the pseudo-state claims exactly that much.
+SUBJECT_ID = re.compile(r"(T-\d{4,})\b")
+TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
+
+
+def _shipped_ids(root: Path) -> set[str]:
+    """Task ids the history records as shipped, in one batched log pass —
+    a task with no run state is not necessarily unstarted: the engine did
+    not run it, but a shipping commit records that someone did."""
+    proc = subprocess.run(
+        ["git", "-C", str(root), "log", "--all", "--format=%x1e%s%x1f%b"],
+        capture_output=True, text=True, check=False,
+    )
+    if proc.returncode != 0:
+        return set()
+    found: set[str] = set()
+    for record in proc.stdout.split("\x1e"):
+        subject, _, body = record.partition("\x1f")
+        found.update(SUBJECT_ID.findall(subject))
+        found.update(TRAILER_ID.findall(body))
+    return found
 
 
 def _load_yaml_dict(path: Path) -> dict[str, Any] | None:
@@ -46,6 +74,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     if not tasks_dir.is_dir():
         return found
+    shipped = _shipped_ids(root)
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         record = _load_yaml_dict(contract)
         if record is None:
@@ -54,8 +83,11 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
         entry: dict[str, Any] = {
             "id": task_id,
             "rfc": record.get("rfc"),
+            # `shipped` is a projection-derived pseudo-state, not a member of
+            # the engine's state machine: no run state exists, but a shipping
+            # commit cites the task.
             "phase": record.get("phase", 0),
-            "state": "unstarted",
+            "state": "shipped" if task_id in shipped else "unstarted",
             "attempts": 0,
             "escalation": None,
             "escalated_at": None,
@@ -205,7 +237,7 @@ def _costs(root: Path) -> list[dict[str, Any]]:
 def _phase_progress(states: list[str]) -> str:
     """planned | in_flight | blocked | shipped, derived per phase (D-7.15) —
     phase-level because that is the granularity at which decisions get made."""
-    if states and all(state == "ready" for state in states):
+    if states and all(state in ("ready", "shipped") for state in states):
         return "shipped"
     if any(state == "escalated" for state in states):
         return "blocked"

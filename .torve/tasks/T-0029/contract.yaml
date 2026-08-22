@@ -1,0 +1,57 @@
+# Owner-review follow-ups to 0018/0007 phase work: shipped-outside-the-engine
+# task derivation, readable proposal rows, and the per-gate progress hook the
+# T-0027 log already proposed. Hand-minted: the changes cross the minted
+# phase scopes (gates/runner.py, projections.py), the scope lesson repeating.
+schema_version: 1
+id: T-0029
+rfc: rfcs/0018-cli-presentation.md
+phase: 2
+role: implement
+intent: |
+  Three owner findings: a task with no run state whose id a shipping commit
+  cites derives as `shipped` rather than `unstarted` — the engine did not run
+  it, but the repository's history records that someone did; the proposals
+  table becomes readable with row separators and a bounded proposal column;
+  and the live status names the gate it is inside via an optional progress
+  callback on run_gates, because one timer over a pass that is 95%
+  acceptance explains nothing.
+depends_on: [T-0028]
+scope:
+  allow:
+    - "src/torve/cli/**"
+    - "src/torve/gates/runner.py"
+    - "src/torve/application/projections.py"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-18.1
+    grade: LOCKED
+    text: The JSON byte-shape is the only machine contract; tests assert human output by content, never layout
+    paths: ["tests/**"]
+  - id: D-18.2
+    grade: LOCKED
+    text: Presentation lives in cli/ only; application returns data and no Rich renderable crosses the boundary
+    paths: ["src/torve/cli/**", "src/torve/application/**"]
+  - id: D-18.3
+    grade: ASSUMED
+    text: One component vocabulary in torve.cli.console, used by every verb
+    paths: ["src/torve/cli/**"]
+  - id: D-18.7
+    grade: ASSUMED
+    text: One single-line TTY-only live status for long steps
+    paths: ["src/torve/cli/**"]
+  - id: D-15.2
+    grade: LOCKED
+    text: gates may import only domain, base and config
+    paths: ["src/torve/gates/**", "pyproject.toml"]
+budget: {}
+tier: executor

@@ -9,6 +9,7 @@ from exit codes and prepared inputs, never reported by a model.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -94,7 +95,8 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
     )
 
 
-def run_gates(ctx: GateContext, only: set[str] | None = None) -> RunReport:
+def run_gates(ctx: GateContext, only: set[str] | None = None,
+              progress: Callable[[str], None] | None = None) -> RunReport:
     gates = ctx.manifest.resolved_gates()
     if only is not None:
         unknown = only - {g.name for g in gates}
@@ -121,6 +123,10 @@ def run_gates(ctx: GateContext, only: set[str] | None = None) -> RunReport:
             )
             continue
 
+        if progress is not None:
+            # Presentation's window into the pass (RFC 0018 §6): the name of
+            # the gate about to run, nothing more — the runner stays silent.
+            progress(gate.name)
         started = time.monotonic()
         try:
             outcome = _execute(gate, ctx)

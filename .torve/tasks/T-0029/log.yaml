@@ -1,0 +1,87 @@
+schema_version: 1
+task: T-0029
+repo: morzecrew/torve
+base_sha: 874edea6d2e8425220648d45aba066cd7cd0ce0f
+drift_count: 0
+entries:
+  - decision: D-18.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T23:20:00Z
+    attempt: 1
+    claim: all three fixes went through the component vocabulary — the table
+      grew lines and last_max_width parameters, live_status yields an
+      updater, and no verb assembled anything bespoke
+    evidence: src/torve/cli/console.py:129-146 — make_table with lines and
+      last_max_width; the proposals call site passes both
+    action: decided
+  - decision: D-18.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T23:21:00Z
+    attempt: 1
+    claim: the live status now names the gate it is inside — run_gates grew
+      an optional progress callback (announced before each gate that runs,
+      including degraded-mode skips, never for fail-fast skips), and the CLI
+      threads it into the status updater
+    evidence: src/torve/gates/runner.py:113-117 — the announcement;
+      tests/test_gates.py test_run_gates_reports_progress_by_gate_name pins
+      announcement order against the report
+    action: decided
+  - decision: D-15.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:22:00Z
+    attempt: 1
+    claim: the progress hook adds no import to the gates package beyond
+      collections.abc — the callback is passed in by the caller, so gates
+      still import only domain, base and config
+    evidence: src/torve/gates/runner.py:1-20 — the import block; the kept
+      import-linter contracts hold it structurally
+    action: decided
+  - decision: D-18.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:23:00Z
+    attempt: 1
+    claim: the shipped-state derivation lives in the projection as data (a
+      pseudo-state string), rendered by cli like every other state; no Rich
+      renderable entered application
+    evidence: src/torve/application/projections.py:35-58 — _shipped_ids and
+      the pseudo-state comment
+    action: decided
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:24:00Z
+    attempt: 1
+    claim: the report dict gained no removed or renamed key — task state
+      strings grew one value, which json consumers read as data; the updated
+      tests assert content only
+    evidence: tests/test_context.py:141-156 — the shipped-derivation test
+      asserts states by content
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T23:25:00Z
+    attempt: 1
+    claim: >-
+      a task with no run state whose id the history mentions derives as
+      `shipped` — a projection pseudo-state claiming exactly "history records
+      someone shipped it", never "the engine ran it". The subject match is
+      any word-boundary mention (the early era wrote "merge torve/T-0006"
+      and "accept T-0005 and T-0006"); the Torve-Task trailer matches in
+      bodies. With it this repository reads 27 shipped and exactly one
+      unstarted task — T-0029, the task open at the time of measurement —
+      the four false "asserted complete" flags on 0012-0015 dissolved, and
+      0018's flag stayed truthfully until this commit ships. The workspace
+      adapter's shipped_commit still uses the narrower spelling — out of
+      this task's scope
+    evidence: src/torve/application/projections.py:35-58 — the two patterns
+      and their comment; the derivation test in tests/test_context.py
+    action: decided
+    proposal: 0007 row — the shipped pseudo-state and its evidence-of-record
+      semantics; align the workspace adapter's shipped_commit subject
+      fallback with the word-boundary spelling in its own increment

@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from enum import StrEnum
 
@@ -115,14 +115,18 @@ def header(console: Console, verb: str, subject: str, regime: str | None = None)
     console.print(line)
 
 
-def make_table(*columns: str, title: str | None = None) -> Table:
+def make_table(*columns: str, title: str | None = None, lines: bool = False,
+               last_max_width: int | None = None) -> Table:
     """The house table: simple rules, dim headers, no outer border — rows are
-    the content, the frame is not."""
+    the content, the frame is not. `lines` separates rows, for tables whose
+    cells wrap over several lines; `last_max_width` bounds the final column,
+    for tables whose last cell is prose."""
     table = Table(box=box.SIMPLE_HEAD, title=title, title_style="bold",
                   title_justify="left", header_style=STYLE_DIM, pad_edge=False,
-                  expand=False)
-    for column in columns:
-        table.add_column(column, overflow="fold")
+                  expand=False, show_lines=lines)
+    for position, column in enumerate(columns):
+        width = last_max_width if position == len(columns) - 1 else None
+        table.add_column(column, overflow="fold", max_width=width)
     return table
 
 
@@ -176,13 +180,15 @@ def closing(console: Console, text: str, style: str = "") -> None:
 
 
 @contextmanager
-def live_status(text: str, fmt: Format | None = None) -> Generator[None]:
+def live_status(text: str, fmt: Format | None = None) -> Generator[Callable[[str], None]]:
     """The one narrow lift of 0011 §7's deferral (RFC 0018 §6): a single
     transient status line with elapsed time for steps longer than a moment.
-    TTY-only by rule, not by autodetection — absent under `--plain`, CI and
-    `--format json`, where it yields a no-op. Never a prompt (D-11.7)."""
+    Yields an updater so the line can name the step it is inside — one timer
+    over a pass that is 95% one gate explains nothing. TTY-only by rule, not
+    by autodetection — absent under `--plain`, CI and `--format json`, where
+    the updater is a no-op. Never a prompt (D-11.7)."""
     if is_plain(fmt):
-        yield
+        yield lambda _text: None
         return
     progress = Progress(
         SpinnerColumn(style=STYLE_DIM),
@@ -192,5 +198,9 @@ def live_status(text: str, fmt: Format | None = None) -> Generator[None]:
         transient=True,
     )
     with progress:
-        progress.add_task(text, total=None)
-        yield
+        handle = progress.add_task(text, total=None)
+
+        def update(new_text: str) -> None:
+            progress.update(handle, description=new_text)
+
+        yield update

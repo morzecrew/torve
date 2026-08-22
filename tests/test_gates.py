@@ -143,3 +143,20 @@ def test_repository_logs_parse_under_the_gate():
         assert error is None, f"{log.name}: {error}"
         assert isinstance(document.get("drift_count"), int), f"{log.name}: no drift_count"
         assert document["entries"], f"{log.name}: an empty log would simply not exist (A-13)"
+
+
+def test_run_gates_reports_progress_by_gate_name(repo):
+    # RFC 0018 §6 via T-0029: the live status names the gate it is inside —
+    # one timer over a pass that is 95% acceptance explains nothing.
+    from torve.gates.runner import run_gates
+
+    repo.seed()
+    repo.write("src/app.py", "print('progress')\n")
+    repo.commit("change")
+    seen: list[str] = []
+    report = run_gates(context_for(repo), progress=seen.append)
+    announced = [r.name for r in report.results
+                 if "an earlier blocking gate failed" not in r.output]
+    assert seen == announced  # every gate that ran announced itself, in order
+    # (a degraded-mode gate runs and reports skipped — it still announces)
+    assert "scope" in seen and "secrets" in seen
