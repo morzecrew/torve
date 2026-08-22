@@ -1,0 +1,35 @@
+schema_version: 1
+task: T-0019
+repo: morzecrew/torve
+base_sha: f58b5eeb256c04a2aa73a099d6facbb6ca0af892
+created_at: 2026-08-22T22:00:00Z
+drift_count: 0
+notes: |
+  A-19 executed. The patch's step-3 diagnostic confirmed what the adoption
+  predicted: nothing imported rfc_parse from the wrong side, so the rule was
+  already true and the diff only makes it checkable.
+entries:
+  - decision: D-7.18
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:05:00Z
+    attempt: 1
+    claim: 'the contract lands verbatim from A-19 — gates, runtime and agent adapters forbidden from torve.config.rfc_parse — and the diagnostic run kept all five contracts, so the format already terminated at the planner; the only importer is cli/rfc.py, which is the planner''s side of the line'
+    evidence: pyproject.toml:86-93
+    action: decided
+  - decision: D-15.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:10:00Z
+    attempt: 1
+    claim: 'no gate change was needed: the layering gate runs lint-imports over the whole graph, so a fourth contract joins the check the moment it is declared'
+    evidence: .torve/gates.yaml:66-72
+    action: decided
+  - decision: D-2.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:15:00Z
+    attempt: 1
+    claim: 'the sabotage red twin is a scratch gate importing rfc_parse, observed to fail; the clean twin has the CLI importing it legally, so the case also proves the contract does not over-forbid the planner''s side'
+    evidence: tests/test_layering.py:126-133
+    action: decided

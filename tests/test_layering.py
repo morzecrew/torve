@@ -6,7 +6,7 @@ is a self-development gate and `import-linter` is a dev dependency (D-15.10),
 so a consuming repository's `torve gates check` never depends on it.
 
 Each case seeds a scratch package with its own import-linter contracts
-mirroring the three shapes in pyproject.toml, then runs the gate exactly as
+mirroring the four shapes in pyproject.toml, then runs the gate exactly as
 the manifest would.
 """
 
@@ -59,6 +59,12 @@ PYPROJECT = textwrap.dedent("""\
     name = "Adapters are independent"
     type = "independence"
     modules = ["pkg.adapters.runtime", "pkg.adapters.workspace"]
+
+    [[tool.importlinter.contracts]]
+    name = "The RFC format stays at the planner"
+    type = "forbidden"
+    source_modules = ["pkg.gates", "pkg.adapters.runtime"]
+    forbidden_modules = ["pkg.config.rfc_parse"]
     """)
 
 CLEAN = {
@@ -75,8 +81,12 @@ CLEAN = {
     "pkg/adapters/workspace/git.py": "WORKSPACE = 1\n",
     "pkg/gates/__init__.py": "",
     "pkg/gates/check.py": "from pkg.domain import thing  # noqa: F401\n",
+    "pkg/config/__init__.py": "",
+    "pkg/config/rfc_parse.py": "FORMAT = 1\n",
     "pkg/cli/__init__.py": "",
-    "pkg/cli/main.py": "from pkg.adapters.runtime import docker  # noqa: F401\n",
+    # The CLI reading the format is the planner's side of the line (A-19).
+    "pkg/cli/main.py": ("from pkg.adapters.runtime import docker  # noqa: F401\n"
+                        "from pkg.config import rfc_parse  # noqa: F401\n"),
 }
 
 
@@ -110,6 +120,15 @@ def test_gate_importing_the_application_reddens(repo):
 def test_adapter_importing_an_adapter_reddens(repo):
     seed(repo, {"pkg/adapters/runtime/docker.py":
                 "from pkg.adapters.workspace import git  # noqa: F401\n"})
+    assert outcome(repo) == "fail"
+
+
+def test_gate_parsing_the_rfc_format_reddens(repo):
+    # 0015 A-19 / 0007 D-7.18: format containment — the clean twin above has
+    # the CLI importing rfc_parse legally, so the contract forbids the gate
+    # without over-forbidding the planner's side.
+    seed(repo, {"pkg/gates/check.py":
+                "from pkg.config import rfc_parse  # noqa: F401\n"})
     assert outcome(repo) == "fail"
 
 

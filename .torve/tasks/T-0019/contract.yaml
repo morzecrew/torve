@@ -1,0 +1,44 @@
+# 0015 A-19 executed: the format-containment contract, its sabotage twins,
+# and the diagnostic run.
+schema_version: 1
+id: T-0019
+rfc: rfcs/0015-source-tree.md
+phase: 1
+role: implement
+intent: |
+  The layering gate learns the rule A-19 states: the RFC format terminates at
+  the planner. A fourth import-linter contract forbids gates and the runtime
+  and agent adapters from importing config.rfc_parse, so the day a gate
+  starts parsing specification documents directly — the quiet way format
+  containment breaks — is the day lint-imports goes red instead of nobody
+  noticing.
+depends_on: [T-0016]
+scope:
+  allow:
+    - "pyproject.toml"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-7.18
+    grade: LOCKED
+    text: Only torve plan, torve rfc * and RfcDirectory know the RFC format
+    paths: ["pyproject.toml", "src/torve/config/rfc_parse.py", "src/torve/cli/rfc.py"]
+  - id: D-15.8
+    grade: LOCKED
+    text: The layer rules are import-linter contracts wrapped by the layering gate
+    paths: ["pyproject.toml", ".torve/gates.yaml"]
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate check ships with a sabotage case observed to fail
+    paths: ["tests/test_layering.py"]
+budget: {}
+tier: executor

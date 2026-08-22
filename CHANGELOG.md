@@ -94,6 +94,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config.yaml` names the one corpus location (D-13.7). The `rfc-index`
   gate is replaced by the shipped `rfc-valid` product gate (D-7.14,
   shadow, origin rfc/0007); a malformed corpus exits 3 per 0007 §3a.
+- Format containment made checkable (0015 A-19, enforcing 0007's
+  D-7.18): a fifth import-linter contract forbids gates and the runtime
+  and agent adapters from importing `config.rfc_parse`, so the RFC
+  format keeps terminating at the planner by check rather than by
+  nobody making a mistake. Sabotage twins prove it reddens on a gate
+  importing the parser and tolerates the CLI doing so legally.
 - Plan-gate deadlock removed from the shipped `flag-dont-flip` (0003
   A-18): the skill's "plan and stop" checkpoint assumed a human at the
   other end — in a sandbox it produces no diff and dies on wall-clock.

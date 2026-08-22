@@ -83,6 +83,15 @@ type = "forbidden"
 source_modules = ["torve.config"]
 forbidden_modules = ["torve.application", "torve.adapters", "torve.cli"]
 
+# 0015 A-19, enforcing 0007's D-7.18: the RFC format terminates at the
+# planner. A gate or runtime that parses specification documents directly is
+# how format containment breaks, and it breaks quietly.
+[[tool.importlinter.contracts]]
+name = "The RFC format stays at the planner"
+type = "forbidden"
+source_modules = ["torve.gates", "torve.adapters.runtime", "torve.adapters.agent"]
+forbidden_modules = ["torve.config.rfc_parse"]
+
 [[tool.importlinter.contracts]]
 name = "Adapters are independent"
 type = "independence"
