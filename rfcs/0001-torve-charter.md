@@ -7,7 +7,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-1", "A-4", "A-5", "A-11", "A-12", "A-17"]
+amended_by: ["A-1", "A-4", "A-5", "A-11", "A-12", "A-17", "A-21"]
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
@@ -134,6 +134,8 @@ queued → claimed → running → gated → reviewed → ready
 
 *Amendment 2026-08-21 (D-29, D-30):* the vocabulary above is completed by `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a) and closed as one enum; and `claimed → escalated` is a legal transition, covering a runner that dies between claim and first dispatch.
 
+*Amendment 2026-08-22 (A-21):* `underspecified` joins the vocabulary — a contract whose execution would require inventing three or more load-bearing decisions halts as a specification defect (0003 A-18), separable in telemetry from `locked_conflict`; both are halts on working judgement, but one indicts the contract and the other the code.
+
 ## 5. Ports
 
 | Port | Backed by |
@@ -252,7 +254,7 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-27 | `LOCKED` | Git and the store are a boundary, not a prohibition: git holds what should be (contracts, manifests, RFCs, decision tables, logs — diffable, sha-pinned, reviewed), the store holds what happened (runs, leases, attempts, results, telemetry). The engine may project git-held artefacts into the store for querying, one-way and read-only; the store is never authoritative for them. *(Reworded by A-4 2026-08-21 from "nothing ever moves from git into a database".)* | `.torve/tasks/**` `.torve/tasks/**` `rfcs/**` | — |
 | D-28 | `ASSUMED` | The engine gets a weekly time budget with a named owner; three consecutive overruns mean maintenance mode | — | — |
 | D-21b | `LOCKED` | A log entry carries `kind` (contradicted / departed / resolved / blocked), or the skill's `class`, or both; a `kind: resolved` close-out with `action: decided` is the legal attestation of compliance in a touched `LOCKED` area. Added by execution 2026-08-21 | `.torve/tasks/**` `src/torve/gates/decisions_reported.py` | — |
-| D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 | `src/torve/domain/states.py` | — |
+| D-29 | `ASSUMED` | The escalation vocabulary is §4's list plus `cost_anomaly` (§5.2), `killed` (RFC 0006 §5a) and `underspecified` (added by amendment A-21 2026-08-22), fixed in one closed enum in the domain module; any further addition is an RFC amendment, never a code change. Added by execution 2026-08-21 | `src/torve/domain/states.py` | — |
 | D-30 | `ASSUMED` | `claimed` may transition to `escalated`: a runner that dies between claim and first dispatch needs a legal exit, and the durable store's `claim_abandoned` recovery lands on the same edge. Added by execution 2026-08-21 | `src/torve/domain/states.py` | — |
 | D-31 | `LOCKED` | Agents do not communicate; the runner coordinates. What an agent may touch and what was already decided are copied into its contract; what others are doing is the runner's knowledge for overlap-free dispatch, never the agent's. Falsifiable: revisit only if telemetry shows tasks escalating with "insufficient context about adjacent work". Added by amendment A-5 2026-08-21 | `src/torve/application/ports.py` `src/torve/application/runner.py` | — |
 | D-21c | `ASSUMED` | The YAML log carries a top-level `drift_count` scalar checked against entries classed `drift`; revising the claim edits the scalar (git history preserves prior claims) while `entries` stays append-only. Added by execution 2026-08-21 | `.torve/tasks/**` `src/torve/gates/decisions_reported.py` | — |
@@ -403,3 +405,13 @@ Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached 
 **Closed:** `D-A.*` takes no new members. New decisions use `D-<rfc-number>.<n>`.
 
 **Also edits:** 0007, 0011, 0013, 0015 gain `depends_on: ["0016"]`.
+
+### A-21 — 2026-08-22 — `underspecified` joins the escalation vocabulary (amends §4, D-29)
+
+**Found in specialising `flag-dont-flip` for autonomous execution (0003 A-18).** The rewritten skill halts when a contract needs three or more load-bearing decisions invented — a specification defect, reported rather than papered over. The halt had no reason of its own: riding `locked_conflict` conflates two different indictments. Both are halts on working judgement, but a `locked_conflict` says the code contradicts a settled decision, while an underspecified contract says the *document* was not ready — and the whole point of separable telemetry (D-29's closed enum exists for comparability) is that those two populations answer different questions: the first measures drift, the second measures planning quality.
+
+**Changed:** `underspecified` joins the enum, projected to exit 2 with the rest of the human-decision family (0011 D-11.9). The triage response differs from every other member: the fix is an amendment to the source document and a re-mint, never a retry of the task.
+
+**Deliberately unchanged:** the threshold stays in the skill (three or more load-bearing gaps), not in the engine — the engine cannot count what a contract fails to say; it can only record that an agent said so, which is exactly the D-2 division.
+
+**Also edits:** 0011 D-11.9 (the projection row).

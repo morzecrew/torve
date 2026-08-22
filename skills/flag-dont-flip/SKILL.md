@@ -65,7 +65,9 @@ Fewer than three: decide them, log each as `UNLISTED`, carry on. That is what
 **Inventing the missing decisions silently is the failure this skill exists to
 prevent.** A contract that needs three load-bearing inventions is not a contract
 you can satisfy — it is a specification defect, and reporting it is the correct
-outcome, not a failure to complete.
+outcome, not a failure to complete. The halt escalates as `underspecified`
+(charter A-21): it indicts the contract, not the code, and the fix is an
+amendment and a re-mint, never a retry.
 
 ## The log: `.torve/tasks/<task-id>/log.yaml`
 

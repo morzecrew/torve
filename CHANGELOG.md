@@ -94,6 +94,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config.yaml` names the one corpus location (D-13.7). The `rfc-index`
   gate is replaced by the shipped `rfc-valid` product gate (D-7.14,
   shadow, origin rfc/0007); a malformed corpus exits 3 per 0007 §3a.
+- `underspecified` joins the escalation vocabulary (charter A-21,
+  amending D-29): a contract needing three or more load-bearing
+  decisions invented halts as a specification defect — separable in
+  telemetry from `locked_conflict` (one indicts the contract, the other
+  the code), projected to exit 2, with the triage response being an
+  amendment and a re-mint, never a retry. The threshold stays in the
+  skill: the engine cannot count what a contract fails to say.
+- RFC 0007 accepted (`implementation: partial` — §3a shipped as
+  `torve rfc`); the D-32 glob check became a gradient: `none` skips,
+  `complete` reddens on rot, `partial` gets one aggregate warning per
+  document naming its unbuilt intended modules.
 - Proposal sweep T-0009..T-0020: twenty-two execution-log proposals
   promoted into decision tables across eight documents (D-2.24–26,
   D-3.22, D-9.9–10, D-11.9–10, D-13.8–10, D-14.13, D-15.11–12,
