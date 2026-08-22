@@ -107,6 +107,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0018 phase 1 executed from the first planner-minted contract
+  (`torve plan 0018 --no-dry-run` minted T-0027/T-0028; T-0027 executed
+  against its minted scope and decisions): the component vocabulary in
+  `torve.cli.console`, `gates run`/`status`/`context` rendered through
+  it, and `torve context --format markdown` carrying the pasteable
+  document while the default became tables and sections. JSON
+  byte-shapes unchanged.
 - RFC 0018 drafted (CLI presentation): the D-11.8 deferral discharged
   now that hand-run commands are known — one component vocabulary
   (header, table, verdict marks, failure detail, closing line), fixed
