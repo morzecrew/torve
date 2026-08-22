@@ -107,6 +107,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Owner-review round two (T-0029): tasks with no run state whose id
+  the history mentions derive as `shipped` — evidence of record, never
+  engine execution — leaving exactly one honest `unstarted` (the task
+  open at measurement time) and dissolving four false asserted-complete
+  flags; the proposals table gained row separators and a bounded prose
+  column; and `run_gates` grew an optional progress callback so the
+  live status names the gate it is inside.
 - RFC 0018 phase 2 (T-0028, the second planner-minted contract) plus
   owner-reported phase-1 fixes: every verb renders through the shared
   components (plan and reconcile as tables, doctor speaks verdict
