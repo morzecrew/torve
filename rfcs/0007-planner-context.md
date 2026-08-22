@@ -1,8 +1,8 @@
 ---
 id: "0007"
 title: Planner and context
-status: draft
-implementation: none
+status: accepted
+implementation: partial
 depends_on: ["0003", "0016"]
 informed_by: []
 supersedes: []
@@ -208,12 +208,12 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-7.1 | `LOCKED` | No model calls inside the planner, for any reason | `src/torve/planner/**` | The place where they will try to creep in; violation shows up as a new dependency |
-| D-7.2 | `LOCKED` | `torve plan` accepts only a committed, reviewed document | `src/torve/planner/**` | The human signature in the loop |
-| D-7.3 | `LOCKED` | The MCP surface is read-only and never given to an executing agent | `src/torve/planner/**` | A writable planning surface is autonomous planning by another route |
-| D-7.4 | `OPEN` | Output format of `torve context` | `src/torve/planner/**` | Markdown, JSON, or both — decided by use |
+| D-7.1 | `LOCKED` | No model calls inside the planner, for any reason | `src/torve/application/planner.py` | The place where they will try to creep in; violation shows up as a new dependency |
+| D-7.2 | `LOCKED` | `torve plan` accepts only a committed, reviewed document | `src/torve/application/planner.py` | The human signature in the loop |
+| D-7.3 | `LOCKED` | The MCP surface is read-only and never given to an executing agent | `src/torve/application/planner.py` | A writable planning surface is autonomous planning by another route |
+| D-7.4 | `OPEN` | Output format of `torve context` | `src/torve/application/planner.py` | Markdown, JSON, or both — decided by use |
 | D-7.5 | `LOCKED` | An empty decision list is legal but must be explicit | `src/torve/gates/decisions_reported.py` `src/torve/domain/**` | Distinguishes "none apply" from "field forgotten" |
-| D-7.6 | `LOCKED` | `DecisionSource` adapters are deterministic; model-assisted extraction runs outside the engine | `src/torve/planner/**` | Keeps D-2 intact while still bootstrapping brownfield repositories |
+| D-7.6 | `LOCKED` | `DecisionSource` adapters are deterministic; model-assisted extraction runs outside the engine | `src/torve/application/planner.py` | Keeps D-2 intact while still bootstrapping brownfield repositories |
 | D-7.7 | `LOCKED` | `torve plan` refuses unless the document and every `depends_on` target are `accepted` | `src/torve/application/planner.py` | Inheriting a grade from a draft breaks the copy-at-write-time guarantee |
 | D-7.8 | `LOCKED` | `torve plan` takes exactly one document; no sets, no subgraphs, no `--all` | `src/torve/application/planner.py` | Batch planning inherits from documents still being amended — the drift this system removes |
 | D-7.9 | `ASSUMED` | `informed_by` is unenforced | `rfcs/**` | A reading hint that blocks is an irritant with no protection attached |

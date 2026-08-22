@@ -246,22 +246,25 @@ def paths_globs(cell: str) -> list[str]:
 
 def check_decisions(
     path: Path, text: str, fm: dict[str, Any], root: Path, seen: dict[str, str]
-) -> list[str]:
+) -> tuple[list[str], list[str]]:
     # D-32: for RFCs not yet built the globs name the intended module and are
-    # refined when it exists. "Not yet built" is `implementation: none` — an
-    # accepted document awaiting execution may cite modules that do not exist,
-    # while partial or complete implementation means the cited areas are real.
-    check_globs = (
-        fm.get("status") == "accepted" and (fm.get("implementation") or "none") != "none"
-    )
+    # refined when it exists. Severity follows the `implementation` judgement:
+    # `none` skips (everything is intended), `complete` makes an unmatched
+    # glob a problem (rot), and `partial` — a document mixing built and
+    # intended areas the metadata cannot tell apart — gets one aggregate
+    # warning per document, which clears itself as the areas land.
+    implementation = str(fm.get("implementation") or "none")
+    check_globs = fm.get("status") == "accepted" and implementation != "none"
+    unbuilt: list[str] = []
+    warnings: list[str] = []
     found = decision_rows(text)
     if found is None:
         return [
             (f"{path.name}: no Decisions section with a table "
-            "(D-A.1: the table is what makes it an RFC)")
-        ]
+             "(D-A.1: the table is what makes it an RFC)")
+        ], warnings
     if not found:
-        return [f"{path.name}: Decisions section has a header but no rows"]
+        return [f"{path.name}: Decisions section has a header but no rows"], warnings
     problems: list[str] = []
     if not found[0][3]:
         problems.append(f"{path.name}: decision table header is not exactly {TABLE_HEADER!r}")
@@ -290,13 +293,20 @@ def check_decisions(
                         matched = next(root.glob(pattern), None)
                     except (ValueError, NotImplementedError):
                         matched = None
-                    if matched is None:
+                    if matched is None and implementation == "complete":
                         problems.append(
                             f"{path.name}: LOCKED row {ident!r} paths glob {pattern!r} "
                             "matches nothing in the repository (an implemented "
                             "RFC cites real areas, D-32)"
                         )
-    return problems
+                    elif matched is None:
+                        unbuilt.append(f"{ident} -> {pattern}")
+    if unbuilt:
+        warnings.append(
+            f"{path.name}: {len(unbuilt)} LOCKED glob(s) name unbuilt areas — "
+            "intended modules awaiting implementation (D-32): " + "; ".join(unbuilt)
+        )
+    return problems, warnings
 
 
 def check_amendments(path: Path, text: str, fm: dict[str, Any]) -> list[str]:
@@ -603,7 +613,9 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
                 if ref not in files:
                     report.problems.append(f"{path.name}: {fname} names {ref!r}, no such RFC")
 
-        report.problems += check_decisions(path, text, fm, root, seen_ids)
+        decision_problems, decision_warnings = check_decisions(path, text, fm, root, seen_ids)
+        report.problems += decision_problems
+        report.warnings += decision_warnings
         report.problems += check_amendments(path, text, fm)
         report.problems += check_line_cites(path, text, root)
         report.problems += check_headings(path, text)
