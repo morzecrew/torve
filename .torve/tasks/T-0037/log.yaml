@@ -1,0 +1,49 @@
+schema_version: 1
+task: T-0037
+repo: morzecrew/torve
+base_sha: 2c18be82e3b50f23d5bd47a102672cde5bcfda01
+drift_count: 0
+entries:
+  - decision: D-17.2
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T20:55:00Z
+    attempt: 1
+    claim: the four-harness roster is committed as definitions and rebuilt
+      through the command — claude, dsh, opencode and mimo each built from
+      .torve/sandbox/<name>/ with the digest reported; the consuming scratch
+      repository carries its own copy of the definition it uses, which is
+      the doctrine's shape for any adopting repository
+    evidence: .torve/sandbox/opencode/Dockerfile:1-3 — a committed
+      definition with its provenance header; `uv run torve sandbox build`
+      reported all four digests
+    action: decided
+  - decision: D-17.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T20:56:00Z
+    attempt: 1
+    claim: every definition is base runtime plus harness plus git plus uv —
+      nothing task-specific, no credentials, no repository content; the two
+      previously uncommented Dockerfiles gained headers stating the rule
+    evidence: .torve/sandbox/dsh/Dockerfile:1-3 — the header and the thin
+      layer list
+    action: decided
+  - decision: D-17.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:57:00Z
+    attempt: 1
+    claim: >-
+      the exit criteria measured live: a shadow replay of the scratch task
+      recorded image digest 390716c1 under regime hash 6b8e07a35195; a
+      deliberate rebuild of the same tag produced digest 654dd4ef and the
+      next replay recorded regime hash 7c270b5b9df2 — the same tag, two
+      digests, two regimes, exactly the silent drift the first campaign
+      could not see. Reverting the definition and rebuilding restored the
+      original digest byte-identically (layer cache), and the tier-image
+      channel carried the whole demonstration: runtime.image stayed the
+      plain base while executor.image named the harness
+    evidence: .torve/tasks/T-0037/contract.yaml:14-17 — the intent this
+      demonstrates; the scratch repository's telemetry holds both records
+    action: decided

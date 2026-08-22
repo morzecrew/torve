@@ -1,0 +1,39 @@
+# RFC 0017 execution, part 2 of 2: the roster as reviewed definitions, and
+# the exit criteria measured live. Bookkeeping (implementation flip,
+# changelog) rides the docs commit per D-16.8.
+schema_version: 1
+id: T-0037
+rfc: rfcs/0017-sandbox-provisioning.md
+phase: 2
+role: implement
+intent: |
+  The four-harness roster becomes committed definitions under
+  .torve/sandbox/{claude,dsh,opencode,mimo}/ and rebuilds through torve
+  sandbox build with digests reported; a live shadow replay records its
+  image digest, and a second replay after a deliberate rebuild records a
+  different digest under a different config_hash — the drift the hash now
+  catches, demonstrated.
+depends_on: [T-0036]
+scope:
+  allow:
+    - ".torve/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-17.2
+    grade: ASSUMED
+    text: Image definitions live under .torve/sandbox/<name>/; torve sandbox build builds and reports the digest
+    paths: [".torve/sandbox/**", "src/torve/cli/**"]
+  - id: D-17.8
+    grade: ASSUMED
+    text: Images are thin — base runtime, harness, git, uv; everything task-specific arrives via the workspace
+    paths: [".torve/sandbox/**"]
+  - id: D-17.1
+    grade: LOCKED
+    text: The image digest is the sandbox's identity — resolved at dispatch, joined into config_hash, recorded on the attempt
+    paths: ["src/torve/application/telemetry.py", "src/torve/adapters/runtime/**"]
+budget: {}
+tier: executor
