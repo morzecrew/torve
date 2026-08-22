@@ -16,7 +16,17 @@ from typing import Annotated
 
 import typer
 
-from torve.cli.console import Format, emit_json, fail, out
+from torve.cli.console import (
+    STYLE_FAIL,
+    STYLE_PASS,
+    STYLE_WARN,
+    Format,
+    closing,
+    emit_json,
+    fail,
+    out,
+    styled,
+)
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.rfc import KINDS
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
@@ -84,12 +94,13 @@ def check(
     else:
         console = out(fmt)
         for problem in problems:
-            console.print(f"PROBLEM {problem}")
+            console.print(styled(f"PROBLEM {problem}", STYLE_FAIL))
         for warning in warnings:
-            console.print(f"WARN    {warning}")
+            console.print(styled(f"WARN    {warning}", STYLE_WARN))
         verdict = "FAIL " if problems else "OK   "
         tail = f", {len(warnings)} warning(s)" if warnings else ""
-        console.print(f"{verdict} {report.count} RFC(s), {len(problems)} problem(s){tail}")
+        closing(console, f"{verdict} {report.count} RFC(s), {len(problems)} problem(s){tail}",
+                STYLE_FAIL if problems else STYLE_PASS)
     raise typer.Exit(EXIT_OK if not problems else EXIT_CONFIG)
 
 
@@ -205,8 +216,8 @@ def graph(
         console.print(f"{edge['from']} ({edge['from_status']}) -> "
                       f"{edge['to']} ({edge['to_status']})")
     for problem in problems:
-        console.print(f"PROBLEM {problem}")
+        console.print(styled(f"PROBLEM {problem}", STYLE_FAIL))
     for warning in warnings:
-        console.print(f"WARN    {warning}")
+        console.print(styled(f"WARN    {warning}", STYLE_WARN))
     if not edges:
         console.print("no depends_on edges")

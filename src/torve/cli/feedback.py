@@ -10,7 +10,7 @@ from typing import Annotated
 import typer
 
 from torve.application.telemetry import append_record, feedback_record
-from torve.cli.console import Format, emit_json, out
+from torve.cli.console import Format, closing, emit_json, out
 from torve.cli.options import FormatOption, RootOption
 from torve.config import layout
 from torve.domain.states import EXIT_OK
@@ -37,7 +37,7 @@ def feedback(
     if fmt is Format.JSON:
         emit_json(record)
     else:
-        out(fmt).print(
-            f"{task_id}: {human_minutes} human minute(s), "
-            f"rework={'yes' if rework else 'no'} — appended")
+        closing(out(fmt),
+                f"{task_id}: {human_minutes} human minute(s), "
+                f"rework={'yes' if rework else 'no'} — appended")
     raise typer.Exit(EXIT_OK)

@@ -10,7 +10,21 @@ from typing import Annotated
 
 import typer
 
-from torve.cli.console import Format, emit_json, fail, out
+from torve.cli.console import (
+    STYLE_DIM,
+    STYLE_FAIL,
+    STYLE_ID,
+    STYLE_PASS,
+    STYLE_WARN,
+    Format,
+    closing,
+    emit_json,
+    fail,
+    header,
+    make_table,
+    out,
+    styled,
+)
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 from torve.domain.task import SCHEMA_VERSION
@@ -70,19 +84,25 @@ def plan_cmd(
         })
     else:
         console = out(fmt)
-        console.print(f"torve plan · {report.document} · {len(report.tasks)} task(s)")
+        header(console, "plan", f"{report.document} · {len(report.tasks)} task(s)")
+        table = make_table("task", "phase", "title", "size", "decisions",
+                           "scope", "after")
         for planned in report.tasks:
             task = planned.task
-            deps = f" after {', '.join(task.depends_on)}" if task.depends_on else ""
-            console.print(
-                f"  {task.id}  phase {task.phase}  {planned.title}  "
-                f"[size {planned.size.size}, {len(task.decisions)} decision(s), "
-                f"{len(task.scope.allow)} scope glob(s)]{deps}")
+            table.add_row(
+                styled(task.id, STYLE_ID), str(task.phase), planned.title,
+                styled(planned.size.size,
+                       "" if planned.size.size == "ok" else STYLE_WARN),
+                str(len(task.decisions)), str(len(task.scope.allow)),
+                styled(", ".join(task.depends_on), STYLE_DIM))
+        console.print(table)
         if dry_run:
-            console.print("dry run — nothing written; pass --no-dry-run to mint")
+            closing(console, "dry run — nothing written; pass --no-dry-run to mint",
+                    STYLE_DIM)
         else:
             for path in written:
-                console.print(f"  minted {path}")
+                console.print(styled(f"  minted {path}", ""))
+            closing(console, f"minted {len(written)} contract(s)", STYLE_PASS)
     raise typer.Exit(EXIT_OK)
 
 
@@ -102,12 +122,20 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
         })
     else:
         console = out(fmt)
+        header(console, "plan --reconcile", f"{len(found)} stale task(s)")
         if not found:
-            console.print("no tasks minted from superseded documents — nothing to reconcile")
-        for stale in found:
-            by = stale.superseded_by or "an unset successor"
-            console.print(f"  {stale.task_id}  [{stale.state}]  from {stale.document} "
-                          f"(superseded by {by}) — {stale.action}")
+            closing(console,
+                    "no tasks minted from superseded documents — nothing to reconcile")
+        else:
+            table = make_table("task", "state", "document", "superseded by", "action")
+            for stale in found:
+                table.add_row(
+                    styled(stale.task_id, STYLE_ID), stale.state, stale.document,
+                    stale.superseded_by or "an unset successor",
+                    styled(stale.action,
+                           STYLE_FAIL if "escalate" in stale.action else STYLE_DIM))
+            console.print(table)
         if dry_run and any(s.action == "would escalate" for s in found):
-            console.print("dry run — nothing written; pass --no-dry-run to escalate")
+            closing(console, "dry run — nothing written; pass --no-dry-run to escalate",
+                    STYLE_DIM)
     raise typer.Exit(EXIT_OK)

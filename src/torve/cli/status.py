@@ -17,6 +17,7 @@ from torve.cli.console import (
     Format,
     emit_json,
     header,
+    id_list,
     make_table,
     out,
     styled,
@@ -95,9 +96,10 @@ def reap_cmd(
                    "worktrees_removed": report.worktrees_removed})
         return
     console = out(fmt)
+    header(console, "reap", "dry run" if dry_run else "sweep")
     tense = "would be " if dry_run else ""
     for label, names in (("sandboxes destroyed", report.sandboxes_destroyed),
                          ("runs expired", report.runs_expired),
                          ("worktrees removed", report.worktrees_removed)):
-        detail = f" ({', '.join(names)})" if names else ""
+        detail = f" ({id_list(names)})" if names else ""
         console.print(f"{tense}{label}: {len(names)}{detail}")

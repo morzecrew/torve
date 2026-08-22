@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import typer
 
-from torve.cli.console import Format, emit_json, out
+from torve.cli.console import STYLE_FAIL, Format, emit_json, mark, out, styled
 from torve.cli.options import FormatOption
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
@@ -24,5 +24,6 @@ def doctor(fmt: FormatOption = Format.TEXT) -> None:
         emit_json({"schema_version": 1, "ok": ok,
                    "checks": [{"name": "forze-pin", "ok": ok, "detail": message}]})
     else:
-        out(fmt).print(("ok    " if ok else "FAIL  ") + message)
+        verdict = mark("pass" if ok else "fail")
+        out(fmt).print(verdict + styled(f" {message}", "" if ok else STYLE_FAIL))
     raise typer.Exit(EXIT_OK if ok else EXIT_CONFIG)

@@ -1,0 +1,85 @@
+schema_version: 1
+task: T-0028
+repo: morzecrew/torve
+base_sha: 4e4d0987205afecf9bde971ace492d1e0673aacb
+drift_count: 0
+entries:
+  - decision: D-18.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T22:30:00Z
+    attempt: 1
+    claim: every remaining verb renders through the shared components — plan
+      and reconcile as tables with header and closing, shadow with header,
+      styled outcome and closing, rfc check with styled PROBLEM/WARN lines
+      and a styled verdict, doctor with verdict marks, migrate and reap with
+      headers and styled closings, feedback with a closing — no verb
+      assembles bespoke styling
+    evidence: src/torve/cli/plan.py:63-85 — the minted-task table; the sweep
+      spans shadow.py, rfc.py, doctor.py, migrate.py, feedback.py, status.py
+    action: decided
+  - decision: D-18.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T22:31:00Z
+    attempt: 1
+    claim: torve shadow wraps its replay in the live status — the longest
+      hand-run wait in the CLI (a real replay is minutes of agent plus
+      gates) — using the component from torve.cli.console, absent under
+      --plain, CI and json
+    evidence: src/torve/cli/shadow.py:125-126 — the live_status wrap
+    action: decided
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:32:00Z
+    attempt: 1
+    claim: no emit_json call site changed anywhere in the sweep, and no test
+      needed touching — the in-scope test files already asserted content
+      (ids, section names, verdict words), which is the D-18.1 discipline
+      paying out on its first sweep
+    evidence: >-
+      `git diff HEAD~1..HEAD --stat -- tests/` prints nothing — the sweep's
+      diff holds no test file; full pytest green at the commit
+    action: decided
+  - decision: D-18.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:33:00Z
+    attempt: 1
+    claim: the sweep touched cli/ files only; application modules are
+      byte-identical and no Rich renderable crossed the boundary
+    evidence: src/torve/cli/plan.py:1-6 — every changed path in the diff is
+      under src/torve/cli/
+    action: decided
+  - decision: D-18.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:34:00Z
+    attempt: 1
+    claim: every styled distinction in the sweep also carries a word or mark
+      (PROBLEM/WARN keep their words, doctor keeps ok/FAIL beside the mark,
+      states are printed as text); styling stays in Text style parameters
+    evidence: src/torve/cli/rfc.py:96-99 — styled PROBLEM/WARN lines keep
+      their words; the doctor mark sits beside ok/FAIL in
+      src/torve/cli/doctor.py:27-29
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T22:35:00Z
+    attempt: 1
+    claim: >-
+      the minted phase-2 scope named the seven verb files but not
+      console.py or gates.py — where the component and the longest wait
+      (§6's motivating case) actually live; those changes rode T-0027's
+      src/torve/cli/** glob as attempt 2, which worked but split one
+      coherent change across two task attributions
+    evidence: .torve/tasks/T-0028/contract.yaml:16-26 — the minted scope
+    action: decided
+    proposal: 0018 or 0016 row — when two phases share a package, the
+      earlier phase's glob absorbs cross-cutting components; either scope
+      phases by file list only when files are truly disjoint, or accept
+      glob overlap across phases (the within-phase disjointness rule
+      already permits it)

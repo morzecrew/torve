@@ -9,7 +9,7 @@ from typing import Annotated
 
 import typer
 
-from torve.cli.console import fail, out
+from torve.cli.console import STYLE_PASS, closing, fail, header, out
 from torve.cli.options import ConfigOption, RootOption, load_config
 from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE
 
@@ -48,6 +48,7 @@ def migrate_cmd(
 
                 with contextlib.suppress(RuntimeError):
                     dsn = resolve_dsn(config.store)
+            header(console, "migrate", "status")
             for line in migrate_status(dsn):
                 console.print(line)
             return
@@ -63,7 +64,7 @@ def migrate_cmd(
         dsn = resolve_dsn(config.store)
         for name in targets:
             applied = apply(name, dsn)
-            console.print(f"{name}: {applied} step(s) applied")
+            closing(console, f"{name}: {applied} step(s) applied", STYLE_PASS)
     except MigrateError as exc:
         raise fail(str(exc), exc.exit_code) from exc
     except RuntimeError as exc:

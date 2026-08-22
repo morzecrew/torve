@@ -15,7 +15,19 @@ from typing import Annotated
 
 import typer
 
-from torve.cli.console import Format, emit_json, fail, out
+from torve.cli.console import (
+    STYLE_DIM,
+    STYLE_FAIL,
+    STYLE_PASS,
+    Format,
+    closing,
+    emit_json,
+    fail,
+    header,
+    live_status,
+    out,
+    styled,
+)
 from torve.cli.options import (
     ConfigOption,
     FormatOption,
@@ -110,7 +122,8 @@ def shadow_cmd(
     )
 
     try:
-        record = run_shadow(root, task, config, deps, source, commit=commit)
+        with live_status(f"shadow replay of {task_id}", fmt):
+            record = run_shadow(root, task, config, deps, source, commit=commit)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
     except RuntimeError as exc:
@@ -120,18 +133,21 @@ def shadow_cmd(
         emit_json(record)
     else:
         console = out(fmt)
-        console.print(
-            f"{task_id}: shadow replay of {record['commit'][:10]} — "
-            f"{record['state']} after {record['attempts']} attempt(s)")
+        header(console, "shadow", f"{task_id} · replay of {record['commit'][:10]}")
+        ready = record["state"] == "ready"
+        console.print(styled(
+            f"  {record['state']} after {record['attempts']} attempt(s)",
+            STYLE_PASS if ready else STYLE_FAIL))
         if record["escalation"]:
-            console.print(f"  escalated: {record['escalation']}")
+            console.print(styled(f"  escalated: {record['escalation']}", STYLE_FAIL))
         cost = record["cost_usd_total"]
-        console.print(f"  cost: {'$' + format(cost, '.2f') if cost is not None else 'unrecorded'}"
-                      f" · adapter {record['adapter']}")
+        console.print(
+            f"  cost: {'$' + format(cost, '.2f') if cost is not None else 'unrecorded'}"
+            f" · adapter {record['adapter']}")
         for label in ("shadow_diff", "shipped_diff"):
             stat = record[label]
             console.print(f"  {label.replace('_', ' ')}: {stat['files_changed']} file(s), "
                           f"+{stat['insertions']} -{stat['deletions']}")
         console.print(f"  overlap: {', '.join(record['overlap_files']) or 'none'}")
-        console.print("  nothing merged (D-4.4)")
+        closing(console, "nothing merged (D-4.4)", STYLE_DIM)
     raise typer.Exit(EXIT_OK)
