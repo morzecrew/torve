@@ -1,0 +1,96 @@
+schema_version: 1
+task: T-0030
+repo: morzecrew/torve
+base_sha: 4de3bbb566bf7673a65918f5c69c93e124f60e82
+drift_count: 0
+entries:
+  - decision: D-3.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T15:05:00Z
+    attempt: 1
+    claim: the state sweep collects trace logs purely by the naming
+      convention — a glob over the task id's derived trace pattern beside
+      the worktree — no tracking, no registry
+    evidence: src/torve/application/reaper.py:62-76 — _sweep_states globs
+      the a-numbered trace pattern and unlinks the state file path
+    action: decided
+  - decision: D-3.10
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T15:06:00Z
+    attempt: 1
+    claim: the escalation path is untouched — stale active runs still
+      escalate as lease_expired first, and an escalated run is not terminal,
+      so its state file and traces stay as triage evidence
+    evidence: tests/test_reaper.py:81-99 — the escalated run's state file
+      and trace survive the sweep that collects the ready run's
+    action: decided
+  - decision: D-3.15
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T15:07:00Z
+    attempt: 1
+    claim: both reap paths sweep identically — the heartbeat reap and the
+      durable reap each call the state sweep after the worktree sweep, so
+      the store choice does not change what remains in .wt/
+    evidence: src/torve/application/reaper.py:110-151 — the two call sites
+    action: decided
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T15:08:00Z
+    attempt: 1
+    claim: the reap JSON gained one additive key (states_removed) and no
+      key was removed or renamed; the graph JSON is byte-identical; the
+      graph test now asserts edge ids and statuses by content, replacing
+      an assertion that pinned the old arrow layout
+    evidence: tests/test_rfc_check.py:393-399 — content-only assertions
+      with the D-18.1 comment
+    action: decided
+  - decision: D-18.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T15:09:00Z
+    attempt: 1
+    claim: the reaper returns the new field as data in ReapReport and the
+      rendering of "run states removed" lives in cli/status.py; no Rich
+      renderable crossed into application
+    evidence: src/torve/application/reaper.py:45 — the dataclass field;
+      the label tuple in src/torve/cli/status.py renders it
+    action: decided
+  - decision: D-18.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T15:10:00Z
+    attempt: 1
+    claim: rfc graph now renders through the shared components — header,
+      make_table for the edges, styled statuses with the word always
+      present (colour supplements per D-18.4, unknown status reads as a
+      failure) — replacing bare f-string prints
+    evidence: src/torve/cli/rfc.py:227-236 — header, the edge table and
+      the status style lookup
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T15:11:00Z
+    attempt: 1
+    claim: >-
+      the naming docstrings ("removing the worktree must not destroy the
+      record", "triage outlives the workspace") justify the beside-the-
+      worktree placement — protection against implicit destruction — but
+      were being read as immortality: no code path ever deleted a terminal
+      run's state file or traces, so torve status showed a phantom run
+      forever and a second reap could not even see it, because the sweep
+      was driven by the worktree listing alone. The resolution keeps the
+      placement rationale intact and makes the reap the deliberate
+      collector: terminal footprints go whole, escalated ones stay whole
+    evidence: src/torve/application/reaper.py:15-21 — the module docstring
+      stating the lifecycle; tests/test_reaper.py:101-108 pins the
+      worktree-already-gone case
+    action: decided
+    proposal: 0003 §4.2 row — the terminal-footprint sweep and the
+      state-files-drive-it rule, so the convention is written where the
+      reaper's contract lives

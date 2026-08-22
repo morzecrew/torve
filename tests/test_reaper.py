@@ -78,6 +78,36 @@ def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):
     assert escalated.task_id not in report.worktrees_removed
 
 
+def test_terminal_run_footprint_is_swept_whole(tmp_path):
+    # RFC 0003 §4.2: the sweep destroys anything without a live lease — for a
+    # terminal run that is the worktree, the state file AND the trace logs.
+    ready = state_at(tmp_path, "T-9401", TaskState.READY)
+    escalated = state_at(tmp_path, "T-9402", TaskState.ESCALATED)
+    (tmp_path / ".wt" / "T-9401.a1.trace.log").write_text("trace")
+    (tmp_path / ".wt" / "T-9402.a1.trace.log").write_text("trace")
+    workspace = ListingWorkspace([("T-9401", tmp_path / ".wt" / "T-9401")])
+
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), workspace)
+
+    assert report.worktrees_removed == ["T-9401"]
+    assert report.states_removed == ["T-9401"]
+    assert not ready.path.exists()
+    assert not (tmp_path / ".wt" / "T-9401.a1.trace.log").exists()
+    # An escalated run is triage evidence: state file and trace stay.
+    assert escalated.path.exists()
+    assert (tmp_path / ".wt" / "T-9402.a1.trace.log").exists()
+
+
+def test_terminal_state_whose_worktree_is_already_gone_is_still_swept(tmp_path):
+    # The state sweep is driven by the state files, not the worktree listing —
+    # otherwise a once-reaped run haunts `torve status` forever.
+    ready = state_at(tmp_path, "T-9403", TaskState.READY)
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]))
+    assert report.worktrees_removed == []
+    assert report.states_removed == ["T-9403"]
+    assert not ready.path.exists()
+
+
 def test_force_expires_even_fresh_runs(tmp_path):
     fresh = state_at(tmp_path, "T-9301", TaskState.CLAIMED)
     runtime = MockRuntime()
@@ -90,6 +120,7 @@ def test_force_expires_even_fresh_runs(tmp_path):
 def test_dry_run_reports_without_touching_anything(tmp_path):
     # RFC 0011 §6: --dry-run on anything that mutates.
     stale = state_at(tmp_path, "T-9105", TaskState.RUNNING, age_s=3600)
+    done = state_at(tmp_path, "T-9106", TaskState.READY)
     runtime = MockRuntime()
     runtime.registry = [sandbox_for(stale)]
     # An orphan worktree with no state file would be removed by a wet run.
@@ -100,7 +131,9 @@ def test_dry_run_reports_without_touching_anything(tmp_path):
     assert report.runs_expired == ["T-9105"]
     assert report.sandboxes_destroyed == ["torve-T-9105"]
     assert report.worktrees_removed == ["T-9999"]
+    assert report.states_removed == ["T-9106"]
     assert runtime.destroyed == []
     assert workspace.removed == []
+    assert done.path.exists()
     reloaded = RunState.load(tmp_path / ".wt" / "T-9105.state.json")
     assert reloaded.state is TaskState.RUNNING  # nothing escalated, nothing saved

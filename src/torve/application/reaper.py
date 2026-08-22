@@ -10,6 +10,13 @@ With the in-process mock store there is nothing durable to consult across
 processes (D-3.6: Postgres for real runs), so the v1 heartbeat heuristic
 stays as the fallback. Worktrees are removed only for terminal runs either
 way; a crashed run's worktree is triage evidence, not garbage.
+
+A terminal run's state file and trace logs are swept with its worktree — the
+durable record of what happened is the task log and telemetry, and a state
+file that outlives the sweep shows up in `torve status` forever. What remains
+in `.wt/` after a reap is only live and escalated runs. The state sweep is
+driven by the state files themselves, not the worktree listing, so a footprint
+whose worktree is already gone is still collected.
 """
 
 from __future__ import annotations
@@ -35,6 +42,7 @@ class ReapReport:
     sandboxes_destroyed: list[str] = field(default_factory=list)
     worktrees_removed: list[str] = field(default_factory=list)
     runs_expired: list[str] = field(default_factory=list)
+    states_removed: list[str] = field(default_factory=list)
 
 
 def _sweep_worktrees(
@@ -49,6 +57,23 @@ def _sweep_worktrees(
             if not dry_run:
                 workspace.remove(task_id)
             report.worktrees_removed.append(task_id)
+
+
+def _sweep_states(
+    root: Path, states: list[RunState], report: ReapReport, dry_run: bool,
+) -> None:
+    """A terminal run's remaining footprint: state file and trace logs, named
+    by convention (D-3.4) beside the worktree. Driven by the state files, not
+    the worktree listing — the worktree may already be gone."""
+    wt_dir = root / naming.WORKTREE_DIR
+    for state in states:
+        if state.state not in TERMINAL:
+            continue
+        if not dry_run:
+            for trace in sorted(wt_dir.glob(f"{state.task_id}.a*.trace.log")):
+                trace.unlink()
+            state.path.unlink(missing_ok=True)
+        report.states_removed.append(state.task_id)
 
 
 def _escalate_if_active(state: RunState, reason: EscalationReason, detail: str) -> bool:
@@ -82,6 +107,7 @@ def _heartbeat_reap(
             report.sandboxes_destroyed.append(sandbox.name)
 
     _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run)
+    _sweep_states(root, states, report, dry_run)
     return report
 
 
@@ -122,6 +148,7 @@ async def _durable_reap(
             report.sandboxes_destroyed.append(sandbox.name)
 
     _sweep_worktrees(workspace, by_task, report, dry_run)
+    _sweep_states(root, states, report, dry_run)
     return report
 
 

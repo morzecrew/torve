@@ -17,13 +17,17 @@ from typing import Annotated
 import typer
 
 from torve.cli.console import (
+    STYLE_DIM,
     STYLE_FAIL,
+    STYLE_ID,
     STYLE_PASS,
     STYLE_WARN,
     Format,
     closing,
     emit_json,
     fail,
+    header,
+    make_table,
     out,
     styled,
 )
@@ -37,6 +41,14 @@ rfc_app = typer.Typer(no_args_is_help=True,
                       help="Validate and author the RFC corpus (RFC 0007 §3a).")
 
 TEMPLATE_TITLE = "RFC NNNN — <Title>"
+
+# Colour supplements the status word, never replaces it (D-18.4); an unknown
+# status ("?": a dangling depends_on target) reads as a failure.
+_STATUS_STYLES: dict[str, str] = {
+    "accepted": STYLE_PASS,
+    "draft": STYLE_WARN,
+    "superseded": STYLE_DIM,
+}
 
 PathsArgument = Annotated[list[Path] | None, typer.Argument(
     help="Report only findings for these documents; corpus-wide findings always show.")]
@@ -212,12 +224,20 @@ def graph(
                    "problems": problems, "warnings": warnings})
         return
     console = out(fmt)
-    for edge in edges:
-        console.print(f"{edge['from']} ({edge['from_status']}) -> "
-                      f"{edge['to']} ({edge['to_status']})")
+    header(console, "rfc graph", f"{len(edges)} edge(s) across {len(files)} RFC(s)")
+    if edges:
+        table = make_table("rfc", "status", "depends on", "status")
+        for edge in edges:
+            table.add_row(styled(edge["from"], STYLE_ID),
+                          styled(edge["from_status"], _STATUS_STYLES.get(edge["from_status"],
+                                                                         STYLE_FAIL)),
+                          styled(edge["to"], STYLE_ID),
+                          styled(edge["to_status"], _STATUS_STYLES.get(edge["to_status"],
+                                                                       STYLE_FAIL)))
+        console.print(table)
+    else:
+        console.print("no depends_on edges")
     for problem in problems:
         console.print(styled(f"PROBLEM {problem}", STYLE_FAIL))
     for warning in warnings:
         console.print(styled(f"WARN    {warning}", STYLE_WARN))
-    if not edges:
-        console.print("no depends_on edges")

@@ -1,0 +1,61 @@
+# Owner-review follow-ups, round 3: a reaped terminal run leaves its state
+# file and trace logs in .wt/ forever (status shows a phantom run), and
+# `torve rfc graph` never joined the T-0028 component sweep. Hand-minted:
+# the reap fix is RFC 0003 §4.2 behaviour, the graph fix is 0018 rendering.
+schema_version: 1
+id: T-0030
+rfc: rfcs/0003-runner-isolation.md
+phase: 1
+role: implement
+intent: |
+  Two owner findings: `torve reap` removes a terminal run's worktree but
+  leaves its state file and trace logs behind, so `torve status` reports the
+  run forever and a second reap cannot even see it (the sweep is driven by
+  worktree listing) — §4.2 says convention-driven cleanup destroys anything
+  without a live lease, so a terminal run's whole .wt/ footprint goes
+  together; and `torve rfc graph` still prints bare f-string edges instead
+  of the component vocabulary.
+depends_on: [T-0029]
+scope:
+  allow:
+    - "src/torve/application/reaper.py"
+    - "src/torve/cli/status.py"
+    - "src/torve/cli/rfc.py"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-3.4
+    grade: LOCKED
+    text: Names for ports, databases, volumes and sandboxes derive from the task id; cleanup by convention depends on it entirely
+    paths: ["src/torve/base/naming.py", "src/torve/application/reaper.py"]
+  - id: D-3.10
+    grade: ASSUMED
+    text: v1 liveness is a heartbeat in the JSON state file; the reaper escalates stale non-terminal runs as lease_expired
+    paths: ["src/torve/application/reaper.py"]
+  - id: D-3.15
+    grade: ASSUMED
+    text: Under the in-process mock store the reaper keeps the v1 heartbeat heuristic; under Postgres the lease is the liveness authority via claim_abandoned
+    paths: ["src/torve/application/reaper.py"]
+  - id: D-18.1
+    grade: LOCKED
+    text: The JSON byte-shape is the only machine contract; tests assert human output by content, never layout
+    paths: ["tests/**", "src/torve/cli/**"]
+  - id: D-18.2
+    grade: LOCKED
+    text: Presentation lives in cli/ only; application returns data and no Rich renderable crosses the boundary
+    paths: ["src/torve/cli/**", "src/torve/application/**"]
+  - id: D-18.3
+    grade: ASSUMED
+    text: One component vocabulary in torve.cli.console, used by every verb
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor

@@ -392,7 +392,10 @@ def test_graph_lists_edges_with_statuses(tmp_path: Path) -> None:
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
-    assert "0002 (draft) -> 0001 (draft)" in result.output
+    # Content, not layout (D-18.1): both ends of the edge and their statuses.
+    assert "0001" in result.output
+    assert "0002" in result.output
+    assert "draft" in result.output
 
 
 def test_the_corpus_of_this_repository_is_clean() -> None:

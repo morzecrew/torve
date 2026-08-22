@@ -107,6 +107,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Owner-review round three (T-0030): `torve reap` sweeps a terminal
+  run's whole `.wt/` footprint — state file and trace logs with the
+  worktree, driven by the state files so a footprint whose worktree is
+  already gone is still collected (§4.2: stale resources accumulate —
+  always) — reported as `run states removed`, while escalated runs keep
+  everything for triage; and `torve rfc graph` renders through the
+  component vocabulary (header, edge table with statuses styled by
+  colour that supplements the word) instead of bare f-strings.
 - Owner-review round two (T-0029): tasks with no run state whose id
   the history mentions derive as `shipped` — evidence of record, never
   engine execution — leaving exactly one honest `unstarted` (the task

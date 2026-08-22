@@ -93,13 +93,15 @@ def reap_cmd(
         emit_json({"schema_version": 1, "dry_run": dry_run,
                    "sandboxes_destroyed": report.sandboxes_destroyed,
                    "runs_expired": report.runs_expired,
-                   "worktrees_removed": report.worktrees_removed})
+                   "worktrees_removed": report.worktrees_removed,
+                   "states_removed": report.states_removed})
         return
     console = out(fmt)
     header(console, "reap", "dry run" if dry_run else "sweep")
     tense = "would be " if dry_run else ""
     for label, names in (("sandboxes destroyed", report.sandboxes_destroyed),
                          ("runs expired", report.runs_expired),
-                         ("worktrees removed", report.worktrees_removed)):
+                         ("worktrees removed", report.worktrees_removed),
+                         ("run states removed", report.states_removed)):
         detail = f" ({id_list(names)})" if names else ""
         console.print(f"{tense}{label}: {len(names)}{detail}")
