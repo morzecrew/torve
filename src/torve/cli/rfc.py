@@ -27,7 +27,9 @@ from torve.cli.console import (
     closing,
     emit_json,
     fail,
+    footer,
     header,
+    id_list,
     out,
     styled,
 )
@@ -202,8 +204,11 @@ def graph(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """The dependency graph as a tree — dependents nested under what they
-    build on, roots first, standalone documents as bare roots — and the
-    inheritance hazards the corpus check would flag."""
+    build on, roots first, standalone documents as bare roots, each node
+    carrying its status and implementation state. Documents both accepted
+    and complete are finished business: omitted from the tree (their
+    dependents attach where they stood) and counted in a dim line. Also
+    shows the inheritance hazards the corpus check would flag."""
     from rich.tree import Tree
 
     from torve.config.rfc_parse import check_graph, fm_list, parse_frontmatter, rfc_files
@@ -236,19 +241,37 @@ def graph(
             dependents.setdefault(target, []).append(number)
 
     seen: set[str] = set()
+    omitted: list[str] = []
+
+    def done(number: str) -> bool:
+        front = frontmatter.get(number, {})
+        return (str(front.get("status")) == "accepted"
+                and str(front.get("implementation")) == "complete")
 
     def grow(branch: Tree, number: str) -> None:
-        status = str(frontmatter.get(number, {}).get("status", "?"))
+        front = frontmatter.get(number, {})
+        status = str(front.get("status", "?"))
         if number in seen:
-            # A node expands under its first parent only; here it is a
-            # back-reference, dimmed whole so the repeat never reads as a
-            # second document.
-            branch.add(styled(f"{number} {status} ↑", STYLE_DIM))
+            if not done(number):
+                # A node expands under its first parent only; here it is a
+                # back-reference, dimmed whole so the repeat never reads as
+                # a second document.
+                branch.add(styled(f"{number} {status} ↑", STYLE_DIM))
             return
         seen.add(number)
+        if done(number):
+            # Finished business: the node itself is omitted and counted;
+            # its dependents attach where it stood.
+            omitted.append(number)
+            for child in sorted(dependents.get(number, [])):
+                grow(branch, child)
+            return
         label = styled(number, STYLE_ID)
         label.append(" ")
         label.append(status, style=_STATUS_STYLES.get(status, STYLE_FAIL))
+        implementation = str(front.get("implementation", ""))
+        if implementation and implementation != "none":
+            label.append(f" {implementation}", style=STYLE_DIM)
         node = branch.add(label)
         for child in sorted(dependents.get(number, [])):
             grow(node, child)
@@ -263,6 +286,9 @@ def graph(
         if number not in seen:
             grow(tree, number)
     console.print(tree)
+    if omitted:
+        footer(console, f"… {len(omitted)} accepted and complete, omitted: "
+                        f"{id_list(sorted(omitted))}")
     for problem in problems:
         console.print(styled(f"PROBLEM {problem}", STYLE_FAIL))
     for warning in warnings:

@@ -144,8 +144,10 @@ def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]],
 
 def footer(console: Console, text: str) -> None:
     """The dim line after a table — truncation counts, likely-landed notes,
-    anything that describes the table rather than belonging in it."""
+    anything that describes the table rather than belonging in it. Ends with
+    a blank line so a note never runs into the next section's title."""
     console.print(Text(f"  {text}", style=STYLE_DIM))
+    console.print()
 
 
 def id_list(ids: list[str], shown: int = 8) -> str:

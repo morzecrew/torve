@@ -107,6 +107,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Finished business collapses to a count (T-0034): `rfc graph` nodes
+  carry their implementation state and documents both accepted and
+  complete are omitted from the tree — their dependents attach where
+  they stood, a dim line names the omitted; the context programme table
+  hides accepted-and-complete rows that carry no note behind the same
+  kind of count; and the footer component ends with a blank line so a
+  note never runs into the next section title. JSON unchanged.
 - `torve rfc graph` renders the corpus as a dependency tree (T-0032):
   dependents nested under what they build on, roots first, statuses
   styled with the word present; a multi-parent document expands under

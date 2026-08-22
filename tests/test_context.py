@@ -138,6 +138,28 @@ def test_markdown_json_and_rich_render_one_report(plan_repo):  # noqa: F811
     assert render_markdown(parsed).startswith("# torve context")
 
 
+def test_settled_documents_leave_the_programme_table_for_a_count(plan_repo):  # noqa: F811
+    root, write_doc, git = plan_repo
+    seed_facts(root)
+    write_doc("0091", "Doneware", status="accepted")
+    path = root / "rfcs" / "0091-doneware.md"
+    path.write_text(path.read_text().replace("implementation: none",
+                                             "implementation: complete"),
+                    encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "done doc")
+
+    report = context_report(root, root / "rfcs")
+    # The report itself keeps every document — hiding is presentation.
+    assert any(d["rfc"] == "0091" for d in report["programme"])
+
+    result = CliRunner().invoke(app, ["context", "--root", str(root)])
+    assert result.exit_code == 0, result.output
+    assert "accepted and complete" in result.output
+    assert "0091" in result.output
+    assert "Doneware" not in result.output  # the row itself is gone
+
+
 def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # noqa: F811
     import subprocess
 

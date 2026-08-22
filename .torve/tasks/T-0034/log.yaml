@@ -1,0 +1,85 @@
+schema_version: 1
+task: T-0034
+repo: morzecrew/torve
+base_sha: 442e36ed4df7e574974ba02e8ea014b09ea88cad
+drift_count: 0
+entries:
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:55:00Z
+    attempt: 1
+    claim: hiding is presentation — the JSON report and the graph edge list
+      still carry every document; the new tests assert the report keeps the
+      settled doc while the rendered table drops its row
+    evidence: tests/test_context.py:141-161 — the settled-documents test
+      asserts both halves
+    action: decided
+  - decision: D-18.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:56:00Z
+    attempt: 1
+    claim: the done-filter and the pass-through both live in the cli
+      renderers over the same data the tables already read; projections
+      returned nothing new
+    evidence: src/torve/cli/rfc.py:246-268 — the done predicate and the
+      pass-through inside grow()
+    action: decided
+  - decision: D-18.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T18:57:00Z
+    attempt: 1
+    claim: both omission counts render through the footer and id_list
+      components, matching the proposals table's likely-landed note; the
+      blank-line fix went into the footer component itself so every call
+      site inherits it
+    evidence: src/torve/cli/console.py:145-151 — footer with the trailing
+      blank line and its docstring
+    action: decided
+  - decision: D-18.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T18:58:00Z
+    attempt: 1
+    claim: nothing is silently dropped — the graph names the omitted
+      documents in its dim line and the programme count lists the settled
+      ids through the bounded id_list
+    evidence: src/torve/cli/context.py:96-98 — the settled footer with
+      id_list
+    action: decided
+  - decision: D-11.11
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:59:00Z
+    attempt: 1
+    claim: the new user-facing strings say "accepted and complete" and
+      "omitted" in plain words, no corpus identifiers; the user-facing-text
+      gate ran blocking over the diff
+    evidence: src/torve/cli/rfc.py:287-289 — the omission line's wording
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T19:00:00Z
+    attempt: 1
+    claim: >-
+      the hide rules differ deliberately by surface: the graph omits on
+      accepted-and-complete alone (it has no note column), while the
+      programme table keeps a settled document visible whenever it carries
+      any note — a disagreement flag, an unsatisfied dependency, or
+      plannability — so nothing warned-about can hide. Verified
+      self-referentially at measurement time: 0018 re-entered the table
+      with a truthful "asserted complete, but a phase is not shipped" flag
+      the moment this task was minted against its phase 2, and the flag
+      dissolves when this commit ships. A done interior node passes its
+      dependents through to where it stood, so completing a mid-tree
+      document never orphans its descendants
+    evidence: src/torve/cli/context.py:87-91 — the notes-guarded hide;
+      src/torve/cli/rfc.py:262-268 — the pass-through
+    action: decided
+    proposal: 0007 D-7.27 addendum or 0018 note — record the two hide
+      rules (graph omits done docs with pass-through; programme hides only
+      note-free settled rows) beside the tree-rendering row

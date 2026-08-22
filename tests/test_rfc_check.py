@@ -412,6 +412,25 @@ def test_graph_shows_standalone_documents(tmp_path: Path) -> None:
     assert "0003" in result.output
 
 
+def test_graph_shows_implementation_state_and_omits_finished_documents(tmp_path: Path) -> None:
+    seed(
+        tmp_path,
+        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1",
+                                   status="accepted", implementation="partial")),
+        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2", depends='["0001"]',
+                                  status="accepted", implementation="complete")),
+        ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3", depends='["0002"]')),
+    )
+    result = invoke(tmp_path, "graph")
+    assert result.exit_code == 0, result.output
+    assert "partial" in result.output
+    # The finished document collapses to the count line; its dependent still
+    # renders, attached where it stood.
+    assert "omitted" in result.output and "0002" in result.output
+    assert "0003" in result.output
+    assert "complete" not in result.output.replace("accepted and complete", "")
+
+
 def test_graph_renders_a_multi_parent_document_once(tmp_path: Path) -> None:
     seed(
         tmp_path,

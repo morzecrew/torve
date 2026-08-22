@@ -75,6 +75,7 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     programme = make_table("rfc", "title", "status", "impl", "progress", "notes",
                            title="Programme")
+    settled: list[str] = []
     for doc in report["programme"]:
         notes: list[str] = []
         if doc["plannable"]:
@@ -83,6 +84,12 @@ def _render_rich(report: dict[str, Any]) -> None:
             notes.append(f"waits on {', '.join(doc['unsatisfied_depends_on'])}")
         if doc["disagreement"]:
             notes.append(f"⚠ {doc['disagreement']}")
+        if (doc["status"] == "accepted" and doc["implementation"] == "complete"
+                and not notes):
+            # Finished business earns a dim count, not a row — the JSON
+            # report still carries every document.
+            settled.append(str(doc["rfc"]))
+            continue
         progress = ", ".join(f"P{k}: {v}" for k, v in doc["progress"].items())
         programme.add_row(
             styled(str(doc["rfc"]), STYLE_ID), str(doc["title"]),
@@ -91,6 +98,9 @@ def _render_rich(report: dict[str, Any]) -> None:
             str(doc["implementation"]), progress,
             styled("; ".join(notes), STYLE_WARN if doc["disagreement"] else ""))
     console.print(programme)
+    if settled:
+        footer(console, f"… plus {len(settled)} accepted and complete: "
+                        f"{id_list(settled)}")
 
     tasks = make_table("state", "count", "tasks", title="Tasks by state")
     by_state: dict[str, list[str]] = {}

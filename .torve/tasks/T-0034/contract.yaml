@@ -1,0 +1,57 @@
+# Owner findings on the graph/context reading experience: implementation
+# state belongs in the graph; documents that are accepted and complete are
+# finished business and should collapse to a dim count; and dim footer notes
+# run straight into the next table title with no separation.
+schema_version: 1
+id: T-0034
+rfc: rfcs/0018-cli-presentation.md
+phase: 2
+role: implement
+intent: |
+  Three renderings sharpened: rfc graph nodes show implementation state and
+  documents that are accepted and complete are omitted from the tree (a done
+  interior node passes its children through; a dim count line records the
+  omission); the context programme table hides accepted-and-complete rows
+  that carry no note, counting them in a dim line like the proposals table
+  does; and the footer component ends with a blank line so a note never runs
+  into the next section title. JSON surfaces unchanged throughout.
+depends_on: [T-0033]
+scope:
+  allow:
+    - "src/torve/cli/rfc.py"
+    - "src/torve/cli/context.py"
+    - "src/torve/cli/console.py"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-11.11
+    grade: LOCKED
+    text: User-facing strings carry no corpus identifiers — no RFC numbers, decision identifiers, section marks or corpus paths; enforced by the user-facing-text gate
+    paths: ["src/torve/cli/**", "src/torve/gates/**"]
+  - id: D-18.1
+    grade: LOCKED
+    text: The JSON byte-shape is the only machine contract; tests assert human output by content, never layout
+    paths: ["tests/**"]
+  - id: D-18.2
+    grade: LOCKED
+    text: Presentation lives in cli/ only; application returns data and no Rich renderable crosses the boundary
+    paths: ["src/torve/cli/**", "src/torve/application/**"]
+  - id: D-18.3
+    grade: ASSUMED
+    text: One component vocabulary in torve.cli.console, used by every verb
+    paths: ["src/torve/cli/**"]
+  - id: D-18.8
+    grade: ASSUMED
+    text: Tables truncate with an explicit remainder count
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor
