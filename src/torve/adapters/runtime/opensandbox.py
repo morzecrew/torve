@@ -172,6 +172,21 @@ class OpenSandboxRuntime:
         with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:
             manager.kill_sandbox(sandbox_id)
 
+    def resolve_image(self, image: str) -> str | None:
+        # The server pulls from a registry; a digest-pinned reference carries
+        # its identity in the name. Anything else is honestly unresolved
+        # until the live-server integration teaches this adapter to ask the
+        # registry.
+        if "@sha256:" in image:
+            return "sha256:" + image.rsplit("@sha256:", 1)[1]
+        return None
+
+    def build_image(self, context: Path, tag: str) -> str:
+        raise RuntimeError(
+            "the opensandbox runtime cannot build images — build with the docker "
+            "runtime and push to a registry the server can pull from"
+        )
+
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:
             infos = manager.list_sandbox_infos(self._sdk.SandboxFilter(states=["RUNNING"]))

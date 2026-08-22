@@ -46,6 +46,14 @@ class MockRuntime:
     def list_torve_sandboxes(self):
         return list(self.registry)
 
+    def resolve_image(self, image):
+        # A stable fake identity: derived from the reference so tier-image
+        # tests can tell two images apart, never a real digest.
+        return f"sha256:mock-{image}"
+
+    def build_image(self, context, tag):
+        return self.resolve_image(tag)
+
 
 class MockWorkspace:
     def __init__(self, root):

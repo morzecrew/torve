@@ -1,0 +1,111 @@
+schema_version: 1
+task: T-0036
+repo: morzecrew/torve
+base_sha: 8b6d391118434ed5eb78f8590bf82a3731098290
+drift_count: 0
+entries:
+  - decision: D-17.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:20:00Z
+    attempt: 1
+    claim: the Runtime port gained resolve_image; docker resolves the local
+      content identity (RepoDigests are empty until a push, so .Id is the
+      honest local identity), opensandbox resolves only digest-pinned
+      references and returns None otherwise — unresolved is recorded, never
+      invented; the digest is resolved once at hook construction, joins
+      config_hash in the gates phase and the shadow record, and rides the
+      agent block as image_digest
+    evidence: src/torve/application/runner.py:284-297 — the dispatch-time
+      resolution and the agent_meta field; tests/test_sandbox_images.py
+      pins the hash change and the record field
+    action: decided
+  - decision: D-17.2
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T20:21:00Z
+    attempt: 1
+    claim: definitions live under .torve/sandbox/<name>/ with the tag
+      convention torve-agent:<name>; torve sandbox build [name] builds one
+      or all and reports digests as a table or JSON; torve doctor gained
+      root/config options and reds on a configured image the runtime cannot
+      resolve, and on a torve-agent image with no definition directory —
+      observed red live in the test
+    evidence: src/torve/cli/sandbox.py:63-107 — the build command;
+      tests/test_sandbox_images.py:127-138 — doctor red on the absent image
+    action: decided
+  - decision: D-17.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:22:00Z
+    attempt: 1
+    claim: build_image is called from the sandbox build command only; no
+      application code path invokes it — the runner and shadow loops only
+      resolve, never build
+    evidence: src/torve/application/runner.py:286 — resolution is the only
+      runtime image call in the loop; a repository grep for build_image
+      finds the CLI, the adapters and tests
+    action: decided
+  - decision: D-17.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:23:00Z
+    attempt: 1
+    claim: the tier gained image — harness identity is the image it runs in,
+      the identity channel of the routing table — falling back to
+      runtime.image; the gates sandbox follows the same image as the attempt
+      so an image swap between attempt and gates cannot happen silently
+    evidence: src/torve/config/runconfig.py:41-43 — the field and its
+      comment; image_for and configured_images beside tier_for
+    action: decided
+  - decision: D-17.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:24:00Z
+    attempt: 1
+    claim: doctrine only in this increment — no memory channel exists in
+      configuration yet, so there is nothing a shadow run could mount; the
+      decision binds the day a memory volume is introduced, and the shadow
+      record's image_digest keeps replays regime-separable meanwhile
+    evidence: src/torve/application/shadow.py:109-115 — the shadow record
+      resolution; no memory field exists in runconfig.py
+    action: decided
+  - decision: D-15.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:25:00Z
+    attempt: 1
+    claim: both adapters implement the new port methods independently; no
+      adapter imports another, and the import-linter contracts stayed kept
+    evidence: src/torve/adapters/runtime/opensandbox.py:175-188 — the
+      opensandbox implementations touch only their own module
+    action: decided
+  - decision: D-11.11
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:26:00Z
+    attempt: 1
+    claim: the new command help, doctor details and error messages name
+      what things are and what to do — no corpus identifiers; the
+      user-facing-text gate ran blocking over the diff
+    evidence: src/torve/cli/sandbox.py:74-77 — the build command docstring
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T20:27:00Z
+    attempt: 1
+    claim: >-
+      two deferred edges, both stated in code rather than improvised later:
+      opensandbox build_image refuses with instructions (build with docker,
+      push to a registry) — the --push leg waits for the live-server
+      integration 0003 still owes; and doctor's image checks run only under
+      the docker adapter, because inspecting a registry image the server
+      pulls needs that same integration. tier.home (D-17.5) stays specified
+      and unbuilt — no harness on the roster needs it
+    evidence: src/torve/adapters/runtime/opensandbox.py:184-188 — the
+      refusal and its message
+    action: decided
+    proposal: none needed — both edges are recorded in 0017 §2 already;
+      the live-server increment picks them up

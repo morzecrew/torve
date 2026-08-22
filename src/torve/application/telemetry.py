@@ -24,7 +24,10 @@ from torve.gates.runner import RunReport
 # ----------------------- #
 
 
-def config_hash(manifest_path: Path, root: Path, config: RunnerConfig | None = None) -> str:
+def config_hash(
+    manifest_path: Path, root: Path, config: RunnerConfig | None = None,
+    image_digest: str | None = None,
+) -> str:
     """Digest of the regime a run belongs to (RFC 0002 §8, D-9.8): gates.yaml,
     the agent-skills lockfile, the Torve package version (its gates and
     shipped skills change behavior — A-3), the pinned forze version (a
@@ -32,6 +35,8 @@ def config_hash(manifest_path: Path, root: Path, config: RunnerConfig | None = N
     and — when the runner configuration is at hand — the tier mapping and
     provider policy (RFC 0004 §6, D-4.3): which adapter executed and where
     contents were allowed to go are part of what a number was measured under.
+    The sandbox image digest joins when the caller resolved one (RFC 0017 §2,
+    D-17.1): two runs under one tag but different digests are two regimes.
     """
     from torve.application.migrate import forze_pin
 
@@ -49,6 +54,8 @@ def config_hash(manifest_path: Path, root: Path, config: RunnerConfig | None = N
             sort_keys=True,
         )
         parts["providers"] = json.dumps(config.providers.model_dump(), sort_keys=True)
+    if image_digest is not None:
+        parts["image"] = image_digest
     lock = root / "skills-lock.json"
     if lock.is_file():
         parts["skills-lock.json"] = lock.read_text(encoding="utf-8")

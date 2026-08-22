@@ -205,5 +205,8 @@ def test_harness_tier_end_to_end(repo):
     assert agent_block["model"] == "fake-model-9"
     assert agent_block["model_version"] == "fake-model-9"  # echoed by the command
     assert agent_block["cost_usd"] == 0.05
+    # The sandbox's identity rides the record: the runtime resolved the
+    # image to its content digest at dispatch.
+    assert str(agent_block["image_digest"]).startswith("sha256:")
     trace = agent_block["trace_ref"]
     assert trace and (repo.root / ".wt" / f"{TASK_ID}.a1.trace.log").is_file()

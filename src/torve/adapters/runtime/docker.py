@@ -107,6 +107,23 @@ class DockerRuntime:
     def destroy_by_id(self, sandbox_id: str) -> None:
         self._run("rm", "-f", "-v", sandbox_id)
 
+    def resolve_image(self, image: str) -> str | None:
+        # `.Id` is the content identity of the local image — it covers
+        # locally-built images, which have no RepoDigest until pushed.
+        proc = self._run("image", "inspect", "--format", "{{.Id}}", image)
+        if proc.returncode != 0:
+            return None
+        return proc.stdout.strip() or None
+
+    def build_image(self, context: Path, tag: str) -> str:
+        proc = self._run("build", "-t", tag, str(context), timeout=1800)
+        if proc.returncode != 0:
+            raise DockerError(proc.stderr.strip() or f"docker build failed for {tag}")
+        digest = self.resolve_image(tag)
+        if digest is None:
+            raise DockerError(f"built {tag} but could not resolve its digest")
+        return digest
+
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         proc = self._run("ps", "-a", "--filter", f"label={naming.LABEL_TASK}",
                          "--format", "{{.ID}}\t{{.Names}}\t{{.Labels}}")

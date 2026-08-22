@@ -1,0 +1,66 @@
+# RFC 0017 execution, part 1 of 2: the mechanism. Hand-minted — 0017 carries
+# no Phasing section (prose only, legal but unmintable per D-7.21).
+schema_version: 1
+id: T-0036
+rfc: rfcs/0017-sandbox-provisioning.md
+phase: 1
+role: implement
+intent: |
+  The image becomes an input: the Runtime port learns to resolve an image
+  reference to its content digest and to build a definition; the digest is
+  resolved at dispatch, joins config_hash, and rides the attempt and shadow
+  records; tiers may name their own image (harness identity), falling back
+  to the runtime default; `torve sandbox build [name]` builds definitions
+  under .torve/sandbox/<name>/ and reports digests — building stays an
+  operator action, the engine never builds mid-run; `torve doctor` reds on
+  a configured image that does not exist or a torve-agent image whose
+  definition directory is missing.
+depends_on: [T-0035]
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/runtime/**"
+    - "src/torve/config/runconfig.py"
+    - "src/torve/cli/**"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-17.1
+    grade: LOCKED
+    text: The image digest is the sandbox's identity — resolved at dispatch, joined into config_hash, recorded on the attempt
+    paths: ["src/torve/application/telemetry.py", "src/torve/adapters/runtime/**"]
+  - id: D-17.2
+    grade: ASSUMED
+    text: Image definitions live under .torve/sandbox/<name>/; torve sandbox build builds and reports the digest; torve doctor reds on a configured image that does not exist
+    paths: ["src/torve/cli/**", ".torve/sandbox/**"]
+  - id: D-17.3
+    grade: LOCKED
+    text: The engine never builds images mid-run; building is an operator action
+    paths: ["src/torve/application/**"]
+  - id: D-17.4
+    grade: LOCKED
+    text: Configuration routes by nature — identity in the image, task context in the workspace, secrets as env names, knobs in the command, state on the slot volume
+    paths: ["src/torve/config/runconfig.py"]
+  - id: D-17.7
+    grade: LOCKED
+    text: Memory is off for executor tiers by default; per-slot, never shared, never mounted in a shadow run
+    paths: ["src/torve/application/shadow.py", "src/torve/config/runconfig.py"]
+  - id: D-15.3
+    grade: LOCKED
+    text: Adapters never import each other; shared vocabulary lives in application ports
+    paths: ["src/torve/adapters/**", "src/torve/application/ports.py"]
+  - id: D-11.11
+    grade: LOCKED
+    text: User-facing strings carry no corpus identifiers
+    paths: ["src/torve/cli/**", "src/torve/gates/**"]
+budget: {}
+tier: executor

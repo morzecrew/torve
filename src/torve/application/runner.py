@@ -50,7 +50,7 @@ from torve.application.telemetry import append_record, build_record, config_hash
 from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import load_manifest
-from torve.config.runconfig import RunnerConfig, TierConfig, tier_for
+from torve.config.runconfig import RunnerConfig, TierConfig, image_for, tier_for
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import build_context, resolve_base
@@ -223,7 +223,8 @@ class _SandboxExecutor:
 def _run_gates_in_worktree(
     worktree: Path, task_id: str, config: RunnerConfig, runtime: Runtime,
     run_id: str, root: Path, agent_meta: dict[str, Any] | None = None,
-    base: str | None = None,
+    base: str | None = None, image: str | None = None,
+    image_digest: str | None = None,
 ) -> tuple[int, str, str]:
     """(exit_code, summary, config_hash). Raises on infrastructure failure."""
     manifest_path = layout.gates_file(worktree)
@@ -243,7 +244,10 @@ def _run_gates_in_worktree(
         runtime,
         SandboxSpec(
             name=naming.sandbox_name(task_id, run_id) + "-gates",
-            image=config.runtime.image,
+            # Shell gates run over the same image the agent ran under
+            # (D-3.8) — an image swap between attempt and gates would be
+            # its own regime change.
+            image=image or config.runtime.image,
             labels=naming.labels(task_id, run_id),
             timeout_s=config.runtime.sandbox_timeout,
         ),
@@ -260,7 +264,7 @@ def _run_gates_in_worktree(
     finally:
         executor.close()
 
-    digest = config_hash(manifest_path, worktree, config)
+    digest = config_hash(manifest_path, worktree, config, image_digest=image_digest)
     record = build_record(ctx, report, digest, agent=agent_meta)
     append_record(root / manifest.telemetry, record)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
@@ -276,6 +280,10 @@ def real_hooks(
     # override must not masquerade as a model in the telemetry.
     kind = getattr(deps.agent, "kind", tier.adapter)
     real = kind != "fake"
+    # The digest is the sandbox's identity (D-17.1): resolved once, at
+    # dispatch; None is recorded as unresolved, never invented.
+    image = image_for(config, tier)
+    image_digest = deps.runtime.resolve_image(image)
     # Denormalised into every record this run appends (RFC 0004 §6): which
     # adapter and model did the work cannot be reconstructed later. Shadow
     # gate passes are marked so the measurement population stays separable
@@ -285,6 +293,7 @@ def real_hooks(
         "provider": (tier.provider or None) if real else None,
         "model": (tier.model or None) if real else None,
         "model_version": None, "cost_usd": None, "trace_ref": None,
+        "image_digest": image_digest,
         "shadow": shadow,
     }
 
@@ -299,7 +308,7 @@ def real_hooks(
         infra_id = naming.shadow_id(task.id) if shadow else task.id
         spec = SandboxSpec(
             name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
-            image=config.runtime.image,
+            image=image,
             labels=naming.labels(infra_id, state.run_id),
             timeout_s=config.runtime.sandbox_timeout,
             env_passthrough=env_passthrough,
@@ -333,7 +342,7 @@ def real_hooks(
     async def gates(state: RunState) -> tuple[int, str, str]:
         return await asyncio.to_thread(
             _run_gates_in_worktree, worktree, task.id, config, deps.runtime,
-            state.run_id, root, agent_meta, gates_base,
+            state.run_id, root, agent_meta, gates_base, image, image_digest,
         )
 
     async def land(state: RunState, digest: str) -> str:

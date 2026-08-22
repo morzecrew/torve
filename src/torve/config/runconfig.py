@@ -41,6 +41,9 @@ class TierConfig(BaseModel):
     command: str = ""  # in-sandbox command line; {prompt} and {model} substituted
     model: str = ""  # recorded in telemetry, substituted into the command
     provider: str = ""  # routing identity (§6b); empty only for fake
+    # The tier's sandbox image — harness identity is the image (RFC 0017 §3,
+    # D-17.4). Empty falls back to runtime.image.
+    image: str = ""
     api_key_env: list[str] = Field(default_factory=list)
     auth_volume: str = "torve-auth"
     auth_mount: str = "/auth"
@@ -115,6 +118,20 @@ def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
         raise ValueError(
             f"no tier {tier_name!r} in the runner configuration; configured: {configured}"
         ) from None
+
+
+def image_for(config: RunnerConfig, tier: TierConfig) -> str:
+    """The tier's image when it names one, else the runtime default — the
+    harness's identity is the image it runs in (RFC 0017 §3)."""
+    return tier.image or config.runtime.image
+
+
+def configured_images(config: RunnerConfig) -> list[str]:
+    """Every image a run under this configuration could use — the runtime
+    default plus each tier's override — for the doctor's existence check."""
+    images = {config.runtime.image}
+    images.update(tier.image for tier in config.tiers.values() if tier.image)
+    return sorted(images)
 
 
 class OpenSandboxConfig(BaseModel):

@@ -1,31 +1,83 @@
 """`torve doctor` — preflight checks, rendered per RFC 0011 §5: each check
 names what it looked for, what it found, and what to do about it. The forze
-schema pin is D-12.7: a mismatch must be a check, not a symptom.
+schema pin is D-12.7: a mismatch must be a check, not a symptom. Image
+existence is D-17.2: a configured image the runtime cannot resolve, or a
+torve-agent image with no definition directory, is a configuration error
+before it becomes a mid-run surprise.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 from torve.cli.console import STYLE_FAIL, Format, emit_json, mark, out, styled
-from torve.cli.options import FormatOption
+from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 # ----------------------- #
 
 
-def doctor(fmt: FormatOption = Format.TEXT) -> None:
-    """Preflight checks: configuration and environment readiness. Today: the
-    forze schema pin — a mismatch must be a check, not a symptom discovered
-    through adapter behaviour. A failed check is a configuration error
+def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    from torve.cli.options import runtime_for
+    from torve.cli.sandbox import definitions_root
+    from torve.config.runconfig import configured_images
+
+    config = load_config(root, config_path)
+    checks: list[tuple[str, bool, str]] = []
+    if config.runtime.adapter != "docker":
+        return checks
+    try:
+        runtime = runtime_for(config, None)
+    except Exception as error:  # an unusable runtime is the finding
+        return [("images", False, f"runtime unavailable: {error}")]
+    for image in configured_images(config):
+        digest = runtime.resolve_image(image)
+        if digest is None:
+            checks.append((f"image {image}", False,
+                           (f"{image}: not present in the runtime — build it "
+                            "(torve sandbox build) or pull it")))
+            continue
+        detail = f"{image} = {digest[:19]}"
+        prefix = "torve-agent:"
+        if image.startswith(prefix):
+            name = image.removeprefix(prefix)
+            if not (definitions_root(root) / name / "Dockerfile").is_file():
+                checks.append((f"image {image}", False,
+                               (f"{image}: exists but has no definition under "
+                                f"{definitions_root(root) / name} — an image without "
+                                "a reviewed definition is an ambient regime")))
+                continue
+            detail += " (definition present)"
+        checks.append((f"image {image}", True, detail))
+    return checks
+
+
+def doctor(
+    config_path: ConfigOption = None,
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Preflight checks: configuration and environment readiness — the forze
+    schema pin, and every configured sandbox image resolvable in the runtime
+    with its definition present. A failed check is a configuration error
     (exit 3), not a red gate."""
     from torve.application.migrate import check_forze_pin
 
+    root = root.resolve()
     ok, message = check_forze_pin()
+    checks: list[tuple[str, bool, str]] = [("forze-pin", ok, message)]
+    checks += _image_checks(root, config_path)
+    healthy = all(passed for _, passed, _ in checks)
+
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "ok": ok,
-                   "checks": [{"name": "forze-pin", "ok": ok, "detail": message}]})
+        emit_json({"schema_version": 1, "ok": healthy,
+                   "checks": [{"name": name, "ok": passed, "detail": detail}
+                              for name, passed, detail in checks]})
     else:
-        verdict = mark("pass" if ok else "fail")
-        out(fmt).print(verdict + styled(f" {message}", "" if ok else STYLE_FAIL))
-    raise typer.Exit(EXIT_OK if ok else EXIT_CONFIG)
+        console = out(fmt)
+        for _name, passed, detail in checks:
+            verdict = mark("pass" if passed else "fail")
+            console.print(verdict + styled(f" {detail}", "" if passed else STYLE_FAIL))
+    raise typer.Exit(EXIT_OK if healthy else EXIT_CONFIG)

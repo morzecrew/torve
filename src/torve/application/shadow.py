@@ -30,7 +30,7 @@ from torve.application.runstate import RunState
 from torve.application.telemetry import append_record, config_hash
 from torve.base import naming
 from torve.config import layout
-from torve.config.runconfig import RunnerConfig
+from torve.config.runconfig import RunnerConfig, image_for, tier_for
 from torve.domain.states import TaskState
 from torve.domain.task import SCHEMA_VERSION, Task
 
@@ -106,12 +106,18 @@ def run_shadow(
     final.save()
 
     manifest_path = layout.gates_file(workspace)
+    # The replay's image identity, resolved the same way a live dispatch
+    # resolves it (D-17.1) — a rebuild between two replays is two regimes.
+    image_digest = deps.runtime.resolve_image(
+        image_for(config, tier_for(config, task.tier)))
     record: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "shadow",
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "config_hash": (config_hash(manifest_path, workspace, config)
+        "config_hash": (config_hash(manifest_path, workspace, config,
+                                    image_digest=image_digest)
                         if manifest_path.is_file() else None),
+        "image_digest": image_digest,
         "task_id": task.id,
         "commit": resolved,
         "parent": parent,
