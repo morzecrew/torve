@@ -125,3 +125,18 @@ entries:
     action: decided
     proposal: fold into the pending 0004 shipped-commit-discovery row; the
       HOME default belongs in a 0003 runtime-contract note
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T17:50:00Z
+    attempt: 4
+    claim: a shadow clone carries a real .git the sandbox can reach, so an
+      agent may commit its own work — the dsh replay of T-0019 did, moving
+      HEAD and reading as an empty diff while its work was real and correct;
+      the shadow diff now measures against the replayed parent, never HEAD
+    evidence: src/torve/adapters/workspace/git.py:176-190 — diff_worktree
+      takes the base sha; tests/test_shadow.py pins the agent-committed case
+    action: decided
+    proposal: 0004 row — shadow comparison diffs against the parent by
+      construction; an in-clone commit is legal agent behaviour, not escape

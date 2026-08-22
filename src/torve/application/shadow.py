@@ -46,7 +46,9 @@ class ShadowSource:
     shipped_commit: Callable[[str], str | None]  # task_id -> sha
     parent_of: Callable[[str], str]
     diff_range: Callable[[str], dict[str, Any]]  # what shipped, commit vs parent
-    diff_worktree: Callable[[Path], dict[str, Any]]  # what the replay produced
+    # What the replay produced vs the parent — never vs HEAD, which the
+    # agent can move by committing inside the self-contained clone.
+    diff_worktree: Callable[[Path, str], dict[str, Any]]
 
 
 async def _drive(state: RunState, task: Task, config: RunnerConfig,
@@ -124,7 +126,7 @@ def run_shadow(
         # The comparison §5 asks for — as data, judged by a human: before
         # and after are different conditions (§6a), so this supports
         # "the replay touched the same three files" and never "40% better".
-        "shadow_diff": source.diff_worktree(workspace),
+        "shadow_diff": source.diff_worktree(workspace, parent),
         "shipped_diff": source.diff_range(resolved),
     }
     shadow_files = set(record["shadow_diff"].get("files", {}))

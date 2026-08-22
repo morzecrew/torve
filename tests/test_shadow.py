@@ -112,9 +112,19 @@ def test_parent_of_and_diffstats(tmp_path):
     workspace = ShadowWorkspace(root, depth=2).create("T-7002", c2)
     (workspace / "new.txt").write_text("replayed\n", encoding="utf-8")
     (workspace / "f.txt").write_text("edited\n", encoding="utf-8")
-    produced = diff_worktree(workspace)
+    produced = diff_worktree(workspace, c2)
     assert produced["files_changed"] == 2
     assert set(produced["files"]) == {"f.txt", "new.txt"}
+    # An agent may commit inside the self-contained clone — that moves HEAD,
+    # and the measurement must still read the work (found by the first dsh
+    # replay of a real task, which committed and measured as an empty diff).
+    for args in (["config", "user.email", "t@t"], ["config", "user.name", "t"],
+                 ["add", "-A"], ["commit", "-qm", "agent's own commit"]):
+        subprocess.run(["git", "-C", str(workspace), *args],
+                       capture_output=True, check=True)
+    committed = diff_worktree(workspace, c2)
+    assert committed["files_changed"] == 2
+    assert set(committed["files"]) == {"f.txt", "new.txt"}
 
 
 # ....................... #

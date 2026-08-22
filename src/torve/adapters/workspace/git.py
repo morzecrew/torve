@@ -172,13 +172,16 @@ def diff_range(root: Path, sha: str) -> dict[str, object]:
     return _parse_numstat(proc.stdout)
 
 
-def diff_worktree(workspace: Path) -> dict[str, object]:
-    """What the shadow attempt produced, untracked files included. Stages
+def diff_worktree(workspace: Path, base: str) -> dict[str, object]:
+    """What the shadow attempt produced relative to `base` (the replayed
+    parent), untracked files included. Never against HEAD: a shadow clone
+    carries a real `.git` the sandbox can reach, so an agent may commit its
+    own work — which moves HEAD and would read as an empty diff. Stages
     everything first — the workspace is a throwaway measurement artefact."""
     subprocess.run(["git", "-C", str(workspace), "add", "-A"],
                    capture_output=True, check=False)
     proc = subprocess.run(
-        ["git", "-C", str(workspace), "diff", "--cached", "--numstat"],
+        ["git", "-C", str(workspace), "diff", "--cached", base, "--numstat"],
         capture_output=True, text=True, check=False,
     )
     return _parse_numstat(proc.stdout)
