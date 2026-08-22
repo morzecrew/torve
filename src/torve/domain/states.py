@@ -5,8 +5,9 @@ a model; an agent reports observations, it never causes a transition.
 
 The escalation vocabulary is deliberately closed (RFC 0001 §5.1): an
 extensible enum makes telemetry incomparable across time. It is §4's list
-plus `cost_anomaly` (§5.2), `killed` (RFC 0006 §5a) and `underspecified`
-(charter A-21); any further addition is an RFC amendment, not a code change.
+plus `cost_anomaly` (§5.2), `killed` (RFC 0006 §5a), `underspecified`
+(charter A-21) and `stale_inheritance` (charter A-22); any further addition
+is an RFC amendment, not a code change.
 """
 
 from __future__ import annotations
@@ -41,6 +42,10 @@ class EscalationReason(StrEnum):
     # specification defect (0003 A-18); the fix is an amendment and a
     # re-mint, never a retry.
     UNDERSPECIFIED = "underspecified"
+    # A non-terminal task minted from a document that later became superseded
+    # (0007 §3.3, charter A-22): its inherited decisions no longer stand.
+    # Re-mint from the superseding document or abandon — never retry.
+    STALE_INHERITANCE = "stale_inheritance"
 
 
 # The escalation vocabulary projected onto exit codes (RFC 0011 §3, D-11.4).
@@ -63,6 +68,7 @@ EXIT_BY_REASON: dict[EscalationReason, int] = {
     EscalationReason.BLOCKER_FINDING: EXIT_ESCALATED,
     EscalationReason.KILLED: EXIT_ESCALATED,
     EscalationReason.UNDERSPECIFIED: EXIT_ESCALATED,
+    EscalationReason.STALE_INHERITANCE: EXIT_ESCALATED,
     EscalationReason.GATE_INFRASTRUCTURE_FAILURE: EXIT_INFRASTRUCTURE,
     EscalationReason.LEASE_EXPIRED: EXIT_INFRASTRUCTURE,
 }

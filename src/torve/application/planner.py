@@ -303,3 +303,90 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
         )
         written.append(path)
     return written
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class StaleTask:
+    """One non-terminal task whose source document became superseded (§3.3,
+    charter A-22)."""
+
+    task_id: str
+    document: str
+    superseded_by: str | None
+    state: str
+    action: str  # escalated | would escalate | skipped (terminal) | already escalated (...)
+
+
+def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask]:
+    """Mark every non-terminal task minted from a superseded document,
+    escalating each as `stale_inheritance` (D-7.10, charter A-22). Nothing is
+    deleted or rewritten — what to do with in-flight work is a human
+    decision, and this verb records a fact about a task's inheritance rather
+    than touching a running aggregate (§2). A task that never ran gains a
+    state file through the claimed -> escalated edge the reaper minted; a
+    task already escalated for another reason is reported and left — one
+    escalation, one human decision at a time."""
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import TERMINAL, EscalationReason, TaskState
+
+    superseded: dict[str, str | None] = {}
+    for _number, path in rfc_parse.rfc_files(rfc_dir).items():
+        fm = rfc_parse.parse_frontmatter(path.read_text(encoding="utf-8"))
+        if fm is None:
+            continue
+        if str(fm.get("status", "")) == "superseded" or fm.get("superseded_by"):
+            document = str(path.resolve().relative_to(root.resolve()))
+            by = fm.get("superseded_by")
+            superseded[document] = str(by) if by else None
+
+    found: list[StaleTask] = []
+    tasks_dir = root / layout.TORVE_DIR / "tasks"
+    if not tasks_dir.is_dir() or not superseded:
+        return found
+    for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
+        try:
+            raw: Any = yaml.safe_load(contract.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            continue
+        if not isinstance(raw, dict):
+            continue
+        record = cast("dict[str, Any]", raw)
+        document = str(record.get("rfc", ""))
+        if document not in superseded:
+            continue
+        task_id = str(record.get("id", contract.parent.name))
+        by = superseded[document]
+        detail = (f"minted from {document}, superseded by {by or 'an unset successor'} "
+                  "(charter A-22): its inherited decisions no longer stand")
+
+        state_path = naming.state_file(root, task_id)
+        if state_path.exists():
+            state = RunState.load(state_path)
+            if state.state in TERMINAL:
+                found.append(StaleTask(task_id, document, by, str(state.state),
+                                       "skipped (terminal)"))
+                continue
+            if state.state is TaskState.ESCALATED:
+                reason = state.escalation.reason if state.escalation else "unknown"
+                action = ("already escalated (stale_inheritance)"
+                          if reason == "stale_inheritance"
+                          else f"already escalated ({reason}) — left for triage")
+                found.append(StaleTask(task_id, document, by, str(state.state), action))
+                continue
+            if not dry_run:
+                state.escalate(EscalationReason.STALE_INHERITANCE, detail)
+            found.append(StaleTask(task_id, document, by, str(state.state),
+                                   "escalated" if not dry_run else "would escalate"))
+        else:
+            if not dry_run:
+                state = RunState(task_id=task_id, path=state_path)
+                state.transition(TaskState.CLAIMED,
+                                 "torve plan --reconcile: claiming to record the fact")
+                state.escalate(EscalationReason.STALE_INHERITANCE, detail)
+            found.append(StaleTask(task_id, document, by, "unstarted",
+                                   "escalated" if not dry_run else "would escalate"))
+    return found

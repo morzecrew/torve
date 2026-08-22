@@ -17,7 +17,19 @@ from typing import Annotated
 import typer
 
 import torve
-from torve.cli import console, doctor, feedback, gates, migrate, plan, rfc, run, shadow, status
+from torve.cli import (
+    console,
+    context,
+    doctor,
+    feedback,
+    gates,
+    migrate,
+    plan,
+    rfc,
+    run,
+    shadow,
+    status,
+)
 from torve.domain.states import EXIT_OK
 
 # ----------------------- #
@@ -51,6 +63,7 @@ gates_app.command("run")(gates.gates_run)
 gates_app.command("check")(gates.gates_check)
 app.command("size")(gates.size)
 app.command("plan")(plan.plan_cmd)
+app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
 app.command("shadow")(shadow.shadow_cmd)
 app.command("cancel")(run.cancel)

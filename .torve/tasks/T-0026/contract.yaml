@@ -1,0 +1,69 @@
+# RFC 0007 phase 2: torve context (projections, programme view, derived
+# progress) and torve plan --reconcile with charter A-22 (stale_inheritance).
+# The MCP read surface waits for a consumer; --with-store may land here if
+# the first store-derived check materializes (D-7.19).
+schema_version: 1
+id: T-0026
+rfc: rfcs/0007-planner-context.md
+phase: 2
+role: implement
+intent: |
+  The loop's read leg: `torve context` projects accumulated facts — tasks by
+  state, escalations by reason, log proposals ready to become decision rows,
+  per-gate health, cost against config_hash, the programme view of the RFC
+  graph, and asserted implementation beside derived per-phase progress with
+  disagreements flagged. `torve plan --reconcile` makes supersession after
+  minting visible: every non-terminal task minted from a superseded document
+  escalates as stale_inheritance — a vocabulary member charter A-22 adds
+  first, because D-29's enum is closed and its own rule is amendment before
+  code.
+depends_on: [T-0025]
+scope:
+  allow:
+    - "src/torve/**"
+    - "tests/**"
+    - ".torve/**"
+    - "rfcs/0001-torve-charter.md"
+    - "rfcs/0007-planner-context.md"
+    - "rfcs/0011-cli-contract.md"
+    - "rfcs/INDEX.md"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-29
+    grade: ASSUMED
+    text: The escalation vocabulary is one closed enum; any addition is an RFC amendment, never a code change
+    paths: ["src/torve/domain/states.py"]
+  - id: D-7.10
+    grade: LOCKED
+    text: Tasks minted from a document that later becomes superseded escalate as stale_inheritance; the engine does not rewrite them
+    paths: ["src/torve/application/planner.py"]
+  - id: D-7.4
+    grade: OPEN
+    text: Output format of torve context — markdown, JSON, or both, decided by use
+    paths: ["src/torve/application/planner.py"]
+  - id: D-7.11
+    grade: ASSUMED
+    text: torve context renders the RFC graph, not only task state
+    paths: ["src/torve/application/planner.py"]
+  - id: D-7.15
+    grade: ASSUMED
+    text: torve context reports asserted implementation beside derived per-phase progress, and flags disagreement
+    paths: ["src/torve/application/planner.py"]
+  - id: D-11.2
+    grade: LOCKED
+    text: --format json on every result-producing command from its first implementation
+    paths: ["src/torve/cli/**"]
+  - id: D-11.4
+    grade: LOCKED
+    text: Exit codes 0-5 as tabled; a new code requires a new escalation reason
+    paths: ["src/torve/domain/states.py", "src/torve/cli/**"]
+budget: {}
+tier: executor

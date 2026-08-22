@@ -211,18 +211,18 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 | D-7.1 | `LOCKED` | No model calls inside the planner, for any reason | `src/torve/application/planner.py` | The place where they will try to creep in; violation shows up as a new dependency |
 | D-7.2 | `LOCKED` | `torve plan` accepts only a committed, reviewed document | `src/torve/application/planner.py` | The human signature in the loop |
 | D-7.3 | `LOCKED` | The MCP surface is read-only and never given to an executing agent | `src/torve/application/planner.py` | A writable planning surface is autonomous planning by another route |
-| D-7.4 | `OPEN` | Output format of `torve context` | `src/torve/application/planner.py` | Markdown, JSON, or both — decided by use |
+| D-7.4 | `OPEN` | Output format of `torve context` | `src/torve/application/projections.py` | Markdown, JSON, or both — decided by use |
 | D-7.5 | `LOCKED` | An empty decision list is legal but must be explicit | `src/torve/gates/decisions_reported.py` `src/torve/domain/**` | Distinguishes "none apply" from "field forgotten" |
 | D-7.6 | `LOCKED` | `DecisionSource` adapters are deterministic; model-assisted extraction runs outside the engine | `src/torve/application/planner.py` | Keeps D-2 intact while still bootstrapping brownfield repositories |
 | D-7.7 | `LOCKED` | `torve plan` refuses unless the document and every `depends_on` target are `accepted` | `src/torve/application/planner.py` | Inheriting a grade from a draft breaks the copy-at-write-time guarantee |
 | D-7.8 | `LOCKED` | `torve plan` takes exactly one document; no sets, no subgraphs, no `--all` | `src/torve/application/planner.py` | Batch planning inherits from documents still being amended — the drift this system removes |
 | D-7.9 | `ASSUMED` | `informed_by` is unenforced | `rfcs/**` | A reading hint that blocks is an irritant with no protection attached |
 | D-7.10 | `LOCKED` | Tasks minted from a document that later becomes `superseded` escalate as `stale_inheritance`; the engine does not rewrite them | `src/torve/application/planner.py` | What to do with in-flight work is a human decision |
-| D-7.11 | `ASSUMED` | `torve context` renders the RFC graph, not only task state | `src/torve/application/planner.py` | The graph's real use is human, not scheduling |
+| D-7.11 | `ASSUMED` | `torve context` renders the RFC graph, not only task state | `src/torve/application/projections.py` | The graph's real use is human, not scheduling |
 | D-7.12 | `LOCKED` | The RFC format is owned by the package; validation does not depend on an installed skill | `src/torve/config/rfc_parse.py` | Two parsers and no definition is how the planner and the validator drift apart |
 | D-7.13 | `LOCKED` | `Grade`, `Status` and `Kind` are defined once in `domain/rfc.py` and imported everywhere | `src/torve/domain/rfc.py` | A duplicated vocabulary eventually gains a member in one copy only |
 | D-7.14 | `ASSUMED` | `rfc-valid` is a product gate, shipped in the package | `src/torve/cli/rfc.py` | Any repository writing specs for `torve plan` needs it |
-| D-7.15 | `ASSUMED` | `torve context` reports asserted `implementation` beside derived per-phase progress, and flags disagreement | `src/torve/application/planner.py` | The disagreement is the informative part |
+| D-7.15 | `ASSUMED` | `torve context` reports asserted `implementation` beside derived per-phase progress, and flags disagreement | `src/torve/application/projections.py` | The disagreement is the informative part |
 | D-7.16 | `LOCKED` | `torve rfc check --with-store` is opt-in; the default check needs no database | `src/torve/config/rfc_parse.py` | `rfc-valid` is a product gate and must run without infrastructure |
 | D-7.17 | `LOCKED` | Foreign spec formats are out of scope; `DecisionSource` is the extension point if that changes | `src/torve/application/ports.py` | A bridged document carries nothing to inherit, so the anti-drift contour is absent rather than degraded |
 | D-7.18 | `LOCKED` | Only `torve plan`, `torve rfc *` and `RfcDirectory` know the RFC format | `src/torve/config/rfc_parse.py` `src/torve/cli/rfc.py` `pyproject.toml` | The format terminating at the planner is what keeps a different source possible at all |

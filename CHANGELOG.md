@@ -107,6 +107,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- `torve context` — the loop's read leg (RFC 0007 §4, phase 2): one
+  report projecting tasks by state, escalations by reason, execution-log
+  proposals ready to become decision rows (with corpus-citation
+  cross-referencing separating fresh from likely-landed), per-gate
+  health, cost against `config_hash`, the programme view of the RFC
+  graph (D-7.11 — status, phases, what became plannable), and asserted
+  `implementation` beside derived per-phase progress with disagreements
+  flagged (D-7.15). Markdown for a planning session, JSON for machines,
+  one report (D-7.4). Progress computed on demand, stored nowhere.
+- `stale_inheritance` joins the escalation vocabulary (charter A-22,
+  amending D-29): a non-terminal task minted from a document that later
+  became superseded carries decisions that no longer stand — not a
+  locked conflict, not underspecification, its own population.
+  `torve plan --reconcile` sweeps the corpus and escalates each such
+  task (dry-run default; a never-run task gains a state through the
+  claimed→escalated edge); nothing is deleted or rewritten — what to do
+  with in-flight work is a human decision (D-7.10).
 - `torve plan` — the deterministic minter (RFC 0007 §3, phase 1): one
   accepted, committed specification in, implement-task contracts out,
   no model call at any point (D-7.1). Admission refuses drafts,

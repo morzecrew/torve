@@ -1,0 +1,134 @@
+schema_version: 1
+task: T-0026
+repo: morzecrew/torve
+base_sha: 80dc01a3045c0ed032e244b8de772443a334a8ed
+drift_count: 0
+entries:
+  - decision: D-29
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T20:10:00Z
+    attempt: 1
+    claim: the vocabulary grew by amendment, never by code — charter A-22 was
+      written and its markers placed (D-29, 0011 D-11.9) before the enum
+      member existed, the A-21 precedent followed exactly
+    evidence: src/torve/domain/states.py:44-48 — STALE_INHERITANCE with the
+      A-22 comment; rfcs/0001-torve-charter.md A-22 entry and the amended
+      D-29 row; the completeness test in tests/test_domain.py covers the new
+      member without editing
+    action: decided
+  - decision: D-7.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:11:00Z
+    attempt: 1
+    claim: torve plan --reconcile escalates non-terminal tasks minted from
+      superseded documents as stale_inheritance and rewrites nothing — a
+      never-run task gains a state file through the claimed -> escalated edge
+      the reaper minted, a terminal task is skipped, and a task already
+      escalated for another reason is reported and left for triage
+    evidence: src/torve/application/planner.py:323-392 — reconcile;
+      tests/test_plan.py test_reconcile_escalates_stale_tasks covers preview,
+      apply, terminal skip and idempotent re-run
+    action: decided
+  - decision: D-7.4
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-22T20:12:00Z
+    attempt: 1
+    claim: the output format decision the row delegates — one report, two
+      renderings — markdown for pasting into a planning session (the primary
+      §4 consumer), JSON for machines, both from the same dict so nothing can
+      drift between them
+    evidence: src/torve/application/projections.py:293-393 — context_report
+      and render_markdown; tests/test_context.py
+      test_markdown_and_json_render_one_report
+    action: decided
+  - decision: D-7.11
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T20:13:00Z
+    attempt: 1
+    claim: the programme view renders the RFC graph — status, implementation,
+      unsatisfied dependencies, declared vs minted phases, and what became
+      plannable (accepted, dependencies accepted, unminted phases exist)
+    evidence: src/torve/application/projections.py:217-290 — _programme; the
+      live run over this repository rendered all 17 documents
+    action: decided
+  - decision: D-7.15
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T20:14:00Z
+    attempt: 1
+    claim: asserted implementation sits beside derived per-phase progress
+      (planned/in_flight/blocked/shipped from task states, computed on demand
+      and stored nowhere), and disagreement is flagged; the first live run
+      flagged 0012-0015 as "asserted complete, but a phase is not shipped" —
+      truthful, because their dogfood tasks ran outside the engine and left
+      no run states, which is itself worth surfacing
+    evidence: src/torve/application/projections.py:205-214 — _phase_progress;
+      tests/test_context.py test_disagreement_is_flagged
+    action: decided
+  - decision: D-11.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:15:00Z
+    attempt: 1
+    claim: torve context and plan --reconcile both emit their persisted
+      shapes under --format json from first implementation
+    evidence: src/torve/cli/context.py:32-35 — emit_json(report); the
+      reconcile emission is src/torve/cli/plan.py:93-102
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T20:16:00Z
+    attempt: 1
+    claim: >-
+      the proposals projection cross-references the corpus — a proposal from
+      a task whose id appears anywhere in the corpus is marked
+      possibly_landed (the weaker claim: evidence the author has been through
+      that log, never "accepted") and collapsed in the markdown rendering;
+      logs promoted before the provenance convention carry no citation and
+      stay visible, which is the feature. On this repository that separates
+      30 fresh proposals from 68 likely-landed ones
+    evidence: src/torve/application/projections.py:77-130 — _proposals with
+      the citation scan and its comment
+    action: decided
+    proposal: 0007 row — proposal freshness is derived from corpus citation
+      of the task id; promoted rows should keep citing their task (the A-12
+      provenance convention) precisely because this projection reads it
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T20:17:00Z
+    attempt: 1
+    claim: >-
+      context lives in application/projections.py, not planner.py — the
+      minter and the projection are one module family but two files
+      (gates/context.py already owns the name "context" for gate inputs);
+      the D-7.4/D-7.11/D-7.15 Paths cells relocated mechanically per the
+      D-32 precedent. Derived progress reads file-backed run states, so
+      --with-store (D-7.19) still has no store-derived check to land with
+      and stays OPEN
+    evidence: src/torve/application/projections.py:1-30 — the module
+      docstring; rfcs/0007-planner-context.md rows D-7.4/D-7.11/D-7.15 now
+      cite projections.py
+    action: decided
+    proposal: 0007 rows — projections.py is the context module; D-7.19
+      unchanged, still waiting on a check that genuinely needs the store
+  - decision: D-11.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T20:25:00Z
+    attempt: 1
+    claim: no new exit code and no redefinition — the new escalation reason
+      projects onto the existing exit 2 with the human-decision family, the
+      new commands exit 0 on success and 3 on configuration errors, all
+      within the published 0-5 table
+    evidence: src/torve/domain/states.py:57-72 — EXIT_BY_REASON with
+      stale_inheritance mapped to EXIT_ESCALATED; the completeness test in
+      tests/test_domain.py holds the projection total
+    action: decided

@@ -12,7 +12,7 @@ number is **0018**.
 
 | # | Title | Status | Impl | Depends on | Amends | One-line routing description |
 | --- | --- | --- | --- | --- | --- | --- |
-| [0001](0001-torve-charter.md) | Torve: charter | accepted | partial | — | A-1, A-4, A-5, A-11, A-12, A-17, A-21 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
+| [0001](0001-torve-charter.md) | Torve: charter | accepted | partial | — | A-1, A-4, A-5, A-11, A-12, A-17, A-21, A-22 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
 | [0002](0002-gates-library.md) | Gates as a library | accepted | partial | 0001 | A-2, A-8 | The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment. |
 | [0003](0003-runner-isolation.md) | Runner and isolation | accepted | partial | 0002 | A-6, A-13, A-18 | `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine. |
 | [0004](0004-agents-tiering.md) | Agent adapters and tiering | accepted | partial | 0003 | — | Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable. |
