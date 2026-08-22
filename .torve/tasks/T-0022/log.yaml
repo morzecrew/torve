@@ -91,3 +91,18 @@ entries:
     proposal: 0004 row — shipped-commit discovery order and the shadow-<id>
       infrastructure namespace; revisit the subject fallback when history is
       squashed
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T16:40:00Z
+    attempt: 2
+    claim: the subject fallback's "(id)" pattern missed real subjects of the
+      form "(A-19, T-0019)" — the first real-task replay could not find its
+      own shipping commit; the pattern is now "id)" (id followed by the
+      closing paren), which matches both styles
+    evidence: src/torve/adapters/workspace/git.py:109-123 — the widened
+      pattern; tests/test_shadow.py pins a "(A-19, T-7004)" subject
+    action: decided
+    proposal: closes the discovery-order half of this log's earlier proposal;
+      the squash caveat stands

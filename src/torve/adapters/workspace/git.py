@@ -108,9 +108,10 @@ class ShadowWorkspace:
 
 def shipped_commit(root: Path, task_id: str) -> str | None:
     """The commit that shipped a task: the `Torve-Task:` trailer the runner
-    writes, with the hand-committed `(T-nnnn)` subject convention as the
-    fallback this repository's own history needs."""
-    for pattern in (f"Torve-Task: {task_id}", f"({task_id})"):
+    writes, with the hand-committed subject convention as the fallback this
+    repository's own history needs — `id)` rather than `(id)`, because real
+    subjects read `(A-19, T-0019)` as often as `(T-0019)`."""
+    for pattern in (f"Torve-Task: {task_id}", f"{task_id})"):
         proc = subprocess.run(
             ["git", "-C", str(root), "log", "--all", "-1", "--format=%H",
              "--fixed-strings", f"--grep={pattern}"],

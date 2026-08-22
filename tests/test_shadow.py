@@ -87,6 +87,9 @@ def test_shipped_commit_lookup_by_trailer_and_subject(tmp_path):
                     "-m", "docs: adopt patch (T-7003)"], capture_output=True, check=True)
     found = shipped_commit(root, "T-7003")  # the hand-committed subject fallback
     assert found is not None and found != c3
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "--allow-empty",
+                    "-m", "feat: containment (A-19, T-7004)"], capture_output=True, check=True)
+    assert shipped_commit(root, "T-7004") is not None  # multi-id subjects too
 
 
 def test_parent_of_and_diffstats(tmp_path):
