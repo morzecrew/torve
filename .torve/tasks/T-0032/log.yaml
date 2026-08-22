@@ -1,0 +1,82 @@
+schema_version: 1
+task: T-0032
+repo: morzecrew/torve
+base_sha: b77aeeb6ed60d7b0e5a029ad4963761b484dd7ae
+drift_count: 0
+entries:
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T17:20:00Z
+    attempt: 1
+    claim: the JSON edge list is byte-identical — only the text rendering
+      changed — and the new tests assert content (ids, statuses, an
+      occurrence count) never tree layout
+    evidence: tests/test_rfc_check.py:399-425 — the standalone and
+      multi-parent tests assert by content
+    action: decided
+  - decision: D-18.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T17:21:00Z
+    attempt: 1
+    claim: the tree is built entirely inside the cli command from the same
+      frontmatter data the table used; nothing crossed into application
+    evidence: src/torve/cli/rfc.py:240-262 — the grow closure and tree
+      assembly inside graph()
+    action: decided
+  - decision: D-18.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T17:22:00Z
+    attempt: 1
+    claim: labels are assembled with the vocabulary's styled() and the
+      shared status style map; the rich Tree container itself is used
+      directly because this is its first and only consumer — it joins
+      console.py as a component the day a second verb draws one
+    evidence: src/torve/cli/rfc.py:246-253 — styled() and _STATUS_STYLES
+      carry every colour decision
+    action: decided
+  - decision: D-18.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T17:23:00Z
+    attempt: 1
+    claim: the status word is always present beside the id and the repeat
+      marker is a visible arrow, dimmed whole — colour supplements, never
+      distinguishes alone; no inline markup, styles ride parameters
+    evidence: src/torve/cli/rfc.py:244-253 — the back-reference and label
+      construction
+    action: decided
+  - decision: D-11.11
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T17:24:00Z
+    attempt: 1
+    claim: the rewritten command docstring and header text carry no corpus
+      identifiers, and the user-facing-text gate ran blocking over this
+      diff and passed
+    evidence: src/torve/cli/rfc.py:204-206 — the docstring names what the
+      command shows, citing nothing
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T17:25:00Z
+    attempt: 1
+    claim: >-
+      the per-edge table structurally hid two things the tree now shows:
+      documents with no edges at all (0014 never appeared in any graph
+      output before this), and the shape of the corpus (two root lineages
+      plus one standalone). Multi-parent documents expand under their
+      first parent in traversal order and back-reference elsewhere; the
+      expand-once set also terminates traversal under a dependency cycle,
+      and a final sweep renders anything unreachable from a root rather
+      than letting it vanish
+    evidence: src/torve/cli/rfc.py:256-262 — the root pass and the
+      unreachable sweep with its comment
+    action: decided
+    proposal: 0007 §3a row — the graph verb renders a dependency tree
+      (roots, expand-once, back-references, standalone documents shown),
+      so the rendering is corpus-specified rather than repository habit

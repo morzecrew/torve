@@ -28,7 +28,6 @@ from torve.cli.console import (
     emit_json,
     fail,
     header,
-    make_table,
     out,
     styled,
 )
@@ -202,8 +201,11 @@ def graph(
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """The depends_on graph: every edge with the statuses on both ends, and
-    the inheritance hazards check would flag."""
+    """The dependency graph as a tree — dependents nested under what they
+    build on, roots first, standalone documents as bare roots — and the
+    inheritance hazards the corpus check would flag."""
+    from rich.tree import Tree
+
     from torve.config.rfc_parse import check_graph, fm_list, parse_frontmatter, rfc_files
 
     rfc_dir = corpus_dir(root, config)
@@ -212,11 +214,13 @@ def graph(
         number: parse_frontmatter(path.read_text(encoding="utf-8")) or {}
         for number, path in files.items()
     }
+    depends = {number: fm_list(frontmatter[number], "depends_on")
+               for number in frontmatter}
     edges = [
         {"from": number, "from_status": str(frontmatter[number].get("status", "?")),
          "to": target, "to_status": str(frontmatter.get(target, {}).get("status", "?"))}
-        for number in sorted(frontmatter)
-        for target in fm_list(frontmatter[number], "depends_on")
+        for number in sorted(depends)
+        for target in depends[number]
     ]
     problems, warnings = check_graph(files, frontmatter)
 
@@ -225,19 +229,40 @@ def graph(
                    "problems": problems, "warnings": warnings})
         return
     console = out(fmt)
-    header(console, "rfc graph", f"{len(edges)} edge(s) across {len(files)} RFC(s)")
-    if edges:
-        table = make_table("rfc", "status", "depends on", "status")
-        for edge in edges:
-            table.add_row(styled(edge["from"], STYLE_ID),
-                          styled(edge["from_status"], _STATUS_STYLES.get(edge["from_status"],
-                                                                         STYLE_FAIL)),
-                          styled(edge["to"], STYLE_ID),
-                          styled(edge["to_status"], _STATUS_STYLES.get(edge["to_status"],
-                                                                       STYLE_FAIL)))
-        console.print(table)
-    else:
-        console.print("no depends_on edges")
+    header(console, "rfc graph", f"{len(files)} RFC(s), {len(edges)} edge(s)")
+    dependents: dict[str, list[str]] = {}
+    for number, targets in depends.items():
+        for target in targets:
+            dependents.setdefault(target, []).append(number)
+
+    seen: set[str] = set()
+
+    def grow(branch: Tree, number: str) -> None:
+        status = str(frontmatter.get(number, {}).get("status", "?"))
+        if number in seen:
+            # A node expands under its first parent only; here it is a
+            # back-reference, dimmed whole so the repeat never reads as a
+            # second document.
+            branch.add(styled(f"{number} {status} ↑", STYLE_DIM))
+            return
+        seen.add(number)
+        label = styled(number, STYLE_ID)
+        label.append(" ")
+        label.append(status, style=_STATUS_STYLES.get(status, STYLE_FAIL))
+        node = branch.add(label)
+        for child in sorted(dependents.get(number, [])):
+            grow(node, child)
+
+    tree = Tree("", hide_root=True, guide_style=STYLE_DIM)
+    for number in sorted(depends):
+        if not depends[number]:
+            grow(tree, number)
+    # Anything unreachable from a root — a dependency cycle, or a document
+    # whose only dependency dangles — still renders rather than vanishing.
+    for number in sorted(depends):
+        if number not in seen:
+            grow(tree, number)
+    console.print(tree)
     for problem in problems:
         console.print(styled(f"PROBLEM {problem}", STYLE_FAIL))
     for warning in warnings:

@@ -398,6 +398,35 @@ def test_graph_lists_edges_with_statuses(tmp_path: Path) -> None:
     assert "draft" in result.output
 
 
+def test_graph_shows_standalone_documents(tmp_path: Path) -> None:
+    # A document with no edges never appeared in the per-edge table; the
+    # tree renders it as a bare root.
+    seed(
+        tmp_path,
+        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2", depends='["0001"]')),
+        ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3")),
+    )
+    result = invoke(tmp_path, "graph")
+    assert result.exit_code == 0, result.output
+    assert "0003" in result.output
+
+
+def test_graph_renders_a_multi_parent_document_once(tmp_path: Path) -> None:
+    seed(
+        tmp_path,
+        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2")),
+        ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3", depends='["0001", "0002"]')),
+    )
+    result = invoke(tmp_path, "graph")
+    assert result.exit_code == 0, result.output
+    # Expanded under the first parent, back-referenced under the second —
+    # asserted by content: the id appears exactly twice, once as a repeat.
+    assert result.output.count("0003") == 2
+    assert "↑" in result.output
+
+
 def test_the_corpus_of_this_repository_is_clean() -> None:
     repo = Path(__file__).resolve().parent.parent
     result = invoke(repo, "check")

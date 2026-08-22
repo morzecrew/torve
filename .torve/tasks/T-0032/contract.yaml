@@ -1,0 +1,53 @@
+# Owner-picked rendering for `torve rfc graph`: the per-edge table repeats
+# rfc/status cells and structurally hides standalone documents; the corpus
+# DAG is sparse enough that a dependency tree reads at a glance.
+schema_version: 1
+id: T-0032
+rfc: rfcs/0018-cli-presentation.md
+phase: 2
+role: implement
+intent: |
+  `torve rfc graph` renders the corpus as a dependency tree: dependents
+  nested under what they build on, roots first, each node's status styled
+  with the word always present. A node expands once; later occurrences
+  render dim with an up-arrow back-reference. Documents with no edges at
+  all appear as bare roots — the per-edge table never showed them. The JSON
+  edge list is untouched.
+depends_on: [T-0031]
+scope:
+  allow:
+    - "src/torve/cli/rfc.py"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-11.11
+    grade: LOCKED
+    text: User-facing strings carry no corpus identifiers — no RFC numbers, decision identifiers, section marks or corpus paths; enforced by the user-facing-text gate
+    paths: ["src/torve/cli/**", "src/torve/gates/**"]
+  - id: D-18.1
+    grade: LOCKED
+    text: The JSON byte-shape is the only machine contract; tests assert human output by content, never layout
+    paths: ["tests/**"]
+  - id: D-18.2
+    grade: LOCKED
+    text: Presentation lives in cli/ only; application returns data and no Rich renderable crosses the boundary
+    paths: ["src/torve/cli/**", "src/torve/application/**"]
+  - id: D-18.3
+    grade: ASSUMED
+    text: One component vocabulary in torve.cli.console, used by every verb
+    paths: ["src/torve/cli/**"]
+  - id: D-18.4
+    grade: LOCKED
+    text: Colour is never the only carrier of a distinction; no inline markup in data strings
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor

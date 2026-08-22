@@ -107,6 +107,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- `torve rfc graph` renders the corpus as a dependency tree (T-0032):
+  dependents nested under what they build on, roots first, statuses
+  styled with the word present; a multi-parent document expands under
+  its first parent and back-references dim elsewhere, and standalone
+  documents appear as bare roots — the per-edge table never showed
+  them. The JSON edge list is unchanged.
 - The `user-facing-text` gate (0011 A-23, T-0031): user-facing strings —
   help text, command docstrings, error messages, gate output — carry no
   corpus identifiers, because whoever runs the command has no corpus and
