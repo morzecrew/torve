@@ -111,16 +111,25 @@ def test_unminted_accepted_document_is_plannable(plan_repo):  # noqa: F811
     assert entry["declared_phases"] == [1, 2]
 
 
-def test_markdown_and_json_render_one_report(plan_repo):  # noqa: F811
+def test_markdown_json_and_rich_render_one_report(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     seed_facts(root)
-    result = CliRunner().invoke(app, ["context", "--root", str(root)])
-    assert result.exit_code == 0, result.output
+    # Markdown: the pasteable document (D-18.6), first-class on this command.
+    document = CliRunner().invoke(app, ["context", "--root", str(root),
+                                        "--format", "markdown"])
+    assert document.exit_code == 0, document.output
     for heading in ("## Programme", "## Tasks by state", "## Escalations by reason",
                     "## Proposals awaiting the author", "## Gate health",
                     "## Cost and iterations"):
-        assert heading in result.output
-    assert "underspecified (1): T-0002" in result.output
+        assert heading in document.output
+    assert "underspecified (1): T-0002" in document.output
+
+    # Default text: rich sections — asserted by content, never layout (D-18.1).
+    result = CliRunner().invoke(app, ["context", "--root", str(root)])
+    assert result.exit_code == 0, result.output
+    for content in ("Programme", "Tasks by state", "Escalations by reason",
+                    "underspecified", "T-0002", "0090", "acceptance"):
+        assert content in result.output
 
     raw = CliRunner().invoke(app, ["context", "--root", str(root), "--format", "json"])
     assert raw.exit_code == 0

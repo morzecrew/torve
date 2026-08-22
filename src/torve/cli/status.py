@@ -9,7 +9,18 @@ from typing import Annotated
 
 import typer
 
-from torve.cli.console import Format, emit_json, out
+from torve.cli.console import (
+    STYLE_DIM,
+    STYLE_FAIL,
+    STYLE_ID,
+    STYLE_PASS,
+    Format,
+    emit_json,
+    header,
+    make_table,
+    out,
+    styled,
+)
 from torve.cli.options import (
     ConfigOption,
     FormatOption,
@@ -38,12 +49,20 @@ def status(
     if not states:
         console.print("no runs")
         return
+    header(console, "status", f"{len(states)} run(s)")
+    table = make_table("task", "state", "attempts", "heartbeat", "escalation")
     for state in states:
-        line = (f"{state.task_id:<8} {state.state:<10} attempts={state.attempts} "
-                f"heartbeat={state.heartbeat_age_s():.0f}s ago")
-        if state.escalation is not None:
-            line += f"  [{state.escalation.reason}: {state.escalation.detail}]"
-        console.print(line)
+        terminal_ready = str(state.state) == "ready"
+        escalated = str(state.state) == "escalated"
+        table.add_row(
+            styled(state.task_id, STYLE_ID),
+            styled(str(state.state),
+                   STYLE_PASS if terminal_ready else STYLE_FAIL if escalated else ""),
+            str(state.attempts),
+            styled(f"{state.heartbeat_age_s():.0f}s ago", STYLE_DIM),
+            (f"{state.escalation.reason}: {state.escalation.detail}"
+             if state.escalation is not None else ""))
+    console.print(table)
 
 
 def reap_cmd(

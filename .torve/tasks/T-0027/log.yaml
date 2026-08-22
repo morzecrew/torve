@@ -1,0 +1,60 @@
+schema_version: 1
+task: T-0027
+repo: morzecrew/torve
+base_sha: 531eb458bd899bddb555ef549d7eed2339417c94
+drift_count: 0
+entries:
+  - decision: D-18.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:20:00Z
+    attempt: 1
+    claim: every component lives in torve.cli.console and every touched file
+      is under cli/ — application/projections.py returns the same dict it
+      returned before this task, and no Rich renderable crosses the boundary
+    evidence: src/torve/cli/console.py:103-158 — the component block; the
+      diff touches only src/torve/cli/** and the two named test files
+    action: decided
+  - decision: D-18.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:21:00Z
+    attempt: 1
+    claim: styling is applied via Text(style=...) and Table style parameters
+      only; markup stays False on both consoles; every coloured distinction
+      also carries a mark, a word or a column position
+    evidence: src/torve/cli/console.py:38-62 — the style vocabulary and
+      OUTCOME_STYLES beside OUTCOME_MARKS; grep for "[red]" style markup in
+      src/torve/cli finds nothing
+    action: decided
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:22:00Z
+    attempt: 1
+    claim: every JSON emission is byte-identical — no emit_json call site
+      changed — and the updated tests assert human output by content only
+      (section names, task ids, verdict words), never layout
+    evidence: tests/test_context.py:114-138 — the three-format test; the
+      existing JSON round-trip tests in tests/test_cli.py pass unchanged
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T21:23:00Z
+    attempt: 1
+    claim: >-
+      first execution of a planner-minted contract, and the minted scope
+      taught its first lesson — it covers exactly what the Phasing entry
+      declared (src/torve/cli/**, two test files), which excludes the
+      repository's bookkeeping surfaces (CHANGELOG.md, the RFC's
+      implementation flip): those ride a separate docs commit outside the
+      task diff, and future Phasing entries should either include the
+      bookkeeping globs or the convention should say bookkeeping is never
+      part of a task's diff
+    evidence: .torve/tasks/T-0027/contract.yaml:14-18 — the minted scope
+    action: decided
+    proposal: 0018 or 0016 row — minted scopes and repository bookkeeping;
+      pick one convention (include the globs at phasing time, or keep
+      bookkeeping in docs commits) and write it down

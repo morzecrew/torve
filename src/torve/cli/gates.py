@@ -13,7 +13,22 @@ import yaml
 
 from torve.application.sizing import StaticThresholds
 from torve.application.telemetry import append_record, build_record, config_hash
-from torve.cli.console import Format, emit_json, fail, out
+from torve.cli.console import (
+    STYLE_DIM,
+    STYLE_FAIL,
+    STYLE_PASS,
+    STYLE_WARN,
+    Format,
+    closing,
+    emit_json,
+    fail,
+    failure_detail,
+    header,
+    make_table,
+    mark,
+    out,
+    styled,
+)
 from torve.cli.options import FormatOption, RootOption, load_config
 from torve.config import layout
 from torve.config.manifest import load_manifest
@@ -24,14 +39,7 @@ from torve.gates.runner import run_gates
 
 # ----------------------- #
 
-OUTCOME_MARKS = {
-    "pass": "✓",
-    "flaky": "≈",
-    "skipped": "∅",
-    "bypassed": "⤳",
-    "fail": "✗",
-    "error": "!",
-}
+# The verdict marks live in the shared component vocabulary (D-18.5).
 
 
 def gates_run(
@@ -83,18 +91,26 @@ def gates_run(
     else:
         console = out(fmt)
         task_note = f"task {ctx.task.id}" if ctx.task else "no task (degraded mode)"
-        console.print(f"torve gates · {task_note} · config {record['config_hash']}")
+        header(console, "gates run", task_note, str(record["config_hash"]))
+        table = make_table("", "gate", "outcome", "state", "duration")
         for result in report.results:
-            mark = OUTCOME_MARKS.get(result.outcome, "?")
-            console.print(f"  {mark} {result.name:<20} {result.outcome:<9} "
-                          f"[{result.state}, {result.duration_s:.1f}s]")
+            table.add_row(
+                mark(result.outcome), result.name,
+                styled(result.outcome, STYLE_FAIL if result.outcome in ("fail", "error")
+                       else STYLE_DIM if result.outcome == "skipped" else ""),
+                styled(result.state, STYLE_DIM),
+                styled(f"{result.duration_s:.1f}s", STYLE_DIM))
+        console.print(table)
+        for result in report.results:
             if result.outcome in ("fail", "error") and result.output:
-                for line in result.output.splitlines()[:40]:
-                    console.print(f"      {line}")
+                console.print(styled(f"  ✗ {result.name}", STYLE_FAIL))
+                failure_detail(console, result.output)
             if result.bypass is not None:
-                console.print(
-                    f"      bypassed by {result.bypass.author}: {result.bypass.reason}")
-        console.print(f"exit {report.exit_code}")
+                console.print(styled(
+                    f"  ⤳ {result.name} bypassed by {result.bypass.author}: "
+                    f"{result.bypass.reason}", STYLE_WARN))
+        closing(console, f"exit {report.exit_code}",
+                STYLE_PASS if report.exit_code == 0 else STYLE_FAIL)
     raise typer.Exit(report.exit_code)
 
 
@@ -109,8 +125,9 @@ def gates_check(fmt: FormatOption = Format.TEXT) -> None:
     else:
         console = out(fmt)
         for o in outcomes:
-            mark = "✓" if o.ok else "✗"
-            console.print(f"  {mark} {o.name:<40} expected {o.expected:<8} got {o.got}")
+            verdict = mark("pass" if o.ok else "fail")
+            console.print(verdict + styled(
+                f" {o.name:<40} expected {o.expected:<8} got {o.got}", ""))
             if not o.ok and o.detail:
                 for line in o.detail.splitlines()[:12]:
                     console.print(f"      {line}")
