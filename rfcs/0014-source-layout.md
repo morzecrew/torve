@@ -270,6 +270,8 @@ Under `ratchet-what-you-build`, a convention that only lives in a document is an
 
 **Left to review**, because checking it would produce a linter nobody trusts: whether a label says something useful, whether a two-section module should have been split, and whether dot placement helps or is decoration.
 
+*Note (0011 A-23 2026-08-22):* the **audience** of a string — no corpus identifiers in user-facing text — is checked by the `user-facing-text` gate (RFC 0011 §5a), not here. This gate's subject is the layout of a file; that one's is who reads a string, and folding them would couple two checks that grow in different directions.
+
 **Sabotage cases** (the `source-layout` cases in `src/torve/gates/sabotage.py`, per A-2), one per check, asserted red in CI: a 20-dash separator, a module missing its post-import dash, a three-dash module, an unlabelled second dash, a labelled dot. A gate never observed to fail is not a check.
 
 ### 9.1 Adopt on the whole repository at once

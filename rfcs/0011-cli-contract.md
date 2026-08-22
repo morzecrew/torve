@@ -7,7 +7,7 @@ depends_on: ["0016"]
 informed_by: ["0002", "0003"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-23"]
 owner: Lev Litvinov
 description: >-
   Output contract, exit codes and non-TTY behaviour — the three CLI surfaces
@@ -121,6 +121,26 @@ Three rules for gate output:
 
 Apply the same to `torve doctor`: each check names what it looked for, what it found, and what to do about it.
 
+## 5a. Audience — who reads the string
+
+*Added by amendment A-23 2026-08-22.*
+
+The line is not code versus CLI. It is **who reads the string**: a comment or module docstring is for whoever edits that line; `--help`, error messages, gate output and PR comments are for whoever runs the command — and that reader does not have this corpus. A decision reference in help text is an address resolvable in exactly one repository; everywhere else it is noise wearing the appearance of authority. It also rots invisibly — `torve rfc check` validates the corpus, not docstrings, so every amendment that moves a decision silently falsifies the help strings citing it. And it confuses normativity with information: `(D-2.9)` reads as "this is mandated", where the caller needs to know what the command *does*.
+
+| Surface | Identifiers | Why |
+| --- | --- | --- |
+| Module docstrings, code comments | **yes, encouraged** | that reader can act on the reference; it is what stops a later "simplification" |
+| Typer `help=`, command docstrings | **no** | the caller has no corpus |
+| Gate failure output | **no** | "see D-15.2" is useless to someone who has never seen D-15.2 |
+| Finding claims, PR comments, escalation text | **no** | same audience |
+| Exit-code documentation | **no reference, yes meaning** | "3 — configuration error", not a citation |
+
+`origin` from a gate manifest is an exception in appearance only: it is data from the user's own repository, not an identifier from ours.
+
+Deleting a reference loses something real — whoever edits that command later wants to know why it behaves as it does — so the reference moves **up into the module docstring**, where the audience is right, not out of the file.
+
+Enforced by the **`user-facing-text` gate**, not left to discipline, since the failure mode is silent rot: an AST pass over `cli/` and `gates/` covering help text, command docstrings and strings reaching user-facing output, failing on RFC numbers, decision identifiers, section marks and corpus paths. Module docstrings and comments are explicitly out of its scope — they are the surface where references are wanted, and a checker that cannot tell the difference would push people to strip them everywhere; its sabotage suite includes a module docstring citing a decision that must **pass**. A separate gate rather than a fold into `source-layout`: its subject is the audience of a string, not the layout of a file, and it will grow — error messages, escalation rendering and finding text all belong to it eventually.
+
 ## 6. Command surface for now
 
 ```
@@ -161,3 +181,15 @@ progress bars · spinners · colour themes · `status` with live refresh · a TU
 | D-11.8 | `ASSUMED` | Presentation polish deferred until after Phase 3 | — | Revisit when hand-run commands are known |
 | D-11.9 | `ASSUMED` | The reason-to-code projection: budget_exhausted, poison_ceiling and cost_anomaly exit 5; locked_conflict, merge_conflict, blocker_finding, killed, underspecified *(joined by charter A-21 2026-08-22)* and stale_inheritance *(joined by charter A-22 2026-08-22)* exit 2; gate_infrastructure_failure and lease_expired exit 4; a non-ready, non-escalated end exits 1; a failed doctor check exits 3. Added by execution 2026-08-22 — see .torve/tasks/T-0013 | `src/torve/domain/states.py` `src/torve/cli/doctor.py` | — |
 | D-11.10 | `ASSUMED` | `gates check --format json` emits `{schema_version, cases}`; `reap --dry-run` reports read-only candidates and states that durable expiry cannot be previewed (the claim is the mutation); `migrate --status` is that command's preview. Added by execution 2026-08-22 — see .torve/tasks/T-0013 | `src/torve/cli/gates.py` `src/torve/cli/status.py` | — |
+| D-11.11 | `LOCKED` | User-facing strings carry no corpus identifiers — no RFC numbers, decision identifiers, section marks or corpus paths; enforced by the `user-facing-text` gate. Added by amendment A-23 2026-08-22 *(the source patch numbered this D-11.9, already taken)* | `src/torve/cli/**` `src/torve/gates/**` | The caller has no corpus; the reference is noise that also rots invisibly on every amendment |
+| D-11.12 | `LOCKED` | Comments and module docstrings may and should carry corpus references. Added by amendment A-23 2026-08-22 *(the source patch numbered this D-11.10, already taken)* | `src/torve/**` | That reader can act on the reference, and it is what prevents a later "simplification" |
+
+## Amendments
+
+### A-23 — 2026-08-22 — internal identifiers do not appear in user-facing text (adds §5a, D-11.11–D-11.12)
+
+**Found in `torve --help`**, which cited RFC sections, decision identifiers and corpus paths at a reader who has none of them. Three defects, none cosmetic: the reference is addressed to the wrong reader (resolvable in exactly one repository), it rots invisibly (`torve rfc check` validates the corpus, not docstrings — the D-A.\* extraction into RFC 0016 falsified every help string citing a moved decision), and it confuses normativity with information.
+
+**Changed:** §5a states the audience rule, the surface table and the `user-facing-text` gate; D-11.11 and D-11.12 record it *(the source patch numbered them D-11.9/D-11.10, both already taken)*. References displaced from user-facing strings move up into module docstrings, not out of the file.
+
+**Also edits:** RFC 0014 §9 — a note that string audience is checked by `user-facing-text`, not `source-layout`; RFC 0002 §4 — the gate joins the manifest at `shadow`, origin `rfc/0011`.

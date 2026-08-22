@@ -84,6 +84,8 @@ Each targets a structural property, so none requires mining past pull requests f
 
 *Added by charter A-11 2026-08-22:* the `acceptance` gate is **skipped** for `role: review`, not passed with an empty list — a review's output is `Finding[]`, not an exit code, and the skip is a property of the role (RFC 0005 §1.1).
 
+*Added by 0011 A-23 2026-08-22:* the `user-facing-text` gate joins the manifest, entering at `shadow` per D-2.18 with origin `rfc/0011`: user-facing strings — help text, command docstrings, gate output — carry no corpus identifiers. The rule, the surface table and the gate's shape are specified in RFC 0011 §5a; the corresponding sabotage cases include one that must pass (a module docstring citing a decision).
+
 *Amendment 2026-08-21 (A-2):* every gate implementation lives in the package (`src/torve/gates/`), never in a skill directory — `decisions-reported` in particular is `src/torve/gates/decisions_reported.py`, not a script shipped with `flag-dont-flip`. A gate in a skill directory is per-repository copy-paste, the exact thing this increment removes. The skill keeps one line naming its enforcing gate; the gate reports that an entry is missing, the skill teaches when one should have been written.
 
 **Everything else accumulates from evidence.** Each time a defect reaches review, either a gate appears or a written decision records that this class is caught by humans. Deriving gates from actual leaks beats designing a set up front, and it is why this list is short.
