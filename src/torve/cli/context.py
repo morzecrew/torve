@@ -97,10 +97,12 @@ def _render_rich(report: dict[str, Any]) -> None:
     for task in report["tasks"]:
         by_state.setdefault(str(task["state"]), []).append(str(task["id"]))
     for state, ids in sorted(by_state.items()):
+        # Newest first, so the bounded list surfaces recent work — the report
+        # itself keeps its stable ascending order.
         tasks.add_row(
             styled(state, STYLE_PASS if state == "ready"
                    else STYLE_FAIL if state == "escalated" else ""),
-            str(len(ids)), id_list(ids))
+            str(len(ids)), id_list(sorted(ids, reverse=True)))
     console.print(tasks)
 
     if report["escalations"]:

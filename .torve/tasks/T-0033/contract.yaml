@@ -1,0 +1,41 @@
+# Owner finding: "Tasks by state" lists ids ascending, so the 8-wide id_list
+# shows the oldest tasks and hides every recent one under (+N more).
+schema_version: 1
+id: T-0033
+rfc: rfcs/0018-cli-presentation.md
+phase: 2
+role: implement
+intent: |
+  Task id lists in the context tables render newest first, so the bounded
+  id_list surfaces the tasks a reader is most likely looking for; the JSON
+  report keeps its stable ascending order — display order is presentation.
+depends_on: [T-0032]
+scope:
+  allow:
+    - "src/torve/cli/context.py"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-18.1
+    grade: LOCKED
+    text: The JSON byte-shape is the only machine contract; tests assert human output by content, never layout
+    paths: ["tests/**"]
+  - id: D-18.2
+    grade: LOCKED
+    text: Presentation lives in cli/ only; application returns data and no Rich renderable crosses the boundary
+    paths: ["src/torve/cli/**", "src/torve/application/**"]
+  - id: D-18.8
+    grade: ASSUMED
+    text: Tables truncate with an explicit remainder count
+    paths: ["src/torve/cli/**"]
+budget: {}
+tier: executor

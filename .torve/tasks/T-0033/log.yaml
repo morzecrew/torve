@@ -1,0 +1,36 @@
+schema_version: 1
+task: T-0033
+repo: morzecrew/torve
+base_sha: 6a21a0c95a6c78e8b618d49e497cdcf8195ba535
+drift_count: 0
+entries:
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:05:00Z
+    attempt: 1
+    claim: only the rendering order changed — the report's task list keeps
+      its stable ascending order, so the JSON bytes are untouched and no
+      test needed editing
+    evidence: src/torve/cli/context.py:99-105 — the reverse sort applied at
+      the render site with the comment stating the split
+    action: decided
+  - decision: D-18.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T18:06:00Z
+    attempt: 1
+    claim: display order is presentation, so the choice lives in the cli
+      renderer and not in the projection
+    evidence: src/torve/cli/context.py:99-105 — the one changed site
+    action: decided
+  - decision: D-18.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T18:07:00Z
+    attempt: 1
+    claim: the bounded list now spends its eight visible slots on the newest
+      tasks — the remainder count keeps carrying the rest, which is what
+      made ascending order hide all recent work under it
+    evidence: src/torve/cli/context.py:105 — id_list over the reversed ids
+    action: decided
