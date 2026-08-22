@@ -226,6 +226,8 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 | D-7.16 | `LOCKED` | `torve rfc check --with-store` is opt-in; the default check needs no database | `src/torve/config/rfc_parse.py` | `rfc-valid` is a product gate and must run without infrastructure |
 | D-7.17 | `LOCKED` | Foreign spec formats are out of scope; `DecisionSource` is the extension point if that changes | `src/torve/application/ports.py` | A bridged document carries nothing to inherit, so the anti-drift contour is absent rather than degraded |
 | D-7.18 | `LOCKED` | Only `torve plan`, `torve rfc *` and `RfcDirectory` know the RFC format | `src/torve/config/rfc_parse.py` `src/torve/cli/rfc.py` `pyproject.toml` | The format terminating at the planner is what keeps a different source possible at all |
+| D-7.19 | `OPEN` | `--with-store` lands with the first store-derived check (implementation against derived progress, §4); building the flag before its check is an empty promise in `--help`. Added by execution 2026-08-22 — see .torve/tasks/T-0016 | `src/torve/config/rfc_parse.py` | — |
+| D-7.20 | `ASSUMED` | `torve rfc new` fills its skeleton from the rfc-writer template shipped as package data — authoring content riding the wheel, not a validation dependency (D-7.12 governs validation). Added by execution 2026-08-22 — see .torve/tasks/T-0016 | `src/torve/cli/rfc.py` `skills/rfc-writer/**` | — |
 
 ## 8. Exit criteria
 

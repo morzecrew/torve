@@ -286,6 +286,9 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 | D-2.21 | `LOCKED` | No fires plus a red sabotage case means broken, not unnecessary. Added by amendment A-8 2026-08-21 | `src/torve/gates/sabotage.py` `tests/test_sabotage.py` | The two look identical without the suite; this is why it runs continuously |
 | D-2.22 | `LOCKED` | Retirement requires the same evidence as adoption. Added by amendment A-8 2026-08-21 | `.torve/gates.yaml` | Otherwise the first hard sprint removes half the checks |
 | D-2.23 | `ASSUMED` | Promotion criteria: 30 real changes, at least one fire, acceptable false positives and p95, sabotage green. Added by amendment A-8 2026-08-21 | `.torve/gates.yaml` | Numbers tuned once real rates are known |
+| D-2.24 | `ASSUMED` | `self-audit` runs at `shadow`, origin structural, and audits only what was written — absence is an empty log and a clean run owes no file; promotion under D-2.23 waits for RFC 0004's agent-side audit to give it something to fire on. Added by execution 2026-08-22 — see .torve/tasks/T-0010 and T-0015 | `.torve/gates.yaml` `src/torve/gates/self_audit.py` | — |
+| D-2.25 | `ASSUMED` | A deterministic self-development gate may promote to blocking on a clean report plus red-on-demand sabotage in the same increment — D-2.23's soak measures a false-positive rate a deterministic check does not have. Added by execution 2026-08-22 — see .torve/tasks/T-0014 | `.torve/gates.yaml` | — |
+| D-2.26 | `ASSUMED` | Gate enforcement of the log's `repo` and `base_sha` pins lands with the next gates increment, schema check plus a red twin; every log since T-0009 carries the fields, so enforcement finds nothing to grandfather. Added by execution 2026-08-22 — see .torve/tasks/T-0009 | `src/torve/gates/decisions_reported.py` | — |
 
 ## 10. Exit criteria
 

@@ -4,11 +4,11 @@ without paths, duplicate identifier, cycle, hand-edited index), directory
 contents with routing messages (D-A.18), derived numbering over a hole
 (D-A.17/D-A.19), staleness against the generated index, and line-cite rot.
 
-Inheriting from a non-accepted document surfaces as a warning, not a problem,
-while the corpus may legitimately carry accepted documents ahead of their
-dependencies (D-A.10). Citation resolution is a problem: retired identifiers
-resolve through `retired:` frontmatter (D-16.1), so an unresolvable citation
-is a typo, and a retired identifier can never be redefined.
+Inheriting from a non-accepted document is a problem (D-A.10, hardened once
+the corpus's one violation was resolved). Citation resolution is a problem
+too: retired identifiers resolve through `retired:` frontmatter (D-16.1), so
+an unresolvable citation is a typo, and a retired identifier can never be
+redefined.
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ def test_a_hand_edited_index_reddens(tmp_path: Path) -> None:
     assert "generated" in result.output
 
 
-def test_inheriting_from_a_draft_warns_without_reddening(tmp_path: Path) -> None:
+def test_inheriting_from_a_draft_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
         ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1",
@@ -141,7 +141,7 @@ def test_inheriting_from_a_draft_warns_without_reddening(tmp_path: Path) -> None
         ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2")),
     )
     result = invoke(tmp_path, "check")
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == EXIT_CONFIG
     assert "D-A.10" in result.output
 
 

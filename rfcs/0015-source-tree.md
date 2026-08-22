@@ -301,6 +301,8 @@ Step 6 before step 7 deliberately: run the check first and learn how far the cur
 | D-15.8 | `LOCKED` | §2.1 is enforced by `import-linter` contracts wrapped in the `layering` gate, over the whole package | `pyproject.toml` `.torve/gates.yaml` | A diff-scoped hand-written check misses transitive violations, which is how gate isolation breaks |
 | D-15.9 | `ASSUMED` | The move happens before any task contract references a path under `src/torve/` | `.torve/tasks/**` | Moving files invalidates minted `scope.allow` globs |
 | D-15.10 | `LOCKED` | Product gates and self-development gates are distinct sets; `import-linter` stays a dev dependency | `pyproject.toml` `.torve/gates.yaml` | A check on Torve's internals must never reach a consuming repository's gate run |
+| D-15.11 | `ASSUMED` | The layer definition outranks the rename table: the gate-input builder and gate runner live in `gates/`, the attempt loop is `application/runner.py`, file-backed RunState is application code, and the target tree reads as the installed view where it conflicts with RFC 0012; the contracts are authoritative — gates may be imported by application and cli. Added by execution 2026-08-22 — see .torve/tasks/T-0014 | `src/torve/gates/**` `src/torve/application/**` | — |
+| D-15.12 | `ASSUMED` | Application reaches stores only through injected factories (`StoreFactory` on RunDeps; `reap` takes one); forze wiring lives in the facade and `config_hash` beside the telemetry it stamps. Added by execution 2026-08-22 — see .torve/tasks/T-0014 | `src/torve/application/**` | — |
 
 ## 9. Exit criteria
 

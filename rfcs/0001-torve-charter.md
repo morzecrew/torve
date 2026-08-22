@@ -266,6 +266,7 @@ Two rules that make the log worth keeping: **grade is copied at write time, neve
 | D-A.13 | `LOCKED` | One directory per task holding contract and log; path resolution lives in one module. Added by amendment A-12 2026-08-22 | `src/torve/config/layout.py` `.torve/tasks/**` | Retention, sharding and pairing all follow from it; scattering path construction makes any later move a hunt |
 | D-A.14 | `LOCKED` | Task deletion is supported; no code assumes a contract is present on disk. Added by amendment A-12 2026-08-22 | `src/torve/**` | Retention later collides with code that assumes the file is always there, which is a refactor rather than a feature |
 | D-A.15 | `LOCKED` | Deletion requires prior promotion of `resolved` and `departed` entries into decision tables. Added by amendment A-12 2026-08-22 | `.torve/tasks/**` `rfcs/**` | That promotion is the only unique information a log carries |
+| D-1.8 | `ASSUMED` | A terminal task's contract and log are historical records: a corpus reorganisation never edits them, and identifier preservation is what keeps their citations resolving. Added by execution 2026-08-22 — see .torve/tasks/T-0017 | `.torve/tasks/**` | — |
 
 The nineteen corpus-convention decisions that lived here (D-A.1 – D-A.12, D-A.16 – D-A.20) moved to RFC 0016 with their identifiers preserved (A-17). D-A.7 and D-A.13 – D-A.15 stay: they concern task directories, logs and retention, which are engine artefacts.
 

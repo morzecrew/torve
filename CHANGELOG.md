@@ -94,6 +94,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config.yaml` names the one corpus location (D-13.7). The `rfc-index`
   gate is replaced by the shipped `rfc-valid` product gate (D-7.14,
   shadow, origin rfc/0007); a malformed corpus exits 3 per 0007 §3a.
+- Proposal sweep T-0009..T-0020: twenty-two execution-log proposals
+  promoted into decision tables across eight documents (D-2.24–26,
+  D-3.22, D-9.9–10, D-11.9–10, D-13.8–10, D-14.13, D-15.11–12,
+  D-16.2–7, D-1.8, D-7.19–20), each row citing its task log. The
+  inheritance-from-non-accepted check hardened from warning to problem
+  — its own promotion condition (0009/0004 resolved) was met at 0004's
+  acceptance.
 - Identifier retirement made structural (0016 A-20, D-16.1): a retired
   decision's row is removed and its id recorded in new `retired:`
   frontmatter beside the prose tombstone. Retired ids resolve in

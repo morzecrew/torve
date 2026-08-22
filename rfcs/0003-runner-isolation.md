@@ -172,6 +172,7 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 | D-3.19 | `LOCKED` | Context composition is fixed, owned by the runner, and part of `config_hash`; nothing outside the runner may extend it. Added by charter amendment A-11 2026-08-22 *(the source patch numbered this D-3.7, already taken)* | `src/torve/application/runner.py` | A context that varies silently makes attempts incomparable |
 | D-3.20 | `LOCKED` | A log file is created by its first entry; entries are flushed as written. Added by amendment A-13 2026-08-22 *(the source patch numbered this D-3.8, already taken)* | `src/torve/application/runner.py` `src/torve/gates/decisions_reported.py` | Writing at end-of-run from memory loses entries on any abnormal termination |
 | D-3.21 | `LOCKED` | A missing log and an empty log are equivalent to every reader. Added by amendment A-13 2026-08-22 *(the source patch numbered this D-3.9, already taken)* | `src/torve/gates/decisions_reported.py` `src/torve/gates/self_audit.py` | Otherwise the runner needs a decision about writing, and that decision is a bug waiting to happen |
+| D-3.22 | `ASSUMED` | The FakeAgent models the convention real agents must follow: its log path and created-by-first-entry behaviour track the canonical layout in lockstep. Added by execution 2026-08-22 — see .torve/tasks/T-0015 | `src/torve/adapters/agent/fake.py` | — |
 
 ## 9. Exit criteria
 

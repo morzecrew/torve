@@ -422,10 +422,10 @@ def retired_identifiers(files: dict[str, Path]) -> dict[str, str]:
 def check_graph(
     files: dict[str, Path], frontmatter: dict[str, dict[str, Any]]
 ) -> tuple[list[str], list[str]]:
-    """Cycles in `depends_on` are problems; an accepted document depending on
-    one that is not accepted is surfaced as a warning (D-A.10 — the hard
-    refusal lives in `torve plan`, and one known violation, 0009 -> 0004,
-    awaits resolution before this can redden the corpus)."""
+    """Cycles in `depends_on` are problems, and so is an accepted document
+    depending on one that is not accepted (D-A.10) — hardened from a warning
+    once the known 0009 -> 0004 violation was resolved at 0004's acceptance,
+    per the T-0016 proposal's own condition."""
     edges = {
         number: [d for d in fm_list(fm, "depends_on") if d in files]
         for number, fm in frontmatter.items()
@@ -462,7 +462,7 @@ def check_graph(
         for target in edges.get(number, []):
             target_status = str(frontmatter.get(target, {}).get("status", "?"))
             if target_status != "accepted":
-                warnings.append(
+                problems.append(
                     f"{files[number].name}: accepted but depends_on {target} which is "
                     f"{target_status} — no inheritance from a non-accepted document (D-A.10)"
                 )
