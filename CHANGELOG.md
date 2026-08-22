@@ -107,6 +107,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0017 drafted (sandbox provisioning and harness configuration),
+  from the first shadow campaign's findings: the image digest as the
+  sandbox's identity joining `config_hash` (a mutable tag is the D-4.6
+  failure one artefact over), image definitions as reviewed artefacts
+  under `.torve/sandbox/` built by `torve sandbox build`, five
+  configuration channels routed by nature (identity/task/secret/knob/
+  state), stdio MCP as image content vs remote MCP under provider
+  routing, and per-slot never-shared memory that shadow runs never
+  mount.
 - First live shadow replays (claude CLI in the sandbox, host-proxy
   egress): both green in one attempt with real cost figures. Metadata
   parsing learned the claude CLI's actual shape — models arrive as

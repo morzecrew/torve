@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0017**.
+number is **0018**.
 
 ## Design
 
@@ -25,6 +25,7 @@ number is **0017**.
 | [0011](0011-cli-contract.md) | CLI contract | accepted | partial | 0016 | — | Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed by CI, telemetry and scripts — plus where UX effort actually pays. |
 | [0012](0012-migrations.md) | Migrations | accepted | complete | 0003 | — | Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and the conformance battery as the gate. |
 | [0013](0013-configuration-layout.md) | Configuration layout | accepted | complete | 0016 | A-16 | Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file. |
+| [0017](0017-sandbox-provisioning.md) | Sandbox provisioning and harness configuration | draft | none | 0003, 0004 | — | How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory. |
 
 ## Conventions
 
