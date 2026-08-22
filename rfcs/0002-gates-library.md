@@ -292,6 +292,8 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 | D-2.25 | `ASSUMED` | A deterministic self-development gate may promote to blocking on a clean report plus red-on-demand sabotage in the same increment — D-2.23's soak measures a false-positive rate a deterministic check does not have. Added by execution 2026-08-22 — see .torve/tasks/T-0014 | `.torve/gates.yaml` | — |
 | D-2.26 | `ASSUMED` | Gate enforcement of the log's `repo` and `base_sha` pins lands with the next gates increment, schema check plus a red twin; every log since T-0009 carries the fields, so enforcement finds nothing to grandfather. Added by execution 2026-08-22 — see .torve/tasks/T-0009 | `src/torve/gates/decisions_reported.py` | — |
 
+*Provenance note 2026-08-22:* the log-format conventions (the `drift_count` claim D-2.10, the `bypasses:` list D-2.7), the skills placement markers (A-2, A-3) and the corpus-wide Paths column were settled during the T-0005 execution — see .torve/tasks/T-0005.
+
 ## 10. Exit criteria
 
 - Five gates green in CI in at least two repositories, applied to human pull requests as well as agent ones.

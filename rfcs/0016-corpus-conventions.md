@@ -134,6 +134,7 @@ Only `NNNN-slug.md` and `INDEX.md`, no subdirectories. The check's message route
 | D-16.5 | `ASSUMED` | Renumbering notes name foreign identifiers in non-citation form — the backticked family, never the dotted id — keeping citation resolution clean without exemptions. Added by execution 2026-08-22 — see .torve/tasks/T-0017 | `rfcs/**` | — |
 | D-16.6 | `ASSUMED` | A `path:line` citation of a nonexistent path is an illustration, not a reference; only real paths rot. Added by execution 2026-08-22 — see .torve/tasks/T-0016 | `src/torve/config/rfc_parse.py` | — |
 | D-16.7 | `ASSUMED` | The `## Amendments` container is unnumbered in every document; prose about the discipline lives under a name that does not collide with it. Added by execution 2026-08-22 — see .torve/tasks/T-0017 | `rfcs/**` | — |
+| D-16.8 | `ASSUMED` | Minted task scopes exclude repository bookkeeping: CHANGELOG entries and rfc implementation flips ride a separate docs commit after the task commit. Owner-settled from the T-0027 review 2026-08-22 — see .torve/tasks/T-0027 | `CHANGELOG.md` `.torve/tasks/**` | — |
 
 ## Amendments
 

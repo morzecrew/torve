@@ -148,6 +148,7 @@ speaks the same visual language, not when it speaks a prettier one.
 | D-18.6 | `ASSUMED` | `--format markdown` exists only on document-producing commands; `torve context` keeps its pasteable rendering there while `text` becomes rich | `src/torve/cli/context.py` | An unavailable format beats a meaningless one |
 | D-18.7 | `ASSUMED` | One single-line TTY-only live status for long steps; absent under `--plain`, CI and JSON; everything larger stays deferred | `src/torve/cli/**` | A silent 28-second wait reads as a hang |
 | D-18.8 | `ASSUMED` | Tables truncate to the terminal with an explicit `… N more` line; the full data is always in the JSON | `src/torve/cli/**` | Wrapped tables are noise wearing structure |
+| D-18.9 | `ASSUMED` | Notes about a table print after it via the footer component, never as rows — a long note inside the first column sizes the column to the note; unbounded id lists render through `id_list`. Added by execution 2026-08-22 — see .torve/tasks/T-0027 | `src/torve/cli/**` | — |
 
 ## 10. Phasing
 

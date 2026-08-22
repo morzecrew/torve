@@ -141,6 +141,8 @@ Deleting a reference loses something real — whoever edits that command later w
 
 Enforced by the **`user-facing-text` gate**, not left to discipline, since the failure mode is silent rot: an AST pass over `cli/` and `gates/` covering help text, command docstrings and strings reaching user-facing output, failing on RFC numbers, decision identifiers, section marks and corpus paths. Module docstrings and comments are explicitly out of its scope — they are the surface where references are wanted, and a checker that cannot tell the difference would push people to strip them everywhere; its sabotage suite includes a module docstring citing a decision that must **pass**. A separate gate rather than a fold into `source-layout`: its subject is the audience of a string, not the layout of a file, and it will grow — error messages, escalation rendering and finding text all belong to it eventually.
 
+*Execution note 2026-08-22 (see .torve/tasks/T-0031):* three discriminations the first adoption settled. Corpus RFC numbers are zero-padded where public standards are cited unpadded, so "RFC 3339" in a gate message passes. A fixture module whose strings are scenario data for gates under test is exempt as data, not output. And the gate scans string values, its own included, so its pattern is assembled from fragments that individually match nothing.
+
 ## 6. Command surface for now
 
 ```

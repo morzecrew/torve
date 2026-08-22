@@ -93,6 +93,7 @@ That last one is worth being strict about: a gate manifest with `sope:` instead 
 | D-13.8 | `ASSUMED` | `.gitignore` covers only what the engine generates (telemetry, materialized skills, tmp); reviewed artefacts under `.torve/` stay tracked. Added by execution 2026-08-22 — see .torve/tasks/T-0012 | `.gitignore` | — |
 | D-13.9 | `ASSUMED` | D-13.1 governs the files a consuming repository carries for Torve; the product's own source directories (`skills/` as wheel data) are outside its scope. Added by execution 2026-08-22 — see .torve/tasks/T-0012 | `src/torve/config/layout.py` | — |
 | D-13.10 | `ASSUMED` | `--gates` is the documented override; `--manifest` stays a compatibility alias. Added by execution 2026-08-22 — see .torve/tasks/T-0012 | `src/torve/cli/gates.py` | — |
+| D-13.11 | `ASSUMED` | `feedback.jsonl` lives under `.torve/` as generated, gitignored data — appended by `torve feedback`, read at analysis time. Added by execution 2026-08-22 — see .torve/tasks/T-0021 | `src/torve/cli/feedback.py` | — |
 
 ## Amendments
 
