@@ -107,6 +107,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Sandbox egress through the host: `runtime.network: host` puts Docker
+  sandboxes on the host's network stack and forwards the standard proxy
+  environment by name — for hosts whose provider access runs through a
+  local proxy/VPN, where the default bridge is silently a different
+  (often blocked) path. Forwarding rides the opt-in only; OpenSandbox
+  keeps its own egress model.
 - Shadow runs (RFC 0004 phase 2, §5): `torve shadow <task-id>` replays a
   completed task from the parent of the commit that shipped it — found by
   its `Torve-Task:` trailer — through the same attempt-and-gates loop a

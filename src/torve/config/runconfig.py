@@ -131,6 +131,12 @@ class RuntimeConfig(BaseModel):
     image: str = "python:3.13-slim"
     sandbox_timeout: float = 1800  # platform-enforced lifecycle bound, seconds
     agent_timeout: float = 1200  # hard cap per agent attempt, on top of cooperative asks
+    # Docker network mode ("" = the daemon's default bridge). "host" shares
+    # the host's network stack, which is what lets a sandbox reach a proxy or
+    # VPN listening on the host's loopback — the operator trades network
+    # isolation for the host's egress path, knowingly. Docker-only; the
+    # OpenSandbox server owns its own egress model (RFC 0003 §4.1).
+    network: str = ""
     opensandbox: OpenSandboxConfig = Field(default_factory=OpenSandboxConfig)
 
 

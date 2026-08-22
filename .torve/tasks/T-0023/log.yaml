@@ -1,0 +1,39 @@
+schema_version: 1
+task: T-0023
+repo: morzecrew/torve
+base_sha: d193c2b69a1d68b5b74b48c43451db84c2cebe39
+drift_count: 0
+entries:
+  - decision: D-4.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T14:05:00Z
+    attempt: 1
+    claim: the network knob changes where a sandboxed harness's traffic goes,
+      not where the harness runs — it stays inside the sandbox, and nothing
+      about the engine boundary moved
+    evidence: src/torve/adapters/runtime/docker.py:39-58 — the mode and the
+      proxy forwarding are docker-run arguments only
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-22T14:06:00Z
+    attempt: 1
+    claim: runtime.network ("" default, "host" opt-in) shares the host stack
+      and forwards the standard proxy convention (http_proxy family, upper
+      and lower case) by name — only under the opt-in, because a
+      host-loopback proxy address is reachable under host networking and
+      poison under the bridge; the operator knowingly trades network
+      isolation for the host's egress path. Docker-only; OpenSandbox owns
+      its own egress model per RFC 0003 §4.1
+    evidence: src/torve/adapters/runtime/docker.py:27-58 — `docker inspect`
+      NetworkMode and env assertions in tests/test_runtime_conformance.py;
+      measured on this host, `curl https://api.anthropic.com/` returns 404
+      (real edge) through the host proxy and 403 (region block) from the
+      default bridge — the proxy path is required, not convenience
+    action: decided
+    proposal: 0004 row — sandbox egress follows the host under an explicit
+      network opt-in; note the isolation trade so the OpenSandbox vault
+      remains the answer where egress control matters

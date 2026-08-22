@@ -188,3 +188,38 @@ def test_opensandbox_refuses_volumes(tmp_path):
     with pytest.raises(RuntimeError, match="no per-slot auth volumes"):
         runtime.create(spec, workspace)
     opensandbox_stub.REGISTRY.clear()
+
+
+# ....................... #
+# Network mode and the proxy convention: a host whose egress runs through a
+# local proxy needs the sandbox on the host stack, seeing the same variables.
+
+
+def test_docker_network_host_shares_the_host_stack(docker_case, monkeypatch):
+    _, workspace = docker_case
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
+    runtime = DockerRuntime(network="host")
+    handle = runtime.create(auth_spec(), workspace)
+    try:
+        mode = subprocess.run(
+            ["docker", "inspect", "--format", "{{.HostConfig.NetworkMode}}", handle.id],
+            capture_output=True, text=True, check=True).stdout.strip()
+        assert mode == "host"
+        seen = runtime.exec(handle, 'printf "%s" "$HTTPS_PROXY"', 30)
+        assert seen.output == "http://127.0.0.1:9999"
+    finally:
+        runtime.destroy(handle)
+
+
+def test_docker_default_network_forwards_no_proxy_vars(docker_case, monkeypatch):
+    # A host-loopback proxy address is poison under the bridge — without the
+    # network opt-in the sandbox keeps Docker's default egress untouched.
+    _, workspace = docker_case
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
+    runtime = DockerRuntime()
+    handle = runtime.create(auth_spec(), workspace)
+    try:
+        seen = runtime.exec(handle, 'printf "%s" "$HTTPS_PROXY"', 30)
+        assert seen.output == ""
+    finally:
+        runtime.destroy(handle)

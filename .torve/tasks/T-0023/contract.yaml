@@ -1,0 +1,42 @@
+# Sandbox egress through the host (RFC 0004 operability): hosts that route
+# traffic through a local proxy/VPN need sandboxes on the host network stack,
+# seeing the same proxy variables — or provider calls silently take a
+# different (often blocked) path than the operator's own.
+schema_version: 1
+id: T-0023
+rfc: rfcs/0004-agents-tiering.md
+phase: 2
+role: implement
+intent: |
+  The Docker runtime gains a network mode: empty keeps the daemon's default
+  bridge, "host" shares the host's network stack and forwards the standard
+  proxy environment convention by name — so a sandboxed harness reaches the
+  provider exactly the way the host's own processes do. Forwarding rides the
+  opt-in only: a host-loopback proxy address is reachable under host
+  networking and poison under the bridge.
+depends_on: [T-0022]
+scope:
+  allow:
+    - "src/torve/**"
+    - "tests/**"
+    - ".torve/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-4.1
+    grade: LOCKED
+    text: Harnesses run inside the sandbox; no harness SDK in the engine process
+    paths: ["src/torve/adapters/**"]
+  - id: D-3.3
+    grade: ASSUMED
+    text: Runtime is OpenSandbox, with Docker retained as a fallback
+    paths: ["src/torve/adapters/runtime/docker.py", "src/torve/adapters/runtime/opensandbox.py"]
+budget: {}
+tier: executor

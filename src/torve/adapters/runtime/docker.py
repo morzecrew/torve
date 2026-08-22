@@ -25,9 +25,20 @@ class DockerError(RuntimeError):
     pass
 
 
+# The standard proxy convention, forwarded by name when set in the runner's
+# environment (values ride the docker CLI's env, never torve): a sandbox
+# whose host routes egress through a proxy must see the same variables the
+# host's own processes do, or its traffic silently takes a different path.
+# Forwarded only when a network mode was chosen — a host-loopback proxy
+# address is reachable under "host" and poison under the default bridge.
+PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy",
+             "socks_proxy", "no_proxy")
+
+
 class DockerRuntime:
-    def __init__(self, docker_bin: str = "docker") -> None:
+    def __init__(self, docker_bin: str = "docker", network: str = "") -> None:
         self.docker = docker_bin
+        self.network = network  # "" = daemon default; "host" shares the host stack
 
     def _run(self, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -39,6 +50,12 @@ class DockerRuntime:
                 "--user", f"{os.getuid()}:{os.getgid()}",
                 "-v", f"{workspace.resolve()}:{spec.workdir}",
                 "-w", spec.workdir]
+        if self.network:
+            args += ["--network", self.network]
+            for name in PROXY_ENV:
+                for variant in (name, name.upper()):
+                    if variant in os.environ:
+                        args += ["-e", variant]
         for key, value in spec.labels.items():
             args += ["--label", f"{key}={value}"]
         for key, value in spec.env.items():
