@@ -1,5 +1,6 @@
 """`torve doctor` — preflight checks, rendered per RFC 0011 §5: each check
-names what it looked for, what it found, and what to do about it.
+names what it looked for, what it found, and what to do about it. The forze
+schema pin is D-12.7: a mismatch must be a check, not a symptom.
 """
 
 from __future__ import annotations
@@ -14,9 +15,10 @@ from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 
 def doctor(fmt: FormatOption = Format.TEXT) -> None:
-    """Preflight checks. Today: the forze pin (D-12.7) — a schema mismatch
-    must be a check, not a symptom discovered through adapter behaviour. A
-    failed check is a configuration error (exit 3), not a red gate."""
+    """Preflight checks: configuration and environment readiness. Today: the
+    forze schema pin — a mismatch must be a check, not a symptom discovered
+    through adapter behaviour. A failed check is a configuration error
+    (exit 3), not a red gate."""
     from torve.application.migrate import check_forze_pin
 
     ok, message = check_forze_pin()

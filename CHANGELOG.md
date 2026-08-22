@@ -107,6 +107,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- The `user-facing-text` gate (0011 A-23, T-0031): user-facing strings —
+  help text, command docstrings, error messages, gate output — carry no
+  corpus identifiers, because whoever runs the command has no corpus and
+  the reference rots invisibly on every amendment. An AST pass over
+  changed files in the cli and gates packages; module docstrings,
+  comments, class docstrings and private-function docstrings are exempt
+  (references belong there — the sabotage suite's must-pass case pins
+  it), the sabotage fixture module is data by nature, and public
+  standards like RFC 3339 are not corpus identifiers. The one-time
+  rewrite moved ~45 citations up into module docstrings; entered at
+  shadow, report read clean, promoted to blocking (the deterministic-
+  check precedent).
 - Owner-review round three (T-0030): `torve reap` sweeps a terminal
   run's whole `.wt/` footprint — state file and trace logs with the
   worktree, driven by the state files so a footprint whose worktree is

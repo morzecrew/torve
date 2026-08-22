@@ -59,6 +59,16 @@ gates:
     state: shadow
     origin: rfc/0014
     added: 2026-08-21
+  # The audience rule of RFC 0011 §5a (D-11.11, A-23): no corpus identifiers
+  # in user-facing strings. Entered at shadow, whole-tree report read clean
+  # after the one-time rewrite, sabotage red on demand (including the
+  # must-pass docstring twin), then promoted — a deterministic AST check has
+  # no false-positive rate to soak (the layering precedent, T-0014).
+  - name: user-facing-text
+    run: "@user-facing-text"
+    state: blocking
+    origin: rfc/0011
+    added: 2026-08-22
   # RFC 0015 §6 (D-15.8): the layer contracts, checked by import-linter over
   # the whole package — a self-development gate (D-15.10), meaningful only in
   # this repository; the tool is a dev dependency and never ships. Entered at

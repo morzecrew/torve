@@ -1,5 +1,6 @@
 """`torve run` and `torve cancel` — parsing and rendering only (D-15.6); the
-attempt loop lives in `torve.application.runner`.
+attempt loop lives in `torve.application.runner` (RFC 0003). The task's tier
+picks the adapter (RFC 0004 §1); the exit code projection is D-11.4.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def run_cmd(
     task_id: Annotated[str, typer.Argument()],
     agent_name: Annotated[str | None, typer.Option(
         "--agent", help="Override the tier's adapter with 'fake' (scenario replay); "
-                        "by default the task's tier picks the adapter (RFC 0004 §1).")] = None,
+                        "by default the task's tier picks the adapter.")] = None,
     scenario: Annotated[Path | None, typer.Option(
         exists=True,
         help="FakeAgent scenario YAML; default writes one marker file and exits 0.")] = None,
@@ -47,8 +48,7 @@ def run_cmd(
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Run one task synchronously; the exit code is the outcome (RFC 0003,
-    projected onto codes 0–5 per D-11.4)."""
+    """Run one task synchronously; the exit code carries the outcome."""
     from torve.adapters.agent.fake import FakeAgent, load_scenario
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GhScm, GitVcs, NullScm, repository_name

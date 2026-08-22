@@ -2,7 +2,8 @@
 
 Files resolve under `.torve/` with the legacy root-level names as fallback
 (RFC 0013); `--gates` and `--config` are the only overrides (D-13.4). A
-malformed manifest or runner configuration exits 3 (D-13.6).
+malformed manifest or runner configuration exits 3 (D-13.6). `--format json`
+rides every result-producing command (D-11.2).
 """
 
 from __future__ import annotations
@@ -35,11 +36,11 @@ ConfigOption = Annotated[Path | None, typer.Option(
 RootOption = Annotated[Path, typer.Option(
     "--root", exists=True, file_okay=False, help="Repository root.")]
 FormatOption = Annotated[Format, typer.Option(
-    "--format", help="text for a person, json for a machine (D-11.2).")]
+    "--format", help="text for a person, json for a machine.")]
 
 
 def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
-    """Configuration errors exit 3 (D-13.6): a bad file is the operator's to
+    """Configuration errors exit 3: a bad file is the operator's to
     fix, distinct from red gates (1) and infrastructure failure (4)."""
     from torve.config.runconfig import load_runner_config
 

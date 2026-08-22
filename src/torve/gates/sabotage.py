@@ -41,6 +41,8 @@ BASE_MANIFEST: dict[str, Any] = {
         {"name": "self-audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
         {"name": "source-layout", "run": "@source-layout",
          "state": "shadow", "origin": "rfc/0014"},
+        {"name": "user-facing-text", "run": "@user-facing-text",
+         "state": "shadow", "origin": "rfc/0011"},
         {"name": "acceptance", "run": "@task.acceptance",
          "state": "blocking", "origin": "structural", "commands": ["true"]},
     ],
@@ -376,6 +378,37 @@ def _layout_clean(repo: Repo) -> None:
     repo.commit("conforming module")
 
 
+def _text_help_rfc(repo: Repo) -> None:
+    repo.seed()
+    repo.write("src/torve/cli/thing.py",
+               'HELP = "Mint contracts per RFC 0007."\n')
+    repo.commit("help text citing an RFC number")
+
+
+def _text_docstring_decision(repo: Repo) -> None:
+    repo.seed()
+    repo.write("src/torve/cli/thing.py",
+               'def thing() -> None:\n    """Size estimate (D-2.9)."""\n')
+    repo.commit("command docstring citing a decision")
+
+
+def _text_corpus_path(repo: Repo) -> None:
+    repo.seed()
+    repo.write("src/torve/cli/thing.py",
+               'ERROR = "see rfcs/0012-migrations.md"\n')
+    repo.commit("string citing a corpus path")
+
+
+def _text_module_docstring_passes(repo: Repo) -> None:
+    # The case that matters most: the surface where references are wanted
+    # must never be flagged, or the gate teaches people to strip them.
+    repo.seed()
+    repo.write("src/torve/cli/thing.py",
+               '"""The thing command (D-2.9, RFC 0007 §3); see rfcs/ for why."""\n\n'
+               'def _helper() -> None:\n    """Private, editor-facing (D-2.9)."""\n')
+    repo.commit("module and private docstrings citing decisions")
+
+
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
@@ -400,7 +433,7 @@ CASES: list[Case] = [
     Case("secrets: leaked key", "secrets", "fail", _secrets_bad),
     Case("secrets: clean twin", "secrets", "pass", _secrets_clean),
     Case("bypass: signed trailer converts a red scope", "scope", "bypassed", _bypass_honored),
-    Case("bypass: refused for secrets (D-2.8)", "secrets", "fail", _bypass_refused_for_secrets),
+    Case("bypass: refused for secrets", "secrets", "fail", _bypass_refused_for_secrets),
     Case("source-layout: 20-dash separator", "source-layout", "fail", _layout_bad_width),
     Case("source-layout: missing post-import dash", "source-layout", "fail",
          _layout_missing_dash),
@@ -411,6 +444,14 @@ CASES: list[Case] = [
     Case("source-layout: catch-all module name", "source-layout", "fail",
          _layout_forbidden_name),
     Case("source-layout: conforming twin", "source-layout", "pass", _layout_clean),
+    Case("user-facing-text: help cites an RFC number", "user-facing-text", "fail",
+         _text_help_rfc),
+    Case("user-facing-text: command docstring cites a decision", "user-facing-text",
+         "fail", _text_docstring_decision),
+    Case("user-facing-text: string cites a corpus path", "user-facing-text", "fail",
+         _text_corpus_path),
+    Case("user-facing-text: module docstring cites freely", "user-facing-text", "pass",
+         _text_module_docstring_passes),
 ]
 
 

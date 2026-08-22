@@ -73,6 +73,7 @@ BUILTIN_INPUTS: dict[str, str] = {
     "decisions-reported": "log",
     "self-audit": "log",
     "source-layout": "diff",
+    "user-facing-text": "diff",
     "acceptance": "worktree",
 }
 BUILTIN_TIMEOUTS: dict[str, float] = {
@@ -82,6 +83,7 @@ BUILTIN_TIMEOUTS: dict[str, float] = {
     "decisions-reported": 30,
     "self-audit": 30,
     "source-layout": 30,
+    "user-facing-text": 30,
     "acceptance": 600,
 }
 SHELL_GATE_TIMEOUT = 600.0

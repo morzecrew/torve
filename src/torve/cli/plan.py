@@ -1,6 +1,8 @@
 """`torve plan` — parsing and rendering only (D-15.6); the minter lives in
 `torve.application.planner`. Dry-run is the default (RFC 0007 §3, and the
-D-11 convention: extend `--dry-run`, never invent a sibling flag).
+D-11 convention: extend `--dry-run`, never invent a sibling flag). Exactly
+one document per invocation (D-7.8); `--reconcile` is §3.3 under charter
+A-22.
 """
 
 from __future__ import annotations
@@ -34,11 +36,11 @@ from torve.domain.task import SCHEMA_VERSION
 
 def plan_cmd(
     identifier: Annotated[str | None, typer.Argument(
-        help="Exactly one document — no sets, no subgraphs, no --all (D-7.8).")] = None,
+        help="Exactly one document — no sets, no subgraphs, no --all.")] = None,
     reconcile: Annotated[bool, typer.Option(
         "--reconcile",
         help="Mark non-terminal tasks minted from superseded documents as "
-             "stale_inheritance (§3.3, charter A-22); takes no document.")] = False,
+             "stale_inheritance; takes no document.")] = False,
     dry_run: Annotated[bool, typer.Option(
         "--dry-run/--no-dry-run",
         help="Preview without writing (the default); --no-dry-run mints.")] = True,
@@ -46,8 +48,8 @@ def plan_cmd(
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Mint implement-task contracts from one accepted, committed
-    specification (RFC 0007 §3). Deterministic; no model call at any point."""
+    """Mint task contracts from one accepted, committed specification.
+    Deterministic; no model is called at any point."""
     from torve.application.planner import PlanError, plan_document, write_contracts
 
     root = root.resolve()
@@ -61,7 +63,7 @@ def plan_cmd(
         _reconcile(root, rfc_dir, dry_run, fmt)
         return
     if identifier is None:
-        raise fail("configuration error: torve plan takes exactly one document (D-7.8)",
+        raise fail("configuration error: torve plan takes exactly one document",
                    EXIT_CONFIG)
 
     try:

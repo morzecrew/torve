@@ -1,0 +1,58 @@
+# Execution of 0011 A-23 (user-facing-text patch), in the patch's order: the
+# gate ships first at shadow, its report is the inventory, the rewrites move
+# every displaced reference up into a module docstring, sabotage cases include
+# the must-pass docstring twin, then the gate promotes to blocking.
+schema_version: 1
+id: T-0031
+rfc: rfcs/0011-cli-contract.md
+phase: 1
+role: implement
+intent: |
+  Internal identifiers out of user-facing text: a new user-facing-text gate
+  (AST pass over changed files in cli/ and gates/ — help text, command
+  docstrings, and every other string constant that reaches the caller —
+  failing on RFC numbers, decision identifiers, section marks and corpus
+  paths, with module docstrings and comments explicitly exempt), the rewrite
+  of every string it flags with the reference moved into the enclosing
+  module docstring, sabotage cases including the module-docstring case that
+  must pass, and promotion to blocking once the report reads clean.
+depends_on: [T-0030]
+scope:
+  allow:
+    - "src/torve/cli/**"
+    - "src/torve/gates/**"
+    - "src/torve/config/manifest.py"
+    - ".torve/**"
+    - "tests/**"
+    - "CHANGELOG.md"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-11.11
+    grade: LOCKED
+    text: User-facing strings carry no corpus identifiers — no RFC numbers, decision identifiers, section marks or corpus paths; enforced by the user-facing-text gate
+    paths: ["src/torve/cli/**", "src/torve/gates/**"]
+  - id: D-11.12
+    grade: LOCKED
+    text: Comments and module docstrings may and should carry corpus references
+    paths: ["src/torve/**"]
+  - id: D-14.8
+    grade: LOCKED
+    text: One gate, one file, one section
+    paths: ["src/torve/gates/**"]
+  - id: D-15.2
+    grade: LOCKED
+    text: gates may import only domain, base and config
+    paths: ["src/torve/gates/**", "pyproject.toml"]
+  - id: D-18.1
+    grade: LOCKED
+    text: The JSON byte-shape is the only machine contract; tests assert human output by content, never layout
+    paths: ["tests/**"]
+budget: {}
+tier: executor

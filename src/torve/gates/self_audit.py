@@ -23,7 +23,7 @@ def check_self_audit(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         return NO_TASK
     if ctx.log_text is None or not ctx.log_text.strip():
         return BuiltinOutcome(
-            "pass", "no execution log — absence is an empty log (D-3.21), nothing to audit"
+            "pass", "no execution log — absence is an empty log, nothing to audit"
         )
     document, parse_error = parse_log(ctx.log_text)
     if document is None:

@@ -9,7 +9,9 @@ Results go to stdout and diagnostics to stderr, never mixed (D-11.6).
 `NO_COLOR` is honoured by Rich natively (D-11.5). Styling is applied through
 renderables and style parameters, never inline markup in data strings —
 `markup=False` stays so bracketed data cannot inject styling, and colour is
-never the only carrier of a distinction (D-18.4).
+never the only carrier of a distinction (D-18.4). Tables and id lists
+truncate with an explicit remainder count (D-18.8), and `live_status` is the
+one narrow lift of 0011 §7's spinner deferral (RFC 0018 §6).
 """
 
 from __future__ import annotations
@@ -84,14 +86,14 @@ def out(fmt: Format | None = None) -> Console:
 
 
 def err() -> Console:
-    """Diagnostics, stderr — in both formats (D-11.6)."""
+    """Diagnostics, stderr — in both formats."""
     return Console(stderr=True, no_color=is_plain() or None, highlight=False,
                    markup=False, soft_wrap=True)
 
 
 def emit_json(document: dict[str, object]) -> None:
-    """Exactly one JSON document on stdout and nothing else (D-11.6) —
-    written raw so no console width ever wraps it."""
+    """Exactly one JSON document on stdout and nothing else — written raw
+    so no console width ever wraps it."""
     sys.stdout.write(json.dumps(document, ensure_ascii=False, indent=2) + "\n")
 
 
@@ -104,8 +106,8 @@ def fail(message: str, code: int) -> typer.Exit:
 
 
 def header(console: Console, verb: str, subject: str, regime: str | None = None) -> None:
-    """`torve <verb> · <subject> · config <hash>` (RFC 0018 §3) — what ran,
-    on what, under which regime where one exists."""
+    """`torve <verb> · <subject> · config <hash>` — what ran, on what,
+    under which regime where one exists."""
     line = Text()
     line.append(f"torve {verb}", style="bold")
     line.append(f" · {subject}")
@@ -132,7 +134,7 @@ def make_table(*columns: str, title: str | None = None, lines: bool = False,
 
 def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]],
                        limit: int = 50) -> int:
-    """At most `limit` rows; returns how many were withheld (D-18.8). The
+    """At most `limit` rows; returns how many were withheld. The
     caller prints the `… N more` line *after* the table with `footer` — a
     long note inside the first column would size the column to the note."""
     for row in rows[:limit]:
@@ -148,7 +150,7 @@ def footer(console: Console, text: str) -> None:
 
 def id_list(ids: list[str], shown: int = 8) -> str:
     """A bounded comma list: the first few identifiers, then `(+N more)` —
-    27 task ids in one cell is noise wearing data (D-18.8)."""
+    27 task ids in one cell is noise wearing data."""
     if len(ids) <= shown:
         return ", ".join(ids)
     return ", ".join(ids[:shown]) + f" (+{len(ids) - shown} more)"
@@ -156,7 +158,7 @@ def id_list(ids: list[str], shown: int = 8) -> str:
 
 def mark(outcome: str) -> Text:
     """The verdict mark with its style — mark and word both carry the
-    distinction, colour never alone (D-18.4)."""
+    distinction, colour never alone."""
     return Text(OUTCOME_MARKS.get(outcome, "?"), style=OUTCOME_STYLES.get(outcome, ""))
 
 
@@ -165,7 +167,7 @@ def styled(value: str, style: str) -> Text:
 
 
 def failure_detail(console: Console, text: str, limit: int = 40) -> None:
-    """A failing row's expansion (RFC 0018 §3): indented, capped, never
+    """A failing row's expansion: indented, capped, never
     interleaved with other rows."""
     lines = text.splitlines()
     for line in lines[:limit]:
@@ -181,12 +183,11 @@ def closing(console: Console, text: str, style: str = "") -> None:
 
 @contextmanager
 def live_status(text: str, fmt: Format | None = None) -> Generator[Callable[[str], None]]:
-    """The one narrow lift of 0011 §7's deferral (RFC 0018 §6): a single
-    transient status line with elapsed time for steps longer than a moment.
+    """A single transient status line with elapsed time for steps longer than a moment.
     Yields an updater so the line can name the step it is inside — one timer
     over a pass that is 95% one gate explains nothing. TTY-only by rule, not
     by autodetection — absent under `--plain`, CI and `--format json`, where
-    the updater is a no-op. Never a prompt (D-11.7)."""
+    the updater is a no-op. Never a prompt."""
     if is_plain(fmt):
         yield lambda _text: None
         return

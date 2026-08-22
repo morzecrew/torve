@@ -47,7 +47,7 @@ def context_cmd(
         "--format", help="text for reading in place, markdown for pasting into "
                          "a planning session, json for machines.")] = ContextFormat.TEXT,
 ) -> None:
-    """Project accumulated facts for a planning session (RFC 0007 §4): tasks
+    """Project accumulated facts for a planning session: tasks
     by state, escalations by reason, proposals awaiting the author, gate
     health, cost against config_hash, and the programme view."""
     from torve.application.projections import context_report, render_markdown

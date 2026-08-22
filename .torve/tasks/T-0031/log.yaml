@@ -1,0 +1,113 @@
+schema_version: 1
+task: T-0031
+repo: morzecrew/torve
+base_sha: f5b7ea8ce0946945834201ec3c02b7ea721664ec
+drift_count: 0
+entries:
+  - decision: D-11.11
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:40:00Z
+    attempt: 1
+    claim: the gate scans every string constant in changed cli and gates
+      files for RFC numbers, decision identifiers, the section mark and
+      corpus paths; the whole-tree inventory found 49, all rewritten, and
+      the gate's own failure message follows the rule it enforces
+    evidence: src/torve/gates/user_facing_text.py:37-44 — the assembled
+      pattern; the sabotage suite's three failing cases pin each identifier
+      class
+    action: decided
+  - decision: D-11.12
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:41:00Z
+    attempt: 1
+    claim: module docstrings, class docstrings, private and nested function
+      docstrings, and non-cli function docstrings are exempt by node
+      identity, and every displaced reference moved up into its module
+      docstring rather than out of the file — comments never enter the AST
+      so they are structurally exempt
+    evidence: src/torve/gates/user_facing_text.py:52-71 — the exemption
+      walk; the must-pass sabotage case and
+      tests/test_user_facing_text.py:33-36 pin the exemptions
+    action: decided
+  - decision: D-14.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:42:00Z
+    attempt: 1
+    claim: one gate, one file, one section — a separate gate rather than a
+      fold into source-layout, per the amendment's reasoning that its
+      subject is the audience of a string, not the layout of a file
+    evidence: src/torve/gates/user_facing_text.py:1-14 — the module is the
+      whole gate
+    action: decided
+  - decision: D-15.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:43:00Z
+    attempt: 1
+    claim: the gate imports ast, re, pathlib and the config/gates-internal
+      types only; the kept import-linter contracts stayed green
+    evidence: src/torve/gates/user_facing_text.py:16-24 — the import block
+    action: decided
+  - decision: D-18.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T16:44:00Z
+    attempt: 1
+    claim: no JSON surface changed — the rewrites touched help strings,
+      docstrings and message prose only, and the existing content-only test
+      assertions needed zero edits, which is itself the payout the decision
+      predicted
+    evidence: tests/test_user_facing_text.py:1-43 — the only new or edited
+      test module in the diff; every existing content-only assertion
+      survived the rewrite untouched, which is the payout the decision
+      predicted
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T16:45:00Z
+    attempt: 1
+    claim: >-
+      the inventory-first order earned its keep by surfacing three edge
+      classes no hand-hunt would have settled: (1) "RFC 3339" — public
+      standards are cited unpadded while corpus numbers are zero-padded,
+      so the pattern keys on the padding; (2) the sabotage module is
+      scenario data by nature (its log entries and fixtures MUST contain
+      decision identifiers for the gates under test to judge) and is
+      exempted as a data module, with its one genuinely user-facing string
+      (a case name citing an identifier) rewritten anyway; (3) the gate
+      scans string values, its own included, so the pattern is assembled
+      from fragments that individually match nothing — pinned by a
+      dedicated self-scan test
+    evidence: src/torve/gates/user_facing_text.py:26-44 — the data-module
+      exemption and the fragment-assembled pattern with both comments;
+      tests/test_user_facing_text.py:38-43 — the self-scan regression test
+    action: decided
+    proposal: 0011 §5a — a sentence recording the three discriminations
+      (zero-padded corpus numbers, data modules, self-scan safety) so the
+      next repository adopting the gate inherits them
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T16:46:00Z
+    attempt: 1
+    claim: >-
+      command registration is cross-module (status and reap are plain
+      functions registered elsewhere), so the gate cannot syntactically
+      tell a Typer command from a component function; the rule adopted is
+      uniform — every public module-level function docstring in the cli
+      package is treated as potential help text and stays identifier-free,
+      with references in the module docstring or comments. The cost landed
+      on the component library, whose function docstrings lost inline ids
+      but kept them one screen up
+    evidence: src/torve/gates/user_facing_text.py:65-68 — the
+      rendered-as-help condition; src/torve/cli/console.py:1-15 — the
+      module docstring that absorbed the displaced references
+    action: decided
+    proposal: none needed — the uniform rule is simpler to teach than a
+      registration-aware one and errs toward the safe side

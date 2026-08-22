@@ -11,8 +11,10 @@ against entries classed drift), and silence (every LOCKED decision whose
 declared paths the diff touched has an entry citing it; no paths — skipped,
 never passed).
 
-The log also carries a `bypasses:` list (D-2.7); its items are records, not
-divergences, and are validated only for shape.
+A missing log is an empty log (A-13, D-3.21) — the silence check still
+applies to it — and a contract declaring `decisions: []` passes explicitly
+(D-7.5). The log also carries a `bypasses:` list (D-2.7); its items are
+records, not divergences, and are validated only for shape.
 """
 
 from __future__ import annotations
@@ -83,7 +85,7 @@ def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
             problems.append(f"{where}: missing {key}")
     kind, klass = _norm(entry.get("kind")), _norm(entry.get("class"))
     if not kind and not klass:
-        problems.append(f"{where}: neither 'kind' (RFC 0001) nor 'class' (skill) present")
+        problems.append(f"{where}: neither 'kind' nor 'class' present")
     for key, vocabulary, value in (("grade", GRADES, _norm(entry.get("grade"))),
                                    ("kind", KINDS, kind), ("class", CLASSES, klass),
                                    ("action", ACTIONS, _norm(entry.get("action")))):
@@ -226,14 +228,14 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
                                  "drift_count": 0, "entries": []}
         silence_problems, _skipped = _check_silence(ctx, empty)
         if silence_problems:
-            header = ("no execution log — absence is an empty log (D-3.21), "
+            header = ("no execution log — absence is an empty log, "
                       "and the silence check still applies:")
             return BuiltinOutcome("fail", "\n".join([header, *silence_problems]))
         if not ctx.task.decisions:
-            return BuiltinOutcome("pass", "decisions: [] — none apply, explicitly (D-7.5)")
+            return BuiltinOutcome("pass", "decisions: [] — none apply, explicitly")
         return BuiltinOutcome(
             "pass",
-            f"no execution log — absence is an empty log (D-3.21); "
+            f"no execution log — absence is an empty log; "
             f"{len(ctx.task.decisions)} inherited decision(s), none touched",
         )
 

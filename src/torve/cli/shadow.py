@@ -1,6 +1,7 @@
 """`torve shadow` — replay a completed task from its parent commit (RFC 0004
 §5). Parsing and rendering only (D-15.6); the loop lives in
-`torve.application.shadow`.
+`torve.application.shadow`. The workspace is a truncated-history clone
+(D-4.7) and nothing is ever merged from a shadow run (D-4.4).
 
 The exit code reports the measurement, not the replay's fortunes: a red
 replay is a successful measurement of a red outcome, so a completed replay
@@ -55,13 +56,13 @@ def shadow_cmd(
     runtime_name: Annotated[RuntimeName | None, typer.Option(
         "--runtime", help="Override the configured runtime adapter.")] = None,
     depth: Annotated[int, typer.Option(
-        min=1, help="History depth of the truncated shadow clone (D-4.7).")] = 50,
+        min=1, help="History depth of the truncated shadow clone.")] = 50,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Replay a completed task from its parent commit in a truncated-history
-    workspace, never merging, and record the comparison (RFC 0004 §5)."""
+    workspace, never merging, and record the comparison."""
     from functools import partial
 
     from torve.adapters.agent.fake import FakeAgent, load_scenario
@@ -149,5 +150,5 @@ def shadow_cmd(
             console.print(f"  {label.replace('_', ' ')}: {stat['files_changed']} file(s), "
                           f"+{stat['insertions']} -{stat['deletions']}")
         console.print(f"  overlap: {', '.join(record['overlap_files']) or 'none'}")
-        closing(console, "nothing merged (D-4.4)", STYLE_DIM)
+        closing(console, "nothing merged", STYLE_DIM)
     raise typer.Exit(EXIT_OK)

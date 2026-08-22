@@ -29,7 +29,7 @@ def feedback(
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Record a ReviewFeedback entry for a task (RFC 0004 §6): appended, never
+    """Record a ReviewFeedback entry for a task: appended, never
     updated — keyed by task id, the latest entry wins at analysis time."""
     root = root.resolve()
     record = feedback_record(task_id, human_minutes, rework)

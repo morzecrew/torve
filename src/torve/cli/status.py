@@ -1,5 +1,6 @@
 """`torve status` and `torve reap` — parsing and rendering only (D-15.6); the
-sweep logic lives in `torve.application.reaper`.
+sweep logic lives in `torve.application.reaper` (RFC 0003 §4.2: cleanup by
+convention).
 """
 
 from __future__ import annotations
@@ -80,7 +81,8 @@ def reap_cmd(
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Sweep orphaned sandboxes and worktrees, by convention (RFC 0003 §4.2)."""
+    """Sweep orphaned sandboxes, worktrees and finished run state, by
+    convention."""
     from torve.adapters.store.durable import open_store
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.reaper import reap

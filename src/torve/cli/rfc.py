@@ -7,6 +7,7 @@ D-A.16) — defaulting to `rfcs/`.
 
 `new` derives its number as the maximum plus one (D-A.17); there is no way to
 create a document in a numbering hole (D-A.19) and no counter file to merge.
+INDEX.md is generated output, like a lockfile (D-A.6).
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ from torve.domain.states import EXIT_CONFIG, EXIT_OK
 # ----------------------- #
 
 rfc_app = typer.Typer(no_args_is_help=True,
-                      help="Validate and author the RFC corpus (RFC 0007 §3a).")
+                      help="Validate and author the RFC corpus.")
 
 TEMPLATE_TITLE = "RFC NNNN — <Title>"
 
@@ -60,7 +61,7 @@ def corpus_dir(root: Path, config_path: Path | None) -> Path:
     if not resolved.is_dir():
         raise fail(
             f"configuration error: no corpus directory at {resolved} "
-            "(rfcs.path, D-13.7)", EXIT_CONFIG)
+            "(the rfcs.path configuration key)", EXIT_CONFIG)
     return resolved
 
 
@@ -89,7 +90,7 @@ def check(
 ) -> None:
     """Validate the corpus: directory contents, frontmatter, decision tables,
     links, the dependency graph, and INDEX.md drift. A malformed corpus is a
-    configuration error — exit 3 (0007 §3a)."""
+    configuration error — exit 3."""
     from torve.config.rfc_parse import check_corpus
 
     rfc_dir = corpus_dir(root, config)
@@ -123,7 +124,7 @@ def index(
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Regenerate INDEX.md from frontmatter (D-A.6). The index is output,
+    """Regenerate INDEX.md from frontmatter. The index is output,
     like a lockfile — with `--check`, drift is reported and nothing is
     written."""
     from torve.config.rfc_parse import build_index, rfc_files
@@ -138,7 +139,7 @@ def index(
             out().print(f"OK    INDEX.md matches {len(files)} RFC(s)")
             raise typer.Exit(EXIT_OK)
         raise fail("INDEX.md differs from what `torve rfc index` writes — it is "
-                   "generated output (D-A.6); regenerate it instead of editing it",
+                   "generated output; regenerate it instead of editing it",
                    EXIT_CONFIG)
     index_path.write_text(rendered, encoding="utf-8")
     out().print(f"generated {index_path} ({len(files)} RFC(s))")
@@ -153,8 +154,8 @@ def new(
     config: ConfigOption = None,
 ) -> None:
     """Create the next document from the rfc-writer template: the number is
-    derived as the maximum plus one (D-A.17) — never chosen, never reused
-    (D-A.19) — and the index is regenerated."""
+    derived as the maximum plus one — never chosen, never reused — and the
+    index is regenerated."""
     from torve.application.skills import skills_root
     from torve.config.rfc_parse import build_index, next_number, rfc_files, slugify
 
@@ -202,7 +203,7 @@ def graph(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """The depends_on graph: every edge with the statuses on both ends, and
-    the inheritance hazards check would flag (0007 §3a)."""
+    the inheritance hazards check would flag."""
     from torve.config.rfc_parse import check_graph, fm_list, parse_frontmatter, rfc_files
 
     rfc_dir = corpus_dir(root, config)

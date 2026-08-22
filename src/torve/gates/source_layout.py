@@ -72,7 +72,7 @@ def _check_file(rel: str, text: str) -> list[str]:
         if stripped not in (DASH, DOT):
             problems.append(
                 f"{rel}:{number}: separator is not the 27-character form — "
-                f"expected {DASH!r} or the dotted twin, at any width but this one (D-14.1)"
+                f"expected {DASH!r} or the dotted twin, at any width but this one"
             )
             continue
         following = _next_content(lines, number - 1)
@@ -81,18 +81,18 @@ def _check_file(rel: str, text: str) -> list[str]:
             if len(dash_lines) > 1 and not following.startswith(("#", "__all__")):
                 problems.append(
                     f"{rel}:{number}: a dash beyond the post-import one carries no label — "
-                    "it says something changes without saying what (D-14.3)"
+                    "it says something changes without saying what"
                 )
         elif following.startswith("#"):
             problems.append(
                 f"{rel}:{number}: dot separator carries a label — dots separate peers, "
-                "and the peer names itself on the next line (D-14.4)"
+                "and the peer names itself on the next line"
             )
 
     if len(dash_lines) >= 3:
         problems.append(
             f"{rel}: {len(dash_lines)} structural dashes — three or more is a package, "
-            "not a layout choice (D-14.7); split the module"
+            "not a layout choice; split the module"
         )
 
     try:
@@ -107,7 +107,7 @@ def _check_file(rel: str, text: str) -> list[str]:
         ):
             problems.append(
                 f"{rel}: no post-import dash closing the preamble — every module with "
-                f"imports gets exactly one, after line {last_import} (D-14.2)"
+                f"imports gets exactly one, after line {last_import}"
             )
     return problems
 
@@ -127,7 +127,7 @@ def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         if target.name in FORBIDDEN_MODULE_NAMES:
             problems.append(
                 f"{rel}: module named {target.name!r} — a name that admits anything "
-                "accumulates everything; name the module for what it holds (D-15.5)"
+                "accumulates everything; name the module for what it holds"
             )
         problems += _check_file(rel, target.read_text(encoding="utf-8", errors="replace"))
 

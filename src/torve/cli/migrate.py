@@ -1,5 +1,5 @@
 """`torve migrate` — parsing and rendering only (D-15.6); the histories live
-in `torve.application.migrate`.
+in `torve.application.migrate` (RFC 0012: owner-grouped, forward-only).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def migrate_cmd(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
 ) -> None:
-    """Owner-grouped, forward-only SQL migrations (rfcs/0012-migrations.md).
+    """Apply forward-only SQL migrations, grouped by schema owner.
 
     Three histories — torve, substrate (pinned to a forze version), telemetry
     (stage 3+) — each with its own version counter. No downgrade exists.

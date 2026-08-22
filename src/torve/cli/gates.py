@@ -1,6 +1,6 @@
 """`torve gates run/check` and `torve size` — the gates-library commands
 (RFC 0002 §2). Parsing and rendering only (D-15.6); the checking lives in
-`torve.gates`.
+`torve.gates`. The sabotage suite is D-2.2; the size estimate, D-2.9.
 """
 
 from __future__ import annotations
@@ -118,7 +118,7 @@ def gates_run(
 
 
 def gates_check(fmt: FormatOption = Format.TEXT) -> None:
-    """Sabotage suite (D-2.2): a gate that cannot be shown to fail is not a
+    """Sabotage suite: a gate that cannot be shown to fail is not a
     check. Applies one deliberately bad diff per gate and asserts red, plus a
     clean twin per gate asserting green."""
     outcomes = sabotage.run_all()
@@ -142,7 +142,7 @@ def size(
     task_file: Annotated[Path, typer.Argument(exists=True)],
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Pre-dispatch size estimate for a task contract (D-2.9)."""
+    """Estimate whether a task contract is the right size to dispatch."""
     verdict = StaticThresholds().estimate(load_task(task_file))
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "size": verdict.size, "reasons": verdict.reasons})
