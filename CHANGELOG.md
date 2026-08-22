@@ -107,6 +107,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0018 drafted (CLI presentation): the D-11.8 deferral discharged
+  now that hand-run commands are known — one component vocabulary
+  (header, table, verdict marks, failure detail, closing line), fixed
+  colour semantics where colour is never the only carrier, `--format
+  markdown` on document-producing commands, a single-line TTY-only
+  live status for long waits, and the rule that tests pin JSON
+  byte-shapes and assert human output by content, never layout. Carries
+  the corpus's first mintable Phasing section — written to be the first
+  document planned by `torve plan`.
 - `torve context` — the loop's read leg (RFC 0007 §4, phase 2): one
   report projecting tasks by state, escalations by reason, execution-log
   proposals ready to become decision rows (with corpus-citation
