@@ -58,3 +58,42 @@ entries:
     proposal: 0018 or 0016 row — minted scopes and repository bookkeeping;
       pick one convention (include the globs at phasing time, or keep
       bookkeeping in docs commits) and write it down
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T22:10:00Z
+    attempt: 2
+    claim: >-
+      two rendering defects the owner's first real-terminal run surfaced —
+      the truncation and likely-landed notes were table rows in the first
+      column, sizing the column to the note (the proposals table grew a
+      gulf between "decision" and "from"); and 27 task ids in one cell is
+      noise wearing data. add_rows_truncated now returns the withheld count
+      and callers print a footer component after the table; id_list bounds
+      comma lists to the first eight plus "(+N more)"
+    evidence: src/torve/cli/console.py:129-150 — add_rows_truncated, footer,
+      id_list; call sites in src/torve/cli/context.py
+    action: decided
+    proposal: 0018 row — notes about a table print after it via the footer
+      component, never as rows; unbounded id lists render through id_list
+  - decision: D-18.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T22:11:00Z
+    attempt: 2
+    claim: the live_status component lands — one transient spinner line with
+      elapsed time on stderr (results stay on stdout, D-11.6), a no-op under
+      --plain, CI and --format json by rule — and gates run wraps its gate
+      pass in it, which is the 28-second wait the owner reported as reading
+      like a hang
+    evidence: src/torve/cli/console.py:178-196 — live_status;
+      src/torve/cli/gates.py:78-79 — the wrap
+    action: decided
+    notes: |
+      Coarse-grained on purpose: one line for the whole pass. Naming the
+      currently-running gate needs a progress hook on gates/runner.py,
+      which is outside this task's scope — proposed below.
+    proposal: 0018 or 0002 row — run_gates grows an optional per-gate
+      progress callback so the live status can name the gate it is inside;
+      until then the status is one line for the whole pass

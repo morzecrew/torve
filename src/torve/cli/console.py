@@ -17,11 +17,14 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections.abc import Generator
+from contextlib import contextmanager
 from enum import StrEnum
 
 import typer
 from rich import box
 from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 from rich.text import Text
 
@@ -124,13 +127,27 @@ def make_table(*columns: str, title: str | None = None) -> Table:
 
 
 def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]],
-                       limit: int = 50) -> None:
-    """At most `limit` rows, then one explicit `… N more` line (D-18.8) —
-    the full data is always in the JSON."""
+                       limit: int = 50) -> int:
+    """At most `limit` rows; returns how many were withheld (D-18.8). The
+    caller prints the `… N more` line *after* the table with `footer` — a
+    long note inside the first column would size the column to the note."""
     for row in rows[:limit]:
         table.add_row(*row)
-    if len(rows) > limit:
-        table.add_row(Text(f"… {len(rows) - limit} more", style=STYLE_DIM))
+    return max(0, len(rows) - limit)
+
+
+def footer(console: Console, text: str) -> None:
+    """The dim line after a table — truncation counts, likely-landed notes,
+    anything that describes the table rather than belonging in it."""
+    console.print(Text(f"  {text}", style=STYLE_DIM))
+
+
+def id_list(ids: list[str], shown: int = 8) -> str:
+    """A bounded comma list: the first few identifiers, then `(+N more)` —
+    27 task ids in one cell is noise wearing data (D-18.8)."""
+    if len(ids) <= shown:
+        return ", ".join(ids)
+    return ", ".join(ids[:shown]) + f" (+{len(ids) - shown} more)"
 
 
 def mark(outcome: str) -> Text:
@@ -156,3 +173,24 @@ def failure_detail(console: Console, text: str, limit: int = 40) -> None:
 def closing(console: Console, text: str, style: str = "") -> None:
     """Outcome and what happens now — the last line of every verb."""
     console.print(Text(text, style=style))
+
+
+@contextmanager
+def live_status(text: str, fmt: Format | None = None) -> Generator[None]:
+    """The one narrow lift of 0011 §7's deferral (RFC 0018 §6): a single
+    transient status line with elapsed time for steps longer than a moment.
+    TTY-only by rule, not by autodetection — absent under `--plain`, CI and
+    `--format json`, where it yields a no-op. Never a prompt (D-11.7)."""
+    if is_plain(fmt):
+        yield
+        return
+    progress = Progress(
+        SpinnerColumn(style=STYLE_DIM),
+        TextColumn("{task.description}", style=STYLE_DIM),
+        TimeElapsedColumn(),
+        console=err(),  # presentation is diagnostics, results stay on stdout
+        transient=True,
+    )
+    with progress:
+        progress.add_task(text, total=None)
+        yield

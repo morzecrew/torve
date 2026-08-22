@@ -21,7 +21,9 @@ from torve.cli.console import (
     STYLE_WARN,
     add_rows_truncated,
     emit_json,
+    footer,
     header,
+    id_list,
     make_table,
     out,
     styled,
@@ -98,7 +100,7 @@ def _render_rich(report: dict[str, Any]) -> None:
         tasks.add_row(
             styled(state, STYLE_PASS if state == "ready"
                    else STYLE_FAIL if state == "escalated" else ""),
-            str(len(ids)), ", ".join(ids))
+            str(len(ids)), id_list(ids))
     console.print(tasks)
 
     if report["escalations"]:
@@ -113,18 +115,19 @@ def _render_rich(report: dict[str, Any]) -> None:
     if report["proposals"]:
         proposals = make_table("decision", "from", "proposal",
                                title="Proposals awaiting the author")
-        add_rows_truncated(proposals, [
+        withheld = add_rows_truncated(proposals, [
             (styled(str(item["decision"]), STYLE_ID),
              styled(str(item["task"]), STYLE_ID),
              str(item["proposal"]).strip())
             for item in fresh
         ], limit=40)
+        console.print(proposals)
+        if withheld:
+            footer(console, f"… {withheld} more fresh proposal(s) (see JSON)")
         landed = len(report["proposals"]) - len(fresh)
         if landed:
-            proposals.add_row(
-                styled(f"… {landed} more from tasks the tables already cite — "
-                       "likely landed (see JSON)", STYLE_DIM))
-        console.print(proposals)
+            footer(console, f"… plus {landed} from tasks the decision tables "
+                            "already cite — likely landed (see JSON)")
 
     if report["gates"]:
         gates = make_table("gate", "runs", "failures", "flaky", "bypassed",
@@ -149,5 +152,7 @@ def _render_rich(report: dict[str, Any]) -> None:
                       if row["kind"] == "shadow" else str(row.get("adapter") or ""))
             rows.append((row["kind"], styled(str(row["task"]), STYLE_ID),
                          styled(str(row.get("config_hash")), STYLE_ID), shown, detail))
-        add_rows_truncated(costs, rows, limit=40)
+        withheld = add_rows_truncated(costs, rows, limit=40)
         console.print(costs)
+        if withheld:
+            footer(console, f"… {withheld} more record(s) (see JSON)")

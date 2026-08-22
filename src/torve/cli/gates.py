@@ -24,6 +24,7 @@ from torve.cli.console import (
     fail,
     failure_detail,
     header,
+    live_status,
     make_table,
     mark,
     out,
@@ -74,7 +75,8 @@ def gates_run(
     try:
         ctx = build_context(root, manifest, base=base, task_path=task_path)
         selected = {name.strip() for name in only.split(",")} if only else None
-        report = run_gates(ctx, only=selected)
+        with live_status("running gates", fmt):
+            report = run_gates(ctx, only=selected)
     except GitError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
     except ValueError as exc:
