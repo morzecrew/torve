@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- One transient retry in the GitHub adapters (T-0058): network-shaped gh
+  failures (timeout, TLS handshake, reset, lookup, 5xx) retry exactly
+  once; everything else raises unchanged. Idempotent destinations make
+  at-least-once safe.
 - A-27 + A-28 (T-0056, T-0057): the tick's order is poll, lane, reap,
   dispatch, sync — the lane before the reaper, merge-before-reap inside
   the tick; the loop publishes what it lands (base pushed fast-forward
