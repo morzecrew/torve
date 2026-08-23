@@ -191,6 +191,38 @@ def test_opensandbox_refuses_volumes(tmp_path):
 
 
 # ....................... #
+# Docker inside the sandbox (RFC 0017 §2a): socket mode mounts the host
+# daemon knowingly; the default mounts nothing; opensandbox refuses.
+
+
+def test_docker_socket_mode_mounts_the_host_daemon(docker_case):
+    _, workspace = docker_case
+    runtime = DockerRuntime(docker_mode="socket")
+    handle = runtime.create(auth_spec(), workspace)
+    try:
+        probe = runtime.exec(handle, "test -S /var/run/docker.sock", 30)
+        assert probe.exit_code == 0
+    finally:
+        runtime.destroy(handle)
+
+
+def test_docker_default_mode_mounts_no_socket(docker_case):
+    runtime, workspace = docker_case
+    handle = runtime.create(auth_spec(), workspace)
+    try:
+        probe = runtime.exec(handle, "test -e /var/run/docker.sock", 30)
+        assert probe.exit_code != 0
+    finally:
+        runtime.destroy(handle)
+
+
+def test_opensandbox_refuses_docker_in_any_mode():
+    with pytest.raises(ValueError, match="refuses docker access"):
+        OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub,
+                           docker_mode="socket")
+
+
+# ....................... #
 # Network mode and the proxy convention: a host whose egress runs through a
 # local proxy needs the sandbox on the host stack, seeing the same variables.
 

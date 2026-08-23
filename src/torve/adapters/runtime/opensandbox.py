@@ -91,7 +91,16 @@ def _exec_result(execution: Any, started: float) -> ExecResult:
 
 
 class OpenSandboxRuntime:
-    def __init__(self, config: OpenSandboxConfig, sdk: Any | None = None) -> None:
+    def __init__(self, config: OpenSandboxConfig, sdk: Any | None = None,
+                 docker_mode: str = "") -> None:
+        if docker_mode:
+            # RFC 0017 §2a, D-17.10: refused in any mode until the
+            # live-server integration decides what the server can offer.
+            raise ValueError(
+                "the opensandbox runtime refuses docker access in any mode — "
+                "use the docker runtime for a repository whose battery "
+                "drives containers"
+            )
         self._sdk = sdk or _sdk()
         api_key = os.environ.get(config.api_key_env, "")
         self._connection = self._sdk.ConnectionConfigSync(domain=config.domain, api_key=api_key)

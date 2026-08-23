@@ -10,6 +10,7 @@ platform itself bounds the lifecycle (RFC 0003 §4.1) even if the runner dies.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 from pathlib import Path
@@ -37,9 +38,14 @@ class DockerError(RuntimeError):
 
 
 class DockerRuntime:
-    def __init__(self, docker_bin: str = "docker", network: str = "") -> None:
+    def __init__(self, docker_bin: str = "docker", network: str = "",
+                 docker_mode: str = "") -> None:
         self.docker = docker_bin
         self.network = network  # "" = daemon default; "host" shares the host stack
+        # "socket" mounts the host daemon into every sandbox (RFC 0017 §2a,
+        # D-17.9/D-17.10): host-equivalent capability, an explicit
+        # per-repository opt-in. The image supplies the docker CLI.
+        self.docker_mode = docker_mode
 
     def _run(self, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -58,6 +64,13 @@ class DockerRuntime:
             # npm) dies on permissions. A writable container-local default
             # fixes the class; a spec or command-level HOME still wins.
             args += ["-e", "HOME=/tmp"]
+        if self.docker_mode == "socket":
+            sock = "/var/run/docker.sock"
+            args += ["-v", f"{sock}:{sock}"]
+            # The container runs as the invoking uid; the socket's owning
+            # group must ride along or the CLI cannot open it.
+            with contextlib.suppress(OSError):
+                args += ["--group-add", str(os.stat(sock).st_gid)]
         if self.network:
             args += ["--network", self.network]
             for name in PROXY_ENV:

@@ -11,6 +11,7 @@ are not (D-4b in spirit at the operator level too).
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -154,6 +155,14 @@ class RuntimeConfig(BaseModel):
     # isolation for the host's egress path, knowingly. Docker-only; the
     # OpenSandbox server owns its own egress model (RFC 0003 §4.1).
     network: str = ""
+    # Docker inside the sandbox (RFC 0017 §2a, D-17.9). "socket" mounts the
+    # host daemon's socket into every sandbox of the run — attempt and gates
+    # alike — and the image supplies the docker CLI. Host-equivalent
+    # capability, granted knowingly per repository (D-17.10): a container
+    # started over the host socket can mount any host path. The nested
+    # daemon is the named, deferred stronger mode. OpenSandbox refuses any
+    # value here.
+    docker: Literal["", "socket"] = ""
     opensandbox: OpenSandboxConfig = Field(default_factory=OpenSandboxConfig)
 
 

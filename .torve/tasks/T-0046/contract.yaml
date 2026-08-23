@@ -1,0 +1,57 @@
+# Minted by hand — execution of amendment A-24 (0017 §2a, D-17.9–D-17.11):
+# docker inside the sandbox, socket mode.
+schema_version: 1
+id: T-0046
+rfc: rfcs/0017-sandbox-provisioning.md
+phase: 1
+role: implement
+intent: |
+  runtime.docker: "" | "socket", off by default. Socket mode mounts the
+  host daemon's socket into every sandbox of the run — attempt and gates
+  alike — with the socket's owning group added so the invoking uid can
+  open it; the image supplies the docker CLI. OpenSandbox refuses docker
+  access in any mode until the live-server integration. Containers the
+  sandbox starts carry no torve labels and the reaper does not chase
+  them — the battery that starts them owns their lifecycle. The nested
+  daemon stays named and deferred.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/config/**"
+    - "src/torve/adapters/runtime/**"
+    - "src/torve/cli/**"
+    - "src/torve/application/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-17.9
+    grade: ASSUMED
+    text: runtime.docker "" | "socket" — socket mounts the host daemon into every
+      sandbox of the run, attempt and gates alike; the image supplies the docker
+      CLI; off by default. A nested daemon is the named, deferred stronger mode
+    paths:
+      - src/torve/config/runconfig.py
+      - src/torve/adapters/runtime/docker.py
+  - id: D-17.10
+    grade: LOCKED
+    text: Socket mode is host-equivalent capability, an explicit per-repository
+      opt-in; OpenSandbox refuses docker access in any mode until the live-server
+      integration
+    paths:
+      - src/torve/adapters/runtime/**
+  - id: D-17.11
+    grade: ASSUMED
+    text: Containers the sandbox starts carry no torve labels and the reaper does
+      not chase them; the battery that starts them owns their lifecycle
+    paths:
+      - src/torve/application/reaper.py
+budget: {}
+tier: executor

@@ -56,7 +56,12 @@ def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:
 
     adapter = override.value if override else config.runtime.adapter
     if adapter == "docker":
-        return DockerRuntime(network=config.runtime.network)
+        return DockerRuntime(network=config.runtime.network,
+                             docker_mode=config.runtime.docker)
     if adapter == "opensandbox":
-        return OpenSandboxRuntime(config.runtime.opensandbox)
+        try:
+            return OpenSandboxRuntime(config.runtime.opensandbox,
+                                      docker_mode=config.runtime.docker)
+        except ValueError as exc:
+            raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
     raise fail(f"configuration error: unknown runtime adapter {adapter!r}", EXIT_CONFIG)

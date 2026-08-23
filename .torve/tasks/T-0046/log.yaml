@@ -1,0 +1,76 @@
+schema_version: 1
+task: T-0046
+repo: morzecrew/torve
+base_sha: c8f6375bb8e555932c5d847e56365d1273f5f78f
+drift_count: 0
+entries:
+  - decision: D-17.9
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T16:50:00Z
+    attempt: 1
+    claim: >-
+      runtime.docker is a closed Literal, "" by default; socket mode mounts
+      /var/run/docker.sock into every sandbox the run creates — the runtime
+      is constructed once per run, so attempt and gates sandboxes get the
+      same mount — with the socket's owning group added because the
+      container runs as the invoking uid, which otherwise cannot open a
+      root:docker socket. The exit criterion ran live: on the lab
+      repository, a task whose acceptance battery starts a real container
+      (docker run alpine echo) replayed green in a socket sandbox built
+      from the lab's committed definition, and the run pushed and opened
+      its pull request through the forge leg
+    evidence: src/torve/config/runconfig.py:157-165 — the knob;
+      src/torve/adapters/runtime/docker.py:67-73 — the mount and group;
+      tests/test_runtime_conformance.py:198-216 — socket present in socket
+      mode, absent by default, over real docker
+    action: decided
+  - decision: D-17.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T16:51:00Z
+    attempt: 1
+    claim: >-
+      the trade stays explicit — the knob lives in the run configuration
+      the operator writes, never a code default, and its comment names the
+      capability (a container over the host socket can mount any host
+      path). OpenSandbox refuses any docker mode at construction, before a
+      connection exists, translated to a configuration error at the CLI
+    evidence: src/torve/adapters/runtime/opensandbox.py:95-103 — the
+      refusal; tests/test_runtime_conformance.py:219-222 — pinned
+    action: decided
+  - decision: D-17.11
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T16:52:00Z
+    attempt: 1
+    claim: >-
+      no code change was needed and that is the point — the reaper
+      enumerates by torve label and prefix only, so containers a sandbox
+      starts are invisible to it by construction; the docstring now states
+      the boundary so a later "improvement" does not teach cleanup to
+      chase what it cannot own
+    evidence: src/torve/application/reaper.py:14-17 — the stated boundary;
+      src/torve/application/reaper.py:60-66 — the label-driven sweep
+      untouched
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T16:53:00Z
+    attempt: 1
+    claim: >-
+      the group-add is load-bearing on rootful hosts — the sandbox runs as
+      the invoking uid (a D-4 reapability decision), and without the
+      socket's owning gid the CLI gets EACCES; stat of the socket resolves
+      the gid at create time and is suppressed quietly when the socket is
+      absent, because the sandbox may legitimately run on a host whose
+      socket lives elsewhere while the daemon still answers the mounted
+      path inside
+    evidence: src/torve/adapters/runtime/docker.py:70-73 — the stat with
+      OSError suppressed
+    action: decided
+    proposal: 0017 §2a note — socket mode adds the socket's owning group to
+      the container; a rootless daemon (user socket path) is untested and
+      joins the nested-mode conversation when it matters

@@ -11,6 +11,11 @@ processes (D-3.6: Postgres for real runs), so the v1 heartbeat heuristic
 stays as the fallback. Worktrees are removed only for terminal runs either
 way; a crashed run's worktree is triage evidence, not garbage.
 
+Containers a socket-mode sandbox starts (RFC 0017 §2a, D-17.11) carry no
+torve labels and are invisible here by design: cleanup-by-convention must
+not pretend to cover what it cannot see. The battery that starts them owns
+their lifecycle, exactly as it does on an operator's machine.
+
 A terminal run's state file and trace logs are swept with its worktree — the
 durable record of what happened is the task log and telemetry, and a state
 file that outlives the sweep shows up in `torve status` forever. What remains
