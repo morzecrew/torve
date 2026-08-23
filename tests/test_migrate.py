@@ -45,6 +45,8 @@ def test_a_pin_mismatch_is_a_migration_task_not_a_warning(monkeypatch):
 
 
 def test_missing_extra_names_the_install_and_exit_code(monkeypatch):
+    import sys
+
     real_import = builtins.__import__
 
     def no_yoyo(name, *args, **kwargs):
@@ -52,6 +54,10 @@ def test_missing_extra_names_the_install_and_exit_code(monkeypatch):
             raise ImportError("no module named yoyo")
         return real_import(name, *args, **kwargs)
 
+    # An earlier test may have imported yoyo; cached modules bypass
+    # __import__, so the absence being simulated must evict the family.
+    for cached in [m for m in sys.modules if m == "yoyo" or m.startswith("yoyo.")]:
+        monkeypatch.delitem(sys.modules, cached)
     monkeypatch.setattr(builtins, "__import__", no_yoyo)
     from torve.application.migrate import apply
 

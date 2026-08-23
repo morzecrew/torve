@@ -1,0 +1,43 @@
+# Minted by hand — the store joins the doctor before the lab's real runs
+# move onto postgres: a regime mismatch must be a check, not a symptom.
+schema_version: 1
+id: T-0062
+rfc: rfcs/0012-migrations.md
+phase: 2
+role: implement
+intent: |
+  torve doctor learns the run store: under a postgres store it verifies
+  the DSN environment variable is set, the database answers, and every
+  substrate migration step is applied — each failure naming what to do
+  about it — while a mock store reports itself honestly as the
+  in-process, test-only regime. The migration-currency question becomes
+  a reusable count shared with migrate --status rather than a second
+  computation.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/migrate.py"
+    - "src/torve/cli/doctor.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-12.7
+    grade: LOCKED
+    text: "Substrate migrations pin a forze version; torve doctor enforces it"
+    paths:
+      - src/torve/cli/doctor.py
+  - id: D-3.6
+    grade: ASSUMED
+    text: "Mock for tests, Postgres for real runs"
+    paths:
+      - src/torve/adapters/store/durable.py
+budget: {}
+tier: executor

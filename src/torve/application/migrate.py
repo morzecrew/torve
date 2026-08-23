@@ -101,6 +101,19 @@ def apply(target: str, dsn: str) -> int:
         return len(pending)
 
 
+def pending_count(target: str, dsn: str) -> int:
+    """How many of the target's steps a reachable database still lacks —
+    the currency question `torve doctor` and `migrate --status` share
+    (D-12.7's spirit: a schema mismatch is a check, not a symptom)."""
+    steps = steps_for(target)
+    if not steps:
+        return 0
+    get_backend, read_migrations = _yoyo()
+    backend = get_backend(_yoyo_dsn(dsn), migration_table=f"_torve_migrations_{target}")
+    migrations = read_migrations(str(steps[0].parent))
+    return len(backend.to_apply(migrations))
+
+
 def status(dsn: str | None) -> list[str]:
     """One line per target: available steps, applied count where a database
     is reachable — the first question during a forze upgrade (§5)."""
@@ -113,10 +126,7 @@ def status(dsn: str | None) -> list[str]:
         applied = "database not configured"
         if dsn:
             try:
-                get_backend, read_migrations = _yoyo()
-                backend = get_backend(_yoyo_dsn(dsn), migration_table=f"_torve_migrations_{target}")
-                migrations = read_migrations(str(steps[0].parent))
-                pending = len(backend.to_apply(migrations))
+                pending = pending_count(target, dsn)
                 applied = f"{len(steps) - pending}/{len(steps)} applied"
             except MigrateError:
                 applied = "yoyo not installed"

@@ -3,7 +3,11 @@ names what it looked for, what it found, and what to do about it. The forze
 schema pin is D-12.7: a mismatch must be a check, not a symptom. Image
 existence is D-17.2: a configured image the runtime cannot resolve, or a
 torve-agent image with no definition directory, is a configuration error
-before it becomes a mid-run surprise.
+before it becomes a mid-run surprise. The store check is D-3.6 made
+operational: a postgres store must name a DSN, answer a connection, and
+carry every substrate step (D-12.7's sibling question) before a run
+depends on it — and a mock store states plainly that it is the
+in-process, test-only regime.
 """
 
 from __future__ import annotations
@@ -54,20 +58,50 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     return checks
 
 
+def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    from torve.adapters.store.durable import resolve_dsn
+    from torve.application.migrate import MigrateError, pending_count
+
+    config = load_config(root, config_path)
+    if config.store.adapter != "postgres":
+        return [("store", True,
+                 (f"store: {config.store.adapter} — in-process and test-only; "
+                  "real runs take a postgres store"))]
+    try:
+        dsn = resolve_dsn(config.store)
+    except RuntimeError as error:
+        return [("store", False, str(error))]
+    try:
+        pending = pending_count("substrate", dsn)
+    except MigrateError as error:
+        return [("store", False, str(error))]
+    except Exception as error:  # the unreachable database is the finding
+        return [("store", False,
+                 (f"store: postgres named by ${config.store.dsn_env} did not "
+                  f"answer: {error} — start the database or fix the DSN"))]
+    if pending:
+        return [("store", False,
+                 (f"store: postgres reachable but {pending} substrate "
+                  "step(s) pending — run: torve migrate substrate"))]
+    return [("store", True, "store: postgres reachable, substrate schema current")]
+
+
 def doctor(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Preflight checks: configuration and environment readiness — the forze
-    schema pin, and every configured sandbox image resolvable in the runtime
-    with its definition present. A failed check is a configuration error
-    (exit 3), not a red gate."""
+    schema pin, the run store (a postgres store must name a DSN, answer, and
+    be migrated), and every configured sandbox image resolvable in the
+    runtime with its definition present. A failed check is a configuration
+    error (exit 3), not a red gate."""
     from torve.application.migrate import check_forze_pin
 
     root = root.resolve()
     ok, message = check_forze_pin()
     checks: list[tuple[str, bool, str]] = [("forze-pin", ok, message)]
+    checks += _store_checks(root, config_path)
     checks += _image_checks(root, config_path)
     healthy = all(passed for _, passed, _ in checks)
 

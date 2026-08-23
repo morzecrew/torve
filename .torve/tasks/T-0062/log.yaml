@@ -1,0 +1,40 @@
+schema_version: 1
+task: T-0062
+repo: morzecrew/torve
+base_sha: 215b38fd44810e4e4b1c96ddb045f1f8d6ca2710
+drift_count: 0
+entries:
+  - decision: D-12.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T20:33:00Z
+    attempt: 1
+    claim: >-
+      the doctor's enforcement widens from the forze pin to the store the
+      pin protects: under a postgres store it verifies the DSN variable
+      is set, the database answers, and no substrate step is pending —
+      each failure an instruction, never a traceback — and the currency
+      question is one computation shared with migrate --status, so the
+      two surfaces cannot drift apart
+    evidence: src/torve/cli/doctor.py:61-86 — the store check with its
+      three failure findings; src/torve/application/migrate.py:104-114 —
+      pending_count, reused at src/torve/application/migrate.py:129;
+      tests/test_postgres_integration.py:111-146 — behind-then-current
+      over a real migrated database
+    action: decided
+  - decision: D-3.6
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T20:34:00Z
+    attempt: 1
+    claim: >-
+      the mock/postgres split becomes visible at preflight instead of
+      implicit in configuration — a mock store reports itself as the
+      in-process, test-only regime so an operator flipping the lab to
+      real runs sees the store named before the first dispatch depends
+      on it
+    evidence: src/torve/cli/doctor.py:65-69 — the mock store named
+      honestly; tests/test_cli.py:102-131 — mock passes with the
+      test-only wording, a DSN-less or unreachable postgres store is a
+      red check with exit 3
+    action: decided

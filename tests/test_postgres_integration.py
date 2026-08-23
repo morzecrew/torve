@@ -108,6 +108,43 @@ async def battery(taskstore, suffix: str) -> None:
     assert await taskstore.request_cancel(pending.run_id)  # capability declared, ask recorded
 
 
+def test_doctor_store_check_tracks_migration_currency(pg_dsn, monkeypatch, tmp_path):
+    """The doctor's store check over a real database: behind before
+    migrate (with the instruction), current after (D-12.7's sibling)."""
+    import json
+
+    import yaml
+    from typer.testing import CliRunner
+
+    from torve.application.migrate import pending_count
+    from torve.cli import app
+
+    monkeypatch.setenv("TORVE_PG_DSN", pg_dsn)
+    root = tmp_path / "repo"
+    (root / ".torve").mkdir(parents=True)
+    (root / ".torve" / "config.yaml").write_text(yaml.safe_dump({
+        "schema_version": 1,
+        "runtime": {"adapter": "opensandbox"},
+        "store": {"adapter": "postgres"},
+    }), encoding="utf-8")
+
+    def store_check():
+        result = CliRunner().invoke(
+            app, ["doctor", "--root", str(root), "--format", "json"])
+        return {c["name"]: c for c in json.loads(result.stdout)["checks"]}["store"]
+
+    assert pending_count("substrate", pg_dsn) > 0
+    behind = store_check()
+    assert behind["ok"] is False
+    assert "torve migrate substrate" in behind["detail"]
+
+    migrate_apply("substrate", pg_dsn)
+    assert pending_count("substrate", pg_dsn) == 0
+    current = store_check()
+    assert current["ok"] is True
+    assert "current" in current["detail"]
+
+
 def test_migrated_database_passes_the_battery_fresh_and_populated(pg_dsn, monkeypatch):
     monkeypatch.setenv("TORVE_PG_DSN", pg_dsn)
     store_config = StoreConfig(adapter="postgres", lease_for=0.5,

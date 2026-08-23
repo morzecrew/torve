@@ -89,6 +89,49 @@ def test_doctor_json_and_exit():
     assert result.exit_code in (0, 3)  # 3 = configuration error, never 1
 
 
+def _doctor_repo(tmp_path, config):
+    import yaml
+
+    root = tmp_path / "repo"
+    (root / ".torve").mkdir(parents=True)
+    (root / ".torve" / "config.yaml").write_text(
+        yaml.safe_dump({"schema_version": 1, **config}), encoding="utf-8")
+    return root
+
+
+def test_doctor_names_the_mock_store_as_test_only(tmp_path):
+    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"}})
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    assert checks["store"]["ok"] is True
+    assert "test-only" in checks["store"]["detail"]
+
+
+def test_doctor_reds_on_a_postgres_store_with_no_dsn(tmp_path, monkeypatch):
+    monkeypatch.delenv("TORVE_PG_DSN", raising=False)
+    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"},
+                                   "store": {"adapter": "postgres"}})
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    assert result.exit_code == 3
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    assert checks["store"]["ok"] is False
+    assert "TORVE_PG_DSN" in checks["store"]["detail"]
+
+
+def test_doctor_reds_on_a_postgres_store_that_does_not_answer(tmp_path, monkeypatch):
+    # A DSN pointing nowhere: the unreachable database is the finding, with
+    # an instruction, not a traceback.
+    monkeypatch.setenv("TORVE_PG_DSN",
+                       "postgresql://nobody:nothing@127.0.0.1:1/none?connect_timeout=1")
+    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"},
+                                   "store": {"adapter": "postgres"}})
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    assert result.exit_code == 3
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    assert checks["store"]["ok"] is False
+    assert "did not answer" in checks["store"]["detail"]
+
+
 def test_run_missing_contract_is_a_config_error(tmp_path):
     result = CliRunner().invoke(app, ["run", "T-0000", "--root", str(tmp_path)])
     assert result.exit_code == 3
