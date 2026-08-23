@@ -8,7 +8,7 @@ depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-27"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -73,26 +73,39 @@ ships is better tested than any loop this repository would write.
 Fixed order, every tick, each leg skippable only by configuration or by
 having nothing to do:
 
-1. **Reap** — collect terminal footprints first, so the tick starts from
-   a true picture of what is running and the lane sees no corpses.
-2. **Poll** — read the board's commands and apply them as intents.
+1. **Poll** — read the board's commands and apply them as intents.
    Human words land before machine work: a `retry` posted overnight must
    re-queue before this tick's dispatch selects, and an operator's
    refusal-answer belongs on the thread before anything else moves.
-3. **Dispatch** — select at most **one** queued task (§4) and run it to
+2. **Lane** — process ready candidates, only under the approval switch
+   (§5b), and **before the reaper runs**: `ready` is terminal to the
+   engine and therefore sweepable, so a reap ahead of the lane destroys
+   the lane's own input. This is A-26's merge-before-reap ordering,
+   applied inside the tick.
+3. **Reap** — collect terminal footprints before dispatch, so the
+   scope-overlap check sees a corpse-free picture and the new run
+   claims cleanly.
+4. **Dispatch** — select at most **one** queued task (§4) and run it to
    its terminal state, synchronously, through the existing runner —
-   review minting, gates, provenance and the pull request included.
-4. **Lane** — process ready candidates, only under the approval switch
-   (§5b).
+   review minting, gates, provenance and the pull request included. A
+   candidate this leg produces lands next tick: its CI could not be
+   green mid-tick anyway.
 5. **Sync** — project run state onto the tracker and relay, notifier
    effects included. The board reflects the tick's end state, not its
    middle.
 
 A tick with nothing to do at any leg does nothing there and says so
-(§8). The order is a decision (D-19.3), not an accident: reap before
-dispatch keeps the scope-overlap check honest; poll before dispatch lets
-a human's overnight intent win the slot; sync last makes the board a
-postcondition.
+(§8). The order is a decision (D-19.3), not an accident: lane before
+reap keeps the lane's input alive; reap before dispatch keeps the
+scope-overlap check honest; poll first lets a human's overnight intent
+win the slot; sync last makes the board a postcondition.
+
+*Amendment note (A-27, 2026-08-24):* the order as accepted was reap,
+poll, dispatch, lane, sync — reap first "so the tick starts from a true
+picture". The second live tick disproved it: the reaper swept a READY
+candidate's state between the dispatch that produced it and the lane
+that would have landed it, exactly the failure A-26's merge-before-reap
+rule already named. The list above is the amended order.
 
 ## 4. What "queued" means
 
@@ -219,7 +232,7 @@ creates work" buys.
 | --- | --- | --- | --- | --- |
 | D-19.1 | `LOCKED` | The standing loop is a bounded tick (`torve tick`), never a resident daemon; cadence is delivered by the environment | `src/torve/application/loop.py` `src/torve/cli/tick.py` | One operational surface; a dead scheduler is visible silence, a daemon is a zombie that looks alive |
 | D-19.2 | `LOCKED` | One tick at a time per root, held by a lock file; an overlapping fire exits as a recorded no-op; a stale lock is broken loudly, and D-6.9's converging dispatch remains the backstop below it | `src/torve/application/loop.py` | Cron overlap is a certainty; it must be boring |
-| D-19.3 | `ASSUMED` | Tick order is fixed: reap, poll, dispatch, lane, sync | `src/torve/application/loop.py` | Human intents precede machine work; the board is a postcondition of the tick, not a snapshot of its middle |
+| D-19.3 | `ASSUMED` | Tick order is fixed: poll, lane, reap, dispatch, sync. *Amended by A-27 2026-08-24 — as accepted the order was reap-first, and the second live tick showed the reaper sweeping the lane's READY input; A-26's merge-before-reap applies inside the tick* | `src/torve/application/loop.py` | Human intents precede machine work; the lane's input outlives the reaper; the board is a postcondition of the tick, not a snapshot of its middle |
 | D-19.4 | `ASSUMED` | Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick, as doctrine not configuration | `src/torve/application/loop.py` | Deterministic from the file system alone; spend is bounded by cadence; a priority field would be a second planner |
 | D-19.5 | `LOCKED` | Intake pauses while the escalation queue holds `loop.pause_escalations` runs (default 1); every other leg keeps running — the queue may drain, not grow, by the loop's hand | `src/torve/application/loop.py` `src/torve/config/runconfig.py` | D-6.8 made mechanical: a queue nobody triages stops the machine, not the person |
 | D-19.6 | `LOCKED` | The tick's lane leg runs only under `promotion.auto_merge`; otherwise ready candidates accumulate for the operator | `src/torve/application/loop.py` | A scheduler is nobody's approval; D-6.2's opt-in is exactly this switch and no second knob is added |
@@ -270,4 +283,31 @@ creates work" buys.
 
 ## Amendments
 
-*(none yet)*
+### A-27 — 2026-08-24 — the lane precedes the reaper inside the tick (amends §3, D-19.3)
+
+**Found in implementation** — by the second live tick. Tick 1 dispatched
+a task to `ready` (its lane leg refused on unrelated content dirt); tick
+2 opened with the reaper, which collected the READY state and worktree —
+`ready` is terminal to the engine and sweepable by design — so the
+dispatch leg found nothing queued (the telemetry record correctly blocks
+re-dispatch) and the lane found no candidates. The candidate evaporated
+between two legs of one tick, with its work stranded on its branch and
+pull request.
+
+**Changed:** the tick order is poll → lane → reap → dispatch → sync.
+The lane moves ahead of the reaper — A-26's merge-before-reap ordering,
+which the corpus had already established for exactly this reason,
+applied inside the tick. Reap keeps its place ahead of dispatch, so the
+scope-overlap check still sees a corpse-free picture. A candidate
+produced by this tick's dispatch lands next tick; its CI could not be
+green mid-tick anyway.
+
+**Deliberately unchanged:** poll stays first (human intents precede
+machine work) and sync stays last (the board is a postcondition); the
+reaper itself is untouched — READY remains sweepable, because the lane
+now runs while the state is still there to land.
+
+**Recovery for the swept candidate:** the work was never lost — branch
+and pull request survive the state file. Recreating the READY run state
+is explicit operator surgery, recorded as such, and the next tick lands
+it through the normal path.
