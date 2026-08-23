@@ -1,0 +1,91 @@
+# Minted by `torve plan 0005` — phase 1: The finding and the role's mechanics
+schema_version: 1
+id: T-0038
+rfc: rfcs/0005-review-as-a-run.md
+phase: 1
+role: implement
+intent: 'Findings become a domain type and the review role becomes real in the
+
+  contract: Task gains targets, a review task refuses acceptance commands
+
+  by validation, the acceptance gate is skipped for the role rather than
+
+  passed with an empty list, and evidence location becomes a check that
+
+  discards findings citing coordinates nothing can resolve.'
+depends_on: []
+scope:
+  allow:
+  - src/torve/domain/**
+  - src/torve/gates/**
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+- uv run torve rfc check
+decisions:
+- id: D-5.1
+  grade: LOCKED
+  text: 'Review is a run with `role: review`, not a distinct subsystem'
+  paths:
+  - src/torve/application/review.py
+  - src/torve/application/runner.py
+- id: D-5.2
+  grade: LOCKED
+  text: The reviewer gets a read-only workspace and no forge credential; the runner posts
+    comments
+  paths:
+  - src/torve/application/review.py
+  - src/torve/adapters/runtime/**
+- id: D-5.3
+  grade: LOCKED
+  text: The reviewer never receives the author's session trace
+  paths:
+  - src/torve/application/review.py
+- id: D-5.4
+  grade: ASSUMED
+  text: Findings with unlocatable evidence are discarded automatically
+  paths:
+  - src/torve/application/review.py
+  - src/torve/gates/decisions_reported.py
+- id: D-5.6
+  grade: LOCKED
+  text: A seeded-defect corpus gates every prompt or model change
+  paths:
+  - .torve/review-corpus/**
+  - src/torve/cli/review.py
+- id: D-5.7
+  grade: ASSUMED
+  text: Third-party reviewer removal requires shadow-mode numbers, not preference
+  paths: []
+- id: D-5.8
+  grade: ASSUMED
+  text: Reviews on pull requests without a task run in degraded mode and are told so
+  paths:
+  - src/torve/application/review.py
+- id: D-5.9
+  grade: LOCKED
+  text: 'Review is minted as a task with `role: review` and `targets`, sharing the contract
+    shape'
+  paths:
+  - src/torve/domain/task.py
+- id: D-5.10
+  grade: LOCKED
+  text: A review task has no `acceptance`; the gate is skipped for the role
+  paths:
+  - src/torve/gates/acceptance.py
+  - src/torve/domain/task.py
+- id: D-5.11
+  grade: LOCKED
+  text: Review tasks are minted by the runner at `gated`, never by the planner
+  paths:
+  - src/torve/application/runner.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
