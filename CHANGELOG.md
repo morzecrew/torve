@@ -107,6 +107,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0006 executed, phases 1–2 (T-0041/T-0042): the merge train.
+  Dispatch refuses a task whose scope intersects an active run's — the
+  cause in the message, counted per contended path; `torve kill`
+  force-terminates one run; engine health rides the telemetry stream as
+  `kind: engine` records; escalations carry age and attention route,
+  and the context names how long the oldest has waited — the queue's
+  age, not its length, is the signal. `torve merge` lands ready
+  candidates one at a time: an unmoved base fast-forwards exactly as
+  measured, a moved base rebases in a disposable worktree and re-runs
+  the gates first, a conflict aborts untouched and exits 2 — the lane
+  never resolves one. The operator's invocation is the recorded
+  approval; `promotion.auto_merge` exists, off by default, for the
+  scheduler that does not exist yet.
 - RFC 0005 executed, phases 1–3 (T-0038..T-0040, the first three-phase
   planner mint): review is a run. `Finding` joins the domain and the
   review role becomes real in the contract (targets, no acceptance, the

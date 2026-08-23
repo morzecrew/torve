@@ -2,7 +2,7 @@
 id: "0006"
 title: Merge train and escalation policy
 status: accepted
-implementation: none
+implementation: partial
 depends_on: ["0003"]
 informed_by: ["0005"]
 supersedes: []
@@ -16,6 +16,7 @@ schema_version: 1
 
 # RFC 0006 — Merge train and escalation policy
 
+- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0041 prevention/kill/engine sight; T-0042 the serialized lane as `torve merge`). Outstanding: the §7 exit criteria accrue with dogfood use (ten landings, two weeks of resolution times); deferred with the forge: CI polling, the approvals/quiet-window fields, and the notifier the outbox feeds (D-3.18)
 - **Scope:** How candidates land, in what order, and how human attention is budgeted. Covers the serialized merge lane, promotion criteria, escalation routing, and parallelism limits. Excludes conflict resolution, which stays permanently out of scope.
 - **Inherits:** D-1, D-6 from RFC 0001
 
