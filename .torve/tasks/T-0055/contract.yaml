@@ -1,0 +1,92 @@
+# Minted by `torve plan 0019` — phase 1: The tick
+schema_version: 1
+id: T-0055
+rfc: rfcs/0019-standing-loop.md
+phase: 1
+role: implement
+intent: 'torve tick as one bounded pass over existing machinery: reap, poll,
+
+  dispatch of at most one queued task selected by the file-system rule,
+
+  the lane under promotion.auto_merge, tracker sync last. The tick
+
+  lock with loud stale-break, the pause threshold on the escalation
+
+  queue, the loop configuration block, and the per-tick engine event
+
+  with honest noops. No new run semantics anywhere — every leg is a
+
+  call into what already exists.'
+depends_on: []
+targets: []
+scope:
+  allow:
+  - src/torve/application/**
+  - src/torve/cli/**
+  - src/torve/config/**
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+- uv run torve rfc check
+decisions:
+- id: D-19.1
+  grade: LOCKED
+  text: The standing loop is a bounded tick (`torve tick`), never a resident daemon; cadence
+    is delivered by the environment
+  paths:
+  - src/torve/application/loop.py
+  - src/torve/cli/tick.py
+- id: D-19.2
+  grade: LOCKED
+  text: One tick at a time per root, held by a lock file; an overlapping fire exits as a recorded
+    no-op; a stale lock is broken loudly, and D-6.9's converging dispatch remains the backstop
+    below it
+  paths:
+  - src/torve/application/loop.py
+- id: D-19.3
+  grade: ASSUMED
+  text: 'Tick order is fixed: reap, poll, dispatch, lane, sync'
+  paths:
+  - src/torve/application/loop.py
+- id: D-19.4
+  grade: ASSUMED
+  text: Queued = contract with executable role, no run state, dependencies satisfied; selection
+    by ascending id; at most one dispatch per tick, as doctrine not configuration
+  paths:
+  - src/torve/application/loop.py
+- id: D-19.5
+  grade: LOCKED
+  text: Intake pauses while the escalation queue holds `loop.pause_escalations` runs (default
+    1); every other leg keeps running — the queue may drain, not grow, by the loop's hand
+  paths:
+  - src/torve/application/loop.py
+  - src/torve/config/runconfig.py
+- id: D-19.6
+  grade: LOCKED
+  text: The tick's lane leg runs only under `promotion.auto_merge`; otherwise ready candidates
+    accumulate for the operator
+  paths:
+  - src/torve/application/loop.py
+- id: D-19.7
+  grade: ASSUMED
+  text: 'Every tick appends one engine event recording each leg''s action or skip reason,
+    `noop: true` when nothing moved'
+  paths:
+  - src/torve/application/loop.py
+  - src/torve/application/telemetry.py
+- id: D-19.8
+  grade: LOCKED
+  text: 'The tick never creates work: it drains contracts and commands minted by humans or
+    by the human-invoked planner'
+  paths:
+  - src/torve/application/loop.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
