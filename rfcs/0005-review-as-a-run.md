@@ -1,7 +1,7 @@
 ---
 id: "0005"
 title: Review as a run
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0003", "0004"]
 informed_by: []
@@ -153,18 +153,92 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-5.1 | `LOCKED` | Review is a run with `role: review`, not a distinct subsystem | `src/torve/review/**` | Inherits budgets, cancellation, telemetry; reversing duplicates all of it |
-| D-5.2 | `LOCKED` | The reviewer gets a read-only workspace and no forge credential; the runner posts comments | `src/torve/review/**` | An agent that can fix-and-approve is not a reviewer |
-| D-5.3 | `LOCKED` | The reviewer never receives the author's session trace | `src/torve/review/**` | Otherwise it audits reasoning, not the change |
-| D-5.4 | `ASSUMED` | Findings with unlocatable evidence are discarded automatically | `src/torve/review/**` `src/torve/gates/decisions_reported.py` | Shared with the execution-log check; remove if it discards true positives |
-| D-5.6 | `LOCKED` | A seeded-defect corpus gates every prompt or model change | `src/torve/review/**` | Prompt tuning without it is guesswork |
+| D-5.1 | `LOCKED` | Review is a run with `role: review`, not a distinct subsystem | `src/torve/application/review.py` `src/torve/application/runner.py` | Inherits budgets, cancellation, telemetry; reversing duplicates all of it |
+| D-5.2 | `LOCKED` | The reviewer gets a read-only workspace and no forge credential; the runner posts comments | `src/torve/application/review.py` `src/torve/adapters/runtime/**` | An agent that can fix-and-approve is not a reviewer |
+| D-5.3 | `LOCKED` | The reviewer never receives the author's session trace | `src/torve/application/review.py` | Otherwise it audits reasoning, not the change |
+| D-5.4 | `ASSUMED` | Findings with unlocatable evidence are discarded automatically | `src/torve/application/review.py` `src/torve/gates/decisions_reported.py` | Shared with the execution-log check; remove if it discards true positives |
+| D-5.6 | `LOCKED` | A seeded-defect corpus gates every prompt or model change | `.torve/review-corpus/**` `src/torve/cli/review.py` | Prompt tuning without it is guesswork |
 | D-5.7 | `ASSUMED` | Third-party reviewer removal requires shadow-mode numbers, not preference | — | Four-step sequence in §7 |
-| D-5.8 | `ASSUMED` | Reviews on pull requests without a task run in degraded mode and are told so | `src/torve/review/**` | Prevents invented specifications |
+| D-5.8 | `ASSUMED` | Reviews on pull requests without a task run in degraded mode and are told so | `src/torve/application/review.py` | Prevents invented specifications |
 | D-5.9 | `LOCKED` | Review is minted as a task with `role: review` and `targets`, sharing the contract shape | `src/torve/domain/task.py` | A third role must not require a new mechanism |
-| D-5.10 | `LOCKED` | A review task has no `acceptance`; the gate is skipped for the role | `src/torve/gates/acceptance.py` | Its output is findings, not an exit code |
+| D-5.10 | `LOCKED` | A review task has no `acceptance`; the gate is skipped for the role | `src/torve/gates/acceptance.py` `src/torve/domain/task.py` | Its output is findings, not an exit code |
 | D-5.11 | `LOCKED` | Review tasks are minted by the runner at `gated`, never by the planner | `src/torve/application/runner.py` | Review follows execution; the planner would have to predict it |
 
 D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
+
+*(Paths relocated 2026-08-22 at acceptance, while draft: the design predates RFC 0015's source tree — there is no `review/` package; review logic lives in `application/review.py` beside the runner, the corpus under `.torve/review-corpus/`, per the D-32 relocation precedent.)*
+
+## Phasing
+
+*(Added 2026-08-22 at acceptance. The forge-facing legs — pull-request triggers, comment posting, the §7 replacement sequence and the two-week shadow — need a remote and stay operator/deferred work; the phases below are what a repository with no forge can build and verify.)*
+
+```yaml
+- phase: 1
+  title: The finding and the role's mechanics
+  intent: |
+    Findings become a domain type and the review role becomes real in the
+    contract: Task gains targets, a review task refuses acceptance commands
+    by validation, the acceptance gate is skipped for the role rather than
+    passed with an empty list, and evidence location becomes a check that
+    discards findings citing coordinates nothing can resolve.
+  scope:
+    - "src/torve/domain/**"
+    - "src/torve/gates/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+- phase: 2
+  title: The review run
+  depends_on: [1]
+  intent: |
+    Review runs through the pipeline: input assembled from the diff, the
+    target's contract, inherited decisions and gate results — never the
+    author's trace; the workspace mounts read-only and the reviewer holds
+    no credential beyond its tier's; findings parse from the agent's
+    output, unlocatable evidence is discarded before anyone sees it, a
+    surviving blocker escalates the target as blocker_finding and
+    everything else is recorded on the attempt; the runner mints and
+    drives the review task when its target's gates go green, replacing
+    the review-not-configured bridge — off by default in configuration.
+  scope:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+- phase: 3
+  title: Degraded mode and the seeded corpus
+  depends_on: [2]
+  intent: |
+    Reviews without a contract run in degraded mode and are told so
+    explicitly, so no specification is invented; the seeded-defect corpus
+    becomes a repository artefact under .torve/review-corpus/ with a
+    command that replays every case through the reviewer tier and reports
+    which expected findings were caught — the regression harness that
+    gates every prompt or model change.
+  scope:
+    - "src/torve/cli/**"
+    - ".torve/review-corpus/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+```
 
 ## 10. Exit criteria
 
