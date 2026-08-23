@@ -1,0 +1,38 @@
+schema_version: 1
+task: T-0058
+repo: morzecrew/torve
+base_sha: e325408ddc65db5c0c50586a8bc80895909145c7
+drift_count: 0
+entries:
+  - decision: D-8.6
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T05:10:00Z
+    attempt: 1
+    claim: >-
+      the retry is one, transport-shaped, and allow-listed — a nonzero gh
+      exit whose stderr matches a fixed set of network failure marks
+      retries after a two-second nap, everything else raises unchanged;
+      at-least-once is safe by construction because every destination
+      write is already idempotent (comment markers, forced label
+      creates, search-before-create issue lookups), and the sleeper is
+      injectable exactly as GhCi's is
+    evidence: src/torve/adapters/tracker/github.py:33-70 — the transient
+      set and the single retry; tests/test_tracker.py:334-380 — retried
+      once, real errors unretried, twice-transient raises after one
+    action: decided
+  - decision: D-8.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T05:11:00Z
+    attempt: 1
+    claim: >-
+      the transient set is duplicated verbatim in the vcs adapter's
+      GhScm rather than shared — the importlinter contract keeps
+      adapters independent, and a ten-string tuple is cheaper than a
+      new shared home whose only tenant would be this list; the two
+      copies carry the same T-0058 comment naming each other
+    evidence: src/torve/adapters/vcs/git.py:231-296 — the same contract
+      on the scm side; tests/test_pr_review.py:291-308 — pr_info
+      retried once, pinned
+    action: decided

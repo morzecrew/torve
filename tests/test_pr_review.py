@@ -286,3 +286,22 @@ def test_gitvcs_pr_surface_over_a_local_origin(tmp_path: Path) -> None:
     assert (workdir / "feature.py").is_file()
     vcs.remove_worktree(root, workdir)
     assert not workdir.exists()
+
+
+def test_ghscm_retries_a_transient_failure_once(monkeypatch):
+    # T-0058, the same transport contract as the tracker adapter's.
+    view = json.dumps({"number": 12, "title": "t", "author": {"login": "x"},
+                       "isDraft": False, "headRefOid": "e" * 40,
+                       "baseRefName": "main", "changedFiles": 1,
+                       "state": "OPEN"})
+    outcomes = iter([
+        subprocess.CompletedProcess([], 1, stdout="",
+                                    stderr="net/http: TLS handshake timeout"),
+        subprocess.CompletedProcess([], 0, stdout=view, stderr=""),
+    ])
+    monkeypatch.setattr(git_module.subprocess, "run",
+                        lambda *a, **k: next(outcomes))
+    naps: list[float] = []
+    scm = GhScm("example/lab", token_env=None, sleeper=naps.append)
+    assert scm.pr_info(12).number == 12
+    assert naps == [2.0]

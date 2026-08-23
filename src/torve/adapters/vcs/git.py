@@ -228,15 +228,24 @@ class GitLane:
         return _git(root, "config", "user.name").stdout.strip() or "unknown"
 
 
+# Network-shaped failures worth one retry (T-0058). Kept in each GitHub
+# adapter separately — adapters are independent and may not share code.
+TRANSIENT = ("timeout", "tls handshake", "connection reset",
+             "connection refused", "temporary failure", "no such host",
+             "unexpected eof", "network is unreachable", "502", "503")
+
+
 class GhScm:
     """Pull requests through the gh CLI — the runner speaks to the forge,
     the agent never does (D-10.1). The credential is resolved from the
     CONFIGURED environment-variable name at call time and handed to gh as
     GH_TOKEN in the subprocess environment only."""
 
-    def __init__(self, repo: str | None = None, token_env: str | None = None) -> None:
+    def __init__(self, repo: str | None = None, token_env: str | None = None,
+                 sleeper: Callable[[float], None] = time.sleep) -> None:
         self.repo = repo
         self.token_env = token_env
+        self.sleeper = sleeper
 
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
         command = ["gh", "pr", "create", "--head", branch,
@@ -271,11 +280,19 @@ class GhScm:
                     "environment does not carry it"
                 )
             env = {**os.environ, "GH_TOKEN": token}
-        proc = subprocess.run(command, capture_output=True, text=True,
-                              check=False, env=env)
-        if proc.returncode != 0:
-            raise RuntimeError(proc.stderr.strip() or f"gh {args[0]} failed")
-        return proc.stdout
+        for attempt in (1, 2):
+            proc = subprocess.run(command, capture_output=True, text=True,
+                                  check=False, env=env)
+            if proc.returncode == 0:
+                return proc.stdout
+            error = proc.stderr.strip() or f"gh {args[0]} failed"
+            # One retry for a transient transport failure (T-0058): every
+            # destination write is idempotent, so at-least-once is safe.
+            if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
+                self.sleeper(2.0)
+                continue
+            raise RuntimeError(error)
+        raise RuntimeError("unreachable")  # for the type checker
 
     def pr_info(self, number: int) -> PrInfo:
         document = cast("dict[str, Any]", json.loads(self._gh(

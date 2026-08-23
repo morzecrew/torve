@@ -329,3 +329,52 @@ def test_an_empty_commander_list_refuses_everyone(root):
     # Configuring nothing decides nothing — even the repo owner is refused
     # until named.
     assert outcome.applied is False and "not a configured commander" in outcome.detail
+
+
+def test_a_transient_gh_failure_retries_exactly_once(monkeypatch):
+    # T-0058: the scheduled ticks hit TLS handshake timeouts through the
+    # local proxy — transient, never twice. One retry; the destination's
+    # marker dedupe absorbs any at-least-once duplicate.
+    outcomes = iter([
+        subprocess.CompletedProcess([], 1, stdout="",
+                                    stderr='Post "https://api.github.com/graphql": '
+                                           "net/http: TLS handshake timeout"),
+        subprocess.CompletedProcess([], 0, stdout="[]", stderr=""),
+    ])
+    monkeypatch.setattr(gh_module.subprocess, "run",
+                        lambda *a, **k: next(outcomes))
+    naps: list[float] = []
+    board = GithubIssues("example/lab", token_env=None, sleeper=naps.append)
+    assert board._gh("issue", "list") == "[]"
+    assert naps == [2.0]
+
+
+def test_a_real_gh_failure_raises_without_retry(monkeypatch):
+    calls: list[int] = []
+
+    def fake_run(*a, **k):
+        calls.append(1)
+        return subprocess.CompletedProcess([], 1, stdout="",
+                                           stderr="GraphQL: Could not resolve issue")
+
+    monkeypatch.setattr(gh_module.subprocess, "run", fake_run)
+    naps: list[float] = []
+    board = GithubIssues("example/lab", token_env=None, sleeper=naps.append)
+    with pytest.raises(RuntimeError, match="Could not resolve"):
+        board._gh("issue", "view", "1")
+    assert len(calls) == 1 and naps == []
+
+
+def test_a_twice_transient_failure_raises_after_the_single_retry(monkeypatch):
+    calls: list[int] = []
+
+    def fake_run(*a, **k):
+        calls.append(1)
+        return subprocess.CompletedProcess([], 1, stdout="",
+                                           stderr="connection reset by peer")
+
+    monkeypatch.setattr(gh_module.subprocess, "run", fake_run)
+    board = GithubIssues("example/lab", token_env=None, sleeper=lambda _s: None)
+    with pytest.raises(RuntimeError, match="connection reset"):
+        board._gh("issue", "list")
+    assert len(calls) == 2

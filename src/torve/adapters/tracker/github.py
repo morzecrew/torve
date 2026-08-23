@@ -18,6 +18,8 @@ import json
 import os
 import re
 import subprocess
+import time
+from collections.abc import Callable
 from typing import Any, cast
 
 from torve.application.ports import ReflectResult, TrackerCommand
@@ -28,11 +30,19 @@ from torve.application.tracker import COMMANDS
 COMMAND_RE = re.compile(r"^/torve\s+([a-z]+)\s*$", re.MULTILINE)
 KEY_MARK = "torve-key:"
 
+# Network-shaped failures worth one retry (T-0058). Kept in each GitHub
+# adapter separately — adapters are independent and may not share code.
+TRANSIENT = ("timeout", "tls handshake", "connection reset",
+             "connection refused", "temporary failure", "no such host",
+             "unexpected eof", "network is unreachable", "502", "503")
+
 
 class GithubIssues:
-    def __init__(self, repo: str, token_env: str | None = None) -> None:
+    def __init__(self, repo: str, token_env: str | None = None,
+                 sleeper: Callable[[float], None] = time.sleep) -> None:
         self.repo = repo
         self.token_env = token_env
+        self.sleeper = sleeper
         self._issues: dict[str, int] = {}  # projection cache, never authority
 
     def _gh(self, *args: str) -> str:
@@ -45,11 +55,20 @@ class GithubIssues:
                     "runner's environment does not carry it"
                 )
             env = {**os.environ, "GH_TOKEN": token}
-        proc = subprocess.run(["gh", *args, "--repo", self.repo],
-                              capture_output=True, text=True, check=False, env=env)
-        if proc.returncode != 0:
-            raise RuntimeError(proc.stderr.strip() or f"gh {args[0]} failed")
-        return proc.stdout
+        for attempt in (1, 2):
+            proc = subprocess.run(["gh", *args, "--repo", self.repo],
+                                  capture_output=True, text=True, check=False,
+                                  env=env)
+            if proc.returncode == 0:
+                return proc.stdout
+            error = proc.stderr.strip() or f"gh {args[0]} failed"
+            # One retry for a transient transport failure (T-0058): every
+            # destination write is idempotent, so at-least-once is safe.
+            if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
+                self.sleeper(2.0)
+                continue
+            raise RuntimeError(error)
+        raise RuntimeError("unreachable")  # for the type checker
 
     def _issue_for(self, task_id: str, title: str, create: bool = True) -> int | None:
         if task_id in self._issues:

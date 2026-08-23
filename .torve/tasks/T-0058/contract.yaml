@@ -1,0 +1,46 @@
+# Minted by hand — the flake the scheduled ticks keep hitting: gh calls
+# through the local proxy fail with TLS handshake timeouts on roughly a
+# third of invocations, always transient, never twice in a row.
+schema_version: 1
+id: T-0058
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  The GitHub adapters retry a transiently failed gh invocation exactly
+  once: a nonzero exit whose stderr is network-shaped (timeout, TLS
+  handshake, connection reset or refused, name lookup, 5xx) waits
+  briefly and retries; any other failure — and a second transient one —
+  raises as before. Safe by construction: every destination write is
+  already idempotent (comment markers, label creates, issue lookups),
+  so an at-least-once duplicate is absorbed where it lands. The sleeper
+  is injectable, as GhCi's already is.
+depends_on: [T-0057]
+targets: []
+scope:
+  allow:
+    - "src/torve/adapters/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.5
+    grade: LOCKED
+    text: Tracker text is untrusted input and is never treated as specification
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/adapters/tracker/**
+  - id: D-8.6
+    grade: ASSUMED
+    text: "`reflect` returns applied/refused/unsupported; refusal is a logged divergence"
+    paths:
+      - src/torve/application/ports.py
+      - src/torve/adapters/tracker/**
+budget: {}
+tier: executor
