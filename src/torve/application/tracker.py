@@ -209,12 +209,22 @@ def _apply(root: Path, command: TrackerCommand) -> CommandOutcome:
                           "no active hold — dispatch re-checks at run time")
 
 
-def poll_and_apply(root: Path, tracker: Tracker) -> PollReport:
-    """Inbound commands: intents validated against the store; every outcome
-    — applied or refused — is answered on the thread it came from."""
+def poll_and_apply(root: Path, tracker: Tracker,
+                   commanders: tuple[str, ...] = ()) -> PollReport:
+    """Inbound commands: authorization precedes validation — a command
+    applies only when its actor is a configured commander, and an empty
+    list refuses everyone (T-0054; the board is an unattended channel once
+    the loop polls it). Every outcome — applied or refused — is answered
+    on the thread it came from."""
     report = PollReport()
     for command in tracker.poll_commands():
-        outcome = _apply(root, command)
+        if command.actor not in commanders:
+            outcome = CommandOutcome(
+                command.verb, command.task_id, command.actor, False,
+                f"actor {command.actor} is not a configured commander "
+                "(tracker.commanders)")
+        else:
+            outcome = _apply(root, command)
         word = "applied" if outcome.applied else "refused"
         tracker.comment(
             command.task_id,

@@ -261,6 +261,10 @@ class TrackerConfig(BaseModel):
     # "notify" and "harness owner"; RFC 0003 D-3.18). A name, never a
     # secret; empty keeps the notifier inert.
     notify: str = ""
+    # Forge logins whose /torve commands apply (T-0054): authorization
+    # precedes validation, and an empty list refuses every command —
+    # configuring nothing decides nothing.
+    commanders: list[str] = Field(default_factory=list)
 
 
 class ReviewConfig(BaseModel):

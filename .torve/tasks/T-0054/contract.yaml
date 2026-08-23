@@ -1,0 +1,47 @@
+# Minted by hand — the authorization gap the standing loop makes live:
+# RFC 0019's poll leg applies board commands unattended, and today any
+# commenter's /torve verb is validated only against store state, never
+# against who is asking.
+schema_version: 1
+id: T-0054
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  Tracker commands are authorized before they are validated: a command
+  applies only when its actor is in the configured tracker.commanders
+  list of forge logins. An empty list refuses every command — configuring
+  nothing decides nothing — and an unauthorized command is answered on
+  its thread like any other refusal and recorded as an engine event.
+  Authorization lives in the application above the port; the adapter
+  keeps reporting actors, trusting nothing.
+depends_on: [T-0053]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.3
+    grade: LOCKED
+    text: Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change
+    paths:
+      - src/torve/application/tracker.py
+  - id: D-8.5
+    grade: LOCKED
+    text: Tracker text is untrusted input and is never treated as specification
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/adapters/tracker/**
+budget: {}
+tier: executor

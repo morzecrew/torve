@@ -1,0 +1,36 @@
+schema_version: 1
+task: T-0054
+repo: morzecrew/torve
+base_sha: ad2f9d689f7ab267e4e133c12e7e380d9d433bec
+drift_count: 0
+entries:
+  - decision: D-8.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T01:10:00Z
+    attempt: 1
+    claim: >-
+      authorization precedes validation and lives in the application
+      above the port: the adapter keeps reporting actors from forge data
+      it does not trust, and poll_and_apply refuses an unconfigured
+      actor before the intent ever reaches the store — the refusal is
+      answered on-thread and recorded like any other outcome, so an
+      unauthorized attempt is visible, not silent
+    evidence: src/torve/application/tracker.py:212-227 — the check ahead
+      of _apply; tests/test_tracker.py:307-318 — a retry that would have
+      validated, refused on actor alone
+    action: decided
+  - decision: D-8.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T01:11:00Z
+    attempt: 1
+    claim: >-
+      an empty tracker.commanders list refuses every command, the repo
+      owner included — configuring nothing decides nothing, and the
+      default posture of an unattended channel must be closed; the list
+      holds forge logins, names never secrets, beside tracker.notify
+    evidence: src/torve/config/runconfig.py:263-267 — the field and its
+      contract; tests/test_tracker.py:321-331 — everyone refused until
+      named
+    action: decided

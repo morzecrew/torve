@@ -120,7 +120,7 @@ def test_retry_applies_only_to_an_escalated_run(root):
     state.escalate(EscalationReason.POISON_CEILING, "3 attempts")
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("retry", "T-6004", "misery7100", "c1")]
-    report = poll_and_apply(root, tracker)
+    report = poll_and_apply(root, tracker, ("misery7100",))
     assert report.outcomes[0].applied is True
     assert RunState.load(naming.state_file(root, "T-6004")).state is TaskState.QUEUED
     assert tracker.comments[-1][2] == "cmd:c1"  # answered on its thread
@@ -130,7 +130,7 @@ def test_a_command_against_the_wrong_state_is_refused_and_answered(root):
     run_state(root, "T-6005", TaskState.READY)
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("retry", "T-6005", "misery7100", "c2")]
-    report = poll_and_apply(root, tracker)
+    report = poll_and_apply(root, tracker, ("misery7100",))
     outcome = report.outcomes[0]
     assert outcome.applied is False and "escalated" in outcome.detail
     task_id, body, key = tracker.comments[-1]
@@ -143,7 +143,7 @@ def test_abandon_respects_the_transition_table(root):
     run_state(root, "T-6006", TaskState.RUNNING)
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("abandon", "T-6006", "misery7100", "c3")]
-    outcome = poll_and_apply(root, tracker).outcomes[0]
+    outcome = poll_and_apply(root, tracker, ("misery7100",)).outcomes[0]
     assert outcome.applied is False and "not a legal exit" in outcome.detail
 
 
@@ -151,7 +151,7 @@ def test_an_unknown_verb_is_refused_by_the_fixed_vocabulary(root):
     run_state(root, "T-6007", TaskState.READY)
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("redeploy", "T-6007", "anyone", "c4")]
-    outcome = poll_and_apply(root, tracker).outcomes[0]
+    outcome = poll_and_apply(root, tracker, ("anyone",)).outcomes[0]
     assert outcome.applied is False and "vocabulary" in outcome.detail
 
 
@@ -298,3 +298,34 @@ def test_github_notify_mentions_even_when_assignment_fails(monkeypatch):
     # not leave it pending forever.
     assert result.outcome == "applied" and "assign failed" in result.detail
     assert any("issue comment 9" in c and "@operator" in c for c in calls)
+
+
+# Authorization precedes validation (T-0054): the board is an unattended
+# command channel once the loop polls it.
+
+
+def test_an_unconfigured_actor_is_refused_before_validation(root):
+    state = run_state(root, "T-6110", TaskState.RUNNING)
+    from torve.domain.states import EscalationReason
+
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts")
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("retry", "T-6110", "rando", "c10")]
+    outcome = poll_and_apply(root, tracker, ("misery7100",)).outcomes[0]
+    # The retry would have validated — the actor did not.
+    assert outcome.applied is False and "not a configured commander" in outcome.detail
+    assert tracker.comments[-1][2] == "cmd:c10"  # still answered on-thread
+    assert RunState.load(naming.state_file(root, "T-6110")).state is TaskState.ESCALATED
+
+
+def test_an_empty_commander_list_refuses_everyone(root):
+    state = run_state(root, "T-6111", TaskState.RUNNING)
+    from torve.domain.states import EscalationReason
+
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts")
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("retry", "T-6111", "misery7100", "c11")]
+    outcome = poll_and_apply(root, tracker).outcomes[0]
+    # Configuring nothing decides nothing — even the repo owner is refused
+    # until named.
+    assert outcome.applied is False and "not a configured commander" in outcome.detail
