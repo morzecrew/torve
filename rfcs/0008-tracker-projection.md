@@ -2,7 +2,7 @@
 id: "0008"
 title: Tracker projection
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0003"]
 informed_by: []
 supersedes: []
@@ -16,7 +16,7 @@ schema_version: 1
 
 # RFC 0008 — Tracker projection
 
-- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0049 the transactional outbox; T-0050 the GitHub Issues projection, live on the lab: issues created and labelled, the relay replay delivering nothing, a refused command answered on its thread). command authorization executed 2026-08-24 (T-0054, pulled forward of the first multi-writer board because RFC 0019's unattended poll leg made it live — D-8.9: a command applies only when its actor is in `tracker.commanders`, an empty list refuses everyone). Outstanding: the `approve` command (waits on promotion approvals as engine state), and any second adapter (Linear/Jira arrive when a team lives there)
+- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0049 the transactional outbox; T-0050 the GitHub Issues projection, live on the lab: issues created and labelled, the relay replay delivering nothing, a refused command answered on its thread). command authorization executed 2026-08-24 (T-0054, pulled forward of the first multi-writer board because RFC 0019's unattended poll leg made it live — D-8.9: a command applies only when its actor is in `tracker.commanders`, an empty list refuses everyone). `approve` executed 2026-08-24 (T-0061 — a commander's approval, bound to the branch tip at apply time, recorded on the run state for the lane's promotion requirement). The remaining item is condition-gated, not debt: a second adapter (Linear/Jira) arrives when a team lives there. Judged complete 2026-08-24
 - **Scope:** Projecting engine state onto an external task tracker as a presentation surface, the outbound mapping, idempotency rules, the restricted inbound command set, and what each tracker's state vocabulary costs to adapt. Excludes storing any authoritative state in a tracker, and excludes editing task contracts from a tracker.
 - **Inherits:** D-1, D-5, D-22 from RFC 0001 · outbox relay from RFC 0003 §5
 - **Related:** RFC 0006 (escalation routing), RFC 0007 (planner read surface)
