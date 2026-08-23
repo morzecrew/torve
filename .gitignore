@@ -224,3 +224,4 @@ __marimo__/
 .torve/skills/
 .torve/tmp/
 .wt/
+.torve/review-corpus/*/*.trace.log

@@ -2,7 +2,7 @@
 id: "0005"
 title: Review as a run
 status: accepted
-implementation: none
+implementation: partial
 depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
@@ -17,6 +17,7 @@ schema_version: 1
 
 # RFC 0005 — Review as a run
 
+- **Implementation state:** phases 1–3 executed 2026-08-22 (T-0038 finding/role mechanics, T-0039 the review run, T-0040 degraded mode and the seeded corpus — measured green live with a deepseek reviewer). Outstanding, with the forge: pull-request triggers (§4), comment posting through the SCM port, the §7 replacement sequence and the two-week shadow comparison
 - **Scope:** Independent automated review, implemented as a second role of the same run pipeline rather than a special case; its isolation rules, output contract, trigger paths, calibration, and how its quality is measured. Covers replacing a third-party pull-request reviewer. Excludes human review policy and promotion rules, which belong to RFC 0006.
 - **Inherits:** D-2 (models produce data, config decides consequences), D-3, D-4, D-22 from RFC 0001
 

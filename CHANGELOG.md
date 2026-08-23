@@ -107,6 +107,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0005 executed, phases 1–3 (T-0038..T-0040, the first three-phase
+  planner mint): review is a run. `Finding` joins the domain and the
+  review role becomes real in the contract (targets, no acceptance, the
+  gate skipped for the role); the evidence locator is one mechanism
+  with two consumers, discarding findings nothing can resolve; the
+  runner mints and drives the review when its target's gates go green —
+  input composed from diff/contract/decisions/gate results, never the
+  author's trace, workspace mounted read-only (physically refused,
+  conformance-tested), a surviving blocker escalating the target as
+  blocker_finding. `torve review corpus` replays seeded-defect cases
+  through the reviewer tier and exits red on a dropped catch or an
+  invented blocker on a clean case — measured green live with a
+  deepseek reviewer, which also caught the harness-chatter parsing
+  defect before it ever gated a prompt change. Off by default;
+  `review.on: [task_gated]` enables it. Deferred with the forge: PR
+  triggers, comment posting, the replacement sequence.
 - RFC 0017 executed (T-0036 mechanism, T-0037 definitions): the sandbox
   image is an input — the runtime resolves the configured image to its
   content digest at dispatch, the digest joins `config_hash` and rides
