@@ -16,6 +16,7 @@ ships (RFC 0003 §6).
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import shutil
 from collections.abc import Awaitable, Callable
@@ -33,6 +34,7 @@ from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 from pathspec import GitIgnoreSpec
 
+from torve.application.forge import compose_pr
 from torve.application.ports import (
     Agent,
     AgentContext,
@@ -458,11 +460,21 @@ def real_hooks(
         author = f"{_agent_identity(agent_meta)} <agents@torve.local>"
         sha = await asyncio.to_thread(deps.vcs.commit_all, worktree, message,
                                       author, config.vcs.signing_key)
-        pushed = deps.vcs.push(worktree, naming.branch(task.id)) if sha else False
+        # The credential is resolved by NAME here, at the runner boundary
+        # (D-4b): the value lives only in this process and the subprocess
+        # environments the adapters compose.
+        token = (os.environ.get(config.scm.token_env)
+                 if config.scm.token_env else None)
+        pushed = (await asyncio.to_thread(
+            deps.vcs.push, worktree, naming.branch(task.id), token)
+            if sha else False)
         pr_url = ""
         if pushed and config.scm.open_pr:
-            pr_url = deps.scm.open_pr(worktree, naming.branch(task.id),
-                                      f"{task.id}: {task.rfc or 'task'}", message)
+            title, pr_body = compose_pr(task, state.attempts, digest,
+                                        agent_meta, list(last_pass["results"]),
+                                        worktree)
+            pr_url = await asyncio.to_thread(
+                deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body)
         fact = (f"committed {sha[:10]}" if sha else "nothing to commit")
         fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
         return fact

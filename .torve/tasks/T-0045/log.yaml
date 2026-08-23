@@ -1,0 +1,137 @@
+schema_version: 1
+task: T-0045
+repo: morzecrew/torve
+base_sha: 0636b2e9a29198c4744054658d1cff6d06cb2aea
+drift_count: 0
+entries:
+  - decision: D-10.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T15:40:00Z
+    attempt: 1
+    claim: >-
+      the forge leg keeps the division intact — push and pull request are
+      issued by the runner's adapters from records; nothing in the sandbox
+      path gained a credential or a forge verb, and the live landing was
+      produced by an agent that returned only a tree
+    evidence: src/torve/application/runner.py:466-477 — token resolution
+      and PR composition at the landing; `gh api
+      repos/Misery7100/torve-remote-lab/pulls/1` — the live pull request
+      the run opened
+    action: decided
+  - decision: D-10.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T15:41:00Z
+    attempt: 1
+    claim: >-
+      held on the remote, not just locally — the landed commit on the lab
+      repository shows author "fake <agents@torve.local>" and committer
+      Torve, exactly what phase 1 composed
+    evidence: >-
+      `gh api repos/Misery7100/torve-remote-lab/commits/torve/T-0001` —
+      author fake, email agents@torve.local, committer Torve
+    action: decided
+  - decision: D-10.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T15:42:00Z
+    attempt: 1
+    claim: >-
+      unchanged this phase — signing stays at the landing commit from
+      phase 1; the lab demo ran unsigned (no key configured), which the
+      config documents as the honest default
+    evidence: src/torve/config/runconfig.py:216-224 — VcsConfig untouched
+      by this diff's runconfig change
+    action: decided
+  - decision: D-10.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T15:43:00Z
+    attempt: 1
+    claim: >-
+      the trailers travelled — the pushed branch on the forge carries
+      Torve-Task, Torve-Attempt, Torve-Agent and Torve-Config, so the
+      history-reconstructible-from-trailers property now holds on the
+      remote copy too
+    evidence: >-
+      `gh api repos/Misery7100/torve-remote-lab/commits/torve/T-0001
+      --jq .commit.message` — "torve(T-0001): attempt 1 green" with all
+      four trailers
+    action: decided
+  - decision: D-10.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T15:44:00Z
+    attempt: 1
+    claim: >-
+      enforced structurally, which is stronger than a state check: the
+      push path exposes no force flag at all — every push is additive to
+      the task's own branch, and git itself refuses a non-fast-forward.
+      The state-conditional force the RFC describes becomes meaningful
+      only when a pre-review rewrite path exists (the forge polling leg);
+      building the guard now would protect a capability nothing exposes
+    evidence: src/torve/adapters/vcs/git.py:79-103 — push has no force
+      parameter and targets only refs/heads/<task-branch>
+    action: decided
+  - decision: D-10.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T15:45:00Z
+    attempt: 1
+    claim: >-
+      the body is built from the contract, gate outcomes with durations,
+      inherited decisions with grades, the log's divergent entries
+      (contradicted/departed/blocked — routine resolved entries are
+      omitted), cost and trace; the agent's prose appears nowhere, and an
+      unparseable log surfaces as its own warning line rather than
+      silence. Titles cap at 72 characters because a folded intent is one
+      long line
+    evidence: src/torve/application/forge.py:26-84 — composition and the
+      divergence filter; tests/test_forge.py:25-52 — records in, prose
+      out, divergences surfaced
+    action: decided
+  - decision: D-10.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T15:46:00Z
+    attempt: 1
+    claim: >-
+      untouched in behaviour — the revert role from phase 1 now inherits
+      the credentialed landing for free, since revert lands through the
+      same land hook that pushes and composes the pull request
+    evidence: src/torve/application/runner.py:451-479 — one landing path
+      for every role
+    action: decided
+  - decision: D-10.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T15:47:00Z
+    attempt: 1
+    claim: >-
+      unchanged — the landing still makes exactly one commit per attempt,
+      and the live branch shows one commit for attempt 1
+    evidence: >-
+      `gh api repos/Misery7100/torve-remote-lab/commits/torve/T-0001` —
+      the branch tip is the single attempt commit over the seed
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T15:48:00Z
+    attempt: 1
+    claim: >-
+      the credential passes value-free through every layer the operator
+      can observe — config carries the environment-variable NAME
+      (scm.token_env), the runner resolves it once in-process, git
+      receives it through a credential helper reading the subprocess
+      environment and gh as GH_TOKEN in the subprocess environment; it
+      never appears on argv, in the worktree, in config files or in
+      telemetry. The tests pin never-on-argv for both surfaces
+    evidence: tests/test_forge.py:51-94 — argv asserted clean, environment
+      asserted carrying, absent-token asserted loud
+    action: decided
+    proposal: 0010 §5 note — vault injection maps, in the local regime, to
+      a named environment variable resolved at the runner boundary; the
+      vault arrives with the substrate

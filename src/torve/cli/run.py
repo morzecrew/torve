@@ -121,7 +121,8 @@ def run_cmd(
         runtime=runtime_for(config, runtime_name),
         agent=agent,
         vcs=GitVcs(),
-        scm=GhScm() if config.scm.open_pr else NullScm(),
+        scm=(GhScm(config.scm.repo, config.scm.token_env)
+             if config.scm.open_pr else NullScm()),
         store=open_store,
         review_agent=review_agent,
     )

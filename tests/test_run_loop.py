@@ -99,7 +99,7 @@ class MockVcs:
         self.authors.append(author)
         return "abcdef123456"
 
-    def push(self, worktree, branch):
+    def push(self, worktree, branch, token=None):
         return False
 
     def landed_shas(self, worktree, task_id):

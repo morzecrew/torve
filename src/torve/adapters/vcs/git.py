@@ -10,6 +10,7 @@ returns False, the engine never resolves one.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -75,11 +76,26 @@ class GitVcs:
         _git(worktree, "reset", "--hard")
         return False
 
-    def push(self, worktree: Path, branch: str) -> bool:
+    def push(self, worktree: Path, branch: str, token: str | None = None) -> bool:
+        """Push targets only the task's own branch — additive, no force path
+        exists (D-10.5 held structurally). The token, when given, reaches git
+        through a credential helper reading the runner's environment: never
+        on argv, never in the worktree (D-4b)."""
         remotes = _git(worktree, "remote")
         if "origin" not in remotes.stdout.split():
             return False
-        proc = _git(worktree, "push", "-u", "origin", f"HEAD:refs/heads/{branch}")
+        config: list[str] = []
+        env = None
+        if token:
+            helper = ("!f() { echo username=x-access-token; "
+                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
+            env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+        proc = subprocess.run(
+            ["git", "-C", str(worktree), *config,
+             "push", "-u", "origin", f"HEAD:refs/heads/{branch}"],
+            capture_output=True, text=True, check=False, env=env,
+        )
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git push failed")
         return True
@@ -128,14 +144,31 @@ class GitLane:
 
 
 class GhScm:
-    """Pull requests through the gh CLI — the runner speaks to the forge, the
-    agent never does (D-10.1 ahead of its RFC)."""
+    """Pull requests through the gh CLI — the runner speaks to the forge,
+    the agent never does (D-10.1). The credential is resolved from the
+    CONFIGURED environment-variable name at call time and handed to gh as
+    GH_TOKEN in the subprocess environment only."""
+
+    def __init__(self, repo: str | None = None, token_env: str | None = None) -> None:
+        self.repo = repo
+        self.token_env = token_env
 
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
-        proc = subprocess.run(
-            ["gh", "pr", "create", "--head", branch, "--title", title, "--body", body],
-            capture_output=True, text=True, check=False, cwd=worktree,
-        )
+        command = ["gh", "pr", "create", "--head", branch,
+                   "--title", title, "--body", body]
+        if self.repo:
+            command += ["--repo", self.repo]
+        env = None
+        if self.token_env:
+            token = os.environ.get(self.token_env)
+            if not token:
+                raise RuntimeError(
+                    f"scm.token_env names {self.token_env!r} but the runner's "
+                    "environment does not carry it"
+                )
+            env = {**os.environ, "GH_TOKEN": token}
+        proc = subprocess.run(command, capture_output=True, text=True,
+                              check=False, cwd=worktree, env=env)
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "gh pr create failed")
         return proc.stdout.strip()

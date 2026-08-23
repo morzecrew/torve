@@ -225,9 +225,16 @@ class VcsConfig(BaseModel):
 
 
 class ScmConfig(BaseModel):
+    """The remote forge (RFC 0010 §2). The credential is named, never held:
+    `token_env` is the NAME of the environment variable the runner reads at
+    push/PR time (D-4b) — the value stays in the runner's process and no
+    sandbox ever sees it. `repo` is owner/name on the forge."""
+
     model_config = ConfigDict(extra="forbid")
 
-    open_pr: bool = False  # no remote yet; flip per repository when one exists
+    open_pr: bool = False  # flip per repository once a remote exists
+    repo: str | None = None
+    token_env: str | None = None
 
 
 class ReviewConfig(BaseModel):
