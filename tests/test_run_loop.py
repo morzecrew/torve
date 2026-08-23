@@ -126,7 +126,7 @@ def rig(repo, monkeypatch):
 
     def scripted_gates(*args, **kwargs):
         code = gate_outcomes.pop(0) if gate_outcomes else 0
-        return code, "scripted", "cafecafe1234"
+        return code, "scripted", "cafecafe1234", [], ""
 
     monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
     return repo, deps, runtime, vcs, gate_outcomes

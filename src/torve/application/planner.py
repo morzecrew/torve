@@ -168,7 +168,7 @@ def globs_intersect(left: list[str], right: list[str]) -> bool:
     )
 
 
-def _next_task_number(root: Path) -> int:
+def next_task_number(root: Path) -> int:
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     numbers = [0]
     if tasks_dir.is_dir():
@@ -264,7 +264,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
         )
 
     ordered = sorted(entries, key=lambda e: e.phase)  # stable: document order within a phase
-    next_number = _next_task_number(root)
+    next_number = next_task_number(root)
     ids_by_phase: dict[int, list[str]] = {}
     planned: list[PlannedTask] = []
     sizing = StaticThresholds()

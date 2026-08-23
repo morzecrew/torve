@@ -219,11 +219,34 @@ class ScmConfig(BaseModel):
     open_pr: bool = False  # no remote yet; flip per repository when one exists
 
 
+class ReviewConfig(BaseModel):
+    """Review triggers (RFC 0005 §4). Off by default — a blocker stopping
+    the run is configuration deciding a consequence (D-2), and configuring
+    nothing decides nothing. Only the board-driven trigger exists today; the
+    pull-request triggers arrive with a forge remote."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    on: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _known_triggers(self) -> ReviewConfig:
+        supported = {"task_gated"}
+        unknown = [trigger for trigger in self.on if trigger not in supported]
+        if unknown:
+            raise ValueError(
+                f"unsupported review trigger(s) {', '.join(unknown)} — only "
+                "task_gated exists until a forge remote is integrated"
+            )
+        return self
+
+
 class RunnerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: int = SCHEMA_VERSION
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    review: ReviewConfig = Field(default_factory=ReviewConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     poison_ceiling: int = 3  # checked before dispatch; ceiling reached -> escalated, never retry

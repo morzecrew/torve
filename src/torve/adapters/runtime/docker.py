@@ -47,9 +47,10 @@ class DockerRuntime:
         )
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
+        mount_mode = ":ro" if spec.workspace_read_only else ""
         args = ["run", "-d", "--init", "--name", spec.name,
                 "--user", f"{os.getuid()}:{os.getgid()}",
-                "-v", f"{workspace.resolve()}:{spec.workdir}",
+                "-v", f"{workspace.resolve()}:{spec.workdir}{mount_mode}",
                 "-w", spec.workdir]
         if "HOME" not in spec.env:
             # The container runs as the invoking uid with no passwd entry, so

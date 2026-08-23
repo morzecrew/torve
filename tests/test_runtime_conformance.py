@@ -195,6 +195,24 @@ def test_opensandbox_refuses_volumes(tmp_path):
 # local proxy needs the sandbox on the host stack, seeing the same variables.
 
 
+def test_docker_read_only_workspace_physically_refuses_writes(docker_case):
+    # D-5.2: the reviewer cannot fix-and-approve — the mount itself refuses.
+    runtime, workspace = docker_case
+    (workspace / "code.py").write_text("x = 1\n", encoding="utf-8")
+    handle = runtime.create(auth_spec(workspace_read_only=True), workspace)
+    try:
+        write = runtime.exec(handle, "touch /work/evil.py", 30)
+        assert write.exit_code != 0
+        read = runtime.exec(handle, "cat /work/code.py", 30)
+        assert read.exit_code == 0 and "x = 1" in read.output
+        # Host-side writes stay visible through the mount (the staged prompt).
+        (workspace / "prompt.md").write_text("late", encoding="utf-8")
+        late = runtime.exec(handle, "cat /work/prompt.md", 30)
+        assert late.exit_code == 0 and late.output.strip() == "late"
+    finally:
+        runtime.destroy(handle)
+
+
 def test_docker_network_host_shares_the_host_stack(docker_case, monkeypatch):
     _, workspace = docker_case
     monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")

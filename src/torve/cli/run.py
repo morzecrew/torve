@@ -88,6 +88,22 @@ def run_cmd(
             raise fail("configuration error: --scenario is FakeAgent-only", EXIT_CONFIG)
         agent = HarnessAgent(tier)
 
+    review_agent: Agent | None = None
+    if "task_gated" in config.review.on:
+        try:
+            reviewer_tier = tier_for(config, "reviewer")
+            # The reviewer's egress routes like any tier's — enforced here,
+            # before a sandbox exists.
+            route_provider(config.providers, repository_name(root), reviewer_tier.provider)
+        except (ProviderDenied, ValueError) as exc:
+            raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+        if reviewer_tier.adapter == "fake":
+            review_agent = FakeAgent(None)
+        else:
+            from torve.adapters.agent.harness import HarnessAgent
+
+            review_agent = HarnessAgent(reviewer_tier)
+
     deps = RunDeps(
         workspace=GitWorkspace(root),
         runtime=runtime_for(config, runtime_name),
@@ -95,6 +111,7 @@ def run_cmd(
         vcs=GitVcs(),
         scm=GhScm() if config.scm.open_pr else NullScm(),
         store=open_store,
+        review_agent=review_agent,
     )
     try:
         state = run_task(root, task, config, deps)

@@ -114,7 +114,8 @@ class HarnessAgent:
     def run(self, ctx: AgentContext) -> AgentResult:
         stage = ctx.workspace / ".torve" / "tmp"
         stage.mkdir(parents=True, exist_ok=True)
-        (ctx.workspace / PROMPT_RELPATH).write_text(build_prompt(ctx.task), encoding="utf-8")
+        prompt = ctx.prompt if ctx.prompt is not None else build_prompt(ctx.task)
+        (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")
 
         # str.replace, not str.format: the command template is shell and may
         # legitimately contain braces of its own.

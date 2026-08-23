@@ -1,0 +1,93 @@
+schema_version: 1
+task: T-0039
+repo: morzecrew/torve
+base_sha: e16ccfc644702af63a76e4b4a4639ed0afb6eda0
+drift_count: 0
+entries:
+  - decision: D-5.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:40:00Z
+    attempt: 1
+    claim: review runs through the pipeline — its own contract on disk, its
+      own run state walking the same machine, the same sandbox mechanics,
+      an attempt-shaped telemetry record with the agent block. One narrowing
+      taken knowingly, v1 drives a single attempt (the contract's budget is
+      one iteration); the multi-attempt loop for reviews arrives when a
+      reviewer earns retries
+    evidence: src/torve/application/review.py:165-245 — run_review walks
+      claimed/running/gated/reviewed/ready and appends the record
+    action: decided
+  - decision: D-5.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:41:00Z
+    attempt: 1
+    claim: the workspace bind mounts read-only — the docker conformance case
+      observes a write physically refused while reads and host-side staging
+      stay visible — and the reviewer's spec carries only its tier's env
+      names, no volumes, no forge credential
+    evidence: tests/test_runtime_conformance.py:196-212 — the read-only
+      case; src/torve/application/review.py:180-188 — the spec
+    action: decided
+  - decision: D-5.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:42:00Z
+    attempt: 1
+    claim: the reviewer's whole input is composed by the runner — diff,
+      contract, inherited decisions, gate results — and the composition has
+      no access to the author's trace by construction; the composed prompt
+      rides AgentContext.prompt so the adapter stages it verbatim, keeping
+      context composition the runner's
+    evidence: src/torve/application/review.py:71-127 — build_review_prompt's
+      inputs are the function's whole signature
+    action: decided
+  - decision: D-5.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T22:43:00Z
+    attempt: 1
+    claim: findings run through the shared locator before anyone sees them;
+      a blocker with unlocatable evidence is discarded and counted, and the
+      test pins that the target lands rather than escalating on a
+      fabricated coordinate
+    evidence: tests/test_review_run.py:104-113 — the discarded-blocker case
+    action: decided
+  - decision: D-5.11
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T22:44:00Z
+    attempt: 1
+    claim: the runner mints the review contract when its target's gates go
+      green and drives it in the same synchronous run; the planner is
+      untouched; shadow replays never review (they measure the harness);
+      review configured with no reviewer agent raises loudly instead of
+      silently skipping — the appearance of coverage is the failure mode
+    evidence: src/torve/application/runner.py:384-412 — the hook built only
+      for live implement runs, with the loud guard
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T22:45:00Z
+    attempt: 1
+    claim: >-
+      three settlements the RFC left open. Consequence mapping is v1-fixed:
+      a surviving blocker escalates as blocker_finding, everything else
+      rides the record — the smallest honest reading of "consequence is
+      config" until thresholds exist. Unparseable reviewer output is
+      recorded as its own outcome and the target proceeds: neither invented
+      as clean nor allowed to block work, the middle that keeps a broken
+      reviewer visible without making it a gate. And the minted phase-2
+      scope needed src/torve/cli/run.py added by hand — agent construction
+      imports adapters, which application cannot — the same wiring-seam
+      lesson T-0028 logged, now legal cross-phase overlap
+    evidence: src/torve/application/review.py:214-221 — the fact vocabulary
+      including unparseable; .torve/tasks/T-0039/contract.yaml:2-6 — the
+      widening note
+    action: decided
+    proposal: 0005 rows — the v1 consequence mapping (blocker escalates,
+      the rest records) and the unparseable-output outcome; a review.on
+      thresholds knob arrives when calibration data exists

@@ -1,4 +1,8 @@
 # Minted by `torve plan 0005` — phase 2: The review run
+# Scope widened by hand before execution: the reviewer agent is wired into
+# RunDeps by the CLI (agent construction imports adapters, which application
+# cannot), so src/torve/cli/run.py joins the allow list — the phase-scope
+# seam lesson of T-0028, legal cross-phase overlap under D-7.23.
 schema_version: 1
 id: T-0039
 rfc: rfcs/0005-review-as-a-run.md
@@ -25,6 +29,7 @@ depends_on:
 - T-0038
 scope:
   allow:
+  - src/torve/cli/run.py
   - src/torve/application/**
   - src/torve/adapters/**
   - src/torve/config/**

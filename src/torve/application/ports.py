@@ -56,6 +56,10 @@ class SandboxSpec:
     # writes (RFC 0004 §2, D-4.2). One per worker slot, never the host
     # config directory.
     volumes: dict[str, str] = field(default_factory=dict)
+    # A reviewer physically cannot fix-and-approve (RFC 0005 §2, D-5.2):
+    # the workspace bind mounts read-only. Host-side writes (the staged
+    # prompt, the trace) stay visible through the mount.
+    workspace_read_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -126,6 +130,10 @@ class AgentContext:
     runtime: Runtime
     workdir: str
     timeout_s: float
+    # Context composition is the runner's (D-3.19): when the runner hands a
+    # composed prompt — the review input, assembled without the author's
+    # trace (D-5.3) — the adapter stages it verbatim instead of building one.
+    prompt: str | None = None
 
 
 @dataclass(frozen=True)

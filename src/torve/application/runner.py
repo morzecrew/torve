@@ -51,6 +51,7 @@ from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import load_manifest
 from torve.config.runconfig import RunnerConfig, TierConfig, image_for, tier_for
+from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import build_context, resolve_base
@@ -71,6 +72,10 @@ class RunDeps:
     vcs: Vcs
     scm: Scm
     store: StoreFactory
+    # The reviewer's agent (RFC 0005), built by the CLI from the reviewer
+    # tier when review is configured — cross-model by pointing the tier at
+    # a different vendor (D-5.1). None means review cannot run.
+    review_agent: Agent | None = None
 
 
 @dataclass
@@ -82,6 +87,10 @@ class AttemptHooks:
     halted: Callable[[], bool]  # locked-conflict detection after an attempt
     gates: Callable[[RunState], Awaitable[tuple[int, str, str]]]  # exit, summary, config hash
     land: Callable[[RunState, str], Awaitable[str]]  # returns the recorded fact
+    # After green gates, before landing (RFC 0005, D-5.11): returns the fact
+    # for the reviewed transition, or None when the review escalated the
+    # target. Absent -> the review-not-configured bridge.
+    review: Callable[[RunState], Awaitable[str | None]] | None = None
 
 
 async def drive_attempts(
@@ -134,8 +143,13 @@ async def drive_attempts(
             state.save()
             continue
 
-        state.transition(TaskState.REVIEWED,
-                         "gates green; review not configured (RFC 0005 pending)")
+        if hooks.review is not None:
+            review_fact = await hooks.review(state)
+            if review_fact is None:
+                return state  # a surviving blocker escalated the target
+            state.transition(TaskState.REVIEWED, review_fact)
+        else:
+            state.transition(TaskState.REVIEWED, "gates green; review not configured")
         fact = await hooks.land(state, digest)
         state.transition(TaskState.READY, fact)
         state.save()
@@ -225,8 +239,10 @@ def _run_gates_in_worktree(
     run_id: str, root: Path, agent_meta: dict[str, Any] | None = None,
     base: str | None = None, image: str | None = None,
     image_digest: str | None = None,
-) -> tuple[int, str, str]:
-    """(exit_code, summary, config_hash). Raises on infrastructure failure."""
+) -> tuple[int, str, str, list[GateResult], str]:
+    """(exit_code, summary, config_hash, results, patch) — the results and
+    the patch feed the review's input when one is configured. Raises on
+    infrastructure failure."""
     manifest_path = layout.gates_file(worktree)
     if not manifest_path.is_file():
         raise FileNotFoundError(
@@ -268,7 +284,7 @@ def _run_gates_in_worktree(
     record = build_record(ctx, report, digest, agent=agent_meta)
     append_record(root / manifest.telemetry, record)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
-    return report.exit_code, summary, digest
+    return report.exit_code, summary, digest, report.results, ctx.patch
 
 
 def real_hooks(
@@ -339,11 +355,17 @@ def real_hooks(
     def halted() -> bool:
         return _log_has_halted_entry(worktree, task.id)
 
+    # The last gate pass's results and patch, kept for the review's input —
+    # the reviewer judges exactly what the gates judged.
+    last_pass: dict[str, Any] = {"results": [], "patch": "", "digest": ""}
+
     async def gates(state: RunState) -> tuple[int, str, str]:
-        return await asyncio.to_thread(
+        exit_code, summary, digest, results, patch = await asyncio.to_thread(
             _run_gates_in_worktree, worktree, task.id, config, deps.runtime,
             state.run_id, root, agent_meta, gates_base, image, image_digest,
         )
+        last_pass.update(results=results, patch=patch, digest=digest)
+        return exit_code, summary, digest
 
     async def land(state: RunState, digest: str) -> str:
         message = (f"torve({task.id}): attempt {state.attempts} green\n\n"
@@ -359,7 +381,38 @@ def real_hooks(
         fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
         return fact
 
-    return AttemptHooks(attempt=attempt, halted=halted, gates=gates, land=land)
+    review_hook = None
+    if not shadow and task.role == "implement" and "task_gated" in config.review.on:
+        # Review follows execution (D-5.11): minted here, never by the
+        # planner. A shadow replay measures the harness, not the reviewer.
+        if deps.review_agent is None:
+            raise ValueError(
+                "review is configured (review.on: task_gated) but no reviewer "
+                "agent was provided"
+            )
+        reviewer_agent = deps.review_agent
+
+        async def review_hook_fn(state: RunState) -> str | None:
+            from torve.application.review import mint_review_task, run_review
+
+            review_task = mint_review_task(root, task)
+            outcome = await asyncio.to_thread(
+                run_review, root, worktree, task, review_task, config,
+                deps.runtime, reviewer_agent,
+                str(last_pass["patch"]), list(last_pass["results"]),
+                str(last_pass["digest"]),
+            )
+            if outcome.blockers:
+                detail = "; ".join(f.claim for f in outcome.blockers)
+                state.escalate(EscalationReason.BLOCKER_FINDING,
+                               f"{outcome.review_id}: {detail[:300]}")
+                return None
+            return f"{outcome.fact} ({outcome.review_id})"
+
+        review_hook = review_hook_fn
+
+    return AttemptHooks(attempt=attempt, halted=halted, gates=gates, land=land,
+                        review=review_hook)
 
 
 async def _run_task_async(
