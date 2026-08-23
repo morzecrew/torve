@@ -1,0 +1,21 @@
+schema_version: 1
+task: T-0056
+repo: morzecrew/torve
+base_sha: bdf58c957aa15d1e5fd2383ca45e83c8a3ecc6c9
+drift_count: 0
+entries:
+  - decision: D-19.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T03:20:00Z
+    attempt: 1
+    claim: >-
+      the reorder is exactly the amendment and nothing else — poll,
+      lane, reap, dispatch, sync; the pause count is still taken after
+      poll and before selection, the leg wrapper, lock and event shape
+      are untouched, and the order test now pins lane-before-reap
+      explicitly so a future reorder must argue with A-27 by name
+    evidence: src/torve/application/loop.py:174-191 — the amended
+      order; tests/test_tick.py:88-99 — the pinned order and the
+      lane-before-reap assertion
+    action: decided

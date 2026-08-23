@@ -1,6 +1,9 @@
 """The standing loop (RFC 0019): one bounded tick over existing machinery
-— reap, poll, dispatch of at most one queued task, the lane under its
-approval switch, tracker sync last (D-19.3). Never a daemon: cadence is
+— poll, the lane under its approval switch, reap, dispatch of at most one
+queued task, tracker sync last (D-19.3 as amended by A-27: the lane runs
+before the reaper, because READY is sweepable and a reap ahead of the
+lane destroys the lane's own input — merge-before-reap, A-26, applied
+inside the tick). Never a daemon: cadence is
 delivered by the environment, and every invocation exits (D-19.1). One
 tick at a time per root, held by a lock whose stale break is loud
 (D-19.2); intake pauses while the escalation queue is non-empty so the
@@ -168,8 +171,11 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
         moved = moved or did
 
     try:
-        leg("reap", deps.reap, "")
         leg("poll", deps.poll, "no tracker configured")
+        # The lane before the reaper (A-27): READY is sweepable, so the
+        # candidates must land while their states still exist.
+        leg("lane", deps.lane, "auto_merge off")
+        leg("reap", deps.reap, "")
 
         escalated = _escalated_count(root)
         if escalated >= config.loop.pause_escalations:
@@ -182,7 +188,6 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
             else:
                 leg("dispatch", lambda: deps.dispatch(task_id), "")
 
-        leg("lane", deps.lane, "auto_merge off")
         leg("sync", deps.sync, "no tracker configured")
     finally:
         _release_lock(root)

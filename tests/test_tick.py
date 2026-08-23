@@ -87,10 +87,13 @@ def tick_events(root: Path) -> list[dict[str, object]]:
 
 
 def test_legs_run_in_the_fixed_order(root):
+    # A-27's order: the lane before the reaper — READY is sweepable, and
+    # the second live tick proved reap-first destroys the lane's input.
     contract(root, "T-9001")
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec))
-    assert rec.calls == ["reap", "poll", "dispatch:T-9001", "lane", "sync"]
+    assert rec.calls == ["poll", "lane", "reap", "dispatch:T-9001", "sync"]
+    assert rec.calls.index("lane") < rec.calls.index("reap")
     assert report.noop is False  # dispatch moved
 
 
@@ -110,7 +113,7 @@ def test_a_stale_lock_is_broken_loudly(root):
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec))
     assert not report.locked_out
-    assert rec.calls[0] == "reap"  # the tick ran
+    assert rec.calls[0] == "poll"  # the tick ran
     events = [r for r in (json.loads(line) for line in
               (root / ".torve" / "telemetry.jsonl").read_text().splitlines())
               if r.get("event") == "tick_lock_broken"]
