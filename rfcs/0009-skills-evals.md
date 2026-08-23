@@ -16,6 +16,7 @@ schema_version: 1
 
 # RFC 0009 — Skills and evals
 
+- **Implementation state:** A-25 executed 2026-08-23 (T-0047 — vendored skills under `.torve/skills-vendor/` resolve beside package data, collisions refused both directions, vendored tree digest in `config_hash`; the repository vendors `reading-isnt-proof` as the first entry). Earlier increments: role-scoped materialization from package data (A-3, D-9.7), skills-lock digest. Outstanding: the eval loop (§5) and per-skill telemetry attribution
 - **Scope:** How agent skills are selected, versioned, distributed across repositories, and measured. Covers trigger collision, per-role skill sets, and the eval loop that decides whether a skill earns its tokens. Excludes writing individual skills.
 - **Inherits:** D-3 (skills are convention, gates are enforcement), D-25 from RFC 0001
 - **Related:** `agent-skills` · `skill-creator` · `distill-the-rule` · `ratchet-what-you-build`

@@ -107,6 +107,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Amendment A-24 executed (T-0046): docker inside the sandbox.
+  `runtime.docker: socket` mounts the host daemon's socket into every
+  sandbox of the run — attempt and gates alike, the socket's owning
+  group added — and the image supplies the CLI; off by default,
+  host-equivalent capability granted knowingly per repository.
+  OpenSandbox refuses any mode. Containers a sandbox starts carry no
+  torve labels; the reaper does not chase them. Exit criterion live: a
+  task whose acceptance battery starts a real container replayed green
+  in a socket sandbox on the lab repository.
+- Amendment A-25 executed (T-0047): vendored skills. A repository
+  commits skills under `.torve/skills-vendor/<name>/`; role sets resolve
+  them beside package data — a name in both is refused in both
+  directions, protecting the parsed-skill boundary — and the vendored
+  tree's digest joins `config_hash`, so an edited vendored skill is a
+  visible regime change. Torve vendors `reading-isnt-proof` from the
+  team library as the first entry.
+- The lab repository consumes the gates in CI: a committed torve wheel,
+  pip-installed, running `torve gates run` on pushes and pull requests —
+  RFC 0002's second consuming repository.
 - RFC 0010 executed, phases 1–2 (T-0044/T-0045): VCS, provenance and
   revert. The commit is the runner's artefact: author is the agent
   identity (`adapter/model@version <agents@torve.local>`), committer is

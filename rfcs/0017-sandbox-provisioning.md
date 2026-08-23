@@ -19,8 +19,13 @@ schema_version: 1
 # RFC 0017 — Sandbox provisioning and harness configuration
 
 - **Implementation state:** executed 2026-08-22 (T-0036 mechanism, T-0037
-  definitions; all three §7 exit criteria measured live). Outstanding, as
-  specified: `tier.home` until a harness needs it (D-17.5); `--push` and
+  definitions; all three §7 exit criteria measured live); A-24 executed
+  2026-08-23 (T-0046 — `runtime.docker: socket`, its exit criterion live: a
+  task whose battery drives a container replayed green in a socket sandbox
+  on the lab repository). Outstanding, as
+  specified: `tier.home` until a harness needs it (D-17.5); the `nested`
+  daemon mode until socket's trust trade is unacceptable for a real
+  repository (§2a); `--push` and
   registry-side doctor checks with the live OpenSandbox server (RFC 0003)
 - **Scope:** How sandbox images are defined, built and identified; how a
   harness's configuration, tools and state reach the sandbox. Extends
