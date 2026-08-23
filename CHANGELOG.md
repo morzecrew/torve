@@ -107,6 +107,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- Amendment A-26 executed (T-0043): a conflicted landing escalates the
+  run. `ready → escalated` joins the charter's transition table, taken
+  only by the merge lane on a conflicted rebase — reason
+  `merge_conflict`, in the vocabulary since v1 and reachable for the
+  first time. The branch stays exactly as measured, the escalated
+  candidate leaves the lane, and the escalation queue's age starts
+  counting the moment a landing fails; `ready` stays terminal to the
+  engine everywhere else (swept, kill-refused, never re-dispatched).
 - RFC 0006 executed, phases 1–2 (T-0041/T-0042): the merge train.
   Dispatch refuses a task whose scope intersects an active run's — the
   cause in the message, counted per contended path; `torve kill`
