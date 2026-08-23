@@ -1,0 +1,88 @@
+# Minted by `torve plan 0008` — phase 1: The outbox the projection rides
+schema_version: 1
+id: T-0049
+rfc: rfcs/0008-tracker-projection.md
+phase: 1
+role: implement
+intent: 'The transactional outbox from RFC 0003 §5, built for its first
+
+  consumer: effects are staged in the same transaction as the state
+
+  change they announce, relayed at-least-once by an explicit relay
+
+  step, and every effect carries an idempotency key so a replay is a
+
+  no-op rather than a duplicate. The engine''s existing events keep
+
+  flowing unchanged; the outbox is a new, durable leg beside them —
+
+  staged rows survive a runner crash and relay later, which is the
+
+  property the projection cannot live without.'
+depends_on: []
+targets: []
+scope:
+  allow:
+  - src/torve/application/**
+  - src/torve/adapters/**
+  - src/torve/config/**
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+- uv run torve rfc check
+decisions:
+- id: D-8.1
+  grade: LOCKED
+  text: The tracker holds no authoritative state; leases, status and history live in the store
+  paths:
+  - src/torve/application/tracker.py
+- id: D-8.2
+  grade: LOCKED
+  text: Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency
+  paths:
+  - src/torve/application/outbox.py
+  - src/torve/application/tracker.py
+- id: D-8.3
+  grade: LOCKED
+  text: Inbound is a fixed command vocabulary validated against the store; a card move is
+    an intent, not a state change
+  paths:
+  - src/torve/application/tracker.py
+- id: D-8.4
+  grade: LOCKED
+  text: Task contracts are not editable from a tracker
+  paths:
+  - src/torve/application/tracker.py
+- id: D-8.5
+  grade: LOCKED
+  text: Tracker text is untrusted input and is never treated as specification
+  paths:
+  - src/torve/application/tracker.py
+  - src/torve/adapters/tracker/**
+- id: D-8.6
+  grade: ASSUMED
+  text: '`reflect` returns applied/refused/unsupported; refusal is a logged divergence'
+  paths:
+  - src/torve/application/ports.py
+  - src/torve/adapters/tracker/**
+- id: D-8.7
+  grade: ASSUMED
+  text: One comment per attempt, never per gate
+  paths:
+  - src/torve/application/tracker.py
+- id: D-8.8
+  grade: ASSUMED
+  text: GitHub Issues ships first — the forge the team already lives in, proven on the lab
+    repository. Resolved while draft 2026-08-23
+  paths:
+  - src/torve/adapters/tracker/github.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
