@@ -1,0 +1,54 @@
+schema_version: 1
+task: T-0038
+repo: morzecrew/torve
+base_sha: 28189843842bc3fad8f2d18f5c2568f94339ddf2
+drift_count: 0
+entries:
+  - decision: D-5.9
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:40:00Z
+    attempt: 1
+    claim: Task gained targets with no new mechanism — the contract shape is
+      parameterised by role; until the revert role lands, targets outside
+      the review role is a validation error, stated as the narrow reading
+      rather than a foreclosure
+    evidence: src/torve/domain/task.py:68-72 — the field and its comment
+      naming the revert successor
+    action: decided
+  - decision: D-5.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:41:00Z
+    attempt: 1
+    claim: a review task refuses acceptance commands at validation and the
+      acceptance gate returns skipped for the role — never passed with an
+      empty list; both halves are pinned by tests
+    evidence: src/torve/gates/acceptance.py:21-25 — the role skip before
+      command selection; tests/test_review_role.py pins refusal and skip
+    action: decided
+  - decision: D-5.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T21:42:00Z
+    attempt: 1
+    claim: the evidence locator moved to gates/evidence.py as one mechanism
+      with two consumers — decisions-reported delegates to it unchanged in
+      behaviour, and filter_findings discards findings whose evidence does
+      not locate, returning counted reasons (the noise rate), never a
+      silent drop; the module docstring restates that locating eliminates
+      fabricated coordinates, not fabricated claims
+    evidence: src/torve/gates/evidence.py:27-59 — locate; the full existing
+      decisions-reported test population passed without edits
+    action: decided
+  - decision: D-5.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T21:43:00Z
+    attempt: 1
+    claim: phase 1 adds no subsystem — a domain type, a field, a validator,
+      a gate branch and a shared helper; the run pipeline is untouched
+      until phase 2 threads review through it
+    evidence: src/torve/domain/attempt.py:63-79 — Finding beside the gate
+      results it will ride with
+    action: decided

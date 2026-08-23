@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from torve.domain.rfc import Grade
 
@@ -65,8 +65,28 @@ class Task(BaseModel):
     # minted before the amendment carry none.
     intent: str = ""
     depends_on: list[str] = Field(default_factory=list)
+    # The tasks a review examines (RFC 0005 §1.1, D-5.9): the contract shape
+    # is parameterised by role, no new mechanism. RFC 0010's revert will use
+    # the same field; until it lands, only review may carry targets.
+    targets: list[str] = Field(default_factory=list)
     scope: Scope = Field(default_factory=Scope)
     acceptance: list[str] = Field(default_factory=list)  # shell commands; exit 0 == satisfied
     decisions: list[InheritedDecision]
     budget: Budget = Field(default_factory=Budget)
     tier: Literal["planner", "executor", "reviewer"] = "executor"
+
+    @model_validator(mode="after")
+    def _review_role_shape(self) -> Task:
+        # D-5.10: a review's output is findings, not an exit code — carrying
+        # acceptance commands is a contract error, not an empty pass.
+        if self.role == "review":
+            if self.acceptance:
+                raise ValueError(
+                    "a review task carries no acceptance commands — its output "
+                    "is findings, and the acceptance gate is skipped for the role"
+                )
+            if not self.targets:
+                raise ValueError("a review task names the task(s) it reviews in targets")
+        elif self.targets:
+            raise ValueError(f"targets is not meaningful for role {self.role!r}")
+        return self

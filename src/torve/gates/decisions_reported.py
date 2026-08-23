@@ -28,13 +28,11 @@ import yaml
 from torve.config.manifest import Gate
 from torve.gates.context import GateContext
 from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
+from torve.gates.evidence import locate
 
 # ----------------------- #
 
 RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(?:Z|\+00:00)$")
-CITATION = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?$")
-BACKTICKED = re.compile(r"^`(?P<command>[^`]+)`(?P<rest>.*)$", re.S)
-
 REQUIRED = ("decision", "grade", "at", "attempt", "claim", "evidence", "action")
 OPTIONAL = ("kind", "class", "proposal", "notes")
 GRADES = {"LOCKED", "ASSUMED", "OPEN", "UNLISTED"}
@@ -128,42 +126,15 @@ def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
 
 
 def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list[str]:
-    where = f"entry {index + 1}"
     evidence = _norm(entry.get("evidence")).strip()
     if not evidence:
         return []  # already reported by the schema check
-
-    backticked = BACKTICKED.match(evidence)
-    if backticked:
-        if not backticked.group("rest").strip(" \t—-:"):
-            return [f"{where}: evidence is a command with no output — the output is the evidence"]
+    # One locator, two consumers (D-5.4): this check and the review findings
+    # filter share the mechanism in gates/evidence.py.
+    problem = locate(evidence, ctx.root)
+    if problem is None:
         return []
-
-    citation = evidence.split(" — ")[0].split(" - ")[0].strip()
-    found = CITATION.match(citation)
-    if not found:
-        return [
-            (
-                f"{where}: evidence {evidence!r} is neither a path:line citation nor a "
-                "backticked command with its output — a sentence is a claim, not evidence"
-            )
-        ]
-    root = ctx.root.resolve()
-    try:
-        target = (root / found.group("path")).resolve()
-    except OSError:
-        target = None
-    if target is None or not target.is_relative_to(root):
-        return [f"{where}: evidence path {found.group('path')!r} escapes the repository"]
-    if not target.is_file():
-        return [f"{where}: evidence path {found.group('path')!r} does not exist"]
-    total = sum(1 for _ in target.open("r", encoding="utf-8", errors="replace"))
-    start, end = int(found.group("start")), int(found.group("end") or found.group("start"))
-    if start < 1 or end < start:
-        return [f"{where}: evidence range {citation!r} is not a range"]
-    if end > total:
-        return [f"{where}: evidence {citation!r} points past end of file ({total} lines)"]
-    return []
+    return [f"entry {index + 1}: {problem}"]
 
 
 def _check_drift(document: dict[str, Any]) -> list[str]:

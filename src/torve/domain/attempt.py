@@ -1,5 +1,7 @@
 """What a gate pass produces (RFC 0002 §3): results, bypass records, size
-verdicts. Attempt, Finding and Cost join this aggregate with RFC 0004+.
+verdicts — and what a review run produces (RFC 0005 §2): findings, the
+structured output whose severities are data; configuration, never the
+model, decides whether one stops the work (D-2).
 """
 
 from __future__ import annotations
@@ -50,6 +52,25 @@ class GateResult(BaseModel):
     bypass: BypassRecord | None = None
     flaky_commands: list[str] = Field(default_factory=list)
     quarantined_failures: list[str] = Field(default_factory=list)
+
+
+# Severity discipline (RFC 0005 §5): blocker stops the run by configuration;
+# major a reviewer would insist on; minor/nit are preferences, rate-limited.
+FindingSeverity = Literal["blocker", "major", "minor", "nit"]
+
+
+class Finding(BaseModel):
+    """One review finding (RFC 0005 §2): a claim with severities as data and
+    evidence in the execution log's format — a leading path:line citation or
+    a backticked command with output — so the same locator that checks log
+    entries can discard a finding nothing can resolve (D-5.4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = SCHEMA_VERSION
+    severity: FindingSeverity
+    claim: str
+    evidence: str
 
 
 class SizeVerdict(BaseModel):
