@@ -112,20 +112,86 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-8.1 | `LOCKED` | The tracker holds no authoritative state; leases, status and history live in the store | `src/torve/tracker/**` | Reversing loses transactions, fencing and append-only at once |
-| D-8.2 | `LOCKED` | Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency | `src/torve/tracker/**` | At-least-once delivery without duplicate comments |
-| D-8.3 | `LOCKED` | Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change | `src/torve/tracker/**` | Two-way state sync is how these systems rot |
-| D-8.4 | `LOCKED` | Task contracts are not editable from a tracker | `src/torve/tracker/**` | A silently widened scope defeats the specification layer |
-| D-8.5 | `LOCKED` | Tracker text is untrusted input and is never treated as specification | `src/torve/tracker/**` | Injection surface with agent readers |
-| D-8.6 | `ASSUMED` | `reflect` returns applied/refused/unsupported; refusal is a logged divergence | `src/torve/tracker/**` | Required by Jira-style transition workflows |
-| D-8.7 | `ASSUMED` | One comment per attempt, never per gate | `src/torve/tracker/**` | Readability; revisit if triage needs finer granularity |
-| D-8.8 | `OPEN` | Which tracker ships first | — | Whichever the team already lives in |
+| D-8.1 | `LOCKED` | The tracker holds no authoritative state; leases, status and history live in the store | `src/torve/application/tracker.py` | Reversing loses transactions, fencing and append-only at once |
+| D-8.2 | `LOCKED` | Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency | `src/torve/application/outbox.py` `src/torve/application/tracker.py` | At-least-once delivery without duplicate comments |
+| D-8.3 | `LOCKED` | Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change | `src/torve/application/tracker.py` | Two-way state sync is how these systems rot |
+| D-8.4 | `LOCKED` | Task contracts are not editable from a tracker | `src/torve/application/tracker.py` | A silently widened scope defeats the specification layer |
+| D-8.5 | `LOCKED` | Tracker text is untrusted input and is never treated as specification | `src/torve/application/tracker.py` `src/torve/adapters/tracker/**` | Injection surface with agent readers |
+| D-8.6 | `ASSUMED` | `reflect` returns applied/refused/unsupported; refusal is a logged divergence | `src/torve/application/ports.py` `src/torve/adapters/tracker/**` | Required by Jira-style transition workflows |
+| D-8.7 | `ASSUMED` | One comment per attempt, never per gate | `src/torve/application/tracker.py` | Readability; revisit if triage needs finer granularity |
+| D-8.8 | `ASSUMED` | GitHub Issues ships first — the forge the team already lives in, proven on the lab repository. Resolved while draft 2026-08-23 | `src/torve/adapters/tracker/github.py` | Whichever the team already lives in; the credential and remote already exist |
 
 ## 8. Risks
 
 - **The board becomes the perceived source of truth.** People trust what they look at. Mitigation: refusals and divergences are visible, and `torve status` is the stated authority in documentation and in escalation comments.
 - **Comment volume.** Even one per attempt is a lot across many tasks. Watch it; collapse retries into an edited summary comment if needed — the only place where editing rather than appending is acceptable, because it is a projection, not the record.
 - **Rate limits shared with agents.** Projection is bursty at state transitions. Relay with backoff and a per-forge budget separate from the agents' own.
+
+## Phasing
+
+*(Added 2026-08-23 while draft, with the path relocation to RFC 0015's tree
+— no `tracker/` top-level package. Phase 1 builds the transactional outbox
+this document rides: RFC 0003 §5 specified it and deferred it for want of a
+consumer; the projection is that consumer, so the leg lands here, in 0003's
+tree. Phase 2 is the GitHub Issues adapter (D-8.8) against the lab
+repository — its live criteria need the fine-grained token to gain
+**Issues: Read and write** before execution, which is an operator step. The
+inbound `approve` command stays deferred until promotion approvals exist as
+engine state (RFC 0006's forge leg); the other three commands land here.)*
+
+```yaml
+- phase: 1
+  title: The outbox the projection rides
+  intent: |
+    The transactional outbox from RFC 0003 §5, built for its first
+    consumer: effects are staged in the same transaction as the state
+    change they announce, relayed at-least-once by an explicit relay
+    step, and every effect carries an idempotency key so a replay is a
+    no-op rather than a duplicate. The engine's existing events keep
+    flowing unchanged; the outbox is a new, durable leg beside them —
+    staged rows survive a runner crash and relay later, which is the
+    property the projection cannot live without.
+  scope:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+- phase: 2
+  title: The GitHub Issues projection
+  depends_on: [1]
+  intent: |
+    The Tracker port and its first adapter: reflect maps engine states to
+    issue state and labels and returns applied, refused or unsupported —
+    a refusal is a logged divergence, never an exception; comments are
+    one per attempt, keyed on task, state and attempt through the
+    idempotency rule; findings annotate; escalations label from the
+    enumerated vocabulary and assign. Inbound is the fixed command
+    vocabulary — retry, abandon, unblock — parsed allow-listed from
+    comments, validated against the real store, refusals posted back.
+    Tracker text is untrusted input everywhere. Proven against the lab
+    repository: all states projected, idempotency verified by
+    deliberately replaying the relay, one refusal path exercised.
+  scope:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+```
 
 ## 9. Exit criteria
 
