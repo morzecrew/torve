@@ -1,0 +1,24 @@
+schema_version: 1
+task: T-0063
+repo: morzecrew/torve
+base_sha: 7aa2658f23c2e3e2b56610e89d043259e4bb3922
+drift_count: 0
+entries:
+  - decision: D-3.15
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T20:52:00Z
+    attempt: 1
+    claim: >-
+      the durable reap becomes reachable from the standing loop — the
+      tick's reap leg now injects the store factory it always accepted,
+      so under a postgres store the lease is the liveness authority on
+      every tick instead of the leg erroring on missing wiring; the pin
+      distinguishes an environment failure (the unset DSN variable,
+      honest and actionable) from a wiring failure (the injection
+      message, which must never appear)
+    evidence: src/torve/cli/tick.py:58-67 — the factory travels on the
+      reap call; tests/test_tick.py:263-287 — a tick over a
+      postgres-configured root fails on the environment, never the
+      wiring
+    action: decided

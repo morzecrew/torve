@@ -1,0 +1,36 @@
+# Minted by hand — found while flipping the lab to a postgres store:
+# the tick's reap leg never injected the store factory, so every reap
+# under a durable store would have been a leg error, tick after tick.
+schema_version: 1
+id: T-0063
+rfc: rfcs/0019-standing-loop.md
+phase: 2
+role: implement
+intent: |
+  The tick's reap leg injects the store factory, so a postgres store's
+  reap runs the durable path — the lease as liveness authority — instead
+  of erroring on the missing injection every tick. Pinned by a tick over
+  a postgres-configured root: the reap leg's failure names the unset DSN
+  variable (the environment), never the missing factory (the wiring).
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-3.15
+    grade: ASSUMED
+    text: "Under the in-process mock store the reaper keeps the v1 heartbeat heuristic; under Postgres the lease is the liveness authority via claim_abandoned"
+    paths:
+      - src/torve/application/reaper.py
+budget: {}
+tier: executor

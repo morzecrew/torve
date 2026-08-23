@@ -55,10 +55,14 @@ def tick_cmd(
         ci = GhCi(config.scm.repo, config.scm.token_env)
 
     def reap_leg() -> tuple[str, bool]:
+        from torve.adapters.store.durable import open_store
         from torve.application.reaper import reap
         from torve.cli.options import runtime_for
 
+        # The factory travels regardless of adapter: under postgres the
+        # reap is durable (D-3.15) and would refuse without it.
         report = reap(root, config, runtime_for(config, None), workspace,
+                      store=open_store,
                       landed=lambda t: bool(vcs.landed_shas(root, t)))
         swept = (len(report.sandboxes_destroyed) + len(report.worktrees_removed)
                  + len(report.runs_expired) + len(report.states_removed))

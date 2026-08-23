@@ -260,6 +260,32 @@ def test_the_tick_pushes_what_the_lane_lands(tmp_path: Path) -> None:
     assert "landed.py" in git(origin, "ls-tree", "--name-only", "main")
 
 
+def test_the_reap_leg_carries_the_store_factory(tmp_path: Path, monkeypatch) -> None:
+    # D-3.15 from the standing loop: under a postgres store the tick's reap
+    # is the durable path. With no DSN in the environment the leg must fail
+    # on the environment ("TORVE_PG_DSN"), never on missing wiring ("a
+    # postgres reap needs a store factory injected by the caller").
+    import subprocess
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    monkeypatch.delenv("TORVE_PG_DSN", raising=False)
+    repo = tmp_path / "repo"
+    (repo / ".torve").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    (repo / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8")
+    (repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\nstore:\n  adapter: postgres\n", encoding="utf-8")
+
+    result = CliRunner().invoke(app, ["tick", "--root", str(repo)])
+    assert result.exit_code == 0, result.output
+    assert "TORVE_PG_DSN" in result.output
+    assert "store factory" not in result.output
+
+
 def test_a_board_requeued_task_is_selected_again(root):
     # T-0059: re-entry into the queue is the human act §4 names — a QUEUED
     # state is queued, telemetry record notwithstanding.
