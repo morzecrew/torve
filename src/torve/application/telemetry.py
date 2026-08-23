@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import torve
+from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.task import SCHEMA_VERSION
 from torve.gates.context import GateContext
@@ -59,6 +60,16 @@ def config_hash(
     lock = root / "skills-lock.json"
     if lock.is_file():
         parts["skills-lock.json"] = lock.read_text(encoding="utf-8")
+    # The vendored skills tree (RFC 0009 §4a, D-9.13): an edited vendored
+    # skill is a regime change — the image-digest doctrine applied to
+    # prompt-side inputs.
+    vendor = layout.skills_vendor_dir(root)
+    if vendor.is_dir():
+        tree = hashlib.sha256()
+        for file in sorted(p for p in vendor.rglob("*") if p.is_file()):
+            tree.update(str(file.relative_to(vendor)).encode("utf-8"))
+            tree.update(file.read_bytes())
+        parts["skills-vendor"] = tree.hexdigest()
     digest = hashlib.sha256(json.dumps(parts, sort_keys=True).encode("utf-8"))
     return digest.hexdigest()[:12]
 

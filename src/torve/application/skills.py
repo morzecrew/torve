@@ -32,21 +32,37 @@ def available() -> list[str]:
                   if p.is_dir() and (p / "SKILL.md").is_file())
 
 
-def materialize(role: str, dest: Path, sets: dict[str, list[str]]) -> list[str]:
+def materialize(role: str, dest: Path, sets: dict[str, list[str]],
+                vendor_root: Path | None = None) -> list[str]:
     """Write the role's skill set under *dest* (one directory per skill) and
-    return the names written. An unknown skill in a set is a configuration
-    error, not a silent skip — a skill that quietly stops applying makes the
-    telemetry lie (D-9.2)."""
+    return the names written. A name resolves against package data and the
+    repository's vendored directory together (RFC 0009 §4a, D-9.11); a name
+    present in both is refused in both directions (D-9.12) — a vendored
+    variant of a parsed skill drifts against its gate — and a name unknown
+    to both is a configuration error, not a silent skip: a skill that
+    quietly stops applying makes the telemetry lie (D-9.2)."""
     names = sets.get(role, [])
-    root = skills_root()
+    packaged = skills_root()
     written: list[str] = []
     for name in names:
-        source = root / name
-        if not (source / "SKILL.md").is_file():
+        shipped = packaged / name
+        vendored = vendor_root / name if vendor_root is not None else None
+        has_shipped = (shipped / "SKILL.md").is_file()
+        has_vendored = vendored is not None and (vendored / "SKILL.md").is_file()
+        if has_shipped and has_vendored:
             raise RuntimeError(
-                f"skill set for role {role!r} names {name!r}, which torve does not ship "
-                f"(available: {', '.join(available())})"
+                f"skill {name!r} is both shipped and vendored — refused, never "
+                "shadowed in either direction: a vendored variant of a parsed "
+                "skill drifts against the gate that reads its output"
             )
+        if not (has_shipped or has_vendored):
+            raise RuntimeError(
+                f"skill set for role {role!r} names {name!r}, which is neither "
+                f"shipped (available: {', '.join(available())}) nor vendored "
+                "in this repository"
+            )
+        source = shipped if has_shipped else vendored
+        assert source is not None
         target = dest / name
         if target.exists():
             shutil.rmtree(target)

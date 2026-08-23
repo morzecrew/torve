@@ -400,7 +400,11 @@ def real_hooks(
         # The runner composes the sandbox's context: the role's skill set is
         # written from package data at dispatch (A-3) — the agent does not
         # "have skills installed", and nothing is checked into the repository.
-        materialize(task.role, worktree / ".torve" / "skills", config.skills.sets)
+        # Vendored skills resolve from the worktree's committed vendor
+        # directory beside package data (RFC 0009 §4a) — reviewed repository
+        # content instructing the agent about the work.
+        materialize(task.role, worktree / ".torve" / "skills",
+                    config.skills.sets, layout.skills_vendor_dir(worktree))
         env_passthrough, volumes = (
             _sandbox_auth(tier, config.worker_slot) if real else ((), {})
         )

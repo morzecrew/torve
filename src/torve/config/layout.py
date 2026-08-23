@@ -44,6 +44,12 @@ def config_file(root: Path) -> Path:
     return _resolve(root / TORVE_DIR / "config.yaml", root / "torve.yaml")
 
 
+def skills_vendor_dir(root: Path) -> Path:
+    """Vendored skills (RFC 0009 §4a, D-9.11): committed, reviewed
+    directories resolving beside shipped skills at materialization."""
+    return root / TORVE_DIR / "skills-vendor"
+
+
 def task_dir(root: Path, task_id: str) -> Path:
     """One directory per task (A-12, D-A.13) — the unit retention removes."""
     return root / TORVE_DIR / "tasks" / task_id

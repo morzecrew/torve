@@ -1,0 +1,54 @@
+# Minted by hand — execution of amendment A-25 (0009 §4a, D-9.11–D-9.13):
+# vendored skills reach the sandbox as reviewed content.
+schema_version: 1
+id: T-0047
+rfc: rfcs/0009-skills-evals.md
+phase: 1
+role: implement
+intent: |
+  Vendored skills live under .torve/skills-vendor/<name>/, committed and
+  reviewed; materialize resolves role-set names against package data and
+  the vendor directory together — a name in both is refused in both
+  directions, a name in neither is a configuration error. The vendored
+  tree's content digest joins config_hash so an edited vendored skill is
+  a visible regime change. The repository vendors its first skill
+  (reading-isnt-proof from the team library) as the living example.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/config/**"
+    - ".torve/skills-vendor/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-9.11
+    grade: ASSUMED
+    text: Vendored skills live under .torve/skills-vendor/<name>/, committed and
+      reviewed; role sets resolve names against package data and the vendor
+      directory together, and a name unknown to both is a configuration error
+    paths:
+      - src/torve/application/skills.py
+      - .torve/skills-vendor/**
+  - id: D-9.12
+    grade: LOCKED
+    text: A skill name present in both package data and the vendor directory is a
+      configuration error, refused — never shadowed in either direction
+    paths:
+      - src/torve/application/skills.py
+  - id: D-9.13
+    grade: LOCKED
+    text: The vendored tree's content digest joins config_hash; an edited vendored
+      skill is a visible regime change
+    paths:
+      - src/torve/application/telemetry.py
+budget: {}
+tier: executor

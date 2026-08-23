@@ -1,0 +1,73 @@
+schema_version: 1
+task: T-0047
+repo: morzecrew/torve
+base_sha: 2e200400212bec976f92e1c8b2880f387bbbbdd8
+drift_count: 0
+entries:
+  - decision: D-9.11
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T17:30:00Z
+    attempt: 1
+    claim: >-
+      materialize resolves each role-set name against package data and the
+      vendor directory together — the runner hands it the WORKTREE's vendor
+      path, so a task sees the vendored skills of the commit it runs
+      against, reviewed content like everything else in the tree; the
+      unknown-name error now names both places it looked. The repository
+      vendors reading-isnt-proof from the team library as the first living
+      entry, and a hygiene test keeps the committed directory well-formed
+    evidence: src/torve/application/skills.py:35-71 — the joint
+      resolution; src/torve/application/runner.py:405-409 — the worktree
+      vendor path at dispatch; tests/test_skills.py:64-90 — resolution and
+      the committed-directory shape
+    action: decided
+  - decision: D-9.12
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T17:31:00Z
+    attempt: 1
+    claim: >-
+      a collision refuses in both directions with the reason in the
+      message — a vendored variant of a parsed skill would drift against
+      the gate that reads its output, the exact A-3 failure; notably the
+      upstream team library really does carry same-named copies of two
+      shipped skills, so the refusal is guarding a live hazard, not a
+      hypothetical
+    evidence: tests/test_skills.py:74-79 — the refusal pinned against a
+      shipped name
+    action: decided
+  - decision: D-9.13
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T17:32:00Z
+    attempt: 1
+    claim: >-
+      the vendored tree digests into config_hash — relative path plus
+      content per file, sorted — inside config_hash itself, so every
+      existing caller (runner, gates CLI, shadow) picks it up with no
+      signature change; an absent vendor directory contributes nothing,
+      keeping historical hashes stable for repositories that vendor
+      nothing
+    evidence: src/torve/application/telemetry.py:61-72 — the digest;
+      tests/test_skills.py:93-105 — an edited vendored skill changes the
+      hash
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T17:33:00Z
+    attempt: 1
+    claim: >-
+      naming a vendored skill in a role set stays operator configuration
+      (skills.sets in the run config), so vendoring alone changes no run —
+      the repository review gates the content, the config names when it
+      applies; the reviewer set naming reading-isnt-proof is the natural
+      first use once a review-configured run wants it
+    evidence: src/torve/config/runconfig.py:189-195 — sets unchanged,
+      defaults untouched
+    action: decided
+    proposal: 0009 §4a note — vendoring is inert until a role set names the
+      skill; the default sets stay shipped-only so a fresh repository's
+      regime is reproducible from the package alone
