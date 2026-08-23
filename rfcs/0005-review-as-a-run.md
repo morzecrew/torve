@@ -17,7 +17,7 @@ schema_version: 1
 
 # RFC 0005 — Review as a run
 
-- **Implementation state:** phases 1–3 executed 2026-08-22 (T-0038 finding/role mechanics, T-0039 the review run, T-0040 degraded mode and the seeded corpus — measured green live with a deepseek reviewer). Outstanding, with the forge: pull-request triggers (§4), comment posting through the SCM port, the §7 replacement sequence and the two-week shadow comparison
+- **Implementation state:** phases 1–3 executed 2026-08-22 (T-0038 finding/role mechanics, T-0039 the review run, T-0040 degraded mode and the seeded corpus — measured green live with a deepseek reviewer); the forge leg executed 2026-08-23 (T-0053 — `torve review pr` as the §4 trigger: skip rules, one review per head, Torve-Task trailer mapping or degraded input, findings posted back by the runner through the SCM port; demonstrated live on the lab against an organic pull request no agent wrote). Outstanding: the §7 replacement sequence and the two-week shadow comparison, which need an incumbent reviewer to shadow
 - **Scope:** Independent automated review, implemented as a second role of the same run pipeline rather than a special case; its isolation rules, output contract, trigger paths, calibration, and how its quality is measured. Covers replacing a third-party pull-request reviewer. Excludes human review policy and promotion rules, which belong to RFC 0006.
 - **Inherits:** D-2 (models produce data, config decides consequences), D-3, D-4, D-22 from RFC 0001
 
@@ -103,6 +103,8 @@ review:
 A pull request without a task contract reviews with a degraded input — no `scope`, no inherited decisions — and the reviewer is told so explicitly, so it does not invent a specification to check against. Spec-drift findings are simply unavailable in that mode, which is honest: drift is meaningless without a spec.
 
 Debounce matters more than it looks. Without it, a developer pushing three fixups in two minutes pays for three reviews and gets three near-identical comment threads — the single fastest way to make people mute the bot.
+
+*Execution note 2026-08-23 (T-0053):* the trigger landed as `torve review pr N` — the forge's own event delivery (a CI job on `pull_request`, a webhook handler, or an operator) invokes it; the engine holds no resident event consumer. The 90s debounce is therefore translated, not implemented literally: one review per head, through a `pr-reviews` ledger — rapid pushes collapse into whatever head is current when the trigger fires, and a head reviews at most once. `skip_if` landed as always-on draft/zero-changed-files skips plus a `skip_authors` list; the timed debounce becomes meaningful only with a resident consumer. The trigger never mutates task state — blockers on a task-gated run escalate on that path; this one reports to the pull request.
 
 ## 5. Calibration
 

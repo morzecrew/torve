@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Review on pull-request open and update (T-0053, RFC 0005 §4 forge leg):
+  `torve review pr N` — skip rules (draft, empty, closed, configured
+  authors), one review per head via the `pr-reviews` ledger, Torve-Task
+  trailer mapping to a task contract or degraded input told so
+  explicitly, and findings posted back by the runner as one
+  marker-deduped comment. Triggers `pr_opened`/`pr_synchronized` join
+  the review vocabulary.
 - The lane tolerates the engine's own records (T-0052): the cleanliness
   guard refuses only dirt in landed content — now naming the offending
   paths — while runner-minted task directories, the telemetry file, and
