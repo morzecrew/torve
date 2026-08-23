@@ -1,8 +1,8 @@
 """The tracker projection (RFC 0008): outbound effects derived from run
 state and staged through the outbox keyed on (task_id, state, attempt) —
 D-8.2 — then relayed to the Tracker port; inbound is the fixed command
-vocabulary — retry, abandon, unblock (D-8.3; approve waits on promotion
-approvals existing as engine state) — validated against the real store,
+vocabulary — retry, abandon, unblock, approve (D-8.3; approve records a
+sha-bound promotion approval, T-0061) — validated against the real store,
 refusals posted back. The board holds no authoritative state (D-8.1): a
 projection the tracker refuses is a logged divergence (D-8.6), and the
 engine stays right either way. Task contracts are never editable from a
@@ -29,7 +29,7 @@ from torve.domain.states import TRANSITIONS, TaskState
 
 # ----------------------- #
 
-COMMANDS = ("retry", "abandon", "unblock")
+COMMANDS = ("retry", "abandon", "unblock", "approve")
 
 
 def _title(root: Path, task_id: str) -> str:
@@ -167,7 +167,8 @@ class PollReport:
 
 
 def _apply(root: Path, command: TrackerCommand,
-           requeue: Callable[[str], str] | None = None) -> CommandOutcome:
+           requeue: Callable[[str], str] | None = None,
+           approve_tip: Callable[[str], str | None] | None = None) -> CommandOutcome:
     verb, task_id = command.verb, command.task_id
     if verb not in COMMANDS:
         return CommandOutcome(verb, task_id, command.actor, False,
@@ -207,6 +208,27 @@ def _apply(root: Path, command: TrackerCommand,
         state.save()
         return CommandOutcome(verb, task_id, command.actor, True, "abandoned")
 
+    if verb == "approve":
+        if state.state is not TaskState.READY:
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  f"approve needs a ready candidate; this one is {state.state}")
+        if approve_tip is None:
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  "no approval wiring — the poller carries no vcs")
+        tip = approve_tip(task_id)
+        if tip is None:
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  "no branch to approve — nothing would land")
+        from torve.application.lane import record_approval
+
+        # Sha-bound at apply time (RFC 0006 §3): the approval covers the
+        # tip as it stands now; a later push supersedes it silently.
+        if not record_approval(root, task_id, command.actor, tip):
+            return CommandOutcome(verb, task_id, command.actor, True,
+                                  f"already approved {tip[:10]}")
+        return CommandOutcome(verb, task_id, command.actor, True,
+                              f"approved {tip[:10]}")
+
     # unblock: dependency holds are checked at dispatch, so the command
     # validates and informs — it never mutates state it does not hold.
     task_file = layout.task_file(root, task_id)
@@ -225,7 +247,9 @@ def _apply(root: Path, command: TrackerCommand,
 
 def poll_and_apply(root: Path, tracker: Tracker,
                    commanders: tuple[str, ...] = (),
-                   requeue: Callable[[str], str] | None = None) -> PollReport:
+                   requeue: Callable[[str], str] | None = None,
+                   approve_tip: Callable[[str], str | None] | None = None,
+                   ) -> PollReport:
     """Inbound commands: authorization precedes validation — a command
     applies only when its actor is a configured commander, and an empty
     list refuses everyone (T-0054; the board is an unattended channel once
@@ -239,7 +263,7 @@ def poll_and_apply(root: Path, tracker: Tracker,
                 f"actor {command.actor} is not a configured commander "
                 "(tracker.commanders)")
         else:
-            outcome = _apply(root, command, requeue)
+            outcome = _apply(root, command, requeue, approve_tip)
         word = "applied" if outcome.applied else "refused"
         tracker.comment(
             command.task_id,

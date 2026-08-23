@@ -1,0 +1,45 @@
+# Minted by hand — 0008's approve command, unblocked by T-0060: promotion
+# approvals now exist as engine state for the board to supply.
+schema_version: 1
+id: T-0061
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  approve joins the fixed command vocabulary: a commander's /torve
+  approve on a ready candidate records an approval bound to the branch
+  tip as it stands at apply time — approving a task with no branch, or
+  one that is not ready, refuses on its thread like every other invalid
+  intent, and a repeat approval of the same tip by the same actor is
+  answered as already recorded, never double-counted. Authorization
+  precedes validation, as for every command.
+depends_on: [T-0060]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.3
+    grade: LOCKED
+    text: "Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change"
+    paths:
+      - src/torve/application/tracker.py
+  - id: D-8.9
+    grade: ASSUMED
+    text: "Commands are authorized before they are validated: only actors in `tracker.commanders` apply, an empty list refuses everyone, and refusals are answered on-thread. Added by execution 2026-08-24 — see .torve/tasks/T-0054"
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/config/runconfig.py
+budget: {}
+tier: executor

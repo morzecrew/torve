@@ -89,7 +89,7 @@ def poll(
     store; refusals are answered on their thread."""
     import os
 
-    from torve.adapters.vcs.git import GitVcs
+    from torve.adapters.vcs.git import GitLane, GitVcs
     from torve.application.tracker import poll_and_apply
     from torve.base import naming
 
@@ -104,8 +104,12 @@ def poll(
             root, naming.branch(task_id), token)
         return "remote branch deleted" if deleted else "no remote branch"
 
+    def approve_tip(task_id: str) -> str | None:
+        return GitLane().tip(root, naming.branch(task_id))
+
     report = poll_and_apply(root, tracker,
-                            tuple(tracker_config.commanders), requeue)
+                            tuple(tracker_config.commanders), requeue,
+                            approve_tip)
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "commands": [vars(o) for o in report.outcomes]})
     else:

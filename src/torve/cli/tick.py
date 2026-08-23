@@ -87,9 +87,14 @@ def tick_cmd(
             deleted = vcs.delete_remote_branch(root, naming.branch(task_id), token)
             return "remote branch deleted" if deleted else "no remote branch"
 
+        def _approve_tip(task_id: str) -> str | None:
+            from torve.base import naming
+
+            return GitLane().tip(root, naming.branch(task_id))
+
         def _poll() -> tuple[str, bool]:
             report = poll_and_apply(root, board, tuple(config.tracker.commanders),
-                                    _requeue)
+                                    _requeue, _approve_tip)
             if not report.outcomes:
                 return ("no commands on the board", False)
             applied = sum(o.applied for o in report.outcomes)
@@ -140,7 +145,10 @@ def tick_cmd(
 
         def _lane() -> tuple[str, bool]:
             lane_vcs = GitLane()
-            results = process_lane(root, lane_vcs, ci=ci)
+            results = process_lane(
+                root, lane_vcs, ci=ci,
+                approvals_required=config.promotion.approvals,
+                quiet_window_s=config.promotion.quiet_window)
             if not results:
                 return ("no ready candidates", False)
             landed = sum(1 for r in results if r.action == "landed")

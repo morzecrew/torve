@@ -422,3 +422,39 @@ def test_a_failed_requeue_cleanup_refuses_and_leaves_the_escalation(root):
     # The escalation stands; the command is retryable.
     assert RunState.load(naming.state_file(root, "T-6121")).state \
         is TaskState.ESCALATED
+
+
+# approve joins the vocabulary (T-0061): sha-bound, ready-only, idempotent.
+
+
+def test_approve_records_a_sha_bound_approval_on_a_ready_candidate(root):
+    run_state(root, "T-6130", TaskState.READY)
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("approve", "T-6130", "misery7100", "c30")]
+    outcome = poll_and_apply(root, tracker, ("misery7100",),
+                             approve_tip=lambda _t: "a" * 40).outcomes[0]
+    assert outcome.applied and "approved aaaaaaaaaa" in outcome.detail
+    state = RunState.load(naming.state_file(root, "T-6130"))
+    assert state.approvals == [
+        {"actor": "misery7100", "sha": "a" * 40, "at": state.approvals[0]["at"]}]
+    # Idempotent: the same actor approving the same tip again.
+    tracker.commands = [TrackerCommand("approve", "T-6130", "misery7100", "c31")]
+    again = poll_and_apply(root, tracker, ("misery7100",),
+                           approve_tip=lambda _t: "a" * 40).outcomes[0]
+    assert again.applied and "already approved" in again.detail
+    assert len(RunState.load(naming.state_file(root, "T-6130")).approvals) == 1
+
+
+def test_approve_refuses_off_ready_and_branchless_candidates(root):
+    run_state(root, "T-6131", TaskState.RUNNING)
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("approve", "T-6131", "misery7100", "c32")]
+    outcome = poll_and_apply(root, tracker, ("misery7100",),
+                             approve_tip=lambda _t: "a" * 40).outcomes[0]
+    assert not outcome.applied and "ready candidate" in outcome.detail
+
+    run_state(root, "T-6132", TaskState.READY)
+    tracker.commands = [TrackerCommand("approve", "T-6132", "misery7100", "c33")]
+    outcome = poll_and_apply(root, tracker, ("misery7100",),
+                             approve_tip=lambda _t: None).outcomes[0]
+    assert not outcome.applied and "no branch to approve" in outcome.detail

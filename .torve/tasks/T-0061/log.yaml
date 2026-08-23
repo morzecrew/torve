@@ -1,0 +1,37 @@
+schema_version: 1
+task: T-0061
+repo: morzecrew/torve
+base_sha: 20cace29a1ac9037a6de1b0a267f963575762926
+drift_count: 0
+entries:
+  - decision: D-8.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T07:20:00Z
+    attempt: 1
+    claim: >-
+      approve validates like every intent — ready candidates only, a
+      branchless task refuses with "nothing would land" — and binds the
+      approval to the tip at apply time through an injected callable, so
+      the application stays port-clean and a poller wired without vcs
+      refuses honestly rather than approving blind; a repeat approval of
+      the same tip by the same actor answers "already approved" and
+      never double-counts
+    evidence: src/torve/application/tracker.py:211-231 — the verb's
+      validation and sha binding; tests/test_tracker.py:430-460 —
+      recorded, idempotent, refused off-ready and branchless
+    action: decided
+  - decision: D-8.9
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T07:21:00Z
+    attempt: 1
+    claim: >-
+      approve inherits command authorization unchanged — only configured
+      commanders reach validation, so the approval that satisfies the
+      lane's requirement is always attributable to a named forge login
+      recorded on the run state
+    evidence: src/torve/application/tracker.py:258-266 — authorization
+      ahead of every verb; src/torve/application/lane.py:113-118 — the
+      actor recorded with the sha
+    action: decided
