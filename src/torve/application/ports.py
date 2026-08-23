@@ -212,6 +212,41 @@ class Scm(Protocol):
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str: ...
 
 
+@dataclass
+class ReflectResult:
+    """applied | refused | unsupported (RFC 0008 §5, D-8.6). A refusal is a
+    logged divergence, never an exception — the engine's state is correct
+    whether or not the board accepted it."""
+
+    outcome: str
+    detail: str = ""
+
+
+@dataclass
+class TrackerCommand:
+    """One inbound intent (RFC 0008 §3, D-8.3): parsed allow-listed from
+    tracker text, validated against the real store — a card move submits an
+    intent, it never changes state."""
+
+    verb: str
+    task_id: str
+    actor: str
+    source: str  # the comment id the reply threads back to
+
+
+class Tracker(Protocol):
+    """The tracker is an output port (RFC 0008 §1, D-8.1): it holds no
+    authoritative state, and its text is untrusted input (D-8.5)."""
+
+    def reflect(self, task_id: str, state: str, title: str) -> ReflectResult: ...
+
+    def comment(self, task_id: str, body: str, key: str) -> ReflectResult: ...
+
+    def annotate(self, task_id: str, location: str, body: str, key: str) -> ReflectResult: ...
+
+    def poll_commands(self) -> list[TrackerCommand]: ...
+
+
 class CiStatus(Protocol):
     """The remote's CI verdict for one commit (RFC 0006 §3): the lane's
     `ci: green_on_current_head` requirement consults this before landing.

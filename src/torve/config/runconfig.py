@@ -246,6 +246,19 @@ class ScmConfig(BaseModel):
     token_env: str | None = None
 
 
+class TrackerConfig(BaseModel):
+    """The tracker projection (RFC 0008). `kind` names the adapter — only
+    `github-issues` exists (D-8.8); empty means no projection. The board is
+    a view, never authority (D-8.1); the credential is named, never held
+    (D-4b), and needs the forge's Issues scope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["", "github-issues"] = ""
+    repo: str | None = None
+    token_env: str | None = None
+
+
 class ReviewConfig(BaseModel):
     """Review triggers (RFC 0005 §4). Off by default — a blocker stopping
     the run is configuration deciding a consequence (D-2), and configuring
@@ -301,6 +314,7 @@ class RunnerConfig(BaseModel):
     reap: ReapConfig = Field(default_factory=ReapConfig)
     vcs: VcsConfig = Field(default_factory=VcsConfig)
     scm: ScmConfig = Field(default_factory=ScmConfig)
+    tracker: TrackerConfig = Field(default_factory=TrackerConfig)
     rfcs: RfcsConfig = Field(default_factory=RfcsConfig)
     tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)

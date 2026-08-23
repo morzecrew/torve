@@ -1,0 +1,146 @@
+schema_version: 1
+task: T-0050
+repo: morzecrew/torve
+base_sha: 38ef103b73a081f68c071a029581ec014e4f81d8
+drift_count: 0
+entries:
+  - decision: D-8.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T20:40:00Z
+    attempt: 1
+    claim: >-
+      the board holds nothing — effects derive from run state files, the
+      issue body and every projected comment say "authority: the run
+      store; this board is a projection", and a command only ever submits
+      an intent the store validates; a refused reflection leaves engine
+      state byte-identical, pinned
+    evidence: src/torve/application/tracker.py:77-104 — derivation from
+      RunState only; tests/test_tracker.py:98-112 — refused board, state
+      untouched
+    action: decided
+  - decision: D-8.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T20:41:00Z
+    attempt: 1
+    claim: >-
+      every effect key composes task_id, state and attempt (created and
+      per-attempt comments extend the same scheme); staging is idempotent,
+      the relay ledger dedupes, and the destination absorbs the
+      at-least-once duplicate via the key marker in the comment body. Live
+      on the lab: first sync staged and delivered 12 effects, the
+      deliberate replay delivered 0 and skipped 12
+    evidence: src/torve/application/tracker.py:86-103 — the keys;
+      src/torve/adapters/tracker/github.py:91-96 — destination dedupe;
+      `torve tracker sync` — second run "delivered 0, skipped 12"
+    action: decided
+  - decision: D-8.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T20:42:00Z
+    attempt: 1
+    claim: >-
+      inbound is the closed tuple retry/abandon/unblock — approve stays
+      deferred until promotion approvals exist as engine state, stated at
+      acceptance — each validated against the real store: retry demands
+      escalated, abandon demands a legal transition-table exit, unblock
+      validates dependencies and informs without mutating state it does
+      not hold; every outcome is answered on the thread it came from. Live
+      on the lab: /torve retry on a ready task refused with the reason,
+      the reply posted, and the answered command never re-processed
+    evidence: src/torve/application/tracker.py:147-208 — validation and
+      the threaded answers; tests/test_tracker.py:115-152 — applied,
+      refused, illegal-exit and unknown-verb paths
+    action: decided
+  - decision: D-8.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T20:43:00Z
+    attempt: 1
+    claim: >-
+      no inbound path reads or writes a contract — the vocabulary touches
+      run STATE only, through the same transition table the engine obeys;
+      scope, acceptance, decisions and budget stay reachable only through
+      a reviewed commit
+    evidence: src/torve/application/tracker.py:147-189 — the only
+      mutations are state transitions
+    action: decided
+  - decision: D-8.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T20:44:00Z
+    attempt: 1
+    claim: >-
+      tracker text is parsed by a fixed anchored pattern against the
+      allow-list and nothing else — free text pleading for a redeploy is
+      not a command, our own marker-carrying projections are never
+      commands, and an unknown verb that somehow arrives is refused naming
+      the fixed vocabulary; nothing from the board ever reaches an agent
+      context
+    evidence: src/torve/adapters/tracker/github.py:106-134 — the anchored
+      allow-listed parse; tests/test_tracker.py:180-198 — the free-text
+      plea ignored, the answered command skipped
+    action: decided
+  - decision: D-8.6
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T20:45:00Z
+    attempt: 1
+    claim: >-
+      reflect returns applied/refused/unsupported; a non-applied outcome
+      is a tracker_divergence engine event and the effect is DONE — a
+      refusal retried forever is how a queue rots, and persistent
+      divergence surfaces in the event stream instead. The honest
+      unsupported exists: GitHub Issues carry no inline annotations, so
+      annotate says so rather than pretending
+    evidence: src/torve/application/ports.py:216-247 — the port;
+      src/torve/application/tracker.py:126-129 — divergence logging;
+      tests/test_tracker.py:98-112 — refusal logged, delivered, harmless
+    action: decided
+  - decision: D-8.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T20:46:00Z
+    attempt: 1
+    claim: >-
+      one comment per attempt, composed from the telemetry record — gate
+      outcomes, cost, trace, config hash — never per gate and never the
+      agent's prose; keyed task:attempt:n so retries of the relay cannot
+      multiply them
+    evidence: src/torve/application/tracker.py:49-74 — the attempt bodies
+      from telemetry
+    action: decided
+  - decision: D-8.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T20:47:00Z
+    attempt: 1
+    claim: >-
+      GitHub Issues shipped first, proven on the lab repository: issues
+      #5-#8 created for the four tasks, state:ready labels applied, the
+      refusal answered on issue #8's thread — the forge the team already
+      lives in, using the token's new Issues scope
+    evidence: src/torve/adapters/tracker/github.py:32-134 — the adapter;
+      `gh issue list --repo Misery7100/torve-remote-lab` — four issues
+      labelled state:ready
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T20:48:00Z
+    attempt: 1
+    claim: >-
+      command authority is deferred honestly — RFC 0008 §4 says authority
+      is checked against the forge's permissions; the lab is a
+      single-owner private repository where every commenter is the owner,
+      so v1 records the actor and applies the store's validation only. The
+      collaborator-permission check belongs with the first multi-writer
+      board, before any shared deployment
+    evidence: src/torve/application/tracker.py:191-208 — actor recorded,
+      no permission gate yet
+    action: decided
+    proposal: 0008 §4 note — v1 defers the forge-permission check to the
+      first multi-writer board; the actor is recorded on every command
+      event so the audit trail is already complete

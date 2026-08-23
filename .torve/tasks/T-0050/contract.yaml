@@ -35,6 +35,9 @@ scope:
   - src/torve/cli/**
   - src/torve/config/**
   - tests/**
+  # Widened by hand (wiring seam, D-7.23 family): the new adapters.tracker
+  # package joins the import-linter independence contract.
+  - pyproject.toml
   deny: []
 acceptance:
 - uv run ruff check src tests

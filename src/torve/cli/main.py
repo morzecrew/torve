@@ -32,6 +32,7 @@ from torve.cli import (
     sandbox,
     shadow,
     status,
+    tracker,
 )
 from torve.domain.states import EXIT_OK
 
@@ -44,6 +45,7 @@ app.add_typer(gates_app, name="gates")
 app.add_typer(rfc.rfc_app, name="rfc")
 app.add_typer(sandbox.sandbox_app, name="sandbox")
 app.add_typer(review.review_app, name="review")
+app.add_typer(tracker.tracker_app, name="tracker")
 
 
 def _version(value: bool) -> None:

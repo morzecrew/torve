@@ -101,6 +101,7 @@ modules = [
     "torve.adapters.workspace",
     "torve.adapters.vcs",
     "torve.adapters.store",
+    "torve.adapters.tracker",
 ]
 
 [tool.ruff]
