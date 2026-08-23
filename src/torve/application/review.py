@@ -15,10 +15,11 @@ loop for reviews arrives when a reviewer earns retries.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -131,25 +132,31 @@ class _FindingsDocument(BaseModel):
     findings: list[Finding]
 
 
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
 def parse_findings(output: str) -> list[Finding] | None:
-    """The trailing JSON document with a `findings` key, parsed and
-    validated; None when no such document exists — recorded as unparseable,
-    never invented as clean."""
-    for line in reversed(output.strip().splitlines()):
-        line = line.strip()
-        if not (line.startswith("{") and line.endswith("}")):
-            continue
+    """The last JSON document with a `findings` key anywhere in the output,
+    parsed and validated; None when no such document exists — recorded as
+    unparseable, never invented as clean. Harness output is hostile ground:
+    ANSI escapes are stripped and the document may span lines or be followed
+    by session chatter, so balanced decoding wins over line splitting."""
+    text = ANSI.sub("", output)
+    decoder = json.JSONDecoder()
+    last: object | None = None
+    for brace in re.finditer(r"\{", text):
         try:
-            document = json.loads(line)
+            document, _ = decoder.raw_decode(text, brace.start())
         except json.JSONDecodeError:
             continue
-        if not (isinstance(document, dict) and "findings" in document):
-            continue
-        try:
-            return _FindingsDocument.model_validate(document).findings
-        except ValidationError:
-            return None
-    return None
+        if isinstance(document, dict) and "findings" in document:
+            last = cast("dict[str, Any]", document)
+    if last is None:
+        return None
+    try:
+        return _FindingsDocument.model_validate(last).findings
+    except ValidationError:
+        return None
 
 
 @dataclass
@@ -166,7 +173,7 @@ def run_review(
     root: Path, worktree: Path, target: Task, review: Task,
     config: RunnerConfig, runtime: Runtime, agent: Agent,
     diff_text: str, gate_results: list[GateResult],
-    config_digest: str,
+    config_digest: str, degraded: bool = False,
 ) -> ReviewOutcome:
     """One review attempt over the target's worktree, mounted read-only.
     Produces the review's run state and telemetry record; the caller applies
@@ -186,7 +193,7 @@ def run_review(
         env_passthrough=tuple(tier.api_key_env),
         workspace_read_only=True,
     )
-    prompt = build_review_prompt(target, diff_text, gate_results)
+    prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded)
     handle = runtime.create(spec, worktree)
     state.sandbox_id = handle.id
     state.save()

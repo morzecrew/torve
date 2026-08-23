@@ -1,4 +1,7 @@
 # Minted by `torve plan 0005` — phase 3: Degraded mode and the seeded corpus
+# Scope widened by hand before execution: run_review gains the degraded
+# passthrough (one parameter in application/review.py) — the wiring-seam
+# lesson again, legal cross-phase overlap under D-7.23.
 schema_version: 1
 id: T-0040
 rfc: rfcs/0005-review-as-a-run.md
@@ -19,6 +22,7 @@ depends_on:
 - T-0039
 scope:
   allow:
+  - src/torve/application/review.py
   - src/torve/cli/**
   - .torve/review-corpus/**
   - tests/**

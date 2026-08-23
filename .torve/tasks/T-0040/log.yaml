@@ -1,0 +1,104 @@
+schema_version: 1
+task: T-0040
+repo: morzecrew/torve
+base_sha: 781f7d528e0290c2c52caeef7deab38dad16ee62
+drift_count: 0
+entries:
+  - decision: D-5.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:30:00Z
+    attempt: 1
+    claim: >-
+      the corpus is a repository artefact — cases under
+      .torve/review-corpus/<case>/ with the seeded diff, the workspace tree
+      the evidence must locate against, and the expectations — replayed by
+      `torve review corpus` through the reviewer tier; a dropped catch, an
+      invented blocker on a clean case, or unparseable output exits red.
+      Measured live: the deepseek reviewer caught the swallowed-exception
+      seed as a blocker with locating evidence and left the clean-rename
+      twin clean — corpus green with a real model, the §10 exit criterion
+    evidence: src/torve/cli/review.py:110-176 — the corpus command;
+      .torve/review-corpus/swallowed-exception/case.yaml:1-11 — the seeded
+      case with its expectation
+    action: decided
+  - decision: D-5.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-22T23:31:00Z
+    attempt: 1
+    claim: run_review gained the degraded passthrough and a corpus case may
+      declare degraded true, exercising the no-spec prompt that forbids
+      invented specifications; the pull-request trigger that will use it in
+      anger stays deferred with the forge
+    evidence: src/torve/application/review.py:168-172 — the parameter
+      reaching build_review_prompt
+    action: decided
+  - decision: D-5.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:31:15Z
+    attempt: 1
+    claim: corpus replays reuse the phase-2 run path unchanged — review
+      stayed a run; the command adds no second pipeline, only cases and
+      expectation matching around run_review
+    evidence: src/torve/cli/review.py:79-83 — the command's whole engine
+      contact is one run_review call
+    action: decided
+  - decision: D-5.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:31:30Z
+    attempt: 1
+    claim: the parser rewrite stayed inside output handling — the read-only
+      mount and the credential-free spec are untouched; corpus reviews run
+      through the same run_review path phase 2 pinned
+    evidence: src/torve/application/review.py:186-193 — the spec still
+      carries workspace_read_only and only the tier's env names
+    action: decided
+  - decision: D-5.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:31:45Z
+    attempt: 1
+    claim: the degraded passthrough adds a flag to prompt composition, whose
+      inputs remain the diff, the contract, decisions and gate results — no
+      trace enters the composition from any path
+    evidence: src/torve/application/review.py:168-172 — the passthrough
+      touches only the degraded argument
+    action: decided
+  - decision: D-5.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-22T23:32:00Z
+    attempt: 1
+    claim: corpus review tasks are built in memory with the review-role
+      shape — targets, no acceptance, one iteration — and never written as
+      contracts; the validation from phase 1 governs them unchanged
+    evidence: src/torve/cli/review.py:71-78 — the in-memory review task
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-22T23:33:00Z
+    attempt: 1
+    claim: >-
+      the first live corpus run failed on parsing, not reviewing: the
+      reviewer produced a correct blocker but opencode wraps output in ANSI
+      escapes and pretty-prints the document across lines, and the
+      line-based parser read it as unparseable. parse_findings now strips
+      escapes and decodes balanced JSON documents anywhere in the output,
+      taking the last one with a findings key — pinned by a test carrying
+      the real failure shape. The corpus caught a defect in the harness
+      before it ever gated a prompt change, which is the mechanism working
+      one level earlier than designed. Scope note: run_review's degraded
+      passthrough required application/review.py in the minted phase-3
+      scope, widened by hand like T-0039's
+    evidence: src/torve/application/review.py:130-158 — the
+      balanced-document parser; tests/test_review_run.py:167-176 — the
+      ANSI regression test
+    action: decided
+    proposal: 0005 §2 note — reviewer output parsing is balanced-document
+      extraction over ANSI-stripped text, because harness output is session
+      chatter around a document, not a clean stream

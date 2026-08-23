@@ -1,0 +1,7 @@
+diff --git a/src/naming_helper.py b/src/naming_helper.py
+--- a/src/naming_helper.py
++++ b/src/naming_helper.py
+@@ -1,2 +1,2 @@
+-def brn(task_id):
++def derive_branch_name(task_id):
+     return f"torve/{task_id}"

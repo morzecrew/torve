@@ -25,6 +25,7 @@ from torve.cli import (
     gates,
     migrate,
     plan,
+    review,
     rfc,
     run,
     sandbox,
@@ -41,6 +42,7 @@ gates_app = typer.Typer(no_args_is_help=True, help="Run or verify the gate set."
 app.add_typer(gates_app, name="gates")
 app.add_typer(rfc.rfc_app, name="rfc")
 app.add_typer(sandbox.sandbox_app, name="sandbox")
+app.add_typer(review.review_app, name="review")
 
 
 def _version(value: bool) -> None:

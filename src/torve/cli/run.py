@@ -6,7 +6,7 @@ picks the adapter (RFC 0004 §1); the exit code projection is D-11.4.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
@@ -20,6 +20,11 @@ from torve.cli.options import (
     runtime_for,
 )
 from torve.config import layout
+
+if TYPE_CHECKING:
+    from torve.application.ports import Agent
+    from torve.config.runconfig import RunnerConfig
+
 from torve.domain.states import (
     EXIT_BY_REASON,
     EXIT_CONFIG,
@@ -32,6 +37,23 @@ from torve.domain.states import (
 from torve.gates.context import load_task
 
 # ----------------------- #
+
+
+def build_reviewer_agent(config: RunnerConfig, root: Path) -> Agent:
+    """The reviewer tier's agent, provider-routed before a sandbox exists —
+    shared by the run loop's review hook and the regression corpus."""
+    from torve.adapters.vcs.git import repository_name
+    from torve.config.runconfig import route_provider, tier_for
+
+    reviewer_tier = tier_for(config, "reviewer")
+    route_provider(config.providers, repository_name(root), reviewer_tier.provider)
+    if reviewer_tier.adapter == "fake":
+        from torve.adapters.agent.fake import FakeAgent
+
+        return FakeAgent(None)
+    from torve.adapters.agent.harness import HarnessAgent
+
+    return HarnessAgent(reviewer_tier)
 
 
 def run_cmd(
@@ -76,7 +98,6 @@ def run_cmd(
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-    from torve.application.ports import Agent
 
     agent: Agent
     if agent_name == "fake" or tier.adapter == "fake":
@@ -91,18 +112,9 @@ def run_cmd(
     review_agent: Agent | None = None
     if "task_gated" in config.review.on:
         try:
-            reviewer_tier = tier_for(config, "reviewer")
-            # The reviewer's egress routes like any tier's — enforced here,
-            # before a sandbox exists.
-            route_provider(config.providers, repository_name(root), reviewer_tier.provider)
-        except (ProviderDenied, ValueError) as exc:
+            review_agent = build_reviewer_agent(config, root)
+        except ValueError as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
-        if reviewer_tier.adapter == "fake":
-            review_agent = FakeAgent(None)
-        else:
-            from torve.adapters.agent.harness import HarnessAgent
-
-            review_agent = HarnessAgent(reviewer_tier)
 
     deps = RunDeps(
         workspace=GitWorkspace(root),

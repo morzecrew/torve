@@ -1,0 +1,6 @@
+# The clean twin (RFC 0005 §5): a harmless rename after green gates. The
+# reviewer's permission to say "clean" is itself regression-tested — an
+# invented blocker here is the noise that gets reviewers muted.
+intent: Rename the ambiguous helper for readability.
+decisions: []
+expect: []

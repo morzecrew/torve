@@ -154,7 +154,7 @@ def test_the_degraded_prompt_forbids_invented_specifications():
     assert "invent" in prompt
 
 
-def test_parse_findings_takes_the_trailing_document():
+def test_parse_findings_takes_the_last_document():
     output = "thinking...\n{\"findings\": []}"
     assert parse_findings(output) == []
     found = parse_findings(json.dumps(
@@ -162,3 +162,14 @@ def test_parse_findings_takes_the_trailing_document():
     assert found == [Finding(severity="nit", claim="c", evidence="e")]
     assert parse_findings("no document here") is None
     assert parse_findings("{\"findings\": \"not a list\"}") is None
+
+
+def test_parse_findings_survives_ansi_and_multiline_documents():
+    # Real harness output (opencode, first live corpus run): escape codes
+    # around a pretty-printed document with session chatter after it.
+    output = ("\x1b[0m{\"findings\": [\n"
+              "  {\"severity\": \"blocker\", \"claim\": \"swallowed\",\n"
+              "   \"evidence\": \"src/app.py:3 — the bare except\"}\n"
+              "]}\x1b[0m\n> build · model\n→ Read src/app.py\n")
+    found = parse_findings(output)
+    assert found is not None and found[0].severity == "blocker"

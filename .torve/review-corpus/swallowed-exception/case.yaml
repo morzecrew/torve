@@ -1,0 +1,12 @@
+# Seeded defect (RFC 0005 §6): the retry wrapper swallows every exception.
+# The reviewer must catch it; a prompt or model change that drops this catch
+# is a regression.
+intent: Add retry handling to the fetch path.
+decisions:
+  - id: D-90.1
+    grade: LOCKED
+    text: Errors surface to the caller; swallowing an exception without record is forbidden
+    paths: ["src/**"]
+expect:
+  - severity: blocker
+    claim_contains: except
