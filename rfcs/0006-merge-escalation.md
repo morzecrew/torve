@@ -1,7 +1,7 @@
 ---
 id: "0006"
 title: Merge train and escalation policy
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0003"]
 informed_by: ["0005"]
@@ -118,15 +118,74 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-6.1 | `LOCKED` | `ready` is a serialized lane; only this state is capped | `src/torve/lane/**` | Otherwise concurrent merges invalidate each other |
-| D-6.2 | `LOCKED` | Auto-merge off by default, opt-in per repository and task class | `src/torve/lane/**` | Reversing this is how review debt becomes invisible |
-| D-6.3 | `ASSUMED` | Review freshness is measured against current head; a push resets the window | `src/torve/lane/**` | — |
-| D-6.4 | `ASSUMED` | Escalations are batched into review windows except blockers and locked conflicts | `src/torve/lane/**` | Tune the split once resolution times are known |
-| D-6.5 | `ASSUMED` | Parallelism increases only when escalation resolution time is stable | `src/torve/lane/**` | The bottleneck is a person, not the pool |
-| D-6.6 | `LOCKED` | Blocked dispatch is logged with cause and counted per path; `torve kill` always available | `src/torve/application/reaper.py` `src/torve/cli/**` | Contention must be diagnosable before it is designed for |
+| D-6.1 | `LOCKED` | `ready` is a serialized lane; only this state is capped | `src/torve/application/lane.py` `src/torve/cli/merge.py` | Otherwise concurrent merges invalidate each other |
+| D-6.2 | `LOCKED` | Auto-merge off by default, opt-in per repository and task class | `src/torve/config/runconfig.py` | Reversing this is how review debt becomes invisible |
+| D-6.3 | `ASSUMED` | Review freshness is measured against current head; a push resets the window | `src/torve/application/lane.py` | — |
+| D-6.4 | `ASSUMED` | Escalations are batched into review windows except blockers and locked conflicts | `src/torve/application/projections.py` | Tune the split once resolution times are known |
+| D-6.5 | `ASSUMED` | Parallelism increases only when escalation resolution time is stable | — | The bottleneck is a person, not the pool |
+| D-6.6 | `LOCKED` | Blocked dispatch is logged with cause and counted per path; `torve kill` always available | `src/torve/application/runner.py` `src/torve/cli/run.py` | Contention must be diagnosable before it is designed for |
 | D-6.7 | `ASSUMED` | Engine health rides the existing telemetry path as `EngineEvent` | `src/torve/application/telemetry.py` | A second observability stack is a second thing to operate |
 | D-6.8 | `LOCKED` | Escalation queue age is the primary alert | `src/torve/application/telemetry.py` | The failure that is invisible from inside the runner |
-| D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 | `src/torve/lane/**` `src/torve/application/taskstore.py` | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
+| D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
+
+## Phasing
+
+*(Added 2026-08-23 at acceptance, with the path relocation to RFC 0015's
+tree — no `lane/` package exists. The forge-shaped legs stay deferred with
+the forge: CI polling with backoff, the approvals/quiet-window promotion
+fields, and the notifier the outbox feeds (deferred from RFC 0003 D-3.18,
+deferred again here — there is no channel to notify until one exists). In
+the local regime the operator invoking the lane is the configured approval,
+and the gate battery is current-head CI.)*
+
+```yaml
+- phase: 1
+  title: Prevention, kill, and engine sight
+  intent: |
+    What must exist before a lane is safe to run: dispatch refuses a task
+    whose scope intersects an active run's, logged with its cause and
+    counted per path through a new EngineEvent record on the existing
+    telemetry path; torve kill force-terminates one run — sandbox
+    destroyed, state escalated as killed; and the escalation queue's age
+    becomes visible in the context projection, because a queue nobody
+    triages looks identical to success from inside the runner.
+  scope:
+    - "src/torve/application/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+- phase: 2
+  title: The serialized lane
+  depends_on: [1]
+  intent: |
+    Ready is a lane, not a set: torve merge processes candidates one at a
+    time — a task branch whose base has not moved lands as it was measured;
+    one whose base moved is rebased and its gate battery re-run over the
+    rebased tree before landing; a conflict escalates as merge_conflict
+    and the lane moves on. The engine never resolves a conflict, and the
+    operator's invocation is the recorded approval. Auto-merge stays off
+    by default in configuration.
+  scope:
+    - "src/torve/application/lane.py"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+```
 
 ## 7. Exit criteria
 
