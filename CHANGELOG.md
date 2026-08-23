@@ -107,6 +107,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0006's CI leg executed (T-0048): `ci: green_on_current_head` is a
+  live requirement. With `promotion.require_ci` on, the lane consults the
+  configured remote's Actions verdict for the candidate's branch tip —
+  polled with backoff, only the latest run per workflow counting, only
+  success landing; a refusal names the verdict, rides the engine-event
+  stream, and touches nothing. The rebase path now releases the
+  candidate's engine worktree (git refuses a second checkout of a pinned
+  branch). Demonstrated end to end on the lab: the lane refused a
+  candidate on genuinely red CI, then landed it after the green rerun —
+  rebased, battery green, pushed.
 - Amendment A-24 executed (T-0046): docker inside the sandbox.
   `runtime.docker: socket` mounts the host daemon's socket into every
   sandbox of the run — attempt and gates alike, the socket's owning
