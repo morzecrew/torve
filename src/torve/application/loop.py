@@ -103,7 +103,14 @@ def next_queued(root: Path, landed: Callable[[str], bool]) -> str | None:
             continue  # an unreadable contract is not this leg's problem
         if task.role not in ("implement", "revert"):
             continue
-        if _run_record_exists(root, task.id):
+        state_path = naming.state_file(root, task.id)
+        if state_path.exists():
+            # A QUEUED state is a board re-queue (T-0059): §4's re-entry
+            # is the human act, and it already happened. Any other state
+            # is a run the loop must not touch.
+            if RunState.load(state_path).state is not TaskState.QUEUED:
+                continue
+        elif _run_record_exists(root, task.id):
             continue
         if not all(_dependency_satisfied(root, dep, landed)
                    for dep in task.depends_on):

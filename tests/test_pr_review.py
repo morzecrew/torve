@@ -305,3 +305,28 @@ def test_ghscm_retries_a_transient_failure_once(monkeypatch):
     scm = GhScm("example/lab", token_env=None, sleeper=naps.append)
     assert scm.pr_info(12).number == 12
     assert naps == [2.0]
+
+
+def test_delete_remote_branch_over_a_local_origin(tmp_path: Path) -> None:
+    # T-0059: the retry command's re-queue cleanup — a ref deletion, never
+    # a rewrite; absent refs and missing origins answer False, quietly.
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
+    git(repo, "config", "user.name", "T")
+    git(repo, "config", "user.email", "t@example.invalid")
+    (repo / "a.py").write_text("a = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "init")
+    git(repo, "push", "-q", "origin", "HEAD:refs/heads/torve/T-0042")
+
+    vcs = GitVcs()
+    assert vcs.delete_remote_branch(repo, "torve/T-0042") is True
+    assert "torve/T-0042" not in git(origin, "for-each-ref", "--format=%(refname)")
+    # Already gone: the postcondition holds, not an error.
+    assert vcs.delete_remote_branch(repo, "torve/T-0042") is True
+
+    lonely = tmp_path / "lonely"
+    subprocess.run(["git", "init", "-q", str(lonely)], check=True)
+    assert vcs.delete_remote_branch(lonely, "torve/T-0042") is False

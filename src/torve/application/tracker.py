@@ -13,6 +13,7 @@ parse is allow-listed, never free-text interpretation.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -165,7 +166,8 @@ class PollReport:
     outcomes: list[CommandOutcome] = field(default_factory=list)
 
 
-def _apply(root: Path, command: TrackerCommand) -> CommandOutcome:
+def _apply(root: Path, command: TrackerCommand,
+           requeue: Callable[[str], str] | None = None) -> CommandOutcome:
     verb, task_id = command.verb, command.task_id
     if verb not in COMMANDS:
         return CommandOutcome(verb, task_id, command.actor, False,
@@ -180,9 +182,21 @@ def _apply(root: Path, command: TrackerCommand) -> CommandOutcome:
         if state.state is not TaskState.ESCALATED:
             return CommandOutcome(verb, task_id, command.actor, False,
                                   f"retry needs an escalated run; this one is {state.state}")
+        # The mechanical re-queue (T-0059): the stale remote branch goes
+        # under the commander's explicit authority — a ref deletion, never
+        # a rewrite — BEFORE the state moves, so a failed cleanup leaves
+        # the escalation standing and the command retryable.
+        cleanup = "no re-queue cleanup wired"
+        if requeue is not None:
+            try:
+                cleanup = requeue(task_id)
+            except Exception as exc:  # refused, never half-applied
+                return CommandOutcome(verb, task_id, command.actor, False,
+                                      f"re-queue cleanup failed: {exc}")
         state.transition(TaskState.QUEUED, f"tracker command retry from {command.actor}")
         state.save()
-        return CommandOutcome(verb, task_id, command.actor, True, "re-queued")
+        return CommandOutcome(verb, task_id, command.actor, True,
+                              f"re-queued ({cleanup})")
 
     if verb == "abandon":
         if TaskState.ABANDONED not in TRANSITIONS[state.state]:
@@ -210,7 +224,8 @@ def _apply(root: Path, command: TrackerCommand) -> CommandOutcome:
 
 
 def poll_and_apply(root: Path, tracker: Tracker,
-                   commanders: tuple[str, ...] = ()) -> PollReport:
+                   commanders: tuple[str, ...] = (),
+                   requeue: Callable[[str], str] | None = None) -> PollReport:
     """Inbound commands: authorization precedes validation — a command
     applies only when its actor is a configured commander, and an empty
     list refuses everyone (T-0054; the board is an unattended channel once
@@ -224,7 +239,7 @@ def poll_and_apply(root: Path, tracker: Tracker,
                 f"actor {command.actor} is not a configured commander "
                 "(tracker.commanders)")
         else:
-            outcome = _apply(root, command)
+            outcome = _apply(root, command, requeue)
         word = "applied" if outcome.applied else "refused"
         tracker.comment(
             command.task_id,

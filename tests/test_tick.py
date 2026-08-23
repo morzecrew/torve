@@ -258,3 +258,22 @@ def test_the_tick_pushes_what_the_lane_lands(tmp_path: Path) -> None:
     # Origin holds the landing: the next dispatch bases on the truth.
     assert git(origin, "rev-parse", "main") == git(repo, "rev-parse", "main")
     assert "landed.py" in git(origin, "ls-tree", "--name-only", "main")
+
+
+def test_a_board_requeued_task_is_selected_again(root):
+    # T-0059: re-entry into the queue is the human act §4 names — a QUEUED
+    # state is queued, telemetry record notwithstanding.
+    contract(root, "T-9001")
+    (root / ".torve" / "telemetry.jsonl").write_text(
+        json.dumps({"schema_version": 1, "kind": "attempt",
+                    "task_id": "T-9001"}) + "\n", encoding="utf-8")
+    assert next_queued(root, lambda _t: False) is None  # ran, not re-queued
+    run_state(root, "T-9001", TaskState.QUEUED)
+    assert next_queued(root, lambda _t: False) == "T-9001"
+
+
+def test_a_requeued_task_still_waits_for_its_dependencies(root):
+    contract(root, "T-9002", depends_on=["T-9001"])
+    run_state(root, "T-9002", TaskState.QUEUED)
+    assert next_queued(root, lambda _t: False) is None
+    assert next_queued(root, lambda t: t == "T-9001") == "T-9002"

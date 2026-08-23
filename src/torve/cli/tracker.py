@@ -87,12 +87,25 @@ def poll(
 ) -> None:
     """Read the board's commands and apply each as an intent against the
     store; refusals are answered on their thread."""
+    import os
+
+    from torve.adapters.vcs.git import GitVcs
     from torve.application.tracker import poll_and_apply
+    from torve.base import naming
 
     root = root.resolve()
+    config = load_config(root, config_path)
     tracker, tracker_config = _adapter(root, config_path)
+
+    def requeue(task_id: str) -> str:
+        token = (os.environ.get(config.scm.token_env)
+                 if config.scm.token_env else None)
+        deleted = GitVcs().delete_remote_branch(
+            root, naming.branch(task_id), token)
+        return "remote branch deleted" if deleted else "no remote branch"
+
     report = poll_and_apply(root, tracker,
-                            tuple(tracker_config.commanders))
+                            tuple(tracker_config.commanders), requeue)
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "commands": [vars(o) for o in report.outcomes]})
     else:

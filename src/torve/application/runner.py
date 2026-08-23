@@ -623,7 +623,10 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
     state_path = naming.state_file(root, task.id)
     if state_path.exists():
         previous = RunState.load(state_path)
-        if previous.state not in (TaskState.READY, TaskState.ABANDONED):
+        # QUEUED is a board re-queue (T-0059): the human act already
+        # happened, and dispatch is exactly what it asked for.
+        if previous.state not in (TaskState.READY, TaskState.ABANDONED,
+                                  TaskState.QUEUED):
             raise RuntimeError(
                 f"{task.id} has an existing run in state {previous.state} "
                 f"(run {previous.run_id[:8]}); triage it or `torve reap` first"

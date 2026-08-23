@@ -1,0 +1,56 @@
+schema_version: 1
+task: T-0059
+repo: morzecrew/torve
+base_sha: 6ecf66cdde12aaf39ea2c47e3806b283eba6cc5c
+drift_count: 0
+entries:
+  - decision: D-8.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T06:10:00Z
+    attempt: 1
+    claim: >-
+      the retry intent now carries its mechanical consequence — the
+      stale remote branch is deleted at apply time, before the state
+      transitions, under the commander's explicit authority; ordering is
+      load-bearing: a failed cleanup refuses the command with the
+      escalation left standing and the command retryable, so the store
+      never says QUEUED while the forge still holds the branch that
+      would refuse the re-run's push
+    evidence: src/torve/application/tracker.py:185-201 — cleanup before
+      transition, refusal on failure; tests/test_tracker.py:387-425 —
+      both orders pinned, state asserted mid-cleanup
+    action: decided
+  - decision: D-8.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T06:11:00Z
+    attempt: 1
+    claim: >-
+      branch deletion is a ref deletion, never a history rewrite — the
+      no-force doctrine stands untouched, and delete_remote_branch's
+      contract is a postcondition ("the branch is gone": deleted now or
+      already absent both answer True, transports report each
+      differently) with False only for a repository without an origin;
+      the forge closes the stale pull request itself when its head goes
+    evidence: src/torve/adapters/vcs/git.py:109-137 — the deletion
+      primitive and its postcondition; tests/test_pr_review.py:312-335 —
+      gone, already-gone, and no-origin over a real local origin
+    action: decided
+  - decision: D-8.9
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T06:12:00Z
+    attempt: 1
+    claim: >-
+      selection and admission both read the re-queue as the human act
+      the queue rule names: the loop's next_queued treats a QUEUED run
+      state as queued (dependencies still checked), and the runner
+      admits QUEUED beside READY and ABANDONED instead of demanding
+      triage — the workspace's create already resets branch and
+      worktree, so the local side needed nothing
+    evidence: src/torve/application/loop.py:106-112 — QUEUED selected,
+      other states untouchable; src/torve/application/runner.py:623-633
+      — the admission; tests/test_tick.py:263-280 — selected again,
+      dependencies still hold
+    action: decided

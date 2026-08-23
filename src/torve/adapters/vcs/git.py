@@ -106,6 +106,36 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git push failed")
         return True
 
+    def delete_remote_branch(self, root: Path, branch: str,
+                             token: str | None = None) -> bool:
+        """The retry command's re-queue cleanup (T-0059): delete the task's
+        own remote branch — a ref deletion under the commander's explicit
+        authority, never a history rewrite (D-10.5 stands). Returns True
+        when the branch is gone (deleted now, or already absent — some
+        transports report each differently), False when there is no
+        origin; raises on anything else, so a half-applied retry refuses
+        loudly."""
+        remotes = _git(root, "remote")
+        if "origin" not in remotes.stdout.split():
+            return False
+        config: list[str] = []
+        env = None
+        if token:
+            helper = ("!f() { echo username=x-access-token; "
+                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
+            env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+        proc = subprocess.run(
+            ["git", "-C", str(root), *config,
+             "push", "origin", "--delete", f"refs/heads/{branch}"],
+            capture_output=True, text=True, check=False, env=env,
+        )
+        if proc.returncode != 0:
+            if "remote ref does not exist" in proc.stderr:
+                return True  # already gone — the postcondition holds
+            raise RuntimeError(proc.stderr.strip() or "git push --delete failed")
+        return True
+
     def fetch_pr(self, root: Path, number: int, base_ref: str,
                  token: str | None = None) -> tuple[str, str]:
         """Fetch the pull request's head and its base branch into local

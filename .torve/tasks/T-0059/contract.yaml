@@ -1,0 +1,48 @@
+# Minted by hand — the retry-command gap: a board retry re-queued state
+# the loop never selected, the runner refused to re-dispatch, and the
+# stale remote branch would have refused the re-run's push.
+schema_version: 1
+id: T-0059
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  The retry command completes its own re-queue: its apply deletes the
+  task's remote branch under the commander's explicit authority — a ref
+  deletion, never a history rewrite, so the no-force doctrine stands —
+  before the state transitions to QUEUED, and a failed deletion refuses
+  the command with the escalation left standing. The loop then treats a
+  QUEUED run state as queued (re-entry is the human act the queue rule
+  already names), and the runner admits a QUEUED state for re-dispatch
+  instead of demanding triage. The forge closes the stale pull request
+  itself when its head branch goes.
+depends_on: [T-0058]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.3
+    grade: LOCKED
+    text: "Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change"
+    paths:
+      - src/torve/application/tracker.py
+  - id: D-8.9
+    grade: ASSUMED
+    text: "Commands are authorized before they are validated: only actors in `tracker.commanders` apply, an empty list refuses everyone, and refusals are answered on-thread. Added by execution 2026-08-24 — see .torve/tasks/T-0054"
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/config/runconfig.py
+budget: {}
+tier: executor

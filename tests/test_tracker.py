@@ -378,3 +378,47 @@ def test_a_twice_transient_failure_raises_after_the_single_retry(monkeypatch):
     with pytest.raises(RuntimeError, match="connection reset"):
         board._gh("issue", "list")
     assert len(calls) == 2
+
+
+# The retry command completes its own re-queue (T-0059): the stale remote
+# branch goes at apply time, before the state moves.
+
+
+def test_retry_runs_the_requeue_cleanup_before_the_transition(root):
+    state = run_state(root, "T-6120", TaskState.RUNNING)
+    from torve.domain.states import EscalationReason
+
+    state.escalate(EscalationReason.MERGE_CONFLICT, "rebase conflicts")
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("retry", "T-6120", "misery7100", "c20")]
+    cleaned: list[str] = []
+
+    def requeue(task_id: str) -> str:
+        # The state must still be escalated when cleanup runs.
+        assert RunState.load(naming.state_file(root, task_id)).state \
+            is TaskState.ESCALATED
+        cleaned.append(task_id)
+        return "remote branch deleted"
+
+    outcome = poll_and_apply(root, tracker, ("misery7100",), requeue).outcomes[0]
+    assert outcome.applied and "remote branch deleted" in outcome.detail
+    assert cleaned == ["T-6120"]
+    assert RunState.load(naming.state_file(root, "T-6120")).state is TaskState.QUEUED
+
+
+def test_a_failed_requeue_cleanup_refuses_and_leaves_the_escalation(root):
+    state = run_state(root, "T-6121", TaskState.RUNNING)
+    from torve.domain.states import EscalationReason
+
+    state.escalate(EscalationReason.MERGE_CONFLICT, "rebase conflicts")
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("retry", "T-6121", "misery7100", "c21")]
+
+    def requeue(task_id: str) -> str:
+        raise RuntimeError("origin unreachable")
+
+    outcome = poll_and_apply(root, tracker, ("misery7100",), requeue).outcomes[0]
+    assert not outcome.applied and "origin unreachable" in outcome.detail
+    # The escalation stands; the command is retryable.
+    assert RunState.load(naming.state_file(root, "T-6121")).state \
+        is TaskState.ESCALATED

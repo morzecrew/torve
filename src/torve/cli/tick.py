@@ -77,8 +77,19 @@ def tick_cmd(
 
         board = GithubIssues(config.tracker.repo, config.tracker.token_env)
 
+        def _requeue(task_id: str) -> str:
+            import os
+
+            from torve.base import naming
+
+            token = (os.environ.get(config.scm.token_env)
+                     if config.scm.token_env else None)
+            deleted = vcs.delete_remote_branch(root, naming.branch(task_id), token)
+            return "remote branch deleted" if deleted else "no remote branch"
+
         def _poll() -> tuple[str, bool]:
-            report = poll_and_apply(root, board, tuple(config.tracker.commanders))
+            report = poll_and_apply(root, board, tuple(config.tracker.commanders),
+                                    _requeue)
             if not report.outcomes:
                 return ("no commands on the board", False)
             applied = sum(o.applied for o in report.outcomes)
