@@ -2,7 +2,7 @@
 id: "0019"
 title: The standing loop
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
