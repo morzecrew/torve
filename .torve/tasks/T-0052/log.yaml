@@ -1,0 +1,54 @@
+schema_version: 1
+task: T-0052
+repo: morzecrew/torve
+base_sha: ddf81855555568dbe5829a57e50b138c61ec44d6
+drift_count: 0
+entries:
+  - decision: D-6.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T23:05:00Z
+    attempt: 1
+    claim: >-
+      the lane tolerates engine records, not the runner committing them —
+      of the two candidate fixes (runner auto-commits its minted review
+      contract, or the guard scopes to landed content), auto-committing
+      into the operator's checkout mid-run contradicts the corpus's
+      bookkeeping-rides-docs-commits convention (D-16.8) and risks
+      scooping unrelated staged work; the guard's purpose is
+      fast-forward safety, and the store's files are records the landing
+      never composes from
+    evidence: src/torve/application/lane.py:79-95 — the record predicate
+      and its rationale; src/torve/application/lane.py:104 — the guard
+      filters, everything else still refuses
+    action: decided
+  - decision: D-6.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T23:06:00Z
+    attempt: 1
+    claim: >-
+      the tolerated set is enumerated, never a blanket .torve/ pass:
+      task directories, the manifest's telemetry file, and the outbox
+      pair — the reviewed regime files (gates.yaml, config.yaml, the
+      sandbox and vendored-skill trees) stay refusable dirt, because a
+      pending regime edit at landing time deserves the operator's
+      attention even when the landing does not consume it
+    evidence: src/torve/application/lane.py:88-95 — the enumerated set;
+      tests/test_lane.py:149-158 — records beside real dirt still refuse
+    action: decided
+  - decision: D-6.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T23:07:00Z
+    attempt: 1
+    claim: >-
+      the refusal now names the offending paths (up to five, sorted) so
+      a refused lane is diagnosable from its message — the same
+      cause-named principle as blocked dispatch; the port method became
+      dirty_paths, since a boolean is_clean could never say what was
+      dirty and the lane was its only consumer
+    evidence: src/torve/application/lane.py:104-110 — paths in the
+      message; src/torve/adapters/vcs/git.py:123-132 — porcelain parsed
+      to paths, rename destinations included
+    action: decided

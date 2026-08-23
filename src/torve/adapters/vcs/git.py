@@ -120,8 +120,16 @@ class GitLane:
     def current_branch(self, root: Path) -> str:
         return _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
 
-    def is_clean(self, root: Path) -> bool:
-        return not _git(root, "status", "--porcelain").stdout.strip()
+    def dirty_paths(self, root: Path) -> list[str]:
+        paths: list[str] = []
+        for line in _git(root, "status", "--porcelain").stdout.splitlines():
+            if not line.strip():
+                continue
+            # Porcelain v1: two status columns, a space, then the path —
+            # renames carry "orig -> dest" and the destination is the dirt.
+            entry = line[3:].split(" -> ")[-1].strip().strip('"')
+            paths.append(entry)
+        return paths
 
     def rebase_in_worktree(self, root: Path, branch: str, onto: str, workdir: Path) -> bool:
         added = _git(root, "worktree", "add", str(workdir), branch)

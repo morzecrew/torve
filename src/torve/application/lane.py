@@ -76,16 +76,38 @@ def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
     return report.exit_code, summary
 
 
+def _engine_record(root: Path, rel: str) -> bool:
+    """The store's files are records, not landed content: the landing is
+    measured from the candidate's committed tree, never composed from the
+    checkout's engine state, so engine-authored dirt — minted task
+    contracts, telemetry appends, the outbox pair — must not demand an
+    operator commit before every landing."""
+    from torve.application.outbox import LEDGER, OUTBOX
+    from torve.config.manifest import Manifest, load_manifest
+
+    if rel.startswith(f"{layout.TORVE_DIR}/tasks/"):
+        return True
+    manifest_path = layout.gates_file(root)
+    telemetry_rel = (load_manifest(manifest_path).telemetry
+                     if manifest_path.is_file() else Manifest(gates=[]).telemetry)
+    return rel in {telemetry_rel,
+                   f"{layout.TORVE_DIR}/{OUTBOX}",
+                   f"{layout.TORVE_DIR}/{LEDGER}"}
+
+
 def process_lane(
     root: Path, vcs: LaneVcs, dry_run: bool = False, only: str | None = None,
     ci: CiStatus | None = None,
 ) -> list[LaneResult]:
     base = vcs.current_branch(root)
-    if not dry_run and not vcs.is_clean(root):
-        raise RuntimeError(
-            f"the working tree on {base!r} is not clean — the lane fast-forwards "
-            "the checkout, commit or stash first"
-        )
+    if not dry_run:
+        dirt = [p for p in vcs.dirty_paths(root) if not _engine_record(root, p)]
+        if dirt:
+            raise RuntimeError(
+                f"the working tree on {base!r} is not clean — the lane "
+                "fast-forwards the checkout, commit or stash first: "
+                + ", ".join(sorted(dirt)[:5])
+            )
     approver = vcs.approver(root)
     results: list[LaneResult] = []
     for state in ready_candidates(root):

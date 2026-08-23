@@ -1,0 +1,51 @@
+# Minted by hand — the papercut the first standing-team run surfaced: the
+# runner-minted review contract lands untracked in the root checkout, and
+# the lane's blanket clean-tree guard refuses to merge until a human
+# commits engine bookkeeping.
+schema_version: 1
+id: T-0052
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  The lane's cleanliness guard scopes to what a landing can actually
+  corrupt: dirt in landed content still refuses the lane and now names
+  the offending paths, but the engine's own record files — task
+  directories under .torve/tasks/, the manifest's telemetry file, and
+  the outbox pair — never block it. The store is the authority and its
+  files are records, not content: the landing is measured from the
+  candidate's committed tree, never composed from the checkout's engine
+  state, so engine-authored writes must not demand an operator commit
+  before every landing.
+depends_on: [T-0051]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.1
+    grade: LOCKED
+    text: "`ready` is a serialized lane; only this state is capped"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+  - id: D-6.6
+    grade: LOCKED
+    text: Blocked dispatch is logged with cause and counted per path; `torve kill` always available
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/cli/run.py
+budget: {}
+tier: executor
