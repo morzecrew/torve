@@ -27,13 +27,19 @@ from torve.cli.console import (
     styled,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption
-from torve.domain.states import EXIT_ESCALATED, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
+from torve.domain.states import (
+    EXIT_CONFIG,
+    EXIT_ESCALATED,
+    EXIT_GATES_RED,
+    EXIT_INFRASTRUCTURE,
+    EXIT_OK,
+)
 
 # ----------------------- #
 
 _MARKS = {"landed": "pass", "already landed": "pass", "would land": "pass",
           "would rebase": "pass", "conflict": "fail", "gates red": "fail",
-          "no branch": "skipped"}
+          "ci not green": "fail", "no branch": "skipped"}
 
 
 def merge_cmd(
@@ -49,12 +55,21 @@ def merge_cmd(
     """Land ready candidates one at a time: an unmoved base fast-forwards as
     measured; a moved base rebases and re-runs the gates first; a conflict
     is reported and left for a human — the lane never resolves one."""
-    from torve.adapters.vcs.git import GitLane
+    from torve.adapters.vcs.git import GhCi, GitLane
     from torve.application.lane import process_lane
+    from torve.cli.options import load_config
 
     root = root.resolve()
+    config = load_config(root, config_path)
+    ci = None
+    if config.promotion.require_ci:
+        if not config.scm.repo:
+            raise fail("configuration error: promotion.require_ci needs "
+                       "scm.repo to name the remote whose ci is consulted",
+                       EXIT_CONFIG)
+        ci = GhCi(config.scm.repo, config.scm.token_env)
     try:
-        results = process_lane(root, GitLane(), dry_run=dry_run, only=task)
+        results = process_lane(root, GitLane(), dry_run=dry_run, only=task, ci=ci)
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
 
@@ -84,6 +99,6 @@ def merge_cmd(
 
     if any(r.action == "conflict" for r in results):
         raise typer.Exit(EXIT_ESCALATED)
-    if any(r.action == "gates red" for r in results):
+    if any(r.action in ("gates red", "ci not green") for r in results):
         raise typer.Exit(EXIT_GATES_RED)
     raise typer.Exit(EXIT_OK)

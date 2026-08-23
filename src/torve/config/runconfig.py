@@ -272,11 +272,19 @@ class PromotionConfig(BaseModel):
     """Landing policy (RFC 0006 §3). In the local regime the operator's
     `torve merge` invocation is the recorded approval; `auto_merge` is the
     knob a future scheduler consults before landing without one — off by
-    default, opt-in per repository, never globally (D-6.2)."""
+    default, opt-in per repository, never globally (D-6.2).
+
+    `require_ci` is §3's `ci: green_on_current_head` requirement: the lane
+    refuses to land a candidate whose branch tip is not green on the
+    configured remote's CI (`scm.repo`), polled with backoff against the
+    lightweight runs endpoint (§1). A rebased tree is additionally judged
+    by the local battery re-run — the remote verdict covers the tip the
+    remote actually saw."""
 
     model_config = ConfigDict(extra="forbid")
 
     auto_merge: bool = False
+    require_ci: bool = False
 
 
 class RunnerConfig(BaseModel):

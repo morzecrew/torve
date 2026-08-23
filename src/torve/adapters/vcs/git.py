@@ -10,10 +10,14 @@ returns False, the engine never resolves one.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
+import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 # ----------------------- #
 
@@ -180,3 +184,60 @@ class NullScm:
 
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
         return ""
+
+
+class GhCi:
+    """CI verdict for a commit via the gh CLI (RFC 0006 §3): the workflow
+    runs endpoint filtered by head sha — lightweight, polled with backoff
+    because the rate budget is shared with the agents (§1). The credential
+    follows GhScm's rule: resolved by NAME at call time, environment only."""
+
+    def __init__(self, repo: str, token_env: str | None = None,
+                 attempts: int = 6, delay_s: float = 20.0,
+                 sleeper: Callable[[float], None] = time.sleep) -> None:
+        self.repo = repo
+        self.token_env = token_env
+        self.attempts = attempts
+        self.delay_s = delay_s
+        self.sleeper = sleeper
+
+    def _runs(self, sha: str) -> list[dict[str, Any]]:
+        env = None
+        if self.token_env:
+            token = os.environ.get(self.token_env)
+            if not token:
+                raise RuntimeError(
+                    f"scm.token_env names {self.token_env!r} but the runner's "
+                    "environment does not carry it"
+                )
+            env = {**os.environ, "GH_TOKEN": token}
+        proc = subprocess.run(
+            ["gh", "api", f"repos/{self.repo}/actions/runs?head_sha={sha}",
+             "--jq", "[.workflow_runs[] | {status, conclusion, workflow_id}]"],
+            capture_output=True, text=True, check=False, env=env,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or "gh api workflow runs failed")
+        loaded: object = json.loads(proc.stdout or "[]")
+        return cast("list[dict[str, Any]]", loaded)
+
+    def conclusion(self, sha: str) -> str:
+        verdict = "absent"
+        for attempt in range(self.attempts):
+            # Newest first from the API; only the latest run of each
+            # workflow counts — a re-run supersedes the run it replaces,
+            # and a stale failure must not veto a green rerun.
+            latest: dict[object, dict[str, Any]] = {}
+            for run in self._runs(sha):
+                latest.setdefault(run.get("workflow_id"), run)
+            if not latest:
+                verdict = "absent"  # the remote may not have started yet
+            elif any(r.get("status") != "completed" for r in latest.values()):
+                verdict = "pending"
+            else:
+                conclusions = {str(r.get("conclusion")) for r in latest.values()}
+                return "success" if conclusions == {"success"} else \
+                    next(c for c in sorted(conclusions) if c != "success")
+            if attempt + 1 < self.attempts:
+                self.sleeper(self.delay_s)
+        return verdict

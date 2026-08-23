@@ -1,0 +1,100 @@
+schema_version: 1
+task: T-0048
+repo: morzecrew/torve
+base_sha: 92ff07d1b193286894be0c8551356551995a90ff
+drift_count: 0
+entries:
+  - decision: D-6.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T18:10:00Z
+    attempt: 1
+    claim: >-
+      the lane's shape is untouched — the CI verdict is one more refusal
+      gate in the serial loop, consulted per candidate before the
+      ff-or-rebase decision; a refusal names the verdict and the tip,
+      rides the engine-event stream, and moves nothing, exactly like the
+      conflict and gates-red refusals beside it. Demonstrated live twice
+      on the lab repository: the lane refused T-0004 while its pull
+      request's Actions run was genuinely red ("remote ci failure on
+      9edac66d2b"), and landed it once the rerun went green
+    evidence: src/torve/application/lane.py:105-116 — the refusal path;
+      tests/test_lane.py:147-169 — refusal touches nothing, then the same
+      candidate lands green
+    action: decided
+  - decision: D-6.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T18:11:00Z
+    attempt: 1
+    claim: >-
+      promotion grows require_ci beside auto_merge, both off by default —
+      §3's ci: green_on_current_head as configuration, never a code
+      default; requiring it without naming scm.repo is a configuration
+      error, exit 3, because a requirement with no authority to consult
+      would refuse everything silently
+    evidence: src/torve/config/runconfig.py:271-287 — the knob and its
+      docstring; tests/test_lane.py:171-176 — the config error pinned
+    action: decided
+  - decision: D-6.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T18:12:00Z
+    attempt: 1
+    claim: >-
+      the current-head division of labour is stated where it runs: the
+      remote verdict covers the tip the remote actually saw (the
+      fast-forward path lands that byte-identical tree), and a rebased
+      tree — which no remote run has seen — is judged by the local
+      battery re-run, which remains current-head CI in the local regime
+    evidence: src/torve/application/lane.py:105-110 — the comment at the
+      check; src/torve/config/runconfig.py:277-283 — the same division in
+      the knob's docstring
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T18:13:00Z
+    attempt: 1
+    claim: >-
+      only the latest run of each workflow counts — the live demo forced
+      this: a rerun after a fix left the superseded failure on the same
+      head sha, and a union over all runs would have vetoed the green
+      rerun forever. GhCi dedupes newest-first by workflow id; a red run
+      of a DIFFERENT workflow still vetoes. Second field note: the pull
+      request merge snapshot lags a base push — a run triggered seconds
+      after pushing the base tested the merge against the OLD base, which
+      reads as CI lying until the checkout log names the stale merge
+      parent
+    evidence: src/torve/adapters/vcs/git.py:224-243 — newest-per-workflow;
+      tests/test_forge.py:155-168 — superseded failure ignored, foreign
+      red still vetoes
+    action: decided
+    proposal: 0006 §3 note — green_on_current_head reads the LATEST run
+      per workflow for the head sha; and a base push invalidates in-flight
+      merge-ref runs, so a lane consulting PR-event CI should expect one
+      retrigger after the base moves
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T18:20:00Z
+    attempt: 1
+    claim: >-
+      the lane releases a READY candidate's engine worktree before the
+      rebase — the first engine-run landing surfaced this: the run's own
+      worktree still pins the task branch and git refuses a second
+      checkout, so the rebase path failed until the lane removed it. A
+      READY run's worktree is disposable (the work lives on the branch,
+      the reap would collect it anyway); the fast-forward path never
+      needs the branch free and stays untouched. The full live sequence
+      then completed on the lab: refusal on real red CI, landing after
+      the green rerun — rebased, battery green, lane_demo.md on main
+    evidence: src/torve/application/lane.py:130-136 — the release before
+      the rebase; tests/test_lane.py:171-188 — an engine-held branch
+      rebases and lands, worktree gone
+    action: decided
+    proposal: 0006 §1 note — the rebase path releases the candidate's
+      engine worktree; merge-before-reap (A-26's ordering) applies to
+      state files, and the lane owns the worktree half itself

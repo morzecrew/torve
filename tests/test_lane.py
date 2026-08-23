@@ -127,3 +127,69 @@ def test_a_dirty_checkout_refuses_the_lane(lane_repo):
     (lane_repo / "app.py").write_text("dirty\n", encoding="utf-8")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 4, result.output
+
+
+# ....................... #
+# ci: green_on_current_head (RFC 0006 §3): with a CI port supplied, only a
+# remote-green branch tip lands; anything else refuses without touching git.
+
+
+class FakeCi:
+    def __init__(self, verdict: str) -> None:
+        self.verdict = verdict
+        self.asked: list[str] = []
+
+    def conclusion(self, sha: str) -> str:
+        self.asked.append(sha)
+        return self.verdict
+
+
+def test_ci_not_green_refuses_the_landing_and_touches_nothing(lane_repo):
+    from torve.adapters.vcs.git import GitLane
+    from torve.application.lane import process_lane
+
+    candidate(lane_repo, "T-7006", "six.py", "six = 6\n")
+    branch_tip = git(lane_repo, "rev-parse", naming.branch("T-7006"))
+    base_tip = git(lane_repo, "rev-parse", "HEAD")
+
+    ci = FakeCi("failure")
+    results = process_lane(lane_repo, GitLane(), ci=ci)
+    assert results[0].action == "ci not green"
+    assert "failure" in results[0].detail
+    assert ci.asked == [branch_tip]
+    assert git(lane_repo, "rev-parse", "HEAD") == base_tip
+    records = [json.loads(line) for line in
+               (lane_repo / ".torve" / "telemetry.jsonl").read_text().splitlines()]
+    assert any(r.get("event") == "lane_ci_not_green" and r["verdict"] == "failure"
+               for r in records)
+
+    # The same candidate lands once the remote goes green.
+    landed = process_lane(lane_repo, GitLane(), ci=FakeCi("success"))
+    assert landed[0].action == "landed"
+
+
+def test_the_lane_releases_the_engine_worktree_before_a_rebase(lane_repo):
+    # An engine run leaves its worktree holding the task branch; git refuses
+    # a second checkout, so the rebase path must release it first.
+    candidate(lane_repo, "T-7008", "eight.py", "eight = 8\n")
+    engine_wt = lane_repo / ".wt" / "T-7008"
+    git(lane_repo, "worktree", "add", str(engine_wt), naming.branch("T-7008"))
+    # The base moves, forcing the rebase path.
+    (lane_repo / "other.py").write_text("other = 1\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    assert report["results"][0]["action"] == "landed"
+    assert "rebased" in report["results"][0]["detail"]
+    assert not engine_wt.exists()
+
+
+def test_require_ci_without_a_repo_is_a_configuration_error(lane_repo):
+    candidate(lane_repo, "T-7007", "seven.py", "seven = 7\n")
+    (lane_repo / "torve.yaml").write_text(
+        "schema_version: 1\npromotion:\n  require_ci: true\n", encoding="utf-8")
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 3, result.output

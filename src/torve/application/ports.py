@@ -210,3 +210,15 @@ class LaneVcs(Protocol):
 
 class Scm(Protocol):
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str: ...
+
+
+class CiStatus(Protocol):
+    """The remote's CI verdict for one commit (RFC 0006 §3): the lane's
+    `ci: green_on_current_head` requirement consults this before landing.
+    The adapter owns the polling — backoff against a lightweight endpoint,
+    because the rate budget is shared with the agents (§1) — and returns a
+    settled word: "success", a failure conclusion, "pending" when the
+    budget ran out mid-run, or "absent" when the remote never saw the
+    commit. Only "success" lands."""
+
+    def conclusion(self, sha: str) -> str: ...

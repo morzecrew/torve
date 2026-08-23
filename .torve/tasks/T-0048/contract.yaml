@@ -1,0 +1,53 @@
+# Minted by hand — the CI leg deferred from RFC 0006's Phasing, picked up
+# now that the forge exists: a remote with real CI, a token that reads
+# Actions runs, and a lane to gate.
+schema_version: 1
+id: T-0048
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  ci: green_on_current_head becomes a live requirement: with
+  promotion.require_ci on, the lane consults the configured remote's CI
+  verdict for the candidate's branch tip before landing — polled with
+  backoff against the lightweight runs endpoint, only the latest run of
+  each workflow counting, only "success" landing. A refusal names the
+  verdict, rides the engine-event stream, and touches nothing. A rebased
+  tree is additionally judged by the local battery, which stays the
+  current-head authority in the local regime.
+depends_on: [T-0042]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.1
+    grade: LOCKED
+    text: "`ready` is a serialized lane; only this state is capped"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+  - id: D-6.2
+    grade: LOCKED
+    text: Auto-merge off by default, opt-in per repository and task class
+    paths:
+      - src/torve/config/runconfig.py
+  - id: D-6.3
+    grade: ASSUMED
+    text: Review freshness is measured against current head; a push resets the window
+    paths:
+      - src/torve/application/lane.py
+budget: {}
+tier: executor

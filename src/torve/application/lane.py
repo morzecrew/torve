@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from torve.application.ports import LaneVcs
+from torve.application.ports import CiStatus, LaneVcs
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
@@ -78,6 +78,7 @@ def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
 
 def process_lane(
     root: Path, vcs: LaneVcs, dry_run: bool = False, only: str | None = None,
+    ci: CiStatus | None = None,
 ) -> list[LaneResult]:
     base = vcs.current_branch(root)
     if not dry_run and not vcs.is_clean(root):
@@ -101,6 +102,19 @@ def process_lane(
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
             continue
 
+        if ci is not None and not dry_run:
+            # ci: green_on_current_head (RFC 0006 §3): the remote's verdict
+            # for the tip the remote actually saw. Only "success" lands; a
+            # rebased tree is additionally judged by the local battery below.
+            verdict = ci.conclusion(branch_tip)
+            if verdict != "success":
+                engine_event(root, "lane_ci_not_green",
+                             {"task": task_id, "sha": branch_tip, "verdict": verdict})
+                results.append(LaneResult(
+                    task_id, branch, "ci not green",
+                    f"remote ci {verdict} on {branch_tip[:10]}"))
+                continue
+
         base_tip = vcs.tip(root, base) or base
         if vcs.is_ancestor(root, base_tip, branch_tip):
             # The base has not moved under this branch: the tree that would
@@ -120,6 +134,13 @@ def process_lane(
             results.append(LaneResult(task_id, branch, "would rebase",
                                       "base moved; gates re-run before landing"))
             continue
+        engine_wt = root / naming.WORKTREE_DIR / task_id
+        if engine_wt.exists():
+            # The run's own worktree still pins the branch, and git refuses
+            # to check a branch out twice. A READY candidate's worktree is
+            # disposable — the work lives on the branch, and the reap would
+            # collect it anyway — so the lane releases it for the rebase.
+            vcs.remove_worktree(root, engine_wt)
         workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
         if not vcs.rebase_in_worktree(root, branch, base, workdir):
             engine_event(root, "lane_conflict", {"task": task_id, "base": base})
