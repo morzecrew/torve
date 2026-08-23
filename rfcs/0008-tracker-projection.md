@@ -2,7 +2,7 @@
 id: "0008"
 title: Tracker projection
 status: accepted
-implementation: none
+implementation: partial
 depends_on: ["0003"]
 informed_by: []
 supersedes: []
@@ -16,6 +16,7 @@ schema_version: 1
 
 # RFC 0008 — Tracker projection
 
+- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0049 the transactional outbox; T-0050 the GitHub Issues projection, live on the lab: issues created and labelled, the relay replay delivering nothing, a refused command answered on its thread). Outstanding: the `approve` command (waits on promotion approvals as engine state), the forge-permission check on command authority (deferred to the first multi-writer board), and any second adapter (Linear/Jira arrive when a team lives there)
 - **Scope:** Projecting engine state onto an external task tracker as a presentation surface, the outbound mapping, idempotency rules, the restricted inbound command set, and what each tracker's state vocabulary costs to adapt. Excludes storing any authoritative state in a tracker, and excludes editing task contracts from a tracker.
 - **Inherits:** D-1, D-5, D-22 from RFC 0001 · outbox relay from RFC 0003 §5
 - **Related:** RFC 0006 (escalation routing), RFC 0007 (planner read surface)

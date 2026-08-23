@@ -107,6 +107,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0008 executed, phases 1–2 (T-0049/T-0050): the tracker projection.
+  A transactional outbox (the RFC 0003 §5 leg, built for its first
+  consumer): effects derive from run state, stage idempotently by key,
+  relay at-least-once with a ledger — a deliberate replay delivers
+  nothing, a failed destination never dams the queue. On top of it, the
+  GitHub Issues projection: one issue per task, states as labels,
+  escalations with reason and detail, one comment per attempt composed
+  from telemetry; a refused or unsupported reflection is a logged
+  divergence, never an exception, and the board announces its own
+  non-authority in every artefact. Inbound: `/torve retry|abandon|unblock`
+  parsed allow-listed from comments, validated against the store,
+  answered on their thread. `torve tracker sync|poll`. Live on the lab:
+  four issues projected, the replay a no-op, a refusal answered in place.
 - RFC 0006's CI leg executed (T-0048): `ci: green_on_current_head` is a
   live requirement. With `promotion.require_ci` on, the lane consults the
   configured remote's Actions verdict for the candidate's branch tip —
