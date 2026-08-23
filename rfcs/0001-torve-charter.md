@@ -2,7 +2,7 @@
 id: "0001"
 title: "Torve: charter"
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: []
 supersedes: []
@@ -16,6 +16,7 @@ schema_version: 1
 
 # RFC 0001 — Torve: charter
 
+- **Implementation state:** complete (judged 2026-08-24, during the implementation-state sweep): every charter decision and the full §4 state machine — the A-26 `ready → escalated` edge included — are in force through RFCs 0002–0019's executions; amendments through A-26 executed. The charter carries no shippable of its own; its implementation is the corpus that inherits it.
 - **Scope:** Defines what Torve is, the domain model, the state machine, the port boundaries, the task and decision contracts, and the decisions every child RFC inherits. Deliberately excludes anything shippable: gates, runner, adapters, review, merge and planner each have their own document.
 - **Related:** [`forze`](https://github.com/morzecrew/forze) 0.6 · [`agent-skills`](https://github.com/morzecrew/agent-skills) · OpenSandbox · `digitaldrywood/detent` (prior art)
 - **Supersedes:** the monolithic draft of 0001, split here into a charter plus six phase documents

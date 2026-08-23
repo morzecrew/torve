@@ -3,7 +3,7 @@ id: "0016"
 title: Specification corpus conventions
 kind: convention
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: []
 supersedes: []
@@ -17,6 +17,7 @@ schema_version: 1
 
 # RFC 0016 — Specification corpus conventions
 
+- **Implementation state:** complete (judged 2026-08-24, during the implementation-state sweep): the conventions operate on every corpus pass — `torve rfc check` validates, the index is generated and compared, amendment discipline has carried A-1 through A-28, and the retirement rules have been exercised (D-5.5).
 - **Scope:** How a specification corpus is organised, numbered, versioned and validated: the three destinations for a document, frontmatter as the structured layer, decision tables, amendments, the generated index, and what may live in the corpus directory. Excludes anything about Torve itself — these rules apply to a repository with no engine in it.
 - **Related:** RFC 0007 (`torve plan` consumes what these rules produce) · RFC 0013 (`rfcs.path`) · `rfc-writer`
 

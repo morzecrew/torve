@@ -2,7 +2,7 @@
 id: "0017"
 title: Sandbox provisioning and harness configuration
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0003", "0004"]
 informed_by: ["0013", "0016"]
 supersedes: []
@@ -22,11 +22,13 @@ schema_version: 1
   definitions; all three §7 exit criteria measured live); A-24 executed
   2026-08-23 (T-0046 — `runtime.docker: socket`, its exit criterion live: a
   task whose battery drives a container replayed green in a socket sandbox
-  on the lab repository). Outstanding, as
-  specified: `tier.home` until a harness needs it (D-17.5); the `nested`
-  daemon mode until socket's trust trade is unacceptable for a real
-  repository (§2a); `--push` and
-  registry-side doctor checks with the live OpenSandbox server (RFC 0003)
+  on the lab repository). The remaining items are condition-gated
+  extensions, specified but deliberately unbuilt until their conditions
+  arrive — not debt: `tier.home` until a harness needs it (D-17.5); the
+  `nested` daemon mode until socket's trust trade is unacceptable for a
+  real repository (§2a); `--push` and registry-side doctor checks with
+  the live OpenSandbox server (RFC 0003). Judged complete 2026-08-24,
+  during the implementation-state sweep
 - **Scope:** How sandbox images are defined, built and identified; how a
   harness's configuration, tools and state reach the sandbox. Extends
   RFC 0003 §4 (the runtime) and RFC 0004 §1/§6 (adapters, telemetry).

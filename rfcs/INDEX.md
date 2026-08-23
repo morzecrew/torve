@@ -12,7 +12,7 @@ number is **0020**.
 
 | # | Title | Status | Impl | Depends on | Amends | One-line routing description |
 | --- | --- | --- | --- | --- | --- | --- |
-| [0001](0001-torve-charter.md) | Torve: charter | accepted | partial | — | A-1, A-4, A-5, A-11, A-12, A-17, A-21, A-22, A-26 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
+| [0001](0001-torve-charter.md) | Torve: charter | accepted | complete | — | A-1, A-4, A-5, A-11, A-12, A-17, A-21, A-22, A-26 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
 | [0002](0002-gates-library.md) | Gates as a library | accepted | partial | 0001 | A-2, A-8 | The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment. |
 | [0003](0003-runner-isolation.md) | Runner and isolation | accepted | partial | 0002 | A-6, A-13, A-18 | `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine. |
 | [0004](0004-agents-tiering.md) | Agent adapters and tiering | accepted | partial | 0003 | — | Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable. |
@@ -22,10 +22,10 @@ number is **0020**.
 | [0008](0008-tracker-projection.md) | Tracker projection | accepted | partial | 0003 | — | Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board. |
 | [0009](0009-skills-evals.md) | Skills and evals | accepted | partial | 0004 | A-3, A-25 | Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens. |
 | [0010](0010-vcs-provenance-revert.md) | VCS, provenance and revert | accepted | complete | 0003 | — | How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role. |
-| [0011](0011-cli-contract.md) | CLI contract | accepted | partial | 0016 | A-23 | Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed by CI, telemetry and scripts — plus where UX effort actually pays. |
+| [0011](0011-cli-contract.md) | CLI contract | accepted | complete | 0016 | A-23 | Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed by CI, telemetry and scripts — plus where UX effort actually pays. |
 | [0012](0012-migrations.md) | Migrations | accepted | complete | 0003 | — | Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and the conformance battery as the gate. |
 | [0013](0013-configuration-layout.md) | Configuration layout | accepted | complete | 0016 | A-16 | Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file. |
-| [0017](0017-sandbox-provisioning.md) | Sandbox provisioning and harness configuration | accepted | partial | 0003, 0004 | A-24 | How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory. |
+| [0017](0017-sandbox-provisioning.md) | Sandbox provisioning and harness configuration | accepted | complete | 0003, 0004 | A-24 | How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory. |
 | [0018](0018-cli-presentation.md) | CLI presentation | accepted | complete | 0011 | — | One visual vocabulary for the human side of every verb — components, colour semantics, formats and live status — now that the hand-run commands are known. The machine contracts of RFC 0011 are untouched. |
 | [0019](0019-standing-loop.md) | The standing loop | accepted | partial | 0003, 0006, 0008 | A-27, A-28 | The bounded tick that makes the team standing: drain one queued task, process the lane under its existing approval switch, project the board, and stop — cadence delivered by the environment, never a resident daemon. Intake pauses while the escalation queue is non-empty, because a queue nobody triages must stop the machine, not the person. |
 
@@ -35,7 +35,7 @@ number is **0020**.
 | --- | --- | --- | --- | --- | --- | --- |
 | [0014](0014-source-layout.md) | Source file layout | accepted | complete | — | — | Semantic separators and module preamble structure for Torve's Python source, extracted from forze by reading and counting; the checkable half ships as the source-layout gate. |
 | [0015](0015-source-tree.md) | Source tree structure | accepted | complete | 0016 | A-19 | The package layout of src/torve — layers, permitted import directions, module naming, adapter organisation, and the layering gate that enforces the enforceable half. |
-| [0016](0016-corpus-conventions.md) | Specification corpus conventions | accepted | partial | — | A-7, A-9, A-10, A-14, A-15, A-20 | How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved. |
+| [0016](0016-corpus-conventions.md) | Specification corpus conventions | accepted | complete | — | A-7, A-9, A-10, A-14, A-15, A-20 | How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved. |
 
 Statuses: draft · accepted · superseded. Impl is the D-A.11 judgement:
 none · partial · complete · abandoned.

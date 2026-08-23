@@ -16,6 +16,7 @@ schema_version: 1
 
 # RFC 0004 — Agent adapters and tiering
 
+- **Implementation state:** phases executed 2026-08-22 (T-0021–T-0023 — the `HarnessAgent` mechanism behind the tier mapping, provider routing enforced at dispatch, `torve shadow` replay); live since 2026-08-23 with a deepseek harness tier implementing and reviewing real work on the lab repository. Outstanding: the §8 exit criteria — fifteen shadow runs with cost and iterations recorded, a two-adapter comparison on the same tasks, and a gate set adjusted from that evidence — which are operator campaign work over the shipped machinery, not engine gaps.
 - **Scope:** Real agent adapters behind the `Agent` port, the tiering economics, shadow runs against completed work, and the telemetry that makes harness choice measurable. Excludes review (0005) and merging (0006).
 - **Inherits:** D-2, D-4, D-4b, D-16 from RFC 0001
 

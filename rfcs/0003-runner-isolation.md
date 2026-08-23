@@ -16,7 +16,7 @@ schema_version: 1
 
 # RFC 0003 — Runner and isolation
 
-- **Implementation state:** phases 1–2 shipped 2026-08-21 (T-0003 runner core and both runtime adapters; T-0004 durable store facade with leases/fencing/cancellation, recovery-driven reap, DST simulation with broken twins). the pull-request leg executed 2026-08-23 (T-0045 with RFC 0010); transactional notifications executed 2026-08-23 (T-0051 with RFC 0006 — D-3.18 closed by D-6.11). Outstanding: live OpenSandbox server integration
+- **Implementation state:** phases 1–2 shipped 2026-08-21 (T-0003 runner core and both runtime adapters; T-0004 durable store facade with leases/fencing/cancellation, recovery-driven reap, DST simulation with broken twins). the pull-request leg executed 2026-08-23 (T-0045 with RFC 0010); transactional notifications executed 2026-08-23 (T-0051 with RFC 0006 — D-3.18 closed by D-6.11). Outstanding: live OpenSandbox server integration, and the D-3.6 Postgres regime unexercised in dogfood — the lab's real runs still use the in-process store, which that decision names as test-only
 - **Scope:** `torve run` for a single task, synchronously: workspace, sandbox, dispatch, gates, artefacts, reaper, and the simulation harness that proves the state machine correct. Uses a fake agent only. Excludes real agents (0004), review (0005), merging (0006), planning (0007).
 - **Inherits:** D-1, D-3, D-4, D-4b, D-5, D-5a, D-22 from RFC 0001
 

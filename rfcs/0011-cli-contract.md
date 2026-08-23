@@ -2,7 +2,7 @@
 id: "0011"
 title: CLI contract
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0016"]
 informed_by: ["0002", "0003"]
 supersedes: []
@@ -16,6 +16,8 @@ schema_version: 1
 ---
 
 # RFC 0011 — CLI contract
+
+- **Implementation state:** complete (judged 2026-08-24, during the implementation-state sweep): the contract is in force on every verb — `--format json` from first implementation, the exit-code vocabulary, stdout/stderr separation and non-TTY behaviour — and D-11.8's presentation deferral was discharged by RFC 0018.
 
 What must be decided now because it is expensive to change later, and what can wait.
 

@@ -16,6 +16,7 @@ schema_version: 1
 
 # RFC 0007 — Planner and context
 
+- **Implementation state:** phases 1–2 executed 2026-08-22 (T-0016, T-0024–T-0026 — `torve plan` as the deterministic minter, `torve context` as the loop's read leg, the D-7.27 report machinery; the D-7.24 citation convention and proposal sweeps operate on every corpus pass). Outstanding: the read-only MCP surface, deliberately unbuilt until a consumer exists — building a protocol server for no client is the speculation this corpus refuses.
 - **Scope:** The planner module: minting tasks from an approved RFC, projecting execution facts back into a planning session, and the read-only MCP surface. Excludes any model call inside the engine, permanently.
 - **Inherits:** D-1, D-2, D-25, D-31 from RFC 0001
 
