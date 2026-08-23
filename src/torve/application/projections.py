@@ -322,13 +322,44 @@ def _list_field(fm: dict[str, Any], name: str) -> list[str]:
     return [str(item) for item in cast("list[object]", value)]
 
 
+# Attention routing (RFC 0006 §4, D-6.4): blockers and locked conflicts
+# interrupt, infrastructure pages the harness owner, the rest batches into
+# review windows. The projection carries the class; policy stays with people.
+ROUTE_NOTIFY = {"blocker_finding", "locked_conflict"}
+ROUTE_HARNESS = {"gate_infrastructure_failure"}
+
+
+def _escalation_route(reason: str) -> str:
+    if reason in ROUTE_NOTIFY:
+        return "notify"
+    if reason in ROUTE_HARNESS:
+        return "harness owner"
+    return "batch"
+
+
+def _age_seconds(stamp: object) -> float | None:
+    if not isinstance(stamp, str):
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            parsed = datetime.strptime(stamp, fmt).replace(tzinfo=UTC)
+        except ValueError:
+            continue
+        return max(0.0, (datetime.now(UTC) - parsed).total_seconds())
+    return None
+
+
 def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
     tasks = _tasks(root)
     escalations: dict[str, list[dict[str, Any]]] = {}
     for task in tasks:
         if task["escalation"]:
+            # The queue's age is the primary signal (D-6.8): a queue nobody
+            # triages looks identical to success from inside the runner.
             escalations.setdefault(str(task["escalation"]), []).append({
                 "task": task["id"], "at": task["escalated_at"], "rfc": task["rfc"],
+                "age_s": _age_seconds(task["escalated_at"]),
+                "route": _escalation_route(str(task["escalation"])),
             })
     return {
         "schema_version": SCHEMA_VERSION,

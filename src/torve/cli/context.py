@@ -68,6 +68,16 @@ def context_cmd(
 # ....................... #
 
 
+def _age(seconds: float) -> str:
+    """Coarse humanised age — days beat hours beat minutes; precision is
+    noise at triage granularity."""
+    if seconds >= 86400:
+        return f"{seconds / 86400:.0f}d"
+    if seconds >= 3600:
+        return f"{seconds / 3600:.0f}h"
+    return f"{max(1, seconds // 60):.0f}m"
+
+
 def _render_rich(report: dict[str, Any]) -> None:
     console = out()
     header(console, "context", f"projected {report['at']}")
@@ -116,12 +126,25 @@ def _render_rich(report: dict[str, Any]) -> None:
     console.print(tasks)
 
     if report["escalations"]:
-        escalations = make_table("reason", "count", "tasks",
+        escalations = make_table("reason", "route", "count", "tasks", "oldest",
                                  title="Escalations by reason")
+        ages: list[float] = []
         for reason, items in sorted(report["escalations"].items()):
-            escalations.add_row(styled(reason, STYLE_FAIL), str(len(items)),
-                                ", ".join(str(item["task"]) for item in items))
+            reason_ages = [float(item["age_s"]) for item in items
+                           if item.get("age_s") is not None]
+            ages += reason_ages
+            escalations.add_row(
+                styled(reason, STYLE_FAIL),
+                str(items[0].get("route", "")),
+                str(len(items)),
+                ", ".join(str(item["task"]) for item in items),
+                _age(max(reason_ages)) if reason_ages else "")
         console.print(escalations)
+        if ages:
+            # The queue's age is the alert, not its length: a queue nobody
+            # triages looks identical to success from inside the runner.
+            footer(console, f"oldest escalation has waited {_age(max(ages))} — "
+                            "the queue's age is the signal to watch")
 
     fresh = [p for p in report["proposals"] if not p.get("possibly_landed")]
     if report["proposals"]:

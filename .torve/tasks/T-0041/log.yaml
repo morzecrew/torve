@@ -1,0 +1,81 @@
+schema_version: 1
+task: T-0041
+repo: morzecrew/torve
+base_sha: 55ba34bea987d7ca86db96184dd4c6be996e45b3
+drift_count: 0
+entries:
+  - decision: D-6.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T09:40:00Z
+    attempt: 1
+    claim: dispatch refuses a task whose allow-set intersects an active
+      run's — the refusal names the blocking task and the contended path in
+      its message, is counted per path as a blocked_dispatch engine event,
+      and creates no run state; an empty allow-set is unconstrained and
+      contends with everything. torve kill force-terminates one active run
+      (sandbox destroyed best-effort, state escalated as killed, engine
+      event appended) and refuses terminal runs
+    evidence: src/torve/application/runner.py:462-491 — BlockedDispatch and
+      the overlap walk; tests/test_lane_prevention.py pins refusal,
+      counting, free dispatch and both kill paths
+    action: decided
+  - decision: D-6.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T09:41:00Z
+    attempt: 1
+    claim: engine health rides the existing telemetry stream — engine_event
+      appends kind:engine records (blocked_dispatch, killed, and the lane's
+      outcomes next phase) resolving the telemetry path from the manifest;
+      no second observability system
+    evidence: src/torve/application/telemetry.py:98-121 — the one helper on
+      the one stream
+    action: decided
+  - decision: D-6.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T09:42:00Z
+    attempt: 1
+    claim: the escalation queue's age is projected (age_s per escalation)
+      and rendered — an oldest column per reason and a footer naming how
+      long the oldest has waited, stating that age, not length, is the
+      signal; the JSON gains the fields additively
+    evidence: src/torve/application/projections.py:344-356 — the age
+      derivation beside the route; the context escalations table renders
+      both
+    action: decided
+  - decision: D-6.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T09:43:00Z
+    attempt: 1
+    claim: the attention routing table is carried by the projection as a
+      route class per escalation — blockers and locked conflicts notify,
+      infrastructure routes to the harness owner, the rest batch — with no
+      notifier behind it yet; the classification is visible so the batching
+      policy has data the day a channel exists
+    evidence: src/torve/application/projections.py:325-339 — the route
+      classes and their comment
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T09:44:00Z
+    attempt: 1
+    claim: >-
+      a refused dispatch exits 1 through the CLI — it is neither a
+      configuration error (the contract is fine) nor an escalation (no run
+      exists to escalate); the D-11.9 projection's "non-ready,
+      non-escalated end" reads naturally as the refusal's code, and no new
+      exit code was minted (D-11.4). The kill command performs the
+      engine-side kill only: under a postgres store the durable lease
+      reclaims through recovery or reap --force, stated here rather than
+      half-implemented
+    evidence: src/torve/cli/run.py:143-149 — the BlockedDispatch catch
+      mapping to exit 1
+    action: decided
+    proposal: 0006 §5a note — the refusal's exit code is the generic
+      non-ready 1, chosen against minting a new code; revisit only if
+      wrappers need to distinguish refusal from red gates

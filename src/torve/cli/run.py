@@ -125,8 +125,13 @@ def run_cmd(
         store=open_store,
         review_agent=review_agent,
     )
+    from torve.application.runner import BlockedDispatch
+
     try:
         state = run_task(root, task, config, deps)
+    except BlockedDispatch as exc:
+        # Never a silent wait: the cause prints, the refusal is counted.
+        raise fail(str(exc), EXIT_GATES_RED) from exc
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
@@ -147,6 +152,51 @@ def run_cmd(
         reason = EscalationReason(state.escalation.reason)
         raise typer.Exit(EXIT_BY_REASON[reason])
     raise typer.Exit(EXIT_GATES_RED)
+
+
+def kill(
+    task_id: Annotated[str, typer.Argument()],
+    runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
+    config_path: ConfigOption = None,
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Force-terminate a run: sandbox destroyed, state escalated as killed.
+    The operator override for a run that ignores the cooperative ask."""
+    from torve.application.runstate import RunState
+    from torve.application.telemetry import engine_event
+    from torve.base import naming
+    from torve.domain.states import EscalationReason
+
+    root = root.resolve()
+    state_path = naming.state_file(root, task_id)
+    if not state_path.exists():
+        raise fail(f"configuration error: no run state for {task_id}", EXIT_CONFIG)
+    state = RunState.load(state_path)
+    if state.state in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
+        raise fail(f"configuration error: {task_id} is already {state.state} — "
+                   "nothing to kill", EXIT_CONFIG)
+
+    config = load_config(root, config_path)
+    destroyed = ""
+    if state.sandbox_id:
+        try:
+            runtime_for(config, runtime_name).destroy_by_id(state.sandbox_id)
+            destroyed = state.sandbox_id
+        except Exception as exc:  # the kill proceeds; the sandbox is reported
+            destroyed = f"destroy failed: {exc}"
+    state.sandbox_id = None
+    state.escalate(EscalationReason.KILLED, "operator kill")
+    engine_event(root, "killed", {"task": task_id, "sandbox": destroyed or None})
+
+    if fmt is Format.JSON:
+        emit_json({"schema_version": 1, "task_id": task_id,
+                   "state": str(state.state), "sandbox": destroyed or None})
+        return
+    console = out(fmt)
+    console.print(f"{task_id}: killed — escalated for triage")
+    if destroyed:
+        console.print(f"  sandbox: {destroyed}")
 
 
 def cancel(

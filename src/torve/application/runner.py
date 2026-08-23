@@ -46,7 +46,7 @@ from torve.application.ports import (
 from torve.application.runstate import RunState
 from torve.application.skills import materialize
 from torve.application.taskstore import TaskStore
-from torve.application.telemetry import append_record, build_record, config_hash
+from torve.application.telemetry import append_record, build_record, config_hash, engine_event
 from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import load_manifest
@@ -459,6 +459,36 @@ async def _run_task_async(
     return state
 
 
+class BlockedDispatch(RuntimeError):
+    """Dispatch refused: another active run's scope intersects this task's
+    (RFC 0006 §2 — prevention beats ordering). Never a silent wait: the
+    cause is in the message and counted in telemetry (D-6.6)."""
+
+
+def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
+    """(blocking task id, contended path) when an active run's allow-set
+    intersects this task's; an empty allow-set is unconstrained and
+    contends with everything."""
+    from torve.application.planner import globs_intersect
+    from torve.gates.context import load_task
+
+    active = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED}
+    for state in RunState.load_all(root / naming.WORKTREE_DIR):
+        if state.task_id == task.id or state.state not in active:
+            continue
+        contract = root / layout.TORVE_DIR / "tasks" / state.task_id / "contract.yaml"
+        if not contract.is_file():
+            continue
+        other = load_task(contract)
+        if not task.scope.allow or not other.scope.allow:
+            return state.task_id, "unconstrained scope"
+        for mine in task.scope.allow:
+            for theirs in other.scope.allow:
+                if globs_intersect([mine], [theirs]):
+                    return state.task_id, theirs
+    return None
+
+
 def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> RunState:
     state_path = naming.state_file(root, task.id)
     if state_path.exists():
@@ -468,6 +498,13 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
                 f"{task.id} has an existing run in state {previous.state} "
                 f"(run {previous.run_id[:8]}); triage it or `torve reap` first"
             )
+
+    blocked = _blocking_overlap(root, task)
+    if blocked is not None:
+        blocker, path = blocked
+        engine_event(root, "blocked_dispatch",
+                     {"task": task.id, "blocked_by": blocker, "path": path})
+        raise BlockedDispatch(f"blocked_by_overlap: {blocker} on {path}")
 
     state = RunState(task_id=task.id, path=state_path)
     state.transition(TaskState.CLAIMED, "torve run: single synchronous claim")

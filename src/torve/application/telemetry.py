@@ -95,6 +95,29 @@ def append_record(path: Path, record: dict[str, Any]) -> None:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:
+    """Engine health rides the existing telemetry path (RFC 0006 §5b,
+    D-6.7): one stream, a `kind: engine` record — a second observability
+    system would be a second system to operate. Blocked dispatches, kills
+    and lane outcomes land here so contention and triage lag are queries,
+    not hunches."""
+    from datetime import UTC, datetime
+
+    from torve.config import layout
+    from torve.config.manifest import Manifest, load_manifest
+
+    manifest_path = layout.gates_file(root)
+    telemetry_rel = (load_manifest(manifest_path).telemetry
+                     if manifest_path.is_file() else Manifest(gates=[]).telemetry)
+    append_record(root / telemetry_rel, {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "engine",
+        "event": event,
+        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        **details,
+    })
+
+
 # ....................... #
 
 
