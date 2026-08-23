@@ -16,7 +16,7 @@ schema_version: 1
 
 # RFC 0006 — Merge train and escalation policy
 
-- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0041 prevention/kill/engine sight; T-0042 the serialized lane as `torve merge`); A-26 executed 2026-08-23 (T-0043 — a conflicted landing escalates the run, D-6.10); the CI leg executed 2026-08-23 (T-0048 — `promotion.require_ci` consults the remote's latest run per workflow before landing, demonstrated live on the lab: a refusal on real red CI, the landing after the green rerun). Outstanding: the §7 exit criteria accrue with dogfood use (ten landings, two weeks of resolution times); still with the forge: the approvals/quiet-window fields, and the notifier the outbox feeds (D-3.18 — RFC 0008 phase 1 builds that outbox)
+- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0041 prevention/kill/engine sight; T-0042 the serialized lane as `torve merge`); A-26 executed 2026-08-23 (T-0043 — a conflicted landing escalates the run, D-6.10); the CI leg executed 2026-08-23 (T-0048 — `promotion.require_ci` consults the remote's latest run per workflow before landing, demonstrated live on the lab: a refusal on real red CI, the landing after the green rerun). the notifier executed 2026-08-23 (T-0051 — interrupt-class escalations page `tracker.notify` through the outbox as issue assignment plus @mention, exactly once per escalation event; D-6.11, closing RFC 0003 D-3.18; demonstrated live on the lab: a real `blocker_finding` escalation assigned and mentioned the operator). Outstanding: the §7 exit criteria accrue with dogfood use (ten landings, two weeks of resolution times); still with the forge: the approvals/quiet-window fields
 - **Scope:** How candidates land, in what order, and how human attention is budgeted. Covers the serialized merge lane, promotion criteria, escalation routing, and parallelism limits. Excludes conflict resolution, which stays permanently out of scope.
 - **Inherits:** D-1, D-6 from RFC 0001
 
@@ -135,6 +135,7 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 | D-6.8 | `LOCKED` | Escalation queue age is the primary alert | `src/torve/application/telemetry.py` | The failure that is invisible from inside the runner |
 | D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
 | D-6.10 | `LOCKED` | A conflicted landing escalates the run — `ready → escalated`, reason `merge_conflict`; the branch is left exactly as measured and resolution is human: re-queue or abandon. Added by amendment A-26 2026-08-23 (registered on the charter) | `src/torve/domain/states.py` `src/torve/application/lane.py` | Otherwise a candidate that cannot land is invisible to the escalation queue, whose age is the primary alert |
+| D-6.11 | `ASSUMED` | Interrupt-class escalations (§4's notify and harness-owner routes) produce exactly one delivered notification through the outbox — issue assignment plus @mention of the configured `tracker.notify` login; assignment is best-effort, the mention is the notification; batch stays board-visible only, and an empty login keeps the notifier inert. Closes RFC 0003 D-3.18. Added by execution 2026-08-23 — see .torve/tasks/T-0051 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | A queue nobody triages looks identical to success; the interrupt class must reach a person without a polling habit |
 
 ## Phasing
 
@@ -142,7 +143,9 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 tree — no `lane/` package exists. The forge-shaped legs stay deferred with
 the forge: CI polling with backoff, the approvals/quiet-window promotion
 fields, and the notifier the outbox feeds (deferred from RFC 0003 D-3.18,
-deferred again here — there is no channel to notify until one exists). In
+deferred again here — there is no channel to notify until one exists;
+*execution note 2026-08-23 (T-0051):* the channel now exists — RFC 0008's
+tracker — and the notifier landed through it, D-6.11). In
 the local regime the operator invoking the lane is the configured approval,
 and the gate battery is current-head CI.)*
 

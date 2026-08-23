@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The notifier (T-0051, RFC 0006 D-6.11, closing RFC 0003 D-3.18):
+  interrupt-class escalations stage a `notify` effect through the outbox,
+  keyed (task, attempt, reason) for exactly-once delivery under replay;
+  GitHub delivery is issue assignment (best-effort) plus @mention of the
+  configured `tracker.notify` login. Batch-routed escalations stay
+  board-visible only; an empty login keeps the notifier inert.
+
 - RFC corpus 0001–0010 under `rfcs/` with index.
 - `torve` package: the RFC 0002 gates-library increment.
 - Six builtin gates (`scope`, `acceptance`, `no-test-tampering`,
