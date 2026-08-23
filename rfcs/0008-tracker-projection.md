@@ -16,7 +16,7 @@ schema_version: 1
 
 # RFC 0008 — Tracker projection
 
-- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0049 the transactional outbox; T-0050 the GitHub Issues projection, live on the lab: issues created and labelled, the relay replay delivering nothing, a refused command answered on its thread). Outstanding: the `approve` command (waits on promotion approvals as engine state), the forge-permission check on command authority (deferred to the first multi-writer board), and any second adapter (Linear/Jira arrive when a team lives there)
+- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0049 the transactional outbox; T-0050 the GitHub Issues projection, live on the lab: issues created and labelled, the relay replay delivering nothing, a refused command answered on its thread). command authorization executed 2026-08-24 (T-0054, pulled forward of the first multi-writer board because RFC 0019's unattended poll leg made it live — D-8.9: a command applies only when its actor is in `tracker.commanders`, an empty list refuses everyone). Outstanding: the `approve` command (waits on promotion approvals as engine state), and any second adapter (Linear/Jira arrive when a team lives there)
 - **Scope:** Projecting engine state onto an external task tracker as a presentation surface, the outbound mapping, idempotency rules, the restricted inbound command set, and what each tracker's state vocabulary costs to adapt. Excludes storing any authoritative state in a tracker, and excludes editing task contracts from a tracker.
 - **Inherits:** D-1, D-5, D-22 from RFC 0001 · outbox relay from RFC 0003 §5
 - **Related:** RFC 0006 (escalation routing), RFC 0007 (planner read surface)
@@ -123,6 +123,7 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 | D-8.6 | `ASSUMED` | `reflect` returns applied/refused/unsupported; refusal is a logged divergence | `src/torve/application/ports.py` `src/torve/adapters/tracker/**` | Required by Jira-style transition workflows |
 | D-8.7 | `ASSUMED` | One comment per attempt, never per gate | `src/torve/application/tracker.py` | Readability; revisit if triage needs finer granularity |
 | D-8.8 | `ASSUMED` | GitHub Issues ships first — the forge the team already lives in, proven on the lab repository. Resolved while draft 2026-08-23 | `src/torve/adapters/tracker/github.py` | Whichever the team already lives in; the credential and remote already exist |
+| D-8.9 | `ASSUMED` | Commands are authorized before they are validated: only actors in `tracker.commanders` apply, an empty list refuses everyone, and refusals are answered on-thread. Added by execution 2026-08-24 — see .torve/tasks/T-0054 | `src/torve/application/tracker.py` `src/torve/config/runconfig.py` | The board is an unattended command channel once the standing loop polls it |
 
 ## 8. Risks
 

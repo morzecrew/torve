@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The standing loop (T-0055, RFC 0019 phase 1): `torve tick` — one
+  bounded pass: reap, poll the board, dispatch at most one queued task
+  (no run record, dependencies satisfied, ascending id), the lane only
+  under `promotion.auto_merge`, tracker sync last. Tick lock with loud
+  stale break; intake pauses while the escalation queue is non-empty;
+  one engine event per tick with honest noops. Cadence belongs to the
+  environment — there is no daemon.
+- Tracker command authorization (T-0054, RFC 0008 D-8.9): a `/torve`
+  command applies only when its actor is in `tracker.commanders`; an
+  empty list refuses everyone, and refusals are answered on-thread.
 - Review on pull-request open and update (T-0053, RFC 0005 §4 forge leg):
   `torve review pr N` — skip rules (draft, empty, closed, configured
   authors), one review per head via the `pr-reviews` ledger, Torve-Task

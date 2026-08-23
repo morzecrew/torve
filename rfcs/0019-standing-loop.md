@@ -3,7 +3,7 @@ id: "0019"
 title: The standing loop
 kind: design
 status: accepted
-implementation: none
+implementation: partial
 depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
@@ -22,6 +22,7 @@ schema_version: 1
 
 # RFC 0019 — The standing loop
 
+- **Implementation state:** phase 1 executed 2026-08-24 (T-0055 — `torve tick` with the lock, the pause threshold, the selection rule and per-tick events; demonstrated live on the lab: a seeded backlog drained across scheduled-shape ticks, landings included). Outstanding: the §11 exit criteria accrue with scheduled operation (the week of events, the overlap in the wild, 0006 §7's count)
 - **Scope:** How the engine runs without a human turning the crank: the
   tick verb, what one tick does and in what order, how the next task is
   selected, when intake pauses, when the lane may land, concurrency and
@@ -107,6 +108,15 @@ when all of the following hold, readable from the file system alone:
 - every `depends_on` entry has landed or is `ready` — the same rule
   dispatch already enforces, checked here so the loop does not burn its
   one slot on a refusal it can predict.
+
+*Execution note 2026-08-24 (T-0055):* "no run state" is implemented as
+"no run *record*" — neither a state file nor a telemetry record naming
+the task — because the reaper removes state files, and the literal
+reading would re-dispatch the entire reaped history on the first tick
+after a sweep. This section's own prose ("a task that ran and reached
+any state, terminal or not, is not re-dispatched") is the intent;
+telemetry is append-only, survives the reaper, and keeps the rule
+readable from the file system alone.
 
 Selection among queued tasks is by ascending task id — deterministic,
 arguable from a directory listing, and free of a priority field that
