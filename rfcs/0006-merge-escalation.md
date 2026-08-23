@@ -35,6 +35,8 @@ Two refinements worth copying rather than rediscovering:
 
 What does not change: the engine never resolves a conflict and never merges without the configured approval. A merge conflict is an escalation with reason `merge_conflict`. Serialization orders candidates; it does not assume authority.
 
+*Amended by A-26 2026-08-23 (registered on the charter):* the escalation is literal. A conflicted rebase aborts, the branch stays exactly as measured, and the run transitions `ready → escalated` with reason `merge_conflict` — the queue's age (D-6.8) starts counting the moment a landing fails, not when a human happens to read the lane report. The `ready → escalated` edge is opened in the charter's §4 table by the same amendment; `ready` stays terminal to the engine everywhere else. Resolution is the standard escalated fork: re-queue to re-run the task against the moved base, or abandon when a human landed the work by hand.
+
 ## 2. Prevention beats ordering
 
 Two tasks whose `scope.allow` sets intersect must not run concurrently. That check happens **before dispatch** (RFC 0002 §6), which is strictly better than resolving the collision after both have produced work.
@@ -128,6 +130,7 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 | D-6.7 | `ASSUMED` | Engine health rides the existing telemetry path as `EngineEvent` | `src/torve/application/telemetry.py` | A second observability stack is a second thing to operate |
 | D-6.8 | `LOCKED` | Escalation queue age is the primary alert | `src/torve/application/telemetry.py` | The failure that is invisible from inside the runner |
 | D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
+| D-6.10 | `LOCKED` | A conflicted landing escalates the run — `ready → escalated`, reason `merge_conflict`; the branch is left exactly as measured and resolution is human: re-queue or abandon. Added by amendment A-26 2026-08-23 (registered on the charter) | `src/torve/domain/states.py` `src/torve/application/lane.py` | Otherwise a candidate that cannot land is invisible to the escalation queue, whose age is the primary alert |
 
 ## Phasing
 

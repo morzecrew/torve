@@ -7,7 +7,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-1", "A-4", "A-5", "A-11", "A-12", "A-17", "A-21", "A-22"]
+amended_by: ["A-1", "A-4", "A-5", "A-11", "A-12", "A-17", "A-21", "A-22", "A-26"]
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
@@ -137,6 +137,8 @@ queued → claimed → running → gated → reviewed → ready
 *Amendment 2026-08-22 (A-21):* `underspecified` joins the vocabulary — a contract whose execution would require inventing three or more load-bearing decisions halts as a specification defect (0003 A-18), separable in telemetry from `locked_conflict`; both are halts on working judgement, but one indicts the contract and the other the code.
 
 *Amendment 2026-08-22 (A-22):* `stale_inheritance` joins the vocabulary — a non-terminal task minted from a document that later became superseded carries decisions that no longer stand (0007 §3.3); `torve plan --reconcile` makes the situation visible by escalating it, and what to do with the in-flight work stays a human decision.
+
+*Amendment 2026-08-23 (A-26):* `ready → escalated` is a legal transition, taken only by the merge lane on a conflicted landing (reason `merge_conflict`, RFC 0006 §1). `ready` stays terminal to the engine — swept by the reaper, refused by `torve kill`, never re-dispatched — but the lane may hand it back to a human.
 
 ## 5. Ports
 
@@ -427,3 +429,13 @@ Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached 
 **Deliberately unchanged:** the planner still has no verb that touches a running aggregate (0007 §2); `--reconcile` records a fact about a task's inheritance, it does not cancel, re-scope or resolve anything — what to do with in-flight work is a human decision.
 
 **Also edits:** 0011 D-11.9 (the projection row).
+
+### A-26 — 2026-08-23 — `ready → escalated` on a conflicted landing (amends §4)
+
+**Found in executing 0006 phase 2 (T-0042).** The lane's conflict path honoured the letter of the transition table over the letter of 0006 §1 — "a merge conflict is an escalation with reason `merge_conflict`" — and recorded a conflicted landing only as an engine event plus exit code, leaving the run `ready`. That leaves the escalation queue blind to exactly the failure 0006 §5b names as the most likely: a candidate that cannot land sits green in the lane report and nowhere else, and the queue's age — the primary alert (D-6.8) — never starts counting. The narrow reading was logged in T-0042 as a discovery with a proposal; the owner resolved it the other way.
+
+**Changed:** `ready → escalated` joins the transition table, taken only by the merge lane when a rebase conflicts. The run escalates with reason `merge_conflict` (in the vocabulary since v1, reachable for the first time); the branch is left exactly as measured — the engine still never resolves a conflict. Resolution is the standard escalated fork: re-queue, and the task re-runs against the moved base; or abandon, when a human landed the work by hand.
+
+**Deliberately unchanged:** `ready` remains terminal to the engine — the reaper sweeps it, `torve kill` refuses it, dispatch treats it as done. The new edge belongs to the lane alone. The operator who merges before reaping keeps the edge reachable; a swept state file has nothing left to escalate, which is the existing convention that `ready` footprints are collected once their landing is settled.
+
+**Also edits:** RFC 0006 §1 (the escalation is literal) and its decisions table (D-6.10).
