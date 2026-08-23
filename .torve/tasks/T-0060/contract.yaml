@@ -1,0 +1,49 @@
+# Minted by hand — 0006 §3's deferred promotion fields, picked up now that
+# auto_merge is live: today anything green lands unattended, and approvals
+# plus the quiet window are the deliberate counterweight.
+schema_version: 1
+id: T-0060
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  The promotion fields land as engine state and lane enforcement:
+  promotion.approvals requires that many recorded approvals of the
+  candidate's current branch tip — an approval is sha-bound, and one
+  that predates the last push approves nothing (review freshness is
+  relative to current head); promotion.quiet_window refuses a landing
+  whose tip is younger than the window, so pushing resets it. Approvals
+  live on the run state, recorded through one application function that
+  dedupes actor and sha; refusals name their counts and ride the engine
+  event stream. Both fields default off — configuring nothing decides
+  nothing.
+depends_on: [T-0059]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.2
+    grade: LOCKED
+    text: Auto-merge off by default, opt-in per repository and task class
+    paths:
+      - src/torve/config/runconfig.py
+  - id: D-6.3
+    grade: ASSUMED
+    text: Review freshness is measured against current head; a push resets the window
+    paths:
+      - src/torve/application/lane.py
+budget: {}
+tier: executor

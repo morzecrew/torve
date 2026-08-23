@@ -102,9 +102,28 @@ def _engine_record(root: Path, rel: str) -> bool:
                    f"{layout.TORVE_DIR}/{PR_LEDGER}"}
 
 
+def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
+    """One sha-bound approval (RFC 0006 §3, T-0060): recorded on the run
+    state, deduped by (actor, sha) — approving the same tip twice is one
+    approval, and an approval of a superseded tip stays in the record but
+    counts for nothing at the lane. Returns False on the dedupe."""
+    state = RunState.load(naming.state_file(root, task_id))
+    if any(a.get("actor") == actor and a.get("sha") == sha
+           for a in state.approvals):
+        return False
+    from datetime import UTC, datetime
+
+    state.approvals.append({
+        "actor": actor, "sha": sha,
+        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")})
+    state.save()
+    return True
+
+
 def process_lane(
     root: Path, vcs: LaneVcs, dry_run: bool = False, only: str | None = None,
-    ci: CiStatus | None = None,
+    ci: CiStatus | None = None, approvals_required: int = 0,
+    quiet_window_s: int = 0,
 ) -> list[LaneResult]:
     base = vcs.current_branch(root)
     if not dry_run:
@@ -142,6 +161,32 @@ def process_lane(
                 results.append(LaneResult(
                     task_id, branch, "ci not green",
                     f"remote ci {verdict} on {branch_tip[:10]}"))
+                continue
+
+        if approvals_required and not dry_run:
+            # Sha-bound (D-6.3): only approvals of the tip as measured now
+            # count — an approval of a superseded tip approves nothing.
+            current = [a for a in state.approvals
+                       if a.get("sha") == branch_tip]
+            if len(current) < approvals_required:
+                engine_event(root, "lane_approvals_short", {
+                    "task": task_id, "sha": branch_tip,
+                    "have": len(current), "need": approvals_required})
+                results.append(LaneResult(
+                    task_id, branch, "approvals short",
+                    f"{len(current)} of {approvals_required} approval(s) "
+                    f"for {branch_tip[:10]}"))
+                continue
+        if quiet_window_s and not dry_run:
+            age = vcs.tip_age_s(root, branch_tip)
+            if age < quiet_window_s:
+                # Pushing reset the window (§3): the tip is too fresh.
+                engine_event(root, "lane_quiet_window", {
+                    "task": task_id, "sha": branch_tip,
+                    "age_s": age, "window_s": quiet_window_s})
+                results.append(LaneResult(
+                    task_id, branch, "quiet window",
+                    f"tip is {age:.0f}s old; the window is {quiet_window_s}s"))
                 continue
 
         base_tip = vcs.tip(root, base) or base

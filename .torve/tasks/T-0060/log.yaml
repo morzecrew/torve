@@ -1,0 +1,53 @@
+schema_version: 1
+task: T-0060
+repo: morzecrew/torve
+base_sha: 20cace29a1ac9037a6de1b0a267f963575762926
+drift_count: 0
+entries:
+  - decision: D-6.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T07:10:00Z
+    attempt: 1
+    claim: >-
+      an approval is sha-bound and the lane counts only entries matching
+      the branch tip as measured at lane start — an approval of a
+      superseded tip stays in the record but counts for nothing, which
+      is this decision's "a push resets the window" made mechanical;
+      the post-rebase tip is not re-approved because the rebase is the
+      lane's own act over approved content, re-gated locally
+    evidence: src/torve/application/lane.py:166-179 — the sha filter at
+      the lane; tests/test_lane.py:315-334 — superseded approval counts
+      for nothing, pinned
+    action: decided
+  - decision: D-6.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T07:11:00Z
+    attempt: 1
+    claim: >-
+      the quiet window's clock is the branch tip's committer age — no
+      new pushes for the window means the newest commit is at least that
+      old, and a push resets it by existing; the RFC sketch says 30m and
+      the field is plain seconds, because the config layer has no
+      duration parser and a second one is not worth inventing for one
+      knob
+    evidence: src/torve/application/lane.py:180-192 — the age check;
+      src/torve/adapters/vcs/git.py:212-216 — committer-time clock;
+      tests/test_lane.py:337-364 — fresh refused, aged lands
+    action: decided
+  - decision: D-6.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T07:12:00Z
+    attempt: 1
+    claim: >-
+      both fields default to zero and zero disables — configuring
+      nothing decides nothing, exactly as auto_merge's off-default
+      demands; approvals live on the run state (the run's authority)
+      recorded through one deduped application function, not a second
+      ledger, so retry and reap lifecycles carry them with the run
+    evidence: src/torve/config/runconfig.py:310-319 — the off defaults;
+      src/torve/application/lane.py:105-121 — record_approval and its
+      dedupe
+    action: decided

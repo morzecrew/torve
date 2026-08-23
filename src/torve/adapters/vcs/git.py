@@ -209,6 +209,12 @@ class GitLane:
             paths.append(entry)
         return paths
 
+    def tip_age_s(self, root: Path, ref: str) -> float:
+        """Seconds since the ref's tip commit — the quiet window's clock
+        (RFC 0006 §3): a push resets it, because the new tip is young."""
+        out = _git(root, "log", "-1", "--format=%ct", ref).stdout.strip()
+        return max(0.0, time.time() - float(out)) if out else 0.0
+
     def adopt_identical(self, root: Path, ref: str) -> list[str]:
         """D-19.11 (A-28): remove untracked root files the incoming landing
         carries with byte-identical content, so git's overwrite refusal is

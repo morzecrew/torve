@@ -48,6 +48,10 @@ class RunState:
     worktree: str | None = None
     escalation: Escalation | None = None
     history: list[dict[str, str]] = field(default_factory=list)
+    # Sha-bound promotion approvals (RFC 0006 §3): {actor, sha, at} — an
+    # approval that predates the last push approves nothing, so the lane
+    # counts only entries matching the current branch tip.
+    approvals: list[dict[str, str]] = field(default_factory=list)
 
     def transition(self, to: TaskState, fact: str) -> None:
         """Transitions are executed from facts; the fact is recorded with the
@@ -105,6 +109,7 @@ class RunState:
             worktree=data.get("worktree"),
             escalation=Escalation(**escalation) if escalation else None,
             history=data.get("history", []),
+            approvals=data.get("approvals", []),
         )
 
     @classmethod

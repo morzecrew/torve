@@ -277,3 +277,86 @@ def test_a_differing_untracked_record_still_refuses_the_landing(lane_repo):
     assert result.exit_code != 0
     assert (contract_dir / "contract.yaml").read_text() == "id: DIFFERENT\n"
     assert git(lane_repo, "log", "--oneline", "-1").endswith("init")
+
+
+# Promotion approvals and the quiet window (RFC 0006 §3, T-0060).
+
+
+def test_approvals_required_refuses_an_unapproved_candidate(lane_repo):
+    candidate(lane_repo, "T-7020", "twenty.py", "twenty = 20\n")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8")
+    git(lane_repo, "add", ".torve/config.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 1, result.output
+    report = json.loads(result.stdout)["results"][0]
+    assert report["action"] == "approvals short"
+    assert "0 of 1" in report["detail"]
+
+
+def test_an_approval_of_the_current_tip_lands(lane_repo):
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7021", "twentyone.py", "t = 21\n")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8")
+    git(lane_repo, "add", ".torve/config.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7021"))
+    assert record_approval(lane_repo, "T-7021", "operator", tip) is True
+    # The dedupe: the same actor approving the same tip is one approval.
+    assert record_approval(lane_repo, "T-7021", "operator", tip) is False
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "landed"
+
+
+def test_an_approval_of_a_superseded_tip_counts_for_nothing(lane_repo):
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7022", "twentytwo.py", "t = 22\n")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8")
+    git(lane_repo, "add", ".torve/config.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
+    old_tip = git(lane_repo, "rev-parse", naming.branch("T-7022"))
+    record_approval(lane_repo, "T-7022", "operator", old_tip)
+    # The branch moves after the approval — D-6.3: review freshness is
+    # relative to current head.
+    git(lane_repo, "checkout", "-q", naming.branch("T-7022"))
+    (lane_repo / "twentytwo.py").write_text("t = 23\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "pushed after approval")
+    git(lane_repo, "checkout", "-q", "main")
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "approvals short"
+
+
+def test_the_quiet_window_refuses_a_fresh_tip_and_passes_an_old_one(lane_repo):
+    candidate(lane_repo, "T-7023", "twentythree.py", "t = 23\n")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  quiet_window: 3600\n", encoding="utf-8")
+    git(lane_repo, "add", ".torve/config.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: quiet window")
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "quiet window"
+
+    # An old tip is quiet: re-commit the branch with an aged committer date.
+    git(lane_repo, "checkout", "-q", naming.branch("T-7023"))
+    (lane_repo / "twentythree.py").write_text("t = 24\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    subprocess.run(["git", "-C", str(lane_repo), "-c",
+                    "user.name=Lane Operator", "-c",
+                    "user.email=lane@example.invalid",
+                    "commit", "-q", "--no-gpg-sign", "-m", "aged"],
+                   env={**__import__("os").environ,
+                        "GIT_COMMITTER_DATE": "2001-01-01T00:00:00",
+                        "GIT_AUTHOR_DATE": "2001-01-01T00:00:00"},
+                   check=True)
+    git(lane_repo, "checkout", "-q", "main")
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "landed"

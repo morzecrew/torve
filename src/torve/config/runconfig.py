@@ -309,6 +309,14 @@ class PromotionConfig(BaseModel):
 
     auto_merge: bool = False
     require_ci: bool = False
+    # §3's approvals requirement (T-0060): the lane lands only a candidate
+    # with this many recorded approvals of its CURRENT branch tip — an
+    # approval that predates the last push approves nothing (D-6.3). Zero
+    # requires none: configuring nothing decides nothing.
+    approvals: int = 0
+    # §3's quiet window, in seconds: a landing whose branch tip is younger
+    # than this refuses — pushing resets the window. Zero disables it.
+    quiet_window: int = 0
 
 
 class LoopConfig(BaseModel):
