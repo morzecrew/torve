@@ -22,7 +22,7 @@ schema_version: 1
 
 # RFC 0019 — The standing loop
 
-- **Implementation state:** phase 1 executed 2026-08-24 (T-0055 — `torve tick` with the lock, the pause threshold, the selection rule and per-tick events; demonstrated live on the lab: a seeded backlog drained across scheduled-shape ticks, landings included). Outstanding: the §11 exit criteria accrue with scheduled operation (the week of events, the overlap in the wild, 0006 §7's count)
+- **Implementation state:** phase 1 executed 2026-08-24 (T-0055 — `torve tick` with the lock, the pause threshold, the selection rule and per-tick events); A-27 executed 2026-08-24 (T-0056 — the lane precedes the reaper); A-28 executed 2026-08-24 (T-0057 — the loop publishes what it lands, the reaper keeps unlanded READY states, the lane adopts identical untracked records; demonstrated live: a two-task backlog drained in four ticks with zero operator intervention — dispatch, CI-gated landing, automatic base push, dependency on the published landing, honest closing noop). Outstanding: the §11 exit criteria accrue with scheduled operation (the week of events, the overlap in the wild, 0006 §7's count)
 - **Scope:** How the engine runs without a human turning the crank: the
   tick verb, what one tick does and in what order, how the next task is
   selected, when intake pauses, when the lane may land, concurrency and

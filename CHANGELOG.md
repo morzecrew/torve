@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A-27 + A-28 (T-0056, T-0057): the tick's order is poll, lane, reap,
+  dispatch, sync — the lane before the reaper, merge-before-reap inside
+  the tick; the loop publishes what it lands (base pushed fast-forward
+  only after a landing); the reaper keeps the state file of a READY
+  implement/revert run whose task has not landed; the lane adopts
+  byte-identical untracked engine records the landing carries. All four
+  found by the first live drains.
 - The standing loop (T-0055, RFC 0019 phase 1): `torve tick` — one
   bounded pass: reap, poll the board, dispatch at most one queued task
   (no run record, dependencies satisfied, ascending id), the lane only
