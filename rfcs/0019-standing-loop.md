@@ -131,6 +131,13 @@ any state, terminal or not, is not re-dispatched") is the intent;
 telemetry is append-only, survives the reaper, and keeps the rule
 readable from the file system alone.
 
+*Execution note 2026-08-24 (T-0059):* the re-entry this section names is
+now mechanical end to end: a `QUEUED` run state — the state a board
+`retry` leaves behind — is queued, dependencies still checked, and the
+retry's apply deletes the task's stale remote branch first (RFC 0008
+D-8.10) so the re-run's push is not refused by the previous attempt's
+history. Any other existing state remains untouchable by the loop.
+
 Selection among queued tasks is by ascending task id — deterministic,
 arguable from a directory listing, and free of a priority field that
 would become a second planner. One dispatch per tick is a bound, not a

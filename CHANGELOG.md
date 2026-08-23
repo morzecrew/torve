@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The retry command completes its own re-queue (T-0059, RFC 0008
+  D-8.10): `/torve retry`'s apply deletes the task's stale remote branch
+  — a ref deletion under the commander's authority, never a rewrite —
+  before the state transitions; a failed cleanup refuses with the
+  escalation left standing. The loop selects the QUEUED state and the
+  runner admits it for re-dispatch.
 - One transient retry in the GitHub adapters (T-0058): network-shaped gh
   failures (timeout, TLS handshake, reset, lookup, 5xx) retry exactly
   once; everything else raises unchanged. Idempotent destinations make

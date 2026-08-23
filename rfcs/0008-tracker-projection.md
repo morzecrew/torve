@@ -124,6 +124,7 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 | D-8.7 | `ASSUMED` | One comment per attempt, never per gate | `src/torve/application/tracker.py` | Readability; revisit if triage needs finer granularity |
 | D-8.8 | `ASSUMED` | GitHub Issues ships first — the forge the team already lives in, proven on the lab repository. Resolved while draft 2026-08-23 | `src/torve/adapters/tracker/github.py` | Whichever the team already lives in; the credential and remote already exist |
 | D-8.9 | `ASSUMED` | Commands are authorized before they are validated: only actors in `tracker.commanders` apply, an empty list refuses everyone, and refusals are answered on-thread. Added by execution 2026-08-24 — see .torve/tasks/T-0054 | `src/torve/application/tracker.py` `src/torve/config/runconfig.py` | The board is an unattended command channel once the standing loop polls it |
+| D-8.10 | `ASSUMED` | The retry command completes its own re-queue: its apply deletes the task's stale remote branch — a ref deletion under the commander's authority, never a history rewrite, RFC 0010's no-force doctrine untouched — before the state transitions, and a failed cleanup refuses with the escalation left standing. The loop selects the QUEUED state; the runner admits it. Added by execution 2026-08-24 — see .torve/tasks/T-0059 | `src/torve/application/tracker.py` `src/torve/adapters/vcs/git.py` | A retried task was stranded: the loop skipped its run record and the stale branch would have refused the re-run's push |
 
 ## 8. Risks
 
