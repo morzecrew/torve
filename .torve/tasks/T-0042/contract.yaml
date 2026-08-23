@@ -1,0 +1,91 @@
+# Minted by `torve plan 0006` — phase 2: The serialized lane
+schema_version: 1
+id: T-0042
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: 'Ready is a lane, not a set: torve merge processes candidates one at a
+
+  time — a task branch whose base has not moved lands as it was measured;
+
+  one whose base moved is rebased and its gate battery re-run over the
+
+  rebased tree before landing; a conflict escalates as merge_conflict
+
+  and the lane moves on. The engine never resolves a conflict, and the
+
+  operator''s invocation is the recorded approval. Auto-merge stays off
+
+  by default in configuration.'
+depends_on:
+- T-0041
+targets: []
+scope:
+  allow:
+  - src/torve/application/lane.py
+  - src/torve/adapters/**
+  - src/torve/cli/**
+  - src/torve/config/**
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+- uv run torve rfc check
+decisions:
+- id: D-6.1
+  grade: LOCKED
+  text: '`ready` is a serialized lane; only this state is capped'
+  paths:
+  - src/torve/application/lane.py
+  - src/torve/cli/merge.py
+- id: D-6.2
+  grade: LOCKED
+  text: Auto-merge off by default, opt-in per repository and task class
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-6.3
+  grade: ASSUMED
+  text: Review freshness is measured against current head; a push resets the window
+  paths:
+  - src/torve/application/lane.py
+- id: D-6.4
+  grade: ASSUMED
+  text: Escalations are batched into review windows except blockers and locked conflicts
+  paths:
+  - src/torve/application/projections.py
+- id: D-6.5
+  grade: ASSUMED
+  text: Parallelism increases only when escalation resolution time is stable
+  paths: []
+- id: D-6.6
+  grade: LOCKED
+  text: Blocked dispatch is logged with cause and counted per path; `torve kill` always available
+  paths:
+  - src/torve/application/runner.py
+  - src/torve/cli/run.py
+- id: D-6.7
+  grade: ASSUMED
+  text: Engine health rides the existing telemetry path as `EngineEvent`
+  paths:
+  - src/torve/application/telemetry.py
+- id: D-6.8
+  grade: LOCKED
+  text: Escalation queue age is the primary alert
+  paths:
+  - src/torve/application/telemetry.py
+- id: D-6.9
+  grade: ASSUMED
+  text: Dispatch keys durable runs by task and generation, so concurrent dispatches of one
+    task converge on a single store claim instead of racing the engine's state-file guard.
+    Added by execution 2026-08-21
+  paths:
+  - src/torve/application/taskstore.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
