@@ -4,7 +4,7 @@ title: VCS, provenance and revert
 status: draft
 implementation: none
 depends_on: ["0003"]
-informed_by: []
+informed_by: ["0005", "0006"]
 supersedes: []
 superseded_by: null
 amended_by: []
@@ -119,15 +119,92 @@ Behaviour:
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-10.1 | `LOCKED` | The agent produces code; the runner produces every forge artefact | `src/torve/adapters/vcs/git.py` | The mechanism that makes D-4b achievable |
+| D-10.1 | `LOCKED` | The agent produces code; the runner produces every forge artefact | `src/torve/application/runner.py` `src/torve/application/ports.py` | The mechanism that makes D-4b achievable |
 | D-10.2 | `LOCKED` | Commit author is the agent identity, never a human | `src/torve/adapters/vcs/git.py` | Attributing machine work to a person corrupts blame and review data |
-| D-10.3 | `LOCKED` | Signing happens outside the sandbox, at the runner boundary | `src/torve/adapters/vcs/git.py` | The agent cannot hold the key |
-| D-10.4 | `LOCKED` | Provenance trailers on every commit, including `config_hash` | `src/torve/adapters/vcs/git.py` | The only durable link from a bad commit back to its regime |
-| D-10.5 | `LOCKED` | Force-push forbidden once review has started | `src/torve/adapters/vcs/git.py` | Protects review freshness and line comments |
-| D-10.6 | `LOCKED` | Pull-request bodies are composed from data, never from agent prose | `src/torve/adapters/vcs/git.py` | A self-report is not evidence |
-| D-10.7 | `LOCKED` | Revert is a role, preferring `git revert`, passing the same gates and the same lane | `src/torve/adapters/vcs/git.py` `src/torve/application/runner.py` | An unreviewed emergency path is how the guarantees get bypassed |
+| D-10.3 | `LOCKED` | Signing happens outside the sandbox, at the runner boundary | `src/torve/adapters/vcs/git.py` `src/torve/config/runconfig.py` | The agent cannot hold the key |
+| D-10.4 | `LOCKED` | Provenance trailers on every commit, including `config_hash` | `src/torve/adapters/vcs/git.py` `src/torve/application/runner.py` | The only durable link from a bad commit back to its regime |
+| D-10.5 | `LOCKED` | Force-push forbidden once review has started | `src/torve/application/runner.py` `src/torve/adapters/vcs/git.py` | Protects review freshness and line comments |
+| D-10.6 | `LOCKED` | Pull-request bodies are composed from data, never from agent prose | `src/torve/application/forge.py` `src/torve/adapters/vcs/git.py` | A self-report is not evidence |
+| D-10.7 | `LOCKED` | Revert is a role, preferring `git revert`, passing the same gates and the same lane | `src/torve/application/runner.py` `src/torve/domain/task.py` `src/torve/adapters/vcs/git.py` | An unreviewed emergency path is how the guarantees get bypassed |
 | D-10.8 | `ASSUMED` | One commit per attempt | `src/torve/adapters/vcs/git.py` | Depart if attempts routinely produce unrelated changes — which is itself a task-size finding |
 | D-10.9 | `OPEN` | Whether review-run artefacts get their own branch or live only as comments | — | Decided when 0005 ships |
+
+## Phasing
+
+*(Added 2026-08-23 while draft, with the path relocation to RFC 0015's tree.
+A subset already exists from RFC 0003's exit criterion: `GitVcs.commit_all`
+writes the Task/Attempt/Config trailers with committer Torve, `GhScm` opens
+pull requests through the gh CLI, `ScmConfig.open_pr` is off by default —
+phase 1 completes the local record, phase 2 makes the forge leg real. The
+remote and its credential live in configuration, not in this document: the
+repository slug and the token's environment-variable NAME (D-4b — never the
+value) ride `ScmConfig`. Signing key material likewise: a path in
+configuration, held by the runner, never mounted into a sandbox; unset means
+unsigned. Review comment posting and PR-triggered review stay with RFC 0005's
+forge deferrals; CI polling and the approvals/quiet-window fields stay with
+RFC 0006's.)*
+
+```yaml
+- phase: 1
+  title: Provenance and revert, local
+  intent: |
+    The runner's commit becomes the full provenance record: author is the
+    agent identity from the attempt's agent block, committer is Torve,
+    trailers complete — Torve-Task, Torve-Attempt, Torve-Agent,
+    Torve-Config, Torve-Decisions with grades — one commit per attempt,
+    reconstructible from git log with the store offline. Signing happens
+    at the runner boundary when a key path is configured: the sandbox
+    produces the tree, the runner signs outside it, and the signature
+    attests provenance, never approval. Revert becomes a role: targets
+    are legal for role revert, the runner executes git revert of the
+    target's landed shas in the worktree — preferring revert over
+    reconstruction — the same gates judge it, the same lane lands it,
+    and every revert emits a resolved execution-log entry against the
+    decisions the reverted task inherited.
+  scope:
+    - "src/torve/adapters/vcs/**"
+    - "src/torve/application/**"
+    - "src/torve/domain/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+- phase: 2
+  title: The forge leg
+  depends_on: [1]
+  intent: |
+    The Scm surface grows from the 0003 skeleton into the credentialed
+    leg, against the remote named in configuration: push targets only the
+    task's own branch, with the token injected at the runner boundary
+    from a configured environment-variable name — the sandbox holds
+    nothing, the config holds the name, only the runner's process holds
+    the value. The pull request is composed from data: contract summary,
+    acceptance commands and results, gate outcomes with durations,
+    inherited decisions with grades, execution-log divergences, cost and
+    trace_ref — never the agent's prose. Force-push is allowed before
+    review starts and forbidden after, enforced from run state, not
+    convention. Exit is live: one task pushed and opened as a pull
+    request against the configured remote, its history reconstructible
+    from trailers alone.
+  scope:
+    - "src/torve/adapters/**"
+    - "src/torve/application/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+```
 
 ## 9. Exit criteria
 
