@@ -2,7 +2,7 @@
 id: "0010"
 title: VCS, provenance and revert
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0003"]
 informed_by: ["0005", "0006"]
 supersedes: []
@@ -16,6 +16,7 @@ schema_version: 1
 
 # RFC 0010 — VCS, provenance and revert
 
+- **Implementation state:** phases 1–2 executed 2026-08-23 (T-0044 provenance/signing/revert; T-0045 the credentialed forge leg — live: the engine pushed and opened Misery7100/torve-remote-lab#1). All three §9 exit criteria demonstrated. Standing open: D-10.9; the state-conditional force-push guard becomes meaningful with the forge polling leg (today no force path exists at all, which is stronger); vault injection maps to a named environment variable until the substrate's vault arrives
 - **Scope:** How agent work becomes commits, branches and pull requests; who signs them; how they are attributed so history explains itself; and how landed work is undone. Excludes merge ordering (RFC 0006) and conflict resolution (permanently out of scope).
 - **Inherits:** D-4b (agents hold no credentials), D-6, D-22 from RFC 0001
 

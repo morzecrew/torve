@@ -107,6 +107,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cost_usd`, `trace_ref`), the tier mapping and provider policy
   joined `config_hash` (D-4.3), and `torve feedback` appends the two
   hand-entered `ReviewFeedback` fields to their own stream.
+- RFC 0010 executed, phases 1–2 (T-0044/T-0045): VCS, provenance and
+  revert. The commit is the runner's artefact: author is the agent
+  identity (`adapter/model@version <agents@torve.local>`), committer is
+  Torve, trailers complete (Task/Attempt/Agent/Config/Decisions with
+  grades) so `git log` reconstructs a task with the store offline;
+  SSH signing at the runner boundary when `vcs.signing_key` is set — the
+  key never enters a sandbox, and the signature attests provenance,
+  never approval. Revert is a role: mechanical `git revert --no-commit`
+  of the target's landed shas (resolved from the Torve-Task trailer),
+  no agent and no attempt sandbox, same gates, same landing; a
+  dependent-commit conflict aborts clean and escalates as
+  `merge_conflict`; the runner writes the resolved log entries. The
+  forge leg is live: push targets only the task's branch with the token
+  resolved by NAME (`scm.token_env`) at the runner boundary — never on
+  argv, never in a sandbox — and the pull request is composed from
+  records only (contract, gates with durations, decisions with grades,
+  log divergences, cost, trace). Exit criterion demonstrated: the
+  engine pushed and opened torve-remote-lab#1.
 - Amendment A-26 executed (T-0043): a conflicted landing escalates the
   run. `ready → escalated` joins the charter's transition table, taken
   only by the merge lane on a conflicted rebase — reason
