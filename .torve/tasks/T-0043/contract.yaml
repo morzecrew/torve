@@ -1,0 +1,61 @@
+# Minted by hand — execution of amendment A-26 (charter §4 edge, 0006 D-6.10):
+# the owner resolved T-0042's logged discovery the other way — a conflicted
+# landing escalates the run, it does not merely report.
+schema_version: 1
+id: T-0043
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  The escalation is literal: `ready -> escalated` joins the transition
+  table, taken only by the merge lane when a rebase conflicts. The run
+  escalates with reason merge_conflict, the branch stays exactly as
+  measured, and the escalation queue's age starts counting the moment a
+  landing fails. Ready stays terminal to the engine everywhere else —
+  swept by the reaper, refused by kill, never re-dispatched — and an
+  escalated candidate leaves the lane, so the next merge invocation does
+  not retry it. Resolution is the standard escalated fork: re-queue or
+  abandon.
+depends_on: [T-0042]
+targets: []
+scope:
+  allow:
+    - "src/torve/domain/**"
+    - "src/torve/application/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.10
+    grade: LOCKED
+    text: A conflicted landing escalates the run — ready -> escalated, reason
+      merge_conflict; the branch is left exactly as measured and resolution is
+      human (re-queue or abandon)
+    paths:
+      - src/torve/domain/states.py
+      - src/torve/application/lane.py
+  - id: D-6.1
+    grade: LOCKED
+    text: "`ready` is a serialized lane; only this state is capped"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+  - id: D-6.3
+    grade: ASSUMED
+    text: Review freshness is measured against current head; a push resets the window
+    paths:
+      - src/torve/application/lane.py
+  - id: D-29
+    grade: ASSUMED
+    text: The escalation vocabulary is one closed enum; any addition is an RFC
+      amendment, never a code change
+    paths:
+      - src/torve/domain/states.py
+budget: {}
+tier: executor

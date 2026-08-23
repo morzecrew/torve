@@ -81,7 +81,7 @@ def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
     assert all(r["approver"] == "Lane Operator" for r in landed)
 
 
-def test_a_conflict_is_reported_and_left_for_a_human(lane_repo):
+def test_a_conflict_escalates_the_run_and_leaves_the_branch_for_a_human(lane_repo):
     candidate(lane_repo, "T-7003", "app.py", "candidate = 3\n")
     # The base moves under the candidate, touching the same line.
     (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
@@ -99,6 +99,18 @@ def test_a_conflict_is_reported_and_left_for_a_human(lane_repo):
     assert git(lane_repo, "rev-parse", naming.branch("T-7003")) == branch_tip
     # And no stray lane worktree remains.
     assert "lane-" not in git(lane_repo, "worktree", "list")
+    # The run escalated (ready -> escalated, charter A-26): the failed
+    # landing enters the escalation queue rather than sitting green in a
+    # report nobody reads.
+    state = RunState.load(naming.state_file(lane_repo, "T-7003"))
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "merge_conflict"
+    # An escalated candidate has left the lane: the next invocation does
+    # not retry it.
+    again = invoke_merge(lane_repo)
+    assert again.exit_code == 0, again.output
+    assert json.loads(again.stdout)["results"] == []
 
 
 def test_dry_run_previews_without_moving(lane_repo):

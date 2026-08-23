@@ -21,9 +21,12 @@ def test_the_happy_path_is_legal():
         check_transition(current, to)
 
 
-def test_terminal_states_have_no_exit():
-    assert TRANSITIONS[TaskState.READY] == frozenset()
+def test_terminal_states_are_terminal_to_the_engine():
+    # ready keeps exactly one exit — the lane's conflict edge (charter
+    # A-26, RFC 0006 D-6.10); abandoned keeps none.
+    assert TRANSITIONS[TaskState.READY] == frozenset({TaskState.ESCALATED})
     assert TRANSITIONS[TaskState.ABANDONED] == frozenset()
+    check_transition(TaskState.READY, TaskState.ESCALATED)
 
 
 def test_illegal_transitions_raise():

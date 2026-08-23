@@ -4,9 +4,14 @@ exactly as it was measured (a rebase that changes nothing buys no new
 signal); one whose base moved is rebased in a disposable worktree and its
 gate battery re-runs over the rebased tree before landing, which is review
 freshness against current head (D-6.3) in the local regime, where the
-battery is current-head CI. A conflicted rebase aborts and is reported as
-`merge_conflict` — the engine never resolves a conflict — and the lane
-moves on to the next candidate.
+battery is current-head CI. A conflicted rebase aborts and escalates the
+run — `ready -> escalated`, reason `merge_conflict` (charter A-26, D-6.10),
+the one edge out of ready and the lane's alone — so the escalation queue's
+age starts counting the moment a landing fails. The branch stays exactly
+as measured; the engine never resolves a conflict, and the lane moves on
+to the next candidate. Resolution is the standard escalated fork:
+re-queue to re-run against the moved base, or abandon when a human
+landed the work by hand.
 
 The operator's invocation is the recorded approval; each outcome rides the
 telemetry stream as an engine event (D-6.7).
@@ -22,7 +27,7 @@ from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
 from torve.config import layout
-from torve.domain.states import TaskState
+from torve.domain.states import EscalationReason, TaskState
 
 # ----------------------- #
 
@@ -118,9 +123,13 @@ def process_lane(
         workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
         if not vcs.rebase_in_worktree(root, branch, base, workdir):
             engine_event(root, "lane_conflict", {"task": task_id, "base": base})
+            state.escalate(
+                EscalationReason.MERGE_CONFLICT,
+                f"rebase onto {base!r} conflicts; branch untouched — "
+                "re-queue or abandon")
             results.append(LaneResult(
                 task_id, branch, "conflict",
-                "merge_conflict: rebase aborted, branch untouched — resolve is human work"))
+                "merge_conflict: rebase aborted, branch untouched — run escalated"))
             continue
         try:
             exit_code, summary = _regate(workdir, base, task_id)

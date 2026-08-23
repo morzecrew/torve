@@ -79,19 +79,25 @@ EXIT_BY_REASON: dict[EscalationReason, int] = {
 # claimed -> escalated covers a runner that died between claim and first
 # dispatch — the reaper's lease_expired verdict needs a legal exit from
 # claimed (a decision logged in T-0003).
+# ready -> escalated is the lane's conflict edge (charter A-26, RFC 0006
+# D-6.10): a candidate whose rebase conflicts is handed back to a human
+# with reason merge_conflict; no other actor takes this edge.
 TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.QUEUED: frozenset({TaskState.CLAIMED}),
     TaskState.CLAIMED: frozenset({TaskState.RUNNING, TaskState.ESCALATED}),
     TaskState.RUNNING: frozenset({TaskState.GATED, TaskState.ESCALATED}),
     TaskState.GATED: frozenset({TaskState.REVIEWED, TaskState.RUNNING, TaskState.ESCALATED}),
     TaskState.REVIEWED: frozenset({TaskState.READY, TaskState.ESCALATED}),
-    TaskState.READY: frozenset(),
+    TaskState.READY: frozenset({TaskState.ESCALATED}),
     TaskState.ESCALATED: frozenset({TaskState.QUEUED, TaskState.ABANDONED}),
     TaskState.ABANDONED: frozenset(),
 }
 
 # `ready` is not `merged` (the engine stops at mergeable); `abandoned` is the
 # human's terminal verdict. `escalated` is neither — it waits on a human.
+# TERMINAL means terminal to the ENGINE — sweepable, kill-refused, never
+# re-dispatched. `ready` keeps one exit anyway: the lane's conflict edge
+# above, which is a landing failing, not the engine resuming.
 TERMINAL = frozenset({TaskState.READY, TaskState.ABANDONED})
 
 

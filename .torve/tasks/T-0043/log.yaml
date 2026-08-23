@@ -1,0 +1,87 @@
+schema_version: 1
+task: T-0043
+repo: morzecrew/torve
+base_sha: 141859659ffb7a7a6395fbe47a69a854f7489850
+drift_count: 0
+entries:
+  - decision: D-6.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T12:10:00Z
+    attempt: 1
+    claim: >-
+      the escalation is literal — a conflicted rebase aborts, the branch
+      stays exactly as measured, and the run transitions ready to escalated
+      with reason merge_conflict, the one edge out of ready and the lane's
+      alone; the escalation queue's age starts counting the moment a landing
+      fails, and the escalated candidate leaves the lane so the next merge
+      invocation does not retry it
+    evidence: src/torve/domain/states.py:91 — the edge;
+      src/torve/application/lane.py:126-132 — the escalation on conflict;
+      tests/test_lane.py:104-113 — reason, untouched tips, and the empty
+      second invocation pinned
+    action: decided
+  - decision: D-6.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T12:11:00Z
+    attempt: 1
+    claim: >-
+      the lane's candidacy rule is unchanged — ready states only, one at a
+      time; escalating a conflicted candidate is what removes it from the
+      lane, so serialization and the new edge compose without a filter
+      change
+    evidence: src/torve/application/lane.py:49-51 — ready_candidates
+      untouched; tests/test_lane.py:110-113 — the second invocation finds
+      no candidates
+    action: decided
+  - decision: D-6.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T12:12:00Z
+    attempt: 1
+    claim: >-
+      freshness handling is unchanged — the conflict path never reaches the
+      re-gate; the module docstring now states the escalated fork (re-queue
+      re-runs against the moved base, which re-measures freshness from
+      scratch)
+    evidence: src/torve/application/lane.py:1-21 — the docstring carrying
+      the amended conflict semantics
+    action: decided
+  - decision: D-29
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T12:13:00Z
+    attempt: 1
+    claim: >-
+      the vocabulary is untouched — merge_conflict has been in the closed
+      enum since v1 and becomes reachable for the first time; the change is
+      an edge in the transition table, adopted as charter amendment A-26
+      before this execution, exactly the RFC-amendment-not-code-change
+      discipline the decision demands. TERMINAL keeps ready — terminal means
+      terminal to the engine (sweepable, kill-refused, never re-dispatched),
+      and the comment now says so
+    evidence: src/torve/domain/states.py:97-101 — TERMINAL unchanged with
+      the engine-terminal comment; tests/test_domain.py:24-29 — ready's one
+      exit pinned
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T12:14:00Z
+    attempt: 1
+    claim: >-
+      the reap ordering matters now — a ready state file swept before the
+      lane runs has nothing left to escalate, so the operator convention is
+      merge before reap. A-26 records this as the operator's ordering to
+      keep, not a code guard; guarding it (reap refusing ready states with
+      an unlanded branch) would couple the reaper to the vcs port for a
+      race the operator controls
+    evidence: rfcs/0001-torve-charter.md:439 — A-26 deliberately-unchanged
+      paragraph; src/torve/application/reaper.py:70-77 — the terminal sweep
+      untouched
+    action: decided
+    proposal: 0003 §4.2 note — reap sweeps ready footprints on the
+      convention that landing is settled; add a vcs-aware guard only if the
+      merge-before-reap ordering proves error-prone in practice
