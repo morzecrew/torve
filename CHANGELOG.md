@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The store joins the doctor (T-0062, RFC 0012 D-12.7's sibling
+  question): under a postgres store, `torve doctor` verifies the DSN
+  variable is set, the database answers, and no substrate step is
+  pending — each failure an instruction — while a mock store names
+  itself as the in-process, test-only regime. The currency count
+  (`pending_count`) is shared with `migrate --status`.
+- The tick's reap leg carries the store factory (T-0063): under a
+  postgres store the durable reap — the lease as liveness authority —
+  is now reachable from the standing loop instead of erroring on
+  missing injection every tick. Found flipping the lab to the durable
+  store; with it, RFC 0003's D-3.6 regime went live in dogfood (a
+  migrated Postgres behind the lab's dispatch → approve → land cycle)
+  and RFC 0003 is judged complete.
 - The retry command completes its own re-queue (T-0059, RFC 0008
   D-8.10): `/torve retry`'s apply deletes the task's stale remote branch
   — a ref deletion under the commander's authority, never a rewrite —
