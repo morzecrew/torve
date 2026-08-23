@@ -1,0 +1,105 @@
+# Minted by `torve plan 0010` — phase 1: Provenance and revert, local
+schema_version: 1
+id: T-0044
+rfc: rfcs/0010-vcs-provenance-revert.md
+phase: 1
+role: implement
+intent: 'The runner''s commit becomes the full provenance record: author is the
+
+  agent identity from the attempt''s agent block, committer is Torve,
+
+  trailers complete — Torve-Task, Torve-Attempt, Torve-Agent,
+
+  Torve-Config, Torve-Decisions with grades — one commit per attempt,
+
+  reconstructible from git log with the store offline. Signing happens
+
+  at the runner boundary when a key path is configured: the sandbox
+
+  produces the tree, the runner signs outside it, and the signature
+
+  attests provenance, never approval. Revert becomes a role: targets
+
+  are legal for role revert, the runner executes git revert of the
+
+  target''s landed shas in the worktree — preferring revert over
+
+  reconstruction — the same gates judge it, the same lane lands it,
+
+  and every revert emits a resolved execution-log entry against the
+
+  decisions the reverted task inherited.'
+depends_on: []
+targets: []
+scope:
+  allow:
+  - src/torve/adapters/vcs/**
+  - src/torve/application/**
+  - src/torve/domain/**
+  - src/torve/config/**
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+- uv run torve rfc check
+decisions:
+- id: D-10.1
+  grade: LOCKED
+  text: The agent produces code; the runner produces every forge artefact
+  paths:
+  - src/torve/application/runner.py
+  - src/torve/application/ports.py
+- id: D-10.2
+  grade: LOCKED
+  text: Commit author is the agent identity, never a human
+  paths:
+  - src/torve/adapters/vcs/git.py
+- id: D-10.3
+  grade: LOCKED
+  text: Signing happens outside the sandbox, at the runner boundary
+  paths:
+  - src/torve/adapters/vcs/git.py
+  - src/torve/config/runconfig.py
+- id: D-10.4
+  grade: LOCKED
+  text: Provenance trailers on every commit, including `config_hash`
+  paths:
+  - src/torve/adapters/vcs/git.py
+  - src/torve/application/runner.py
+- id: D-10.5
+  grade: LOCKED
+  text: Force-push forbidden once review has started
+  paths:
+  - src/torve/application/runner.py
+  - src/torve/adapters/vcs/git.py
+- id: D-10.6
+  grade: LOCKED
+  text: Pull-request bodies are composed from data, never from agent prose
+  paths:
+  - src/torve/application/forge.py
+  - src/torve/adapters/vcs/git.py
+- id: D-10.7
+  grade: LOCKED
+  text: Revert is a role, preferring `git revert`, passing the same gates and the same lane
+  paths:
+  - src/torve/application/runner.py
+  - src/torve/domain/task.py
+  - src/torve/adapters/vcs/git.py
+- id: D-10.8
+  grade: ASSUMED
+  text: One commit per attempt
+  paths:
+  - src/torve/adapters/vcs/git.py
+- id: D-10.9
+  grade: OPEN
+  text: Whether review-run artefacts get their own branch or live only as comments
+  paths: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
