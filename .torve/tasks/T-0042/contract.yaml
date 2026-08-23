@@ -1,4 +1,7 @@
 # Minted by `torve plan 0006` — phase 2: The serialized lane
+# Scope widened by hand before execution: the lane's git surface is a new
+# port (LaneVcs) and ports live in application/ports.py — the wiring-seam
+# lesson recurring; legal cross-phase overlap under D-7.23.
 schema_version: 1
 id: T-0042
 rfc: rfcs/0006-merge-escalation.md
@@ -23,6 +26,7 @@ targets: []
 scope:
   allow:
   - src/torve/application/lane.py
+  - src/torve/application/ports.py
   - src/torve/adapters/**
   - src/torve/cli/**
   - src/torve/config/**

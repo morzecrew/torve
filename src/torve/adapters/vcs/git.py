@@ -53,6 +53,48 @@ class GitVcs:
         return True
 
 
+class GitLane:
+    """The lane's git surface (RFC 0006 §1). The rebase happens in a
+    disposable worktree so the operator's checkout never moves; a conflicted
+    rebase aborts and removes it — the engine never resolves a conflict."""
+
+    def tip(self, root: Path, ref: str) -> str | None:
+        proc = _git(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+        return proc.stdout.strip() or None if proc.returncode == 0 else None
+
+    def is_ancestor(self, root: Path, ancestor: str, descendant: str) -> bool:
+        return _git(root, "merge-base", "--is-ancestor", ancestor, descendant).returncode == 0
+
+    def current_branch(self, root: Path) -> str:
+        return _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+
+    def is_clean(self, root: Path) -> bool:
+        return not _git(root, "status", "--porcelain").stdout.strip()
+
+    def rebase_in_worktree(self, root: Path, branch: str, onto: str, workdir: Path) -> bool:
+        added = _git(root, "worktree", "add", str(workdir), branch)
+        if added.returncode != 0:
+            raise RuntimeError(added.stderr.strip() or f"worktree add failed for {branch}")
+        rebased = _git(workdir, "rebase", onto)
+        if rebased.returncode != 0:
+            _git(workdir, "rebase", "--abort")
+            self.remove_worktree(root, workdir)
+            return False
+        return True
+
+    def remove_worktree(self, root: Path, workdir: Path) -> None:
+        _git(root, "worktree", "remove", "--force", str(workdir))
+
+    def merge_ff(self, root: Path, ref: str) -> str:
+        proc = _git(root, "merge", "--ff-only", ref)
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or f"fast-forward to {ref} refused")
+        return _git(root, "rev-parse", "HEAD").stdout.strip()
+
+    def approver(self, root: Path) -> str:
+        return _git(root, "config", "user.name").stdout.strip() or "unknown"
+
+
 class GhScm:
     """Pull requests through the gh CLI — the runner speaks to the forge, the
     agent never does (D-10.1 ahead of its RFC)."""

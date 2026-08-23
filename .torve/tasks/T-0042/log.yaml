@@ -1,0 +1,80 @@
+schema_version: 1
+task: T-0042
+repo: morzecrew/torve
+base_sha: 1012d3e0f021f6fa3a73468ac8c2049bf77235fb
+drift_count: 0
+entries:
+  - decision: D-6.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T10:40:00Z
+    attempt: 1
+    claim: >-
+      ready is a lane — torve merge processes candidates one at a time in
+      task order; a landing moves the base under the next candidate, which
+      is exactly what the serialization exists for, and the test drives two
+      candidates through one invocation to observe fast-forward-then-rebase.
+      The unmoved-base case lands byte-identically to what the gates
+      measured and skips the re-gate; the moved-base case rebases in a
+      disposable worktree and re-runs the full battery over the rebased
+      tree before landing
+    evidence: src/torve/application/lane.py:74-137 — the serial loop;
+      tests/test_lane.py pins the ff-then-rebased sequence
+    action: decided
+  - decision: D-6.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T10:41:00Z
+    attempt: 1
+    claim: auto_merge exists in configuration, off by default, documented as
+      the knob a future scheduler consults — the operator's invocation is
+      the approval today and the approver's name rides every lane_landed
+      engine event
+    evidence: src/torve/config/runconfig.py:222-231 — PromotionConfig and
+      its docstring
+    action: decided
+  - decision: D-6.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T10:42:00Z
+    attempt: 1
+    claim: review freshness against current head maps, in the local regime,
+      to the gate battery re-running over the rebased tree — the approval
+      that lands is of the tree that lands, never of a tree the base has
+      moved under
+    evidence: src/torve/application/lane.py:49-71 — the regate over the
+      rebased worktree with the base as the diff's floor
+    action: decided
+  - decision: D-6.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T10:43:00Z
+    attempt: 1
+    claim: every lane outcome rides the telemetry stream — lane_landed with
+      mode and approver, lane_conflict, lane_gates_red — the same
+      kind:engine records phase 1 introduced
+    evidence: tests/test_lane.py:79-84 — the landed events asserted with
+      both modes and the approver
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T10:44:00Z
+    attempt: 1
+    claim: >-
+      a conflicted candidate is reported as merge_conflict, counted, and
+      the lane exits 2 — but the task's run state is NOT transitioned: READY
+      is terminal in the state machine (no READY to ESCALATED edge), and the
+      work is still green on its branch; what failed is the landing, not
+      the run. The record lives in the engine event and the lane report,
+      triage is human, and the branch is left exactly as it was (rebase
+      aborted, pinned by test). Opening a READY-to-ESCALATED edge for
+      landing failures would let a terminal state un-terminate, which is a
+      state-machine decision no landing convenience should smuggle in
+    evidence: src/torve/application/lane.py:119-124 — the conflict path;
+      tests/test_lane.py:95-103 — base and branch tips unmoved
+    action: decided
+    proposal: 0006 §1 note — a conflict escalates the LANDING (engine
+      event, exit 2), never the run state; add a lane row if a re-queue
+      mechanism is ever wanted

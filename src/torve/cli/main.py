@@ -23,6 +23,7 @@ from torve.cli import (
     doctor,
     feedback,
     gates,
+    merge,
     migrate,
     plan,
     review,
@@ -72,6 +73,7 @@ app.command("run")(run.run_cmd)
 app.command("shadow")(shadow.shadow_cmd)
 app.command("cancel")(run.cancel)
 app.command("kill")(run.kill)
+app.command("merge")(merge.merge_cmd)
 app.command("migrate")(migrate.migrate_cmd)
 app.command("doctor")(doctor.doctor)
 app.command("feedback")(feedback.feedback)

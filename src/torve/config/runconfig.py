@@ -241,12 +241,24 @@ class ReviewConfig(BaseModel):
         return self
 
 
+class PromotionConfig(BaseModel):
+    """Landing policy (RFC 0006 §3). In the local regime the operator's
+    `torve merge` invocation is the recorded approval; `auto_merge` is the
+    knob a future scheduler consults before landing without one — off by
+    default, opt-in per repository, never globally (D-6.2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    auto_merge: bool = False
+
+
 class RunnerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: int = SCHEMA_VERSION
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     review: ReviewConfig = Field(default_factory=ReviewConfig)
+    promotion: PromotionConfig = Field(default_factory=PromotionConfig)
     store: StoreConfig = Field(default_factory=StoreConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     poison_ceiling: int = 3  # checked before dispatch; ceiling reached -> escalated, never retry
