@@ -8,7 +8,7 @@ depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-27"]
+amended_by: ["A-27", "A-28"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -238,6 +238,9 @@ creates work" buys.
 | D-19.6 | `LOCKED` | The tick's lane leg runs only under `promotion.auto_merge`; otherwise ready candidates accumulate for the operator | `src/torve/application/loop.py` | A scheduler is nobody's approval; D-6.2's opt-in is exactly this switch and no second knob is added |
 | D-19.7 | `ASSUMED` | Every tick appends one engine event recording each leg's action or skip reason, `noop: true` when nothing moved | `src/torve/application/loop.py` `src/torve/application/telemetry.py` | Quiet and dead must be distinguishable from telemetry alone |
 | D-19.8 | `LOCKED` | The tick never creates work: it drains contracts and commands minted by humans or by the human-invoked planner | `src/torve/application/loop.py` | The machine must not invent its own backlog; growth stays a human act |
+| D-19.9 | `LOCKED` | The loop publishes what it lands: after at least one landing, the tick's lane leg pushes the base branch to origin, fast-forward only — a refused push is a loud leg error, and no force path exists (D-10.5 untouched). Added by amendment A-28 2026-08-24 | `src/torve/cli/tick.py` `src/torve/adapters/vcs/git.py` | Unpushed landings leave origin stale, and every later dispatch bases on the stale origin and conflicts systematically |
+| D-19.10 | `ASSUMED` | The reaper keeps the state file of a READY implement or revert run whose task has not landed on the base; its worktree stays disposable, and review-role READY states remain sweepable. Added by amendment A-28 2026-08-24, amending RFC 0003 D-3.23's sweep scope | `src/torve/application/reaper.py` | READY is terminal to the engine but it is the lane's input; sweeping it before the landing loses the candidate across ticks |
+| D-19.11 | `ASSUMED` | The lane adopts byte-identical untracked engine-record files the landing branch carries — the root copy is removed before the fast-forward; any difference in content still refuses. Added by amendment A-28 2026-08-24 | `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` | The runner's worktree commit carries the task's own contract; an untracked identical copy in the root must not block the landing it belongs to |
 
 ## Phasing
 
@@ -311,3 +314,39 @@ now runs while the state is still there to land.
 and pull request survive the state file. Recreating the READY run state
 is explicit operator surgery, recorded as such, and the next tick lands
 it through the normal path.
+
+### A-28 — 2026-08-24 — the loop publishes, the reaper waits, the lane adopts (adds D-19.9–D-19.11; also edits RFC 0003 D-3.23)
+
+**Found in implementation** — by the first live drain, three defects
+with one theme: the scheduled regime removes the operator whose habits
+papered over the gaps.
+
+1. **Unpushed landings.** The lane lands on the local base and nothing
+   pushed it; dispatch bases worktrees on `origin/main`, which went
+   stale, so the next task was implemented against a base missing the
+   previous landing and conflicted on rebase — systematically, not by
+   bad luck. In the manual regime the operator pushed after
+   `torve merge`; the loop has no operator. **Changed:** D-19.9 — after
+   at least one landing the tick's lane leg pushes the base,
+   fast-forward only, and a refused push is a loud leg error.
+2. **The reaper still ate unlanded candidates.** A-27 protects a
+   candidate the lane lands in the same tick; one the lane *refused*
+   (pending CI, dirt, a transient error) was swept by that same tick's
+   reap, because READY is terminal to the engine and sweepable.
+   **Changed:** D-19.10 — the reaper keeps the *state file* of a READY
+   implement or revert run whose task has not landed on the base; the
+   worktree stays disposable (its work lives on the branch), and
+   review-role READY states remain sweepable. This narrows RFC 0003
+   D-3.23's sweep scope, noted on that row.
+3. **The landing collided with its own contract.** The runner's
+   provenance commit carries the task's contract inside the worktree;
+   the root held the same file untracked, and git refused the
+   fast-forward rather than overwrite. **Changed:** D-19.11 — the lane
+   removes an untracked root file the incoming landing carries with
+   byte-identical content; any difference still refuses. Committing the
+   contract from the runner was rejected again for the same reason as
+   in T-0052: the engine does not commit into the operator's checkout.
+
+**Deliberately unchanged:** D-10.5 — no force path exists anywhere,
+including the new base push; the tick order (A-27) stands; the reaper's
+treatment of escalated runs (keep everything for triage) stands.
