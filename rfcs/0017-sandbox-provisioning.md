@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: ["0013", "0016"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-24"]
 owner: Lev Litvinov
 description: >-
   How a sandbox image comes to exist and how a harness's configuration reaches
@@ -79,6 +79,42 @@ configuration names registry references; the digest rule is
 runtime-independent. What OpenSandbox adds — the vault, egress control — it
 adds at execution time, not at image identity time.
 
+## 2a. Docker inside the sandbox
+
+*Added by amendment A-24 2026-08-22.*
+
+A repository whose acceptance battery itself drives containers — Torve is
+the first: its tests build sandboxes, create volumes, run the conformance
+battery — cannot replay its own tasks in a sandbox that has no daemon. The
+capability is real and so is the trade, so both are stated rather than
+improvised.
+
+**`runtime.docker: "" | "socket"`.** Off by default. `socket` mounts the
+host daemon's socket into every sandbox of the run — the attempt and the
+gates sandbox alike, since the battery is what needs it — and the image
+supplies the docker CLI (the definition's business, like every other tool).
+
+**Socket mode is host-equivalent capability, granted knowingly.** A sandbox
+holding the host socket can start a container that mounts any host path;
+this is the `network: host` trade taken one step further, and the same
+doctrine applies: an explicit per-repository opt-in, never a code default,
+never combined with repositories the operator does not trust as they trust
+their own shell. Where that trust does not exist, the answer is the
+OpenSandbox vault or the nested mode below — not a softer socket.
+
+**A nested daemon (`nested`) is the stronger mode, named and deferred** the
+way `tier.home` is: a daemon inside the sandbox (privileged, its own
+storage) contains accidental damage and keeps inner containers dying with
+the sandbox, at the cost of a heavier image and a privileged flag. It is
+specified the day socket's trust trade is unacceptable for a real
+repository, not before. OpenSandbox refuses `docker` access in any mode
+until the live-server integration decides what the server can offer.
+
+**Containers the sandbox starts are outside the naming convention.** They
+carry no torve labels; the reaper does not chase them. The battery that
+starts them owns their lifecycle — exactly as it does when the same battery
+runs on an operator's machine.
+
 ## 3. Configuration routes by nature
 
 Five channels exist, and every configuration item belongs to exactly one,
@@ -87,7 +123,7 @@ decided by what the item *is*:
 | The item is… | Channel | Examples |
 | --- | --- | --- |
 | harness identity | baked into the image | provider blocks, permission presets, stdio MCP definitions |
-| task context | the workspace at dispatch | contract prompt, `AGENTS.md`, skills materialized per role (D-9.7) |
+| task context | the workspace at dispatch | contract prompt, `AGENTS.md`, skills materialized per role (D-9.7) — vendored ones included (0009 §4a, A-25) |
 | an operator secret | env passthrough, names only (D-4b) | `DEEPSEEK_API_KEY`, OAuth tokens |
 | operator non-secret knobs | inline in the tier command | model flags, `HOME`, endpoint URLs |
 | session state | the per-slot volume (D-4.2) | subscription credentials, token refresh, memory if enabled |
@@ -145,6 +181,9 @@ way:
 | D-17.6 | `LOCKED` | stdio MCP servers are image content; remote MCP endpoints are egress destinations under provider routing (D-4.8), never configured from the repository under work | `src/torve/config/runconfig.py` | Repository contents flow to MCP endpoints exactly as to providers |
 | D-17.7 | `LOCKED` | Memory is off for executor tiers by default; enabled memory is per-slot on the slot's volume, never shared between slots (D-31), and never mounted in a shadow run | `src/torve/application/shadow.py` `src/torve/config/runconfig.py` | Shared memory is agent communication; remembered shadow runs are incomparable numbers |
 | D-17.8 | `ASSUMED` | Images are thin: base runtime, harness, `git`, `uv`; everything task-specific arrives via the workspace | `.torve/sandbox/**` | What is baked deeper is invisible to review and to the hash of the work |
+| D-17.9 | `ASSUMED` | `runtime.docker: "" \| "socket"` — socket mounts the host daemon into every sandbox of the run, attempt and gates alike; the image supplies the docker CLI; off by default. A nested daemon is the named, deferred stronger mode. Added by amendment A-24 2026-08-22 | `src/torve/config/runconfig.py` `src/torve/adapters/runtime/docker.py` | A battery that drives containers cannot replay without a daemon |
+| D-17.10 | `LOCKED` | Socket mode is host-equivalent capability: an explicit per-repository opt-in, never a code default, never combined with repositories the operator does not trust as their own shell; OpenSandbox refuses docker access in any mode until the live-server integration. Added by amendment A-24 2026-08-22 | `src/torve/adapters/runtime/**` | A container started over the host socket can mount any host path |
+| D-17.11 | `ASSUMED` | Containers the sandbox starts carry no torve labels and the reaper does not chase them; the battery that starts them owns their lifecycle. Added by amendment A-24 2026-08-22 | `src/torve/application/reaper.py` | Cleanup-by-convention must not pretend to cover what it cannot see |
 
 ## 7. Exit criteria
 
@@ -153,3 +192,22 @@ way:
 - `torve doctor` observed red on a configured-but-absent image.
 - One shadow replay whose record's image digest differs after a deliberate
   rebuild — the drift the hash now catches, demonstrated.
+- *(A-24)* One replay of a Torve task whose acceptance battery drives
+  containers, green inside a `docker: socket` sandbox.
+
+## Amendments
+
+### A-24 — 2026-08-22 — docker inside the sandbox (adds §2a, D-17.9–D-17.11)
+
+**Found planning the replay campaign.** A repository whose acceptance
+battery drives containers — Torve itself — cannot replay its own tasks in a
+daemonless sandbox, so the roster's most important consumer was excluded
+from its own measurement.
+
+**Changed:** §2a specifies `runtime.docker: "" | "socket"` (host socket into
+every sandbox of the run, docker CLI from the image, off by default), states
+the trade plainly — socket mode is host-equivalent capability, the
+`network: host` doctrine one step further — names the nested daemon as the
+deferred stronger mode, and records that sandbox-started containers are
+outside the reaper's convention. One exit criterion added: a Torve task
+replayed green inside a socket-mode sandbox.

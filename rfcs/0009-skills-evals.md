@@ -7,7 +7,7 @@ depends_on: ["0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-3"]
+amended_by: ["A-3", "A-25"]
 owner: Lev Litvinov
 description: >-
   Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens.
@@ -69,6 +69,22 @@ Same problem as gates, same answer: skills ship as a versioned package, not copi
 
 The engine reads skills but does not interpret them — they are passed to the agent adapter, which places them where its harness expects. Portability matters here: the `SKILL.md` convention is honoured by several harnesses, which is what keeps the library from being locked to one vendor.
 
+## 4a. Vendored skills
+
+*Added by amendment A-25 2026-08-22.*
+
+The package ships only the skills Torve parses (A-3), which leaves the rest of a team's library — review checklists, stack conventions, everything in `agent-skills` — with no road into the sandbox. The road is the same one the sandbox definitions took (RFC 0017 §2): **committed, reviewed artefacts in the repository**.
+
+A repository vendors skills under `.torve/skills-vendor/<name>/`, each a directory with a `SKILL.md`. Role sets in the runner configuration name them exactly as they name shipped skills, and `materialize` resolves each name against package data and the vendor directory together; a name unknown to both stays a configuration error, exit 3.
+
+Three lines hold the shape:
+
+- **A name present in both places is a configuration error, refused** — never shadowed in either direction. This structurally enforces the A-3 boundary: a vendored variant of `flag-dont-flip` would drift against the gate that parses its output, which is the exact failure A-3 exists to prevent.
+- **The vendored tree's content digest joins `config_hash`.** An edited vendored skill is a regime change and the records say so — the image-digest doctrine (RFC 0017, D-17.1) applied to prompt-side inputs.
+- **This is the task-context channel** (RFC 0017 §3): vendored skills are reviewed repository content instructing the agent about the *work*, which is allowed; what stays forbidden is the repository configuring the *harness* that works on it (D-17.4). Skills materialize per role at dispatch exactly as shipped skills do — a review role gets its review set, an implementation role its own.
+
+Vendoring is a copy, pinned by review: updating from an upstream library like `agent-skills` is a diff someone reads, not a submodule that moves under the run. If a lockfile-driven sync ever earns its keep, it arrives as tooling around this layout, not as a second channel.
+
 ## 5. Evals
 
 The question "is this skill worth its tokens" has a machine answer, and the tooling to produce it already exists in the skill repository.
@@ -107,6 +123,9 @@ This also gives a retirement path in the other direction: once a gate exists and
 | D-9.8 | `LOCKED` | `config_hash` includes the Torve package version (A-3) and the pinned forze version (A-6), alongside the gate manifest and the agent-skills lockfile — supersedes the D-9.3 composition and the T-0002 decision to record the toolchain beside the hash. Added by amendments A-3/A-6 2026-08-21 | `src/torve/application/telemetry.py` | Upgrading either silently changed the regime and telemetry did not notice |
 | D-9.9 | `ASSUMED` | The eval set includes the underspecification regression: a contract with three unsettled load-bearing decisions must halt with a `blocked` entry, never an implementation — the case most likely to regress when the skill is trimmed for length. Added by execution 2026-08-22 — see .torve/tasks/T-0018 | `skills/flag-dont-flip/SKILL.md` | — |
 | D-9.10 | `ASSUMED` | Shipped skills teach the canonical artefact layout in lockstep with the engine; a skill teaching a retired path teaches agents to write files nothing reads. Added by execution 2026-08-22 — see .torve/tasks/T-0018 | `skills/**` | — |
+| D-9.11 | `ASSUMED` | Vendored skills live under `.torve/skills-vendor/<name>/`, committed and reviewed; role sets resolve names against package data and the vendor directory together, and a name unknown to both is a configuration error. Added by amendment A-25 2026-08-22 | `src/torve/application/skills.py` `.torve/skills-vendor/**` | The team's library reaches the sandbox as reviewed content, not ambient copies |
+| D-9.12 | `LOCKED` | A skill name present in both package data and the vendor directory is a configuration error, refused — never shadowed in either direction. Added by amendment A-25 2026-08-22 | `src/torve/application/skills.py` | A vendored variant of a parsed-format skill drifts against its gate — the A-3 failure reintroduced |
+| D-9.13 | `LOCKED` | The vendored tree's content digest joins `config_hash`; an edited vendored skill is a visible regime change. Added by amendment A-25 2026-08-22 | `src/torve/application/telemetry.py` | The image-digest doctrine applied to prompt-side inputs |
 
 ## 8. Exit criteria
 
@@ -127,3 +146,9 @@ This also gives a retirement path in the other direction: once a gate exists and
 **Distribution: none required on the engine path.** The runner writes the role-scoped skill set into the sandbox from package data at dispatch time; nothing is checked into the consuming repository, so nothing can drift, and the skill version is the Torve version by construction. No bespoke installer.
 
 **Consequence for D-9.3:** `config_hash` includes the Torve package version, not only the `agent-skills` lockfile — otherwise upgrading Torve silently changes the regime and telemetry does not notice.
+
+### A-25 — 2026-08-22 — vendored skills reach the sandbox as reviewed content (adds §4a, D-9.11–D-9.13)
+
+**Found asking how the rest of the library gets in.** A-3 drew the boundary — Torve ships only what it parses — but left everything on the far side of it (review checklists, stack conventions, the `agent-skills` library) with no road into the sandbox.
+
+**Changed:** §4a — the sandbox-definition doctrine applied to skills. Vendored skills are committed under `.torve/skills-vendor/<name>/` and resolve by name beside shipped skills at materialization; a collision with a shipped skill is refused, structurally protecting the A-3 unit-of-versioning; the vendored tree's digest joins `config_hash`. The channel is task context (RFC 0017 §3) — repository content instructing the agent about the work, which is allowed, as distinct from the repository configuring the harness, which is not (D-17.4).
