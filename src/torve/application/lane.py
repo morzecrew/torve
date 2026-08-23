@@ -82,7 +82,9 @@ def _engine_record(root: Path, rel: str) -> bool:
     checkout's engine state, so engine-authored dirt — minted task
     contracts, telemetry appends, the outbox pair — must not demand an
     operator commit before every landing."""
+    from torve.application.loop import LOCK
     from torve.application.outbox import LEDGER, OUTBOX
+    from torve.application.review import PR_LEDGER
     from torve.config.manifest import Manifest, load_manifest
 
     if rel.startswith(f"{layout.TORVE_DIR}/tasks/"):
@@ -92,7 +94,12 @@ def _engine_record(root: Path, rel: str) -> bool:
                      if manifest_path.is_file() else Manifest(gates=[]).telemetry)
     return rel in {telemetry_rel,
                    f"{layout.TORVE_DIR}/{OUTBOX}",
-                   f"{layout.TORVE_DIR}/{LEDGER}"}
+                   f"{layout.TORVE_DIR}/{LEDGER}",
+                   # The tick's own lock (RFC 0019) must not dirty the lane
+                   # leg running inside the tick that holds it; the
+                   # pr-reviews ledger is the same class of record.
+                   f"{layout.TORVE_DIR}/{LOCK}",
+                   f"{layout.TORVE_DIR}/{PR_LEDGER}"}
 
 
 def process_lane(

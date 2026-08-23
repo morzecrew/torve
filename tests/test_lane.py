@@ -222,3 +222,14 @@ def test_require_ci_without_a_repo_is_a_configuration_error(lane_repo):
         "schema_version: 1\npromotion:\n  require_ci: true\n", encoding="utf-8")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 3, result.output
+
+
+def test_the_ticks_own_lock_never_blocks_the_lane(lane_repo):
+    # Found live in the first tick: the lane leg runs while the tick holds
+    # its lock, and the lock file must not read as content dirt.
+    candidate(lane_repo, "T-7014", "fourteen.py", "fourteen = 14\n")
+    (lane_repo / ".torve" / "tick.lock").write_text('{"pid": 1}', encoding="utf-8")
+    (lane_repo / ".torve" / "pr-reviews.jsonl").write_text("{}\n", encoding="utf-8")
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "landed"
