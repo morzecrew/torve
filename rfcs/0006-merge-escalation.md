@@ -39,6 +39,8 @@ What does not change: the engine never resolves a conflict and never merges with
 
 *Execution note 2026-08-23 (T-0048):* the rebase path releases the candidate's engine worktree first — the run's own worktree pins the task branch, and git refuses a second checkout; a `ready` run's worktree is disposable, its work lives on the branch. A-26's merge-before-reap ordering concerns state files; the lane owns the worktree half itself.
 
+*Execution note 2026-08-23 (T-0052):* the cleanliness guard scopes to landed content — the engine's own record files (task directories under `.torve/tasks/`, the manifest's telemetry file, the outbox pair) never block the lane, and a refusal names the offending paths. The first standing-team run surfaced the papercut: the runner-minted review contract lands untracked in the root checkout, and a blanket guard made every landing demand a human commit of engine bookkeeping first. The reviewed regime files (`gates.yaml`, `config.yaml`, the sandbox and vendored-skill trees) stay refusable dirt.
+
 ## 2. Prevention beats ordering
 
 Two tasks whose `scope.allow` sets intersect must not run concurrently. That check happens **before dispatch** (RFC 0002 §6), which is strictly better than resolving the collision after both have produced work.

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The lane tolerates the engine's own records (T-0052): the cleanliness
+  guard refuses only dirt in landed content — now naming the offending
+  paths — while runner-minted task directories, the telemetry file, and
+  the outbox pair never block a landing. `LaneVcs.is_clean` became
+  `dirty_paths`.
 - The notifier (T-0051, RFC 0006 D-6.11, closing RFC 0003 D-3.18):
   interrupt-class escalations stage a `notify` effect through the outbox,
   keyed (task, attempt, reason) for exactly-once delivery under replay;
