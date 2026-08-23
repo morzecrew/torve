@@ -311,6 +311,19 @@ class PromotionConfig(BaseModel):
     require_ci: bool = False
 
 
+class LoopConfig(BaseModel):
+    """The standing loop's two knobs (RFC 0019 §7). There is no enabled
+    flag — scheduling `torve tick` is the enablement — and dispatch count
+    per tick is doctrine (one), never configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Intake pauses while the escalation queue holds this many (D-19.5).
+    pause_escalations: int = 1
+    # Seconds; a tick lock older than this is stale and broken loudly.
+    tick_budget: int = 3600
+
+
 class RunnerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -329,6 +342,7 @@ class RunnerConfig(BaseModel):
     rfcs: RfcsConfig = Field(default_factory=RfcsConfig)
     tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
+    loop: LoopConfig = Field(default_factory=LoopConfig)
     worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not
 
 

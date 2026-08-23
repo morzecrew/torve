@@ -1,0 +1,124 @@
+schema_version: 1
+task: T-0055
+repo: morzecrew/torve
+base_sha: 7ef5eedb43db0f8fbf007040461a70be33f80a14
+drift_count: 0
+entries:
+  - decision: D-19.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T02:10:00Z
+    attempt: 1
+    claim: >-
+      "no run state" is implemented as "no run record" — neither a state
+      file nor a telemetry record naming the task — because the reaper
+      removes state files, and the literal reading would re-dispatch the
+      entire reaped history on the first tick after a sweep; the RFC's
+      own §4 prose ("a task that ran and reached any state, terminal or
+      not, is not re-dispatched") is unambiguous about intent, telemetry
+      is append-only and survives the reaper, and the rule stays
+      readable from the file system alone
+    evidence: src/torve/application/loop.py:63-87 — the record check;
+      tests/test_tick.py:130-139 — a reaped task with telemetry is not
+      re-dispatched, pinned
+    action: decided
+  - decision: D-19.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T02:11:00Z
+    attempt: 1
+    claim: >-
+      the lock is a JSON file carrying holder pid and timestamp; a held
+      lock makes the invocation a recorded no-op that touches nothing —
+      including the holder's lock; a lock older than loop.tick_budget or
+      unreadable is broken with a tick_lock_broken engine event naming
+      the stale holder; release rides a finally so a leg error cannot
+      wedge the next tick
+    evidence: src/torve/application/loop.py:116-143 — acquire and the
+      loud break; tests/test_tick.py:107-127 — stale break evented, lock
+      released after the pass
+    action: decided
+  - decision: D-19.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T02:12:00Z
+    attempt: 1
+    claim: >-
+      a leg that raises is recorded as "error: ..." and the tick
+      continues to its remaining legs — the RFC fixes the order but not
+      the failure behaviour, and a bounded pass must reach sync so the
+      board reflects whatever did happen; a fatal mid-tick error would
+      leave the board showing the tick's middle, which §3 names as the
+      thing sync exists to prevent
+    evidence: src/torve/application/loop.py:157-167 — the leg wrapper;
+      tests/test_tick.py:188-201 — dispatch explodes, sync still runs,
+      lock released
+    action: decided
+  - decision: D-19.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T02:13:00Z
+    attempt: 1
+    claim: >-
+      the pause is checked at the dispatch leg only, against the live
+      count of escalated run states at that moment — poll has already
+      run, so a retry posted overnight clears the queue before the count
+      is taken, and a pause lifts within the same tick that drained it
+    evidence: src/torve/application/loop.py:174-177 — count after poll,
+      before selection; tests/test_tick.py:162-173 — intake paused,
+      every other leg ran
+    action: decided
+  - decision: D-19.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T02:14:00Z
+    attempt: 1
+    claim: >-
+      one engine event per tick carries each leg's outcome under its
+      name plus the noop verdict; a locked-out invocation records its
+      own noop event with locked true, so overlap frequency is itself a
+      queryable signal
+    evidence: src/torve/application/loop.py:150-151 — the locked-out
+      event; src/torve/application/loop.py:190 — the per-tick record
+    action: decided
+  - decision: D-19.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T02:15:00Z
+    attempt: 1
+    claim: >-
+      the tick is one function call that returns — no thread, no timer,
+      no loop-until construct anywhere in the module; the CLI verb wires
+      adapters, invokes run_tick once, renders, and exits, and the
+      module docstrings route cadence to cron, CI schedules or timers
+    evidence: src/torve/application/loop.py:146-191 — run_tick begins,
+      runs its legs once, returns; src/torve/cli/tick.py:32-38 — the
+      verb's whole contract is one pass then exit
+    action: decided
+  - decision: D-19.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T02:16:00Z
+    attempt: 1
+    claim: >-
+      the lane leg is None unless promotion.auto_merge is true — wired
+      at the CLI where configuration is read, recorded by the tick as
+      "skipped: auto_merge off"; no second knob was added, and the CI
+      requirement reuses the merge verb's exact wiring and refusal
+    evidence: src/torve/cli/tick.py:126-138 — the leg exists only under
+      the switch; tests/test_tick.py:176-179 — the skip reason pinned
+    action: decided
+  - decision: D-19.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T02:17:00Z
+    attempt: 1
+    claim: >-
+      selection only ever reads contracts already on disk and commands
+      already on the board — next_queued mints nothing, an unreadable
+      contract is skipped rather than repaired, and no code path in the
+      loop writes into the tasks directory
+    evidence: src/torve/application/loop.py:90-112 — read-only
+      selection; src/torve/application/loop.py:96-101 — the unreadable
+      contract skipped
+    action: decided

@@ -32,6 +32,7 @@ from torve.cli import (
     sandbox,
     shadow,
     status,
+    tick,
     tracker,
 )
 from torve.domain.states import EXIT_OK
@@ -81,6 +82,7 @@ app.command("doctor")(doctor.doctor)
 app.command("feedback")(feedback.feedback)
 app.command("status")(status.status)
 app.command("reap")(status.reap_cmd)
+app.command("tick")(tick.tick_cmd)
 
 
 def main() -> None:
