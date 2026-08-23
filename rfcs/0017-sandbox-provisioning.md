@@ -120,6 +120,11 @@ carry no torve labels; the reaper does not chase them. The battery that
 starts them owns their lifecycle — exactly as it does when the same battery
 runs on an operator's machine.
 
+*Execution note 2026-08-23 (T-0046):* socket mode adds the socket's owning
+group to the container — the sandbox runs as the invoking uid, which cannot
+open a root-owned socket otherwise. A rootless daemon (user socket path) is
+untested and joins the `nested`-mode conversation when it matters.
+
 ## 3. Configuration routes by nature
 
 Five channels exist, and every configuration item belongs to exactly one,

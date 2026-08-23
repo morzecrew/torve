@@ -79,6 +79,8 @@ Narrower than in earlier drafts, since sandboxes expire on their own, but not re
 
 **Convention-driven, not tracked.** A scheduled sweep enumerates by label and prefix, cross-references live leases, and destroys anything without one. This survives a crash of the runner itself, which PID tracking does not. Without it, disk and stale resources accumulate — always, not sometimes.
 
+*Execution note 2026-08-23 (T-0043):* the sweep collects `ready` footprints on the convention that their landing is settled — merge before reap. A vcs-aware guard (reap refusing a `ready` state whose branch has not landed) is added only if that ordering proves error-prone in practice; the merge lane owns the worktree half itself (RFC 0006 §1).
+
 ## 5. Lease and cancellation
 
 `TaskStore` is a facade over the substrate's durable run store (D-5). What that buys:

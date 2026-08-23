@@ -116,6 +116,8 @@ Behaviour:
 
 **Every revert emits a `resolved` execution-log entry against the decisions the original task inherited.** This is the loop paying off: the reason the work was undone reaches the next planning session as a candidate decision-table row rather than as folklore.
 
+*Execution note 2026-08-23 (T-0044):* reverts are not review-triggering in v1 — the diff is a mechanical inverse of already-reviewed work, and the engine may not resolve anything by hand; if reverts ever carry hand-resolved content, that calculus changes, but that content is exactly what D-6 forbids the engine to produce.
+
 ## 8. Decisions
 
 | # | Grade | Decision | Paths | Consequence |

@@ -41,6 +41,8 @@ Authority stays in the durable run store and the document store. The tracker get
 
 The delivery mechanism already exists (RFC 0003 §5). Tracker updates are staged in the same transaction as the state change and relayed at-least-once, so projection survives a runner crash and needs no separate sync daemon.
 
+*Execution note 2026-08-23 (T-0049):* in the local regime, effects derive from the run state file — itself written atomically with every transition — and re-stage idempotently, so a lost outbox is rebuilt from the states, never invented; that is what closes the "escalated but nobody was told" window here. Store-transactional staging joins with the durable-runner integration, behind the same API.
+
 **At-least-once demands idempotency.** Every projected effect is keyed on `(task_id, state, attempt)` through the idempotency port. Without it, a relay retry posts a second identical comment, and within a week the board is landfill.
 
 | Engine fact | Tracker effect |

@@ -37,6 +37,8 @@ What does not change: the engine never resolves a conflict and never merges with
 
 *Amended by A-26 2026-08-23 (registered on the charter):* the escalation is literal. A conflicted rebase aborts, the branch stays exactly as measured, and the run transitions `ready → escalated` with reason `merge_conflict` — the queue's age (D-6.8) starts counting the moment a landing fails, not when a human happens to read the lane report. The `ready → escalated` edge is opened in the charter's §4 table by the same amendment; `ready` stays terminal to the engine everywhere else. Resolution is the standard escalated fork: re-queue to re-run the task against the moved base, or abandon when a human landed the work by hand.
 
+*Execution note 2026-08-23 (T-0048):* the rebase path releases the candidate's engine worktree first — the run's own worktree pins the task branch, and git refuses a second checkout; a `ready` run's worktree is disposable, its work lives on the branch. A-26's merge-before-reap ordering concerns state files; the lane owns the worktree half itself.
+
 ## 2. Prevention beats ordering
 
 Two tasks whose `scope.allow` sets intersect must not run concurrently. That check happens **before dispatch** (RFC 0002 §6), which is strictly better than resolving the collision after both have produced work.
@@ -59,6 +61,8 @@ promotion:
 **Review freshness is relative to current head.** An approval that predates the last push is not an approval of what would land. Pushing resets the quiet window.
 
 **Auto-merge stays off by default.** Where enabled, restrict it to a named task class with high test coverage — not a global switch.
+
+*Execution note 2026-08-23 (T-0048):* `green_on_current_head` reads the LATEST run per workflow for the head sha — a re-run supersedes the run it replaces, and a stale failure must not veto a green rerun; a red run of a different workflow still does. A base push invalidates in-flight merge-ref runs, so a lane consulting pull-request-event CI should expect one retrigger after the base moves.
 
 ## 4. Human attention is the scarce resource
 

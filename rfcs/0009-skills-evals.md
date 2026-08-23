@@ -86,6 +86,8 @@ Three lines hold the shape:
 
 Vendoring is a copy, pinned by review: updating from an upstream library like `agent-skills` is a diff someone reads, not a submodule that moves under the run. If a lockfile-driven sync ever earns its keep, it arrives as tooling around this layout, not as a second channel.
 
+*Execution note 2026-08-23 (T-0047):* vendoring is inert until a role set names the skill — the repository review gates the content, the configuration names when it applies. The default sets stay shipped-only, so a fresh repository's regime is reproducible from the package alone.
+
 ## 5. Evals
 
 The question "is this skill worth its tokens" has a machine answer, and the tooling to produce it already exists in the skill repository.
