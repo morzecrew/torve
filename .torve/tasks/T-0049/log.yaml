@@ -1,0 +1,46 @@
+schema_version: 1
+task: T-0049
+repo: morzecrew/torve
+base_sha: 7072ba893f72a4a35bda3037317e5b4b647b1ac1
+drift_count: 0
+entries:
+  - decision: D-8.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T19:20:00Z
+    attempt: 1
+    claim: >-
+      the outbox is generic over string keys — the (task_id, state,
+      attempt) rule is the tracker projection's to compose in phase 2 —
+      and holds the three properties the projection cannot live without:
+      staging dedupes by key, the relay marks the ledger only after a
+      delivery returned (the crash window between the two is what makes it
+      at-least-once instead of at-most-once), and a deliberate replay of
+      the whole relay delivers nothing. A failed destination leaves its
+      row pending and the queue flows past it
+    evidence: src/torve/application/outbox.py:75-118 — stage and relay;
+      tests/test_outbox.py:28-77 — replay no-op, crash redelivery, and the
+      undammed queue pinned
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T19:21:00Z
+    attempt: 1
+    claim: >-
+      the local regime's "same transaction" is the run state file itself —
+      every transition is written atomically with its history, so effects
+      DERIVE from durable state and are re-staged idempotently rather than
+      being staged alongside a database write; a lost outbox file is
+      rebuilt from the states, never invented, which is what closes the
+      escalated-but-nobody-told window here. The store-side transactional
+      staging arrives when the projection runs inside the durable runner,
+      against the same store transaction — the outbox API does not change
+      for it
+    evidence: src/torve/application/outbox.py:1-17 — the module docstring
+      stating the derivation doctrine
+    action: decided
+    proposal: 0008 §2 note — in the local regime effects derive from run
+      state and re-stage idempotently; store-transactional staging joins
+      with the durable-runner integration, same API
