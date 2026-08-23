@@ -27,14 +27,20 @@ whose worktree is already gone is still collected.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from torve.application.ports import Runtime, StoreFactory, WorkspacePort
 from torve.application.runstate import RunState
 from torve.base import naming
+from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.states import EscalationReason, TaskState
+
+# Answers "has this task landed on the base?" — wired by the caller from
+# the vcs (D-19.10); None means the reaper cannot know and keeps.
+LandedOracle = Callable[[str], bool]
 
 # ----------------------- #
 
@@ -64,8 +70,32 @@ def _sweep_worktrees(
             report.worktrees_removed.append(task_id)
 
 
+def _lane_input(root: Path, state: RunState,
+                landed: LandedOracle | None) -> bool:
+    """D-19.10 (A-28, narrowing D-3.23): a READY implement or revert run
+    whose task has not landed on the base is the lane's input, not debris —
+    its state file survives the sweep. Without a landed oracle the answer
+    is conservative: keep. Review-role READY states never land and stay
+    sweepable; so does a READY state with no contract to land."""
+    if state.state is not TaskState.READY:
+        return False
+    contract = layout.task_file(root, state.task_id)
+    if not contract.is_file():
+        return False
+    try:
+        from torve.gates.context import load_task
+
+        role = load_task(contract).role
+    except ValueError:
+        return False
+    if role not in ("implement", "revert"):
+        return False
+    return landed is None or not landed(state.task_id)
+
+
 def _sweep_states(
     root: Path, states: list[RunState], report: ReapReport, dry_run: bool,
+    landed: LandedOracle | None = None,
 ) -> None:
     """A terminal run's remaining footprint: state file and trace logs, named
     by convention (D-3.4) beside the worktree. Driven by the state files, not
@@ -73,6 +103,8 @@ def _sweep_states(
     wt_dir = root / naming.WORKTREE_DIR
     for state in states:
         if state.state not in TERMINAL:
+            continue
+        if _lane_input(root, state, landed):
             continue
         if not dry_run:
             for trace in sorted(wt_dir.glob(f"{state.task_id}.a*.trace.log")):
@@ -90,7 +122,7 @@ def _escalate_if_active(state: RunState, reason: EscalationReason, detail: str) 
 
 def _heartbeat_reap(
     root: Path, config: RunnerConfig, runtime: Runtime, workspace: WorkspacePort,
-    force: bool, dry_run: bool,
+    force: bool, dry_run: bool, landed: LandedOracle | None = None,
 ) -> ReapReport:
     report = ReapReport()
     states = RunState.load_all(root / naming.WORKTREE_DIR)
@@ -112,13 +144,14 @@ def _heartbeat_reap(
             report.sandboxes_destroyed.append(sandbox.name)
 
     _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run)
-    _sweep_states(root, states, report, dry_run)
+    _sweep_states(root, states, report, dry_run, landed)
     return report
 
 
 async def _durable_reap(
     root: Path, config: RunnerConfig, runtime: Runtime, workspace: WorkspacePort,
     force: bool, dry_run: bool, store: StoreFactory,
+    landed: LandedOracle | None = None,
 ) -> ReapReport:
     from torve.application.taskstore import TaskStore
 
@@ -153,7 +186,7 @@ async def _durable_reap(
             report.sandboxes_destroyed.append(sandbox.name)
 
     _sweep_worktrees(workspace, by_task, report, dry_run)
-    _sweep_states(root, states, report, dry_run)
+    _sweep_states(root, states, report, dry_run, landed)
     return report
 
 
@@ -165,10 +198,11 @@ def reap(
     force: bool = False,
     dry_run: bool = False,
     store: StoreFactory | None = None,
+    landed: LandedOracle | None = None,
 ) -> ReapReport:
     if config.store.adapter == "postgres":
         if store is None:
             raise RuntimeError("a postgres reap needs a store factory injected by the caller")
         return asyncio.run(_durable_reap(root, config, runtime, workspace, force, dry_run,
-                                         store))
-    return _heartbeat_reap(root, config, runtime, workspace, force, dry_run)
+                                         store, landed))
+    return _heartbeat_reap(root, config, runtime, workspace, force, dry_run, landed)

@@ -233,3 +233,47 @@ def test_the_ticks_own_lock_never_blocks_the_lane(lane_repo):
     result = invoke_merge(lane_repo)
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"
+
+
+def test_the_lane_adopts_identical_untracked_records_the_landing_carries(lane_repo):
+    # D-19.11 (A-28): the provenance commit carries the task's contract;
+    # an untracked byte-identical root copy must not refuse the landing.
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7015"), "main")
+    contract_dir = lane_repo / ".torve" / "tasks" / "T-7015"
+    contract_dir.mkdir(parents=True)
+    (contract_dir / "contract.yaml").write_text("id: T-7015\n", encoding="utf-8")
+    (lane_repo / "fifteen.py").write_text("fifteen = 15\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-7015)")
+    git(lane_repo, "checkout", "-q", "main")
+    # The root holds the same contract, untracked, identical.
+    contract_dir.mkdir(parents=True, exist_ok=True)
+    (contract_dir / "contract.yaml").write_text("id: T-7015\n", encoding="utf-8")
+    state = RunState(task_id="T-7015", path=naming.state_file(lane_repo, "T-7015"))
+    state.state = TaskState.READY
+    state.save()
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "landed"
+    assert (contract_dir / "contract.yaml").read_text() == "id: T-7015\n"
+
+
+def test_a_differing_untracked_record_still_refuses_the_landing(lane_repo):
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7016"), "main")
+    contract_dir = lane_repo / ".torve" / "tasks" / "T-7016"
+    contract_dir.mkdir(parents=True)
+    (contract_dir / "contract.yaml").write_text("id: T-7016\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-7016)")
+    git(lane_repo, "checkout", "-q", "main")
+    contract_dir.mkdir(parents=True, exist_ok=True)
+    (contract_dir / "contract.yaml").write_text("id: DIFFERENT\n", encoding="utf-8")
+    state = RunState(task_id="T-7016", path=naming.state_file(lane_repo, "T-7016"))
+    state.state = TaskState.READY
+    state.save()
+    result = invoke_merge(lane_repo)
+    # git refuses to overwrite the differing file — the landing fails loudly
+    # and the root copy is untouched.
+    assert result.exit_code != 0
+    assert (contract_dir / "contract.yaml").read_text() == "id: DIFFERENT\n"
+    assert git(lane_repo, "log", "--oneline", "-1").endswith("init")

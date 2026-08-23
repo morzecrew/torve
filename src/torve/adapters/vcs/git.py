@@ -179,6 +179,31 @@ class GitLane:
             paths.append(entry)
         return paths
 
+    def adopt_identical(self, root: Path, ref: str) -> list[str]:
+        """D-19.11 (A-28): remove untracked root files the incoming landing
+        carries with byte-identical content, so git's overwrite refusal is
+        reserved for real differences. Engine records are text (contracts,
+        ledgers); a file that does not decode is left for git to refuse."""
+        incoming = _git(root, "diff", "--name-only", f"HEAD..{ref}").stdout.splitlines()
+        tracked = set(_git(root, "ls-files").stdout.splitlines())
+        adopted: list[str] = []
+        for rel in (line.strip() for line in incoming):
+            if not rel or rel in tracked:
+                continue
+            target = root / rel
+            if not target.is_file():
+                continue
+            shown = _git(root, "show", f"{ref}:{rel}")
+            try:
+                same = shown.returncode == 0 and \
+                    shown.stdout == target.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            if same:
+                target.unlink()
+                adopted.append(rel)
+        return adopted
+
     def rebase_in_worktree(self, root: Path, branch: str, onto: str, workdir: Path) -> bool:
         added = _git(root, "worktree", "add", str(workdir), branch)
         if added.returncode != 0:

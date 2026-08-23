@@ -58,7 +58,8 @@ def tick_cmd(
         from torve.application.reaper import reap
         from torve.cli.options import runtime_for
 
-        report = reap(root, config, runtime_for(config, None), workspace)
+        report = reap(root, config, runtime_for(config, None), workspace,
+                      landed=lambda t: bool(vcs.landed_shas(root, t)))
         swept = (len(report.sandboxes_destroyed) + len(report.worktrees_removed)
                  + len(report.runs_expired) + len(report.states_removed))
         return (f"swept {swept} artefact(s)" if swept else "nothing to sweep",
@@ -127,12 +128,24 @@ def tick_cmd(
         from torve.application.lane import process_lane
 
         def _lane() -> tuple[str, bool]:
-            results = process_lane(root, GitLane(), ci=ci)
+            lane_vcs = GitLane()
+            results = process_lane(root, lane_vcs, ci=ci)
             if not results:
                 return ("no ready candidates", False)
             landed = sum(1 for r in results if r.action == "landed")
-            return (f"landed {landed} of {len(results)} candidate(s)",
-                    landed > 0)
+            detail = f"landed {landed} of {len(results)} candidate(s)"
+            if landed:
+                # D-19.9 (A-28): the loop publishes what it lands —
+                # fast-forward only, no force path; a refusal is this
+                # leg's loud error.
+                import os
+
+                token = (os.environ.get(config.scm.token_env)
+                         if config.scm.token_env else None)
+                base = lane_vcs.current_branch(root)
+                pushed = vcs.push(root, base, token)
+                detail += "; base pushed" if pushed else "; no origin to push"
+            return (detail, landed > 0)
 
         lane_leg = _lane
 

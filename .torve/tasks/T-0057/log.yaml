@@ -1,0 +1,54 @@
+schema_version: 1
+task: T-0057
+repo: morzecrew/torve
+base_sha: bbe505f1a2f98327591bc12b26d27d50d49db26e
+drift_count: 0
+entries:
+  - decision: D-19.9
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T04:10:00Z
+    attempt: 1
+    claim: >-
+      the push rides the tick's lane leg in the CLI, not the lane
+      application function — torve merge stays the operator's verb with
+      the operator's push habit, and only the scheduled regime publishes
+      automatically; the push reuses the task-branch push mechanics
+      (credential helper, never argv) against the base branch, so no
+      force path exists anywhere and a refused push surfaces as the
+      leg's recorded error
+    evidence: src/torve/cli/tick.py:136-147 — the leg's push under the
+      landing count; tests/test_tick.py:213-262 — a real bare origin
+      holds the landing after one tick
+    action: decided
+  - decision: D-19.10
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T04:11:00Z
+    attempt: 1
+    claim: >-
+      the landed oracle is injected, and its absence keeps
+      conservatively — a reap invoked without vcs knowledge cannot
+      distinguish landed from waiting, and losing a candidate is the
+      failure A-28 exists to close; the roles that never land (review)
+      and states with no contract stay sweepable, so the reaped-history
+      noise the loop already tolerates does not grow
+    evidence: src/torve/application/reaper.py:73-93 — the lane-input
+      predicate and its conservative default; tests/test_reaper.py:155-190
+      — kept, swept-when-landed, review sweepable, conservative, pinned
+    action: decided
+  - decision: D-19.11
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T04:12:00Z
+    attempt: 1
+    claim: >-
+      adoption compares whole file bytes against the incoming ref and
+      removes only an exact match — a differing untracked file still
+      refuses through git's own overwrite protection, pinned by test;
+      the comparison is text-decoded because engine records are text,
+      and an undecodable file is deliberately left for git to refuse
+    evidence: src/torve/adapters/vcs/git.py:182-205 — the identical-only
+      adoption; tests/test_lane.py:238-283 — identical adopted and
+      landed, differing refused with the root copy untouched
+    action: decided

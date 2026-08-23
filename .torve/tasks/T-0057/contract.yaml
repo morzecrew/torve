@@ -1,0 +1,53 @@
+# Minted by hand — A-28's execution: three fixes from the first live
+# drain, one theme (the scheduled regime removes the operator whose
+# habits papered over the gaps).
+schema_version: 1
+id: T-0057
+rfc: rfcs/0019-standing-loop.md
+phase: 1
+role: implement
+intent: |
+  A-28 executed: the tick's lane leg pushes the base fast-forward-only
+  after at least one landing, a refused push a loud leg error (D-19.9);
+  the reaper keeps the state file of a READY implement or revert run
+  whose task has not landed on the base, worktree still disposable,
+  review-role READY states still sweepable (D-19.10, narrowing RFC 0003
+  D-3.23); and the lane removes an untracked root file the incoming
+  landing carries with byte-identical content before the fast-forward,
+  any difference still refusing (D-19.11).
+depends_on: [T-0056]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-19.9
+    grade: LOCKED
+    text: "The loop publishes what it lands: after at least one landing, the tick's lane leg pushes the base branch to origin, fast-forward only — a refused push is a loud leg error, and no force path exists (D-10.5 untouched). Added by amendment A-28 2026-08-24"
+    paths:
+      - src/torve/cli/tick.py
+      - src/torve/adapters/vcs/git.py
+  - id: D-19.10
+    grade: ASSUMED
+    text: "The reaper keeps the state file of a READY implement or revert run whose task has not landed on the base; its worktree stays disposable, and review-role READY states remain sweepable. Added by amendment A-28 2026-08-24, amending RFC 0003 D-3.23's sweep scope"
+    paths:
+      - src/torve/application/reaper.py
+  - id: D-19.11
+    grade: ASSUMED
+    text: "The lane adopts byte-identical untracked engine-record files the landing branch carries — the root copy is removed before the fast-forward; any difference in content still refuses. Added by amendment A-28 2026-08-24"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/adapters/vcs/git.py
+budget: {}
+tier: executor

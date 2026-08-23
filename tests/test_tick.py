@@ -208,3 +208,53 @@ def test_loop_config_defaults():
     cfg = RunnerConfig()
     assert cfg.loop.pause_escalations == 1
     assert cfg.loop.tick_budget == 3600
+
+
+def test_the_tick_pushes_what_the_lane_lands(tmp_path: Path) -> None:
+    # D-19.9 (A-28): the loop publishes what it lands — after the lane leg
+    # fast-forwards the base, the tick pushes it to origin.
+    import subprocess
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    def git(cwd: Path, *args: str) -> str:
+        proc = subprocess.run(["git", "-C", str(cwd), *args],
+                              capture_output=True, text=True, check=True)
+        return proc.stdout.strip()
+
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)],
+                   check=True)
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
+    git(repo, "config", "user.name", "Loop Operator")
+    git(repo, "config", "user.email", "loop@example.invalid")
+    (repo / ".torve").mkdir()
+    (repo / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8")
+    (repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  auto_merge: true\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(".wt/\n.torve/telemetry.jsonl\n",
+                                     encoding="utf-8")
+    (repo / "app.py").write_text("base = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "init")
+    git(repo, "push", "-q", "origin", "main")
+
+    git(repo, "checkout", "-q", "-b", naming.branch("T-9201"), "main")
+    (repo / "landed.py").write_text("landed = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-9201)")
+    git(repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-9201", path=naming.state_file(repo, "T-9201"))
+    state.state = TaskState.READY
+    state.save()
+
+    result = CliRunner().invoke(app, ["tick", "--root", str(repo)])
+    assert result.exit_code == 0, result.output
+    assert "landed 1 of 1" in result.output and "base pushed" in result.output
+    # Origin holds the landing: the next dispatch bases on the truth.
+    assert git(origin, "rev-parse", "main") == git(repo, "rev-parse", "main")
+    assert "landed.py" in git(origin, "ls-tree", "--name-only", "main")

@@ -137,3 +137,52 @@ def test_dry_run_reports_without_touching_anything(tmp_path):
     assert done.path.exists()
     reloaded = RunState.load(tmp_path / ".wt" / "T-9105.state.json")
     assert reloaded.state is TaskState.RUNNING  # nothing escalated, nothing saved
+
+
+# D-19.10 (A-28, narrowing D-3.23): a READY implement run whose task has
+# not landed is the lane's input, not debris.
+
+
+def implement_contract(tmp_path, task_id, role="implement"):
+    task_dir = tmp_path / ".torve" / "tasks" / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "contract.yaml").write_text(
+        f"schema_version: 1\nid: {task_id}\nrole: {role}\nintent: work\n"
+        + ("targets: ['T-0001']\n" if role == "review" else "")
+        + "decisions: []\n", encoding="utf-8")
+
+
+def test_an_unlanded_ready_implement_state_survives_the_sweep(tmp_path):
+    (tmp_path / ".torve").mkdir()
+    implement_contract(tmp_path, "T-9110")
+    state_at(tmp_path, "T-9110", TaskState.READY)
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
+                  landed=lambda _t: False)
+    assert report.states_removed == []
+    assert (tmp_path / ".wt" / "T-9110.state.json").exists()
+
+
+def test_a_landed_ready_state_is_swept(tmp_path):
+    (tmp_path / ".torve").mkdir()
+    implement_contract(tmp_path, "T-9111")
+    state_at(tmp_path, "T-9111", TaskState.READY)
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
+                  landed=lambda t: t == "T-9111")
+    assert report.states_removed == ["T-9111"]
+
+
+def test_a_ready_review_state_stays_sweepable(tmp_path):
+    (tmp_path / ".torve").mkdir()
+    implement_contract(tmp_path, "T-9112", role="review")
+    state_at(tmp_path, "T-9112", TaskState.READY)
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
+                  landed=lambda _t: False)
+    assert report.states_removed == ["T-9112"]
+
+
+def test_without_a_landed_oracle_the_reaper_keeps_conservatively(tmp_path):
+    (tmp_path / ".torve").mkdir()
+    implement_contract(tmp_path, "T-9113")
+    state_at(tmp_path, "T-9113", TaskState.READY)
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]))
+    assert report.states_removed == []

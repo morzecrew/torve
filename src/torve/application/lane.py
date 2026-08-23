@@ -152,6 +152,10 @@ def process_lane(
                 results.append(LaneResult(task_id, branch, "would land",
                                           "fast-forward, gates already measured"))
                 continue
+            # D-19.11 (A-28): the landing may carry the task's own records
+            # — an untracked byte-identical root copy is adopted, never a
+            # reason for git to refuse the fast-forward.
+            vcs.adopt_identical(root, branch_tip)
             sha = vcs.merge_ff(root, branch_tip)
             engine_event(root, "lane_landed", {
                 "task": task_id, "mode": "fast-forward", "sha": sha,
@@ -189,6 +193,7 @@ def process_lane(
             engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
             results.append(LaneResult(task_id, branch, "gates red", summary))
             continue
+        vcs.adopt_identical(root, branch)
         sha = vcs.merge_ff(root, branch)
         engine_event(root, "lane_landed", {
             "task": task_id, "mode": "rebased", "sha": sha, "approver": approver})
