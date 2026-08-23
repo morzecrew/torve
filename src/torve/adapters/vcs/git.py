@@ -1,7 +1,11 @@
-"""Minimal Vcs/Scm adapters for the RFC 0003 exit criterion (one task to an
-open pull request). Full provenance — agent authorship, signing at the runner
-boundary, complete trailers — belongs to RFC 0010; the trailers written here
-are the forward-compatible subset.
+"""Vcs/Scm adapters (RFC 0010 §2, grown from the RFC 0003 skeleton). The
+commit is the runner's artefact: author is the agent identity the runner
+passes in (D-10.2 — never a human), committer is Torve, and when a signing
+key path is configured the commit is SSH-signed here, at the runner
+boundary, with a key no sandbox ever saw (D-10.3). Revert is mechanical
+git — `revert --no-commit` staging the inverse tree for the normal landing
+commit (one commit per attempt, D-10.8); a conflicted revert aborts and
+returns False, the engine never resolves one.
 """
 
 from __future__ import annotations
@@ -32,16 +36,44 @@ def repository_name(root: Path) -> str:
 
 
 class GitVcs:
-    def commit_all(self, worktree: Path, message: str) -> str | None:
+    def commit_all(self, worktree: Path, message: str, author: str | None = None,
+                   sign_key: str | None = None) -> str | None:
         _git(worktree, "add", "-A")
         status = _git(worktree, "status", "--porcelain")
         if not status.stdout.strip():
             return None
-        proc = _git(worktree, "-c", "user.name=Torve", "-c", "user.email=torve@local",
-                    "commit", "--no-gpg-sign", "-m", message)
+        config = ["-c", "user.name=Torve", "-c", "user.email=torve@local"]
+        commit = ["commit", "-m", message]
+        if sign_key:
+            config += ["-c", "gpg.format=ssh", "-c", f"user.signingkey={sign_key}"]
+            commit.append("-S")
+        else:
+            commit.append("--no-gpg-sign")
+        if author:
+            commit += ["--author", author]
+        proc = _git(worktree, *config, *commit)
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git commit failed")
         return _git(worktree, "rev-parse", "HEAD").stdout.strip()
+
+    def landed_shas(self, worktree: Path, task_id: str) -> list[str]:
+        """The commits a task landed, newest first — reconstructed from the
+        Torve-Task trailer alone (D-10.4: git log is the surviving record)."""
+        proc = _git(worktree, "log", "--format=%H", "--fixed-strings",
+                    f"--grep=Torve-Task: {task_id}")
+        return [line for line in proc.stdout.split() if line]
+
+    def revert(self, worktree: Path, shas: list[str]) -> bool:
+        """Stage the inverse of the given commits without committing — the
+        landing commit carries the revert's own provenance. A conflict
+        aborts, leaves the worktree clean, and returns False."""
+        proc = _git(worktree, "-c", "user.name=Torve", "-c", "user.email=torve@local",
+                    "revert", "--no-commit", *shas)
+        if proc.returncode == 0:
+            return True
+        _git(worktree, "revert", "--abort")
+        _git(worktree, "reset", "--hard")
+        return False
 
     def push(self, worktree: Path, branch: str) -> bool:
         remotes = _git(worktree, "remote")

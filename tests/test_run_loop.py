@@ -92,13 +92,21 @@ class ScriptedAgent:
 class MockVcs:
     def __init__(self):
         self.commits: list[str] = []
+        self.authors: list[str | None] = []
 
-    def commit_all(self, worktree, message):
+    def commit_all(self, worktree, message, author=None, sign_key=None):
         self.commits.append(message)
+        self.authors.append(author)
         return "abcdef123456"
 
     def push(self, worktree, branch):
         return False
+
+    def landed_shas(self, worktree, task_id):
+        return []
+
+    def revert(self, worktree, shas):
+        return True
 
 
 class MockScm:

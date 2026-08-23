@@ -1,0 +1,142 @@
+schema_version: 1
+task: T-0044
+repo: morzecrew/torve
+base_sha: f5bfe530c17b4112ed91bceecd4a6bdc0f732837
+drift_count: 0
+entries:
+  - decision: D-10.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T14:10:00Z
+    attempt: 1
+    claim: >-
+      the commit is composed entirely at the runner boundary — message,
+      author and signature all pass through the Vcs port from data the
+      runner holds; the agent's output remains a tree, and nothing in the
+      sandbox path gained a forge-facing capability
+    evidence: src/torve/application/runner.py:451-458 — the landing
+      composes message and author; src/torve/application/ports.py:173-186
+      — the grown Vcs port
+    action: decided
+  - decision: D-10.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T14:11:00Z
+    attempt: 1
+    claim: >-
+      author is adapter/model@model_version from the attempt's agent block
+      with email agents@torve.local, degrading honestly — a fake attempt is
+      authored "fake", a mechanical revert "revert", never a human and
+      never an invented model; committer stays Torve
+    evidence: tests/test_provenance.py:44-54 — author, email and committer
+      pinned over real git
+    action: decided
+  - decision: D-10.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T14:12:00Z
+    attempt: 1
+    claim: >-
+      vcs.signing_key is a runner-side path; when set the commit is
+      SSH-signed by the adapter outside any sandbox, and unset means
+      unsigned — the config docstring carries the honest-claim wording
+      (the signature attests Torve produced this, never that a human
+      reviewed it). The test signs with a key outside the worktree and
+      verifies against an allowed-signers file
+    evidence: src/torve/config/runconfig.py:216-224 — VcsConfig;
+      tests/test_provenance.py:68-88 — signed, verified, key never in the
+      tree
+    action: decided
+  - decision: D-10.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T14:13:00Z
+    attempt: 1
+    claim: >-
+      the trailer set is complete — Torve-Task, Torve-Attempt, Torve-Agent,
+      Torve-Config, Torve-Decisions with grades — composed at land time so
+      the attempt's model_version is already known, and landed_shas
+      reconstructs a task's commits from the Torve-Task trailer alone,
+      which is also what the revert role resolves targets with
+    evidence: src/torve/application/runner.py:303-315 — the message;
+      src/torve/adapters/vcs/git.py:59-64 — reconstruction from trailers;
+      tests/test_provenance.py:57-65 — both commits found, unknown task
+      empty
+    action: decided
+  - decision: D-10.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T14:14:00Z
+    attempt: 1
+    claim: >-
+      untouched this phase by design — the rule binds push behaviour to
+      review state and lands with the forge leg (phase 2, where push
+      becomes real); today the runner only ever pushes additively (one
+      commit per attempt, appended), so no force path exists to forbid
+    evidence: src/torve/adapters/vcs/git.py:73-80 — push is plain, no
+      force flag anywhere
+    action: decided
+  - decision: D-10.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T14:15:00Z
+    attempt: 1
+    claim: >-
+      application/forge.py is phase 2's file — PR composition from data
+      arrives with the credentialed Scm leg; this phase touched the
+      adapter file the decision also names, but only its commit surface
+    evidence: src/torve/adapters/vcs/git.py:39-57 — the touched surface is
+      commit_all, not PR composition
+    action: decided
+  - decision: D-10.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T14:16:00Z
+    attempt: 1
+    claim: >-
+      revert is a role through the unchanged loop: targets legal for role
+      revert (task ids resolved via the Torve-Task trailer, or explicit
+      shas — unresolvable raises before dispatch, like a misconfigured
+      review); the attempt hook is mechanical git revert --no-commit with
+      no agent and no attempt sandbox, taken literally from "prefer git
+      revert over reconstructing"; the same gates judge the staged tree
+      and the landing carries the revert's own provenance. A
+      dependent-commit conflict aborts, leaves the worktree clean, and
+      escalates as merge_conflict. The runner writes the resolved log
+      entries against the inherited decisions — a mechanical revert has no
+      agent to write them
+    evidence: src/torve/application/runner.py:470-491 — the revert hook;
+      tests/test_provenance.py:153-183 — landed provenance, restored tree,
+      resolved entries, and the conflict escalation
+    action: decided
+  - decision: D-10.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T14:17:00Z
+    attempt: 1
+    claim: >-
+      unchanged and now load-bearing twice — commit_all remains the single
+      landing commit per attempt, and revert rides it: revert --no-commit
+      stages the inverse tree so the normal landing makes the one commit
+      with the revert's provenance instead of git-revert's own message
+    evidence: src/torve/adapters/vcs/git.py:66-78 — stage-only revert;
+      tests/test_provenance.py:91-98 — staged, uncommitted
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-23T14:18:00Z
+    attempt: 1
+    claim: >-
+      the review trigger stays implement-only — a revert is mechanical and
+      its diff is the inverse of an already-reviewed change, so v1 does not
+      mint a review for it; if reverts ever carry hand-resolved content
+      that calculus changes, but that content is exactly what D-6 forbids
+      the engine to produce
+    evidence: src/torve/application/runner.py:494 — the role guard on the
+      review hook
+    action: decided
+    proposal: 0010 §7 note — reverts are not review-triggering in v1; the
+      diff is an inverse of reviewed work and the engine may not resolve
+      anything by hand

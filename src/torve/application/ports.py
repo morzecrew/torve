@@ -171,9 +171,19 @@ class DecisionSource(Protocol):
 
 
 class Vcs(Protocol):
-    def commit_all(self, worktree: Path, message: str) -> str | None: ...
+    """Local git at the runner boundary (RFC 0010 §2): the agent produces a
+    tree, the runner produces the commit — author is the agent identity,
+    committer is Torve, and the signing key, when configured, never enters
+    a sandbox (D-10.3)."""
+
+    def commit_all(self, worktree: Path, message: str, author: str | None = None,
+                   sign_key: str | None = None) -> str | None: ...
 
     def push(self, worktree: Path, branch: str) -> bool: ...
+
+    def landed_shas(self, worktree: Path, task_id: str) -> list[str]: ...
+
+    def revert(self, worktree: Path, shas: list[str]) -> bool: ...
 
 
 class LaneVcs(Protocol):

@@ -59,15 +59,15 @@ class Task(BaseModel):
     id: str
     rfc: str | None = None
     phase: int = 0
-    role: Literal["implement", "review"] = "implement"
+    role: Literal["implement", "review", "revert"] = "implement"
     # One paragraph: what changes and why — never steps (D-1.7, A-11).
     # Optional until the A-11 execution makes minting enforce it; contracts
     # minted before the amendment carry none.
     intent: str = ""
     depends_on: list[str] = Field(default_factory=list)
-    # The tasks a review examines (RFC 0005 §1.1, D-5.9): the contract shape
-    # is parameterised by role, no new mechanism. RFC 0010's revert will use
-    # the same field; until it lands, only review may carry targets.
+    # The tasks a review examines (RFC 0005 §1.1, D-5.9) or the tasks/shas a
+    # revert undoes (RFC 0010 §7): the contract shape is parameterised by
+    # role, no new mechanism. Only those two roles may carry targets.
     targets: list[str] = Field(default_factory=list)
     scope: Scope = Field(default_factory=Scope)
     acceptance: list[str] = Field(default_factory=list)  # shell commands; exit 0 == satisfied
@@ -87,6 +87,12 @@ class Task(BaseModel):
                 )
             if not self.targets:
                 raise ValueError("a review task names the task(s) it reviews in targets")
+        elif self.role == "revert":
+            if not self.targets:
+                raise ValueError(
+                    "a revert task names what it undoes in targets — task ids "
+                    "or explicit commit shas"
+                )
         elif self.targets:
             raise ValueError(f"targets is not meaningful for role {self.role!r}")
         return self

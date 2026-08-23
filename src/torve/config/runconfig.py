@@ -213,6 +213,17 @@ class ReapConfig(BaseModel):
     stale_after: float = 600  # non-terminal state with a heartbeat older than this is orphaned
 
 
+class VcsConfig(BaseModel):
+    """Local git at the runner boundary (RFC 0010 §4). The signing key is a
+    path to an SSH private key the RUNNER holds — it is never mounted into a
+    sandbox, and the signature attests "Torve produced this under its task",
+    never that a human reviewed it. Unset means unsigned."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    signing_key: str | None = None
+
+
 class ScmConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -264,6 +275,7 @@ class RunnerConfig(BaseModel):
     poison_ceiling: int = 3  # checked before dispatch; ceiling reached -> escalated, never retry
     base: str | None = None  # base ref for worktrees; None -> origin/main, then main
     reap: ReapConfig = Field(default_factory=ReapConfig)
+    vcs: VcsConfig = Field(default_factory=VcsConfig)
     scm: ScmConfig = Field(default_factory=ScmConfig)
     rfcs: RfcsConfig = Field(default_factory=RfcsConfig)
     tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)

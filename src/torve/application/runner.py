@@ -16,9 +16,11 @@ ships (RFC 0003 §6).
 from __future__ import annotations
 
 import asyncio
+import re
 import shutil
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -287,6 +289,85 @@ def _run_gates_in_worktree(
     return report.exit_code, summary, digest, report.results, ctx.patch
 
 
+def _agent_identity(meta: dict[str, Any]) -> str:
+    """The commit author and Torve-Agent trailer value (RFC 0010 §3):
+    adapter/model@model_version, degrading gracefully — a fake or mechanical
+    attempt is named for what it is, never invented."""
+    adapter = str(meta.get("adapter") or "unknown")
+    model = meta.get("model")
+    ident = f"{adapter}/{model}" if model else adapter
+    version = meta.get("model_version")
+    return f"{ident}@{version}" if version else ident
+
+
+def _provenance_message(task: Task, attempts: int, digest: str,
+                        meta: dict[str, Any]) -> str:
+    """The full trailer set (D-10.4): enough that `git log --grep`
+    reconstructs a task's history with the store offline."""
+    lines = [f"torve({task.id}): attempt {attempts} green", "",
+             f"Torve-Task: {task.id}",
+             f"Torve-Attempt: {attempts}",
+             f"Torve-Agent: {_agent_identity(meta)}",
+             f"Torve-Config: {digest}"]
+    if task.decisions:
+        graded = " ".join(f"{d.id}({d.grade})" for d in task.decisions)
+        lines.append(f"Torve-Decisions: {graded}")
+    return "\n".join(lines)
+
+
+class RevertConflict(RuntimeError):
+    """A dependent-commit conflict while reverting: escalates as
+    merge_conflict (RFC 0010 §7) — Torve does not resolve it."""
+
+
+_SHA = re.compile(r"[0-9a-f]{7,40}")
+
+
+def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
+    """Each target is a task id — resolved to its landed commits via the
+    Torve-Task trailer — or an explicit sha. An unresolvable target is a
+    contract error, raised before the first attempt dispatches."""
+    shas: list[str] = []
+    for target in task.targets:
+        if _SHA.fullmatch(target):
+            shas.append(target)
+            continue
+        landed = vcs.landed_shas(worktree, target)
+        if not landed:
+            raise ValueError(
+                f"revert target {target!r} has no landed commits in this "
+                "worktree's history — name a task that landed, or an "
+                "explicit commit sha"
+            )
+        shas.extend(landed)
+    return shas
+
+
+def _write_revert_log(worktree: Path, task: Task, attempt: int,
+                      shas: list[str]) -> None:
+    """Every revert emits resolved entries against the inherited decisions
+    (RFC 0010 §7): the reason work was undone reaches the next planning
+    session as data, not folklore. Machine-written — a mechanical revert has
+    no agent to write one."""
+    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    short = " ".join(sha[:10] for sha in shas)
+    entries: list[dict[str, Any]] = [
+        {"decision": d.id, "grade": str(d.grade), "kind": "resolved",
+         "at": stamp, "attempt": attempt,
+         "claim": f"the work under this decision was undone by {task.id}: "
+                  f"{', '.join(task.targets)} reverted mechanically, "
+                  "inverse tree staged for the landing commit",
+         "evidence": f"`git revert --no-commit {short}` — clean",
+         "action": "decided"}
+        for d in task.decisions
+    ]
+    log_path = layout.log_file(worktree, task.id)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(yaml.safe_dump(
+        {"schema_version": 1, "task": task.id, "drift_count": 0,
+         "entries": entries}, sort_keys=False), encoding="utf-8")
+
+
 def real_hooks(
     root: Path, task: Task, config: RunnerConfig, deps: RunDeps, worktree: Path,
     shadow: bool = False, gates_base: str | None = None,
@@ -368,10 +449,15 @@ def real_hooks(
         return exit_code, summary, digest
 
     async def land(state: RunState, digest: str) -> str:
-        message = (f"torve({task.id}): attempt {state.attempts} green\n\n"
-                   f"Torve-Task: {task.id}\nTorve-Attempt: {state.attempts}\n"
-                   f"Torve-Config: {digest}")
-        sha = await asyncio.to_thread(deps.vcs.commit_all, worktree, message)
+        # The commit is the runner's artefact (D-10.1), composed here where
+        # the attempt's model_version is already known: author is the agent
+        # identity (D-10.2), trailers complete (D-10.4), one commit per
+        # attempt (D-10.8), signed outside the sandbox when a key is
+        # configured (D-10.3).
+        message = _provenance_message(task, state.attempts, digest, agent_meta)
+        author = f"{_agent_identity(agent_meta)} <agents@torve.local>"
+        sha = await asyncio.to_thread(deps.vcs.commit_all, worktree, message,
+                                      author, config.vcs.signing_key)
         pushed = deps.vcs.push(worktree, naming.branch(task.id)) if sha else False
         pr_url = ""
         if pushed and config.scm.open_pr:
@@ -380,6 +466,29 @@ def real_hooks(
         fact = (f"committed {sha[:10]}" if sha else "nothing to commit")
         fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
         return fact
+
+    attempt_hook = attempt
+    if task.role == "revert":
+        # Revert is mechanical (RFC 0010 §7, D-10.7): the runner executes
+        # git revert itself — no agent, no attempt sandbox; the gates still
+        # run in theirs and the landing carries the revert's own provenance.
+        # Targets resolve before the first dispatch so an unresolvable one
+        # fails loudly, like a misconfigured review.
+        agent_meta.update(adapter="revert", provider=None, model=None)
+        revert_shas = _revert_targets(task, deps.vcs, worktree)
+
+        async def revert_attempt(state: RunState) -> AgentResult:
+            done = await asyncio.to_thread(deps.vcs.revert, worktree, revert_shas)
+            if not done:
+                raise RevertConflict(
+                    f"dependent-commit conflict reverting "
+                    f"{', '.join(task.targets)} — revert aborted, worktree clean"
+                )
+            _write_revert_log(worktree, task, state.attempts, revert_shas)
+            return AgentResult(exit_code=0,
+                               output=f"reverted {len(revert_shas)} commit(s)")
+
+        attempt_hook = revert_attempt
 
     review_hook = None
     if not shadow and task.role == "implement" and "task_gated" in config.review.on:
@@ -411,8 +520,8 @@ def real_hooks(
 
         review_hook = review_hook_fn
 
-    return AttemptHooks(attempt=attempt, halted=halted, gates=gates, land=land,
-                        review=review_hook)
+    return AttemptHooks(attempt=attempt_hook, halted=halted, gates=gates,
+                        land=land, review=review_hook)
 
 
 async def _run_task_async(
@@ -430,6 +539,11 @@ async def _run_task_async(
             state.save()
         try:
             final = await drive_attempts(state, task, config, hooks)
+        except RevertConflict as exc:
+            # RFC 0010 §7: a dependent-commit conflict escalates as
+            # merge_conflict — the revert aborted and the worktree is clean.
+            state.escalate(EscalationReason.MERGE_CONFLICT, str(exc))
+            final = state
         except asyncio.CancelledError:
             if state.state not in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
                 state.escalate(EscalationReason.KILLED,
