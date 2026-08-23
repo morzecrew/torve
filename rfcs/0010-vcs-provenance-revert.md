@@ -1,7 +1,7 @@
 ---
 id: "0010"
 title: VCS, provenance and revert
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0003"]
 informed_by: ["0005", "0006"]
