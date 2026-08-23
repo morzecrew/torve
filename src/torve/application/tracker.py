@@ -19,6 +19,7 @@ from typing import Any, cast
 
 from torve.application.outbox import Effect, RelayReport, relay, stage
 from torve.application.ports import Tracker, TrackerCommand
+from torve.application.projections import escalation_route
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
@@ -74,7 +75,7 @@ def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
     return bodies
 
 
-def project(root: Path) -> int:
+def project(root: Path, notify_login: str = "") -> int:
     """Derive effects from run state and stage them idempotently; returns
     how many were newly staged. Re-running against unchanged state stages
     nothing — the state file is the transaction the effects derive from."""
@@ -94,6 +95,19 @@ def project(root: Path) -> int:
                 payload={"task": task_id, "title": title,
                          "reason": state.escalation.reason,
                          "detail": state.escalation.detail}))
+            # The notifier (RFC 0003 D-3.18, policy D-6.4): interrupt-class
+            # routes page a person; batch stays board-visible only. Keyed on
+            # (task, attempt, reason) — one escalation event notifies once
+            # however often projection or relay replays.
+            route = escalation_route(str(state.escalation.reason))
+            if notify_login and route in ("notify", "harness owner"):
+                effects.append(Effect(
+                    key=f"{task_id}:notify:{state.attempts}:{state.escalation.reason}",
+                    kind="notify",
+                    payload={"task": task_id, "title": title,
+                             "login": notify_login, "route": route,
+                             "reason": state.escalation.reason,
+                             "detail": state.escalation.detail}))
         for attempt_no, body in _attempt_bodies(root, task_id).items():
             effects.append(Effect(key=f"{task_id}:attempt:{attempt_no}",
                                   kind="attempt",
@@ -120,6 +134,13 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
                     "authority: the run store; this board is a projection")
             tracker.reflect(task_id, f"escalated:{payload['reason']}", title)
             result = tracker.comment(task_id, body, effect.key)
+        elif effect.kind == "notify":
+            body = (f"escalated: {payload['reason']} — {payload['detail']}\n"
+                    f"route: {payload['route']} (D-6.4 — this class "
+                    "interrupts; the queue's age is the primary alert)\n\n"
+                    "authority: the run store; this board is a projection")
+            result = tracker.notify(task_id, str(payload["login"]), body,
+                                    effect.key)
         else:
             result = tracker.comment(task_id, str(payload["body"]), effect.key)
         if result.outcome != "applied":

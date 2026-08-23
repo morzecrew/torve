@@ -20,11 +20,14 @@ from torve.domain.states import TaskState
 
 
 class FakeTracker:
-    def __init__(self, reflect_outcome: str = "applied") -> None:
+    def __init__(self, reflect_outcome: str = "applied",
+                 notify_outcome: str = "applied") -> None:
         self.reflected: list[tuple[str, str]] = []
         self.comments: list[tuple[str, str, str]] = []
+        self.notified: list[tuple[str, str, str, str]] = []
         self.commands: list[TrackerCommand] = []
         self.reflect_outcome = reflect_outcome
+        self.notify_outcome = notify_outcome
 
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
         self.reflected.append((task_id, state))
@@ -36,6 +39,10 @@ class FakeTracker:
 
     def annotate(self, task_id: str, location: str, body: str, key: str) -> ReflectResult:
         return ReflectResult("unsupported", "no inline annotations")
+
+    def notify(self, task_id: str, login: str, body: str, key: str) -> ReflectResult:
+        self.notified.append((task_id, login, body, key))
+        return ReflectResult(self.notify_outcome, "faked notify")
 
     def poll_commands(self) -> list[TrackerCommand]:
         return self.commands
@@ -185,3 +192,109 @@ def test_github_poll_parses_allow_listed_commands_and_skips_answered(monkeypatch
     # not returned again; the fresh retry is.
     assert [(c.verb, c.task_id, c.actor, c.source) for c in commands] == [
         ("retry", "T-6008", "misery7100", "101")]
+
+
+# The notifier (RFC 0003 D-3.18, landed with 0006's policy): interrupt-class
+# escalations page a person through the same outbox; batch stays a board
+# comment. The invariant under test: every escalated task has exactly one
+# delivered notification, whatever crashes and replays between state write
+# and relay.
+
+
+def test_an_interrupt_class_escalation_notifies_exactly_once(root):
+    from torve.domain.states import EscalationReason
+
+    state = run_state(root, "T-6101", TaskState.RUNNING)
+    state.escalate(EscalationReason.BLOCKER_FINDING, "greet() modified")
+    tracker = FakeTracker()
+    project(root, notify_login="operator")
+    relay_to_tracker(root, tracker)
+    assert len(tracker.notified) == 1
+    task_id, login, body, key = tracker.notified[0]
+    assert (task_id, login) == ("T-6101", "operator")
+    assert "blocker_finding" in body and "route: notify" in body
+    assert ":notify:" in key
+
+    # The crash landed between state write and relay: everything replays —
+    # projection re-derives, the ledger absorbs the redelivery.
+    project(root, notify_login="operator")
+    relay_to_tracker(root, tracker)
+    assert len(tracker.notified) == 1
+
+
+def test_gate_infrastructure_pages_the_harness_owner(root):
+    from torve.domain.states import EscalationReason
+
+    state = run_state(root, "T-6102", TaskState.RUNNING)
+    state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, "daemon gone")
+    tracker = FakeTracker()
+    project(root, notify_login="operator")
+    relay_to_tracker(root, tracker)
+    assert len(tracker.notified) == 1
+    assert "route: harness owner" in tracker.notified[0][2]
+
+
+def test_a_batch_route_escalation_stays_board_visible_only(root):
+    from torve.domain.states import EscalationReason
+
+    state = run_state(root, "T-6103", TaskState.RUNNING)
+    state.escalate(EscalationReason.BUDGET_EXHAUSTED, "3 attempts spent")
+    tracker = FakeTracker()
+    project(root, notify_login="operator")
+    relay_to_tracker(root, tracker)
+    assert tracker.notified == []
+    # Still on the board as an escalation comment (D-6.4: the rest batches).
+    assert any("budget_exhausted" in body for _, body, _ in tracker.comments)
+
+
+def test_an_empty_login_keeps_the_notifier_inert(root):
+    from torve.domain.states import EscalationReason
+
+    state = run_state(root, "T-6104", TaskState.RUNNING)
+    state.escalate(EscalationReason.BLOCKER_FINDING, "blocker")
+    tracker = FakeTracker()
+    project(root)
+    relay_to_tracker(root, tracker)
+    assert tracker.notified == []
+
+
+def test_a_refused_notification_is_a_logged_divergence(root):
+    from torve.domain.states import EscalationReason
+
+    state = run_state(root, "T-6105", TaskState.RUNNING)
+    state.escalate(EscalationReason.LOCKED_CONFLICT, "contradicts a LOCKED row")
+    tracker = FakeTracker(notify_outcome="refused")
+    project(root, notify_login="operator")
+    report = relay_to_tracker(root, tracker)
+    # Done, not pending forever: the divergence is the record.
+    assert report.failed == {}
+    events = [r for r in telemetry_records(root)
+              if r.get("event") == "tracker_divergence"]
+    assert len(events) == 1 and ":notify:" in str(events[0].get("key"))
+
+
+def test_github_notify_mentions_even_when_assignment_fails(monkeypatch):
+    issues = json.dumps([{"number": 9, "title": "T-6009: task"}])
+    calls: list[str] = []
+
+    def fake_run(command, **kwargs):
+        cmd = " ".join(str(part) for part in command)
+        calls.append(cmd)
+        if "--add-assignee" in cmd:
+            return subprocess.CompletedProcess(command, 1, stdout="",
+                                               stderr="could not assign")
+        if "issue list" in cmd:
+            return subprocess.CompletedProcess(command, 0, stdout=issues, stderr="")
+        if "issue view" in cmd:
+            return subprocess.CompletedProcess(
+                command, 0, stdout=json.dumps({"comments": []}), stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(gh_module.subprocess, "run", fake_run)
+    result = GithubIssues("example/lab", token_env=None).notify(
+        "T-6009", "operator", "escalated: blocker_finding — x",
+        "T-6009:notify:1:blocker_finding")
+    # The mention is the notification; a login the forge cannot assign must
+    # not leave it pending forever.
+    assert result.outcome == "applied" and "assign failed" in result.detail
+    assert any("issue comment 9" in c and "@operator" in c for c in calls)

@@ -257,6 +257,10 @@ class TrackerConfig(BaseModel):
     kind: Literal["", "github-issues"] = ""
     repo: str | None = None
     token_env: str | None = None
+    # The forge login notified on interrupt-class escalations (D-6.4 routes
+    # "notify" and "harness owner"; RFC 0003 D-3.18). A name, never a
+    # secret; empty keeps the notifier inert.
+    notify: str = ""
 
 
 class ReviewConfig(BaseModel):

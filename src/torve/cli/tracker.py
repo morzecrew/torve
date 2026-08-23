@@ -35,7 +35,7 @@ from torve.domain.states import EXIT_CONFIG, EXIT_OK
 tracker_app = typer.Typer(no_args_is_help=True)
 
 
-def _adapter(root: Path, config_path: Path | None) -> GithubIssues:
+def _adapter(root: Path, config_path: Path | None) -> tuple[GithubIssues, str]:
     from torve.adapters.tracker.github import GithubIssues
 
     config = load_config(root, config_path)
@@ -45,7 +45,8 @@ def _adapter(root: Path, config_path: Path | None) -> GithubIssues:
     if not config.tracker.repo:
         raise fail("configuration error: tracker.repo names the board's "
                    "repository", EXIT_CONFIG)
-    return GithubIssues(config.tracker.repo, config.tracker.token_env)
+    return (GithubIssues(config.tracker.repo, config.tracker.token_env),
+            config.tracker.notify)
 
 
 @tracker_app.command()
@@ -59,8 +60,8 @@ def sync(
     from torve.application.tracker import project, relay_to_tracker
 
     root = root.resolve()
-    tracker = _adapter(root, config_path)
-    staged = project(root)
+    tracker, notify_login = _adapter(root, config_path)
+    staged = project(root, notify_login)
     report = relay_to_tracker(root, tracker)
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "staged": staged,
@@ -88,7 +89,7 @@ def poll(
     from torve.application.tracker import poll_and_apply
 
     root = root.resolve()
-    tracker = _adapter(root, config_path)
+    tracker, _ = _adapter(root, config_path)
     report = poll_and_apply(root, tracker)
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "commands": [vars(o) for o in report.outcomes]})

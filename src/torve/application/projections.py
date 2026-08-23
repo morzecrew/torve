@@ -329,7 +329,7 @@ ROUTE_NOTIFY = {"blocker_finding", "locked_conflict"}
 ROUTE_HARNESS = {"gate_infrastructure_failure"}
 
 
-def _escalation_route(reason: str) -> str:
+def escalation_route(reason: str) -> str:
     if reason in ROUTE_NOTIFY:
         return "notify"
     if reason in ROUTE_HARNESS:
@@ -359,7 +359,7 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
             escalations.setdefault(str(task["escalation"]), []).append({
                 "task": task["id"], "at": task["escalated_at"], "rfc": task["rfc"],
                 "age_s": _age_seconds(task["escalated_at"]),
-                "route": _escalation_route(str(task["escalation"])),
+                "route": escalation_route(str(task["escalation"])),
             })
     return {
         "schema_version": SCHEMA_VERSION,

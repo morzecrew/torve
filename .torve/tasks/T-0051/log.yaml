@@ -1,0 +1,82 @@
+schema_version: 1
+task: T-0051
+repo: morzecrew/torve
+base_sha: ac2c55d00af046b66dbaa4c72ac1b5e95cda1783
+drift_count: 0
+entries:
+  - decision: D-6.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T22:10:00Z
+    attempt: 1
+    claim: >-
+      one configured login serves both interrupt-class routes — "notify"
+      (blockers, locked conflicts) and "harness owner" (gate
+      infrastructure) page the same person in the single-operator regime;
+      the route rides the effect payload, so splitting the harness owner
+      into a second login later is an additive config field, not a
+      reshaping of staged effects
+    evidence: src/torve/application/tracker.py:102-110 — route computed and
+      carried in the payload; src/torve/config/runconfig.py:263 — one login
+      field
+    action: decided
+  - decision: D-6.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T22:11:00Z
+    attempt: 1
+    claim: >-
+      batch-routed escalations are deliberately not notified — D-6.4 kept
+      as written: the rest batches into review windows and stays visible
+      as board comments from the existing escalation effect; notifying
+      everything would make the interrupt class indistinguishable from
+      the queue
+    evidence: src/torve/application/tracker.py:103 — only "notify" and
+      "harness owner" stage the effect; tests/test_tracker.py:237-248 —
+      batch route stays board-visible only, pinned
+    action: decided
+  - decision: D-6.7
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T22:12:00Z
+    attempt: 1
+    claim: >-
+      on the delivery side, issue assignment is best-effort and the
+      @mention comment is the notification proper — a login the forge
+      cannot assign (not a collaborator) must not leave the notification
+      pending in the outbox forever; an assign failure is carried in the
+      applied result's detail, while a failed mention stays pending and
+      retries
+    evidence: src/torve/adapters/tracker/github.py:99-114 — assign wrapped,
+      mention authoritative; tests/test_tracker.py:276-300 — failed assign
+      still mentions, pinned
+    action: decided
+  - decision: D-6.8
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-23T22:13:00Z
+    attempt: 1
+    claim: >-
+      the notify effect is keyed (task, attempt, reason) — parallel to the
+      escalation effect key — so one escalation event notifies exactly
+      once however often projection or relay replays: the RFC 0003 D-3.18
+      delivered-notification invariant, pinned with a deliberate replay
+      between state write and relay; the queue's age stays the primary
+      alert, the notification is its interrupt path
+    evidence: tests/test_tracker.py:204-222 — exactly-once under replay;
+      src/torve/application/tracker.py:104-110 — the key composition
+    action: decided
+  - decision: D-6.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-23T22:14:00Z
+    attempt: 1
+    claim: >-
+      the route classifier was module-private in the context projection;
+      it is now the public escalation_route so the tracker projection and
+      the context report share one classification authority instead of a
+      copied table that could drift
+    evidence: src/torve/application/projections.py:332 — the shared
+      classifier; src/torve/application/tracker.py:22 — the tracker
+      imports it
+    action: decided

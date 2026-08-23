@@ -12,7 +12,7 @@ from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace, Scri
 from typer.testing import CliRunner
 
 from torve.adapters.store.durable import open_store
-from torve.application.projections import _escalation_route, context_report
+from torve.application.projections import context_report, escalation_route
 from torve.application.runner import BlockedDispatch, RunDeps, run_task
 from torve.application.runstate import RunState
 from torve.base import naming
@@ -128,8 +128,8 @@ def test_escalations_carry_age_and_route(repo, tmp_path):
 
 
 def test_route_classes_follow_the_attention_table():
-    assert _escalation_route("blocker_finding") == "notify"
-    assert _escalation_route("locked_conflict") == "notify"
-    assert _escalation_route("gate_infrastructure_failure") == "harness owner"
-    assert _escalation_route("poison_ceiling") == "batch"
-    assert _escalation_route("budget_exhausted") == "batch"
+    assert escalation_route("blocker_finding") == "notify"
+    assert escalation_route("locked_conflict") == "notify"
+    assert escalation_route("gate_infrastructure_failure") == "harness owner"
+    assert escalation_route("poison_ceiling") == "batch"
+    assert escalation_route("budget_exhausted") == "batch"

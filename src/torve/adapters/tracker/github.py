@@ -96,6 +96,22 @@ class GithubIssues:
         self._gh("issue", "comment", str(number), "--body", f"{body}\n\n{marker}")
         return ReflectResult("applied", f"comment on #{number}")
 
+    def notify(self, task_id: str, login: str, body: str, key: str) -> ReflectResult:
+        # The @mention comment is the notification; assignment is
+        # best-effort decoration (a login the forge cannot assign — not a
+        # collaborator — must not leave the notification pending forever).
+        number = self._issue_for(task_id, f"{task_id}: task")
+        assert number is not None
+        assigned = "assigned"
+        try:
+            self._gh("issue", "edit", str(number), "--add-assignee", login)
+        except RuntimeError as error:
+            assigned = f"assign failed: {error}"
+        result = self.comment(task_id, f"@{login} — {body}", key)
+        if result.outcome != "applied":
+            return result
+        return ReflectResult("applied", f"notified @{login} on #{number} ({assigned})")
+
     def annotate(self, task_id: str, location: str, body: str, key: str) -> ReflectResult:
         # Issues have no inline file annotations: the D-8.6 unsupported
         # path, honestly — the finding still reaches the issue as a comment

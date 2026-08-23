@@ -1,0 +1,53 @@
+# Minted by hand — the notifier deferred twice (RFC 0003 D-3.18 to 0006,
+# 0006 to the forge), picked up now that both the channel (RFC 0008's
+# tracker) and the transaction source (the outbox over run state) exist.
+schema_version: 1
+id: T-0051
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  Interrupt-class escalations produce exactly one delivered notification:
+  the D-6.4 routes "notify" (blockers, locked conflicts) and "harness
+  owner" (gate infrastructure) stage a notify effect through the outbox,
+  keyed on (task, attempt, reason) so one escalation event notifies once
+  however often projection or relay replays — the D-3.18 invariant. The
+  tracker delivers it as issue assignment plus @mention of the configured
+  forge login; assignment is best-effort, the mention is the notification.
+  Batch-routed escalations stay board-visible only. An empty login keeps
+  the notifier inert; the login is configuration, never a secret.
+depends_on: [T-0050]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.4
+    grade: ASSUMED
+    text: Escalations are batched into review windows except blockers and locked conflicts
+    paths:
+      - src/torve/application/projections.py
+  - id: D-6.7
+    grade: ASSUMED
+    text: Engine health rides the existing telemetry path as `EngineEvent`
+    paths:
+      - src/torve/application/telemetry.py
+  - id: D-6.8
+    grade: LOCKED
+    text: Escalation queue age is the primary alert
+    paths:
+      - src/torve/application/telemetry.py
+budget: {}
+tier: executor
