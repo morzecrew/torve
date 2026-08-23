@@ -1,0 +1,69 @@
+schema_version: 1
+task: T-0053
+repo: morzecrew/torve
+base_sha: 67c5b5995fad6cf83223d37e8f2f464d24d891d1
+drift_count: 0
+entries:
+  - decision: D-5.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T00:05:00Z
+    attempt: 1
+    claim: >-
+      the reviewer's sandbox passes through only the tier's api_key_env —
+      the forge token never enters it; the token is resolved by name at
+      the CLI boundary and used by the runner alone, for the fetch (a git
+      credential helper reading the environment, never argv) and for the
+      findings comment the runner posts after the sandbox is destroyed
+    evidence: src/torve/application/review.py:200 — the sandbox's whole
+      environment surface; src/torve/adapters/vcs/git.py:109-121 — the
+      fetch's credential path mirrors push's
+    action: decided
+  - decision: D-5.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T00:06:00Z
+    attempt: 1
+    claim: >-
+      a head maps to a task through the Torve-Task trailer in base..head;
+      the first trailer whose contract exists wins, anything else reviews
+      degraded with a synthesized PR-N target and the degraded prompt
+      block — and the posted comment repeats the degradation so the
+      reader knows spec-drift findings were unavailable
+    evidence: src/torve/application/review.py:335-352 — trailer mapping
+      and the synthesized target; tests/test_pr_review.py:121-139 —
+      degraded prompt and comment pinned
+    action: decided
+  - decision: D-5.8
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T00:07:00Z
+    attempt: 1
+    claim: >-
+      §4's 90s debounce is translated, not implemented literally: there
+      is no daemon to hold a timer, so the pull regime's debounce is one
+      review per head — rapid pushes collapse into whatever head is
+      current when the trigger fires, and a head reviews at most once
+      through the pr-reviews ledger; a timed debounce becomes meaningful
+      only with a resident event consumer
+    evidence: src/torve/application/review.py:285-293 — the ledger read;
+      tests/test_pr_review.py:142-152 — at most once per head, a new
+      head reviews again
+    action: decided
+  - decision: D-5.11
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T00:08:00Z
+    attempt: 1
+    claim: >-
+      the PR trigger never mutates task state: blockers on a task-gated
+      run escalate on that path, while this path reports its findings to
+      the pull request and records the engine event — an organic pull
+      request has no run to escalate, and re-reviewing a task's PR must
+      not fight the state its own pipeline owns; review minting stays
+      with the runner-shaped mint_review_task, which grew only an intent
+      override for the degraded case
+    evidence: src/torve/application/review.py:314-326 — the doctrine in
+      the orchestration's contract; src/torve/application/review.py:40-52
+      — the mint's single new parameter
+    action: decided

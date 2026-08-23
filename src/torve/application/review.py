@@ -24,7 +24,14 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from torve.application.ports import Agent, AgentContext, Runtime, SandboxSpec
+from torve.application.ports import (
+    Agent,
+    AgentContext,
+    PrScm,
+    PrVcs,
+    Runtime,
+    SandboxSpec,
+)
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config import layout
@@ -37,7 +44,7 @@ from torve.gates.evidence import filter_findings
 # ----------------------- #
 
 
-def mint_review_task(root: Path, target: Task) -> Task:
+def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Task:
     """Runner-minted at gated (D-5.11): the same contract shape with a
     different role (D-5.9), decisions inherited from the target, one
     iteration. The planner never mints these — review follows execution."""
@@ -48,8 +55,8 @@ def mint_review_task(root: Path, target: Task) -> Task:
         rfc=target.rfc,
         role="review",
         targets=[target.id],
-        intent=(f"Review {target.id}'s diff against its contract and "
-                "inherited decisions."),
+        intent=intent or (f"Review {target.id}'s diff against its contract "
+                          "and inherited decisions."),
         decisions=target.decisions,
         budget=Budget(iterations=1),
         tier="reviewer",
@@ -256,3 +263,119 @@ def run_review(
     state.save()
     return ReviewOutcome(review_id=review.id, fact=fact, blockers=blockers,
                          kept=kept, discarded=discarded, unparseable=unparseable)
+
+
+# ----------------------- #
+# The pull-request trigger (RFC 0005 §4): review on open and update,
+# including pull requests no agent wrote.
+
+PR_LEDGER = "pr-reviews.jsonl"
+
+
+@dataclass
+class PrReviewOutcome:
+    action: str  # reviewed | skipped | already reviewed
+    detail: str = ""
+    review_id: str | None = None
+    findings: int = 0
+    blockers: int = 0
+    comment: str = ""
+
+
+def _reviewed_heads(root: Path) -> set[tuple[int, str]]:
+    path = root / layout.TORVE_DIR / PR_LEDGER
+    if not path.is_file():
+        return set()
+    heads: set[tuple[int, str]] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            row = cast("dict[str, Any]", json.loads(line))
+            heads.add((int(row["pr"]), str(row["head"])))
+    return heads
+
+
+def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome,
+                degraded: bool) -> str:
+    """Composed from the review's records, never the reviewer's prose —
+    and posted by the runner: the reviewer holds no forge credential
+    (D-5.2)."""
+    lines = [f"torve review — {review_id} · head {head_sha[:12]} · {outcome.fact}"]
+    if degraded:
+        lines.append("reviewed without a task contract — degraded input: no "
+                     "scope, no inherited decisions; spec-drift findings "
+                     "unavailable (D-5.8)")
+    ordered = outcome.blockers + [f for f in outcome.kept
+                                  if f.severity != "blocker"]
+    lines.extend(f"- [{f.severity}] {f.claim} ({f.evidence})" for f in ordered)
+    lines += ["", "authority: the run store; this comment is a projection"]
+    return "\n".join(lines)
+
+
+def review_pull_request(
+    root: Path, config: RunnerConfig, runtime: Runtime, agent: Agent,
+    scm: PrScm, vcs: PrVcs, number: int, token: str | None = None,
+) -> PrReviewOutcome:
+    """RFC 0005 §4: skip rules first (draft, zero changed files, configured
+    authors, not open); one review per head — the pull regime's debounce,
+    since rapid pushes collapse into whatever head is current when the
+    trigger fires and a head reviews at most once; then degraded or
+    task-informed input (D-5.8) and the findings posted back as one
+    marker-deduped comment. Task state is never mutated here — blockers on
+    a task-gated run escalate on that path; this one reports."""
+    info = scm.pr_info(number)
+    if info.state != "open":
+        return PrReviewOutcome("skipped", f"pull request is {info.state or 'unknown'}")
+    if info.draft:
+        return PrReviewOutcome("skipped", "draft")
+    if info.changed_files == 0:
+        return PrReviewOutcome("skipped", "no changed files")
+    if info.author in config.review.skip_authors:
+        return PrReviewOutcome(
+            "skipped", f"author {info.author} is skipped by configuration")
+    if (number, info.head_sha) in _reviewed_heads(root):
+        return PrReviewOutcome("already reviewed", f"head {info.head_sha[:12]}")
+
+    base_sha, head_sha = vcs.fetch_pr(root, number, info.base_ref, token)
+    degraded, target = True, None
+    for task_id in vcs.task_trailers(root, base_sha, head_sha):
+        contract = layout.task_file(root, task_id)
+        if contract.is_file():
+            from torve.gates.context import load_task
+
+            degraded, target = False, load_task(contract)
+            break
+    if target is None:
+        target = Task(id=f"PR-{number}", role="implement",
+                      intent=f"Pull request #{number}: {info.title}",
+                      decisions=[])
+    review = mint_review_task(
+        root, target,
+        intent=(f"Review pull request #{number} at {head_sha[:12]} — no "
+                "task contract, degraded input." if degraded else None))
+
+    workdir = root / naming.WORKTREE_DIR / f"{review.id}.pr"
+    vcs.worktree_at(root, head_sha, workdir)
+    try:
+        diff_text = vcs.diff(root, base_sha, head_sha)
+        from torve.application.telemetry import config_hash, engine_event
+
+        digest = config_hash(layout.gates_file(root), root, config)
+        outcome = run_review(root, workdir, target, review, config, runtime,
+                             agent, diff_text, [], digest, degraded=degraded)
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+    url = scm.comment(number, _pr_comment(review.id, head_sha, outcome, degraded),
+                      f"review:{number}:{head_sha[:12]}")
+    ledger = root / layout.TORVE_DIR / PR_LEDGER
+    with ledger.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({
+            "pr": number, "head": head_sha, "review": review.id,
+            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }) + "\n")
+    engine_event(root, "pr_review", {
+        "pr": number, "head": head_sha, "review": review.id,
+        "findings": len(outcome.kept), "blockers": len(outcome.blockers),
+        "degraded": degraded})
+    return PrReviewOutcome("reviewed", outcome.fact, review.id,
+                           len(outcome.kept), len(outcome.blockers), url)

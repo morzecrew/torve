@@ -1,0 +1,56 @@
+# Minted by hand — RFC 0005's forge leg, deferred at acceptance until a
+# remote existed: the forge is live, organic pull requests exist, and the
+# review machinery is proven on task-gated runs.
+schema_version: 1
+id: T-0053
+rfc: rfcs/0005-review-as-a-run.md
+phase: 3
+role: implement
+intent: |
+  Review on pull request open and update, including pull requests no
+  agent wrote: torve review pr N fetches the head, applies the skip
+  rules (draft, zero changed files, configured authors, not open),
+  reviews each head at most once (the pull regime's debounce), maps the
+  head to a task contract through the Torve-Task trailer or reviews
+  degraded without one (D-5.8, told so explicitly), runs the reviewer in
+  a read-only sandbox with no forge credential, and posts the findings
+  back to the pull request as one marker-deduped comment — the runner
+  posts, never the reviewer (D-5.2). The trigger vocabulary grows
+  pr_opened and pr_synchronized; configuring neither refuses the
+  command, because configuring nothing decides nothing.
+depends_on: [T-0052]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/**"
+    - "src/torve/adapters/**"
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-5.2
+    grade: LOCKED
+    text: The reviewer gets a read-only workspace and no forge credential; the runner posts comments
+    paths:
+      - src/torve/application/review.py
+      - src/torve/adapters/runtime/**
+  - id: D-5.8
+    grade: ASSUMED
+    text: Reviews on pull requests without a task run in degraded mode and are told so
+    paths:
+      - src/torve/application/review.py
+  - id: D-5.11
+    grade: LOCKED
+    text: Review tasks are minted by the runner at gated, never by the planner
+    paths:
+      - src/torve/application/runner.py
+budget: {}
+tier: executor

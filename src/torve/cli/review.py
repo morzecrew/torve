@@ -174,3 +174,54 @@ def corpus(
             "corpus green" if passed else "regression: the reviewer dropped a catch",
             STYLE_PASS if passed else STYLE_FAIL)
     raise typer.Exit(EXIT_OK if passed else EXIT_GATES_RED)
+
+
+@review_app.command("pr")
+def pr(
+    number: Annotated[int, typer.Argument(help="Pull request number on scm.repo.")],
+    config_path: ConfigOption = None,
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Review one pull request and post the findings back as a comment.
+    Skips drafts, empty and closed pull requests, and configured authors;
+    each head is reviewed at most once."""
+    import os
+
+    from torve.adapters.vcs.git import GhScm, GitVcs
+    from torve.application.review import review_pull_request
+    from torve.cli.run import build_reviewer_agent
+
+    root = root.resolve()
+    config = load_config(root, config_path)
+    if not {"pr_opened", "pr_synchronized"} & set(config.review.on):
+        raise fail(
+            "configuration error: review.on includes neither pr_opened nor "
+            "pr_synchronized — configuring nothing decides nothing", EXIT_CONFIG)
+    if not config.scm.repo:
+        raise fail("configuration error: scm.repo names the forge repository",
+                   EXIT_CONFIG)
+    try:
+        agent = build_reviewer_agent(config, root)
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+    token = (os.environ.get(config.scm.token_env)
+             if config.scm.token_env else None)
+    outcome = review_pull_request(
+        root, config, runtime_for(config, None), agent,
+        GhScm(config.scm.repo, config.scm.token_env), GitVcs(), number, token)
+    if fmt is Format.JSON:
+        emit_json({"schema_version": 1, "pr": number, "action": outcome.action,
+                   "detail": outcome.detail, "review": outcome.review_id,
+                   "findings": outcome.findings, "blockers": outcome.blockers,
+                   "comment": outcome.comment})
+    else:
+        console = out(fmt)
+        header(console, "review pr", f"#{number}")
+        line = f"{outcome.action}: {outcome.detail}"
+        if outcome.review_id:
+            line += f" ({outcome.review_id}, {outcome.findings} finding(s))"
+        console.print(line)
+        if outcome.comment:
+            closing(console, outcome.comment)
+    raise typer.Exit(EXIT_OK)

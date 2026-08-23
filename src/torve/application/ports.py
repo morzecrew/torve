@@ -213,6 +213,48 @@ class Scm(Protocol):
 
 
 @dataclass
+class PrInfo:
+    """One pull request as the forge reports it (RFC 0005 §4): enough to
+    apply the skip rules and locate the head, nothing more."""
+
+    number: int
+    title: str
+    author: str
+    draft: bool
+    head_sha: str
+    base_ref: str
+    changed_files: int
+    state: str  # open | closed | merged, forge-cased
+
+
+class PrScm(Protocol):
+    """The PR-review trigger's forge surface (RFC 0005 §4, D-5.2): the
+    runner reads the pull request and posts the findings comment; the
+    reviewer itself never holds a forge credential."""
+
+    def pr_info(self, number: int) -> PrInfo: ...
+
+    def comment(self, number: int, body: str, key: str) -> str: ...
+
+
+class PrVcs(Protocol):
+    """The PR-review trigger's git surface: fetch the pull request's head
+    and base, materialise a detached worktree to review, diff, and read
+    Torve-Task trailers to map the head back to a task contract."""
+
+    def fetch_pr(self, root: Path, number: int, base_ref: str,
+                 token: str | None = None) -> tuple[str, str]: ...
+
+    def worktree_at(self, root: Path, sha: str, workdir: Path) -> None: ...
+
+    def remove_worktree(self, root: Path, workdir: Path) -> None: ...
+
+    def diff(self, root: Path, base: str, head: str) -> str: ...
+
+    def task_trailers(self, root: Path, base: str, head: str) -> list[str]: ...
+
+
+@dataclass
 class ReflectResult:
     """applied | refused | unsupported (RFC 0008 §5, D-8.6). A refusal is a
     logged divergence, never an exception — the engine's state is correct

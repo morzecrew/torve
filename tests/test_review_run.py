@@ -131,8 +131,11 @@ def test_review_configured_without_an_agent_is_loud(review_rig):
 
 
 def test_unknown_review_triggers_are_refused():
-    with pytest.raises(ValueError, match="forge"):
-        ReviewConfig(on=["pr_opened"])
+    # The forge triggers joined the vocabulary with T-0053; anything else
+    # still refuses loudly.
+    assert ReviewConfig(on=["pr_opened", "pr_synchronized"]).on
+    with pytest.raises(ValueError, match="unsupported review trigger"):
+        ReviewConfig(on=["pr_closed"])
 
 
 # ....................... #

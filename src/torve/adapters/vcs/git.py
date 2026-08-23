@@ -19,6 +19,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from torve.application.ports import PrInfo
+
 # ----------------------- #
 
 
@@ -104,6 +106,52 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git push failed")
         return True
 
+    def fetch_pr(self, root: Path, number: int, base_ref: str,
+                 token: str | None = None) -> tuple[str, str]:
+        """Fetch the pull request's head and its base branch into local
+        refs and return (base_sha, head_sha). The token reaches git the
+        same way push's does: a credential helper reading the runner's
+        environment, never argv (D-4b)."""
+        config: list[str] = []
+        env = None
+        if token:
+            helper = ("!f() { echo username=x-access-token; "
+                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
+            env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+        head_ref, base_local = f"refs/torve/pr-{number}", f"refs/torve/pr-{number}-base"
+        proc = subprocess.run(
+            ["git", "-C", str(root), *config, "fetch", "origin",
+             f"+refs/pull/{number}/head:{head_ref}",
+             f"+refs/heads/{base_ref}:{base_local}"],
+            capture_output=True, text=True, check=False, env=env,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or "git fetch failed")
+        return (_git(root, "rev-parse", base_local).stdout.strip(),
+                _git(root, "rev-parse", head_ref).stdout.strip())
+
+    def worktree_at(self, root: Path, sha: str, workdir: Path) -> None:
+        added = _git(root, "worktree", "add", "--detach", str(workdir), sha)
+        if added.returncode != 0:
+            raise RuntimeError(added.stderr.strip() or f"worktree add failed at {sha}")
+
+    def remove_worktree(self, root: Path, workdir: Path) -> None:
+        _git(root, "worktree", "remove", "--force", str(workdir))
+
+    def diff(self, root: Path, base: str, head: str) -> str:
+        # Three-dot: the pull request's own changes since the merge base,
+        # not the base branch's drift.
+        return _git(root, "diff", f"{base}...{head}").stdout
+
+    def task_trailers(self, root: Path, base: str, head: str) -> list[str]:
+        log = _git(root, "log", "--format=%B", f"{base}..{head}").stdout
+        seen: list[str] = []
+        for found in re.findall(r"^Torve-Task: (T-\d{4})$", log, re.MULTILINE):
+            if found not in seen:
+                seen.append(found)
+        return seen
+
 
 class GitLane:
     """The lane's git surface (RFC 0006 §1). The rebase happens in a
@@ -184,6 +232,51 @@ class GhScm:
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "gh pr create failed")
         return proc.stdout.strip()
+
+    def _gh(self, *args: str) -> str:
+        command = ["gh", *args]
+        if self.repo:
+            command += ["--repo", self.repo]
+        env = None
+        if self.token_env:
+            token = os.environ.get(self.token_env)
+            if not token:
+                raise RuntimeError(
+                    f"scm.token_env names {self.token_env!r} but the runner's "
+                    "environment does not carry it"
+                )
+            env = {**os.environ, "GH_TOKEN": token}
+        proc = subprocess.run(command, capture_output=True, text=True,
+                              check=False, env=env)
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or f"gh {args[0]} failed")
+        return proc.stdout
+
+    def pr_info(self, number: int) -> PrInfo:
+        document = cast("dict[str, Any]", json.loads(self._gh(
+            "pr", "view", str(number), "--json",
+            "number,title,author,isDraft,headRefOid,baseRefName,changedFiles,state")))
+        author = cast("dict[str, Any]", document.get("author") or {})
+        return PrInfo(
+            number=int(document["number"]),
+            title=str(document.get("title", "")),
+            author=str(author.get("login", "unknown")),
+            draft=bool(document.get("isDraft", False)),
+            head_sha=str(document.get("headRefOid", "")),
+            base_ref=str(document.get("baseRefName", "")),
+            changed_files=int(document.get("changedFiles", 0)),
+            state=str(document.get("state", "")).lower(),
+        )
+
+    def comment(self, number: int, body: str, key: str) -> str:
+        # The same marker dedupe as the tracker's comments: the destination
+        # absorbs an at-least-once duplicate.
+        marker = f"<!-- torve-key:{key} -->"
+        existing = self._gh("pr", "view", str(number), "--json", "comments")
+        if marker in existing:
+            return ""
+        return self._gh("pr", "comment", str(number),
+                        "--body", f"{body}\n\n{marker}").strip()
 
 
 class NullScm:

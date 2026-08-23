@@ -266,21 +266,24 @@ class TrackerConfig(BaseModel):
 class ReviewConfig(BaseModel):
     """Review triggers (RFC 0005 §4). Off by default — a blocker stopping
     the run is configuration deciding a consequence (D-2), and configuring
-    nothing decides nothing. Only the board-driven trigger exists today; the
-    pull-request triggers arrive with a forge remote."""
+    nothing decides nothing. `task_gated` is board-driven; the pull-request
+    triggers admit `torve review pr` as the forge's event delivery.
+    `skip_authors` is §4's author skip rule; draft and zero-changed-files
+    pull requests always skip."""
 
     model_config = ConfigDict(extra="forbid")
 
     on: list[str] = Field(default_factory=list)
+    skip_authors: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _known_triggers(self) -> ReviewConfig:
-        supported = {"task_gated"}
+        supported = {"task_gated", "pr_opened", "pr_synchronized"}
         unknown = [trigger for trigger in self.on if trigger not in supported]
         if unknown:
             raise ValueError(
-                f"unsupported review trigger(s) {', '.join(unknown)} — only "
-                "task_gated exists until a forge remote is integrated"
+                f"unsupported review trigger(s) {', '.join(unknown)} — "
+                f"the vocabulary is {', '.join(sorted(supported))}"
             )
         return self
 
