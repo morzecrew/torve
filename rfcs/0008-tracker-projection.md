@@ -1,7 +1,7 @@
 ---
 id: "0008"
 title: Tracker projection
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0003"]
 informed_by: []
