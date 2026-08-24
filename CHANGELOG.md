@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A conflicted landing re-queues through the revision loop (T-0078,
+  A-35, RFC 0006 D-6.10/D-6.12): the standing loop applies the
+  escalation's standard disposal in place — feedback captured, branch
+  dropped, run re-queued — bounded by progress (once per base tip);
+  repeats against an unmoved base, refused cleanups, and the manual
+  lane keep the human fork. Approvals stay sha-bound and human.
+- The forge sees the landing (T-0077, A-34, RFC 0019 D-19.12/D-19.13):
+  each rebased landing's candidate branch republishes to its landed tip
+  (leased, engine-owned namespace) before the base push, so GitHub
+  marks every landed PR merged with threads anchored to landed code;
+  `retire_pr` gives the forge a short grace and falls back to the
+  T-0072 close-out, deleting the candidate branch in every landed case.
 - The planted feedback record leaves the tree before the gates measure
   it (T-0076, RFC 0005 D-5.13): the revision loop's first live firing
   poisoned its own re-runs — the scope gate saw `.torve/feedback.md`
