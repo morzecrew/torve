@@ -1,0 +1,37 @@
+# Minted by hand — the eval arc's first leg: 0009's outstanding
+# "per-skill telemetry attribution". Cohorts cannot be grouped by skill
+# regime when no record names the skills that were in the sandbox.
+schema_version: 1
+id: T-0070
+rfc: rfcs/0009-skills-evals.md
+phase: 2
+role: implement
+intent: |
+  Every record a run appends names the skills materialized for the
+  attempt: the runner captures what materialize wrote into the agent
+  metadata that is denormalised into attempt records, so telemetry can
+  group runs by skill regime without reconstructing role sets from
+  configuration archaeology. Runs with no agent stay None, as for every
+  agent field.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/runner.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-9.2
+    grade: LOCKED
+    text: "max_in_prompt is enforced and truncation is recorded on the attempt"
+    paths:
+      - src/torve/application/skills.py
+budget: {}
+tier: executor

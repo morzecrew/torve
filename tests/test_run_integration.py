@@ -208,5 +208,8 @@ def test_harness_tier_end_to_end(repo):
     # The sandbox's identity rides the record: the runtime resolved the
     # image to its content digest at dispatch.
     assert str(agent_block["image_digest"]).startswith("sha256:")
+    # Per-skill attribution (T-0070): the record names what materialize
+    # wrote for the role, so cohorts group by skill regime.
+    assert agent_block["skills"] == ["flag-dont-flip", "ratchet-what-you-build"]
     trace = agent_block["trace_ref"]
     assert trace and (repo.root / ".wt" / f"{TASK_ID}.a1.trace.log").is_file()

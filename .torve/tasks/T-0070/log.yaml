@@ -1,0 +1,23 @@
+schema_version: 1
+task: T-0070
+repo: morzecrew/torve
+base_sha: 2e2cf119c2fb469fecec39eecb5347056dadbba6
+drift_count: 0
+entries:
+  - decision: D-9.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T11:11:00Z
+    attempt: 1
+    claim: >-
+      the attribution completes what this row began — the record now
+      names not just whether skills were truncated but which skills were
+      in the sandbox at all, filled from materialize's actual return
+      rather than the configured intent, so a cohort groups by skill
+      regime from the record alone and the telemetry cannot lie about
+      what the agent was given
+    evidence: src/torve/application/runner.py:396-412 — skills on the
+      agent metadata, filled at the materialize call;
+      tests/test_run_integration.py:213 — the record names the role's
+      set
+    action: decided

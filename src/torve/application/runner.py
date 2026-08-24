@@ -394,6 +394,10 @@ def real_hooks(
         "model_version": None, "cost_usd": None, "trace_ref": None,
         "image_digest": image_digest,
         "shadow": shadow,
+        # Per-skill attribution (RFC 0009 §5): filled with what materialize
+        # actually wrote, so cohorts group by skill regime from the record
+        # alone.
+        "skills": None,
     }
 
     async def attempt(state: RunState) -> AgentResult:
@@ -403,8 +407,9 @@ def real_hooks(
         # Vendored skills resolve from the worktree's committed vendor
         # directory beside package data (RFC 0009 §4a) — reviewed repository
         # content instructing the agent about the work.
-        materialize(task.role, worktree / ".torve" / "skills",
-                    config.skills.sets, layout.skills_vendor_dir(worktree))
+        agent_meta["skills"] = materialize(
+            task.role, worktree / ".torve" / "skills",
+            config.skills.sets, layout.skills_vendor_dir(worktree))
         env_passthrough, volumes = (
             _sandbox_auth(tier, config.worker_slot) if real else ((), {})
         )
