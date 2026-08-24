@@ -69,6 +69,36 @@ def tick_cmd(
         return (f"swept {swept} artefact(s)" if swept else "nothing to sweep",
                 swept > 0)
 
+    def _capture_and_drop(task_id: str) -> str:
+        """The re-queue cleanup the retry command and the lane's conflict
+        disposal share (T-0059, A-35): the revision feedback is captured
+        while the branch lives (RFC 0005 §4a, D-5.12 — before the branch
+        dies, or it is gone), then the remote branch is dropped — a ref
+        deletion, never a rewrite."""
+        import os
+
+        from torve.application.feedback import capture_feedback
+        from torve.base import naming
+
+        branch = naming.branch(task_id)
+        note = ""
+        if config.review.feedback_from and config.scm.repo:
+            scm = GhScm(config.scm.repo, config.scm.token_env)
+            try:
+                threads = scm.review_threads(
+                    branch, tuple(config.review.feedback_from))
+                diff = (vcs.diff(root, config.base or "origin/main", branch)
+                        if GitLane().tip(root, branch) else "")
+                if capture_feedback(root, task_id, diff, threads):
+                    note = "; feedback captured"
+            except RuntimeError as exc:
+                note = f"; feedback capture failed: {exc}"
+        token = (os.environ.get(config.scm.token_env)
+                 if config.scm.token_env else None)
+        deleted = vcs.delete_remote_branch(root, branch, token)
+        return ("remote branch deleted" if deleted
+                else "no remote branch") + note
+
     poll_leg: Leg | None = None
     sync_leg: Leg | None = None
     if config.tracker.kind == "github-issues" and config.tracker.repo:
@@ -81,33 +111,6 @@ def tick_cmd(
 
         board = GithubIssues(config.tracker.repo, config.tracker.token_env)
 
-        def _requeue(task_id: str) -> str:
-            import os
-
-            from torve.application.feedback import capture_feedback
-            from torve.base import naming
-
-            branch = naming.branch(task_id)
-            note = ""
-            if config.review.feedback_from and config.scm.repo:
-                # The revision loop (RFC 0005 §4a, D-5.12): captured before
-                # the branch dies, or it is gone.
-                scm = GhScm(config.scm.repo, config.scm.token_env)
-                try:
-                    threads = scm.review_threads(
-                        branch, tuple(config.review.feedback_from))
-                    diff = (vcs.diff(root, config.base or "origin/main", branch)
-                            if GitLane().tip(root, branch) else "")
-                    if capture_feedback(root, task_id, diff, threads):
-                        note = "; feedback captured"
-                except RuntimeError as exc:
-                    note = f"; feedback capture failed: {exc}"
-            token = (os.environ.get(config.scm.token_env)
-                     if config.scm.token_env else None)
-            deleted = vcs.delete_remote_branch(root, branch, token)
-            return ("remote branch deleted" if deleted
-                    else "no remote branch") + note
-
         def _approve_tip(task_id: str) -> str | None:
             from torve.base import naming
 
@@ -115,7 +118,7 @@ def tick_cmd(
 
         def _poll() -> tuple[str, bool]:
             report = poll_and_apply(root, board, tuple(config.tracker.commanders),
-                                    _requeue, _approve_tip)
+                                    _capture_and_drop, _approve_tip)
             if not report.outcomes:
                 return ("no commands on the board", False)
             applied = sum(o.applied for o in report.outcomes)
@@ -173,7 +176,11 @@ def tick_cmd(
             results = process_lane(
                 root, lane_vcs, ci=ci,
                 approvals_required=config.promotion.approvals,
-                quiet_window_s=config.promotion.quiet_window)
+                quiet_window_s=config.promotion.quiet_window,
+                # D-6.10 as amended by A-35: the loop disposes of its own
+                # conflicts through the revision loop; the operator's
+                # manual lane never does.
+                on_conflict=_capture_and_drop)
             if not results:
                 return ("no ready candidates", False)
             if config.tracker.kind == "github-issues" and config.tracker.repo:

@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from torve.adapters.vcs.git import GitLane
+from torve.application.lane import process_lane
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app
@@ -111,6 +113,65 @@ def test_a_conflict_escalates_the_run_and_leaves_the_branch_for_a_human(lane_rep
     again = invoke_merge(lane_repo)
     assert again.exit_code == 0, again.output
     assert json.loads(again.stdout)["results"] == []
+
+
+def test_the_loop_disposes_of_a_conflict_through_the_revision_loop(lane_repo):
+    # D-6.10 as amended by A-35, bounded by D-6.12: with a disposal wired
+    # (the standing loop's), a conflict against a fresh base tip escalates
+    # — the record and the queue-age alarm stand — and is re-queued in
+    # place, the disposal capturing and dropping the branch; a repeat
+    # conflict against the SAME base tip is a human's turn.
+    candidate(lane_repo, "T-7005", "app.py", "candidate = 5\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    base_tip = git(lane_repo, "rev-parse", "HEAD")
+    dropped: list[str] = []
+
+    def disposal(task_id: str) -> str:
+        dropped.append(task_id)
+        return "remote branch deleted; feedback captured"
+
+    results = process_lane(lane_repo, GitLane(), on_conflict=disposal)
+    assert [r.action for r in results] == ["conflict requeued"]
+    assert dropped == ["T-7005"]
+    state = RunState.load(naming.state_file(lane_repo, "T-7005"))
+    assert state.state is TaskState.QUEUED
+    assert state.conflict_base == base_tip
+    facts = [event["fact"] for event in state.history]
+    assert any("merge_conflict" in fact for fact in facts)
+    assert any("auto-requeue" in fact for fact in facts)
+
+    # Re-ready against the SAME base: the progress bound holds.
+    state.state = TaskState.READY
+    state.save()
+    again = process_lane(lane_repo, GitLane(), on_conflict=disposal)
+    assert [r.action for r in again] == ["conflict"]
+    assert dropped == ["T-7005"]  # the disposal did not run again
+    state = RunState.load(naming.state_file(lane_repo, "T-7005"))
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "merge_conflict"
+
+
+def test_a_refused_disposal_leaves_the_escalation_standing(lane_repo):
+    # A disposal the forge refuses degrades to the un-amended behaviour:
+    # the escalation stands for the human fork, nothing half-applied.
+    candidate(lane_repo, "T-7006", "app.py", "candidate = 6\n")
+    (lane_repo / "app.py").write_text("base = 3\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    def refusing(task_id: str) -> str:
+        raise RuntimeError("origin unreachable")
+
+    results = process_lane(lane_repo, GitLane(), on_conflict=refusing)
+    assert [r.action for r in results] == ["conflict"]
+    assert "refused" in results[0].detail
+    state = RunState.load(naming.state_file(lane_repo, "T-7006"))
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "merge_conflict"
 
 
 def test_dry_run_previews_without_moving(lane_repo):

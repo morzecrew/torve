@@ -1,0 +1,46 @@
+schema_version: 1
+task: T-0078
+repo: morzecrew/torve
+base_sha: a2e09779d9a6ecac46984ba2d726e7c6a79a26f4
+drift_count: 0
+entries:
+  - decision: D-6.10
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T20:20:00Z
+    attempt: 1
+    claim: >-
+      executed as amended by A-35 — the lane's conflict branch, given a
+      disposal callable, escalates the run (the record and the
+      queue-age alarm keep their view) and immediately applies the
+      standard disposal: the shared capture-and-drop cleanup runs, then
+      the run transitions escalated to queued with the cleanup note in
+      its history; the engine still never resolves a conflict, and a
+      refused cleanup leaves the escalation standing exactly as the
+      un-amended disposal would
+    evidence: src/torve/application/lane.py:226-264 — the amended
+      conflict branch; src/torve/cli/tick.py:72-100 — the shared
+      cleanup; src/torve/cli/tick.py:176-183 — the loop-only wiring;
+      tests/test_lane.py:118-155 — escalated then queued, disposal
+      called once, history carrying both facts
+    action: decided
+  - decision: D-6.12
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T20:22:00Z
+    attempt: 1
+    claim: >-
+      the progress bound is a sha on the run state — conflict_base
+      records the base tip each auto-disposal answered, the next
+      disposal runs only against a different tip, and a repeat against
+      an unmoved base escalates for a human; the operator's manual
+      lane passes no disposal and keeps the un-amended behaviour, so
+      landings — the only source of new conflicts — bound the loop
+      structurally
+    evidence: src/torve/application/runstate.py:55-58 — the persisted
+      bound; src/torve/application/runstate.py:117 — the bound
+      survives a reload; tests/test_lane.py:139-155 — the same-tip
+      repeat escalates with the disposal not called again;
+      tests/test_lane.py:84-115 — the manual lane's behaviour pinned
+      unchanged
+    action: decided

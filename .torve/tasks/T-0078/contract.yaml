@@ -1,0 +1,49 @@
+# Minted by hand — A-35's execution: twice in one evening the owner
+# approved a candidate and watched it conflict seconds later; the human
+# disposal was pure ceremony.
+schema_version: 1
+id: T-0078
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  A conflicted landing re-queues through the revision loop. The
+  standing loop applies the escalation's standard disposal in place:
+  the conflict still escalates — the record and the queue-age alarm
+  stand — then the branch is captured for the revision loop, dropped,
+  and the run re-queued, at most once per base tip. A repeat conflict
+  against an unmoved base, a refused cleanup, and the operator's
+  manual lane all keep the un-amended behaviour: the escalation
+  stands for the human fork. Approvals stay sha-bound and human.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/lane.py"
+    - "src/torve/application/runstate.py"
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.10
+    grade: LOCKED
+    text: "A conflicted landing escalates the run — ready to escalated, reason merge_conflict; the branch is left exactly as measured. As amended by A-35: in the standing loop the escalation's standard disposal is applied in place — captured for the revision loop and re-queued, at most once per base tip; resolution stays human wherever the loop cannot dispose"
+    paths:
+      - src/torve/domain/states.py
+      - src/torve/application/lane.py
+      - src/torve/cli/tick.py
+  - id: D-6.12
+    grade: ASSUMED
+    text: "The lane's automatic conflict disposal is bounded by progress: it re-queues only when the base tip differs from the last conflicted base this run recorded, and the operator's manual lane never auto-disposes"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/tick.py
+budget: {}
+tier: executor

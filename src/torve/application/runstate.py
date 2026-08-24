@@ -52,6 +52,10 @@ class RunState:
     # approval that predates the last push approves nothing, so the lane
     # counts only entries matching the current branch tip.
     approvals: list[dict[str, str]] = field(default_factory=list)
+    # The base tip this run last conflicted against (D-6.12, A-35): the
+    # lane's automatic conflict disposal re-queues only against a base
+    # that has moved since — a repeat against this tip is a human's turn.
+    conflict_base: str | None = None
 
     def transition(self, to: TaskState, fact: str) -> None:
         """Transitions are executed from facts; the fact is recorded with the
@@ -110,6 +114,7 @@ class RunState:
             escalation=Escalation(**escalation) if escalation else None,
             history=data.get("history", []),
             approvals=data.get("approvals", []),
+            conflict_base=data.get("conflict_base"),
         )
 
     @classmethod

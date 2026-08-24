@@ -19,6 +19,7 @@ telemetry stream as an engine event (D-6.7).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -126,6 +127,7 @@ def process_lane(
     root: Path, vcs: LaneVcs, dry_run: bool = False, only: str | None = None,
     ci: CiStatus | None = None, approvals_required: int = 0,
     quiet_window_s: int = 0,
+    on_conflict: Callable[[str], str] | None = None,
 ) -> list[LaneResult]:
     base = vcs.current_branch(root)
     if not dry_run:
@@ -224,6 +226,38 @@ def process_lane(
         workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
         if not vcs.rebase_in_worktree(root, branch, base, workdir):
             engine_event(root, "lane_conflict", {"task": task_id, "base": base})
+            if on_conflict is not None and state.conflict_base != base_tip:
+                # D-6.10 as amended by A-35: the escalation's standard
+                # disposal is mechanical, so the loop applies it in place
+                # — capture for the revision loop, drop the branch,
+                # re-queue — bounded by progress: once per base tip
+                # (D-6.12); a repeat against an unmoved base falls
+                # through to the human fork below.
+                state.escalate(
+                    EscalationReason.MERGE_CONFLICT,
+                    f"rebase onto {base!r} conflicts; capturing for the "
+                    "revision loop and re-queueing (A-35)")
+                try:
+                    cleanup = on_conflict(task_id)
+                except RuntimeError as exc:
+                    # Refused cleanup leaves the escalation standing
+                    # exactly as the un-amended disposal would.
+                    results.append(LaneResult(
+                        task_id, branch, "conflict",
+                        f"merge_conflict: re-queue cleanup refused ({exc})"
+                        " — run escalated"))
+                    continue
+                state.transition(TaskState.QUEUED,
+                                 f"conflict auto-requeue ({cleanup})")
+                state.conflict_base = base_tip
+                state.save()
+                engine_event(root, "lane_conflict_requeued",
+                             {"task": task_id, "base_tip": base_tip})
+                results.append(LaneResult(
+                    task_id, branch, "conflict requeued",
+                    "merge_conflict: captured for the revision loop and "
+                    "re-queued"))
+                continue
             state.escalate(
                 EscalationReason.MERGE_CONFLICT,
                 f"rebase onto {base!r} conflicts; branch untouched — "
