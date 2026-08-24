@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-30"]
 owner: Lev Litvinov
 description: >-
   Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board.
@@ -116,7 +116,7 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
 | D-8.1 | `LOCKED` | The tracker holds no authoritative state; leases, status and history live in the store | `src/torve/application/tracker.py` | Reversing loses transactions, fencing and append-only at once |
-| D-8.2 | `LOCKED` | Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency | `src/torve/application/outbox.py` `src/torve/application/tracker.py` | At-least-once delivery without duplicate comments |
+| D-8.2 | `LOCKED` | Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency. *Amended by A-30 2026-08-24: the state effect's key gains the transition ordinal — `(task_id, state, attempt, transitions)` — because a state revisited at the same attempt is a new fact the board must reflect* | `src/torve/application/outbox.py` `src/torve/application/tracker.py` | At-least-once delivery without duplicate comments |
 | D-8.3 | `LOCKED` | Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change | `src/torve/application/tracker.py` | Two-way state sync is how these systems rot |
 | D-8.4 | `LOCKED` | Task contracts are not editable from a tracker | `src/torve/application/tracker.py` | A silently widened scope defeats the specification layer |
 | D-8.5 | `LOCKED` | Tracker text is untrusted input and is never treated as specification | `src/torve/application/tracker.py` `src/torve/adapters/tracker/**` | Injection surface with agent readers |
@@ -207,3 +207,28 @@ engine state (RFC 0006's forge leg); the other three commands land here.)*
 - One tracker adapter projecting all states, with idempotency verified by deliberately replaying the relay.
 - Four inbound commands working, including at least one refusal path exercised.
 - A `reflect` refusal observed, logged, and surfaced without corrupting engine state.
+
+## Amendments
+
+### A-30 — 2026-08-24 — a revisited state is a new fact (amends D-8.2)
+
+**Found in operation** — on the first organic retry under the standing
+schedule. A candidate was reflected `ready` at attempt 1, escalated on a
+merge conflict (the board correctly retired `state:ready` for
+`state:escalated:merge_conflict`), was re-queued by the commander, and
+came back `ready` at the same attempt count. The state effect's key
+`(task_id, state, attempt)` had already been delivered, so the revisit
+deduped away — the issue kept wearing the escalation label over a ready
+candidate, a projection showing yesterday's state.
+
+**Changed:** the state effect's key gains the run's transition ordinal —
+the length of the state history that every transition already appends
+to. Replays still deliver nothing (the ordinal is stable between
+transitions), but a revisit is a longer history and therefore a new
+effect. Escalation, notify and attempt effects keep their keys: attempts
+move between their revisits by construction.
+
+**Deliberately unchanged:** the outbox mechanism, the ledger, and the
+at-least-once contract; on upgrade, each task's *current* state is
+re-reflected once under the new key form — idempotent at the
+destination, a label re-set and nothing more.
