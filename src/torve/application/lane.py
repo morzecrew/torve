@@ -82,6 +82,7 @@ def _engine_record(root: Path, rel: str) -> bool:
     checkout's engine state, so engine-authored dirt — minted task
     contracts, telemetry appends, the outbox pair — must not demand an
     operator commit before every landing."""
+    from torve.application.evals import EVAL_LEDGER
     from torve.application.loop import LOCK
     from torve.application.outbox import LEDGER, OUTBOX
     from torve.application.review import PR_LEDGER
@@ -99,7 +100,8 @@ def _engine_record(root: Path, rel: str) -> bool:
                    # leg running inside the tick that holds it; the
                    # pr-reviews ledger is the same class of record.
                    f"{layout.TORVE_DIR}/{LOCK}",
-                   f"{layout.TORVE_DIR}/{PR_LEDGER}"}
+                   f"{layout.TORVE_DIR}/{PR_LEDGER}",
+                   f"{layout.TORVE_DIR}/{EVAL_LEDGER}"}
 
 
 def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:

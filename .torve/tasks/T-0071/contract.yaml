@@ -1,0 +1,48 @@
+# Minted by hand — RFC 0009 §5's eval loop, the last substantial
+# machinery in the corpus: with-skill versus without-skill measurement
+# over completed tasks, riding the shadow doctrine.
+schema_version: 1
+id: T-0071
+rfc: rfcs/0009-skills-evals.md
+phase: 2
+role: implement
+intent: |
+  torve eval runs the skill question end to end: for a named skill and
+  an explicit list of completed tasks, each task replays twice in
+  shadow — once under the configured role sets, once with the skill
+  removed from every set — with the arm recorded on every shadow
+  record. One eval record lands in the evals ledger comparing arms by
+  green outcomes, iterations and cost, with a baseline-matched verdict
+  as direction, never magnitude; deletion of a skill that does not
+  earn its tokens stays a human act on this evidence. A skill in no
+  role set refuses as a configuration error, and the ledger joins the
+  lane's tolerated engine records.
+depends_on: [T-0070]
+targets: []
+scope:
+  allow:
+    - "src/torve/application/evals.py"
+    - "src/torve/application/shadow.py"
+    - "src/torve/application/lane.py"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-9.4
+    grade: ASSUMED
+    text: "A skill that does not beat its without-skill baseline is deleted"
+    paths: []
+  - id: D-4.4
+    grade: LOCKED
+    text: "Shadow runs precede any live loop"
+    paths:
+      - src/torve/application/shadow.py
+budget: {}
+tier: executor

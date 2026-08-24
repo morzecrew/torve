@@ -21,6 +21,7 @@ from torve.cli import (
     console,
     context,
     doctor,
+    evals,
     feedback,
     gates,
     merge,
@@ -74,6 +75,7 @@ app.command("plan")(plan.plan_cmd)
 app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
 app.command("shadow")(shadow.shadow_cmd)
+app.command("eval")(evals.eval_cmd)
 app.command("cancel")(run.cancel)
 app.command("kill")(run.kill)
 app.command("merge")(merge.merge_cmd)

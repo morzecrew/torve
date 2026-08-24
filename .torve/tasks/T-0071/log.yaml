@@ -1,0 +1,36 @@
+schema_version: 1
+task: T-0071
+repo: morzecrew/torve
+base_sha: 8bc099ebd75f560e47a9526678a672d481e2e8a2
+drift_count: 0
+entries:
+  - decision: D-9.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T11:20:00Z
+    attempt: 1
+    claim: >-
+      the deletion threshold becomes a measured verdict rather than a
+      vibe — baseline_matched is true when the without-skill arm did as
+      well on green outcomes and iterations — while the deletion itself
+      stays a human act on the eval record: the machine produces the
+      evidence, never the funeral
+    evidence: src/torve/application/evals.py:59-90 — both arms and the
+      verdict; tests/test_evals.py:49-96 — two arm-marked shadow
+      records, one ledger line, attribution splitting the arms
+    action: decided
+  - decision: D-4.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T11:21:00Z
+    attempt: 1
+    claim: >-
+      the eval loop rides the shadow doctrine unchanged — every arm is
+      a run_shadow replay in a truncated-history clone whose landing
+      hook records instead of committing, so a skill measurement can
+      never move a branch; the only addition to shadow is an optional
+      annotation naming the measurement context on the record
+    evidence: src/torve/application/shadow.py:59-64 — the annotation
+      parameter; tests/test_evals.py:92-96 — the shipped content
+      untouched after both arms
+    action: decided

@@ -59,6 +59,7 @@ async def _drive(state: RunState, task: Task, config: RunnerConfig,
 def run_shadow(
     root: Path, task: Task, config: RunnerConfig, deps: RunDeps,
     source: ShadowSource, commit: str | None = None,
+    annotation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One shadow replay; returns the telemetry record it appended. Raises
     ValueError when no shipped commit is findable (a configuration problem),
@@ -138,6 +139,10 @@ def run_shadow(
     shadow_files = set(record["shadow_diff"].get("files", {}))
     shipped_files = set(record["shipped_diff"].get("files", {}))
     record["overlap_files"] = sorted(shadow_files & shipped_files)
+    if annotation is not None:
+        # The caller's measurement context — the eval loop (RFC 0009 §5)
+        # marks its arm here so the population stays separable.
+        record["eval"] = annotation
 
     append_record(root / layout.TORVE_DIR / "telemetry.jsonl", record)
     return record
