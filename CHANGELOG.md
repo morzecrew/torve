@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The planted feedback record leaves the tree before the gates measure
+  it (T-0076, RFC 0005 D-5.13): the revision loop's first live firing
+  poisoned its own re-runs — the scope gate saw `.torve/feedback.md`
+  as an out-of-scope change and failed three attempts in one minute.
+  The record is planted per attempt for the agent's eyes and unlinked
+  in the attempt's cleanup: feedback steers the attempt, never the
+  candidate, and untrusted review text can never ride a commit.
 - The board is for humans (T-0075, A-33, RFC 0008 D-8.16): review-role
   tasks project no issues — their attempt summaries post as comments on
   the target's thread and their escalations notify there. The review
