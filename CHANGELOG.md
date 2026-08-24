@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The board says where the human is needed (T-0067, RFC 0008
+  D-8.13/D-8.14): an approvals-short candidate gains a needs:approval
+  label and an on-thread prompt naming the tip and count (once per tip;
+  a superseded tip prompts afresh); review-task issues wear a review
+  label; and /torve approve refuses review-role tasks — a review is
+  never landed, so there is nothing to approve.
 - Board hygiene for unattended operation (T-0065 + T-0066, RFC 0008
   D-8.11/D-8.12): sync closes a landed task's issue via a landings pass
   over the landing trailers (one close-out effect per task, ever; an
