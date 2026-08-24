@@ -102,6 +102,16 @@ class GithubIssues:
         self._gh("label", "create", label, "--force", "--color", "5319e7")
         self._gh("issue", "edit", str(number), "--add-label", label)
 
+    def label(self, task_id: str, name: str) -> ReflectResult:
+        # A plain label (D-8.13/D-8.14): applied to an existing issue —
+        # never creating one — and never touching the state:* family.
+        number = self._issue_for(task_id, f"{task_id}: task", create=False)
+        if number is None:
+            return ReflectResult("applied", "no issue to label")
+        self._gh("label", "create", name, "--force", "--color", "0e8a16")
+        self._gh("issue", "edit", str(number), "--add-label", name)
+        return ReflectResult("applied", f"issue #{number} labelled {name}")
+
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
         if state == "landed":
             # The close-out for landed work (D-8.11): no issue means

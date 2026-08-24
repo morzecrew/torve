@@ -28,6 +28,7 @@ class FakeTracker:
     def __init__(self, reflect_outcome: str = "applied",
                  notify_outcome: str = "applied") -> None:
         self.reflected: list[tuple[str, str]] = []
+        self.labelled: list[tuple[str, str]] = []
         self.comments: list[tuple[str, str, str]] = []
         self.notified: list[tuple[str, str, str, str]] = []
         self.commands: list[TrackerCommand] = []
@@ -37,6 +38,10 @@ class FakeTracker:
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
         self.reflected.append((task_id, state))
         return ReflectResult(self.reflect_outcome, "faked")
+
+    def label(self, task_id: str, name: str) -> ReflectResult:
+        self.labelled.append((task_id, name))
+        return ReflectResult("applied", "faked label")
 
     def comment(self, task_id: str, body: str, key: str) -> ReflectResult:
         self.comments.append((task_id, body, key))
@@ -123,6 +128,49 @@ def test_a_live_or_unlanded_task_is_not_closed(root):
     run_state(root, "T-6102", TaskState.READY)   # live state owns it
     contract(root, "T-6103")                     # no landing trailer
     assert project_landings(root, lambda t: t == "T-6102") == 0
+
+
+def test_an_approvals_short_candidate_prompts_once_per_tip(root):
+    # D-8.13: the board says where the human is needed — one prompt per
+    # tip, and a superseded tip prompts afresh.
+    from torve.application.tracker import project_approval_gap
+
+    contract(root, "T-6120")
+    tracker = FakeTracker()
+    assert project_approval_gap(root, "T-6120", "a" * 40, 1) is True
+    assert project_approval_gap(root, "T-6120", "a" * 40, 1) is False  # same tip
+    relay_to_tracker(root, tracker)
+    assert ("T-6120", "needs:approval") in tracker.labelled
+    prompts = [b for t, b, _ in tracker.comments if t == "T-6120"]
+    assert len(prompts) == 1 and "/torve approve" in prompts[0]
+
+    assert project_approval_gap(root, "T-6120", "b" * 40, 1) is True  # new tip
+    relay_to_tracker(root, tracker)
+    assert len([b for t, b, _ in tracker.comments if t == "T-6120"]) == 2
+
+
+def test_a_review_issue_wears_the_review_label(root):
+    # D-8.14: reviews read as the machine's own work.
+    contract(root, "T-6121", role="review", targets=["T-6120"])
+    run_state(root, "T-6121", TaskState.RUNNING)
+    contract(root, "T-6122")
+    run_state(root, "T-6122", TaskState.RUNNING)
+    tracker = FakeTracker()
+    project(root)
+    relay_to_tracker(root, tracker)
+    assert ("T-6121", "review") in tracker.labelled
+    assert not any(t == "T-6122" for t, _ in tracker.labelled)
+
+
+def test_approve_refuses_a_review_task(root):
+    contract(root, "T-6123", role="review", targets=["T-6120"])
+    run_state(root, "T-6123", TaskState.READY)
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("approve", "T-6123", "misery7100", "c9")]
+    outcome = poll_and_apply(root, tracker, ("misery7100",),
+                             approve_tip=lambda _t: "c" * 40).outcomes[0]
+    assert outcome.applied is False and "review" in outcome.detail
+    assert RunState.load(naming.state_file(root, "T-6123")).approvals == []
 
 
 def test_a_review_is_discharged_by_its_targets_landing(root):

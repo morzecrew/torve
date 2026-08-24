@@ -159,6 +159,15 @@ def tick_cmd(
                 quiet_window_s=config.promotion.quiet_window)
             if not results:
                 return ("no ready candidates", False)
+            if config.tracker.kind == "github-issues" and config.tracker.repo:
+                from torve.application.tracker import project_approval_gap
+
+                # D-8.13: the refusal prompts on its thread — delivered by
+                # this same tick's sync leg.
+                for r in results:
+                    if r.action == "approvals short" and r.sha:
+                        project_approval_gap(root, r.task, r.sha,
+                                             config.promotion.approvals)
             landed = sum(1 for r in results if r.action == "landed")
             detail = f"landed {landed} of {len(results)} candidate(s)"
             if landed:

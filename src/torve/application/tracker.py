@@ -76,6 +76,28 @@ def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
     return bodies
 
 
+def _role(root: Path, task_id: str) -> str:
+    contract = layout.task_file(root, task_id)
+    if not contract.is_file():
+        return ""
+    try:
+        from torve.gates.context import load_task
+
+        return load_task(contract).role
+    except ValueError:
+        return ""
+
+
+def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
+    """The board says where the human is needed (D-8.13): a candidate the
+    lane refused for want of approvals prompts on its thread — keyed on
+    the tip, so one prompt per tip and a superseded tip prompts afresh."""
+    return stage(root, Effect(
+        key=f"{task_id}:needs-approval:{sha}", kind="approval_needed",
+        payload={"task": task_id, "title": _title(root, task_id),
+                 "sha": sha, "need": need}))
+
+
 def project(root: Path, notify_login: str = "") -> int:
     """Derive effects from run state and stage them idempotently; returns
     how many were newly staged. Re-running against unchanged state stages
@@ -86,6 +108,12 @@ def project(root: Path, notify_login: str = "") -> int:
         title = _title(root, task_id)
         effects = [Effect(key=f"{task_id}:created", kind="created",
                           payload={"task": task_id, "title": title})]
+        if _role(root, task_id) == "review":
+            # D-8.14: a review issue reads as the machine's own work, not
+            # a peer of the tasks awaiting a human.
+            effects.append(Effect(key=f"{task_id}:role", kind="role_label",
+                                  payload={"task": task_id, "title": title,
+                                           "label": "review"}))
         effects += [
             Effect(key=f"{task_id}:{state.state}:{state.attempts}", kind="state",
                    payload={"task": task_id, "state": str(state.state), "title": title})]
@@ -172,6 +200,16 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
             result = tracker.reflect(task_id, str(payload["state"]), title)
         elif effect.kind == "landed":
             result = tracker.reflect(task_id, "landed", title)
+        elif effect.kind == "role_label":
+            result = tracker.label(task_id, str(payload["label"]))
+        elif effect.kind == "approval_needed":
+            tracker.label(task_id, "needs:approval")
+            result = tracker.comment(
+                task_id,
+                (f"candidate {str(payload['sha'])[:10]} is ready to land and "
+                 f"needs {payload['need']} approval(s) — reply with "
+                 "`/torve approve`"),
+                effect.key)
         elif effect.kind == "escalation":
             body = (f"escalated: {payload['reason']} — {payload['detail']}\n\n"
                     "authority: the run store; this board is a projection")
@@ -251,6 +289,12 @@ def _apply(root: Path, command: TrackerCommand,
         return CommandOutcome(verb, task_id, command.actor, True, "abandoned")
 
     if verb == "approve":
+        if _role(root, task_id) == "review":
+            # A review is never landed (D-8.14): approving one would bind
+            # a sha nothing will ever count.
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  "this is a review task — it is never landed, "
+                                  "so there is nothing to approve")
         if state.state is not TaskState.READY:
             return CommandOutcome(verb, task_id, command.actor, False,
                                   f"approve needs a ready candidate; this one is {state.state}")

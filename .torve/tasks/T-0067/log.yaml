@@ -1,0 +1,35 @@
+schema_version: 1
+task: T-0067
+repo: morzecrew/torve
+base_sha: 7ed8f05efbb70ed582e4f16f42d1e812f03fd20b
+drift_count: 0
+entries:
+  - decision: D-8.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T09:55:00Z
+    attempt: 1
+    claim: >-
+      both new effects ride the same outbox — the approval prompt keyed
+      on the tip ("{task}:needs-approval:{sha}"), so one prompt per tip
+      and a superseded tip prompts afresh, and the role label keyed
+      once per task ever; relay replays deliver nothing twice, and the
+      prompt comment is additionally marker-deduped at the destination
+    evidence: src/torve/application/tracker.py:91-99 — the tip-keyed
+      staging; tests/test_tracker.py:133-149 — once per tip, afresh on
+      a new tip
+    action: decided
+  - decision: D-8.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T09:56:00Z
+    attempt: 1
+    claim: >-
+      approve stays a validated intent and gains the refusal the board's
+      legibility needs — a review-role task refuses outright ("never
+      landed, nothing to approve") before the ready check, answered on
+      its thread like every invalid intent, and no approval is recorded
+    evidence: src/torve/application/tracker.py:291-297 — the role guard
+      ahead of validation; tests/test_tracker.py:165-173 — refused with
+      no approval recorded
+    action: decided

@@ -1,0 +1,48 @@
+# Minted by hand — operator feedback on the board's legibility: review
+# issues read as peers of work issues, and nothing says where an
+# approval is wanted.
+schema_version: 1
+id: T-0067
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  The board says where the human is needed. When the tick's lane
+  refuses a candidate for want of approvals, the task's issue gains a
+  needs-approval label and a keyed prompt naming the tip and the count
+  — once per tip, so a superseded tip prompts afresh. Review-task
+  issues wear a review label from projection, so they read as the
+  machine's own work. And approve refuses a review-role task outright:
+  a review is never landed, so there is nothing to approve.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/tracker.py"
+    - "src/torve/application/lane.py"
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/tracker/github.py"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.2
+    grade: LOCKED
+    text: "Projection rides the outbox, keyed on (task_id, state, attempt) for idempotency"
+    paths:
+      - src/torve/application/outbox.py
+      - src/torve/application/tracker.py
+  - id: D-8.3
+    grade: LOCKED
+    text: "Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change"
+    paths:
+      - src/torve/application/tracker.py
+budget: {}
+tier: executor

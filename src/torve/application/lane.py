@@ -175,7 +175,7 @@ def process_lane(
                 results.append(LaneResult(
                     task_id, branch, "approvals short",
                     f"{len(current)} of {approvals_required} approval(s) "
-                    f"for {branch_tip[:10]}"))
+                    f"for {branch_tip[:10]}", sha=branch_tip))
                 continue
         if quiet_window_s and not dry_run:
             age = vcs.tip_age_s(root, branch_tip)
