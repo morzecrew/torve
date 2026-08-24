@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The eval loop (T-0070 + T-0071, RFC 0009 §5, D-9.14/D-9.15): every
+  record names the skills materialized for its attempt, and `torve eval
+  <skill> --task ...` replays each task twice in shadow — configured
+  role sets versus the sets with the skill removed — landing one
+  skill-eval record in the evals ledger with a baseline-matched verdict
+  (direction, never magnitude; deletion stays a human act). First live
+  eval: flag-dont-flip over two lab tasks — baseline matched.
 - Review issues nest under their targets as forge sub-issues (T-0068,
   RFC 0008 D-8.15): the board's top level is the work, the machine's
   meta-work indents beneath it; adapters without the concept refuse
