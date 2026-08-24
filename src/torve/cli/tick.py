@@ -106,7 +106,11 @@ def tick_cmd(
                     applied > 0)
 
         def _sync() -> tuple[str, bool]:
+            from torve.application.tracker import project_landings
+
             staged = project(root, config.tracker.notify)
+            staged += project_landings(
+                root, lambda t: bool(vcs.landed_shas(root, t)))
             report = relay_to_tracker(root, board)
             return (f"staged {staged}, delivered {len(report.delivered)}",
                     bool(report.delivered))

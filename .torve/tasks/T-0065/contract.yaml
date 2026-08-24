@@ -1,0 +1,47 @@
+# Minted by hand — board hygiene for unattended operation: the first
+# scheduled days showed landed issues lingering open and issue #6
+# wearing three state labels at once.
+schema_version: 1
+id: T-0065
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  Two close-outs the state-driven projection cannot express. A landed
+  task's issue is closed: the run state is swept after the landing, so
+  a landings pass consults the landing trailer for tasks with no live
+  state, stages one close-out effect per task ever, and the adapter
+  closes the issue — never creating one just to close it. And the board
+  wears one state label at a time: setting a state label retires the
+  stale state siblings, while history stays in the comments and the
+  store.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/tracker.py"
+    - "src/torve/adapters/tracker/github.py"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.1
+    grade: LOCKED
+    text: "The tracker holds no authoritative state; leases, status and history live in the store"
+    paths:
+      - src/torve/application/tracker.py
+  - id: D-8.2
+    grade: LOCKED
+    text: "Projection rides the outbox, keyed on (task_id, state, attempt) for idempotency"
+    paths:
+      - src/torve/application/outbox.py
+      - src/torve/application/tracker.py
+budget: {}
+tier: executor

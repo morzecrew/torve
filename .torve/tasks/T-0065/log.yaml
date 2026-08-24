@@ -1,0 +1,40 @@
+schema_version: 1
+task: T-0065
+repo: morzecrew/torve
+base_sha: a41a455c31ac8d20e4592d78421444b43af8a83e
+drift_count: 0
+entries:
+  - decision: D-8.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T09:00:00Z
+    attempt: 1
+    claim: >-
+      the close-out keeps the board a projection — the landings pass
+      derives "done" from the landing trailer in base history, never
+      from anything the board says, and the adapter closes an existing
+      issue without ever creating one just to close it; the label
+      retirement leaves the board wearing only the current state while
+      history stays in the comments and the store
+    evidence: src/torve/application/tracker.py:121-143 — the landings
+      pass over contracts with no live state;
+      src/torve/adapters/tracker/github.py:104-115 — close without
+      create; tests/test_tracker.py:240-256 — closed with an issue,
+      no-op without one
+    action: decided
+  - decision: D-8.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T09:01:00Z
+    attempt: 1
+    claim: >-
+      the close-out effect rides the same outbox with key
+      "{task}:landed" — one effect per task ever, replay delivering
+      nothing — and the ledger check runs before the git ask so the
+      sync leg does not re-interrogate history for issues it already
+      closed
+    evidence: src/torve/application/tracker.py:127-131 — staged_keys
+      consulted before the landed oracle;
+      tests/test_tracker.py:103-115 — staged once, rerun stages and
+      delivers nothing
+    action: decided

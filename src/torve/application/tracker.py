@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
-from torve.application.outbox import Effect, RelayReport, relay, stage
+from torve.application.outbox import Effect, RelayReport, relay, stage, staged_keys
 from torve.application.ports import Tracker, TrackerCommand
 from torve.application.projections import escalation_route
 from torve.application.runstate import RunState
@@ -118,6 +118,30 @@ def project(root: Path, notify_login: str = "") -> int:
     return staged
 
 
+def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
+    """The close-out the state-driven projection cannot see (D-8.11): a
+    landed task's run state is swept after the landing, so only the
+    landing trailer knows the task is done. One effect per task, ever —
+    the ledger check keeps the git ask off already-closed history, and a
+    task with a live state still owns its own projection."""
+    staged = 0
+    seen = staged_keys(root)
+    tasks_dir = root / layout.TORVE_DIR / "tasks"
+    for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
+        task_id = contract.parent.name
+        if f"{task_id}:landed" in seen:
+            continue
+        if naming.state_file(root, task_id).exists():
+            continue
+        if not landed(task_id):
+            continue
+        if stage(root, Effect(key=f"{task_id}:landed", kind="landed",
+                              payload={"task": task_id,
+                                       "title": _title(root, task_id)})):
+            staged += 1
+    return staged
+
+
 def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
     """Deliver pending effects. A refused or unsupported reflection is a
     logged divergence and the effect is DONE — retrying a refusal forever
@@ -130,6 +154,8 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
             result = tracker.reflect(task_id, "created", title)
         elif effect.kind == "state":
             result = tracker.reflect(task_id, str(payload["state"]), title)
+        elif effect.kind == "landed":
+            result = tracker.reflect(task_id, "landed", title)
         elif effect.kind == "escalation":
             body = (f"escalated: {payload['reason']} — {payload['detail']}\n\n"
                     "authority: the run store; this board is a projection")

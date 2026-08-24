@@ -58,11 +58,14 @@ def sync(
 ) -> None:
     """Project run state onto the board and relay pending effects; a rerun
     against unchanged state delivers nothing."""
-    from torve.application.tracker import project, relay_to_tracker
+    from torve.adapters.vcs.git import GitVcs
+    from torve.application.tracker import project, project_landings, relay_to_tracker
 
     root = root.resolve()
     tracker, tracker_config = _adapter(root, config_path)
+    vcs = GitVcs()
     staged = project(root, tracker_config.notify)
+    staged += project_landings(root, lambda t: bool(vcs.landed_shas(root, t)))
     report = relay_to_tracker(root, tracker)
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "staged": staged,

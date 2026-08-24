@@ -14,7 +14,12 @@ import torve.adapters.tracker.github as gh_module
 from torve.adapters.tracker.github import GithubIssues
 from torve.application.ports import ReflectResult, TrackerCommand
 from torve.application.runstate import RunState
-from torve.application.tracker import poll_and_apply, project, relay_to_tracker
+from torve.application.tracker import (
+    poll_and_apply,
+    project,
+    project_landings,
+    relay_to_tracker,
+)
 from torve.base import naming
 from torve.domain.states import TaskState
 
@@ -84,6 +89,37 @@ def test_projection_stages_by_key_and_a_rerun_delivers_nothing(root):
     again = relay_to_tracker(root, tracker)
     assert again.delivered == [] and len(again.skipped) == 2
     assert len(tracker.reflected) == 2
+
+
+def contract(root: Path, task_id: str) -> None:
+    folder = root / ".torve" / "tasks" / task_id
+    folder.mkdir(parents=True)
+    (folder / "contract.yaml").write_text(
+        f"schema_version: 1\nid: {task_id}\nrole: implement\n"
+        "intent: close-out probe\nscope:\n  allow: ['src/**']\n  deny: []\n"
+        "decisions: []\n", encoding="utf-8")
+
+
+def test_a_landed_task_with_no_state_closes_its_issue_once(root):
+    # D-8.11: the run state is swept after a landing, so the landings
+    # pass consults the trailer — one close-out effect per task, ever.
+    contract(root, "T-6101")
+    tracker = FakeTracker()
+
+    assert project_landings(root, lambda t: t == "T-6101") == 1
+    relay_to_tracker(root, tracker)
+    assert ("T-6101", "landed") in tracker.reflected
+
+    assert project_landings(root, lambda t: t == "T-6101") == 0  # ever
+    again = relay_to_tracker(root, tracker)
+    assert again.delivered == []
+
+
+def test_a_live_or_unlanded_task_is_not_closed(root):
+    contract(root, "T-6102")
+    run_state(root, "T-6102", TaskState.READY)   # live state owns it
+    contract(root, "T-6103")                     # no landing trailer
+    assert project_landings(root, lambda t: t == "T-6102") == 0
 
 
 def test_an_escalation_projects_its_reason_and_detail(root):
@@ -199,6 +235,40 @@ def test_github_poll_parses_allow_listed_commands_and_skips_answered(monkeypatch
 # comment. The invariant under test: every escalated task has exactly one
 # delivered notification, whatever crashes and replays between state write
 # and relay.
+
+
+def test_github_reflect_landed_closes_but_never_creates(monkeypatch):
+    # With an issue: labelled state:landed and closed. Without one: the
+    # close-out is a no-op — an issue is never created just to be closed.
+    issue = json.dumps([{"number": 9, "title": "T-6104: probe"}])
+    labels = json.dumps({"labels": [{"name": "state:ready"}]})
+    calls = scripted_gh(monkeypatch, {"issue list": issue, "issue view": labels})
+    adapter = GithubIssues("o/r", token_env=None)
+    result = adapter.reflect("T-6104", "landed", "T-6104: probe")
+    assert result.outcome == "applied" and "closed" in result.detail
+    joined = [" ".join(c) for c in calls]
+    assert any("issue close 9" in c for c in joined)
+
+    bare = scripted_gh(monkeypatch, {"issue list": "[]"})
+    missing = GithubIssues("o/r", token_env=None).reflect("T-6105", "landed", "t")
+    assert missing.detail == "no issue to close"
+    assert not any("issue create" in " ".join(c) for c in bare)
+
+
+def test_github_reflect_retires_stale_state_labels(monkeypatch):
+    # D-8.12: the board wears one state label at a time; non-state labels
+    # are untouched.
+    issue = json.dumps([{"number": 7, "title": "T-6106: probe"}])
+    labels = json.dumps({"labels": [{"name": "state:escalated"},
+                                    {"name": "state:escalated:poison_ceiling"},
+                                    {"name": "priority"}]})
+    calls = scripted_gh(monkeypatch, {"issue list": issue, "issue view": labels})
+    GithubIssues("o/r", token_env=None).reflect("T-6106", "ready", "T-6106: probe")
+    joined = [" ".join(c) for c in calls]
+    assert any("--remove-label state:escalated " in c + " " for c in joined)
+    assert any("--remove-label state:escalated:poison_ceiling" in c for c in joined)
+    assert any("--add-label state:ready" in c for c in joined)
+    assert not any("--remove-label priority" in c for c in joined)
 
 
 def test_an_interrupt_class_escalation_notifies_exactly_once(root):

@@ -90,11 +90,28 @@ class GithubIssues:
         return number
 
     def _set_label(self, number: int, label: str) -> None:
-        # Labels are created idempotently, then applied.
+        # Labels are created idempotently, then applied — and the board
+        # wears one state label at a time (D-8.12): stale state siblings
+        # are retired, history stays in the comments and the store.
+        listed = cast("dict[str, Any]", json.loads(
+            self._gh("issue", "view", str(number), "--json", "labels") or "{}"))
+        for worn in cast("list[dict[str, Any]]", listed.get("labels", [])):
+            name = str(worn.get("name", ""))
+            if name.startswith("state:") and name != label:
+                self._gh("issue", "edit", str(number), "--remove-label", name)
         self._gh("label", "create", label, "--force", "--color", "5319e7")
         self._gh("issue", "edit", str(number), "--add-label", label)
 
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
+        if state == "landed":
+            # The close-out for landed work (D-8.11): no issue means
+            # nothing to close — never create one just to close it.
+            number = self._issue_for(task_id, title, create=False)
+            if number is None:
+                return ReflectResult("applied", "no issue to close")
+            self._set_label(number, "state:landed")
+            self._gh("issue", "close", str(number))
+            return ReflectResult("applied", f"issue #{number} closed: landed")
         number = self._issue_for(task_id, title)
         assert number is not None
         if state == "created":
