@@ -8,7 +8,7 @@ depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-27", "A-28"]
+amended_by: ["A-27", "A-28", "A-29"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -131,6 +131,16 @@ any state, terminal or not, is not re-dispatched") is the intent;
 telemetry is append-only, survives the reaper, and keeps the rule
 readable from the file system alone.
 
+*Amendment note 2026-08-24 (A-29, executed as T-0064):* the record the
+previous note settled on is still host truth — state files and telemetry
+are unversioned, so a fresh clone holds neither and sees the entire
+landed history as queued. Selection therefore asks the repository before
+it trusts the host: a task whose landing trailer is already in base
+history is never queued, whatever run records the host holds. The oracle
+is the same one the reaper (D-19.10) and the dependency check already
+consult; it is asked only of tasks the host records would otherwise
+select, so the common tick still reads local files alone.
+
 *Execution note 2026-08-24 (T-0059):* the re-entry this section names is
 now mechanical end to end: a `QUEUED` run state — the state a board
 `retry` leaves behind — is queued, dependencies still checked, and the
@@ -240,7 +250,7 @@ creates work" buys.
 | D-19.1 | `LOCKED` | The standing loop is a bounded tick (`torve tick`), never a resident daemon; cadence is delivered by the environment | `src/torve/application/loop.py` `src/torve/cli/tick.py` | One operational surface; a dead scheduler is visible silence, a daemon is a zombie that looks alive |
 | D-19.2 | `LOCKED` | One tick at a time per root, held by a lock file; an overlapping fire exits as a recorded no-op; a stale lock is broken loudly, and D-6.9's converging dispatch remains the backstop below it | `src/torve/application/loop.py` | Cron overlap is a certainty; it must be boring |
 | D-19.3 | `ASSUMED` | Tick order is fixed: poll, lane, reap, dispatch, sync. *Amended by A-27 2026-08-24 — as accepted the order was reap-first, and the second live tick showed the reaper sweeping the lane's READY input; A-26's merge-before-reap applies inside the tick* | `src/torve/application/loop.py` | Human intents precede machine work; the lane's input outlives the reaper; the board is a postcondition of the tick, not a snapshot of its middle |
-| D-19.4 | `ASSUMED` | Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick, as doctrine not configuration | `src/torve/application/loop.py` | Deterministic from the file system alone; spend is bounded by cadence; a priority field would be a second planner |
+| D-19.4 | `ASSUMED` | Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick, as doctrine not configuration. *Amended by A-29 2026-08-24: a task whose landing trailer is already in base history is never queued, whatever run records the host holds — landings are repo truth, run records are host truth, and a fresh clone must not re-run what the repository already knows* | `src/torve/application/loop.py` | Deterministic from the file system alone; spend is bounded by cadence; a priority field would be a second planner |
 | D-19.5 | `LOCKED` | Intake pauses while the escalation queue holds `loop.pause_escalations` runs (default 1); every other leg keeps running — the queue may drain, not grow, by the loop's hand | `src/torve/application/loop.py` `src/torve/config/runconfig.py` | D-6.8 made mechanical: a queue nobody triages stops the machine, not the person |
 | D-19.6 | `LOCKED` | The tick's lane leg runs only under `promotion.auto_merge`; otherwise ready candidates accumulate for the operator | `src/torve/application/loop.py` | A scheduler is nobody's approval; D-6.2's opt-in is exactly this switch and no second knob is added |
 | D-19.7 | `ASSUMED` | Every tick appends one engine event recording each leg's action or skip reason, `noop: true` when nothing moved | `src/torve/application/loop.py` `src/torve/application/telemetry.py` | Quiet and dead must be distinguishable from telemetry alone |
@@ -357,3 +367,32 @@ papered over the gaps.
 **Deliberately unchanged:** D-10.5 — no force path exists anywhere,
 including the new base push; the tick order (A-27) stands; the reaper's
 treatment of escalated runs (keep everything for triage) stands.
+
+### A-29 — 2026-08-24 — landings are repo truth, run records are host truth (amends §4, D-19.4)
+
+**Found in implementation** — by the very first tick under the installed
+schedule, which ran against a fresh clone of the lab. The T-0055
+execution note had already refined "no run state" to "no run record"
+because the reaper removes state files; but state files and telemetry
+are both host-local and unversioned, so a new checkout holds neither.
+That first tick saw the entire landed history — some thirty tasks — as
+queued and re-dispatched the oldest. The effect was contained by the
+regime's own layers (the agent found the work already on main and
+produced an empty candidate; approvals would have refused any landing),
+but the failure repeats one wasted dispatch per tick, on every fresh
+clone, forever: spend and board noise with no bound.
+
+**Changed:** §4 gains a fourth condition and D-19.4 records it —
+selection asks the repository before it trusts the host. A task whose
+landing trailer is already in base history is never queued, whatever run
+records the host holds; the oracle is the one the reaper (D-19.10) and
+the dependency check already consult. Run records still decide
+everything short of landing — an attempt that escalated on one host is
+that host's business to triage — but a landing is repo truth and
+travels with every clone.
+
+**Deliberately unchanged:** the T-0055 refinement stands (telemetry
+still guards the reaped-but-unlanded history on the host that ran it);
+QUEUED re-entry (T-0059) stands, but the repo check is authoritative
+over it — a landed task's re-entry is a revert and a new contract,
+never a re-run; and the tick still creates nothing (D-19.8).
