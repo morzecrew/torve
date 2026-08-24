@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Board hygiene for unattended operation (T-0065, RFC 0008
+- Board hygiene for unattended operation (T-0065 + T-0066, RFC 0008
   D-8.11/D-8.12): sync closes a landed task's issue via a landings pass
   over the landing trailers (one close-out effect per task, ever; an
-  issue is never created just to be closed), and setting a state label
-  retires the stale state siblings so the board wears exactly one.
+  issue is never created just to be closed), review issues close when
+  their every target has landed, and setting a state label retires the
+  stale state siblings so the board wears exactly one.
 - A-29 (T-0064): the repository outranks the host — a task whose
   landing trailer is already in base history is never queued, whatever
   run records the host holds, and the check is authoritative over the
