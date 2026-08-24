@@ -8,7 +8,7 @@ depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-27", "A-28", "A-29", "A-31"]
+amended_by: ["A-27", "A-28", "A-29", "A-31", "A-34"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -260,9 +260,11 @@ creates work" buys.
 | D-19.6 | `LOCKED` | The tick's lane leg runs only under `promotion.auto_merge`; otherwise ready candidates accumulate for the operator | `src/torve/application/loop.py` | A scheduler is nobody's approval; D-6.2's opt-in is exactly this switch and no second knob is added |
 | D-19.7 | `ASSUMED` | Every tick appends one engine event recording each leg's action or skip reason, `noop: true` when nothing moved | `src/torve/application/loop.py` `src/torve/application/telemetry.py` | Quiet and dead must be distinguishable from telemetry alone |
 | D-19.8 | `LOCKED` | The tick never creates work: it drains contracts and commands minted by humans or by the human-invoked planner | `src/torve/application/loop.py` | The machine must not invent its own backlog; growth stays a human act |
-| D-19.9 | `LOCKED` | The loop publishes what it lands: after at least one landing, the tick's lane leg pushes the base branch to origin, fast-forward only — a refused push is a loud leg error, and no force path exists (D-10.5 untouched). Added by amendment A-28 2026-08-24 | `src/torve/cli/tick.py` `src/torve/adapters/vcs/git.py` | Unpushed landings leave origin stale, and every later dispatch bases on the stale origin and conflicts systematically |
+| D-19.9 | `LOCKED` | The loop publishes what it lands: after at least one landing, the tick's lane leg pushes the base branch to origin, fast-forward only — a refused push is a loud leg error, and no force path exists for the base (D-10.5 untouched). Added by amendment A-28 2026-08-24. *Complemented by amendment A-34 2026-08-24 (D-19.12): the candidate branch republishes first, so the forge sees this push as the merge* | `src/torve/cli/tick.py` `src/torve/adapters/vcs/git.py` | Unpushed landings leave origin stale, and every later dispatch bases on the stale origin and conflicts systematically |
 | D-19.10 | `ASSUMED` | The reaper keeps the state file of a READY implement or revert run whose task has not landed on the base; its worktree stays disposable, and review-role READY states remain sweepable. Added by amendment A-28 2026-08-24, amending RFC 0003 D-3.23's sweep scope | `src/torve/application/reaper.py` | READY is terminal to the engine but it is the lane's input; sweeping it before the landing loses the candidate across ticks |
 | D-19.11 | `ASSUMED` | The lane adopts byte-identical untracked engine-record files the landing branch carries — the root copy is removed before the fast-forward; any difference in content still refuses. Added by amendment A-28 2026-08-24 | `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` | The runner's worktree commit carries the task's own contract; an untracked identical copy in the root must not block the landing it belongs to |
+| D-19.12 | `ASSUMED` | Before the base push, each rebased landing's candidate branch is republished to its landed tip — force-with-lease, engine-owned `torve/*` namespace, at landing time only — so the forge recognizes the base push as the merge of every landed pull request. Added by amendment A-34 2026-08-24 | `src/torve/cli/tick.py` `src/torve/adapters/vcs/git.py` | The board read fast-forward landings as rejected work; a reader's first hour must not need this table to trust the history |
+| D-19.13 | `ASSUMED` | A landed pull request the forge does not mark merged within a short grace is closed with the landing note — the T-0072 close-out, now the fallback — and the candidate branch is deleted in every landed case. Added by amendment A-34 2026-08-24 | `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | The race between the forge's merge detection and the engine's close-out must degrade to yesterday's behaviour, never to an open orphan |
 
 ## Phasing
 
@@ -429,3 +431,32 @@ to this tick's dispatch.
 costs at most its place in line); the escalation pause, which contained
 this defect exactly as designed; and the QUEUED re-entry path — a
 re-queued dependent re-checks its dependencies like everything else.
+
+### A-34 — 2026-08-24 — the forge sees the landing (adds D-19.12/D-19.13; scopes RFC 0010 D-10.5)
+
+**Found in operation** — the owner read the pull-request board as a
+disconnected mess: most landed work wore the red "closed" of rejected
+branches. Audit: the forge marks a pull request merged exactly when its
+head sha becomes an ancestor of the base. Every fast-forward landing —
+branch tip and landed sha identical — flipped purple on its own, nine
+pull requests and never a merge button; every rebased landing read as
+closed, because the rewritten tip landed while the branch the pull
+request watches still pointed at the superseded sha, and the T-0072
+close-out then closed a pull request whose content was on the base
+under another name.
+
+**Changed:** the loop publishes the landed form where the forge watches
+for it. Before the base push, each rebased landing's candidate branch is
+republished to its landed tip — force-with-lease, engine-owned `torve/*`
+namespace, at landing time only (D-19.12); the base push then makes the
+forge mark the pull request merged, its review threads anchored to the
+code that actually landed. A landed pull request the forge does not flip
+within a short grace is closed with the landing note exactly as before,
+and the candidate branch is deleted in every landed case — the close-out
+is now the fallback, not the rule (D-19.13).
+
+**Deliberately unchanged:** the base advances by fast-forward only, no
+force path (D-19.9); and RFC 0010 D-10.5's force-push prohibition during
+review — the republish happens at landing, after the sha-bound approvals
+have concluded the review that row protects, and is precisely what keeps
+its line comments anchored to the landed history.
