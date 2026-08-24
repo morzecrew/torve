@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: ["0005"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-35"]
 owner: Lev Litvinov
 description: >-
   Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted.
@@ -138,8 +138,9 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 | D-6.7 | `ASSUMED` | Engine health rides the existing telemetry path as `EngineEvent` | `src/torve/application/telemetry.py` | A second observability stack is a second thing to operate |
 | D-6.8 | `LOCKED` | Escalation queue age is the primary alert | `src/torve/application/telemetry.py` | The failure that is invisible from inside the runner |
 | D-6.9 | `ASSUMED` | Dispatch keys durable runs by task and generation, so concurrent dispatches of one task converge on a single store claim instead of racing the engine's state-file guard. Added by execution 2026-08-21 | `src/torve/application/taskstore.py` | The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion mechanism |
-| D-6.10 | `LOCKED` | A conflicted landing escalates the run — `ready → escalated`, reason `merge_conflict`; the branch is left exactly as measured and resolution is human: re-queue or abandon. Added by amendment A-26 2026-08-23 (registered on the charter) | `src/torve/domain/states.py` `src/torve/application/lane.py` | Otherwise a candidate that cannot land is invisible to the escalation queue, whose age is the primary alert |
+| D-6.10 | `LOCKED` | A conflicted landing escalates the run — `ready → escalated`, reason `merge_conflict`; the branch is left exactly as measured. Added by amendment A-26 2026-08-23 (registered on the charter). Amended by A-35 2026-08-24: in the standing loop the escalation's standard disposal is applied in place — the branch is captured for the revision loop (RFC 0005 §4a) and the run re-queued, at most once per base tip (D-6.12); resolution stays human — re-queue or abandon — wherever the loop cannot dispose: a repeat conflict against an unmoved base, or the operator's manual lane | `src/torve/domain/states.py` `src/torve/application/lane.py` `src/torve/cli/tick.py` | Otherwise a candidate that cannot land is invisible to the escalation queue, whose age is the primary alert |
 | D-6.11 | `ASSUMED` | Interrupt-class escalations (§4's notify and harness-owner routes) produce exactly one delivered notification through the outbox — issue assignment plus @mention of the configured `tracker.notify` login; assignment is best-effort, the mention is the notification; batch stays board-visible only, and an empty login keeps the notifier inert. Closes RFC 0003 D-3.18. Added by execution 2026-08-23 — see .torve/tasks/T-0051 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | A queue nobody triages looks identical to success; the interrupt class must reach a person without a polling habit |
+| D-6.12 | `ASSUMED` | The lane's automatic conflict disposal is bounded by progress: it re-queues only when the base tip differs from the last conflicted base this run recorded — landings are the only source of new conflicts, so the bound is structural — and a repeat conflict against an unmoved base escalates for a human. The operator's manual lane never auto-disposes. Added by amendment A-35 2026-08-24 | `src/torve/application/lane.py` `src/torve/cli/tick.py` | An automatic requeue without a progress bound is a spin loop wearing doctrine |
 
 ## Phasing
 
@@ -206,3 +207,29 @@ and the gate battery is current-head CI.)*
 
 - Ten tasks landed through the serialized lane with no post-merge CI break attributable to ordering.
 - Escalation resolution time recorded for two weeks.
+
+## Amendments
+
+### A-35 — 2026-08-24 — a conflicted landing re-queues through the revision loop (amends D-6.10, adds D-6.12)
+
+**Found in operation** — twice in one evening the owner approved a
+candidate and watched it escalate `merge_conflict` seconds later: a
+same-file sibling had landed first, the sha-bound approval burned with
+the superseded tip, and the disposal was a human `/torve retry` whose
+every consequence was already mechanical — capture the branch for the
+revision loop, delete it, re-queue. Ceremony, not judgement.
+
+**Changed:** the standing loop applies that disposal itself. The
+conflict still escalates — the record and the queue-age alarm stand —
+and is then re-queued in place: feedback captured (RFC 0005 §4a),
+branch dropped, run queued, at most once per base tip (D-6.12). The
+re-run's fresh candidate prompts for its own sha-bound approval as
+always: the feedback channel steers attempts, never landings.
+
+**Deliberately unchanged:** the engine never resolves a conflict — the
+rebase still aborts with the branch exactly as measured; approvals stay
+sha-bound and human, a burned approval re-asked, never assumed; and the
+operator's manual lane escalates exactly as before, because a person
+running it by hand is present to decide. The deeper reorder — probing
+the rebase before requesting approvals, so a doomed tip is never
+offered for approval at all — is left to a future amendment.
