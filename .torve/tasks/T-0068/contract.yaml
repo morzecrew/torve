@@ -1,0 +1,45 @@
+# Minted by hand — operator feedback continued: a review should nest
+# under the work it reviews, not sit beside it as a peer.
+schema_version: 1
+id: T-0068
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  Review issues nest under their target's issue as forge sub-issues: a
+  review-role task with a target stages one nesting effect, and the
+  adapter links existing issues only — a forge or plan without the
+  sub-issue concept refuses honestly through the divergence path, and
+  an already-linked pair answers as applied. The board's top level is
+  then the work; the machine's meta-work indents beneath it.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/tracker.py"
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/tracker/github.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.2
+    grade: LOCKED
+    text: "Projection rides the outbox, keyed on (task_id, state, attempt) for idempotency"
+    paths:
+      - src/torve/application/outbox.py
+      - src/torve/application/tracker.py
+  - id: D-8.6
+    grade: ASSUMED
+    text: "reflect returns applied/refused/unsupported; refusal is a logged divergence"
+    paths:
+      - src/torve/application/ports.py
+      - src/torve/adapters/tracker/github.py
+budget: {}
+tier: executor

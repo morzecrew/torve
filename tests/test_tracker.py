@@ -29,6 +29,7 @@ class FakeTracker:
                  notify_outcome: str = "applied") -> None:
         self.reflected: list[tuple[str, str]] = []
         self.labelled: list[tuple[str, str]] = []
+        self.linked: list[tuple[str, str]] = []
         self.comments: list[tuple[str, str, str]] = []
         self.notified: list[tuple[str, str, str, str]] = []
         self.commands: list[TrackerCommand] = []
@@ -42,6 +43,10 @@ class FakeTracker:
     def label(self, task_id: str, name: str) -> ReflectResult:
         self.labelled.append((task_id, name))
         return ReflectResult("applied", "faked label")
+
+    def link(self, task_id: str, parent_task_id: str) -> ReflectResult:
+        self.linked.append((task_id, parent_task_id))
+        return ReflectResult("applied", "faked link")
 
     def comment(self, task_id: str, body: str, key: str) -> ReflectResult:
         self.comments.append((task_id, body, key))
@@ -160,6 +165,38 @@ def test_a_review_issue_wears_the_review_label(root):
     relay_to_tracker(root, tracker)
     assert ("T-6121", "review") in tracker.labelled
     assert not any(t == "T-6122" for t, _ in tracker.labelled)
+
+
+def test_a_review_issue_nests_under_its_target(root):
+    # D-8.15: the machine's meta-work indents beneath the work.
+    contract(root, "T-6125", role="review", targets=["T-6124"])
+    run_state(root, "T-6125", TaskState.RUNNING)
+    tracker = FakeTracker()
+    project(root)
+    relay_to_tracker(root, tracker)
+    assert ("T-6125", "T-6124") in tracker.linked
+    project(root)
+    relay_to_tracker(root, tracker)
+    assert len(tracker.linked) == 1  # one nesting effect, ever
+
+
+def test_github_link_nests_existing_issues_only(monkeypatch):
+    issues = json.dumps([{"number": 9, "title": "T-6126: probe"},
+                         {"number": 4, "title": "T-6127: probe"}])
+    calls = scripted_gh(monkeypatch, {"sub_issues": "",
+                                      "issue list": issues,
+                                      "repos/o/r/issues/9": "555\n"})
+    adapter = GithubIssues("o/r", token_env=None)
+    result = adapter.link("T-6126", "T-6127")
+    assert result.outcome == "applied" and "nested under #4" in result.detail
+    joined = [" ".join(c) for c in calls]
+    assert any("repos/o/r/issues/4/sub_issues" in c and "sub_issue_id=" in c
+               for c in joined)
+
+    bare = scripted_gh(monkeypatch, {"issue list": "[]"})
+    missing = GithubIssues("o/r", token_env=None).link("T-6126", "T-6127")
+    assert missing.detail == "nothing to link"
+    assert not any("issue create" in " ".join(c) for c in bare)
 
 
 def test_approve_refuses_a_review_task(root):

@@ -76,16 +76,21 @@ def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
     return bodies
 
 
-def _role(root: Path, task_id: str) -> str:
+def _task(root: Path, task_id: str) -> Any | None:
     contract = layout.task_file(root, task_id)
     if not contract.is_file():
-        return ""
+        return None
     try:
         from torve.gates.context import load_task
 
-        return load_task(contract).role
+        return load_task(contract)
     except ValueError:
-        return ""
+        return None
+
+
+def _role(root: Path, task_id: str) -> str:
+    task = _task(root, task_id)
+    return task.role if task is not None else ""
 
 
 def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
@@ -108,12 +113,20 @@ def project(root: Path, notify_login: str = "") -> int:
         title = _title(root, task_id)
         effects = [Effect(key=f"{task_id}:created", kind="created",
                           payload={"task": task_id, "title": title})]
-        if _role(root, task_id) == "review":
+        task = _task(root, task_id)
+        if task is not None and task.role == "review":
             # D-8.14: a review issue reads as the machine's own work, not
             # a peer of the tasks awaiting a human.
             effects.append(Effect(key=f"{task_id}:role", kind="role_label",
                                   payload={"task": task_id, "title": title,
                                            "label": "review"}))
+            if task.targets:
+                # D-8.15: the review nests under the work it reviews — a
+                # sub-issue has one parent, so the first target holds it.
+                effects.append(Effect(
+                    key=f"{task_id}:sub-of:{task.targets[0]}", kind="sub_issue",
+                    payload={"task": task_id, "title": title,
+                             "parent": task.targets[0]}))
         effects += [
             Effect(key=f"{task_id}:{state.state}:{state.attempts}", kind="state",
                    payload={"task": task_id, "state": str(state.state), "title": title})]
@@ -202,6 +215,8 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
             result = tracker.reflect(task_id, "landed", title)
         elif effect.kind == "role_label":
             result = tracker.label(task_id, str(payload["label"]))
+        elif effect.kind == "sub_issue":
+            result = tracker.link(task_id, str(payload["parent"]))
         elif effect.kind == "approval_needed":
             tracker.label(task_id, "needs:approval")
             result = tracker.comment(

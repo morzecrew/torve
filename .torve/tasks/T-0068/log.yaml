@@ -1,0 +1,35 @@
+schema_version: 1
+task: T-0068
+repo: morzecrew/torve
+base_sha: 2d7343c83f4a2f7d98db5230f5b38f785f44cb71
+drift_count: 0
+entries:
+  - decision: D-8.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T10:35:00Z
+    attempt: 1
+    claim: >-
+      the nesting effect rides the outbox keyed "{task}:sub-of:{target}"
+      — one per review ever, replay delivering nothing; a sub-issue has
+      one parent, so the first target holds it
+    evidence: src/torve/application/tracker.py:124-130 — the staged
+      effect beside the role label; tests/test_tracker.py:170-181 —
+      linked once, rerun links nothing
+    action: decided
+  - decision: D-8.6
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T10:36:00Z
+    attempt: 1
+    claim: >-
+      the adapter links existing issues only and degrades honestly — a
+      missing issue on either side answers applied with nothing to
+      link, an already-linked pair answers applied, and a forge or plan
+      refusing the sub-issue call returns refused, which the relay logs
+      as a divergence and never retries forever
+    evidence: src/torve/adapters/tracker/github.py:121-141 — the
+      existing-only link with the refusal path;
+      tests/test_tracker.py:183-201 — nested with issues present, inert
+      without them
+    action: decided

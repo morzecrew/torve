@@ -45,7 +45,7 @@ class GithubIssues:
         self.sleeper = sleeper
         self._issues: dict[str, int] = {}  # projection cache, never authority
 
-    def _gh(self, *args: str) -> str:
+    def _run(self, command: list[str]) -> str:
         env = None
         if self.token_env:
             token = os.environ.get(self.token_env)
@@ -56,12 +56,11 @@ class GithubIssues:
                 )
             env = {**os.environ, "GH_TOKEN": token}
         for attempt in (1, 2):
-            proc = subprocess.run(["gh", *args, "--repo", self.repo],
-                                  capture_output=True, text=True, check=False,
-                                  env=env)
+            proc = subprocess.run(command, capture_output=True, text=True,
+                                  check=False, env=env)
             if proc.returncode == 0:
                 return proc.stdout
-            error = proc.stderr.strip() or f"gh {args[0]} failed"
+            error = proc.stderr.strip() or f"{command[1]} failed"
             # One retry for a transient transport failure (T-0058): every
             # destination write is idempotent, so at-least-once is safe.
             if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
@@ -69,6 +68,13 @@ class GithubIssues:
                 continue
             raise RuntimeError(error)
         raise RuntimeError("unreachable")  # for the type checker
+
+    def _gh(self, *args: str) -> str:
+        return self._run(["gh", *args, "--repo", self.repo])
+
+    def _api(self, *args: str) -> str:
+        # `gh api` takes the repo in the endpoint, never as a flag.
+        return self._run(["gh", "api", *args])
 
     def _issue_for(self, task_id: str, title: str, create: bool = True) -> int | None:
         if task_id in self._issues:
@@ -111,6 +117,27 @@ class GithubIssues:
         self._gh("label", "create", name, "--force", "--color", "0e8a16")
         self._gh("issue", "edit", str(number), "--add-label", name)
         return ReflectResult("applied", f"issue #{number} labelled {name}")
+
+    def link(self, task_id: str, parent_task_id: str) -> ReflectResult:
+        """Sub-issue nesting (D-8.15): the review indents under the work it
+        reviews. Links existing issues only; a forge or plan without the
+        concept refuses, which the relay logs as a divergence (D-8.6)."""
+        child = self._issue_for(task_id, f"{task_id}: task", create=False)
+        parent = self._issue_for(parent_task_id, f"{parent_task_id}: task",
+                                 create=False)
+        if child is None or parent is None:
+            return ReflectResult("applied", "nothing to link")
+        try:
+            child_id = self._api(f"repos/{self.repo}/issues/{child}",
+                                 "--jq", ".id").strip()
+            self._api("-X", "POST",
+                      f"repos/{self.repo}/issues/{parent}/sub_issues",
+                      "-F", f"sub_issue_id={child_id}")
+        except RuntimeError as error:
+            if "already" in str(error).lower():
+                return ReflectResult("applied", "already linked")
+            return ReflectResult("refused", str(error))
+        return ReflectResult("applied", f"#{child} nested under #{parent}")
 
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
         if state == "landed":
