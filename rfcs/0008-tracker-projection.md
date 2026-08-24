@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-30"]
+amended_by: ["A-30", "A-33"]
 owner: Lev Litvinov
 description: >-
   Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board.
@@ -128,8 +128,9 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 | D-8.11 | `ASSUMED` | A landed task's issue is closed by a landings pass: the run state is swept after the landing, so sync consults the landing trailer for tasks with no live state and stages one close-out effect per task, ever; the adapter closes an existing issue and never creates one just to close it. A review's discharge is its every target's landing — a review never lands, so no targets or a pending target keeps it open (T-0066). Added by execution 2026-08-24 — see .torve/tasks/T-0065 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | Under unattended operation, landed and review issues lingered open with stale state labels — a board nobody grooms must groom itself |
 | D-8.12 | `ASSUMED` | The board wears one state label at a time: setting a state label retires the stale state siblings; non-state labels and comment history are untouched. Added by execution 2026-08-24 — see .torve/tasks/T-0065 | `src/torve/adapters/tracker/github.py` | An issue wearing three states at once is a projection that stopped projecting |
 | D-8.13 | `ASSUMED` | The board says where the human is needed: a candidate the lane refuses for want of approvals gains a `needs:approval` label and an on-thread prompt naming the tip and the count, keyed per tip — a superseded tip prompts afresh. Added by execution 2026-08-24 — see .torve/tasks/T-0067 | `src/torve/application/tracker.py` `src/torve/cli/tick.py` | Operator feedback: the approval wait was invisible — a board that needs a human must say so on the thread where the reply goes |
-| D-8.14 | `ASSUMED` | Review-task issues wear a `review` label from projection, and `approve` refuses a review-role task outright — a review is never landed, so there is nothing to approve. Added by execution 2026-08-24 — see .torve/tasks/T-0067 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | Review issues read as peers of work issues; the machine's own work must be distinguishable from the work awaiting a human |
-| D-8.15 | `ASSUMED` | A review issue nests under its first target's issue as a forge sub-issue — one nesting effect per review, linking existing issues only; a forge or plan without the concept refuses into the divergence path. Added by execution 2026-08-24 — see .torve/tasks/T-0068 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | The board's top level is the work; the machine's meta-work indents beneath it |
+| D-8.14 | `ASSUMED` | Review-task issues wear a `review` label from projection, and `approve` refuses a review-role task outright — a review is never landed, so there is nothing to approve. Added by execution 2026-08-24 — see .torve/tasks/T-0067. *Amended by A-33 2026-08-24: the label retires with the review issues; the approve refusal stands* | `src/torve/application/tracker.py` | Review issues read as peers of work issues; the machine's own work must be distinguishable from the work awaiting a human |
+| D-8.15 | `ASSUMED` | A review issue nests under its first target's issue as a forge sub-issue. Added by execution 2026-08-24 — see .torve/tasks/T-0068. *Retired by A-33 2026-08-24: review issues no longer exist to nest — the decoration outlived its subject by a day, measured and deleted honestly* | — | The board's top level is the work; the machine's meta-work indents beneath it |
+| D-8.16 | `ASSUMED` | Review-role tasks are not projected as issues: a board row exists to solicit human input, and a review never needs any. A review's attempt summary posts as a comment on its target's issue and a review escalation notifies on the target's thread — where the retry/abandon decision lives; the run store keeps the full review record, and legacy review issues keep the D-8.11 close-out. Added by amendment A-33 2026-08-24 | `src/torve/application/tracker.py` | Half the board was rows that could never want anything from a person |
 
 ## 8. Risks
 
@@ -233,3 +234,28 @@ move between their revisits by construction.
 at-least-once contract; on upgrade, each task's *current* state is
 re-reflected once under the new key form — idempotent at the
 destination, a label re-set and nothing more.
+
+### A-33 — 2026-08-24 — the board is for humans (amends D-8.14, retires D-8.15, adds D-8.16)
+
+**Operator feedback**, after a day of live operation: review tasks
+doubled the board and never asked for anything. The doubling fell out of
+two sound rules composing badly — reviews are tasks (RFC 0005 D-5.9),
+and every task projected an issue — and the day's earlier decorations
+(the `review` label, the sub-issue nesting) treated the symptom while
+the question was the row's existence. A board row exists to solicit
+human input; a review runs unprompted, its findings matter only in
+relation to the work it reviewed, and its escalations should interrupt
+on the work's thread where the retry/abandon decision lives.
+
+**Changed:** review-role tasks are not projected as issues (D-8.16).
+A review's attempt summary posts as a comment on its target's issue; a
+review escalation notifies on the target's thread. The run store keeps
+the full review record as before — the board just stops mirroring it.
+The review label and the sub-issue nesting retire with the rows they
+decorated — built in the morning, measured by evening, deleted honestly.
+
+**Deliberately unchanged:** D-5.9 (reviews are tasks — projection is
+what changed, not the task model); the approve refusal for review-role
+tasks (D-8.14's surviving half); D-8.11's close-out, which now also
+tidies the legacy review issues out of the board; and the review
+machinery itself — what runs is untouched, only what is shown.
