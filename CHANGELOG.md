@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The board is for humans (T-0075, A-33, RFC 0008 D-8.16): review-role
+  tasks project no issues — their attempt summaries post as comments on
+  the target's thread and their escalations notify there. The review
+  label and sub-issue nesting retire with the rows they decorated;
+  legacy review issues keep the landings close-out. The CI adapter
+  gains the T-0058 transient retry — one in seven lane legs was dying
+  on a flaked actions call.
 - The revision loop (T-0074, A-32, RFC 0005 §4a, D-5.12/D-5.13):
   retry captures the previous candidate's diff and the PR's
   line-anchored review threads from `review.feedback_from` logins —
