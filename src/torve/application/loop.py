@@ -85,11 +85,10 @@ def _run_record_exists(root: Path, task_id: str) -> bool:
     return False
 
 
-def _dependency_satisfied(root: Path, dep: str,
-                          landed: Callable[[str], bool]) -> bool:
-    path = naming.state_file(root, dep)
-    if path.exists():
-        return RunState.load(path).state is TaskState.READY
+def _dependency_satisfied(dep: str, landed: Callable[[str], bool]) -> bool:
+    # A-31: only a landing satisfies — a ready-but-unlanded dependency is
+    # not on the base the dependent's worktree is cut from, and under the
+    # approvals regime ready can dwell unlanded while a human deliberates.
     return landed(dep)
 
 
@@ -121,7 +120,7 @@ def next_queued(root: Path, landed: Callable[[str], bool]) -> str | None:
         # Asked here so the common tick still reads local files alone.
         if landed(task.id):
             continue
-        if not all(_dependency_satisfied(root, dep, landed)
+        if not all(_dependency_satisfied(dep, landed)
                    for dep in task.depends_on):
             continue
         return task.id

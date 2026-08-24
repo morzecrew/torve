@@ -152,14 +152,16 @@ def test_review_role_contracts_are_never_selected(root):
     assert next_queued(root, lambda _t: False) is None
 
 
-def test_dependencies_hold_until_ready_or_landed(root):
+def test_dependencies_hold_until_landed(root):
+    # A-31: only a landing satisfies — a READY dependency dwells unlanded
+    # under the approvals regime, and the dependent's worktree is cut from
+    # a base that does not carry it.
     contract(root, "T-9002", depends_on=["T-9001"])
     assert next_queued(root, lambda _t: False) is None
+    run_state(root, "T-9001", TaskState.READY)
+    assert next_queued(root, lambda _t: False) is None  # ready is not landed
     # A landed dependency satisfies even after its state was reaped.
     assert next_queued(root, lambda t: t == "T-9001") == "T-9002"
-    # A READY dependency satisfies too.
-    run_state(root, "T-9001", TaskState.READY)
-    assert next_queued(root, lambda _t: False) == "T-9002"
 
 
 def test_an_escalation_pauses_intake_but_drains_everything_else(root):

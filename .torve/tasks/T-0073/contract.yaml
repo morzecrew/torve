@@ -1,0 +1,37 @@
+# Minted by hand — A-31's execution, found by the experiment batch:
+# a dependent dispatched against a base missing its ready-but-unlanded
+# dependency and burned three attempts proving it.
+schema_version: 1
+id: T-0073
+rfc: rfcs/0019-standing-loop.md
+phase: 2
+role: implement
+intent: |
+  A dependency is satisfied only by its landing — the trailer on the
+  base the dependent's worktree will actually be cut from. The ready
+  clause is removed from selection; in the automatic regime the change
+  is invisible because the lane precedes dispatch inside the tick, and
+  under approvals a dependent now waits for the human instead of
+  building on a base missing its foundation.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/loop.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-19.4
+    grade: ASSUMED
+    text: "Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick. Amended by A-31: a dependency is satisfied only by its landing"
+    paths:
+      - src/torve/application/loop.py
+budget: {}
+tier: executor

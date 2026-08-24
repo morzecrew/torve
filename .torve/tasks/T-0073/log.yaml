@@ -1,0 +1,21 @@
+schema_version: 1
+task: T-0073
+repo: morzecrew/torve
+base_sha: dba5365169ced431efbf4fb332cd94a4f7635ddf
+drift_count: 0
+entries:
+  - decision: D-19.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T14:55:00Z
+    attempt: 1
+    claim: >-
+      executed as amended by A-31 — dependency satisfaction is the
+      landing alone, so a dependent waits for the code to be on the
+      base its worktree is cut from; the ready clause is gone, and the
+      pin asserts a READY dependency no longer admits its dependent
+      while a landed one still does even after its state was reaped
+    evidence: src/torve/application/loop.py:88-92 — the landed-only
+      predicate; tests/test_tick.py:155-165 — ready refused, landed
+      admits
+    action: decided
