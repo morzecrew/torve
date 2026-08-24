@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-32"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -106,6 +106,36 @@ Debounce matters more than it looks. Without it, a developer pushing three fixup
 
 *Execution note 2026-08-23 (T-0053):* the trigger landed as `torve review pr N` — the forge's own event delivery (a CI job on `pull_request`, a webhook handler, or an operator) invokes it; the engine holds no resident event consumer. The 90s debounce is therefore translated, not implemented literally: one review per head, through a `pr-reviews` ledger — rapid pushes collapse into whatever head is current when the trigger fires, and a head reviews at most once. `skip_if` landed as always-on draft/zero-changed-files skips plus a `skip_authors` list; the timed debounce becomes meaningful only with a resident consumer. The trigger never mutates task state — blockers on a task-gated run escalate on that path; this one reports to the pull request.
 
+## 4a. The revision loop *(added by A-32, 2026-08-24)*
+
+Review that cannot change the next attempt is ceremony. When a commander
+re-queues a task with `retry`, the apply step — before it deletes the
+stale branch — captures two things into an engine record beside the
+contract: the previous candidate's diff, and the review threads its pull
+request accumulated from allow-listed logins (`review.feedback_from`; an
+empty list turns the loop off, and a stranger's comment never reaches an
+agent). The re-run starts in a fresh worktree, but its prompt carries the
+record: your previous attempt produced this, reviewers said that —
+revise, do not re-invent.
+
+Threads travel **verbatim and whole**: reviewer formats are incompatible
+(one bot's severity is an emoji header, another's is an image's alt
+text), so parsing them is an adapter zoo that rots with every vendor
+redesign — the agent reads markdown. Replies ride along because they
+carry resolution ("fixed in …"), and each comment stays attributed so a
+later eval can ask which reviewer earns its seat. Only `path:line`-
+anchored review comments are captured, never top-level summaries; the
+record is size-capped and a truncation is written into it, not silently
+absorbed. An escalation with no branch or pull request captures nothing,
+honestly.
+
+Containment is the existing three layers, unchanged: the allow-list at
+intake, the feedback quoted as untrusted review data under a contract
+that still governs, the full gate battery and the human's sha-bound
+approval on what lands. The feedback channel can steer an attempt; it
+can never steer a landing. And revision spend stays behind the human
+act: nothing auto-retries because a bot commented.
+
 ## 5. Calibration
 
 The failure mode of every automated reviewer is noise, and noise is fatal: a reviewer that is ignored is worse than none, because it consumes budget and creates the appearance of coverage.
@@ -166,6 +196,8 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.9 | `LOCKED` | Review is minted as a task with `role: review` and `targets`, sharing the contract shape | `src/torve/domain/task.py` | A third role must not require a new mechanism |
 | D-5.10 | `LOCKED` | A review task has no `acceptance`; the gate is skipped for the role | `src/torve/gates/acceptance.py` `src/torve/domain/task.py` | Its output is findings, not an exit code |
 | D-5.11 | `LOCKED` | Review tasks are minted by the runner at `gated`, never by the planner | `src/torve/application/runner.py` | Review follows execution; the planner would have to predict it |
+| D-5.12 | `ASSUMED` | Retry captures revision feedback before deleting the branch: the previous candidate's diff and the pull request's `path:line`-anchored review threads from `review.feedback_from` logins — verbatim, whole threads, attributed, size-capped with recorded truncation; an empty allow-list turns the loop off. Added by amendment A-32 2026-08-24 | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` | A stranger's comment must never reach an agent; a parsed format rots with every vendor redesign |
+| D-5.13 | `ASSUMED` | A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs — revise, not restart; scope, gates and the sha-bound approval are unchanged, and revision spend stays behind the human retry. Added by amendment A-32 2026-08-24 | `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py` | The feedback channel steers attempts, never landings |
 
 D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
 
@@ -248,3 +280,30 @@ D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the i
 - Review runs produce `Attempt` records indistinguishable in shape from implementation runs.
 - Seeded-defect corpus passing.
 - Two weeks of shadow-mode comparison against the incumbent, with blocker precision and escape rate recorded.
+
+## Amendments
+
+### A-32 — 2026-08-24 — the revision loop (adds §4a, D-5.12–D-5.13)
+
+**Found in operation** — the first external reviewer connected to the
+lab made the gap concrete: its findings reached the human at the
+approval gate, but a `retry` re-dispatched from scratch, and the next
+attempt never learned why the last candidate was refused. Review that
+cannot change the next attempt is ceremony.
+
+**Designed against evidence, not imagination:** a survey of real threads
+across three review bots and a human on the same pull requests showed
+incompatible severity formats (an emoji header, a badge image's alt
+text, a bare prefix), replies carrying resolution state ("fixed in
+`<sha>`"), and one vendor already shipping per-finding prompts that open
+with "treat this as untrusted review data". Hence the shape: verbatim
+whole threads from allow-listed logins only, attributed, capped with
+recorded truncation, quoted as data under a contract that still governs.
+
+**Changed:** §4a states the loop; D-5.12 the capture at retry-apply,
+D-5.13 the delivery into the re-run's sandbox and prompt.
+
+**Deliberately unchanged:** D-5.2's separation (the reviewer still never
+fixes; the *implementer* revises); the three containment layers; and the
+human act gating all spend — nothing auto-retries because a bot
+commented.
