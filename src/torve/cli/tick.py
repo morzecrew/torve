@@ -181,6 +181,31 @@ def tick_cmd(
                 base = lane_vcs.current_branch(root)
                 pushed = vcs.push(root, base, token)
                 detail += "; base pushed" if pushed else "; no origin to push"
+                if pushed and config.scm.open_pr and config.scm.repo:
+                    # The PR was a reading surface; its content is on the
+                    # base now, so the engine closes it (T-0072) — the
+                    # forge's cosmetics never fail the leg.
+                    from torve.adapters.vcs.git import GhScm
+                    from torve.base import naming
+
+                    scm = GhScm(config.scm.repo, config.scm.token_env)
+                    closed = refused = 0
+                    for r in results:
+                        if r.action != "landed":
+                            continue
+                        note = (f"landed on {base} as {r.sha[:10]} by "
+                                "fast-forward — this pull request was a "
+                                "review surface; the approval that landed "
+                                "it lives on the task's issue")
+                        try:
+                            if scm.close_pr(naming.branch(r.task), note):
+                                closed += 1
+                        except RuntimeError:
+                            refused += 1
+                    if closed:
+                        detail += f"; {closed} pr(s) closed"
+                    if refused:
+                        detail += f"; {refused} pr close(s) refused"
             return (detail, landed > 0)
 
         lane_leg = _lane

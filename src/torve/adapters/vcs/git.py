@@ -356,6 +356,22 @@ class GhScm:
         return self._gh("pr", "comment", str(number),
                         "--body", f"{body}\n\n{marker}").strip()
 
+    def close_pr(self, branch: str, comment: str) -> bool:
+        """Close the branch's open pull request after its content landed by
+        fast-forward (T-0072): the forge cannot always tell an ff landing
+        from an abandoned branch, so the engine says so itself — and
+        deletes the head branch, whose commits are on the base. False when
+        no open pull request exists for the branch."""
+        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
+            "pr", "list", "--head", branch, "--state", "open",
+            "--json", "number") or "[]"))
+        if not listed:
+            return False
+        number = int(listed[0]["number"])
+        self._gh("pr", "close", str(number), "--comment", comment,
+                 "--delete-branch")
+        return True
+
 
 class NullScm:
     """The --no-pr mode: no remote exists yet, so the PR leg is recorded as

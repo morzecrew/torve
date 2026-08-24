@@ -233,6 +233,21 @@ def test_ghscm_pr_info_parses_the_forge_shape(monkeypatch):
     assert info.head_sha == "d" * 40 and info.changed_files == 3
 
 
+def test_ghscm_close_pr_closes_and_deletes_or_noops(monkeypatch):
+    # T-0072: an ff landing closes its own reading surface — comment,
+    # close, branch deleted. No open PR for the branch is a no-op.
+    listed = json.dumps([{"number": 31}])
+    calls = scripted_gh(monkeypatch, {"pr list": listed})
+    assert GhScm("example/lab", token_env=None).close_pr(
+        "torve/T-0100", "landed as abc") is True
+    assert any("pr close 31" in c and "--delete-branch" in c for c in calls)
+
+    bare = scripted_gh(monkeypatch, {"pr list": "[]"})
+    assert GhScm("example/lab", token_env=None).close_pr(
+        "torve/T-0100", "landed as abc") is False
+    assert not any("pr close" in c for c in bare)
+
+
 def test_ghscm_comment_dedupes_on_the_marker(monkeypatch):
     existing = json.dumps({"comments": [
         {"body": "torve review\n\n<!-- torve-key:review:12:abc -->"}]})

@@ -1,0 +1,41 @@
+# Minted by hand — operator feedback: a landed task's pull request
+# lingered open, reading as work still waiting for a merge that the
+# lane already performed. The forge cannot always tell a fast-forward
+# landing from an abandoned branch, so the engine says so itself.
+schema_version: 1
+id: T-0072
+rfc: rfcs/0010-vcs-provenance-revert.md
+phase: 2
+role: implement
+intent: |
+  After the tick's lane leg lands and pushes, it closes each landed
+  task's open pull request with a comment naming the landing sha and
+  where the approval actually lives, and deletes the head branch —
+  its commits are on the base by fast-forward, so nothing is lost. A
+  task with no open pull request is a no-op; a refused closure is
+  noted in the leg's detail, never a leg failure — the forge's
+  cosmetics must not stop the loop.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/adapters/vcs/git.py"
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-10.1
+    grade: LOCKED
+    text: "The agent produces code; the runner produces every forge artefact"
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/application/ports.py
+budget: {}
+tier: executor

@@ -1,0 +1,25 @@
+schema_version: 1
+task: T-0072
+repo: morzecrew/torve
+base_sha: 676a7ab1179d0dc0c1e695997118a53041f78fb4
+drift_count: 0
+entries:
+  - decision: D-10.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T11:55:00Z
+    attempt: 1
+    claim: >-
+      the runner's forge-artefact ownership extends to the artefact's
+      retirement — the engine that opened the reading-surface pull
+      request closes it when the content lands, with a comment naming
+      the landing sha and where the approval actually lives, and
+      deletes the head branch whose commits are on the base; a refused
+      closure is counted in the leg's detail and never fails the lane —
+      the forge's cosmetics must not stop the loop
+    evidence: src/torve/adapters/vcs/git.py:359-374 — close, comment,
+      branch deletion, no-op without an open pull request;
+      src/torve/cli/tick.py:185-208 — wired after the base push;
+      tests/test_pr_review.py:236-248 — closed with an open pull
+      request, inert without one
+    action: decided
