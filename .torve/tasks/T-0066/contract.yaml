@@ -1,0 +1,37 @@
+# Minted by hand — T-0065's landings pass leaves review issues open
+# forever: a review never lands, so its own id has no trailer. Its
+# repo-recorded discharge is the landing of what it reviewed.
+schema_version: 1
+id: T-0066
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  The landings pass closes review issues with their targets: a
+  review-role contract with no live run state whose every target has
+  landed on the base is discharged — the target's landing trailer is
+  the repo-recorded evidence the review ran its course. A review with
+  no targets, or any target not landed, stays open.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/tracker.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.11
+    grade: ASSUMED
+    text: "A landed task's issue is closed by a landings pass consulting the landing trailer; the adapter closes an existing issue and never creates one just to close it"
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/adapters/tracker/github.py
+budget: {}
+tier: executor

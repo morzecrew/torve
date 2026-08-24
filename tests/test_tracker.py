@@ -91,13 +91,16 @@ def test_projection_stages_by_key_and_a_rerun_delivers_nothing(root):
     assert len(tracker.reflected) == 2
 
 
-def contract(root: Path, task_id: str) -> None:
+def contract(root: Path, task_id: str, role: str = "implement",
+             targets: list[str] | None = None) -> None:
     folder = root / ".torve" / "tasks" / task_id
     folder.mkdir(parents=True)
-    (folder / "contract.yaml").write_text(
-        f"schema_version: 1\nid: {task_id}\nrole: implement\n"
-        "intent: close-out probe\nscope:\n  allow: ['src/**']\n  deny: []\n"
-        "decisions: []\n", encoding="utf-8")
+    lines = [f"schema_version: 1\nid: {task_id}\nrole: {role}\n",
+             "intent: close-out probe\nscope:\n  allow: ['src/**']\n  deny: []\n",
+             "decisions: []\n"]
+    if targets:
+        lines.append(f"targets: [{', '.join(targets)}]\n")
+    (folder / "contract.yaml").write_text("".join(lines), encoding="utf-8")
 
 
 def test_a_landed_task_with_no_state_closes_its_issue_once(root):
@@ -120,6 +123,19 @@ def test_a_live_or_unlanded_task_is_not_closed(root):
     run_state(root, "T-6102", TaskState.READY)   # live state owns it
     contract(root, "T-6103")                     # no landing trailer
     assert project_landings(root, lambda t: t == "T-6102") == 0
+
+
+def test_a_review_is_discharged_by_its_targets_landing(root):
+    # T-0066: a review never lands; its repo-recorded discharge is the
+    # landing of what it reviewed — every target, or it stays open.
+    contract(root, "T-6110", role="review", targets=["T-6101"])
+    contract(root, "T-6111", role="review", targets=["T-6101", "T-6103"])
+    contract(root, "T-6112", role="review")      # no targets: never closed
+    tracker = FakeTracker()
+    assert project_landings(root, lambda t: t == "T-6101") == 1
+    relay_to_tracker(root, tracker)
+    assert ("T-6110", "landed") in tracker.reflected
+    assert not any(t in ("T-6111", "T-6112") for t, _ in tracker.reflected)
 
 
 def test_an_escalation_projects_its_reason_and_detail(root):

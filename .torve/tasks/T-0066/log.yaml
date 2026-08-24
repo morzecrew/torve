@@ -1,0 +1,20 @@
+schema_version: 1
+task: T-0066
+repo: morzecrew/torve
+base_sha: 18cba6f37291cb25f7146007330e0756268d4bbe
+drift_count: 0
+entries:
+  - decision: D-8.11
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T09:20:00Z
+    attempt: 1
+    claim: >-
+      the landings pass gains the review's notion of done — a review
+      never lands, so its repo-recorded discharge is its every target's
+      landing trailer; a review with no targets or an unlanded target
+      stays open, and the implement/revert path is unchanged
+    evidence: src/torve/application/tracker.py:121-135 — role-aware
+      discharge; tests/test_tracker.py:128-139 — closed with the
+      target, open with a pending target or no targets
+    action: decided

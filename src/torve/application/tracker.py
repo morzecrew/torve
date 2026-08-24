@@ -118,6 +118,22 @@ def project(root: Path, notify_login: str = "") -> int:
     return staged
 
 
+def _discharged(contract: Path, task_id: str,
+                landed: Callable[[str], bool]) -> bool:
+    """Repo-recorded doneness (D-8.11): an executable task's own landing
+    trailer — or, for a review, its every target's (T-0066): a review
+    never lands, so its discharge is the landing of what it reviewed."""
+    try:
+        from torve.gates.context import load_task
+
+        task = load_task(contract)
+    except ValueError:
+        return False
+    if task.role == "review":
+        return bool(task.targets) and all(landed(t) for t in task.targets)
+    return landed(task_id)
+
+
 def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
     """The close-out the state-driven projection cannot see (D-8.11): a
     landed task's run state is swept after the landing, so only the
@@ -133,7 +149,7 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
             continue
         if naming.state_file(root, task_id).exists():
             continue
-        if not landed(task_id):
+        if not _discharged(contract, task_id, landed):
             continue
         if stage(root, Effect(key=f"{task_id}:landed", kind="landed",
                               payload={"task": task_id,
