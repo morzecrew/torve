@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A-29 (T-0064): the repository outranks the host — a task whose
+  landing trailer is already in base history is never queued, whatever
+  run records the host holds, and the check is authoritative over the
+  QUEUED re-entry state (a landed task's re-entry is a revert and a new
+  contract). Found by the first scheduled tick against a fresh clone,
+  which saw the entire landed history as queued: state files and
+  telemetry are host-local, and the reboot that followed proved the
+  point twice by wiping them.
 - The store joins the doctor (T-0062, RFC 0012 D-12.7's sibling
   question): under a postgres store, `torve doctor` verifies the DSN
   variable is set, the database answers, and no substrate step is
