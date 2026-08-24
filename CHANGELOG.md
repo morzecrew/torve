@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Review issues nest under their targets as forge sub-issues (T-0068,
+  RFC 0008 D-8.15): the board's top level is the work, the machine's
+  meta-work indents beneath it; adapters without the concept refuse
+  into the divergence path.
+- A-30 (T-0069): a revisited state is a new fact — the state effect's
+  key gains the run's transition ordinal, so ready-again-after-a-retry
+  re-reflects and the board stops wearing yesterday's escalation label
+  over a ready candidate.
 - The board says where the human is needed (T-0067, RFC 0008
   D-8.13/D-8.14): an approvals-short candidate gains a needs:approval
   label and an on-thread prompt naming the tip and count (once per tip;
