@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A-31 (T-0073): a dependency is satisfied only by its landing — the
+  ready clause admitted a dependent whose worktree was cut from a base
+  missing its foundation, which the approvals regime turned from a
+  benign race into a systematic failure. Invisible in the automatic
+  regime, where the lane precedes dispatch inside the tick.
+- An ff landing closes its own pull request (T-0072): comment naming
+  the landing sha and where the approval lives, head branch deleted —
+  the reading surface retires with the work.
 - The eval loop (T-0070 + T-0071, RFC 0009 §5, D-9.14/D-9.15): every
   record names the skills materialized for its attempt, and `torve eval
   <skill> --task ...` replays each task twice in shadow — configured
