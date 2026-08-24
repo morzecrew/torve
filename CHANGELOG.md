@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The revision loop (T-0074, A-32, RFC 0005 §4a, D-5.12/D-5.13):
+  retry captures the previous candidate's diff and the PR's
+  line-anchored review threads from `review.feedback_from` logins —
+  verbatim, whole, attributed, size-capped with recorded truncation —
+  and the re-run gets the record in its sandbox with a prompt that
+  names it untrusted review data: revise, not restart. Empty
+  allow-list = off; scope, gates and the sha-bound approval unchanged.
 - A-31 (T-0073): a dependency is satisfied only by its landing — the
   ready clause admitted a dependent whose worktree was cut from a base
   missing its foundation, which the approvals regime turned from a
