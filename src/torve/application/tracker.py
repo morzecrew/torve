@@ -93,6 +93,24 @@ def _role(root: Path, task_id: str) -> str:
     return task.role if task is not None else ""
 
 
+def _review_adornments(root: Path, task_id: str, title: str) -> list[Effect]:
+    """A review issue reads as the machine's own work (D-8.14) and nests
+    under the work it reviews (D-8.15) — a sub-issue has one parent, so
+    the first target holds it."""
+    task = _task(root, task_id)
+    if task is None or task.role != "review":
+        return []
+    effects = [Effect(key=f"{task_id}:role", kind="role_label",
+                      payload={"task": task_id, "title": title,
+                               "label": "review"})]
+    if task.targets:
+        effects.append(Effect(
+            key=f"{task_id}:sub-of:{task.targets[0]}", kind="sub_issue",
+            payload={"task": task_id, "title": title,
+                     "parent": task.targets[0]}))
+    return effects
+
+
 def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
     """The board says where the human is needed (D-8.13): a candidate the
     lane refused for want of approvals prompts on its thread — keyed on
@@ -113,20 +131,7 @@ def project(root: Path, notify_login: str = "") -> int:
         title = _title(root, task_id)
         effects = [Effect(key=f"{task_id}:created", kind="created",
                           payload={"task": task_id, "title": title})]
-        task = _task(root, task_id)
-        if task is not None and task.role == "review":
-            # D-8.14: a review issue reads as the machine's own work, not
-            # a peer of the tasks awaiting a human.
-            effects.append(Effect(key=f"{task_id}:role", kind="role_label",
-                                  payload={"task": task_id, "title": title,
-                                           "label": "review"}))
-            if task.targets:
-                # D-8.15: the review nests under the work it reviews — a
-                # sub-issue has one parent, so the first target holds it.
-                effects.append(Effect(
-                    key=f"{task_id}:sub-of:{task.targets[0]}", kind="sub_issue",
-                    payload={"task": task_id, "title": title,
-                             "parent": task.targets[0]}))
+        effects += _review_adornments(root, task_id, title)
         effects += [
             # The transition ordinal joins the key (A-30): a state revisited
             # at the same attempt is a new fact; a replay between
@@ -190,6 +195,12 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         task_id = contract.parent.name
+        # Review adornments ride the contract sweep, not the run state —
+        # a review's state is swept fast, and its issue outlives it.
+        for adornment in _review_adornments(root, task_id,
+                                            _title(root, task_id)):
+            if adornment.key not in seen and stage(root, adornment):
+                staged += 1
         if f"{task_id}:landed" in seen:
             continue
         if naming.state_file(root, task_id).exists():

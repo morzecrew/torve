@@ -201,6 +201,17 @@ def test_a_revisited_state_is_reflected_again(root):
     assert len(tracker.linked) == 1  # one nesting effect, ever
 
 
+def test_a_swept_review_still_gets_its_adornments(root):
+    # The adornments ride the contract sweep, not the run state — a
+    # review's state is swept fast, and its issue outlives it.
+    contract(root, "T-6128", role="review", targets=["T-6129"])
+    tracker = FakeTracker()
+    project_landings(root, lambda _t: False)
+    relay_to_tracker(root, tracker)
+    assert ("T-6128", "review") in tracker.labelled
+    assert ("T-6128", "T-6129") in tracker.linked
+
+
 def test_github_link_nests_existing_issues_only(monkeypatch):
     issues = json.dumps([{"number": 9, "title": "T-6126: probe"},
                          {"number": 4, "title": "T-6127: probe"}])
@@ -238,10 +249,10 @@ def test_a_review_is_discharged_by_its_targets_landing(root):
     contract(root, "T-6111", role="review", targets=["T-6101", "T-6103"])
     contract(root, "T-6112", role="review")      # no targets: never closed
     tracker = FakeTracker()
-    assert project_landings(root, lambda t: t == "T-6101") == 1
+    project_landings(root, lambda t: t == "T-6101")
     relay_to_tracker(root, tracker)
-    assert ("T-6110", "landed") in tracker.reflected
-    assert not any(t in ("T-6111", "T-6112") for t, _ in tracker.reflected)
+    assert tracker.reflected == [("T-6110", "landed")]  # 6111/6112 stay open
+    assert project_landings(root, lambda t: t == "T-6101") == 0  # replay
 
 
 def test_an_escalation_projects_its_reason_and_detail(root):
