@@ -1,0 +1,41 @@
+schema_version: 1
+task: T-0077
+repo: morzecrew/torve
+base_sha: 4e5d4cfb1dad39a348083f63dc347c0d80b75554
+drift_count: 0
+entries:
+  - decision: D-19.12
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T19:55:00Z
+    attempt: 1
+    claim: >-
+      the tick's lane leg republishes each rebased landing's branch to
+      its landed tip before the base push — Vcs.republish_branch, a
+      force-with-lease of the engine-owned candidate ref from the root
+      checkout, refused leases degrading to the close-out fallback; the
+      fast-forward path needs no republish because its remote tip
+      already is the landed sha, which is the mechanism the audit
+      proved on nine self-flipped pull requests
+    evidence: src/torve/adapters/vcs/git.py:139-166 — the leased
+      republish; src/torve/cli/tick.py:200-214 — republish before base
+      push, rebased landings only; tests/test_pr_review.py:376-407 —
+      the origin's ref moves to the rewritten tip
+    action: decided
+  - decision: D-19.13
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T19:57:00Z
+    attempt: 1
+    claim: >-
+      the close-out is the fallback, not the rule — retire_pr polls the
+      forge through a short grace for its own merged verdict, closes
+      with the landing note only when the pull request stays open, and
+      the caller deletes the candidate branch in every non-closed case,
+      so the race between the forge's asynchronous merge detection and
+      the engine's tidy-up degrades to yesterday's behaviour
+    evidence: src/torve/adapters/vcs/git.py:464-487 — the grace loop
+      and fallback; src/torve/cli/tick.py:222-245 — retire per landed
+      result plus branch deletion; tests/test_pr_review.py:410-451 —
+      merged, stubborn-open, absent, and the mid-grace flip
+    action: decided

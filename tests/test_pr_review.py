@@ -371,3 +371,85 @@ def test_delete_remote_branch_over_a_local_origin(tmp_path: Path) -> None:
     lonely = tmp_path / "lonely"
     subprocess.run(["git", "init", "-q", str(lonely)], check=True)
     assert vcs.delete_remote_branch(lonely, "torve/T-0042") is False
+
+
+def test_republish_branch_moves_the_candidate_to_its_landed_tip(tmp_path: Path) -> None:
+    # D-19.12 (A-34): a rebased landing republishes its branch — a leased
+    # ref update in the engine-owned namespace, at landing time only, so
+    # the forge recognizes the base push as the merge.
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
+    git(repo, "config", "user.name", "T")
+    git(repo, "config", "user.email", "t@example.invalid")
+    (repo / "a.py").write_text("a = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "init")
+    git(repo, "push", "-q", "origin", "HEAD:refs/heads/main")
+    git(repo, "checkout", "-q", "-b", "torve/T-0042")
+    (repo / "b.py").write_text("b = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "candidate")
+    git(repo, "push", "-q", "-u", "origin", "torve/T-0042")
+    superseded = git(repo, "rev-parse", "HEAD").strip()
+    # The lane's rebase rewrites the tip; an amend stands in for it here.
+    git(repo, "commit", "-q", "--no-gpg-sign", "--amend", "-m", "candidate rebased")
+    landed = git(repo, "rev-parse", "HEAD").strip()
+
+    assert GitVcs().republish_branch(repo, "torve/T-0042") is True
+    at_origin = git(origin, "rev-parse", "refs/heads/torve/T-0042").strip()
+    assert at_origin == landed
+    assert at_origin != superseded
+
+    lonely = tmp_path / "lonely"
+    subprocess.run(["git", "init", "-q", str(lonely)], check=True)
+    assert GitVcs().republish_branch(lonely, "torve/T-0042") is False
+
+
+def test_retire_pr_defers_to_the_forge_then_falls_back(monkeypatch):
+    # D-19.13 (A-34): a landing the forge marked merged needs no close;
+    # one still open after the grace closes with the landing note — the
+    # T-0072 close-out as fallback; no pull request retires as "absent".
+    merged = json.dumps([{"number": 31, "state": "MERGED"}])
+    calls = scripted_gh(monkeypatch, {"pr list": merged})
+    naps: list[float] = []
+    scm = GhScm("example/lab", token_env=None, sleeper=naps.append)
+    assert scm.retire_pr("torve/T-0100", "landed") == "merged"
+    assert not any("pr close" in c for c in calls)
+    assert naps == []
+
+    stubborn = json.dumps([{"number": 31, "state": "OPEN"}])
+    calls = scripted_gh(monkeypatch, {"pr list": stubborn})
+    naps = []
+    scm = GhScm("example/lab", token_env=None, sleeper=naps.append)
+    assert scm.retire_pr("torve/T-0100", "landed") == "closed"
+    assert any("pr close 31" in c and "--delete-branch" in c for c in calls)
+    assert naps == [2.0, 2.0]
+
+    bare = scripted_gh(monkeypatch, {"pr list": "[]"})
+    assert GhScm("example/lab", token_env=None).retire_pr(
+        "torve/T-0100", "landed") == "absent"
+    assert not any("pr close" in c for c in bare)
+
+
+def test_retire_pr_sees_a_flip_inside_the_grace(monkeypatch):
+    # The forge's merge detection is asynchronous: open on the first look,
+    # merged on the second — the grace exists exactly for this.
+    bodies = iter([
+        json.dumps([{"number": 31, "state": "OPEN"}]),
+        json.dumps([{"number": 31, "state": "MERGED"}]),
+    ])
+    calls: list[str] = []
+
+    def fake_run(command, **kwargs):
+        cmd = " ".join(str(part) for part in command)
+        calls.append(cmd)
+        return subprocess.CompletedProcess(command, 0, stdout=next(bodies), stderr="")
+
+    monkeypatch.setattr(git_module.subprocess, "run", fake_run)
+    naps: list[float] = []
+    scm = GhScm("example/lab", token_env=None, sleeper=naps.append)
+    assert scm.retire_pr("torve/T-0100", "landed") == "merged"
+    assert naps == [2.0]
+    assert not any("pr close" in c for c in calls)

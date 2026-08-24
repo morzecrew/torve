@@ -189,24 +189,41 @@ def tick_cmd(
             detail = f"landed {landed} of {len(results)} candidate(s)"
             if landed:
                 # D-19.9 (A-28): the loop publishes what it lands —
-                # fast-forward only, no force path; a refusal is this
-                # leg's loud error.
+                # fast-forward only for the base, no force path; a refusal
+                # is this leg's loud error.
                 import os
+
+                from torve.base import naming
 
                 token = (os.environ.get(config.scm.token_env)
                          if config.scm.token_env else None)
                 base = lane_vcs.current_branch(root)
+                # D-19.12 (A-34): the landed form returns to its branch
+                # BEFORE the base push, so the forge sees that push as the
+                # merge of every landed pull request; a refused lease falls
+                # through to the close-out below.
+                republished = 0
+                for r in results:
+                    if r.action == "landed" and r.detail.startswith("rebased"):
+                        try:
+                            if vcs.republish_branch(
+                                    root, naming.branch(r.task), token):
+                                republished += 1
+                        except RuntimeError:
+                            pass
                 pushed = vcs.push(root, base, token)
                 detail += "; base pushed" if pushed else "; no origin to push"
+                if republished:
+                    detail += f"; {republished} branch(es) republished"
                 if pushed and config.scm.open_pr and config.scm.repo:
-                    # The PR was a reading surface; its content is on the
-                    # base now, so the engine closes it (T-0072) — the
-                    # forge's cosmetics never fail the leg.
+                    # D-19.13: the forge gets a short grace to mark the
+                    # landing merged; a still-open PR closes with the note
+                    # (T-0072, now the fallback), and the candidate branch
+                    # retires in every case — cosmetics never fail the leg.
                     from torve.adapters.vcs.git import GhScm
-                    from torve.base import naming
 
                     scm = GhScm(config.scm.repo, config.scm.token_env)
-                    closed = refused = 0
+                    outcomes: dict[str, int] = {}
                     for r in results:
                         if r.action != "landed":
                             continue
@@ -214,15 +231,16 @@ def tick_cmd(
                                 "fast-forward — this pull request was a "
                                 "review surface; the approval that landed "
                                 "it lives on the task's issue")
+                        branch_name = naming.branch(r.task)
                         try:
-                            if scm.close_pr(naming.branch(r.task), note):
-                                closed += 1
+                            word = scm.retire_pr(branch_name, note)
+                            if word != "closed":
+                                vcs.delete_remote_branch(root, branch_name, token)
                         except RuntimeError:
-                            refused += 1
-                    if closed:
-                        detail += f"; {closed} pr(s) closed"
-                    if refused:
-                        detail += f"; {refused} pr close(s) refused"
+                            word = "refused"
+                        outcomes[word] = outcomes.get(word, 0) + 1
+                    for word in sorted(outcomes):
+                        detail += f"; {outcomes[word]} pr(s) {word}"
             return (detail, landed > 0)
 
         lane_leg = _lane

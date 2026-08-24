@@ -136,6 +136,34 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git push --delete failed")
         return True
 
+    def republish_branch(self, root: Path, branch: str,
+                         token: str | None = None) -> bool:
+        """The landed form returns to its branch (D-19.12, A-34): a rebased
+        landing republishes the candidate branch at its landed tip so the
+        forge recognizes the base push as the merge of its pull request.
+        Engine-owned namespace, at landing time only — after the sha-bound
+        approvals concluded the review D-10.5 protects — and with lease, so
+        a ref the engine does not expect refuses rather than clobbers.
+        False when there is no origin; raises on a refused push."""
+        remotes = _git(root, "remote")
+        if "origin" not in remotes.stdout.split():
+            return False
+        config: list[str] = []
+        env = None
+        if token:
+            helper = ("!f() { echo username=x-access-token; "
+                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
+            env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+        proc = subprocess.run(
+            ["git", "-C", str(root), *config, "push", "--force-with-lease",
+             "origin", f"{branch}:refs/heads/{branch}"],
+            capture_output=True, text=True, check=False, env=env,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or "git push --force-with-lease failed")
+        return True
+
     def fetch_pr(self, root: Path, number: int, base_ref: str,
                  token: str | None = None) -> tuple[str, str]:
         """Fetch the pull request's head and its base branch into local
@@ -432,6 +460,31 @@ class GhScm:
         self._gh("pr", "close", str(number), "--comment", comment,
                  "--delete-branch")
         return True
+
+    def retire_pr(self, branch: str, comment: str) -> str:
+        """Retire the landed reading surface (D-19.13, A-34): the forge is
+        given a short grace to mark the pull request merged on its own —
+        the republished branch (D-19.12) plus the base push let it — and a
+        still-open pull request after the grace is closed with the landing
+        note, the T-0072 close-out as the fallback. Returns "merged",
+        "closed" (we closed it, branch deleted with it), or "absent" (no
+        pull request needed retiring); the caller deletes the candidate
+        branch in the non-"closed" cases."""
+        for attempt in (1, 2, 3):
+            listed = cast("list[dict[str, Any]]", json.loads(self._gh(
+                "pr", "list", "--head", branch, "--state", "all",
+                "--json", "number,state") or "[]"))
+            if not listed:
+                return "absent"
+            state = str(listed[0].get("state", "")).upper()
+            if state == "MERGED":
+                return "merged"
+            if state == "CLOSED":
+                return "absent"
+            if attempt < 3:
+                self.sleeper(2.0)
+        self.close_pr(branch, comment)
+        return "closed"
 
 
 class NullScm:

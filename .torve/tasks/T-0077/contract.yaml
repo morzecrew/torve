@@ -1,0 +1,47 @@
+# Minted by hand — A-34's execution: the owner read fast-forward
+# landings as rejected work; the forge marks merged only what it can see.
+schema_version: 1
+id: T-0077
+rfc: rfcs/0019-standing-loop.md
+phase: 2
+role: implement
+intent: |
+  The forge sees the landing. Before the base push, each rebased
+  landing's candidate branch is republished to its landed tip — a
+  leased ref update in the engine-owned namespace, at landing time
+  only — so the base push makes the forge mark the pull request
+  merged, its review threads anchored to the code that landed. A
+  landed pull request the forge does not flip within a short grace
+  closes with the landing note, the old close-out now the fallback,
+  and the candidate branch is deleted in every landed case.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/vcs/git.py"
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-19.12
+    grade: ASSUMED
+    text: "Before the base push, each rebased landing's candidate branch is republished to its landed tip — force-with-lease, engine-owned namespace, at landing time only — so the forge recognizes the base push as the merge of every landed pull request"
+    paths:
+      - src/torve/cli/tick.py
+      - src/torve/adapters/vcs/git.py
+  - id: D-19.13
+    grade: ASSUMED
+    text: "A landed pull request the forge does not mark merged within a short grace is closed with the landing note — the T-0072 close-out, now the fallback — and the candidate branch is deleted in every landed case"
+    paths:
+      - src/torve/adapters/vcs/git.py
+      - src/torve/cli/tick.py
+budget: {}
+tier: executor
