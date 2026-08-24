@@ -356,6 +356,67 @@ class GhScm:
         return self._gh("pr", "comment", str(number),
                         "--body", f"{body}\n\n{marker}").strip()
 
+    def _api(self, *args: str) -> str:
+        # `gh api` takes the repo in the endpoint, never as a flag.
+        env = None
+        if self.token_env:
+            token = os.environ.get(self.token_env)
+            if not token:
+                raise RuntimeError(
+                    f"scm.token_env names {self.token_env!r} but the runner's "
+                    "environment does not carry it"
+                )
+            env = {**os.environ, "GH_TOKEN": token}
+        for attempt in (1, 2):
+            proc = subprocess.run(["gh", "api", *args], capture_output=True,
+                                  text=True, check=False, env=env)
+            if proc.returncode == 0:
+                return proc.stdout
+            error = proc.stderr.strip() or "gh api failed"
+            if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
+                self.sleeper(2.0)
+                continue
+            raise RuntimeError(error)
+        raise RuntimeError("unreachable")  # for the type checker
+
+    def review_threads(self, branch: str,
+                       allowed: tuple[str, ...]) -> list[dict[str, Any]]:
+        """The branch's pull-request review threads whose root author is
+        allow-listed (RFC 0005 §4a, D-5.12): line-anchored comments only,
+        whole threads — replies from anyone ride along, they carry
+        resolution — attributed per comment. No pull request, or an empty
+        allow-list, is an empty capture."""
+        if not allowed or not self.repo:
+            return []
+        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
+            "pr", "list", "--head", branch, "--state", "all",
+            "--json", "number") or "[]"))
+        if not listed:
+            return []
+        number = int(listed[0]["number"])
+        raw = cast("list[dict[str, Any]]", json.loads(self._api(
+            f"repos/{self.repo}/pulls/{number}/comments", "--paginate") or "[]"))
+        roots: dict[int, dict[str, Any]] = {}
+        for comment in raw:
+            if comment.get("in_reply_to_id") is None:
+                user = cast("dict[str, Any]", comment.get("user") or {})
+                author = str(user.get("login", ""))
+                if author not in allowed:
+                    continue
+                roots[int(comment["id"])] = {
+                    "path": comment.get("path"), "line": comment.get("line"),
+                    "comments": [{"author": author,
+                                  "body": str(comment.get("body", ""))}]}
+        for comment in raw:
+            parent = comment.get("in_reply_to_id")
+            if parent is not None and int(parent) in roots:
+                user = cast("dict[str, Any]", comment.get("user") or {})
+                cast("list[dict[str, Any]]",
+                     roots[int(parent)]["comments"]).append({
+                    "author": str(user.get("login", "")),
+                    "body": str(comment.get("body", ""))})
+        return list(roots.values())
+
     def close_pr(self, branch: str, comment: str) -> bool:
         """Close the branch's open pull request after its content landed by
         fast-forward (T-0072): the forge cannot always tell an ff landing

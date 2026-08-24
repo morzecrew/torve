@@ -279,6 +279,10 @@ class ReviewConfig(BaseModel):
 
     on: list[str] = Field(default_factory=list)
     skip_authors: list[str] = Field(default_factory=list)
+    # The revision loop's allow-list (RFC 0005 §4a, A-32): forge logins
+    # whose review threads become revision context at retry. Empty = off;
+    # a stranger's comment never reaches an agent.
+    feedback_from: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _known_triggers(self) -> ReviewConfig:

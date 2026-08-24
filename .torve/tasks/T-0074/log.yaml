@@ -1,0 +1,43 @@
+schema_version: 1
+task: T-0074
+repo: morzecrew/torve
+base_sha: 4cd2cb3a87dc1652c8b57707108a6048ec0a9e88
+drift_count: 0
+entries:
+  - decision: D-5.12
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T15:35:00Z
+    attempt: 1
+    claim: >-
+      the capture runs inside the retry's requeue, before the branch
+      deletion that would destroy its subject — allow-listed root
+      authors only, whole threads with replies attributed, verbatim
+      markdown because reviewer formats are incompatible, the size cap
+      written into the record when it bites, and an escalation with no
+      branch or pull request captures nothing; an empty allow-list
+      makes no forge call at all
+    evidence: src/torve/application/feedback.py:31-74 — render and
+      capture with the recorded truncation;
+      src/torve/adapters/vcs/git.py:382-421 — allow-listed thread
+      assembly; tests/test_feedback.py:41-63 and
+      tests/test_pr_review.py:236-260 — filtering, replies riding,
+      cap recorded, nothing-to-carry refusing
+    action: decided
+  - decision: D-5.13
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T15:36:00Z
+    attempt: 1
+    claim: >-
+      the record reaches the sandbox beside the skills at dispatch and
+      the prompt names it as untrusted review data under the contract
+      that still governs — revise, not restart; scope, gates and the
+      sha-bound approval are untouched, and nothing auto-retries
+      because a reviewer commented
+    evidence: src/torve/application/runner.py:413-422 — the copy into
+      the worktree; src/torve/adapters/agent/harness.py:36-48,129 —
+      the revision preamble only when the record exists;
+      tests/test_feedback.py:65-73 — named on revision, absent
+      otherwise
+    action: decided

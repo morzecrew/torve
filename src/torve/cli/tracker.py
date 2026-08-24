@@ -101,11 +101,29 @@ def poll(
     tracker, tracker_config = _adapter(root, config_path)
 
     def requeue(task_id: str) -> str:
+        from torve.adapters.vcs.git import GhScm, GitLane
+        from torve.application.feedback import capture_feedback
+
+        branch = naming.branch(task_id)
+        note = ""
+        if config.review.feedback_from and config.scm.repo:
+            # The revision loop (RFC 0005 §4a, D-5.12): captured before the
+            # branch dies, or it is gone.
+            scm = GhScm(config.scm.repo, config.scm.token_env)
+            try:
+                threads = scm.review_threads(
+                    branch, tuple(config.review.feedback_from))
+                diff = (GitVcs().diff(root, config.base or "origin/main", branch)
+                        if GitLane().tip(root, branch) else "")
+                if capture_feedback(root, task_id, diff, threads):
+                    note = "; feedback captured"
+            except RuntimeError as exc:
+                note = f"; feedback capture failed: {exc}"
         token = (os.environ.get(config.scm.token_env)
                  if config.scm.token_env else None)
-        deleted = GitVcs().delete_remote_branch(
-            root, naming.branch(task_id), token)
-        return "remote branch deleted" if deleted else "no remote branch"
+        deleted = GitVcs().delete_remote_branch(root, branch, token)
+        return ("remote branch deleted" if deleted
+                else "no remote branch") + note
 
     def approve_tip(task_id: str) -> str | None:
         return GitLane().tip(root, naming.branch(task_id))

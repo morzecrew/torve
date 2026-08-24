@@ -410,6 +410,16 @@ def real_hooks(
         agent_meta["skills"] = materialize(
             task.role, worktree / ".torve" / "skills",
             config.skills.sets, layout.skills_vendor_dir(worktree))
+        # The revision loop (RFC 0005 §4a, D-5.13): a retry's feedback
+        # record travels into the sandbox beside the skills; the prompt
+        # names it as untrusted review data.
+        from torve.application.feedback import feedback_file
+
+        captured = feedback_file(root, task.id)
+        if captured.is_file():
+            import shutil as _shutil
+
+            _shutil.copyfile(captured, worktree / ".torve" / "feedback.md")
         env_passthrough, volumes = (
             _sandbox_auth(tier, config.worker_slot) if real else ((), {})
         )

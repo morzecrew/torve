@@ -233,6 +233,32 @@ def test_ghscm_pr_info_parses_the_forge_shape(monkeypatch):
     assert info.head_sha == "d" * 40 and info.changed_files == 3
 
 
+def test_ghscm_review_threads_allow_lists_roots_and_keeps_replies(monkeypatch):
+    # D-5.12: a stranger's root comment never reaches an agent; replies
+    # in a kept thread ride along — they carry resolution.
+    listed = json.dumps([{"number": 12}])
+    comments = json.dumps([
+        {"id": 1, "in_reply_to_id": None, "path": "a.py", "line": 3,
+         "user": {"login": "coderabbitai[bot]"}, "body": "root finding"},
+        {"id": 2, "in_reply_to_id": 1, "path": "a.py", "line": 3,
+         "user": {"login": "Misery7100"}, "body": "fixed in abc"},
+        {"id": 3, "in_reply_to_id": None, "path": "b.py", "line": 9,
+         "user": {"login": "drive-by"}, "body": "ignore me"},
+    ])
+    scripted_gh(monkeypatch, {"pr list": listed, "pulls/12/comments": comments})
+    threads = GhScm("example/lab", token_env=None).review_threads(
+        "torve/T-0100", ("coderabbitai[bot]", "Misery7100"))
+    assert len(threads) == 1
+    assert threads[0]["path"] == "a.py"
+    assert [c["author"] for c in threads[0]["comments"]] == [
+        "coderabbitai[bot]", "Misery7100"]
+    # An empty allow-list is off — no forge calls at all.
+    calls = scripted_gh(monkeypatch, {"pr list": listed})
+    assert GhScm("example/lab", token_env=None).review_threads(
+        "torve/T-0100", ()) == []
+    assert calls == []
+
+
 def test_ghscm_close_pr_closes_and_deletes_or_noops(monkeypatch):
     # T-0072: an ff landing closes its own reading surface — comment,
     # close, branch deleted. No open PR for the branch is a no-op.

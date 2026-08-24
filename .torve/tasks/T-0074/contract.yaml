@@ -1,0 +1,51 @@
+# Minted by hand — A-32's execution: review that cannot change the next
+# attempt is ceremony.
+schema_version: 1
+id: T-0074
+rfc: rfcs/0005-review-as-a-run.md
+phase: 2
+role: implement
+intent: |
+  The revision loop end to end. Retry's apply captures, before the
+  branch dies, the previous candidate's diff and the pull request's
+  line-anchored review threads from allow-listed logins — verbatim,
+  whole, attributed, size-capped with recorded truncation — into a
+  feedback record beside the contract. A re-run whose task carries the
+  record gets it copied into the sandbox, and its prompt names it as
+  untrusted review data under a contract that still governs: revise,
+  not restart. An empty allow-list turns the loop off; an escalation
+  with no branch or pull request captures nothing, honestly.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/config/runconfig.py"
+    - "src/torve/application/feedback.py"
+    - "src/torve/application/runner.py"
+    - "src/torve/adapters/vcs/git.py"
+    - "src/torve/adapters/agent/harness.py"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-5.12
+    grade: ASSUMED
+    text: "Retry captures revision feedback before deleting the branch: the previous candidate's diff and the pull request's path:line-anchored review threads from review.feedback_from logins — verbatim, whole threads, attributed, size-capped with recorded truncation"
+    paths:
+      - src/torve/application/feedback.py
+      - src/torve/adapters/vcs/git.py
+  - id: D-5.13
+    grade: ASSUMED
+    text: "A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs"
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/adapters/agent/harness.py
+budget: {}
+tier: executor
