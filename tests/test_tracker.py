@@ -29,7 +29,6 @@ class FakeTracker:
                  notify_outcome: str = "applied") -> None:
         self.reflected: list[tuple[str, str]] = []
         self.labelled: list[tuple[str, str]] = []
-        self.linked: list[tuple[str, str]] = []
         self.comments: list[tuple[str, str, str]] = []
         self.notified: list[tuple[str, str, str, str]] = []
         self.commands: list[TrackerCommand] = []
@@ -44,9 +43,6 @@ class FakeTracker:
         self.labelled.append((task_id, name))
         return ReflectResult("applied", "faked label")
 
-    def link(self, task_id: str, parent_task_id: str) -> ReflectResult:
-        self.linked.append((task_id, parent_task_id))
-        return ReflectResult("applied", "faked link")
 
     def comment(self, task_id: str, body: str, key: str) -> ReflectResult:
         self.comments.append((task_id, body, key))
@@ -154,17 +150,34 @@ def test_an_approvals_short_candidate_prompts_once_per_tip(root):
     assert len([b for t, b, _ in tracker.comments if t == "T-6120"]) == 2
 
 
-def test_a_review_issue_wears_the_review_label(root):
-    # D-8.14: reviews read as the machine's own work.
+def test_a_review_task_projects_no_issue(root):
+    # D-8.16 (A-33): a board row exists to solicit human input, and a
+    # review never needs any — no created, no state label, nothing.
     contract(root, "T-6121", role="review", targets=["T-6120"])
     run_state(root, "T-6121", TaskState.RUNNING)
-    contract(root, "T-6122")
-    run_state(root, "T-6122", TaskState.RUNNING)
     tracker = FakeTracker()
     project(root)
     relay_to_tracker(root, tracker)
-    assert ("T-6121", "review") in tracker.labelled
-    assert not any(t == "T-6122" for t, _ in tracker.labelled)
+    assert not any(t == "T-6121" for t, _ in tracker.reflected)
+    assert tracker.labelled == []
+
+
+def test_a_review_milestone_reaches_the_targets_thread(root):
+    # The review's escalation notifies where the retry/abandon decision
+    # lives — on the work's issue, attributed to the review.
+    contract(root, "T-6130")
+    contract(root, "T-6131", role="review", targets=["T-6130"])
+    state = run_state(root, "T-6131", TaskState.RUNNING)
+    from torve.domain.states import EscalationReason
+
+    state.escalate(EscalationReason.BLOCKER_FINDING, "unlocatable evidence")
+    tracker = FakeTracker()
+    project(root, notify_login="misery7100")
+    relay_to_tracker(root, tracker)
+    assert ("T-6130", "escalated:blocker_finding") in tracker.reflected
+    assert not any(t == "T-6131" for t, _ in tracker.reflected)
+    assert any(t == "T-6130" and "review T-6131" in b
+               for t, _login, b, _k in tracker.notified)
 
 
 def test_a_revisited_state_is_reflected_again(root):
@@ -189,46 +202,6 @@ def test_a_revisited_state_is_reflected_again(root):
     project(root)
     relay_to_tracker(root, tracker)
     assert tracker.reflected.count(("T-6140", "ready")) == 2
-    # D-8.15: the machine's meta-work indents beneath the work.
-    contract(root, "T-6125", role="review", targets=["T-6124"])
-    run_state(root, "T-6125", TaskState.RUNNING)
-    tracker = FakeTracker()
-    project(root)
-    relay_to_tracker(root, tracker)
-    assert ("T-6125", "T-6124") in tracker.linked
-    project(root)
-    relay_to_tracker(root, tracker)
-    assert len(tracker.linked) == 1  # one nesting effect, ever
-
-
-def test_a_swept_review_still_gets_its_adornments(root):
-    # The adornments ride the contract sweep, not the run state — a
-    # review's state is swept fast, and its issue outlives it.
-    contract(root, "T-6128", role="review", targets=["T-6129"])
-    tracker = FakeTracker()
-    project_landings(root, lambda _t: False)
-    relay_to_tracker(root, tracker)
-    assert ("T-6128", "review") in tracker.labelled
-    assert ("T-6128", "T-6129") in tracker.linked
-
-
-def test_github_link_nests_existing_issues_only(monkeypatch):
-    issues = json.dumps([{"number": 9, "title": "T-6126: probe"},
-                         {"number": 4, "title": "T-6127: probe"}])
-    calls = scripted_gh(monkeypatch, {"sub_issues": "",
-                                      "issue list": issues,
-                                      "repos/o/r/issues/9": "555\n"})
-    adapter = GithubIssues("o/r", token_env=None)
-    result = adapter.link("T-6126", "T-6127")
-    assert result.outcome == "applied" and "nested under #4" in result.detail
-    joined = [" ".join(c) for c in calls]
-    assert any("repos/o/r/issues/4/sub_issues" in c and "sub_issue_id=" in c
-               for c in joined)
-
-    bare = scripted_gh(monkeypatch, {"issue list": "[]"})
-    missing = GithubIssues("o/r", token_env=None).link("T-6126", "T-6127")
-    assert missing.detail == "nothing to link"
-    assert not any("issue create" in " ".join(c) for c in bare)
 
 
 def test_approve_refuses_a_review_task(root):

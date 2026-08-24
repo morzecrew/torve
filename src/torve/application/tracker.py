@@ -93,24 +93,6 @@ def _role(root: Path, task_id: str) -> str:
     return task.role if task is not None else ""
 
 
-def _review_adornments(root: Path, task_id: str, title: str) -> list[Effect]:
-    """A review issue reads as the machine's own work (D-8.14) and nests
-    under the work it reviews (D-8.15) — a sub-issue has one parent, so
-    the first target holds it."""
-    task = _task(root, task_id)
-    if task is None or task.role != "review":
-        return []
-    effects = [Effect(key=f"{task_id}:role", kind="role_label",
-                      payload={"task": task_id, "title": title,
-                               "label": "review"})]
-    if task.targets:
-        effects.append(Effect(
-            key=f"{task_id}:sub-of:{task.targets[0]}", kind="sub_issue",
-            payload={"task": task_id, "title": title,
-                     "parent": task.targets[0]}))
-    return effects
-
-
 def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
     """The board says where the human is needed (D-8.13): a candidate the
     lane refused for want of approvals prompts on its thread — keyed on
@@ -121,6 +103,38 @@ def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
                  "sha": sha, "need": need}))
 
 
+def _review_effects(root: Path, state: RunState, task_id: str,
+                    target: str, notify_login: str) -> list[Effect]:
+    """A review projects onto its target's thread (D-8.16, A-33): the
+    board row belongs to the work, and the review's milestones are
+    comments there — an escalation notifies where the retry or abandon
+    decision lives. Keys keep the review's own id, so replays dedupe."""
+    title = _title(root, target)
+    effects: list[Effect] = []
+    if state.escalation is not None:
+        route = escalation_route(str(state.escalation.reason))
+        detail = f"review {task_id}: {state.escalation.detail}"
+        effects.append(Effect(
+            key=f"{task_id}:escalated:{state.attempts}:{state.escalation.reason}",
+            kind="escalation",
+            payload={"task": target, "title": title,
+                     "reason": state.escalation.reason, "detail": detail}))
+        if notify_login and route in ("notify", "harness owner"):
+            effects.append(Effect(
+                key=f"{task_id}:notify:{state.attempts}:{state.escalation.reason}",
+                kind="notify",
+                payload={"task": target, "title": title,
+                         "login": notify_login, "route": route,
+                         "reason": state.escalation.reason,
+                         "detail": detail}))
+    for attempt_no, body in _attempt_bodies(root, task_id).items():
+        effects.append(Effect(key=f"{task_id}:attempt:{attempt_no}",
+                              kind="attempt",
+                              payload={"task": target, "title": title,
+                                       "body": f"review {task_id} · {body}"}))
+    return effects
+
+
 def project(root: Path, notify_login: str = "") -> int:
     """Derive effects from run state and stage them idempotently; returns
     how many were newly staged. Re-running against unchanged state stages
@@ -128,10 +142,18 @@ def project(root: Path, notify_login: str = "") -> int:
     staged = 0
     for state in RunState.load_all(root / naming.WORKTREE_DIR):
         task_id = state.task_id
+        task = _task(root, task_id)
+        if task is not None and task.role == "review":
+            # No issue for the machine's own work (D-8.16): its milestones
+            # reach the target's thread; targetless reviews project nothing.
+            if task.targets:
+                staged += sum(1 for e in _review_effects(
+                    root, state, task_id, task.targets[0], notify_login)
+                    if stage(root, e))
+            continue
         title = _title(root, task_id)
         effects = [Effect(key=f"{task_id}:created", kind="created",
                           payload={"task": task_id, "title": title})]
-        effects += _review_adornments(root, task_id, title)
         effects += [
             # The transition ordinal joins the key (A-30): a state revisited
             # at the same attempt is a new fact; a replay between
@@ -195,12 +217,6 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         task_id = contract.parent.name
-        # Review adornments ride the contract sweep, not the run state —
-        # a review's state is swept fast, and its issue outlives it.
-        for adornment in _review_adornments(root, task_id,
-                                            _title(root, task_id)):
-            if adornment.key not in seen and stage(root, adornment):
-                staged += 1
         if f"{task_id}:landed" in seen:
             continue
         if naming.state_file(root, task_id).exists():
@@ -228,10 +244,6 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
             result = tracker.reflect(task_id, str(payload["state"]), title)
         elif effect.kind == "landed":
             result = tracker.reflect(task_id, "landed", title)
-        elif effect.kind == "role_label":
-            result = tracker.label(task_id, str(payload["label"]))
-        elif effect.kind == "sub_issue":
-            result = tracker.link(task_id, str(payload["parent"]))
         elif effect.kind == "approval_needed":
             tracker.label(task_id, "needs:approval")
             result = tracker.comment(

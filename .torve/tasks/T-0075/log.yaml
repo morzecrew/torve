@@ -1,0 +1,49 @@
+schema_version: 1
+task: T-0075
+repo: morzecrew/torve
+base_sha: 806b4650750174d7376757ce9ccce76172077381
+drift_count: 0
+entries:
+  - decision: D-8.16
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T18:45:00Z
+    attempt: 1
+    claim: >-
+      review-role run states project no issue — their attempt summaries
+      post as attributed comments on the target's thread and their
+      escalations notify there, where the retry or abandon decision
+      lives; keys keep the review's own id so replays dedupe, and the
+      run store's review record is untouched
+    evidence: src/torve/application/tracker.py:106-152 — the review
+      branch of projection; tests/test_tracker.py:153-180 — no issue
+      projected, the milestone on the target's thread
+    action: decided
+  - decision: D-8.14
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T18:46:00Z
+    attempt: 1
+    claim: >-
+      executed as amended by A-33 — the review label retires with the
+      review issues while the approve refusal for review-role tasks
+      stands unchanged; a board with no review rows has nothing to
+      label
+    evidence: src/torve/application/tracker.py:146-152 — no adornment
+      effects remain; tests/test_tracker.py:153-162 — labelled stays
+      empty for a review
+    action: decided
+  - decision: D-8.15
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T18:47:00Z
+    attempt: 1
+    claim: >-
+      retired as A-33 records — the sub-issue nesting, its effect kind,
+      the link port method and the adapter implementation are removed
+      rather than kept as dead code; the lab's outbox holds no pending
+      effect of the retired kinds, so the cutover strands nothing
+    evidence: src/torve/application/ports.py:291 — the port without
+      link; tests/test_tracker.py:153-180 — the replacement doctrine
+      pinned where the nesting tests stood
+    action: decided

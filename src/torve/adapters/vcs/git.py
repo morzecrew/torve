@@ -467,15 +467,24 @@ class GhCi:
                     "environment does not carry it"
                 )
             env = {**os.environ, "GH_TOKEN": token}
-        proc = subprocess.run(
-            ["gh", "api", f"repos/{self.repo}/actions/runs?head_sha={sha}",
-             "--jq", "[.workflow_runs[] | {status, conclusion, workflow_id}]"],
-            capture_output=True, text=True, check=False, env=env,
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(proc.stderr.strip() or "gh api workflow runs failed")
-        loaded: object = json.loads(proc.stdout or "[]")
-        return cast("list[dict[str, Any]]", loaded)
+        for attempt in (1, 2):
+            proc = subprocess.run(
+                ["gh", "api", f"repos/{self.repo}/actions/runs?head_sha={sha}",
+                 "--jq", "[.workflow_runs[] | {status, conclusion, workflow_id}]"],
+                capture_output=True, text=True, check=False, env=env,
+            )
+            if proc.returncode == 0:
+                loaded: object = json.loads(proc.stdout or "[]")
+                return cast("list[dict[str, Any]]", loaded)
+            error = proc.stderr.strip() or "gh api workflow runs failed"
+            # One retry for a transient transport failure (T-0058's rule,
+            # extended by T-0075): reads are idempotent, and a flaked CI
+            # check was killing the whole lane leg.
+            if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
+                self.sleeper(2.0)
+                continue
+            raise RuntimeError(error)
+        raise RuntimeError("unreachable")  # for the type checker
 
     def conclusion(self, sha: str) -> str:
         verdict = "absent"

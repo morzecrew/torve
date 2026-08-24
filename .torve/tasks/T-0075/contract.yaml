@@ -1,0 +1,51 @@
+# Minted by hand — A-33's execution, plus the CI-check retry the other
+# two GitHub surfaces got in T-0058: one in seven lane legs died on a
+# transient TLS flake at the actions API.
+schema_version: 1
+id: T-0075
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  The board is for humans. Review-role tasks project no issues: their
+  attempt summaries post as comments on their target's issue and their
+  escalations notify on the target's thread, where the retry or
+  abandon decision lives; a review with no target projects nothing.
+  The review label and sub-issue nesting retire with the rows they
+  decorated, the link port method with them; legacy review issues keep
+  the landings close-out. And the CI adapter gains the single
+  transient retry its sibling surfaces already have.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/tracker.py"
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/tracker/github.py"
+    - "src/torve/adapters/vcs/git.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.16
+    grade: ASSUMED
+    text: "Review-role tasks are not projected as issues: a review's attempt summary posts as a comment on its target's issue and a review escalation notifies on the target's thread; the run store keeps the full review record, and legacy review issues keep the D-8.11 close-out"
+    paths:
+      - src/torve/application/tracker.py
+  - id: D-8.14
+    grade: ASSUMED
+    text: "Review-task issues wear a review label from projection, and approve refuses a review-role task outright. Amended by A-33: the label retires with the review issues; the approve refusal stands"
+    paths:
+      - src/torve/application/tracker.py
+  - id: D-8.15
+    grade: ASSUMED
+    text: "A review issue nests under its first target's issue as a forge sub-issue. Retired by A-33: review issues no longer exist to nest"
+    paths: []
+budget: {}
+tier: executor
