@@ -8,7 +8,7 @@ depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-27", "A-28", "A-29"]
+amended_by: ["A-27", "A-28", "A-29", "A-31"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -118,9 +118,14 @@ when all of the following hold, readable from the file system alone:
 - no run state exists for it — a task that ran and reached any state,
   terminal or not, is not re-dispatched by the loop; re-entry into the
   queue is a human act (`retry` via the board, or a re-mint);
-- every `depends_on` entry has landed or is `ready` — the same rule
-  dispatch already enforces, checked here so the loop does not burn its
-  one slot on a refusal it can predict.
+- every `depends_on` entry has landed on the base — its trailer in
+  history, nothing less. *Amended by A-31 2026-08-24: as accepted this
+  bullet also admitted a `ready` dependency, which the approvals regime
+  broke — a candidate can now dwell ready-but-unlanded for hours while
+  it waits for a human, and a dependent dispatched in that window
+  builds on a base missing its foundation. In the automatic regime the
+  change is invisible: the lane precedes dispatch in the tick, so a
+  landed dependency is visible the same tick it lands.*
 
 *Execution note 2026-08-24 (T-0055):* "no run state" is implemented as
 "no run *record*" — neither a state file nor a telemetry record naming
@@ -250,7 +255,7 @@ creates work" buys.
 | D-19.1 | `LOCKED` | The standing loop is a bounded tick (`torve tick`), never a resident daemon; cadence is delivered by the environment | `src/torve/application/loop.py` `src/torve/cli/tick.py` | One operational surface; a dead scheduler is visible silence, a daemon is a zombie that looks alive |
 | D-19.2 | `LOCKED` | One tick at a time per root, held by a lock file; an overlapping fire exits as a recorded no-op; a stale lock is broken loudly, and D-6.9's converging dispatch remains the backstop below it | `src/torve/application/loop.py` | Cron overlap is a certainty; it must be boring |
 | D-19.3 | `ASSUMED` | Tick order is fixed: poll, lane, reap, dispatch, sync. *Amended by A-27 2026-08-24 — as accepted the order was reap-first, and the second live tick showed the reaper sweeping the lane's READY input; A-26's merge-before-reap applies inside the tick* | `src/torve/application/loop.py` | Human intents precede machine work; the lane's input outlives the reaper; the board is a postcondition of the tick, not a snapshot of its middle |
-| D-19.4 | `ASSUMED` | Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick, as doctrine not configuration. *Amended by A-29 2026-08-24: a task whose landing trailer is already in base history is never queued, whatever run records the host holds — landings are repo truth, run records are host truth, and a fresh clone must not re-run what the repository already knows* | `src/torve/application/loop.py` | Deterministic from the file system alone; spend is bounded by cadence; a priority field would be a second planner |
+| D-19.4 | `ASSUMED` | Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick, as doctrine not configuration. *Amended by A-29 2026-08-24: a task whose landing trailer is already in base history is never queued, whatever run records the host holds — landings are repo truth, run records are host truth, and a fresh clone must not re-run what the repository already knows. Amended by A-31 2026-08-24: a dependency is satisfied only by its landing — a ready-but-unlanded dependency is not on the base the dependent's worktree is cut from* | `src/torve/application/loop.py` | Deterministic from the file system alone; spend is bounded by cadence; a priority field would be a second planner |
 | D-19.5 | `LOCKED` | Intake pauses while the escalation queue holds `loop.pause_escalations` runs (default 1); every other leg keeps running — the queue may drain, not grow, by the loop's hand | `src/torve/application/loop.py` `src/torve/config/runconfig.py` | D-6.8 made mechanical: a queue nobody triages stops the machine, not the person |
 | D-19.6 | `LOCKED` | The tick's lane leg runs only under `promotion.auto_merge`; otherwise ready candidates accumulate for the operator | `src/torve/application/loop.py` | A scheduler is nobody's approval; D-6.2's opt-in is exactly this switch and no second knob is added |
 | D-19.7 | `ASSUMED` | Every tick appends one engine event recording each leg's action or skip reason, `noop: true` when nothing moved | `src/torve/application/loop.py` `src/torve/application/telemetry.py` | Quiet and dead must be distinguishable from telemetry alone |
@@ -396,3 +401,31 @@ still guards the reaped-but-unlanded history on the host that ran it);
 QUEUED re-entry (T-0059) stands, but the repo check is authoritative
 over it — a landed task's re-entry is a revert and a new contract,
 never a re-run; and the tick still creates nothing (D-19.8).
+
+### A-31 — 2026-08-24 — a dependency is satisfied only by its landing (amends §4, D-19.4)
+
+**Found in operation** — within the first hour of a twelve-task batch
+under the approvals regime at one-minute cadence. T-0045 reached ready
+and waited for its human approval; the loop then dispatched T-0046,
+whose `depends_on: [T-0045]` was satisfied by the accepted rule's
+"landed or ready" — but ready is not landed, and T-0046's worktree was
+cut from a base with no trace of its dependency. Three honest failing
+attempts later it escalated on the poison ceiling and paused the queue.
+
+The "or ready" clause was never observed to work by its own virtue: in
+the automatic regime the lane precedes dispatch inside the tick, so a
+ready dependency lands moments before its dependent dispatches, and the
+clause was satisfied by `landed` in every drain that succeeded. The
+approvals regime (RFC 0006 §3) broke the coincidence — ready now dwells
+unlanded for as long as a human deliberates.
+
+**Changed:** a `depends_on` entry is satisfied by its landing alone —
+the trailer on the base the dependent's worktree will actually be cut
+from. In the automatic regime the change is invisible for the same
+reason the bug was: a dependency landed by this tick's lane is visible
+to this tick's dispatch.
+
+**Deliberately unchanged:** one dispatch per tick (a waiting dependent
+costs at most its place in line); the escalation pause, which contained
+this defect exactly as designed; and the QUEUED re-entry path — a
+re-queued dependent re-checks its dependencies like everything else.
