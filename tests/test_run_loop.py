@@ -215,3 +215,36 @@ def test_existing_non_terminal_run_refuses_a_second_claim(rig):
     assert first.state is TaskState.ESCALATED
     with pytest.raises(RuntimeError, match="existing run"):
         run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+
+
+def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
+    # D-5.13 (T-0076): the planted feedback record is for the agent's eyes
+    # only — present in the worktree while the attempt runs, gone before the
+    # gates measure the tree. A record the scope gate could see would fail
+    # every revision against its own contract, and a record that survived to
+    # the commit would land untrusted review text on the base.
+    from torve.application.feedback import capture_feedback
+
+    repo, deps, _runtime, _vcs, _ = rig
+    task = task_for(repo)
+    assert capture_feedback(repo.root, task.id, "diff --git a/f b/f", [])
+    seen: dict[str, bool] = {}
+
+    class PeekingAgent:
+        def run(self, ctx):
+            seen["during_attempt"] = (
+                ctx.workspace / ".torve" / "feedback.md").is_file()
+            return OK
+
+    def peeking_gates(worktree, *args, **kwargs):
+        seen["at_gates"] = (worktree / ".torve" / "feedback.md").is_file()
+        return 0, "scripted", "cafecafe1234", [], ""
+
+    deps.agent = PeekingAgent()
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", peeking_gates)
+    state = run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert state.state is TaskState.READY
+    assert seen["during_attempt"] is True
+    assert seen["at_gates"] is False
+    assert not (repo.root / ".wt" / task.id / ".torve" / "feedback.md").exists()

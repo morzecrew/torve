@@ -1,0 +1,23 @@
+schema_version: 1
+task: T-0076
+repo: morzecrew/torve
+base_sha: 429c8ba58bf6b2a8d7b5573b0dc49b14932d3be6
+drift_count: 0
+entries:
+  - decision: D-5.13
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T19:05:00Z
+    attempt: 1
+    claim: >-
+      the feedback record is planted into the worktree per attempt and
+      unlinked in the attempt's cleanup, before the gates measure the
+      tree — the agent reads it, the scope gate never sees it, and the
+      untrusted text cannot ride the candidate onto the base; found
+      live when lab T-0051's re-run failed scope three times over the
+      engine's own planted file and hit the poison ceiling
+    evidence: src/torve/application/runner.py:419-461 — the plant with
+      its parent mkdir and the unlink in the attempt's finally;
+      tests/test_run_loop.py:220-250 — present during the attempt,
+      absent at gate time and after the run
+    action: decided

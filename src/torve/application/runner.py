@@ -416,10 +416,12 @@ def real_hooks(
         from torve.application.feedback import feedback_file
 
         captured = feedback_file(root, task.id)
+        planted = worktree / ".torve" / "feedback.md"
         if captured.is_file():
             import shutil as _shutil
 
-            _shutil.copyfile(captured, worktree / ".torve" / "feedback.md")
+            planted.parent.mkdir(parents=True, exist_ok=True)
+            _shutil.copyfile(captured, planted)
         env_passthrough, volumes = (
             _sandbox_auth(tier, config.worker_slot) if real else ((), {})
         )
@@ -451,6 +453,12 @@ def real_hooks(
             # cleanup, and the sandbox must die regardless (D-4).
             deps.runtime.destroy(handle)
             _restore_never_send(withheld)
+            # The planted record was for this attempt's eyes (D-5.13,
+            # T-0076): it leaves the tree before the gates measure it —
+            # the feedback channel steers the attempt, never the candidate,
+            # and a planted file the scope gate can see would fail every
+            # revision against its own contract.
+            planted.unlink(missing_ok=True)
             state.sandbox_id = None
             state.save()
 

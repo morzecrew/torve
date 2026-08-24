@@ -1,0 +1,38 @@
+# Minted by hand — A-32 execution defect found live: the revision loop's
+# planted record tripped the engine's own scope gate, poisoning every
+# re-run it was built to help (lab T-0051, 3× scope=fail in one minute).
+schema_version: 1
+id: T-0076
+rfc: rfcs/0005-review-as-a-run.md
+phase: 2
+role: implement
+intent: |
+  The planted feedback record steers the attempt, never the candidate.
+  The runner copies the record into the worktree for the agent's eyes
+  and removes it before the gates measure the tree, so a revision is
+  judged on the agent's work alone: the scope gate cannot fail the
+  re-run over the engine's own furniture, and the untrusted review
+  text can never ride a commit onto the base. The plant also creates
+  its parent directory, so a bare worktree cannot refuse the copy.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/runner.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-5.13
+    grade: ASSUMED
+    text: "A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs — the record is planted per attempt and leaves the tree before the gates measure it"
+    paths:
+      - src/torve/application/runner.py
+budget: {}
+tier: executor
