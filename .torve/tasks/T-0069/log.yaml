@@ -1,0 +1,23 @@
+schema_version: 1
+task: T-0069
+repo: morzecrew/torve
+base_sha: ff4169db2d88d562dd7a8602be418e17b4b3ee52
+drift_count: 0
+entries:
+  - decision: D-8.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-24T11:05:00Z
+    attempt: 1
+    claim: >-
+      executed as amended by A-30 — the state effect's key carries the
+      run's transition ordinal, so a state revisited at the same
+      attempt re-reflects (and the label retirement then shows the
+      current state) while a replay between transitions stages nothing;
+      escalation, notify and attempt keys are untouched, and on upgrade
+      each task's current state re-delivers once, idempotent at the
+      destination
+    evidence: src/torve/application/tracker.py:131-137 — the ordinal in
+      the key; tests/test_tracker.py:170-190 — replay silent, revisit
+      reflected again
+    action: decided

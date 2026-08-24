@@ -1,0 +1,38 @@
+# Minted by hand — A-30's execution: the first organic retry left a
+# ready candidate wearing its old escalation label, because the state
+# revisit deduped against the delivered key.
+schema_version: 1
+id: T-0069
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  The state effect's key gains the run's transition ordinal — the
+  length of the history every transition appends to — so a state
+  revisited at the same attempt is a new effect the board reflects,
+  while replays between transitions still deliver nothing. Escalation,
+  notify and attempt effects keep their keys: attempts move between
+  their revisits by construction.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/tracker.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.2
+    grade: LOCKED
+    text: "Projection rides the outbox, keyed on (task_id, state, attempt) for idempotency. Amended by A-30: the state effect's key gains the transition ordinal"
+    paths:
+      - src/torve/application/outbox.py
+      - src/torve/application/tracker.py
+budget: {}
+tier: executor

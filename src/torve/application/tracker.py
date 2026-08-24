@@ -128,7 +128,11 @@ def project(root: Path, notify_login: str = "") -> int:
                     payload={"task": task_id, "title": title,
                              "parent": task.targets[0]}))
         effects += [
-            Effect(key=f"{task_id}:{state.state}:{state.attempts}", kind="state",
+            # The transition ordinal joins the key (A-30): a state revisited
+            # at the same attempt is a new fact; a replay between
+            # transitions is not.
+            Effect(key=(f"{task_id}:{state.state}:{state.attempts}"
+                        f":{len(state.history)}"), kind="state",
                    payload={"task": task_id, "state": str(state.state), "title": title})]
         if state.escalation is not None:
             effects.append(Effect(

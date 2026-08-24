@@ -167,7 +167,28 @@ def test_a_review_issue_wears_the_review_label(root):
     assert not any(t == "T-6122" for t, _ in tracker.labelled)
 
 
-def test_a_review_issue_nests_under_its_target(root):
+def test_a_revisited_state_is_reflected_again(root):
+    # A-30: ready → escalated → ready at the same attempt must re-reflect
+    # — the board would otherwise wear yesterday's escalation label over
+    # a ready candidate — while replays between transitions stay silent.
+    state = run_state(root, "T-6140", TaskState.READY)
+    tracker = FakeTracker()
+    project(root)
+    relay_to_tracker(root, tracker)
+    project(root)
+    relay_to_tracker(root, tracker)  # replay: nothing new
+    assert tracker.reflected.count(("T-6140", "ready")) == 1
+
+    # The revisit is a longer history at the same state and attempt —
+    # the shape a retry's excursion leaves behind.
+    state.history.append({"at": "t", "from": "ready", "to": "escalated",
+                          "fact": "conflict"})
+    state.history.append({"at": "t", "from": "escalated", "to": "queued",
+                          "fact": "retry"})
+    state.save()
+    project(root)
+    relay_to_tracker(root, tracker)
+    assert tracker.reflected.count(("T-6140", "ready")) == 2
     # D-8.15: the machine's meta-work indents beneath the work.
     contract(root, "T-6125", role="review", targets=["T-6124"])
     run_state(root, "T-6125", TaskState.RUNNING)
