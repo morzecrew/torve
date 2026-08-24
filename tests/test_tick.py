@@ -298,6 +298,23 @@ def test_a_board_requeued_task_is_selected_again(root):
     assert next_queued(root, lambda _t: False) == "T-9001"
 
 
+def test_a_landed_task_is_never_queued_even_on_a_fresh_clone(root):
+    # A-29: state files and telemetry are host-local; a fresh clone holds
+    # neither. The repository's landing trailer outranks the missing host
+    # records — selection skips the landed task and takes the next.
+    contract(root, "T-9001")
+    contract(root, "T-9002")
+    assert next_queued(root, lambda t: t == "T-9001") == "T-9002"
+
+
+def test_a_landed_task_with_a_queued_state_is_not_rerun(root):
+    # A-29 over T-0059: the repo check is authoritative over re-entry — a
+    # landed task's re-entry is a revert and a new contract, not a re-run.
+    contract(root, "T-9001")
+    run_state(root, "T-9001", TaskState.QUEUED)
+    assert next_queued(root, lambda t: t == "T-9001") is None
+
+
 def test_a_requeued_task_still_waits_for_its_dependencies(root):
     contract(root, "T-9002", depends_on=["T-9001"])
     run_state(root, "T-9002", TaskState.QUEUED)

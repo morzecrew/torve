@@ -14,7 +14,10 @@ Selection (D-19.4, refined at execution): "no run state" alone would
 re-dispatch every reaped task, because the reaper removes state files.
 Queued therefore means no run *record* — neither a state file nor a
 telemetry attempt record — which stays readable from the file system
-alone; telemetry is append-only and survives the reaper.
+alone; telemetry is append-only and survives the reaper. And the
+repository outranks the host (A-29): both records are host-local, so a
+task whose landing trailer is already in base history is never queued —
+a fresh clone must not re-run what the repository already knows.
 """
 
 from __future__ import annotations
@@ -111,6 +114,12 @@ def next_queued(root: Path, landed: Callable[[str], bool]) -> str | None:
             if RunState.load(state_path).state is not TaskState.QUEUED:
                 continue
         elif _run_record_exists(root, task.id):
+            continue
+        # A-29: the repository outranks the host. A landed task is never
+        # queued — state files and telemetry are host-local, so a fresh
+        # clone holds neither and would otherwise re-run landed history.
+        # Asked here so the common tick still reads local files alone.
+        if landed(task.id):
             continue
         if not all(_dependency_satisfied(root, dep, landed)
                    for dep in task.depends_on):

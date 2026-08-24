@@ -1,0 +1,36 @@
+# Minted by hand — A-29's execution, found by the first scheduled tick
+# against a fresh clone re-dispatching the entire landed history.
+schema_version: 1
+id: T-0064
+rfc: rfcs/0019-standing-loop.md
+phase: 2
+role: implement
+intent: |
+  Selection asks the repository before it trusts the host: a task whose
+  landing trailer is already in base history is never queued, whatever
+  run records the host holds — including a QUEUED re-entry state, since
+  a landed task's re-entry is a revert and a new contract, never a
+  re-run. The oracle is asked only of tasks the host records would
+  otherwise select, so the common tick still reads local files alone.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/loop.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-19.4
+    grade: ASSUMED
+    text: "Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick. Amended by A-29: a task landed on the base is never queued, whatever run records the host holds"
+    paths:
+      - src/torve/application/loop.py
+budget: {}
+tier: executor

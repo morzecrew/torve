@@ -1,0 +1,24 @@
+schema_version: 1
+task: T-0064
+repo: morzecrew/torve
+base_sha: 624c2cef54eb87d512f24f8d20b8c9a75373a92f
+drift_count: 0
+entries:
+  - decision: D-19.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-24T08:26:00Z
+    attempt: 1
+    claim: >-
+      selection asks the repository before it trusts the host — a task
+      whose landing trailer is in base history is never queued, and the
+      check is authoritative over the QUEUED re-entry state as well,
+      since a landed task's re-entry is a revert and a new contract;
+      the oracle is consulted only for tasks the host records would
+      otherwise select, so a tick over a warm checkout still reads
+      local files alone
+    evidence: src/torve/application/loop.py:117-123 — the repo check
+      after the host-record checks; tests/test_tick.py:301-316 — a
+      fresh clone skips landed history and a landed QUEUED state is
+      not re-run
+    action: decided
