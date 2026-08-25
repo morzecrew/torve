@@ -685,6 +685,58 @@ def test_a_failed_requeue_cleanup_refuses_and_leaves_the_escalation(root):
 # approve joins the vocabulary (T-0061): sha-bound, ready-only, idempotent.
 
 
+def test_revise_requeues_a_ready_candidate_with_capture_first(root):
+    # D-8.18 (A-40): a review finding worth another attempt — the same
+    # capture-first cleanup as retry, then the ready → queued edge.
+    contract(root, "T-6150")
+    run_state(root, "T-6150", TaskState.READY)
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("revise", "T-6150", "misery7100", "c50")]
+    captured: list[str] = []
+
+    def requeue(task_id: str) -> str:
+        captured.append(task_id)
+        return "branch kept; feedback captured"
+
+    outcome = poll_and_apply(root, tracker, ("misery7100",),
+                             requeue=requeue).outcomes[0]
+    assert outcome.applied and "feedback captured" in outcome.detail
+    assert captured == ["T-6150"]
+    assert RunState.load(
+        naming.state_file(root, "T-6150")).state is TaskState.QUEUED
+
+
+def test_revise_refuses_off_ready_and_review_roles(root):
+    contract(root, "T-6151")
+    run_state(root, "T-6151", TaskState.RUNNING)
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("revise", "T-6151", "misery7100", "c51")]
+    outcome = poll_and_apply(root, tracker, ("misery7100",)).outcomes[0]
+    assert not outcome.applied and "ready candidate" in outcome.detail
+
+    contract(root, "T-6152", role="review", targets=["T-6150"])
+    run_state(root, "T-6152", TaskState.READY)
+    tracker.commands = [TrackerCommand("revise", "T-6152", "misery7100", "c52")]
+    outcome = poll_and_apply(root, tracker, ("misery7100",)).outcomes[0]
+    assert not outcome.applied and "never revised" in outcome.detail
+
+
+def test_revise_leaves_the_run_ready_when_capture_refuses(root):
+    contract(root, "T-6153")
+    run_state(root, "T-6153", TaskState.READY)
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("revise", "T-6153", "misery7100", "c53")]
+
+    def refusing(_task_id: str) -> str:
+        raise RuntimeError("forge unreachable")
+
+    outcome = poll_and_apply(root, tracker, ("misery7100",),
+                             requeue=refusing).outcomes[0]
+    assert not outcome.applied and "capture failed" in outcome.detail
+    assert RunState.load(
+        naming.state_file(root, "T-6153")).state is TaskState.READY
+
+
 def test_approve_records_a_sha_bound_approval_on_a_ready_candidate(root):
     run_state(root, "T-6130", TaskState.READY)
     tracker = FakeTracker()

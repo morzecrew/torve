@@ -88,7 +88,10 @@ TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.RUNNING: frozenset({TaskState.GATED, TaskState.ESCALATED}),
     TaskState.GATED: frozenset({TaskState.REVIEWED, TaskState.RUNNING, TaskState.ESCALATED}),
     TaskState.REVIEWED: frozenset({TaskState.READY, TaskState.ESCALATED}),
-    TaskState.READY: frozenset({TaskState.ESCALATED}),
+    # ready → queued is the commander's revise (RFC 0008 D-8.18, A-40):
+    # a review finding on a passing candidate re-enters the loop by a
+    # human's explicit act, never by the loop's own hand.
+    TaskState.READY: frozenset({TaskState.ESCALATED, TaskState.QUEUED}),
     TaskState.ESCALATED: frozenset({TaskState.QUEUED, TaskState.ABANDONED}),
     TaskState.ABANDONED: frozenset(),
 }

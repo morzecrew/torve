@@ -29,7 +29,7 @@ from torve.domain.states import TRANSITIONS, TaskState
 
 # ----------------------- #
 
-COMMANDS = ("retry", "abandon", "unblock", "approve")
+COMMANDS = ("retry", "abandon", "unblock", "approve", "revise")
 
 
 def _title(root: Path, task_id: str) -> str:
@@ -353,6 +353,30 @@ def _apply(root: Path, command: TrackerCommand,
                          f"tracker command abandon from {command.actor}")
         state.save()
         return CommandOutcome(verb, task_id, command.actor, True, "abandoned")
+
+    if verb == "revise":
+        # A-40 (D-8.18): the commander's re-queue of a ready candidate —
+        # a review finding worth another attempt before it lands. Same
+        # capture-first cleanup as retry; the branch persists (D-10.10).
+        if _role(root, task_id) == "review":
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  "a review is never revised — it re-runs "
+                                  "with its target")
+        if state.state is not TaskState.READY:
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  f"revise needs a ready candidate; this one is {state.state}")
+        cleanup = "no re-queue cleanup wired"
+        if requeue is not None:
+            try:
+                cleanup = requeue(task_id)
+            except Exception as exc:  # refused, never half-applied
+                return CommandOutcome(verb, task_id, command.actor, False,
+                                      f"revision capture failed: {exc}")
+        state.transition(TaskState.QUEUED,
+                         f"tracker command revise from {command.actor}")
+        state.save()
+        return CommandOutcome(verb, task_id, command.actor, True,
+                              f"re-queued for revision ({cleanup})")
 
     if verb == "approve":
         if _role(root, task_id) == "review":

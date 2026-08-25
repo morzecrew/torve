@@ -1,0 +1,39 @@
+schema_version: 1
+task: T-0083
+repo: morzecrew/torve
+base_sha: 72a606cb774b6138a9dc02a12b08545d079ddb6c
+drift_count: 0
+entries:
+  - decision: D-8.18
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T03:30:00Z
+    attempt: 1
+    claim: >-
+      revise applies only to a READY implement-or-revert run — a review
+      is refused by role, any other state by name — and runs the shared
+      capture-first cleanup before the transition, so a refused capture
+      leaves the run ready and the command retryable; the ready-to-
+      queued edge exists in the transitions map for this command alone,
+      and the domain tests pin the amended edge set in both directions
+    evidence: src/torve/application/tracker.py:357-379 — the handler,
+      capture before transition; src/torve/domain/states.py:91-94 —
+      the minted edge; tests/test_tracker.py:688-736 — applied,
+      refused-off-ready, refused-for-review, capture-refusal leaves
+      ready; tests/test_domain.py:24-39 — the edge set as amended
+    action: decided
+  - decision: D-8.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-25T03:31:00Z
+    attempt: 1
+    claim: >-
+      executed as amended by A-40 — the vocabulary stays fixed and
+      allow-listed, grown by exactly one member; the parse, the
+      commander authorization, and the answered-command dedupe are
+      untouched, and the github adapter accepts the verb through the
+      same COMMANDS import it always read
+    evidence: src/torve/application/tracker.py:32 — the closed tuple;
+      src/torve/adapters/tracker/github.py:30-32 — the same allow-list
+      parse, unchanged
+    action: decided

@@ -1,0 +1,45 @@
+# Minted by hand — A-40's execution: a ready candidate with a confirmed
+# Major finding offered only approve-the-bug or abandon-the-task.
+schema_version: 1
+id: T-0083
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  revise: the commander's re-queue of a ready candidate. The command
+  vocabulary gains revise — apply demands a READY implement-or-revert
+  run, executes the same capture-first cleanup as retry (allow-listed
+  review threads and the superseded diff enter the revision record,
+  the branch persists), then transitions ready to queued: the one new
+  edge, minted for exactly this command. Reviews are never revised;
+  retry keeps its escalated-only contract; a refused capture leaves
+  the run ready.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/domain/states.py"
+    - "src/torve/application/tracker.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.18
+    grade: ASSUMED
+    text: "revise is the commander's re-queue of a READY candidate whose review found something worth another attempt: capture-first cleanup, then ready to queued — an edge the state machine gains for exactly this command; reviews are never revised"
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/domain/states.py
+  - id: D-8.3
+    grade: LOCKED
+    text: "Inbound is a fixed command vocabulary validated against the store — the vocabulary gained revise by amendment A-40"
+    paths:
+      - src/torve/application/tracker.py
+budget: {}
+tier: executor
