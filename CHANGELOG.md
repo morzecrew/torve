@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- One pull request per task (T-0080, A-37, RFC 0010 D-10.10, D-10.5
+  as amended): the candidate branch persists across re-queues — the
+  retry and conflict cleanups become capture-only — each new attempt
+  supersedes it with a leased force-push, and `open_pr` reuses the
+  branch's open pull request, refreshing title and body. Attempts
+  iterate one thread of review; the base push stays additive, and the
+  branch still dies only at the landing's retirement.
+- The needs:approval label follows the gap (T-0079, A-36, RFC 0008
+  D-8.17): an applied approval stages the label's removal at once, a
+  run observed outside ready clears a worn prompt, and the landings
+  pass sweeps stale labels retroactively — all idempotent `unlabel`
+  effects through the outbox, absent labels absorbed at the forge.
 - A conflicted landing re-queues through the revision loop (T-0078,
   A-35, RFC 0006 D-6.10/D-6.12): the standing loop applies the
   escalation's standard disposal in place — feedback captured, branch
