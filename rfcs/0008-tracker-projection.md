@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-30", "A-33", "A-36"]
+amended_by: ["A-30", "A-33", "A-36", "A-40"]
 owner: Lev Litvinov
 description: >-
   Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board.
@@ -117,7 +117,7 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 | --- | --- | --- | --- | --- |
 | D-8.1 | `LOCKED` | The tracker holds no authoritative state; leases, status and history live in the store | `src/torve/application/tracker.py` | Reversing loses transactions, fencing and append-only at once |
 | D-8.2 | `LOCKED` | Projection rides the outbox, keyed on `(task_id, state, attempt)` for idempotency. *Amended by A-30 2026-08-24: the state effect's key gains the transition ordinal — `(task_id, state, attempt, transitions)` — because a state revisited at the same attempt is a new fact the board must reflect* | `src/torve/application/outbox.py` `src/torve/application/tracker.py` | At-least-once delivery without duplicate comments |
-| D-8.3 | `LOCKED` | Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change | `src/torve/application/tracker.py` | Two-way state sync is how these systems rot |
+| D-8.3 | `LOCKED` | Inbound is a fixed command vocabulary validated against the store; a card move is an intent, not a state change. *The vocabulary gained `revise` by amendment A-40 2026-08-25 (D-8.18)* | `src/torve/application/tracker.py` | Two-way state sync is how these systems rot |
 | D-8.4 | `LOCKED` | Task contracts are not editable from a tracker | `src/torve/application/tracker.py` | A silently widened scope defeats the specification layer |
 | D-8.5 | `LOCKED` | Tracker text is untrusted input and is never treated as specification | `src/torve/application/tracker.py` `src/torve/adapters/tracker/**` | Injection surface with agent readers |
 | D-8.6 | `ASSUMED` | `reflect` returns applied/refused/unsupported; refusal is a logged divergence | `src/torve/application/ports.py` `src/torve/adapters/tracker/**` | Required by Jira-style transition workflows |
@@ -132,6 +132,7 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 | D-8.15 | `ASSUMED` | A review issue nests under its first target's issue as a forge sub-issue. Added by execution 2026-08-24 — see .torve/tasks/T-0068. *Retired by A-33 2026-08-24: review issues no longer exist to nest — the decoration outlived its subject by a day, measured and deleted honestly* | — | The board's top level is the work; the machine's meta-work indents beneath it |
 | D-8.16 | `ASSUMED` | Review-role tasks are not projected as issues: a board row exists to solicit human input, and a review never needs any. A review's attempt summary posts as a comment on its target's issue and a review escalation notifies on the target's thread — where the retry/abandon decision lives; the run store keeps the full review record, and legacy review issues keep the D-8.11 close-out. Added by amendment A-33 2026-08-24 | `src/torve/application/tracker.py` | Half the board was rows that could never want anything from a person |
 | D-8.17 | `ASSUMED` | The `needs:approval` label is a claim about the present and retires when the gap closes: an applied approval stages its removal at once, a run observed in any non-ready state clears it (keyed on the transition ordinal, staged only for tasks the ledger shows were ever prompted), and the landings pass clears it as the backstop — removal is an idempotent effect through the same outbox, absent-label removals absorbed at the destination. Added by amendment A-36 2026-08-25 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | Landed, closed issues still wore `needs:approval`; a label that never retires reads as a frozen board |
+| D-8.18 | `ASSUMED` | `revise` is the commander's re-queue of a READY candidate whose review found something worth another attempt: the same capture-first cleanup as retry — the pull request's allow-listed threads and the superseded diff enter the revision record, the branch persists (D-10.10) — then `ready → queued`, an edge the state machine gains for exactly this command; reviews are never revised, and an approval of the superseded tip counts for nothing as always. Added by amendment A-40 2026-08-25 | `src/torve/application/tracker.py` `src/torve/domain/states.py` | A ready candidate with a confirmed Major finding offered only approve-the-bug or abandon-the-task — the live refusal on the board is this row's origin |
 
 ## 8. Risks
 
@@ -285,3 +286,32 @@ label is absorbed at the destination like every other replay.
 (D-8.13's core); the single-state-label rule (D-8.12), which was
 working — `state:*` staleness during a busy drain is delivery lag that
 self-corrects, not a defect; and the outbox's at-least-once contract.
+
+### A-40 — 2026-08-25 — revise: the commander's re-queue of a ready candidate (adds D-8.18; the D-8.3 vocabulary grows)
+
+**Found in operation** — the disjoint experiment batch produced the
+corpus's first true line-anchored review finding: an allow-listed
+reviewer flagged a Major correctness bug in a candidate the task-gated
+review had passed, verified real against the code. The candidate sat
+READY. `/torve retry` answered on the board: "retry needs an escalated
+run; this one is ready" — and the commander's remaining options were
+approve-the-bug or abandon-the-task. The state machine had no
+`ready → queued` edge at all: external review findings on a passing
+candidate had no path back into the loop, and the bug landed.
+
+**Changed:** the vocabulary gains `revise` (D-8.18). Its apply demands
+a READY implement-or-revert run, executes the same capture-first
+cleanup as retry — the pull request's allow-listed review threads and
+the superseded diff enter the revision record while the candidate
+still stands, and the branch persists (D-10.10) — then transitions
+`ready → queued`, the one new edge, minted for exactly this command.
+The re-run revises on the same pull request; its fresh tip prompts for
+its own sha-bound approval.
+
+**Deliberately unchanged:** retry, which keeps its escalated-only
+contract — the two verbs answer different situations and a shared
+verb would blur the record; reviews, which are never revised (their
+re-run rides their target's); approvals, sha-bound as always — a
+superseded tip's approval counts for nothing; and the review's
+advisory grade — `revise` is a human judgement about a finding, never
+an automatic consequence of one.
