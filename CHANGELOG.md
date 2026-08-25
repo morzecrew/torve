@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- revise — the commander's re-queue of a ready candidate (T-0083,
+  A-40, RFC 0008 D-8.18): a review finding on a passing candidate can
+  now re-enter the loop by explicit human act — capture-first cleanup,
+  then the minted ready→queued edge. Reviews are never revised; retry
+  stays escalated-only. Born of the first true Major finding sitting
+  on a READY candidate with no path back.
+- Provenance reads like history (T-0084, RFC 0010 D-10.4/D-10.6):
+  commit subjects carry the intent's head before the attempt verdict;
+  PR bodies lead with the control-surface note, changed paths, and a
+  one-line gate verdict when green, folding the contract behind a
+  details block; host trace paths shrink to their basename.
 - The loop dispatches what cannot collide (T-0082, A-39, RFC 0019
   D-19.14, D-19.4 as amended): up to `loop.dispatch_workers` queued
   tasks per tick run concurrently when their contract scopes are
