@@ -8,7 +8,7 @@ depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-27", "A-28", "A-29", "A-31", "A-34"]
+amended_by: ["A-27", "A-28", "A-29", "A-31", "A-34", "A-39"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -255,7 +255,7 @@ creates work" buys.
 | D-19.1 | `LOCKED` | The standing loop is a bounded tick (`torve tick`), never a resident daemon; cadence is delivered by the environment | `src/torve/application/loop.py` `src/torve/cli/tick.py` | One operational surface; a dead scheduler is visible silence, a daemon is a zombie that looks alive |
 | D-19.2 | `LOCKED` | One tick at a time per root, held by a lock file; an overlapping fire exits as a recorded no-op; a stale lock is broken loudly, and D-6.9's converging dispatch remains the backstop below it | `src/torve/application/loop.py` | Cron overlap is a certainty; it must be boring |
 | D-19.3 | `ASSUMED` | Tick order is fixed: poll, lane, reap, dispatch, sync. *Amended by A-27 2026-08-24 — as accepted the order was reap-first, and the second live tick showed the reaper sweeping the lane's READY input; A-26's merge-before-reap applies inside the tick* | `src/torve/application/loop.py` | Human intents precede machine work; the lane's input outlives the reaper; the board is a postcondition of the tick, not a snapshot of its middle |
-| D-19.4 | `ASSUMED` | Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick, as doctrine not configuration. *Amended by A-29 2026-08-24: a task whose landing trailer is already in base history is never queued, whatever run records the host holds — landings are repo truth, run records are host truth, and a fresh clone must not re-run what the repository already knows. Amended by A-31 2026-08-24: a dependency is satisfied only by its landing — a ready-but-unlanded dependency is not on the base the dependent's worktree is cut from* | `src/torve/application/loop.py` | Deterministic from the file system alone; spend is bounded by cadence; a priority field would be a second planner |
+| D-19.4 | `ASSUMED` | Queued = contract with executable role, no run state, dependencies satisfied; selection by ascending id; at most one dispatch per tick, as doctrine not configuration. *Amended by A-29 2026-08-24: a task whose landing trailer is already in base history is never queued, whatever run records the host holds — landings are repo truth, run records are host truth, and a fresh clone must not re-run what the repository already knows. Amended by A-31 2026-08-24: a dependency is satisfied only by its landing — a ready-but-unlanded dependency is not on the base the dependent's worktree is cut from. Amended by A-39 2026-08-25: up to `loop.dispatch_workers` dispatches per tick, admitted only while provably scope-disjoint (D-19.14) — the default of 1 preserves this row's original regime* | `src/torve/application/loop.py` | Deterministic from the file system alone; spend is bounded by cadence; a priority field would be a second planner |
 | D-19.5 | `LOCKED` | Intake pauses while the escalation queue holds `loop.pause_escalations` runs (default 1); every other leg keeps running — the queue may drain, not grow, by the loop's hand | `src/torve/application/loop.py` `src/torve/config/runconfig.py` | D-6.8 made mechanical: a queue nobody triages stops the machine, not the person |
 | D-19.6 | `LOCKED` | The tick's lane leg runs only under `promotion.auto_merge`; otherwise ready candidates accumulate for the operator | `src/torve/application/loop.py` | A scheduler is nobody's approval; D-6.2's opt-in is exactly this switch and no second knob is added |
 | D-19.7 | `ASSUMED` | Every tick appends one engine event recording each leg's action or skip reason, `noop: true` when nothing moved | `src/torve/application/loop.py` `src/torve/application/telemetry.py` | Quiet and dead must be distinguishable from telemetry alone |
@@ -265,6 +265,7 @@ creates work" buys.
 | D-19.11 | `ASSUMED` | The lane adopts byte-identical untracked engine-record files the landing branch carries — the root copy is removed before the fast-forward; any difference in content still refuses. Added by amendment A-28 2026-08-24 | `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` | The runner's worktree commit carries the task's own contract; an untracked identical copy in the root must not block the landing it belongs to |
 | D-19.12 | `ASSUMED` | Before the base push, each rebased landing's candidate branch is republished to its landed tip — force-with-lease, engine-owned `torve/*` namespace, at landing time only — so the forge recognizes the base push as the merge of every landed pull request. Added by amendment A-34 2026-08-24 | `src/torve/cli/tick.py` `src/torve/adapters/vcs/git.py` | The board read fast-forward landings as rejected work; a reader's first hour must not need this table to trust the history |
 | D-19.13 | `ASSUMED` | A landed pull request the forge does not mark merged within a short grace is closed with the landing note — the T-0072 close-out, now the fallback — and the candidate branch is deleted in every landed case. Added by amendment A-34 2026-08-24 | `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | The race between the forge's merge detection and the engine's close-out must degrade to yesterday's behaviour, never to an open orphan |
+| D-19.14 | `ASSUMED` | The dispatch leg admits a batch: up to `loop.dispatch_workers` queued tasks whose contract scopes are pairwise disjoint — the planner's conservative intersection, an empty allow-set disjoint from nothing — and disjoint from every in-flight run's scope; admitted tasks run concurrently, each under its own worker slot, with worktree surgery and telemetry appends serialized behind in-process locks. The default of 1 keeps the serial regime; raising it is RFC 0006 §4's parallelism raise, one dimension, after a measured escalation rate. Added by amendment A-39 2026-08-25 | `src/torve/application/loop.py` `src/torve/cli/tick.py` | What is provably shared serializes; only the provably disjoint runs together — the same-file cascade is a property of the work, not of the loop |
 
 ## Phasing
 
@@ -460,3 +461,33 @@ force path (D-19.9); and RFC 0010 D-10.5's force-push prohibition during
 review — the republish happens at landing, after the sha-bound approvals
 have concluded the review that row protects, and is precisely what keeps
 its line comments anchored to the landed history.
+
+### A-39 — 2026-08-25 — the loop dispatches what cannot collide (amends D-19.4, adds D-19.14)
+
+**Found in operation** — the first twelve-task batch ran strictly
+serially: one dispatch per tick, each landing conflicting the remaining
+same-file siblings into the revision loop, roughly N²/2 candidate
+rounds for N siblings. The owner read it correctly: for same-file work
+the serialization is the physics — no system lands colliding appends
+in parallel — but for scope-disjoint work it was pure queue discipline,
+and RFC 0006 §4's own rule for raising parallelism ("one dimension at a
+time, while escalation rate is low") had just been satisfied by that
+batch's drain: one empty diff, zero infrastructure escalations.
+
+**Changed:** the dispatch leg admits a batch (D-19.14). Up to
+`loop.dispatch_workers` queued tasks run concurrently in one tick when
+their contract scopes are pairwise disjoint and disjoint from every
+in-flight run's — judged by the planner's conservative intersection, so
+what is provably shared serializes and an unscoped task (empty allow:
+unconstrained, RFC 0002 §6) shares a batch with nothing. Each member
+runs under its own worker slot (auth volumes are per-slot, D-4.2);
+worktree creation and telemetry appends — the two shared touchpoints —
+serialize behind in-process locks, and the store's per-task claims
+(D-6.9) remain the mutual-exclusion backstop.
+
+**Deliberately unchanged:** the lane — landing stays strictly serial,
+which is RFC 0006's founding argument; one tick at a time per root
+(D-19.2), the batch living entirely inside its tick; the escalation
+pause, checked before any admission; and the default of 1, which keeps
+every existing deployment on D-19.4's original regime until its owner
+raises the knob deliberately.
