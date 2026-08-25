@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: ["0005", "0006"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-37"]
 owner: Lev Litvinov
 description: >-
   How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role.
@@ -126,11 +126,12 @@ Behaviour:
 | D-10.2 | `LOCKED` | Commit author is the agent identity, never a human | `src/torve/adapters/vcs/git.py` | Attributing machine work to a person corrupts blame and review data |
 | D-10.3 | `LOCKED` | Signing happens outside the sandbox, at the runner boundary | `src/torve/adapters/vcs/git.py` `src/torve/config/runconfig.py` | The agent cannot hold the key |
 | D-10.4 | `LOCKED` | Provenance trailers on every commit, including `config_hash` | `src/torve/adapters/vcs/git.py` `src/torve/application/runner.py` | The only durable link from a bad commit back to its regime |
-| D-10.5 | `LOCKED` | Force-push forbidden once review has started *(scoped by amendment A-34 2026-08-24, registered on RFC 0019 D-19.12: at landing, after the sha-bound approvals conclude the review, the engine republishes its own candidate branch to the landed tip with lease — the republish is what keeps this row's line comments anchored to landed code)* | `src/torve/application/runner.py` `src/torve/adapters/vcs/git.py` | Protects review freshness and line comments |
+| D-10.5 | `LOCKED` | Force-push forbidden within an attempt and everywhere outside the engine-owned candidate namespace. Two sanctioned supersessions, both leased: at landing, the engine republishes its own candidate branch to the landed tip (A-34, registered on RFC 0019 D-19.12); and a new attempt wholly supersedes the prior candidate on the same branch after its review threads are captured (D-5.12) — the capture-first order is what this row's review-freshness purpose demands, and the forge marks superseded line comments outdated rather than losing them. Amended by A-37 2026-08-25 | `src/torve/application/runner.py` `src/torve/adapters/vcs/git.py` | Protects review freshness and line comments |
 | D-10.6 | `LOCKED` | Pull-request bodies are composed from data, never from agent prose | `src/torve/application/forge.py` `src/torve/adapters/vcs/git.py` | A self-report is not evidence |
 | D-10.7 | `LOCKED` | Revert is a role, preferring `git revert`, passing the same gates and the same lane | `src/torve/application/runner.py` `src/torve/domain/task.py` `src/torve/adapters/vcs/git.py` | An unreviewed emergency path is how the guarantees get bypassed |
 | D-10.8 | `ASSUMED` | One commit per attempt | `src/torve/adapters/vcs/git.py` | Depart if attempts routinely produce unrelated changes — which is itself a task-size finding |
 | D-10.9 | `OPEN` | Whether review-run artefacts get their own branch or live only as comments | — | Decided when 0005 ships |
+| D-10.10 | `ASSUMED` | One pull request per task lifetime: the candidate branch persists across re-queues (a requeue captures, it no longer deletes), each new attempt supersedes the branch with a leased force-push, `open_pr` reuses the branch's open pull request instead of minting another, and the branch dies only at the landing's retirement (D-19.13) — an abandoned task's branch is left for the operator. Added by amendment A-37 2026-08-25 | `src/torve/adapters/vcs/git.py` `src/torve/application/runner.py` `src/torve/cli/tick.py` | A pull request per attempt made a nine-task batch read as thirty-odd PRs; reviewers follow one thread per unit of work |
 
 ## Phasing
 
@@ -214,3 +215,34 @@ RFC 0006's.)*
 - A task's full history reconstructible from `git log` trailers alone, with the store offline.
 - A signed commit produced with no key ever present inside a sandbox.
 - One revert executed as a task, passing gates and emitting its execution-log entry.
+
+## Amendments
+
+### A-37 — 2026-08-25 — one pull request per task (amends D-10.5, adds D-10.10)
+
+**Found in operation** — reviewing the first fully drained batch, the
+owner counted the pull requests: every re-queue deleted the candidate
+branch (closing its pull request) and every re-run opened a fresh one,
+so a nine-task batch left ~30 closed PRs — T-0056 alone left five. The
+board read as churn, and it diverged from the reviewer's own habit: one
+branch per unit of work, iterated by pushes, one thread of review.
+
+**Changed:** the branch is the task's, for the task's whole life
+(D-10.10). A requeue captures revision feedback (D-5.12 order
+unchanged: capture first) and keeps the branch; the next attempt
+force-pushes it with lease — the supersession D-10.5 now sanctions,
+after capture — and `open_pr` finding an open pull request for the
+branch reuses it, refreshing the body to the current attempt. Review
+threads accumulate on one PR, superseded lines marked outdated by the
+forge and already preserved verbatim in the revision record. The
+branch's death moves to the landing retirement (A-34's D-19.13), and
+the retry command's cleanup (0008 D-8.10) becomes capture-only — its
+original rationale, "the stale branch would refuse the re-run's push",
+is dissolved by the leased supersession itself.
+
+**Deliberately unchanged:** the base push stays fast-forward-only with
+no force path (D-19.9); one commit per attempt (D-10.8) — the pull
+request always shows exactly the candidate, which is the squash
+discipline; capture-before-supersede (D-5.12); and the abandon command,
+which leaves the branch for the operator — rare, and a deletion there
+is a human's call.
