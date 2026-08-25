@@ -1,0 +1,40 @@
+# Minted by hand — A-38's execution: two engines on one daemon reaped
+# each other's containers; the lab's loop murdered the dev suite's tests.
+schema_version: 1
+id: T-0081
+rfc: rfcs/0003-runner-isolation.md
+phase: 2
+role: implement
+intent: |
+  The reap keeps to its root. Every sandbox is labelled with a stable
+  digest of its engine root's resolved path, and both reap regimes
+  judge only sandboxes wearing their own root — an unlabelled sandbox
+  is a pre-amendment stray and stays reapable by anyone, so old
+  debris cannot leak forever behind the fence. Inside its own root
+  the reap stays exactly as aggressive as before.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/base/naming.py"
+    - "src/torve/application/reaper.py"
+    - "src/torve/application/runner.py"
+    - "src/torve/application/review.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-3.25
+    grade: ASSUMED
+    text: "The reap keeps to its root: every sandbox is labelled with a stable digest of its engine root's resolved path, and the reaper judges only sandboxes wearing its own root — an unlabelled sandbox is a pre-amendment stray, reapable by anyone"
+    paths:
+      - src/torve/base/naming.py
+      - src/torve/application/reaper.py
+budget: {}
+tier: executor

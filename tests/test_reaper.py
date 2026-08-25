@@ -65,6 +65,36 @@ def test_orphaned_sandbox_with_no_state_at_all_is_destroyed(tmp_path):
     assert report.sandboxes_destroyed == ["torve-mystery"]
 
 
+def test_the_reap_keeps_to_its_root(tmp_path):
+    # D-3.25 (A-38): on a shared daemon, another engine's sandbox is not
+    # ours to judge — found live when the lab's one-minute reap destroyed
+    # the dev suite's test containers mid-test. Unlabelled strays predate
+    # the amendment and stay reapable by anyone.
+    from torve.base import naming
+
+    runtime = MockRuntime()
+    runtime.registry = [
+        SandboxInfo(id="sbx-own", name="torve-own-orphan",
+                    labels={"torve.task": "T-0001", "torve.run": "gone",
+                            "torve.root": naming.root_key(tmp_path)}),
+        SandboxInfo(id="sbx-foreign", name="torve-foreign",
+                    labels={"torve.task": "T-0001", "torve.run": "gone",
+                            "torve.root": "b" * 12}),
+        SandboxInfo(id="sbx-legacy", name="torve-legacy",
+                    labels={"torve.task": "T-0002", "torve.run": "gone"}),
+    ]
+    report = reap(tmp_path, RunnerConfig(), runtime, ListingWorkspace([]))
+    assert report.sandboxes_destroyed == ["torve-own-orphan", "torve-legacy"]
+
+
+def test_labels_carry_the_root_identity(tmp_path):
+    from torve.base import naming
+
+    worn = naming.labels("T-0003", "run-1", tmp_path)
+    assert worn["torve.root"] == naming.root_key(tmp_path)
+    assert naming.root_key(tmp_path) != naming.root_key(tmp_path / "other")
+
+
 def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):
     state_at(tmp_path, "T-9201", TaskState.READY)
     escalated = state_at(tmp_path, "T-9202", TaskState.RUNNING, age_s=3600)

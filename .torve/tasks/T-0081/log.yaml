@@ -1,0 +1,27 @@
+schema_version: 1
+task: T-0081
+repo: morzecrew/torve
+base_sha: ef98b72f6b3767fcff178b398ec3d9d68c45b9ed
+drift_count: 0
+entries:
+  - decision: D-3.25
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T01:30:00Z
+    attempt: 1
+    claim: >-
+      the label family grows torve.root — naming.root_key, a sha256
+      digest of the resolved root path, distinct for two engines on one
+      machine and for two checkouts of one repository — carried by
+      every sandbox spec the runner and the reviewer compose; both reap
+      regimes skip a sandbox wearing a different root and still destroy
+      their own orphans and unlabelled pre-amendment strays, which is
+      the behaviour the live cross-talk demanded: the lab's loop
+      destroyed the dev suite's conformance containers mid-test, proven
+      by matching its swept-artefact reap legs to the failing windows
+    evidence: src/torve/base/naming.py:63-72 — the digest and the
+      label; src/torve/application/reaper.py:141-150 — the local
+      regime's fence; src/torve/application/reaper.py:188-196 — the
+      durable regime's; tests/test_reaper.py:68-95 — foreign spared,
+      own orphan and legacy stray destroyed, digests distinct per root
+    action: decided

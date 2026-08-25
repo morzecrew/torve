@@ -137,7 +137,14 @@ def _heartbeat_reap(
 
     live_runs = {s.run_id for s in states
                  if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after}
+    own = naming.root_key(root)
     for sandbox in runtime.list_torve_sandboxes():
+        # The reap keeps to its root (D-3.25, A-38): another engine's
+        # sandbox on the shared daemon is not ours to judge; an unlabelled
+        # one is a pre-A-38 stray and stays reapable by anyone.
+        owner = sandbox.labels.get(naming.LABEL_ROOT)
+        if owner is not None and owner != own:
+            continue
         if sandbox.labels.get(naming.LABEL_RUN) not in live_runs:
             if not dry_run:
                 runtime.destroy_by_id(sandbox.id)
@@ -179,7 +186,12 @@ async def _durable_reap(
 
     live = await taskstore.live_records()
     live_engine_runs = {str((r.input_json or {}).get("engine_run_id", "")) for r in live}
+    own = naming.root_key(root)
     for sandbox in runtime.list_torve_sandboxes():
+        # D-3.25 (A-38): same root fence as the local-regime reap.
+        owner = sandbox.labels.get(naming.LABEL_ROOT)
+        if owner is not None and owner != own:
+            continue
         if sandbox.labels.get(naming.LABEL_RUN) not in live_engine_runs:
             if not dry_run:
                 runtime.destroy_by_id(sandbox.id)

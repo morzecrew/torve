@@ -13,6 +13,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import uuid
+from pathlib import Path
 
 import opensandbox_stub
 import pytest
@@ -46,7 +47,7 @@ def runtime_case(request, tmp_path):
         return SandboxSpec(
             name=f"torve-conf-{uuid.uuid4().hex[:8]}",
             image=TEST_IMAGE,
-            labels=naming.labels("T-9902", uuid.uuid4().hex),
+            labels=naming.labels("T-9902", uuid.uuid4().hex, Path.cwd()),
             timeout_s=120,
             workdir=workdir,
         )
@@ -125,7 +126,7 @@ def auth_spec(**overrides) -> SandboxSpec:
     return SandboxSpec(
         name=f"torve-auth-{uuid.uuid4().hex[:8]}",
         image=TEST_IMAGE,
-        labels=naming.labels("T-9903", uuid.uuid4().hex),
+        labels=naming.labels("T-9903", uuid.uuid4().hex, Path.cwd()),
         timeout_s=120,
         **overrides,
     )
@@ -182,7 +183,7 @@ def test_opensandbox_refuses_volumes(tmp_path):
     workspace = tmp_path / "ws2"
     workspace.mkdir()
     spec = SandboxSpec(
-        name="torve-refuse", image=TEST_IMAGE, labels=naming.labels("T-9904", "r"),
+        name="torve-refuse", image=TEST_IMAGE, labels=naming.labels("T-9904", "r", Path.cwd()),
         timeout_s=60, workdir=str(tmp_path / "remote"), volumes={"torve-auth-0": "/auth"},
     )
     with pytest.raises(RuntimeError, match="no per-slot auth volumes"):
@@ -284,7 +285,7 @@ def test_opensandbox_forwards_proxy_and_passthrough_values(tmp_path, monkeypatch
     workspace = tmp_path / "ws3"
     workspace.mkdir()
     spec = SandboxSpec(
-        name="torve-proxy", image=TEST_IMAGE, labels=naming.labels("T-9905", "r"),
+        name="torve-proxy", image=TEST_IMAGE, labels=naming.labels("T-9905", "r", Path.cwd()),
         timeout_s=60, workdir=str(tmp_path / "remote3"),
         env_passthrough=("TORVE_TEST_KEY",), env={"EXPLICIT": "wins"},
     )

@@ -15,6 +15,7 @@ from pathlib import Path
 
 LABEL_TASK = "torve.task"
 LABEL_RUN = "torve.run"
+LABEL_ROOT = "torve.root"
 WORKTREE_DIR = ".wt"
 
 
@@ -59,8 +60,16 @@ def sandbox_name(task_id: str, run_id: str) -> str:
     return f"torve-{task_id.lower()}-{run_id[:8]}"
 
 
-def labels(task_id: str, run_id: str) -> dict[str, str]:
-    return {LABEL_TASK: task_id, LABEL_RUN: run_id}
+def root_key(root: Path) -> str:
+    """The engine root's identity on a shared daemon (D-3.25, A-38): a
+    stable digest of the resolved path — two engines on one machine, or
+    two checkouts of one repository, never mistake each other's
+    sandboxes for their own."""
+    return hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:12]
+
+
+def labels(task_id: str, run_id: str, root: Path) -> dict[str, str]:
+    return {LABEL_TASK: task_id, LABEL_RUN: run_id, LABEL_ROOT: root_key(root)}
 
 
 def branch(task_id: str) -> str:

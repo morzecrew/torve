@@ -268,7 +268,7 @@ def _run_gates_in_worktree(
             # (D-3.8) — an image swap between attempt and gates would be
             # its own regime change.
             image=image or config.runtime.image,
-            labels=naming.labels(task_id, run_id),
+            labels=naming.labels(task_id, run_id, root),
             timeout_s=config.runtime.sandbox_timeout,
         ),
         worktree,
@@ -429,7 +429,7 @@ def real_hooks(
         spec = SandboxSpec(
             name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
             image=image,
-            labels=naming.labels(infra_id, state.run_id),
+            labels=naming.labels(infra_id, state.run_id, root),
             timeout_s=config.runtime.sandbox_timeout,
             env_passthrough=env_passthrough,
             volumes=volumes,

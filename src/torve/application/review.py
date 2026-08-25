@@ -195,7 +195,7 @@ def run_review(
     spec = SandboxSpec(
         name=naming.sandbox_name(review.id, state.run_id) + "-a1",
         image=image,
-        labels=naming.labels(review.id, state.run_id),
+        labels=naming.labels(review.id, state.run_id, root),
         timeout_s=config.runtime.sandbox_timeout,
         env_passthrough=tuple(tier.api_key_env),
         workspace_read_only=True,
