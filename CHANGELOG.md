@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The loop dispatches what cannot collide (T-0082, A-39, RFC 0019
+  D-19.14, D-19.4 as amended): up to `loop.dispatch_workers` queued
+  tasks per tick run concurrently when their contract scopes are
+  pairwise disjoint — the planner's conservative intersection, an
+  empty allow-set disjoint from nothing — and clear of every in-flight
+  run; each member gets its own worker slot, worktree surgery and
+  telemetry appends serialize behind locks, and the lane stays
+  strictly serial. Default 1 keeps the serial regime.
+- The reap keeps to its root (T-0081, A-38, RFC 0003 D-3.25):
+  sandboxes carry a `torve.root` label — a digest of the engine root's
+  resolved path — and both reap regimes judge only their own;
+  unlabelled strays stay reapable by anyone. Found live: the lab's
+  one-minute loop was destroying the dev suite's conformance
+  containers mid-test.
 - One pull request per task (T-0080, A-37, RFC 0010 D-10.10, D-10.5
   as amended): the candidate branch persists across re-queues — the
   retry and conflict cleanups become capture-only — each new attempt
