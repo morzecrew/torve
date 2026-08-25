@@ -114,6 +114,21 @@ class GithubIssues:
         self._gh("issue", "edit", str(number), "--add-label", name)
         return ReflectResult("applied", f"issue #{number} labelled {name}")
 
+    def unlabel(self, task_id: str, name: str) -> ReflectResult:
+        # The label retires when its claim stops being true (D-8.17,
+        # A-36): removal is idempotent — an absent label, like an absent
+        # issue, is the postcondition already holding.
+        number = self._issue_for(task_id, f"{task_id}: task", create=False)
+        if number is None:
+            return ReflectResult("applied", "no issue to unlabel")
+        try:
+            self._gh("issue", "edit", str(number), "--remove-label", name)
+        except RuntimeError as error:
+            if "not found" in str(error).lower():
+                return ReflectResult("applied", f"label {name} already absent")
+            raise
+        return ReflectResult("applied", f"issue #{number} unlabelled {name}")
+
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
         if state == "landed":
             # The close-out for landed work (D-8.11): no issue means

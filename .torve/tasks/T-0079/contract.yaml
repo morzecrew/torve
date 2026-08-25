@@ -1,0 +1,47 @@
+# Minted by hand — A-36's execution: landed, closed issues still wore
+# needs:approval; a label that never retires reads as a frozen board.
+schema_version: 1
+id: T-0079
+rfc: rfcs/0008-tracker-projection.md
+phase: 2
+role: implement
+intent: |
+  The label follows the gap. The needs:approval label is a claim about
+  the present: an applied approval stages its removal at once, a run
+  observed in any non-ready state clears it — keyed on the transition
+  ordinal and staged only for tasks the ledger shows were ever
+  prompted — and the landings pass clears it as the backstop, stale
+  labels from before the amendment included. Removal is an idempotent
+  effect through the same outbox; the tracker port gains unlabel, and
+  an absent-label removal is absorbed at the destination.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/ports.py"
+    - "src/torve/application/tracker.py"
+    - "src/torve/adapters/tracker/github.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-8.17
+    grade: ASSUMED
+    text: "The needs:approval label is a claim about the present and retires when the gap closes: an applied approval stages its removal at once, a run observed in any non-ready state clears it, and the landings pass clears it as the backstop — removal an idempotent effect through the same outbox"
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/adapters/tracker/github.py
+  - id: D-8.13
+    grade: ASSUMED
+    text: "The board says where the human is needed — as amended by A-36: the prompt's label retires when the gap closes"
+    paths:
+      - src/torve/application/tracker.py
+      - src/torve/cli/tick.py
+budget: {}
+tier: executor

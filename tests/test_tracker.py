@@ -29,6 +29,7 @@ class FakeTracker:
                  notify_outcome: str = "applied") -> None:
         self.reflected: list[tuple[str, str]] = []
         self.labelled: list[tuple[str, str]] = []
+        self.unlabelled: list[tuple[str, str]] = []
         self.comments: list[tuple[str, str, str]] = []
         self.notified: list[tuple[str, str, str, str]] = []
         self.commands: list[TrackerCommand] = []
@@ -42,6 +43,10 @@ class FakeTracker:
     def label(self, task_id: str, name: str) -> ReflectResult:
         self.labelled.append((task_id, name))
         return ReflectResult("applied", "faked label")
+
+    def unlabel(self, task_id: str, name: str) -> ReflectResult:
+        self.unlabelled.append((task_id, name))
+        return ReflectResult("applied", "faked unlabel")
 
 
     def comment(self, task_id: str, body: str, key: str) -> ReflectResult:
@@ -148,6 +153,83 @@ def test_an_approvals_short_candidate_prompts_once_per_tip(root):
     assert project_approval_gap(root, "T-6120", "b" * 40, 1) is True  # new tip
     relay_to_tracker(root, tracker)
     assert len([b for t, b, _ in tracker.comments if t == "T-6120"]) == 2
+
+
+def test_an_applied_approval_retires_the_needs_approval_label(root):
+    # D-8.17 (A-36): the approval the prompt asked for arrived — the
+    # label's removal rides the same outbox at once.
+    from torve.application.tracker import project_approval_gap
+
+    contract(root, "T-6140")
+    run_state(root, "T-6140", TaskState.READY)
+    project_approval_gap(root, "T-6140", "a" * 40, 1)
+    tracker = FakeTracker()
+    tracker.commands = [TrackerCommand("approve", "T-6140", "misery7100", "c40")]
+    poll_and_apply(root, tracker, ("misery7100",),
+                   approve_tip=lambda _t: "a" * 40)
+    relay_to_tracker(root, tracker)
+    assert ("T-6140", "needs:approval") in tracker.unlabelled
+
+
+def test_a_run_outside_ready_clears_a_worn_prompt_only(root):
+    # D-8.17 (A-36): a re-queued run has no approval to want — cleared
+    # once per transition, and never staged for tasks never prompted.
+    from torve.application.tracker import project_approval_gap
+
+    contract(root, "T-6141")
+    project_approval_gap(root, "T-6141", "a" * 40, 1)
+    run_state(root, "T-6141", TaskState.QUEUED)
+    contract(root, "T-6142")  # never prompted
+    run_state(root, "T-6142", TaskState.QUEUED)
+    tracker = FakeTracker()
+    project(root)
+    relay_to_tracker(root, tracker)
+    assert ("T-6141", "needs:approval") in tracker.unlabelled
+    assert all(t != "T-6142" for t, _ in tracker.unlabelled)
+
+
+def test_the_landings_pass_clears_prompts_retroactively(root):
+    # D-8.17 (A-36): the backstop — a task that landed before the
+    # amendment still wears its label; the ledger remembers the prompt.
+    from torve.application.outbox import Effect, stage
+    from torve.application.tracker import project_approval_gap
+
+    contract(root, "T-6143")
+    project_approval_gap(root, "T-6143", "a" * 40, 1)
+    stage(root, Effect(key="T-6143:landed", kind="landed",
+                       payload={"task": "T-6143", "title": "T-6143: t"}))
+    tracker = FakeTracker()
+    assert project_landings(root, lambda _t: True) == 1
+    relay_to_tracker(root, tracker)
+    assert ("T-6143", "needs:approval") in tracker.unlabelled
+
+
+def test_github_unlabel_absorbs_an_absent_label(monkeypatch):
+    # D-8.17: removal is idempotent — an absent label, like an absent
+    # issue, is the postcondition already holding.
+    issue = json.dumps([{"number": 5, "title": "T-6144: probe"}])
+    calls = scripted_gh(monkeypatch, {"issue list": issue})
+    result = GithubIssues("o/r", token_env=None).unlabel(
+        "T-6144", "needs:approval")
+    assert result.outcome == "applied"
+    assert any("--remove-label" in " ".join(c) for c in calls)
+
+    bare = scripted_gh(monkeypatch, {"issue list": "[]"})
+    missing = GithubIssues("o/r", token_env=None).unlabel("T-6145", "x")
+    assert missing.outcome == "applied"
+    assert missing.detail == "no issue to unlabel"
+    assert not any("--remove-label" in " ".join(c) for c in bare)
+
+    # A label the issue never wore: the forge's refusal is absorbed.
+    adapter = GithubIssues("o/r", token_env=None)
+    adapter._issues["T-6146"] = 6
+    monkeypatch.setattr(adapter, "_gh", _raise_not_found)
+    worn_off = adapter.unlabel("T-6146", "needs:approval")
+    assert worn_off.outcome == "applied" and "already absent" in worn_off.detail
+
+
+def _raise_not_found(*_args: str) -> str:
+    raise RuntimeError("label 'needs:approval' not found")
 
 
 def test_a_review_task_projects_no_issue(root):

@@ -140,6 +140,7 @@ def project(root: Path, notify_login: str = "") -> int:
     how many were newly staged. Re-running against unchanged state stages
     nothing — the state file is the transaction the effects derive from."""
     staged = 0
+    prompted = staged_keys(root)
     for state in RunState.load_all(root / naming.WORKTREE_DIR):
         task_id = state.task_id
         task = _task(root, task_id)
@@ -161,6 +162,16 @@ def project(root: Path, notify_login: str = "") -> int:
             Effect(key=(f"{task_id}:{state.state}:{state.attempts}"
                         f":{len(state.history)}"), kind="state",
                    payload={"task": task_id, "state": str(state.state), "title": title})]
+        if (state.state is not TaskState.READY
+                and any(k.startswith(f"{task_id}:needs-approval:")
+                        for k in prompted)):
+            # The label follows the gap (D-8.17, A-36): a run outside ready
+            # has no approval to want — cleared once per transition (the
+            # A-30 ordinal), and only for tasks the ledger shows were ever
+            # prompted, so unworn labels stage nothing.
+            effects.append(Effect(
+                key=f"{task_id}:na-clear:{len(state.history)}", kind="unlabel",
+                payload={"task": task_id, "name": "needs:approval"}))
         if state.escalation is not None:
             effects.append(Effect(
                 key=f"{task_id}:escalated:{state.attempts}:{state.escalation.reason}",
@@ -215,9 +226,19 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
     staged = 0
     seen = staged_keys(root)
     tasks_dir = root / layout.TORVE_DIR / "tasks"
+    def _clear_prompt(task_id: str) -> int:
+        # The backstop clear (D-8.17, A-36) — including tasks that landed
+        # before the amendment: the ledger remembers who was prompted.
+        if not any(k.startswith(f"{task_id}:needs-approval:") for k in seen):
+            return 0
+        return int(stage(root, Effect(
+            key=f"{task_id}:na-clear:landed", kind="unlabel",
+            payload={"task": task_id, "name": "needs:approval"})))
+
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         task_id = contract.parent.name
         if f"{task_id}:landed" in seen:
+            staged += _clear_prompt(task_id)
             continue
         if naming.state_file(root, task_id).exists():
             continue
@@ -227,6 +248,7 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
                               payload={"task": task_id,
                                        "title": _title(root, task_id)})):
             staged += 1
+        staged += _clear_prompt(task_id)
     return staged
 
 
@@ -257,6 +279,8 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
                     "authority: the run store; this board is a projection")
             tracker.reflect(task_id, f"escalated:{payload['reason']}", title)
             result = tracker.comment(task_id, body, effect.key)
+        elif effect.kind == "unlabel":
+            result = tracker.unlabel(task_id, str(payload["name"]))
         elif effect.kind == "notify":
             body = (f"escalated: {payload['reason']} — {payload['detail']}\n"
                     f"route: {payload['route']} (D-6.4 — this class "
@@ -354,6 +378,11 @@ def _apply(root: Path, command: TrackerCommand,
         if not record_approval(root, task_id, command.actor, tip):
             return CommandOutcome(verb, task_id, command.actor, True,
                                   f"already approved {tip[:10]}")
+        # The label follows the gap (D-8.17, A-36): the approval this
+        # prompt asked for arrived — its removal rides the same outbox.
+        stage(root, Effect(key=f"{task_id}:na-clear:approved:{tip}",
+                           kind="unlabel",
+                           payload={"task": task_id, "name": "needs:approval"}))
         return CommandOutcome(verb, task_id, command.actor, True,
                               f"approved {tip[:10]}")
 

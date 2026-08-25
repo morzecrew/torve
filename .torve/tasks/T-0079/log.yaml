@@ -1,0 +1,41 @@
+schema_version: 1
+task: T-0079
+repo: morzecrew/torve
+base_sha: 540497baacf88e757cbc37ae6b54af65d7e2d977
+drift_count: 0
+entries:
+  - decision: D-8.17
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T00:20:00Z
+    attempt: 1
+    claim: >-
+      three clears, all idempotent unlabel effects through the outbox —
+      an applied approve stages removal keyed on the approved tip; the
+      projection stages one clear per transition ordinal for any
+      non-ready run the ledger shows was prompted, so unworn labels
+      stage nothing; the landings pass stages the backstop clear even
+      for tasks whose landed effect predates the amendment, which is
+      what sweeps the stale labels the owner found
+    evidence: src/torve/application/tracker.py:165-176 — the
+      projection clear behind the prompted-ledger guard;
+      src/torve/application/tracker.py:227-247 — the retroactive
+      backstop; src/torve/application/tracker.py:380-386 — the approve
+      clear; tests/test_tracker.py:158-205 — all three paths, the
+      never-prompted negative included
+    action: decided
+  - decision: D-8.13
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T00:21:00Z
+    attempt: 1
+    claim: >-
+      the prompt and its per-tip key stand unchanged — A-36 adds only
+      the retirement; the tracker port gains unlabel and the adapter
+      absorbs an absent label or an absent issue as the postcondition
+      already holding, so a replayed clear diverges nowhere
+    evidence: src/torve/application/ports.py:294 — the port;
+      src/torve/adapters/tracker/github.py:117-131 — the absorbing
+      adapter; tests/test_tracker.py:207-230 — absent label, absent
+      issue, and the forge's not-found refusal all applied
+    action: decided
