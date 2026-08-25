@@ -1,0 +1,44 @@
+schema_version: 1
+task: T-0082
+repo: morzecrew/torve
+base_sha: 8f858acabfccf9df6f2a08a8ad4da05b38c30af8
+drift_count: 0
+entries:
+  - decision: D-19.14
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T02:20:00Z
+    attempt: 1
+    claim: >-
+      queued_batch walks the same file-system rule and admits while
+      scopes stay pairwise disjoint and clear of every in-flight run's
+      — the planner's conservative intersection, with an empty
+      allow-set treated as unconstrained and so disjoint from nothing;
+      the tick's leg runs a multi-member batch in a thread pool, each
+      member under worker_slot + index so per-slot auth volumes never
+      share, one member's failure its own outcome; worktree surgery
+      and telemetry appends hold in-process locks, and the store's
+      per-task claims stay the mutual-exclusion backstop
+    evidence: src/torve/application/loop.py:97-186 — the fence, the
+      clash rule, and the batch walk; src/torve/cli/tick.py:135-186 —
+      per-slot concurrent dispatch; tests/test_tick.py:141-171 — the
+      disjoint pair dispatches, the clashing third and the unscoped
+      sibling serialize, the in-flight scope fences
+    action: decided
+  - decision: D-19.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T02:22:00Z
+    attempt: 1
+    claim: >-
+      executed as amended by A-39 — next_queued is the limit-1 view of
+      queued_batch, selection stays ascending-id and file-system-pure,
+      and loop.dispatch_workers defaults to 1 so every existing
+      deployment keeps the serial regime until its owner raises the
+      knob; the escalation pause is checked before any admission and
+      the lane stays strictly serial
+    evidence: src/torve/application/loop.py:188-192 — next_queued as
+      the limit-1 view; src/torve/config/runconfig.py:330-338 — the
+      default-1 knob; tests/test_tick.py:69-99 — the serial-order
+      tests pass unchanged under the default
+    action: decided

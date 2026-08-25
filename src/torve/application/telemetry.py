@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,8 @@ from torve.gates.context import GateContext
 from torve.gates.runner import RunReport
 
 # ----------------------- #
+
+_APPEND_LOCK = threading.Lock()
 
 
 def config_hash(
@@ -102,7 +105,9 @@ def build_record(
 
 def append_record(path: Path, record: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
+    # One line per write, whole, under a dispatch batch (D-19.14, A-39):
+    # concurrent attempts share this stream in one process.
+    with _APPEND_LOCK, path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 

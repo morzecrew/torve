@@ -10,7 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from torve.application.loop import LOCK, TickDeps, next_queued, run_tick
+from torve.application.loop import (
+    LOCK,
+    TickDeps,
+    next_queued,
+    queued_batch,
+    run_tick,
+)
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig
@@ -28,13 +34,15 @@ def root(tmp_path: Path) -> Path:
 
 
 def contract(root: Path, task_id: str, role: str = "implement",
-             depends_on: list[str] | None = None) -> None:
+             depends_on: list[str] | None = None,
+             allow: list[str] | None = None) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True)
     deps = f"depends_on: {depends_on}\n" if depends_on else ""
+    scope = f"scope: {{allow: {allow}}}\n" if allow else ""
     (task_dir / "contract.yaml").write_text(
         f"schema_version: 1\nid: {task_id}\nrole: {role}\n"
-        f"intent: work\n{deps}"
+        f"intent: work\n{deps}{scope}"
         + ("targets: ['T-0001']\n" if role == "review" else "")
         + "decisions: []\n",
         encoding="utf-8")
@@ -60,8 +68,8 @@ class Recorder:
         return call
 
     def dispatch(self, detail: str = "ran", moved: bool = True):
-        def call(task_id: str) -> tuple[str, bool]:
-            self.calls.append(f"dispatch:{task_id}")
+        def call(task_ids: list[str]) -> tuple[str, bool]:
+            self.calls.extend(f"dispatch:{t}" for t in task_ids)
             return (detail, moved)
         return call
 
@@ -128,6 +136,38 @@ def test_selection_is_ascending_and_one_per_tick(root):
     run_tick(root, config(), deps_for(rec))
     dispatched = [c for c in rec.calls if c.startswith("dispatch:")]
     assert dispatched == ["dispatch:T-9001"]
+
+
+def test_a_scope_disjoint_batch_dispatches_together(root):
+    # D-19.14 (A-39): up to loop.dispatch_workers per tick, admitted only
+    # while pairwise scope-disjoint — the clashing third serializes.
+    contract(root, "T-9301", allow=["src/a/**"])
+    contract(root, "T-9302", allow=["src/b/**"])
+    contract(root, "T-9303", allow=["src/a/**"])
+    rec = Recorder()
+    cfg = config()
+    cfg.loop.dispatch_workers = 3
+    run_tick(root, cfg, deps_for(rec))
+    dispatched = [c for c in rec.calls if c.startswith("dispatch:")]
+    assert dispatched == ["dispatch:T-9301", "dispatch:T-9302"]
+
+
+def test_unscoped_tasks_never_share_a_batch(root):
+    # An empty allow-set is unconstrained (RFC 0002 §6): a task that may
+    # touch anything proves itself disjoint from nothing.
+    contract(root, "T-9304")
+    contract(root, "T-9305")
+    assert queued_batch(root, lambda _t: False, limit=3) == ["T-9304"]
+
+
+def test_an_inflight_scope_fences_the_batch(root):
+    # D-19.14: the batch is also disjoint from every in-flight run — a
+    # lingering RUNNING state's files are not up for claiming.
+    contract(root, "T-9300", allow=["src/a/**"])
+    run_state(root, "T-9300", TaskState.RUNNING)
+    contract(root, "T-9306", allow=["src/a/**"])
+    contract(root, "T-9307", allow=["src/b/**"])
+    assert queued_batch(root, lambda _t: False, limit=2) == ["T-9307"]
 
 
 def test_a_reaped_task_with_telemetry_is_not_redispatched(root):

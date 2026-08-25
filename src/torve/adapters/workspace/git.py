@@ -5,11 +5,17 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 from torve.base import naming
 
 # ----------------------- #
+
+# Worktree surgery serializes per process (D-19.14, A-39): concurrent
+# `git worktree add` calls contend on the repository's own locks, and the
+# slow half of a dispatch is the attempt, never the checkout.
+_WORKTREE_LOCK = threading.Lock()
 
 
 class WorkspaceError(RuntimeError):
@@ -29,21 +35,27 @@ class GitWorkspace:
         return proc.stdout
 
     def create(self, task_id: str, base_ref: str | None) -> Path:
-        path = naming.worktree(self.root, task_id)
-        if path.exists():
-            self.remove(task_id)
-        base = base_ref or "HEAD"
-        branch = naming.branch(task_id)
-        current = self._git("rev-parse", "--abbrev-ref", "HEAD").strip()
-        if branch == current:
-            # The task's branch is checked out here (dogfooding the engine on
-            # its own repository); a worktree cannot share it, so detach.
-            self._git("worktree", "add", "--detach", str(path), base)
-        else:
-            self._git("worktree", "add", "-B", branch, str(path), base)
-        return path
+        with _WORKTREE_LOCK:
+            path = naming.worktree(self.root, task_id)
+            if path.exists():
+                self._remove_locked(task_id)
+            base = base_ref or "HEAD"
+            branch = naming.branch(task_id)
+            current = self._git("rev-parse", "--abbrev-ref", "HEAD").strip()
+            if branch == current:
+                # The task's branch is checked out here (dogfooding the
+                # engine on its own repository); a worktree cannot share
+                # it, so detach.
+                self._git("worktree", "add", "--detach", str(path), base)
+            else:
+                self._git("worktree", "add", "-B", branch, str(path), base)
+            return path
 
     def remove(self, task_id: str) -> None:
+        with _WORKTREE_LOCK:
+            self._remove_locked(task_id)
+
+    def _remove_locked(self, task_id: str) -> None:
         path = naming.worktree(self.root, task_id)
         proc = subprocess.run(
             ["git", "-C", str(self.root), "worktree", "remove", "--force", str(path)],

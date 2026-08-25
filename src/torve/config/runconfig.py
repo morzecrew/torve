@@ -324,14 +324,18 @@ class PromotionConfig(BaseModel):
 
 
 class LoopConfig(BaseModel):
-    """The standing loop's two knobs (RFC 0019 §7). There is no enabled
-    flag — scheduling `torve tick` is the enablement — and dispatch count
-    per tick is doctrine (one), never configuration."""
+    """The standing loop's knobs (RFC 0019 §7). There is no enabled
+    flag — scheduling `torve tick` is the enablement."""
 
     model_config = ConfigDict(extra="forbid")
 
     # Intake pauses while the escalation queue holds this many (D-19.5).
     pause_escalations: int = 1
+    # Up to this many dispatches per tick, admitted only while their
+    # scopes are provably disjoint (D-19.14, A-39). The default keeps
+    # D-19.4's original one-dispatch regime; raising it is RFC 0006 §4's
+    # parallelism raise — one dimension, after measured escalation rate.
+    dispatch_workers: int = 1
     # Seconds; a tick lock older than this is stale and broken loudly.
     tick_budget: int = 3600
 

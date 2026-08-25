@@ -53,7 +53,7 @@ class TickDeps:
 
     reap: Leg
     poll: Leg | None       # None: no tracker configured
-    dispatch: Callable[[str], tuple[str, bool]]
+    dispatch: Callable[[list[str]], tuple[str, bool]]
     lane: Leg | None       # None: promotion.auto_merge is off
     sync: Leg | None       # None: no tracker configured
     landed: Callable[[str], bool]  # has this task id landed on the base?
@@ -92,11 +92,51 @@ def _dependency_satisfied(dep: str, landed: Callable[[str], bool]) -> bool:
     return landed(dep)
 
 
-def next_queued(root: Path, landed: Callable[[str], bool]) -> str | None:
-    """The file-system rule (D-19.4): an executable-role contract with no
-    run record and satisfied dependencies, ascending id first."""
+# The states whose scopes fence the dispatch batch (D-19.14): a run the
+# loop must not touch is also a run whose files nothing else may claim.
+INFLIGHT = frozenset({TaskState.CLAIMED, TaskState.RUNNING,
+                      TaskState.GATED, TaskState.REVIEWED})
+
+
+def _scopes_clash(left: list[str], right: list[str]) -> bool:
+    # An empty allow-set is unconstrained (RFC 0002 §6): a task that may
+    # touch anything can prove itself disjoint from nothing.
+    if not left or not right:
+        return True
+    from torve.application.planner import globs_intersect
+
+    return globs_intersect(left, right)
+
+
+def _inflight_scopes(root: Path) -> list[list[str]]:
     from torve.gates.context import load_task
 
+    scopes: list[list[str]] = []
+    for state in RunState.load_all(root / naming.WORKTREE_DIR):
+        if state.state not in INFLIGHT:
+            continue
+        contract = layout.task_file(root, state.task_id)
+        if not contract.is_file():
+            continue
+        try:
+            scopes.append(load_task(contract).scope.allow)
+        except ValueError:
+            continue
+    return scopes
+
+
+def queued_batch(root: Path, landed: Callable[[str], bool],
+                 limit: int = 1) -> list[str]:
+    """The file-system rule (D-19.4 as amended by A-39): executable-role
+    contracts with no run record and satisfied dependencies, ascending id
+    first — admitted up to *limit* while their scopes stay pairwise
+    disjoint and disjoint from every in-flight run's (D-19.14). The
+    intersection test is the planner's conservative one: what is provably
+    shared serializes; only the provably disjoint runs together."""
+    from torve.gates.context import load_task
+
+    admitted: list[str] = []
+    claimed_scopes = _inflight_scopes(root)
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
@@ -123,8 +163,19 @@ def next_queued(root: Path, landed: Callable[[str], bool]) -> str | None:
         if not all(_dependency_satisfied(dep, landed)
                    for dep in task.depends_on):
             continue
-        return task.id
-    return None
+        if any(_scopes_clash(task.scope.allow, held)
+               for held in claimed_scopes):
+            continue
+        admitted.append(task.id)
+        claimed_scopes.append(task.scope.allow)
+        if len(admitted) >= limit:
+            break
+    return admitted
+
+
+def next_queued(root: Path, landed: Callable[[str], bool]) -> str | None:
+    found = queued_batch(root, landed, limit=1)
+    return found[0] if found else None
 
 
 def _now() -> datetime:
@@ -197,11 +248,12 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
             # D-19.5: the queue may drain during a pause; it may not grow.
             legs.append(("dispatch", f"paused: escalation queue at {escalated}"))
         else:
-            task_id = next_queued(root, deps.landed)
-            if task_id is None:
+            batch = queued_batch(root, deps.landed,
+                                 max(1, config.loop.dispatch_workers))
+            if not batch:
                 legs.append(("dispatch", "nothing queued"))
             else:
-                leg("dispatch", lambda: deps.dispatch(task_id), "")
+                leg("dispatch", lambda: deps.dispatch(batch), "")
 
         leg("sync", deps.sync, "no tracker configured")
     finally:

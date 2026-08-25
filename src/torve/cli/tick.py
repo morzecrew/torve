@@ -132,7 +132,7 @@ def tick_cmd(
 
         poll_leg, sync_leg = _poll, _sync
 
-    def dispatch_leg(task_id: str) -> tuple[str, bool]:
+    def _dispatch_one(task_id: str, slot_offset: int) -> str:
         from torve.adapters.agent.fake import FakeAgent
         from torve.adapters.agent.harness import HarnessAgent
         from torve.adapters.store.durable import open_store
@@ -158,9 +158,31 @@ def tick_cmd(
                  if config.scm.open_pr else NullScm()),
             store=open_store, review_agent=review_agent,
         )
-        state = run_task(root, task, config, deps)
-        return (f"{task_id}: {state.state} after {state.attempts} attempt(s)",
-                True)
+        # A batch member runs under its own worker slot (D-19.14): auth
+        # volumes are per-slot (D-4.2), and two runs must never share one.
+        run_config = (config if slot_offset == 0 else config.model_copy(
+            update={"worker_slot": config.worker_slot + slot_offset}))
+        state = run_task(root, task, run_config, deps)
+        return f"{task_id}: {state.state} after {state.attempts} attempt(s)"
+
+    def dispatch_leg(task_ids: list[str]) -> tuple[str, bool]:
+        if len(task_ids) == 1:
+            return (_dispatch_one(task_ids[0], 0), True)
+        # D-19.14 (A-39): a scope-disjoint batch runs concurrently — the
+        # loop admitted only what provably cannot collide, and the store's
+        # per-task claims (D-6.9) stay the mutual-exclusion backstop.
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=len(task_ids)) as pool:
+            futures = [pool.submit(_dispatch_one, task_id, index)
+                       for index, task_id in enumerate(task_ids)]
+            outcomes: list[str] = []
+            for task_id, future in zip(task_ids, futures, strict=True):
+                try:
+                    outcomes.append(future.result())
+                except Exception as exc:  # one member's failure is its own
+                    outcomes.append(f"{task_id}: error: {exc}")
+        return ("; ".join(outcomes), True)
 
     lane_leg: Leg | None = None
     if config.promotion.auto_merge:

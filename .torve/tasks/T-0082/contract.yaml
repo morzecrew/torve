@@ -1,0 +1,48 @@
+# Minted by hand — A-39's execution: the first batch ran strictly
+# serially even where its work was provably disjoint.
+schema_version: 1
+id: T-0082
+rfc: rfcs/0019-standing-loop.md
+phase: 2
+role: implement
+intent: |
+  The loop dispatches what cannot collide. The dispatch leg admits up
+  to loop.dispatch_workers queued tasks per tick whose contract scopes
+  are pairwise disjoint — the planner's conservative intersection, an
+  empty allow-set disjoint from nothing — and disjoint from every
+  in-flight run's scope. Admitted tasks run concurrently, each under
+  its own worker slot; worktree surgery and telemetry appends
+  serialize behind in-process locks. The default of 1 keeps the
+  serial regime; the lane stays strictly serial.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/loop.py"
+    - "src/torve/application/telemetry.py"
+    - "src/torve/adapters/workspace/git.py"
+    - "src/torve/cli/tick.py"
+    - "src/torve/config/runconfig.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-19.14
+    grade: ASSUMED
+    text: "The dispatch leg admits a batch: up to loop.dispatch_workers queued tasks whose contract scopes are pairwise disjoint and disjoint from every in-flight run's scope; admitted tasks run concurrently, each under its own worker slot, with worktree surgery and telemetry appends serialized behind in-process locks"
+    paths:
+      - src/torve/application/loop.py
+      - src/torve/cli/tick.py
+  - id: D-19.4
+    grade: ASSUMED
+    text: "Queued selection, as amended by A-39: up to loop.dispatch_workers dispatches per tick, admitted only while provably scope-disjoint; the default of 1 preserves the original regime"
+    paths:
+      - src/torve/application/loop.py
+budget: {}
+tier: executor
