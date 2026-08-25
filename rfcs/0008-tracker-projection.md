@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-30", "A-33"]
+amended_by: ["A-30", "A-33", "A-36"]
 owner: Lev Litvinov
 description: >-
   Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board.
@@ -127,10 +127,11 @@ Scheduling across repositories — weights, fair share, pausing a project — be
 | D-8.10 | `ASSUMED` | The retry command completes its own re-queue: its apply deletes the task's stale remote branch — a ref deletion under the commander's authority, never a history rewrite, RFC 0010's no-force doctrine untouched — before the state transitions, and a failed cleanup refuses with the escalation left standing. The loop selects the QUEUED state; the runner admits it. Added by execution 2026-08-24 — see .torve/tasks/T-0059 | `src/torve/application/tracker.py` `src/torve/adapters/vcs/git.py` | A retried task was stranded: the loop skipped its run record and the stale branch would have refused the re-run's push |
 | D-8.11 | `ASSUMED` | A landed task's issue is closed by a landings pass: the run state is swept after the landing, so sync consults the landing trailer for tasks with no live state and stages one close-out effect per task, ever; the adapter closes an existing issue and never creates one just to close it. A review's discharge is its every target's landing — a review never lands, so no targets or a pending target keeps it open (T-0066). Added by execution 2026-08-24 — see .torve/tasks/T-0065 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | Under unattended operation, landed and review issues lingered open with stale state labels — a board nobody grooms must groom itself |
 | D-8.12 | `ASSUMED` | The board wears one state label at a time: setting a state label retires the stale state siblings; non-state labels and comment history are untouched. Added by execution 2026-08-24 — see .torve/tasks/T-0065 | `src/torve/adapters/tracker/github.py` | An issue wearing three states at once is a projection that stopped projecting |
-| D-8.13 | `ASSUMED` | The board says where the human is needed: a candidate the lane refuses for want of approvals gains a `needs:approval` label and an on-thread prompt naming the tip and the count, keyed per tip — a superseded tip prompts afresh. Added by execution 2026-08-24 — see .torve/tasks/T-0067 | `src/torve/application/tracker.py` `src/torve/cli/tick.py` | Operator feedback: the approval wait was invisible — a board that needs a human must say so on the thread where the reply goes |
+| D-8.13 | `ASSUMED` | The board says where the human is needed: a candidate the lane refuses for want of approvals gains a `needs:approval` label and an on-thread prompt naming the tip and the count, keyed per tip — a superseded tip prompts afresh. Added by execution 2026-08-24 — see .torve/tasks/T-0067. Amended by A-36 2026-08-25: the label retires when the gap closes (D-8.17) | `src/torve/application/tracker.py` `src/torve/cli/tick.py` | Operator feedback: the approval wait was invisible — a board that needs a human must say so on the thread where the reply goes |
 | D-8.14 | `ASSUMED` | Review-task issues wear a `review` label from projection, and `approve` refuses a review-role task outright — a review is never landed, so there is nothing to approve. Added by execution 2026-08-24 — see .torve/tasks/T-0067. *Amended by A-33 2026-08-24: the label retires with the review issues; the approve refusal stands* | `src/torve/application/tracker.py` | Review issues read as peers of work issues; the machine's own work must be distinguishable from the work awaiting a human |
 | D-8.15 | `ASSUMED` | A review issue nests under its first target's issue as a forge sub-issue. Added by execution 2026-08-24 — see .torve/tasks/T-0068. *Retired by A-33 2026-08-24: review issues no longer exist to nest — the decoration outlived its subject by a day, measured and deleted honestly* | — | The board's top level is the work; the machine's meta-work indents beneath it |
 | D-8.16 | `ASSUMED` | Review-role tasks are not projected as issues: a board row exists to solicit human input, and a review never needs any. A review's attempt summary posts as a comment on its target's issue and a review escalation notifies on the target's thread — where the retry/abandon decision lives; the run store keeps the full review record, and legacy review issues keep the D-8.11 close-out. Added by amendment A-33 2026-08-24 | `src/torve/application/tracker.py` | Half the board was rows that could never want anything from a person |
+| D-8.17 | `ASSUMED` | The `needs:approval` label is a claim about the present and retires when the gap closes: an applied approval stages its removal at once, a run observed in any non-ready state clears it (keyed on the transition ordinal, staged only for tasks the ledger shows were ever prompted), and the landings pass clears it as the backstop — removal is an idempotent effect through the same outbox, absent-label removals absorbed at the destination. Added by amendment A-36 2026-08-25 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | Landed, closed issues still wore `needs:approval`; a label that never retires reads as a frozen board |
 
 ## 8. Risks
 
@@ -259,3 +260,28 @@ what changed, not the task model); the approve refusal for review-role
 tasks (D-8.14's surviving half); D-8.11's close-out, which now also
 tidies the legacy review issues out of the board; and the review
 machinery itself — what runs is untouched, only what is shown.
+
+### A-36 — 2026-08-25 — the label follows the gap (amends D-8.13, adds D-8.17)
+
+**Found in operation** — after the first batch fully drained, the owner
+reviewed the board and found landed, closed issues still wearing
+`needs:approval` beside `state:landed`. The prompt's label had an
+application path (D-8.13) and no removal path at all: not on the
+approval it asked for, not on the requeue that superseded its tip, not
+at the landing. A label that never retires stops carrying information
+the day it is first applied.
+
+**Changed:** the label is a claim about the present (D-8.17). Three
+clears, all idempotent effects through the same outbox: an applied
+approve command stages removal immediately; the projection stages a
+clear for any run observed outside ready — keyed on the transition
+ordinal like every state effect (A-30), and staged only for tasks the
+ledger shows were ever prompted, so the outbox does not fill with
+clears for labels never worn; the landings pass stages the backstop
+clear. The tracker port gains `unlabel`, and a removal of an absent
+label is absorbed at the destination like every other replay.
+
+**Deliberately unchanged:** the prompt itself and its per-tip key
+(D-8.13's core); the single-state-label rule (D-8.12), which was
+working — `state:*` staleness during a busy drain is delivery lag that
+self-corrects, not a defect; and the outbox's at-least-once contract.
