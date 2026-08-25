@@ -7,7 +7,7 @@ depends_on: ["0002"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-6", "A-13", "A-18"]
+amended_by: ["A-6", "A-13", "A-18", "A-38"]
 owner: Lev Litvinov
 description: >-
   `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
@@ -177,6 +177,7 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 | D-3.22 | `ASSUMED` | The FakeAgent models the convention real agents must follow: its log path and created-by-first-entry behaviour track the canonical layout in lockstep. Added by execution 2026-08-22 — see .torve/tasks/T-0015 | `src/torve/adapters/agent/fake.py` | — |
 | D-3.23 | `ASSUMED` | The reaper sweeps a terminal run's whole footprint — worktree, state file and trace logs — driven by the state files themselves, so a footprint whose worktree is already gone is still collected; escalated runs keep everything for triage. Added by execution 2026-08-22 — see .torve/tasks/T-0030. *Narrowed by amendment A-28 2026-08-24 (registered on RFC 0019, D-19.10): the state file of a READY implement or revert run whose task has not landed on the base is kept — READY is the lane's input; its worktree stays disposable, and review-role READY states remain sweepable* | `src/torve/application/reaper.py` | — |
 | D-3.24 | `ASSUMED` | The Docker runtime defaults HOME to /tmp when the spec provides none — uid-mapped containers have no home, and tools that cache under it die at /. Added by execution 2026-08-22 — see .torve/tasks/T-0022 | `src/torve/adapters/runtime/docker.py` | — |
+| D-3.25 | `ASSUMED` | The reap keeps to its root: every sandbox is labelled with a stable digest of its engine root's resolved path, and the reaper judges only sandboxes wearing its own root — an unlabelled sandbox is a pre-amendment stray, reapable by anyone. Added by amendment A-38 2026-08-25 | `src/torve/base/naming.py` `src/torve/application/reaper.py` | Two engines on one daemon reaped each other's containers: the lab's one-minute loop destroyed the dev suite's conformance sandboxes mid-test |
 
 ## 9. Exit criteria
 
@@ -218,3 +219,30 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 **In the skill:** the plan gate is replaced by "underspecification is a halt, not a question" — the readiness threshold survives (three or more load-bearing unsettled decisions means the contract is not executable), but the response is a `kind: blocked` / `action: halted` / `class: spec-gap` entry and an escalation, never a plan awaiting an approval that cannot arrive. Fewer than three: decide, log each as `UNLISTED` with its owed proposal, carry on. Upstream `agent-skills/flag-dont-flip` keeps both instructions for its interactive reader — divergence intended, do not reconcile.
 
 **Verified by:** the end-to-end scenario in which a well-formed contract produces a diff (the deadlock's signature is a run ending with no diff and no `blocked` entry), and a context check that a dispatched sandbox resolves `rfc` as provenance only — the runner never reads or copies the document it names.
+
+### A-38 — 2026-08-25 — the reap keeps to its root (adds D-3.25)
+
+**Found in operation** — with the lab's standing loop ticking every
+minute on the same Docker daemon the development suite tests against,
+the dev repo's runtime-conformance tests began dying mid-test with
+"container is not running". The reaper lists every torve-labelled
+sandbox on the daemon and destroys any whose run id is not live in
+*its* root — and the lab, its batch fully drained, had no live runs at
+all, so it destroyed whatever the dev suite had just created. Proven
+by clock: the lab's "swept 1 artefact" reap legs land exactly inside
+the failing test windows, and the same test is green when timed
+between ticks. The battery's earlier "acceptance flaky" marks were the
+same murder.
+
+**Changed:** cleanup-by-convention gains a root fence (D-3.25). The
+label family grows `torve.root` — a stable digest of the engine root's
+resolved path, distinguishing two engines on one machine and two
+checkouts of one repository alike — and both reap regimes skip any
+sandbox wearing a different root. An unlabelled sandbox predates the
+amendment and stays reapable by anyone, so old strays cannot leak
+forever behind the fence.
+
+**Deliberately unchanged:** the convention itself — no registry, no
+lockfile; the labels remain the whole protocol (D-3.4's derivation
+discipline). And the reap stays aggressive inside its own root: an
+orphan with no live run dies exactly as before.
