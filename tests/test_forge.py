@@ -37,19 +37,38 @@ def test_the_pr_is_composed_from_records_never_prose(tmp_path: Path):
             "cost_usd": 0.0123, "trace_ref": "trace://run/1"}
 
     title, body = compose_pr(task_with_contract(), 2, "cafecafe1234", meta,
-                             results, tmp_path)
+                             results, tmp_path,
+                             changed=["src/keys.py", "tests/test_keys.py"])
     assert title == "T-8301: Rotate the keys."
     long_task = task_with_contract().model_copy(update={"intent": "x" * 200})
     long_title, _ = compose_pr(long_task, 1, "d", meta, [], tmp_path)
     assert len(long_title) <= len("T-8301: ") + 72
     assert "attempt 2" in body and "`cafecafe1234`" in body
+    # The body leads with what changed and where the control surface is;
+    # the contract folds behind a details block (owner feedback: the wall
+    # of intent buried the decision-relevant facts).
+    assert "- `src/keys.py`" in body
+    assert "merge button is never used" in body
+    assert "supersedes the previous candidate" in body  # attempt 2 note
+    assert "<details><summary>Contract</summary>" in body
     assert "- `uv run pytest`" in body
-    assert "- scope: pass (0.2s)" in body
+    assert "all 1 pass (slowest: scope 0.2s)" in body
     assert "- D-9 (LOCKED): keys rotate" in body
     # Divergences surface; routine resolved entries do not.
     assert "D-9 departed: took the other road" in body
     assert "routine" not in body
     assert "cost: $0.0123" in body and "trace://run/1" in body
+
+    # A red gate itemizes instead of summarizing; a host path shrinks to
+    # its basename while a URI trace stays whole.
+    red = [GateResult(name="scope", outcome="fail", state="blocking",
+                      duration_s=0.1)]
+    host_meta = dict(meta, trace_ref="/home/op/lab/.wt/T-8301.a1.trace.log")
+    _, red_body = compose_pr(task_with_contract(), 1, "d", host_meta,
+                             red, tmp_path)
+    assert "- scope: fail (0.1s)" in red_body
+    assert "trace: T-8301.a1.trace.log" in red_body
+    assert "/home/op" not in red_body
 
 
 def test_the_push_token_reaches_git_by_environment_never_argv(tmp_path, monkeypatch):

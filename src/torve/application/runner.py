@@ -305,8 +305,14 @@ def _agent_identity(meta: dict[str, Any]) -> str:
 def _provenance_message(task: Task, attempts: int, digest: str,
                         meta: dict[str, Any]) -> str:
     """The full trailer set (D-10.4): enough that `git log --grep`
-    reconstructs a task's history with the store offline."""
-    lines = [f"torve({task.id}): attempt {attempts} green", "",
+    reconstructs a task's history with the store offline. The subject
+    carries the intent's head (D-10.6: composed from the contract, never
+    the agent's prose) — a history readable without opening the task."""
+    head = task.intent.strip().splitlines()[0].strip() if task.intent.strip() else ""
+    if len(head) > 46:
+        head = head[:45].rstrip() + "…"
+    what = f" {head} —" if head else ""
+    lines = [f"torve({task.id}):{what} attempt {attempts} green", "",
              f"Torve-Task: {task.id}",
              f"Torve-Attempt: {attempts}",
              f"Torve-Agent: {_agent_identity(meta)}",
@@ -502,7 +508,8 @@ def real_hooks(
         if pushed and config.scm.open_pr:
             title, pr_body = compose_pr(task, state.attempts, digest,
                                         agent_meta, list(last_pass["results"]),
-                                        worktree)
+                                        worktree,
+                                        changed=deps.vcs.changed_names(worktree))
             pr_url = await asyncio.to_thread(
                 deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body)
         fact = (f"committed {sha[:10]}" if sha else "nothing to commit")

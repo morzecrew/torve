@@ -99,6 +99,9 @@ class MockVcs:
         self.authors.append(author)
         return "abcdef123456"
 
+    def changed_names(self, worktree):
+        return []
+
     def push(self, worktree, branch, token=None, supersede=False):
         return False
 

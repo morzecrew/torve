@@ -159,7 +159,10 @@ def test_a_revert_runs_as_a_task_and_lands_with_its_own_provenance(engine_repo):
     branch = naming.branch("T-8201")
     subject = git(engine_repo, "log", "-1", "--format=%s", branch)
     body = git(engine_repo, "log", "-1", "--format=%B", branch)
-    assert subject == "torve(T-8201): attempt 1 green"
+    # The subject carries the intent's head (owner feedback: a history
+    # readable without opening the task) and still ends with the verdict.
+    assert subject.startswith("torve(T-8201):")
+    assert subject.endswith("attempt 1 green")
     assert "Torve-Task: T-8201" in body
     assert "Torve-Agent: revert" in body  # mechanical, named for what it is
     assert git(engine_repo, "show", f"{branch}:app.py") == "value = 1"

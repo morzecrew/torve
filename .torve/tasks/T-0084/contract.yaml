@@ -1,0 +1,50 @@
+# Minted by hand — owner feedback on the experiment batch: commit
+# subjects said nothing, PR bodies buried the decision behind the
+# contract wall, and a host path leaked into every footer.
+schema_version: 1
+id: T-0084
+rfc: rfcs/0010-vcs-provenance-revert.md
+phase: 2
+role: implement
+intent: |
+  Provenance reads like history. The commit subject carries the
+  intent's head before the attempt verdict — composed from the
+  contract, never the agent's prose — so git log --oneline says what
+  landed. The pull-request body leads with what a reader decides
+  from: the control-surface note (approve and revise live on the
+  issue, the merge button is never used), the changed paths, a
+  one-line gate verdict when everything passed and the itemized list
+  when it did not, the attempt-supersession note past attempt one;
+  the contract folds behind a details block, and a host-absolute
+  trace path shrinks to its basename while URI references stay whole.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/runner.py"
+    - "src/torve/application/forge.py"
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/vcs/git.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-10.6
+    grade: LOCKED
+    text: "Pull-request bodies are composed from data, never from agent prose"
+    paths:
+      - src/torve/application/forge.py
+      - src/torve/adapters/vcs/git.py
+  - id: D-10.4
+    grade: ASSUMED
+    text: "The full trailer set: enough that git log --grep reconstructs a task's history with the store offline"
+    paths:
+      - src/torve/application/runner.py
+budget: {}
+tier: executor

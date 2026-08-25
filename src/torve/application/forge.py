@@ -48,37 +48,65 @@ def _divergences(worktree: Path, task_id: str) -> list[str]:
 
 
 def compose_pr(task: Task, attempts: int, digest: str, meta: dict[str, Any],
-               results: list[GateResult], worktree: Path) -> tuple[str, str]:
+               results: list[GateResult], worktree: Path,
+               changed: list[str] | None = None) -> tuple[str, str]:
     """(title, body), composed entirely from records. The agent's output
     appears nowhere: if it had something to say beyond code, it belongs in
-    an execution-log entry with evidence."""
+    an execution-log entry with evidence. The body leads with what a
+    reader decides from — what changed, whether the gates held, where the
+    control surface is — and folds the contract behind a details block."""
     summary = task.intent.strip().splitlines()[0] if task.intent.strip() else "task"
     if len(summary) > 72:  # a folded intent is one long line; titles are not
         summary = summary[:71].rstrip() + "…"
     title = f"{task.id}: {summary}"
 
-    lines = [f"**Task** {task.id} · attempt {attempts} · config `{digest}`", ""]
-    if task.intent.strip():
-        lines += ["## Contract", task.intent.strip(), ""]
-    if task.acceptance:
-        lines += ["## Acceptance",
-                  *(f"- `{command}`" for command in task.acceptance), ""]
+    lines = [f"**{task.id} · attempt {attempts} · config `{digest}`**", "",
+             ("Reading surface: this pull request lands by fast-forward and "
+              "the merge button is never used. Approval and revision live on "
+              "the task's issue — `/torve approve` · `/torve revise`."), ""]
+    if attempts > 1:
+        lines += [(f"Attempt {attempts} supersedes the previous candidate on "
+                   "this branch; its review threads were captured into the "
+                   "revision record."), ""]
+    if changed:
+        lines += ["## Changed", *(f"- `{path}`" for path in changed), ""]
     if results:
-        lines += ["## Gates",
-                  *(f"- {r.name}: {r.outcome} ({r.duration_s:.1f}s)"
-                    for r in results), ""]
-    if task.decisions:
-        lines += ["## Inherited decisions",
-                  *(f"- {d.id} ({d.grade}): {d.text}" for d in task.decisions), ""]
+        red = [r for r in results if r.outcome not in ("pass", "bypassed")]
+        if red:
+            lines += ["## Gates",
+                      *(f"- {r.name}: {r.outcome} ({r.duration_s:.1f}s)"
+                        for r in results), ""]
+        else:
+            slowest = max(results, key=lambda r: r.duration_s)
+            lines += [(f"**Gates** — all {len(results)} pass "
+                       f"(slowest: {slowest.name} {slowest.duration_s:.1f}s)."), ""]
     divergences = _divergences(worktree, task.id)
     if divergences:
         lines += ["## Divergences", *(f"- {d}" for d in divergences), ""]
+    if task.decisions:
+        lines += ["## Inherited decisions",
+                  *(f"- {d.id} ({d.grade}): {d.text}" for d in task.decisions), ""]
+    if task.intent.strip():
+        lines += ["<details><summary>Contract</summary>", "",
+                  task.intent.strip(), ""]
+        if task.acceptance:
+            lines += ["**Acceptance**",
+                      *(f"- `{command}`" for command in task.acceptance), ""]
+        lines += ["</details>", ""]
     cost = meta.get("cost_usd")
     trace = meta.get("trace_ref")
-    footer = [f"agent: {meta.get('adapter')}" ]
+    model = meta.get("model")
+    agent = (f"{meta.get('adapter')}/{model}" if model
+             else str(meta.get("adapter")))
+    footer = [f"agent: {agent}"]
     if cost is not None:
         footer.append(f"cost: ${cost:.4f}")
     if trace:
-        footer.append(f"trace: {trace}")
+        # A host-absolute path says nothing on the forge — its basename
+        # names the artefact; a URI reference stays whole.
+        trace_text = str(trace)
+        if "://" not in trace_text:
+            trace_text = Path(trace_text).name
+        footer.append(f"trace: {trace_text}")
     lines.append(" · ".join(footer))
     return title, "\n".join(lines)

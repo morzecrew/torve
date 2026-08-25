@@ -1,0 +1,40 @@
+schema_version: 1
+task: T-0084
+repo: morzecrew/torve
+base_sha: 635555123ccca028b03cdab6900fe1f1de2dabd4
+drift_count: 0
+entries:
+  - decision: D-10.6
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-25T04:10:00Z
+    attempt: 1
+    claim: >-
+      the body stays composed from records and now leads with what a
+      reader decides from — the control-surface note, the head
+      commit's changed paths (a new Vcs.changed_names record), the
+      one-line gate verdict when green and the itemized list when
+      not, the supersession note past attempt one — with the contract
+      folded behind a details block and the trace footer carrying a
+      basename for host paths, whole for URI references; the agent's
+      prose appears nowhere, exactly as before
+    evidence: src/torve/application/forge.py:50-112 — the recomposed
+      body; src/torve/adapters/vcs/git.py:85-89 — the changed-paths
+      record; tests/test_forge.py:108-150 — control note, folded
+      contract, green one-liner, red itemization, basename-vs-URI
+    action: decided
+  - decision: D-10.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T04:11:00Z
+    attempt: 1
+    claim: >-
+      the trailer set is untouched and the subject stays greppable —
+      it still opens torve(T-nnnn): and still ends with the attempt
+      verdict, gaining the intent's head between them so git log
+      --oneline reads as history; the shadow and projection subject
+      scans key on the unchanged prefix and the trailers
+    evidence: src/torve/application/runner.py:305-322 — subject with
+      the intent head, trailers unchanged; tests/test_provenance.py:159-166
+      — prefix and verdict pinned in both directions
+    action: decided

@@ -82,6 +82,12 @@ class GitVcs:
         _git(worktree, "reset", "--hard")
         return False
 
+    def changed_names(self, worktree: Path) -> list[str]:
+        """The head commit's touched paths — the pull-request body's
+        `Changed` section is composed from this record (D-10.6)."""
+        out = _git(worktree, "show", "--pretty=format:", "--name-only", "HEAD")
+        return [line for line in out.stdout.splitlines() if line.strip()]
+
     def push(self, worktree: Path, branch: str, token: str | None = None,
              supersede: bool = False) -> bool:
         """Push targets only the task's own branch. Without *supersede* the
