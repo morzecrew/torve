@@ -1,0 +1,49 @@
+# Minted by hand — A-37's execution: a pull request per attempt made a
+# nine-task batch read as thirty-odd PRs; reviewers follow one thread.
+schema_version: 1
+id: T-0080
+rfc: rfcs/0010-vcs-provenance-revert.md
+phase: 2
+role: implement
+intent: |
+  One pull request per task lifetime. The candidate branch persists
+  across re-queues — the retry and conflict cleanups become
+  capture-only — and each new attempt supersedes the branch with a
+  leased force-push; open_pr finding the branch's open pull request
+  reuses it, refreshing title and body to the current attempt. The
+  base push stays additive with no force path, and the branch still
+  dies only at the landing's retirement.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/ports.py"
+    - "src/torve/application/runner.py"
+    - "src/torve/adapters/vcs/git.py"
+    - "src/torve/cli/tick.py"
+    - "src/torve/cli/tracker.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-10.10
+    grade: ASSUMED
+    text: "One pull request per task lifetime: the candidate branch persists across re-queues, each new attempt supersedes it with a leased force-push, open_pr reuses the branch's open pull request, and the branch dies only at the landing's retirement"
+    paths:
+      - src/torve/adapters/vcs/git.py
+      - src/torve/application/runner.py
+      - src/torve/cli/tick.py
+  - id: D-10.5
+    grade: LOCKED
+    text: "Force-push forbidden within an attempt and everywhere outside the engine-owned candidate namespace; the leased per-attempt supersession after feedback capture is sanctioned, as amended by A-37"
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/adapters/vcs/git.py
+budget: {}
+tier: executor

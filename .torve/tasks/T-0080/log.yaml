@@ -1,0 +1,42 @@
+schema_version: 1
+task: T-0080
+repo: morzecrew/torve
+base_sha: b0c56ca4b944467086a286a97a36b318170844d2
+drift_count: 0
+entries:
+  - decision: D-10.10
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T00:50:00Z
+    attempt: 1
+    claim: >-
+      the branch is the task's for its whole life — the retry and
+      conflict cleanups capture and keep it, the runner's push
+      supersedes it under lease, and open_pr refused with
+      already-exists finds the open pull request, refreshes title and
+      body to the current attempt, and returns its url; the branch's
+      death stays at the landing retirement, and an abandoned task's
+      branch is the operator's
+    evidence: src/torve/cli/tick.py:72-95 — the capture-only cleanup
+      shared by retry and the lane; src/torve/adapters/vcs/git.py:320-348
+      — the reusing open_pr; tests/test_forge.py:108-137 — reuse
+      refreshes and returns the url; tests/test_pr_review.py:410-433
+      — the leased supersession lands the rewrite at the origin
+    action: decided
+  - decision: D-10.5
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-25T00:52:00Z
+    attempt: 1
+    claim: >-
+      executed as amended by A-37 — supersede is an explicit opt-in on
+      the push port that the runner alone exercises for the candidate
+      namespace; the default stays additive, which is how the tick
+      pushes the base, and the additive refusal of a rewritten ref is
+      pinned by test so D-19.9's no-force base push cannot regress
+      silently
+    evidence: src/torve/adapters/vcs/git.py:85-113 — the leased opt-in
+      beside the additive default; src/torve/application/runner.py:495-500
+      — the runner's supersede; tests/test_pr_review.py:428-430 — the
+      additive push refuses the rewrite
+    action: decided

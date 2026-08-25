@@ -493,7 +493,10 @@ def real_hooks(
         token = (os.environ.get(config.scm.token_env)
                  if config.scm.token_env else None)
         pushed = (await asyncio.to_thread(
-            deps.vcs.push, worktree, naming.branch(task.id), token)
+            # supersede (D-10.10, A-37): the attempt owns the task's
+            # persistent branch — a prior candidate there is superseded
+            # under lease, its feedback captured at the requeue.
+            deps.vcs.push, worktree, naming.branch(task.id), token, True)
             if sha else False)
         pr_url = ""
         if pushed and config.scm.open_pr:

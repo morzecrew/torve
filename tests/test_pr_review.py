@@ -407,6 +407,31 @@ def test_republish_branch_moves_the_candidate_to_its_landed_tip(tmp_path: Path) 
     assert GitVcs().republish_branch(lonely, "torve/T-0042") is False
 
 
+def test_push_supersedes_only_when_asked(tmp_path: Path) -> None:
+    # D-10.10 (A-37): a new attempt supersedes the task's persistent
+    # branch under lease; without supersede the push stays additive —
+    # which is how the base is pushed (D-19.9), pinned by the refusal.
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
+    git(repo, "config", "user.name", "T")
+    git(repo, "config", "user.email", "t@example.invalid")
+    (repo / "a.py").write_text("a = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "attempt 1")
+    vcs = GitVcs()
+    assert vcs.push(repo, "torve/T-0043") is True
+
+    git(repo, "commit", "-q", "--no-gpg-sign", "--amend", "-m", "attempt 2")
+    superseding = git(repo, "rev-parse", "HEAD").strip()
+    with pytest.raises(RuntimeError):
+        vcs.push(repo, "torve/T-0043")  # additive push refuses the rewrite
+    assert vcs.push(repo, "torve/T-0043", supersede=True) is True
+    at_origin = git(origin, "rev-parse", "refs/heads/torve/T-0043").strip()
+    assert at_origin == superseding
+
+
 def test_retire_pr_defers_to_the_forge_then_falls_back(monkeypatch):
     # D-19.13 (A-34): a landing the forge marked merged needs no close;
     # one still open after the grace closes with the landing note — the

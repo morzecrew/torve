@@ -3,6 +3,7 @@ the token resolved by name at the runner boundary and never on argv."""
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -102,6 +103,36 @@ def test_a_named_but_absent_token_fails_loudly(tmp_path, monkeypatch):
     scm = GhScm(repo="example/lab", token_env="MISSING_TOKEN")
     with pytest.raises(RuntimeError, match="MISSING_TOKEN"):
         scm.open_pr(tmp_path, "torve/T-8301", "title", "body")
+
+
+def test_open_pr_reuses_the_branchs_open_pull_request(tmp_path, monkeypatch):
+    # One pull request per task (D-10.10, A-37): a create refused because
+    # the branch already has one finds it, refreshes title and body, and
+    # returns its url — attempts iterate one thread of review.
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        cmd = [str(part) for part in command]
+        calls.append(cmd)
+        joined = " ".join(cmd)
+        if "pr create" in joined:
+            return subprocess.CompletedProcess(
+                command, 1, stdout="",
+                stderr="a pull request for branch \"torve/T-8302\" "
+                       "already exists: https://github.com/example/lab/pull/31")
+        if "pr list" in joined:
+            return subprocess.CompletedProcess(
+                command, 0, stderr="", stdout=json.dumps(
+                    [{"number": 31,
+                      "url": "https://github.com/example/lab/pull/31"}]))
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(git_module.subprocess, "run", fake_run)
+    scm = GhScm(repo="example/lab", token_env=None)
+    url = scm.open_pr(tmp_path, "torve/T-8302", "attempt 2", "fresh body")
+    assert url == "https://github.com/example/lab/pull/31"
+    edits = [c for c in calls if "edit" in c]
+    assert edits and "--body" in edits[0] and "fresh body" in edits[0]
 
 
 # ....................... #

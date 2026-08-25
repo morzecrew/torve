@@ -82,11 +82,16 @@ class GitVcs:
         _git(worktree, "reset", "--hard")
         return False
 
-    def push(self, worktree: Path, branch: str, token: str | None = None) -> bool:
-        """Push targets only the task's own branch — additive, no force path
-        exists (D-10.5 held structurally). The token, when given, reaches git
-        through a credential helper reading the runner's environment: never
-        on argv, never in the worktree (D-4b)."""
+    def push(self, worktree: Path, branch: str, token: str | None = None,
+             supersede: bool = False) -> bool:
+        """Push targets only the task's own branch. Without *supersede* the
+        push is additive — no force path, which is how the base is pushed
+        (D-19.9). With it, the attempt wholly supersedes the prior candidate
+        on the task's persistent branch (D-10.10, A-37): a leased force so a
+        ref the engine does not expect refuses; feedback was captured before
+        the requeue (D-5.12). The token, when given, reaches git through a
+        credential helper reading the runner's environment: never on argv,
+        never in the worktree (D-4b)."""
         remotes = _git(worktree, "remote")
         if "origin" not in remotes.stdout.split():
             return False
@@ -97,9 +102,10 @@ class GitVcs:
                       'echo "password=$TORVE_PUSH_TOKEN"; }; f')
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+        force = ["--force-with-lease"] if supersede else []
         proc = subprocess.run(
             ["git", "-C", str(worktree), *config,
-             "push", "-u", "origin", f"HEAD:refs/heads/{branch}"],
+             "push", *force, "-u", "origin", f"HEAD:refs/heads/{branch}"],
             capture_output=True, text=True, check=False, env=env,
         )
         if proc.returncode != 0:
@@ -312,10 +318,6 @@ class GhScm:
         self.sleeper = sleeper
 
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
-        command = ["gh", "pr", "create", "--head", branch,
-                   "--title", title, "--body", body]
-        if self.repo:
-            command += ["--repo", self.repo]
         env = None
         if self.token_env:
             token = os.environ.get(self.token_env)
@@ -325,11 +327,32 @@ class GhScm:
                     "environment does not carry it"
                 )
             env = {**os.environ, "GH_TOKEN": token}
-        proc = subprocess.run(command, capture_output=True, text=True,
-                              check=False, cwd=worktree, env=env)
-        if proc.returncode != 0:
-            raise RuntimeError(proc.stderr.strip() or "gh pr create failed")
-        return proc.stdout.strip()
+
+        def run_gh(*args: str) -> subprocess.CompletedProcess[str]:
+            command = ["gh", *args]
+            if self.repo:
+                command += ["--repo", self.repo]
+            return subprocess.run(command, capture_output=True, text=True,
+                                  check=False, cwd=worktree, env=env)
+
+        proc = run_gh("pr", "create", "--head", branch,
+                      "--title", title, "--body", body)
+        if proc.returncode == 0:
+            return proc.stdout.strip()
+        error = proc.stderr.strip()
+        if "already exists" in error:
+            # One pull request per task (D-10.10, A-37): the branch's open
+            # pull request is the task's — reuse it, refreshing what the
+            # attempt changed.
+            listed = cast("list[dict[str, Any]]", json.loads(run_gh(
+                "pr", "list", "--head", branch, "--state", "open",
+                "--json", "number,url").stdout or "[]"))
+            if listed:
+                number = int(listed[0]["number"])
+                run_gh("pr", "edit", str(number),
+                       "--title", title, "--body", body)
+                return str(listed[0].get("url", ""))
+        raise RuntimeError(error or "gh pr create failed")
 
     def _gh(self, *args: str) -> str:
         command = ["gh", *args]

@@ -90,8 +90,6 @@ def poll(
 ) -> None:
     """Read the board's commands and apply each as an intent against the
     store; refusals are answered on their thread."""
-    import os
-
     from torve.adapters.vcs.git import GitLane, GitVcs
     from torve.application.tracker import poll_and_apply
     from torve.base import naming
@@ -101,29 +99,26 @@ def poll(
     tracker, tracker_config = _adapter(root, config_path)
 
     def requeue(task_id: str) -> str:
+        # Capture-only (D-8.10 as amended by A-37): the branch persists —
+        # the next attempt supersedes it under lease (D-10.10), keeping
+        # its pull request the task's one thread of review.
         from torve.adapters.vcs.git import GhScm, GitLane
         from torve.application.feedback import capture_feedback
 
         branch = naming.branch(task_id)
-        note = ""
-        if config.review.feedback_from and config.scm.repo:
-            # The revision loop (RFC 0005 §4a, D-5.12): captured before the
-            # branch dies, or it is gone.
-            scm = GhScm(config.scm.repo, config.scm.token_env)
-            try:
-                threads = scm.review_threads(
-                    branch, tuple(config.review.feedback_from))
-                diff = (GitVcs().diff(root, config.base or "origin/main", branch)
-                        if GitLane().tip(root, branch) else "")
-                if capture_feedback(root, task_id, diff, threads):
-                    note = "; feedback captured"
-            except RuntimeError as exc:
-                note = f"; feedback capture failed: {exc}"
-        token = (os.environ.get(config.scm.token_env)
-                 if config.scm.token_env else None)
-        deleted = GitVcs().delete_remote_branch(root, branch, token)
-        return ("remote branch deleted" if deleted
-                else "no remote branch") + note
+        if not (config.review.feedback_from and config.scm.repo):
+            return "branch kept; revision loop off"
+        scm = GhScm(config.scm.repo, config.scm.token_env)
+        try:
+            threads = scm.review_threads(
+                branch, tuple(config.review.feedback_from))
+            diff = (GitVcs().diff(root, config.base or "origin/main", branch)
+                    if GitLane().tip(root, branch) else "")
+            captured = capture_feedback(root, task_id, diff, threads)
+        except RuntimeError as exc:
+            return f"branch kept; feedback capture failed: {exc}"
+        return ("branch kept; feedback captured" if captured
+                else "branch kept; nothing to capture")
 
     def approve_tip(task_id: str) -> str | None:
         return GitLane().tip(root, naming.branch(task_id))
