@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The review verdict becomes a landing predicate (T-0087, A-43, RFC
+  0006 D-6.14): `promotion.require_review` makes the lane land only a
+  candidate whose producing run recorded a concluded review —
+  `reviewed_by` on the run state, set when the task-gated review
+  survives without a blocker, cleared on every entry to running. The
+  unconfigured-review bridge never sets it, so a repository that
+  demands reviews cannot silently land unreviewed work after
+  configuration drift; the refusal (`lane_review_missing`) precedes
+  the approvals prompt, and both lanes enforce it.
+
+- A capture replaces the record — including with nothing (T-0088,
+  fix): `capture_feedback` clears the existing `feedback.md` and
+  `feedback-threads.json` before writing, so an empty capture leaves
+  no stale briefing from an earlier revision round for the next
+  attempt, and a fresh address-less capture leaves no stale reply
+  addresses for the next landing to answer. The T-0056 watch item,
+  closed.
 - The probe precedes the prompt (T-0086, A-42, RFC 0006 D-6.13): a
   candidate short of approvals whose base has moved is probed
   read-only with `git merge-tree`; a provably conflicting tip is
