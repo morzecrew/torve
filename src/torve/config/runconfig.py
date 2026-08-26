@@ -313,6 +313,10 @@ class PromotionConfig(BaseModel):
 
     auto_merge: bool = False
     require_ci: bool = False
+    # §3's review criterion (D-6.14, A-43): the lane lands only a candidate
+    # whose producing run recorded a concluded review (`reviewed_by` on the
+    # run state) — the unconfigured-review bridge never satisfies it.
+    require_review: bool = False
     # §3's approvals requirement (T-0060): the lane lands only a candidate
     # with this many recorded approvals of its CURRENT branch tip — an
     # approval that predates the last push approves nothing (D-6.3). Zero

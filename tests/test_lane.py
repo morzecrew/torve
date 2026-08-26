@@ -477,3 +477,72 @@ def test_the_quiet_window_refuses_a_fresh_tip_and_passes_an_old_one(lane_repo):
     result = invoke_merge(lane_repo)
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"
+
+
+# The review predicate (RFC 0006 §3, D-6.14, A-43).
+
+
+def _events(root: Path) -> list[dict]:
+    path = root / ".torve" / "telemetry.jsonl"
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in
+            path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_require_review_refuses_a_candidate_without_a_verdict(lane_repo):
+    candidate(lane_repo, "T-7040", "forty.py", "f = 40\n")
+    results = process_lane(lane_repo, GitLane(), require_review=True)
+    assert results[0].action == "review missing"
+    assert "promotion.require_review" in results[0].detail
+    # A standing refusal, like ci-not-green: the candidate stays READY.
+    assert RunState.load(
+        naming.state_file(lane_repo, "T-7040")).state is TaskState.READY
+    assert any(e.get("event") == "lane_review_missing"
+               for e in _events(lane_repo))
+
+
+def test_a_recorded_review_verdict_lands(lane_repo):
+    candidate(lane_repo, "T-7041", "fortyone.py", "f = 41\n")
+    state = RunState.load(naming.state_file(lane_repo, "T-7041"))
+    state.reviewed_by = "T-7999"
+    state.save()
+    results = process_lane(lane_repo, GitLane(), require_review=True)
+    assert results[0].action == "landed"
+
+
+def test_review_missing_precedes_the_approvals_prompt(lane_repo):
+    # D-6.14: a candidate the policy cannot land is never offered for
+    # approval — the refusal fires before the approvals check.
+    candidate(lane_repo, "T-7042", "fortytwo.py", "f = 42\n")
+    results = process_lane(lane_repo, GitLane(), require_review=True,
+                           approvals_required=1)
+    assert results[0].action == "review missing"
+    assert not any(e.get("event") == "lane_approvals_short"
+                   for e in _events(lane_repo))
+
+
+def test_require_review_flows_from_configuration(lane_repo):
+    candidate(lane_repo, "T-7043", "fortythree.py", "f = 43\n")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  require_review: true\n",
+        encoding="utf-8")
+    git(lane_repo, "add", ".torve/config.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: review")
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "review missing"
+
+
+def test_reviewed_by_round_trips_and_dies_with_the_next_attempt(tmp_path):
+    # D-6.14: no verdict outlives the attempt it judged — entry to
+    # running clears it, exactly where attempts increment.
+    state = RunState(task_id="T-7044", path=tmp_path / "T-7044.state.json")
+    state.transition(TaskState.CLAIMED, "claimed")
+    state.transition(TaskState.RUNNING, "attempt 1")
+    state.reviewed_by = "T-7999"
+    state.save()
+    assert RunState.load(state.path).reviewed_by == "T-7999"
+    state.transition(TaskState.GATED, "gates red")
+    state.transition(TaskState.RUNNING, "attempt 2")
+    assert state.reviewed_by is None

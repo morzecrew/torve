@@ -158,7 +158,7 @@ def _dispose_conflict(
 def process_lane(
     root: Path, vcs: LaneVcs, dry_run: bool = False, only: str | None = None,
     ci: CiStatus | None = None, approvals_required: int = 0,
-    quiet_window_s: int = 0,
+    require_review: bool = False, quiet_window_s: int = 0,
     on_conflict: Callable[[str], str] | None = None,
 ) -> list[LaneResult]:
     base = vcs.current_branch(root)
@@ -184,6 +184,20 @@ def process_lane(
             continue
         if vcs.is_ancestor(root, branch_tip, base):
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
+            continue
+
+        if require_review and not dry_run and state.reviewed_by is None:
+            # §3's review criterion as a lane predicate (D-6.14, A-43):
+            # the producing run recorded no concluded review — refused
+            # before CI is polled and before the approvals prompt, so a
+            # candidate the policy cannot land is never offered for
+            # approval.
+            engine_event(root, "lane_review_missing",
+                         {"task": task_id, "sha": branch_tip})
+            results.append(LaneResult(
+                task_id, branch, "review missing",
+                "run recorded no review verdict (promotion.require_review)",
+                sha=branch_tip))
             continue
 
         if ci is not None and not dry_run:

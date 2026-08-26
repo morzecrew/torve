@@ -74,10 +74,13 @@ def test_clean_review_lets_the_target_land(review_rig):
     assert state.state is TaskState.READY
     facts = [h["fact"] for h in state.history]
     assert any("review clean" in fact for fact in facts)
+    # The verdict the lane's require_review predicate reads (D-6.14, A-43).
+    assert state.reviewed_by is not None
     # The review was minted as a contract and ran to its own terminal state.
     minted = sorted((repo.root / ".torve" / "tasks").glob("T-*/contract.yaml"))
     assert len(minted) == 1
     review_id = minted[0].parent.name
+    assert state.reviewed_by == review_id
     review_state = RunState.load(naming.state_file(repo.root, review_id))
     assert review_state.state is TaskState.READY
     # The reviewer's sandbox mounted the workspace read-only.
@@ -99,6 +102,17 @@ def test_a_surviving_blocker_escalates_the_target(review_rig):
 
     assert state.state is TaskState.ESCALATED
     assert state.escalation.reason == "blocker_finding"
+    # A surviving blocker never records a verdict (D-6.14).
+    assert state.reviewed_by is None
+
+
+def test_the_unconfigured_bridge_never_records_a_verdict(review_rig):
+    # D-6.14: with require_review set, an unreviewed candidate must be
+    # unlandable — so the "review not configured" bridge sets nothing.
+    repo, _runtime, deps_for = review_rig
+    state = run_task(repo.root, task_for(repo), RunnerConfig(), deps_for(None))
+    assert state.state is TaskState.READY
+    assert state.reviewed_by is None
 
 
 def test_a_blocker_with_unlocatable_evidence_is_discarded(review_rig):

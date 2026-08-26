@@ -565,6 +565,9 @@ def real_hooks(
                 state.escalate(EscalationReason.BLOCKER_FINDING,
                                f"{outcome.review_id}: {detail[:300]}")
                 return None
+            # The verdict the lane's require_review predicate reads
+            # (D-6.14, A-43); cleared on the next entry to running.
+            state.reviewed_by = outcome.review_id
             return f"{outcome.fact} ({outcome.review_id})"
 
         review_hook = review_hook_fn

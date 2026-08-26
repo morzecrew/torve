@@ -1,0 +1,46 @@
+# Minted by hand — A-43's execution: §3 listed review among the
+# promotion criteria since acceptance; CI and approvals got their lane
+# predicates, the criterion between them never did.
+schema_version: 1
+id: T-0087
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  The review verdict becomes a landing predicate. promotion.require_review
+  (default false) makes the lane land only a candidate whose producing
+  run recorded a concluded review — reviewed_by on the run state, set
+  when the task-gated review survives without a blocker, cleared on
+  every entry to running. The unconfigured-review bridge never sets it;
+  the refusal (lane_review_missing) precedes the approvals prompt; both
+  lanes enforce it.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/lane.py"
+    - "src/torve/application/runner.py"
+    - "src/torve/application/runstate.py"
+    - "src/torve/config/runconfig.py"
+    - "src/torve/cli/tick.py"
+    - "src/torve/cli/merge.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.14
+    grade: ASSUMED
+    text: "The review criterion is a lane predicate, zero-disabled: with promotion.require_review set, the lane lands only a candidate whose producing run recorded a concluded review (reviewed_by), the refusal precedes the approvals prompt, and both lanes enforce it"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/runner.py
+      - src/torve/application/runstate.py
+      - src/torve/config/runconfig.py
+budget: {}
+tier: executor

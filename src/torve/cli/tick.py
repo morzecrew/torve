@@ -193,6 +193,7 @@ def tick_cmd(
             results = process_lane(
                 root, lane_vcs, ci=ci,
                 approvals_required=config.promotion.approvals,
+                require_review=config.promotion.require_review,
                 quiet_window_s=config.promotion.quiet_window,
                 # D-6.10 as amended by A-35: the loop disposes of its own
                 # conflicts through the revision loop; the operator's

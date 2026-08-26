@@ -40,6 +40,7 @@ from torve.domain.states import (
 _MARKS = {"landed": "pass", "already landed": "pass", "would land": "pass",
           "would rebase": "pass", "conflict": "fail", "gates red": "fail",
           "ci not green": "fail", "approvals short": "fail",
+          "review missing": "fail",
           "quiet window": "fail", "no branch": "skipped"}
 
 
@@ -73,6 +74,7 @@ def merge_cmd(
         results = process_lane(
             root, GitLane(), dry_run=dry_run, only=task, ci=ci,
             approvals_required=config.promotion.approvals,
+            require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window)
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
@@ -104,6 +106,6 @@ def merge_cmd(
     if any(r.action == "conflict" for r in results):
         raise typer.Exit(EXIT_ESCALATED)
     if any(r.action in ("gates red", "ci not green", "approvals short",
-                        "quiet window") for r in results):
+                        "review missing", "quiet window") for r in results):
         raise typer.Exit(EXIT_GATES_RED)
     raise typer.Exit(EXIT_OK)

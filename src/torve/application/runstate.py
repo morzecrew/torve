@@ -56,6 +56,10 @@ class RunState:
     # lane's automatic conflict disposal re-queues only against a base
     # that has moved since — a repeat against this tip is a human's turn.
     conflict_base: str | None = None
+    # The review task that concluded over this candidate without a
+    # surviving blocker (D-6.14, A-43) — the lane's require_review
+    # predicate. The unconfigured-review bridge never sets it.
+    reviewed_by: str | None = None
 
     def transition(self, to: TaskState, fact: str) -> None:
         """Transitions are executed from facts; the fact is recorded with the
@@ -65,8 +69,10 @@ class RunState:
             {"at": _now(), "from": str(self.state), "to": str(to), "fact": fact}
         )
         if to is TaskState.RUNNING:
-            # Attempts increment on entry to running (RFC 0001 §4).
+            # Attempts increment on entry to running (RFC 0001 §4), and no
+            # review verdict outlives the attempt it judged (D-6.14).
             self.attempts += 1
+            self.reviewed_by = None
         self.state = to
         self.touch()
 
@@ -115,6 +121,7 @@ class RunState:
             history=data.get("history", []),
             approvals=data.get("approvals", []),
             conflict_base=data.get("conflict_base"),
+            reviewed_by=data.get("reviewed_by"),
         )
 
     @classmethod

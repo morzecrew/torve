@@ -1,0 +1,34 @@
+schema_version: 1
+task: T-0087
+repo: morzecrew/torve
+base_sha: 25a6245ba554685b09576597693a7a1337f17f41
+drift_count: 0
+entries:
+  - decision: D-6.14
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-26T00:00:00Z
+    attempt: 1
+    claim: >-
+      the review criterion becomes a lane predicate — the run state
+      carries reviewed_by, set by the runner's review hook when the
+      task-gated review concludes without a surviving blocker and
+      cleared on every entry to running (exactly where attempts
+      increment, so no verdict outlives the attempt it judged); the
+      unconfigured-review bridge sets nothing; with
+      promotion.require_review on, the lane refuses a ready candidate
+      without one as a standing refusal (lane_review_missing) placed
+      before the CI poll and the approvals check, so a candidate the
+      policy cannot land is never offered for approval; both lanes
+      enforce it through the same process_lane parameter
+    evidence: src/torve/application/runstate.py:62 — the field;
+      src/torve/application/runstate.py:75 — cleared on entry to
+      running; src/torve/application/runner.py:570 — set by the review
+      hook; src/torve/application/lane.py:189 — the predicate before CI
+      and approvals; src/torve/config/runconfig.py:317 — the
+      zero-disabled knob; tests/test_lane.py:493 — the refusal;
+      tests/test_lane.py:505 — a recorded verdict lands;
+      tests/test_lane.py:514 — no approvals prompt fires;
+      tests/test_review_run.py:83 — the hook records the review id;
+      tests/test_review_run.py:115 — the bridge never records one
+    action: decided
