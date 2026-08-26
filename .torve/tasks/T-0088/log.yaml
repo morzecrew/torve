@@ -1,0 +1,35 @@
+schema_version: 1
+task: T-0088
+repo: morzecrew/torve
+base_sha: a9172a530c17873aacc0ae0275a079afd0afd1f5
+drift_count: 0
+entries:
+  - decision: D-5.12
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-26T00:00:00Z
+    attempt: 1
+    claim: >-
+      a capture replaces the record either way — capture_feedback
+      unlinks the existing feedback.md and feedback-threads.json before
+      writing what it has, so an empty capture (no threads, no diff)
+      leaves no stale briefing from an earlier revision round for the
+      next attempt to read as current
+    evidence: src/torve/application/feedback.py:84 — the clear before
+      the write; tests/test_feedback.py:94 — an empty capture removes
+      both files a prior round wrote
+    action: decided
+  - decision: D-5.14
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-26T00:01:00Z
+    attempt: 1
+    claim: >-
+      reply addresses survive only as long as the capture that recorded
+      them — a fresh capture whose threads carry no addresses clears the
+      pending file, so no landing answers threads its revision never
+      consumed
+    evidence: src/torve/application/feedback.py:85 — the stale-address
+      clear; tests/test_feedback.py:110 — a fresh address-less capture
+      supersedes the pending file
+    action: decided

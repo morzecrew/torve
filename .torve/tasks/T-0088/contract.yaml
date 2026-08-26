@@ -1,0 +1,41 @@
+# Minted by hand — the T-0056 watch item: a stale feedback record from
+# an earlier revision round survived non-conflict retries and briefed
+# the next attempt as if current.
+schema_version: 1
+id: T-0088
+rfc: rfcs/0005-review-as-a-run.md
+phase: 3
+role: implement
+intent: |
+  A capture replaces the record — including with nothing. capture_feedback
+  clears the existing feedback.md and feedback-threads.json before
+  writing what it has: an empty capture leaves no stale briefing for the
+  next attempt, and a fresh capture without addresses leaves no stale
+  reply addresses for the next landing to answer.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/feedback.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-5.12
+    grade: ASSUMED
+    text: "Retry captures revision feedback before the candidate is superseded; the record never lies — a capture that carries nothing clears what an earlier round left, so no stale record briefs a later attempt as if current"
+    paths:
+      - src/torve/application/feedback.py
+  - id: D-5.14
+    grade: ASSUMED
+    text: "Capture retains each thread's reply address for the landing to answer; addresses survive only as long as the capture that recorded them — a fresh capture without addresses clears the pending file"
+    paths:
+      - src/torve/application/feedback.py
+budget: {}
+tier: executor

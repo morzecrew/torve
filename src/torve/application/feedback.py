@@ -73,18 +73,24 @@ def capture_feedback(root: Path, task_id: str, diff: str,
                      threads: list[dict[str, Any]]) -> bool:
     """Write the record beside the contract; False when there is nothing
     worth carrying (no threads and no diff — an escalation that never
-    reached a branch captures nothing, honestly). Captured threads also
-    leave their reply addresses (D-5.14, A-41) so the landing that
-    consumes this record can answer them."""
+    reached a branch captures nothing, honestly). A capture REPLACES the
+    record either way: a stale record from an earlier revision round must
+    not brief the next attempt as if current, and a stale reply address
+    must not have the next landing answer threads it never addressed.
+    Captured threads also leave their reply addresses (D-5.14, A-41) so
+    the landing that consumes this record can answer them."""
+    path = feedback_file(root, task_id)
+    addresses_path = threads_file(root, task_id)
+    path.unlink(missing_ok=True)
+    addresses_path.unlink(missing_ok=True)
     if not threads and not diff.strip():
         return False
-    path = feedback_file(root, task_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_feedback(task_id, diff, threads), encoding="utf-8")
     addresses = [{"pr": t["pr"], "id": t["id"],
                   "path": t.get("path"), "line": t.get("line")}
                  for t in threads if t.get("id") and t.get("pr")]
     if addresses:
-        threads_file(root, task_id).write_text(
+        addresses_path.write_text(
             json.dumps(addresses, ensure_ascii=False), encoding="utf-8")
     return True

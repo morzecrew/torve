@@ -14,6 +14,7 @@ from torve.application.feedback import (
     capture_feedback,
     feedback_file,
     render_feedback,
+    threads_file,
 )
 from torve.domain.task import Task
 from torve.gates.sabotage import base_task
@@ -88,3 +89,30 @@ def test_the_prompt_names_the_record_only_on_revision():
     assert ".torve/feedback.md" in revised
     assert "untrusted review data" in revised
     assert "do not start from scratch" in revised
+
+
+def test_an_empty_capture_clears_the_stale_record(root):
+    # A capture replaces the record — including with nothing: a stale
+    # record from an earlier revision round must not brief the next
+    # attempt as if current, and a stale reply address must not have
+    # the next landing answer threads it never addressed.
+    addressed = [{"pr": 12, "id": 5, "path": "a.py", "line": 3,
+                  "comments": [{"author": "bot", "body": "finding"}]}]
+    assert capture_feedback(root, "T-8006", "", addressed) is True
+    assert feedback_file(root, "T-8006").exists()
+    assert threads_file(root, "T-8006").exists()
+
+    assert capture_feedback(root, "T-8006", "", []) is False
+    assert not feedback_file(root, "T-8006").exists()
+    assert not threads_file(root, "T-8006").exists()
+
+
+def test_a_fresh_capture_supersedes_stale_reply_addresses(root):
+    addressed = [{"pr": 12, "id": 5, "path": "a.py", "line": 3,
+                  "comments": [{"author": "bot", "body": "finding"}]}]
+    assert capture_feedback(root, "T-8007", "", addressed) is True
+    # The next round captures address-less threads: the old addresses
+    # must not survive to be answered by a landing that never saw them.
+    assert capture_feedback(root, "T-8007", "", THREADS) is True
+    assert feedback_file(root, "T-8007").exists()
+    assert not threads_file(root, "T-8007").exists()
