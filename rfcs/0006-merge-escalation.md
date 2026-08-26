@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: ["0005"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-35", "A-42"]
+amended_by: ["A-35", "A-42", "A-43"]
 owner: Lev Litvinov
 description: >-
   Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted.
@@ -65,6 +65,8 @@ promotion:
 **Auto-merge stays off by default.** Where enabled, restrict it to a named task class with high test coverage — not a global switch.
 
 *Execution note 2026-08-24 (T-0060/T-0061):* `approvals` and `quiet_window` landed as flat fields beside `auto_merge` and `require_ci` (the sketch's `require:` list shape was already departed from at T-0048), both zero-disabled. An approval is recorded on the run state as {actor, sha, at} by a commander's `/torve approve` (RFC 0008 D-8.9's authorization applies); the lane counts only approvals of the branch tip as measured at lane start. The quiet window is plain seconds — no duration parser exists and one knob does not justify one.
+
+*Amended by A-43 2026-08-26:* the `review: no_blocker_findings` criterion becomes a lane predicate (D-6.14). `promotion.require_review` — default false, zero-disabled like its siblings — makes the lane land only a candidate whose producing run recorded a concluded review: `reviewed_by` on the run state, set when the task-gated review survives without a blocker, cleared on every entry to `running` so no verdict outlives the attempt it judged. The check precedes the approvals prompt — a candidate the policy cannot land is never offered for approval — and both lanes enforce it: it is promotion policy, not loop behavior.
 
 *Execution note 2026-08-23 (T-0048):* `green_on_current_head` reads the LATEST run per workflow for the head sha — a re-run supersedes the run it replaces, and a stale failure must not veto a green rerun; a red run of a different workflow still does. A base push invalidates in-flight merge-ref runs, so a lane consulting pull-request-event CI should expect one retrigger after the base moves.
 
@@ -142,6 +144,7 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 | D-6.11 | `ASSUMED` | Interrupt-class escalations (§4's notify and harness-owner routes) produce exactly one delivered notification through the outbox — issue assignment plus @mention of the configured `tracker.notify` login; assignment is best-effort, the mention is the notification; batch stays board-visible only, and an empty login keeps the notifier inert. Closes RFC 0003 D-3.18. Added by execution 2026-08-23 — see .torve/tasks/T-0051 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | A queue nobody triages looks identical to success; the interrupt class must reach a person without a polling habit |
 | D-6.12 | `ASSUMED` | The lane's automatic conflict disposal is bounded by progress: it re-queues only when the base tip differs from the last conflicted base this run recorded — landings are the only source of new conflicts, so the bound is structural — and a repeat conflict against an unmoved base escalates for a human. The operator's manual lane never auto-disposes. Added by amendment A-35 2026-08-24 | `src/torve/application/lane.py` `src/torve/cli/tick.py` | An automatic requeue without a progress bound is a spin loop wearing doctrine |
 | D-6.13 | `ASSUMED` | The conflict probe precedes the prompt: a candidate short of approvals whose base has moved is probed read-only (`git merge-tree`, no worktree, no ref moves — the merge verdict is the rebase verdict under one commit per attempt), and a provably conflicting tip is never offered for approval — the A-35 disposal fires at probe time, D-6.12's progress bound and manual-lane exemption included; a clean probe prompts exactly as before, the approval honoured through the landing's mechanical rebase (D-6.3 untouched). Added by amendment A-42 2026-08-25 | `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` | Approve-twice: the human approved a tip, watched it conflict seconds later, and was asked again — the burn was discoverable before the ask |
+| D-6.14 | `ASSUMED` | The sketch's `review: no_blocker_findings` criterion is a lane predicate, zero-disabled like `approvals`: with `promotion.require_review` set, the lane lands only a candidate whose producing run recorded a concluded review — `reviewed_by` on the run state, set when the task-gated review survives without a blocker, cleared on every entry to `running`. The unconfigured-review bridge never sets it, so a repository that demands reviews cannot silently land unreviewed work after configuration drift; the refusal (`lane_review_missing`) precedes the approvals prompt, and both lanes enforce it. Added by amendment A-43 2026-08-26 | `src/torve/application/lane.py` `src/torve/application/runner.py` `src/torve/application/runstate.py` `src/torve/config/runconfig.py` | Review-gating lived only runner-side — one `review.on` edit away from landing unreviewed candidates with no refusal anywhere |
 
 ## Phasing
 
@@ -261,3 +264,35 @@ costs one approval, not two; the landing-time rebase and its own
 conflict disposal, which still guard the same-pass race the probe
 cannot see; and the manual lane, which never probes — an operator
 running `torve merge` by hand is present to read the refusal.
+
+### A-43 — 2026-08-26 — the review verdict becomes a landing predicate (adds D-6.14)
+
+**Found in audit** — §3 has listed `review: no_blocker_findings` among
+the promotion criteria since acceptance, and the runner honours it: the
+task-gated review runs after green gates, before `ready`, and a
+surviving blocker escalates (RFC 0005 D-5.11). But the lane never
+checks. Enforcement is a courtesy of the runner's configuration
+(`review.on: task_gated`), not a property of the landing policy — edit
+`review.on`, or run a repository that never configured it, and the lane
+lands unreviewed candidates without a refusal anywhere. CI got its
+predicate at T-0048, approvals at T-0060; the criterion listed between
+them never did.
+
+**Changed:** `promotion.require_review` (D-6.14), default false,
+zero-disabled like its siblings. The run state carries `reviewed_by` —
+the review task's id, set by the runner when the task-gated review
+concludes without a surviving blocker, cleared on every entry to
+`running` so no verdict outlives the attempt it judged; the
+unconfigured-review bridge never sets it. The lane refuses a `ready`
+candidate without one (`lane_review_missing`, a standing refusal like
+`ci not green`), placed before the approvals check so a candidate the
+policy cannot land is never offered for approval — D-6.13's ordering
+generalized. Both lanes enforce it: promotion policy, unlike the
+loop-only conflict disposal.
+
+**Deliberately unchanged:** the runner-side escalation on blockers —
+D-5.11's order stands, a surviving blocker still never reaches `ready`;
+an unparseable review still concludes — the predicate asserts a review
+ran and no blocker survived, and reviewer output quality is RFC 0005
+§7's ladder, not this knob; and the pull-request-triggered reviews stay
+report-only — task state is never mutated on that path.
