@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32"]
+amended_by: ["A-32", "A-41"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -198,6 +198,7 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.11 | `LOCKED` | Review tasks are minted by the runner at `gated`, never by the planner | `src/torve/application/runner.py` | Review follows execution; the planner would have to predict it |
 | D-5.12 | `ASSUMED` | Retry captures revision feedback before the candidate is superseded: the previous candidate's diff and the pull request's `path:line`-anchored review threads from `review.feedback_from` logins — verbatim, whole threads, attributed, size-capped with recorded truncation; an empty allow-list turns the loop off. Added by amendment A-32 2026-08-24. *Amended by A-37 2026-08-25 (registered on RFC 0010, D-10.10): the branch is no longer deleted at requeue — the next attempt's leased force-push supersedes it; capture-first stands unchanged* | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` | A stranger's comment must never reach an agent; a parsed format rots with every vendor redesign |
 | D-5.13 | `ASSUMED` | A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs — revise, not restart; scope, gates and the sha-bound approval are unchanged, and revision spend stays behind the human retry. Added by amendment A-32 2026-08-24 | `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py` | The feedback channel steers attempts, never landings |
+| D-5.14 | `ASSUMED` | The landing answers the review threads its revision consumed: capture retains each thread's reply address, and the tick's landing leg posts one reply per captured root — composed from records, saying what the loop did (captured, revised, landed as this sha) and never what the finding deserves; each reply carries its idempotency marker so a replay is absorbed at the destination, a failed answer waits for the next tick, and an unconsumed record answers nothing. Added by amendment A-41 2026-08-25 | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | A reviewer whose finding vanishes into a merged pull request stops reading; the loop must close its own conversations |
 
 D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
 
@@ -307,3 +308,30 @@ D-5.13 the delivery into the re-run's sandbox and prompt.
 fixes; the *implementer* revises); the three containment layers; and the
 human act gating all spend — nothing auto-retries because a bot
 commented.
+
+### A-41 — 2026-08-25 — the engine answers its reviewers (adds D-5.14)
+
+**Found in operation** — the disjoint experiment batch's Major finding
+travelled the whole loop: captured, revised against, fixed, landed —
+and the thread that started it heard nothing. The pull request merged
+under it; a reviewer, human or bot, watching their finding vanish into
+a purple merge with no acknowledgement learns to stop reading. The
+owner named the gap the day the first true finding existed.
+
+**Changed:** the loop closes its own conversations (D-5.14). Capture
+retains each thread's reply address beside the feedback record; when
+the landing that consumed the record goes through, the tick's landing
+leg posts one reply per captured root: *captured into the task's
+revision record; the revised candidate landed as this sha; the
+finding's disposition stays the reviewer's call*. Composed from
+records — the reply reports what the loop did, never claims the
+finding fixed, because that judgement belongs to the reviewer who
+raised it. Idempotency markers ride each reply so replays are absorbed
+at the destination; a failed answer leaves its addresses pending for
+the next tick; the forge's cosmetics never fail the leg.
+
+**Deliberately unchanged:** the capture allow-list (only threads that
+entered the revision record are answered — the engine does not chat);
+D-8.5's untrusted-text doctrine, which governs what comes *in*, not
+this outbound record; and the human acts — approve, revise — that
+create the relationship the reply reports.
