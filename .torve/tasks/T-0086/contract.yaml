@@ -1,0 +1,45 @@
+# Minted by hand — A-42's execution: every burned approval of two live
+# batches was knowable before the prompt went out.
+schema_version: 1
+id: T-0086
+rfc: rfcs/0006-merge-escalation.md
+phase: 2
+role: implement
+intent: |
+  The probe precedes the prompt. A candidate short of approvals whose
+  base has moved is probed read-only with git merge-tree; a provably
+  conflicting tip is never offered for approval — the A-35 disposal
+  fires at probe time under D-6.12's progress bound. A clean probe
+  prompts exactly as before with the approval honoured through the
+  landing's mechanical rebase, and the manual lane never probes.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/lane.py"
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/vcs/git.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-6.13
+    grade: ASSUMED
+    text: "The conflict probe precedes the prompt: a candidate short of approvals whose base has moved is probed read-only, and a provably conflicting tip is never offered for approval — the A-35 disposal fires at probe time; a clean probe prompts as before"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/adapters/vcs/git.py
+  - id: D-6.12
+    grade: ASSUMED
+    text: "The disposal's progress bound and the manual lane's exemption govern the probe exactly as they govern the landing-time conflict"
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/tick.py
+budget: {}
+tier: executor

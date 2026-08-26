@@ -280,6 +280,17 @@ class GitLane:
                 adopted.append(rel)
         return adopted
 
+    def rebase_conflicts(self, root: Path, branch: str, onto: str) -> bool:
+        """A read-only conflict probe (D-6.13, A-42): would rebasing
+        *branch* onto *onto* conflict? `git merge-tree --write-tree`
+        merges in memory — no worktree, no ref moves; exit 1 is a
+        conflict verdict, not an error. Single-commit candidates
+        (D-10.8) make the merge verdict the rebase verdict."""
+        proc = _git(root, "merge-tree", "--write-tree", onto, branch)
+        if proc.returncode in (0, 1):
+            return proc.returncode == 1
+        raise RuntimeError(proc.stderr.strip() or "git merge-tree failed")
+
     def rebase_in_worktree(self, root: Path, branch: str, onto: str, workdir: Path) -> bool:
         added = _git(root, "worktree", "add", str(workdir), branch)
         if added.returncode != 0:

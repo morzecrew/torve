@@ -344,6 +344,61 @@ def test_a_differing_untracked_record_still_refuses_the_landing(lane_repo):
 # Promotion approvals and the quiet window (RFC 0006 §3, T-0060).
 
 
+def test_a_conflicting_tip_is_never_offered_for_approval(lane_repo):
+    # D-6.13 (A-42): the probe precedes the prompt — with a disposal
+    # wired and the base moved conflictingly, an unapproved candidate
+    # re-queues at probe time; no approval is requested, none can burn.
+    candidate(lane_repo, "T-7030", "app.py", "candidate = 30\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    branch_tip = git(lane_repo, "rev-parse", naming.branch("T-7030"))
+    captured: list[str] = []
+
+    def disposal(task_id: str) -> str:
+        captured.append(task_id)
+        return "branch kept; feedback captured"
+
+    results = process_lane(lane_repo, GitLane(), approvals_required=1,
+                           on_conflict=disposal)
+    assert results[0].action == "conflict requeued"
+    assert "probe" in results[0].detail
+    assert captured == ["T-7030"]
+    assert RunState.load(
+        naming.state_file(lane_repo, "T-7030")).state is TaskState.QUEUED
+    # The probe is read-only: the branch tip never moved.
+    assert git(lane_repo, "rev-parse", naming.branch("T-7030")) == branch_tip
+    events = [json.loads(line) for line in
+              (lane_repo / ".torve" / "telemetry.jsonl")
+              .read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert not any(e.get("event") == "lane_approvals_short" for e in events)
+
+
+def test_a_clean_probe_still_prompts_for_approval(lane_repo):
+    # A moved base with no conflict changes nothing: the prompt goes out
+    # and the approval is honoured through the landing's rebase (D-6.3).
+    candidate(lane_repo, "T-7031", "other.py", "o = 31\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    results = process_lane(lane_repo, GitLane(), approvals_required=1,
+                           on_conflict=lambda _t: "unused")
+    assert results[0].action == "approvals short"
+
+
+def test_the_manual_lane_never_probes(lane_repo):
+    # D-6.12: without a wired disposal (the operator's lane), the probe
+    # stays off — a conflicting unapproved candidate just reports short.
+    candidate(lane_repo, "T-7032", "app.py", "candidate = 32\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    results = process_lane(lane_repo, GitLane(), approvals_required=1)
+    assert results[0].action == "approvals short"
+    assert RunState.load(
+        naming.state_file(lane_repo, "T-7032")).state is TaskState.READY
+
+
 def test_approvals_required_refuses_an_unapproved_candidate(lane_repo):
     candidate(lane_repo, "T-7020", "twenty.py", "twenty = 20\n")
     (lane_repo / ".torve" / "config.yaml").write_text(

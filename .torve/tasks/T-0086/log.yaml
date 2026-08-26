@@ -1,0 +1,43 @@
+schema_version: 1
+task: T-0086
+repo: morzecrew/torve
+base_sha: 6540827d0f7fbf387c9a8483b55e6265bacea914
+drift_count: 0
+entries:
+  - decision: D-6.13
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T05:55:00Z
+    attempt: 1
+    claim: >-
+      LaneVcs gains rebase_conflicts — git merge-tree --write-tree,
+      exit 1 read as a conflict verdict rather than an error, exact for
+      single-commit candidates — and the approvals-short branch probes
+      before prompting: a moved base with a provable conflict routes
+      into the shared A-35 disposal (extracted as _dispose_conflict,
+      found_by recorded as probe or rebase) and no approvals-short
+      event or prompt is ever emitted for a doomed tip; the probe is
+      read-only, pinned by the branch tip standing still through it
+    evidence: src/torve/adapters/vcs/git.py:283-292 — the merge-tree
+      probe; src/torve/application/lane.py:126-156 — the shared
+      disposal; src/torve/application/lane.py:205-226 — probe before
+      prompt; tests/test_lane.py:347-375 — requeued at probe, no
+      approvals-short event, branch tip unmoved
+    action: decided
+  - decision: D-6.12
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T05:56:00Z
+    attempt: 1
+    claim: >-
+      the probe wears the same bounds as the landing-time disposal —
+      it fires only with a wired disposal (the standing loop's; the
+      manual lane passes none and keeps its plain approvals-short
+      report) and only against a base tip this run has not already
+      conflicted on; a clean probe changes nothing, the prompt going
+      out and the approval honoured through the landing's mechanical
+      rebase exactly as D-6.3 always had it
+    evidence: src/torve/application/lane.py:209-212 — the guard order;
+      tests/test_lane.py:377-399 — clean probe prompts, the manual
+      lane never probes and leaves the run ready
+    action: decided

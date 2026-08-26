@@ -123,6 +123,38 @@ def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     return True
 
 
+def _dispose_conflict(
+    root: Path, state: RunState, task_id: str, branch: str, base: str,
+    base_tip: str, on_conflict: Callable[[str], str],
+    results: list[LaneResult], found_by: str,
+) -> None:
+    """The A-35 disposal, shared by the landing's real conflict and the
+    pre-approval probe (D-6.13, A-42): escalate — the record and the
+    queue-age alarm stand — then capture, keep the branch, re-queue. A
+    refused cleanup leaves the escalation standing for the human."""
+    state.escalate(
+        EscalationReason.MERGE_CONFLICT,
+        f"rebase onto {base!r} conflicts ({found_by}); capturing for the "
+        "revision loop and re-queueing (A-35)")
+    try:
+        cleanup = on_conflict(task_id)
+    except RuntimeError as exc:
+        results.append(LaneResult(
+            task_id, branch, "conflict",
+            f"merge_conflict ({found_by}): re-queue cleanup refused "
+            f"({exc}) — run escalated"))
+        return
+    state.transition(TaskState.QUEUED, f"conflict auto-requeue ({cleanup})")
+    state.conflict_base = base_tip
+    state.save()
+    engine_event(root, "lane_conflict_requeued",
+                 {"task": task_id, "base_tip": base_tip, "found_by": found_by})
+    results.append(LaneResult(
+        task_id, branch, "conflict requeued",
+        f"merge_conflict ({found_by}): captured for the revision loop "
+        "and re-queued"))
+
+
 def process_lane(
     root: Path, vcs: LaneVcs, dry_run: bool = False, only: str | None = None,
     ci: CiStatus | None = None, approvals_required: int = 0,
@@ -173,6 +205,21 @@ def process_lane(
             current = [a for a in state.approvals
                        if a.get("sha") == branch_tip]
             if len(current) < approvals_required:
+                probe_base = vcs.tip(root, base) or base
+                if (on_conflict is not None
+                        and state.conflict_base != probe_base
+                        and not vcs.is_ancestor(root, probe_base, branch_tip)
+                        and vcs.rebase_conflicts(root, branch, base)):
+                    # The probe precedes the prompt (D-6.13, A-42): a
+                    # provably conflicting tip is never offered for
+                    # approval — the disposal that would have burned the
+                    # approval fires now, before anyone is asked.
+                    engine_event(root, "lane_conflict", {
+                        "task": task_id, "base": base, "probe": True})
+                    _dispose_conflict(root, state, task_id, branch, base,
+                                      probe_base, on_conflict, results,
+                                      found_by="probe")
+                    continue
                 engine_event(root, "lane_approvals_short", {
                     "task": task_id, "sha": branch_tip,
                     "have": len(current), "need": approvals_required})
@@ -229,34 +276,12 @@ def process_lane(
             if on_conflict is not None and state.conflict_base != base_tip:
                 # D-6.10 as amended by A-35: the escalation's standard
                 # disposal is mechanical, so the loop applies it in place
-                # — capture for the revision loop, drop the branch,
-                # re-queue — bounded by progress: once per base tip
-                # (D-6.12); a repeat against an unmoved base falls
-                # through to the human fork below.
-                state.escalate(
-                    EscalationReason.MERGE_CONFLICT,
-                    f"rebase onto {base!r} conflicts; capturing for the "
-                    "revision loop and re-queueing (A-35)")
-                try:
-                    cleanup = on_conflict(task_id)
-                except RuntimeError as exc:
-                    # Refused cleanup leaves the escalation standing
-                    # exactly as the un-amended disposal would.
-                    results.append(LaneResult(
-                        task_id, branch, "conflict",
-                        f"merge_conflict: re-queue cleanup refused ({exc})"
-                        " — run escalated"))
-                    continue
-                state.transition(TaskState.QUEUED,
-                                 f"conflict auto-requeue ({cleanup})")
-                state.conflict_base = base_tip
-                state.save()
-                engine_event(root, "lane_conflict_requeued",
-                             {"task": task_id, "base_tip": base_tip})
-                results.append(LaneResult(
-                    task_id, branch, "conflict requeued",
-                    "merge_conflict: captured for the revision loop and "
-                    "re-queued"))
+                # — bounded by progress: once per base tip (D-6.12); a
+                # repeat against an unmoved base falls through to the
+                # human fork below.
+                _dispose_conflict(root, state, task_id, branch, base,
+                                  base_tip, on_conflict, results,
+                                  found_by="rebase")
                 continue
             state.escalate(
                 EscalationReason.MERGE_CONFLICT,
