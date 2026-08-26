@@ -11,6 +11,7 @@ review data under a contract that still governs (D-5.13).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from torve.config import layout
 # ----------------------- #
 
 FEEDBACK_FILE = "feedback.md"
+FEEDBACK_THREADS = "feedback-threads.json"
 # Bytes of rendered threads-and-diff a record may hold; past it the
 # record says so (D-5.12) — a silently dropped finding makes it lie.
 FEEDBACK_CAP = 24_000
@@ -26,6 +28,12 @@ FEEDBACK_CAP = 24_000
 
 def feedback_file(root: Path, task_id: str) -> Path:
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_FILE
+
+
+def threads_file(root: Path, task_id: str) -> Path:
+    """The captured threads' reply addresses (D-5.14, A-41): pending
+    until the landing that consumed the record answers them."""
+    return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_THREADS
 
 
 def render_feedback(task_id: str, diff: str,
@@ -65,10 +73,18 @@ def capture_feedback(root: Path, task_id: str, diff: str,
                      threads: list[dict[str, Any]]) -> bool:
     """Write the record beside the contract; False when there is nothing
     worth carrying (no threads and no diff — an escalation that never
-    reached a branch captures nothing, honestly)."""
+    reached a branch captures nothing, honestly). Captured threads also
+    leave their reply addresses (D-5.14, A-41) so the landing that
+    consumes this record can answer them."""
     if not threads and not diff.strip():
         return False
     path = feedback_file(root, task_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_feedback(task_id, diff, threads), encoding="utf-8")
+    addresses = [{"pr": t["pr"], "id": t["id"],
+                  "path": t.get("path"), "line": t.get("line")}
+                 for t in threads if t.get("id") and t.get("pr")]
+    if addresses:
+        threads_file(root, task_id).write_text(
+            json.dumps(addresses, ensure_ascii=False), encoding="utf-8")
     return True

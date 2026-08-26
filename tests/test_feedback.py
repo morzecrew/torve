@@ -54,6 +54,24 @@ def test_nothing_worth_carrying_captures_nothing(root):
     assert not feedback_file(root, "T-8002").exists()
 
 
+def test_capture_retains_reply_addresses_when_threads_carry_them(root):
+    # D-5.14 (A-41): the landing that consumes this record answers its
+    # threads — the addresses persist beside it; address-less threads
+    # (older captures, tests) leave no pending file.
+    import json
+
+    from torve.application.feedback import threads_file
+
+    addressed = [{"pr": 12, "id": 5, "path": "a.py", "line": 3,
+                  "comments": [{"author": "bot", "body": "finding"}]}]
+    assert capture_feedback(root, "T-8004", "", addressed) is True
+    saved = json.loads(threads_file(root, "T-8004").read_text(encoding="utf-8"))
+    assert saved == [{"pr": 12, "id": 5, "path": "a.py", "line": 3}]
+
+    assert capture_feedback(root, "T-8005", "", THREADS) is True
+    assert not threads_file(root, "T-8005").exists()
+
+
 def test_the_size_cap_is_recorded_never_silent():
     huge = [{"path": "a.py", "line": 1, "comments": [
         {"author": "bot", "body": "x" * FEEDBACK_CAP}]}]

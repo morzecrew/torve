@@ -250,6 +250,8 @@ def test_ghscm_review_threads_allow_lists_roots_and_keeps_replies(monkeypatch):
         "torve/T-0100", ("coderabbitai[bot]", "Misery7100"))
     assert len(threads) == 1
     assert threads[0]["path"] == "a.py"
+    # The reply address rides the capture (D-5.14, A-41).
+    assert threads[0]["id"] == 1 and threads[0]["pr"] == 12
     assert [c["author"] for c in threads[0]["comments"]] == [
         "coderabbitai[bot]", "Misery7100"]
     # An empty allow-list is off — no forge calls at all.
@@ -257,6 +259,22 @@ def test_ghscm_review_threads_allow_lists_roots_and_keeps_replies(monkeypatch):
     assert GhScm("example/lab", token_env=None).review_threads(
         "torve/T-0100", ()) == []
     assert calls == []
+
+
+def test_answer_captured_threads_posts_once_and_absorbs_replays(monkeypatch):
+    # D-5.14 (A-41): one reply per captured root, marker-deduped at the
+    # destination — a thread already marked is skipped, not re-answered.
+    existing = json.dumps([
+        {"id": 5, "body": "old reply\n\n<!-- torve-key:answer:5 -->"}])
+    calls = scripted_gh(monkeypatch, {"replies": "{}",
+                                      "pulls/12/comments": existing})
+    scm = GhScm("example/lab", token_env=None)
+    posted, skipped = scm.answer_captured_threads(
+        [{"pr": 12, "id": 5}, {"pr": 12, "id": 7}], "landed as abc123")
+    assert (posted, skipped) == (1, 1)
+    reply_calls = [c for c in calls if "replies" in c]
+    assert len(reply_calls) == 1 and "comments/7/replies" in reply_calls[0]
+    assert "torve-key:answer:7" in reply_calls[0]
 
 
 def test_ghscm_close_pr_closes_and_deletes_or_noops(monkeypatch):

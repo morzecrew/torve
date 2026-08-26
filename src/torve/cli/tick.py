@@ -265,6 +265,35 @@ def tick_cmd(
                         outcomes[word] = outcomes.get(word, 0) + 1
                     for word in sorted(outcomes):
                         detail += f"; {outcomes[word]} pr(s) {word}"
+                    # D-5.14 (A-41): the landing answers the review threads
+                    # its revision consumed — one reply per captured root,
+                    # from records; the forge's cosmetics never fail the leg.
+                    import json as _json
+
+                    from torve.application.feedback import threads_file
+
+                    answered = 0
+                    for r in results:
+                        if r.action != "landed":
+                            continue
+                        pending = threads_file(root, r.task)
+                        if not pending.is_file():
+                            continue
+                        try:
+                            records = _json.loads(
+                                pending.read_text(encoding="utf-8"))
+                            reply = (f"Captured into {r.task}'s revision "
+                                     "record; the revised candidate landed "
+                                     f"as `{r.sha[:10]}`. The finding's "
+                                     "disposition stays the reviewer's call.")
+                            done, _already = scm.answer_captured_threads(
+                                records, reply)
+                            pending.unlink()
+                            answered += done
+                        except (RuntimeError, ValueError):
+                            continue  # the file stays; the next tick retries
+                    if answered:
+                        detail += f"; {answered} review thread(s) answered"
             return (detail, landed > 0)
 
         lane_leg = _lane

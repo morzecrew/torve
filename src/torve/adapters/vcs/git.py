@@ -461,6 +461,9 @@ class GhScm:
                 if author not in allowed:
                     continue
                 roots[int(comment["id"])] = {
+                    # id and pr are the reply address (D-5.14, A-41): the
+                    # landing answers the threads its revision consumed.
+                    "id": int(comment["id"]), "pr": number,
                     "path": comment.get("path"), "line": comment.get("line"),
                     "comments": [{"author": author,
                                   "body": str(comment.get("body", ""))}]}
@@ -473,6 +476,35 @@ class GhScm:
                     "author": str(user.get("login", "")),
                     "body": str(comment.get("body", ""))})
         return list(roots.values())
+
+    def answer_captured_threads(self, records: list[dict[str, Any]],
+                                body: str) -> tuple[int, int]:
+        """Answer the review threads a landed revision consumed (D-5.14,
+        A-41): one reply per captured root, composed from records — it
+        says what the loop did, never what the finding deserves. Each
+        reply carries its idempotency marker; a thread already marked is
+        skipped, so a replay is absorbed at the destination. Returns
+        (posted, skipped)."""
+        if not self.repo:
+            return (0, 0)
+        posted = skipped = 0
+        by_pr: dict[int, list[int]] = {}
+        for record in records:
+            by_pr.setdefault(int(record["pr"]), []).append(int(record["id"]))
+        for pr_number, comment_ids in by_pr.items():
+            existing = self._api(
+                f"repos/{self.repo}/pulls/{pr_number}/comments", "--paginate")
+            for comment_id in comment_ids:
+                marker = f"<!-- torve-key:answer:{comment_id} -->"
+                if marker in existing:
+                    skipped += 1
+                    continue
+                self._api(
+                    f"repos/{self.repo}/pulls/{pr_number}/comments/"
+                    f"{comment_id}/replies",
+                    "-f", f"body={body}\n\n{marker}")
+                posted += 1
+        return (posted, skipped)
 
     def close_pr(self, branch: str, comment: str) -> bool:
         """Close the branch's open pull request after its content landed by

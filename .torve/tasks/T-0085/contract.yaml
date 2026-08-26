@@ -1,0 +1,43 @@
+# Minted by hand — A-41's execution: the first true finding travelled
+# the whole loop and the thread that started it heard nothing.
+schema_version: 1
+id: T-0085
+rfc: rfcs/0005-review-as-a-run.md
+phase: 2
+role: implement
+intent: |
+  The engine answers its reviewers. Capture retains each thread's
+  reply address beside the feedback record; when the landing that
+  consumed the record goes through, the tick's landing leg posts one
+  reply per captured root — composed from records, saying what the
+  loop did and never what the finding deserves — with an idempotency
+  marker per reply so replays are absorbed at the destination. A
+  failed answer leaves its addresses pending for the next tick; an
+  unconsumed record answers nothing; only captured (allow-listed)
+  threads are ever answered.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/feedback.py"
+    - "src/torve/adapters/vcs/git.py"
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest"
+  - "uv run lint-imports"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-5.14
+    grade: ASSUMED
+    text: "The landing answers the review threads its revision consumed: one reply per captured root, composed from records, idempotency-marked at the destination; a failed answer waits for the next tick and an unconsumed record answers nothing"
+    paths:
+      - src/torve/application/feedback.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/cli/tick.py
+budget: {}
+tier: executor

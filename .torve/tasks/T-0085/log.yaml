@@ -1,0 +1,30 @@
+schema_version: 1
+task: T-0085
+repo: morzecrew/torve
+base_sha: 933a253c432fe0c30b7ca42570bedaa79b2db527
+drift_count: 0
+entries:
+  - decision: D-5.14
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-25T05:05:00Z
+    attempt: 1
+    claim: >-
+      review_threads now carries each root's id and pull-request number,
+      capture_feedback persists them as feedback-threads.json beside the
+      record — address-less threads leave no pending file, so older
+      captures answer nothing — and the tick's landing leg, after the
+      retirement pass, posts one reply per address through
+      answer_captured_threads: the reply reports capture, revision, and
+      the landed sha, leaves the finding's disposition to the reviewer,
+      and carries a per-thread marker the adapter checks before posting,
+      so a replay is absorbed at the destination; a RuntimeError leaves
+      the addresses on disk for the next tick, and the leg never fails
+      on the forge's cosmetics
+    evidence: src/torve/application/feedback.py:23-90 — the address
+      sidecar; src/torve/adapters/vcs/git.py:480-507 — marker-deduped
+      answering; src/torve/cli/tick.py:268-296 — the landing wire;
+      tests/test_pr_review.py:264-278 — post-once, absorb-replay;
+      tests/test_feedback.py:57-73 — addresses persist, address-less
+      threads leave nothing
+    action: decided
