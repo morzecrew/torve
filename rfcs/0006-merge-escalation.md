@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: ["0005"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-35"]
+amended_by: ["A-35", "A-42"]
 owner: Lev Litvinov
 description: >-
   Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted.
@@ -141,6 +141,7 @@ Plus `torve doctor` as a preflight: credentials present, sandbox reachable, stor
 | D-6.10 | `LOCKED` | A conflicted landing escalates the run — `ready → escalated`, reason `merge_conflict`; the branch is left exactly as measured. Added by amendment A-26 2026-08-23 (registered on the charter). Amended by A-35 2026-08-24: in the standing loop the escalation's standard disposal is applied in place — the branch is captured for the revision loop (RFC 0005 §4a) and the run re-queued, at most once per base tip (D-6.12); resolution stays human — re-queue or abandon — wherever the loop cannot dispose: a repeat conflict against an unmoved base, or the operator's manual lane | `src/torve/domain/states.py` `src/torve/application/lane.py` `src/torve/cli/tick.py` | Otherwise a candidate that cannot land is invisible to the escalation queue, whose age is the primary alert |
 | D-6.11 | `ASSUMED` | Interrupt-class escalations (§4's notify and harness-owner routes) produce exactly one delivered notification through the outbox — issue assignment plus @mention of the configured `tracker.notify` login; assignment is best-effort, the mention is the notification; batch stays board-visible only, and an empty login keeps the notifier inert. Closes RFC 0003 D-3.18. Added by execution 2026-08-23 — see .torve/tasks/T-0051 | `src/torve/application/tracker.py` `src/torve/adapters/tracker/github.py` | A queue nobody triages looks identical to success; the interrupt class must reach a person without a polling habit |
 | D-6.12 | `ASSUMED` | The lane's automatic conflict disposal is bounded by progress: it re-queues only when the base tip differs from the last conflicted base this run recorded — landings are the only source of new conflicts, so the bound is structural — and a repeat conflict against an unmoved base escalates for a human. The operator's manual lane never auto-disposes. Added by amendment A-35 2026-08-24 | `src/torve/application/lane.py` `src/torve/cli/tick.py` | An automatic requeue without a progress bound is a spin loop wearing doctrine |
+| D-6.13 | `ASSUMED` | The conflict probe precedes the prompt: a candidate short of approvals whose base has moved is probed read-only (`git merge-tree`, no worktree, no ref moves — the merge verdict is the rebase verdict under one commit per attempt), and a provably conflicting tip is never offered for approval — the A-35 disposal fires at probe time, D-6.12's progress bound and manual-lane exemption included; a clean probe prompts exactly as before, the approval honoured through the landing's mechanical rebase (D-6.3 untouched). Added by amendment A-42 2026-08-25 | `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` | Approve-twice: the human approved a tip, watched it conflict seconds later, and was asked again — the burn was discoverable before the ask |
 
 ## Phasing
 
@@ -233,3 +234,30 @@ operator's manual lane escalates exactly as before, because a person
 running it by hand is present to decide. The deeper reorder — probing
 the rebase before requesting approvals, so a doomed tip is never
 offered for approval at all — is left to a future amendment.
+
+### A-42 — 2026-08-25 — the probe precedes the prompt (adds D-6.13)
+
+**Found in operation** — the deferred half of A-35, promised in its
+own closing paragraph. Through two live batches the pattern repeated:
+the commander approves a candidate, a same-file sibling has landed
+first, the sha-bound approval burns with the superseded tip seconds
+later, and the re-run asks for a fresh one. The disposal was
+automatic; the burned ask was not. Every one of those conflicts was
+knowable before the prompt went out.
+
+**Changed:** the lane asks the question first (D-6.13). A candidate
+short of approvals whose base has moved is probed with
+`git merge-tree --write-tree` — read-only, no worktree, no ref moves,
+and exact for single-commit candidates (RFC 0010 D-10.8) — and a
+provably conflicting tip is never offered for approval: the A-35
+disposal fires at probe time, capture and re-queue included, under
+D-6.12's progress bound. The prompt the human sees is now always for
+a tip whose landing no known conflict can void.
+
+**Deliberately unchanged:** a clean probe changes nothing — the prompt
+goes out and the approval is honoured through the landing's mechanical
+rebase, exactly D-6.3's regime, so a stale-but-compatible tip still
+costs one approval, not two; the landing-time rebase and its own
+conflict disposal, which still guard the same-pass race the probe
+cannot see; and the manual lane, which never probes — an operator
+running `torve merge` by hand is present to read the refusal.
