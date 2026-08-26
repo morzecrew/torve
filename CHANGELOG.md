@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The engine answers its reviewers (T-0085, A-41, RFC 0005 D-5.14):
+  capture retains each review thread's reply address, and the landing
+  that consumed the revision record posts one reply per captured root
+  — composed from records ("captured; the revised candidate landed as
+  `sha`"), marker-deduped at the destination, never claiming the
+  finding fixed. A failed answer waits for the next tick; only
+  allow-listed, captured threads are ever answered.
 - revise — the commander's re-queue of a ready candidate (T-0083,
   A-40, RFC 0008 D-8.18): a review finding on a passing candidate can
   now re-enter the loop by explicit human act — capture-first cleanup,
