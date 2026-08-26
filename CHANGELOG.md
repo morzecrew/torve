@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The probe precedes the prompt (T-0086, A-42, RFC 0006 D-6.13): a
+  candidate short of approvals whose base has moved is probed
+  read-only with `git merge-tree`; a provably conflicting tip is
+  never offered for approval — the A-35 disposal fires at probe time,
+  ending approve-twice. Clean probes prompt as before, the approval
+  honoured through the landing's mechanical rebase; the manual lane
+  never probes.
 - The engine answers its reviewers (T-0085, A-41, RFC 0005 D-5.14):
   capture retains each review thread's reply address, and the landing
   that consumed the revision record posts one reply per captured root
