@@ -239,9 +239,45 @@ def mint_intake_task(root: Path, request: str, config: RunnerConfig,
     return task
 
 
+def execution_facts(root: Path) -> str:
+    """RFC 0020 phase 3: what the loop knows that a fresh drafter cannot —
+    the live escalation queue, contended paths, recent landings. Bounded
+    reads (telemetry tail), empty string when there is nothing to say."""
+    lines: list[str] = []
+    escalated = [(s.task_id, s.escalation.reason)
+                 for s in RunState.load_all(root / naming.WORKTREE_DIR)
+                 if s.state is TaskState.ESCALATED and s.escalation]
+    if escalated:
+        lines.append("escalated now: " + "; ".join(
+            f"{t} ({r})" for t, r in escalated[:6]))
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+    if telemetry.is_file():
+        contended: dict[str, int] = {}
+        landed: list[str] = []
+        for line in telemetry.read_text(encoding="utf-8").splitlines()[-500:]:
+            try:
+                record = cast("dict[str, Any]", json.loads(line))
+            except json.JSONDecodeError:
+                continue
+            if record.get("event") == "blocked_dispatch":
+                path = str(record.get("path", ""))
+                if path:
+                    contended[path] = contended.get(path, 0) + 1
+            elif record.get("event") == "lane_landed":
+                landed.append(str(record.get("task", "")))
+        if contended:
+            top = sorted(contended.items(), key=lambda kv: -kv[1])[:4]
+            lines.append("contended paths (avoid scoping over these): "
+                         + "; ".join(f"{p} ({n}x)" for p, n in top))
+        if landed:
+            lines.append("recently landed: " + ", ".join(landed[-8:]))
+    return "\n".join(f"- {entry}" for entry in lines)
+
+
 def build_intake_prompt(request: str, tree: Path, max_drafts: int,
                         lint_errors: list[str] | None = None,
-                        feedback: str | None = None) -> str:
+                        feedback: str | None = None,
+                        facts: str = "") -> str:
     """The drafter's whole input: the request, the tree, the ceiling, and —
     on a retry — the lint's exact refusals. The calibration paragraph
     matters as much as review's: one honest draft beats a decomposition
@@ -258,6 +294,10 @@ def build_intake_prompt(request: str, tree: Path, max_drafts: int,
                           f"drafts\n\n{feedback.strip()}\n\nRevise the batch "
                           "to answer it; keep what the feedback does not "
                           "touch.\n")
+    facts_block = ""
+    if facts:
+        facts_block = ("\n## Recent execution facts (read-only context)\n\n"
+                       f"{facts}\n")
     return f"""# Draft task contracts
 
 You are drafting contracts for work, not doing the work. The workspace is
@@ -266,7 +306,7 @@ read-only; read it to write honest file scopes and acceptance commands.
 ## The request
 
 {request}
-{feedback_block}
+{feedback_block}{facts_block}
 ## The repository tree
 
 ```text
@@ -354,7 +394,8 @@ def run_intake(
         )
         prompt = build_intake_prompt(task.intent, worktree,
                                      config.intake.max_drafts,
-                                     lint_errors or None, feedback)
+                                     lint_errors or None, feedback,
+                                     facts=execution_facts(root))
         handle = runtime.create(spec, worktree)
         state.sandbox_id = handle.id
         state.save()

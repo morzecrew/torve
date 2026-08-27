@@ -582,3 +582,49 @@ def test_intake_leg_closes_an_adopted_thread(seeded):
                leg_deps(tracker, ScriptedAgent([])), ("cmdr",))
     assert len([k for k in staged_keys(seeded.root)
                 if k == f"{source}:adopted-close"]) == 1
+
+
+# Phase 3 (T-0094): execution facts in the drafter's input.
+
+
+def test_execution_facts_reads_queue_and_telemetry(seeded):
+    from torve.application.intake import execution_facts
+
+    assert execution_facts(seeded.root) == ""  # nothing to say, no block
+    state = RunState(task_id="T-0300",
+                     path=naming.state_file(seeded.root, "T-0300"))
+    state.transition(TaskState.CLAIMED, "x")
+    state.transition(TaskState.RUNNING, "x")
+    from torve.domain.states import EscalationReason
+
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts")
+    telemetry = seeded.root / ".torve" / "telemetry.jsonl"
+    telemetry.write_text("\n".join([
+        json.dumps({"kind": "engine", "event": "blocked_dispatch",
+                    "task": "T-0301", "blocked_by": "T-0300",
+                    "path": "src/hot.py"}),
+        json.dumps({"kind": "engine", "event": "blocked_dispatch",
+                    "task": "T-0302", "blocked_by": "T-0300",
+                    "path": "src/hot.py"}),
+        json.dumps({"kind": "engine", "event": "lane_landed",
+                    "task": "T-0299", "sha": "a" * 40}),
+    ]) + "\n", encoding="utf-8")
+
+    facts = execution_facts(seeded.root)
+    assert "T-0300 (poison_ceiling)" in facts
+    assert "src/hot.py (2x)" in facts
+    assert "T-0299" in facts
+
+
+def test_facts_reach_the_drafter_prompt(seeded):
+    telemetry = seeded.root / ".torve" / "telemetry.jsonl"
+    telemetry.write_text(json.dumps(
+        {"kind": "engine", "event": "lane_landed", "task": "T-0299",
+         "sha": "a" * 40}) + "\n", encoding="utf-8")
+    config = RunnerConfig()
+    task = mint_intake_task(seeded.root, "add a widget", config)
+    agent = ScriptedAgent([output_for(draft_dict())])
+    run_intake(seeded.root, seeded.root, task, config, StubRuntime(),
+               agent, "digest")
+    assert "Recent execution facts" in agent.prompts[0]
+    assert "T-0299" in agent.prompts[0]

@@ -1,0 +1,25 @@
+# Minted by hand — RFC 0020 phase 3: context enrichment.
+schema_version: 1
+id: T-0094
+rfc: rfcs/0020-intake-and-the-drafting-run.md
+phase: 3
+role: implement
+intent: |
+  The drafter's input gains selected execution facts: the live escalation
+  queue by reason, the top contended paths from blocked-dispatch
+  telemetry, and the most recent landings — read from the run store and
+  the telemetry tail, bounded, injected as one prompt block only when
+  non-empty. The lint's learned-rule growth path is documented where the
+  rules live: each rule cites the escalation that produced it.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/intake.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest -q"
+decisions: []
+tier: executor
