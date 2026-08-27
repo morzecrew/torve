@@ -2,7 +2,7 @@
 id: "0021"
 title: The egress broker
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0003", "0004"]
 informed_by: ["0001", "0013", "0017"]

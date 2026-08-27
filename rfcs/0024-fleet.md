@@ -2,7 +2,7 @@
 id: "0024"
 title: Fleet — one department, many repositories
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0008", "0013", "0019"]
 informed_by: ["0001", "0004", "0006", "0017", "0021", "0022"]
