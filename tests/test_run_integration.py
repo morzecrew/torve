@@ -43,7 +43,7 @@ def seed_run_repo(repo) -> None:
     task = base_task(allow=["src/**"])
     task["acceptance"] = ["test -f src/feature.py"]
     repo.task(task, None)
-    repo.write("torve.yaml", yaml.safe_dump({
+    repo.write(".torve/config.yaml", yaml.safe_dump({
         "runtime": {"sandbox_timeout": 300, "agent_timeout": 90},
         "poison_ceiling": 2,
     }))

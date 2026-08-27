@@ -26,7 +26,6 @@ torve = "torve.cli:main"
 
 [dependency-groups]
 dev = [
-    "basedpyright>=1.31",
     # Backs the layering gate (RFC 0015, D-15.8). Dev-only on purpose
     # (D-15.10): a check on Torve's internals never ships to consumers.
     "import-linter>=2",
@@ -148,8 +147,10 @@ timeout = 300
 timeout_method = "thread"
 
 [tool.pyright]
-# Read by pylance/cursorpyright/basedpyright alike, so the editor and a CLI
-# run agree on one ruleset. Same scope rule as mypy below: src only.
+# Kept for the editor only (pylance/cursorpyright read it), so what a
+# developer sees inline agrees with what the gate checks. Nothing in CI or
+# the acceptance battery runs it: `mypy` is the one type checker of record
+# (A-51) — two strict checkers over one tree bought disagreement, not depth.
 include = ["src"]
 ignore = ["tests", "scripts", "skills", ".venv"]
 typeCheckingMode = "strict"

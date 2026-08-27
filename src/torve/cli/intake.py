@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM as DIM,
@@ -23,7 +24,6 @@ from torve.cli.console import (
     fail,
     header,
     out,
-    styled,
 )
 from torve.cli.options import (
     ConfigOption,
@@ -94,18 +94,18 @@ def intake_cmd(
     header(console, "intake", outcome.task_id)
     console.print(outcome.fact)
     for draft in outcome.drafts:
-        console.print(f"\n{styled(draft.ref, ID)}: {draft.intent}")
-        console.print(styled(f"  allow: {', '.join(draft.scope.allow)}", DIM))
-        console.print(styled(f"  acceptance: {'; '.join(draft.acceptance)}", DIM))
+        console.print(f"\n{Text(draft.ref, ID)}: {draft.intent}")
+        console.print(Text(f"  allow: {', '.join(draft.scope.allow)}", DIM))
+        console.print(Text(f"  acceptance: {'; '.join(draft.acceptance)}", DIM))
         if draft.depends_on:
-            console.print(styled(f"  depends_on: {', '.join(draft.depends_on)}", DIM))
+            console.print(Text(f"  depends_on: {', '.join(draft.depends_on)}", DIM))
     if outcome.rationale:
         console.print(f"\n{outcome.rationale}")
     if outcome.drafts:
         closing(console, f"adopt with: torve adopt {outcome.task_id}")
         raise typer.Exit(EXIT_OK)
     for error in outcome.lint_errors:
-        console.print(styled(f"  {error}", DIM))
+        console.print(Text(f"  {error}", DIM))
     closing(console, "escalated — retry after amending the request")
     raise typer.Exit(EXIT_ESCALATED)
 

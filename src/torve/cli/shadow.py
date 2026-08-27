@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
@@ -27,7 +28,6 @@ from torve.cli.console import (
     header,
     live_status,
     out,
-    styled,
 )
 from torve.cli.options import (
     ConfigOption,
@@ -136,11 +136,11 @@ def shadow_cmd(
         console = out(fmt)
         header(console, "shadow", f"{task_id} · replay of {record['commit'][:10]}")
         ready = record["state"] == "ready"
-        console.print(styled(
+        console.print(Text(
             f"  {record['state']} after {record['attempts']} attempt(s)",
             STYLE_PASS if ready else STYLE_FAIL))
         if record["escalation"]:
-            console.print(styled(f"  escalated: {record['escalation']}", STYLE_FAIL))
+            console.print(Text(f"  escalated: {record['escalation']}", STYLE_FAIL))
         cost = record["cost_usd_total"]
         console.print(
             f"  cost: {'$' + format(cost, '.2f') if cost is not None else 'unrecorded'}"

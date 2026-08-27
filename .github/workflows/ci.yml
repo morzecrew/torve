@@ -14,14 +14,11 @@ jobs:
           fetch-depth: 0 # gates diff against git merge-base
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --frozen
-      - run: uv run ruff check src tests
-      - run: uv run mypy src
-      - run: uv run basedpyright src
-      - run: uv run pytest
       # The sabotage suite: a gate that cannot be shown to fail is not a check.
       - run: uv run torve gates check
-      # Dogfood: the repository's own manifest, on human and agent PRs alike.
-      # Task branches (torve/T-nnnn) auto-discover their contract.
+      # The repository's own manifest, on human and agent PRs alike. Task
+      # branches (torve/T-nnnn) auto-discover their contract; without one the
+      # acceptance gate runs the manifest's fallback battery — ruff, mypy,
+      # pytest, rfc check. CI does not run those a second time itself (A-52):
+      # one step, one battery, and the gate is the thing under test.
       - run: uv run torve gates run --base origin/main
-      # Blocking here while the rfc-valid gate serves its shadow tenure.
-      - run: uv run torve rfc check

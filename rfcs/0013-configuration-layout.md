@@ -7,7 +7,7 @@ depends_on: ["0016"]
 informed_by: ["0002", "0011"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-16"]
+amended_by: ["A-16", "A-48"]
 owner: Lev Litvinov
 description: >-
   Where Torve's files live in a consuming repository: the .torve/ directory,
@@ -113,3 +113,15 @@ rfcs:
 **Unchanged:** everything else about resolution. The setting is read from the runner's `config.yaml` per D-13.3, not from the repository under work — a repository being operated on does not get to relocate the corpus the engine reads.
 
 **Also edits:** 0001 (A-15).
+
+### A-48 — 2026-08-27 — one location per lookup (amends §3, D-13.1)
+
+**Found in a whole-repository audit for over-engineering.** Every lookup searched a candidate list before answering: the gate manifest tried `.torve/gates.yaml` then a root `gates.yaml`; the runner configuration tried `.torve/config.yaml` then a root `torve.yaml`; a task's contract and log each tried three locations, from the per-task directory back through a flat `.torve/tasks/T-nnnn.yaml` to a root `tasks/`.
+
+**The compatibility was with nothing.** The package has never had a released version; no repository outside this one has ever held any of those layouts, and this one holds none of them either. The fallbacks were written for a migration that had already happened before anyone else could be mid-way through it.
+
+**Changed:** a lookup returns exactly one path, constructed, not searched. `--gates` and `--config` remain the only overrides (D-13.4 unchanged).
+
+**Why this matters beyond the line count.** A resolver that searches gives an answer that depends on what happens to exist on disk, which means a stray file two directories up can change which manifest a run is judged against. §3's "always local to the repository being checked" was being enforced by convention rather than by construction.
+
+**D-13.1 is amended** to state one canonical location per file rather than a resolution order. The locations themselves are unchanged.

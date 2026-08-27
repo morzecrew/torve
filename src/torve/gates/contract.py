@@ -21,11 +21,9 @@ class BuiltinOutcome:
 
 
 def spec(patterns: list[str]) -> pathspec.GitIgnoreSpec:
+    """The one pathspec dialect the gates match in: gitignore semantics, so a
+    manifest glob means what the same glob means in `.gitignore`."""
     return pathspec.GitIgnoreSpec.from_lines(patterns)
-
-
-def matches_any(path: str, patterns: list[str]) -> bool:
-    return bool(patterns) and spec(patterns).match_file(path)
 
 
 NO_TASK = BuiltinOutcome(

@@ -1,7 +1,7 @@
 """.torve/config.yaml — runner configuration, reviewed like the gate manifest
-but on its own cadence (D-3.7; root `torve.yaml` read as a fallback per RFC
-0013). Read from where the runner was launched, never from the repository
-under work (D-13.3). The tier mapping and provider policy are RFC 0004's.
+but on its own cadence (D-3.7; one location, no fallback, per RFC 0013 A-48).
+Read from where the runner was launched, never from the repository under work
+(D-13.3). The tier mapping and provider policy are RFC 0004's.
 
 The OpenSandbox section carries the name of the environment variable holding
 the API key, never the key itself — configuration is committed, credentials
@@ -180,7 +180,6 @@ class StoreConfig(BaseModel):
     dsn_env: str = "TORVE_PG_DSN"
     schema_name: str = "public"
     run_relation: str = "torve_durable_run"
-    step_relation: str = "torve_durable_step"
     lease_for: float = 60.0  # lease duration; cancel asks ride back on renewal
     heartbeat_divisor: int = 3
     max_run_duration: float = 7200.0  # hard cap on one durable body
@@ -279,7 +278,7 @@ class ReviewConfig(BaseModel):
 
     on: list[str] = Field(default_factory=list)
     skip_authors: list[str] = Field(default_factory=list)
-    # The revision loop's allow-list (RFC 0005 §4a, A-32): forge logins
+    # The revision loop's allow-list (RFC 0005 §4a, A-52): forge logins
     # whose review threads become revision context at retry. Empty = off;
     # a stranger's comment never reaches an agent.
     feedback_from: list[str] = Field(default_factory=list)
@@ -380,8 +379,8 @@ class RunnerConfig(BaseModel):
 
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     """Explicit `path` is a flag-level override (D-13.4); otherwise the file
-    resolves under `.torve/` with the legacy root name as fallback. A missing
-    default file means defaults; a missing explicit file is an error."""
+    is `.torve/config.yaml` and nowhere else. A missing default file means
+    defaults; a missing explicit file is an error."""
     resolved = path if path is not None else layout.config_file(root)
     if not resolved.is_file():
         if path is not None:

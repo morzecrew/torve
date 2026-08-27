@@ -8,7 +8,7 @@ depends_on: []
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-7", "A-9", "A-10", "A-14", "A-15", "A-20"]
+amended_by: ["A-7", "A-9", "A-10", "A-14", "A-15", "A-20", "A-53"]
 owner: Lev Litvinov
 description: >-
   How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved.
@@ -109,10 +109,10 @@ Only `NNNN-slug.md` and `INDEX.md`, no subdirectories. The check's message route
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-A.1 | `LOCKED` | A document with a graded decision table is an RFC and gets a number; published documentation goes to `pages/`, one-off procedures to `ops/`. Added by amendment A-7 2026-08-21 | `rfcs/**` `ops/**` `pages/**` | The sorting rule; without it `rfcs/` mixes kinds again |
-| D-A.1a | `LOCKED` | A page must not contradict an accepted decision, and must not restate rationale that belongs under a number. Documentation is written independently, not generated from `rfcs/`. *(Reworded 2026-08-21 — see the note under A-7.)* | `pages/**` | Derivation produces pages that answer "why was this decided" to a reader asking "how do I use this" |
-| D-A.1b | `ASSUMED` | An `ops/` document is deleted once executed | `ops/**` | A finished procedure kept "for reference" is how the mess restarts |
-| D-A.1c | `LOCKED` | Documentation is versioned with releases; `rfcs/` is not. Neither is generated from the other | `pages/**` `rfcs/**` | Two different axes; synchronising them produces a site with an amendment history and a corpus with release branches |
+| D-A.1 | `LOCKED` | A document with a graded decision table is an RFC and gets a number; published documentation goes to `pages/`, one-off procedures to `ops/`. Added by amendment A-7 2026-08-21 | `rfcs/**` `src/torve/config/rfc_parse.py` | The sorting rule; without it `rfcs/` mixes kinds again |
+| D-A.1a | `LOCKED` | A page must not contradict an accepted decision, and must not restate rationale that belongs under a number. Documentation is written independently, not generated from `rfcs/`. *(Reworded 2026-08-21 — see the note under A-7; Paths amended by A-53 2026-08-27.)* | `rfcs/**` | Derivation produces pages that answer "why was this decided" to a reader asking "how do I use this" |
+| D-A.1b | `ASSUMED` | An `ops/` document is deleted once executed | `rfcs/**` | A finished procedure kept "for reference" is how the mess restarts |
+| D-A.1c | `LOCKED` | Documentation is versioned with releases; `rfcs/` is not. Neither is generated from the other. *(Paths amended by A-53 2026-08-27.)* | `rfcs/**` | Two different axes; synchronising them produces a site with an amendment history and a corpus with release branches |
 | D-A.2 | `LOCKED` | Structured facts in YAML frontmatter; prose in the body | `rfcs/**` | Status and dependencies must be queryable and checkable |
 | D-A.3 | `LOCKED` | Decision tables stay in markdown, hard-validated by `rfc_index.py` | `rfcs/**` `src/torve/config/rfc_parse.py` | Frontmatter would split rows from rationale — two sources of truth in one document |
 | D-A.4 | `LOCKED` | Decision identifiers are permanent; append, never renumber | `rfcs/**` | Divergence logs cite them forever |
@@ -213,3 +213,13 @@ Carried over with the decisions they introduced. Numbering stays global, so cita
 - The retirement itself stays prose — the tombstone says *why* the row went; the frontmatter says only *that* it did (D-A.2's split, applied to endings).
 
 Retirement should stay rare: one identifier in sixteen documents so far. The list scales at a line per id, not a row per corpse.
+
+### A-53 — 2026-08-27 — `ops/` and `pages/` are conventions, not standing directories (amends D-A.1, D-A.1a, D-A.1c)
+
+**Found when both directories emptied on the same day.** `ops/skill-specialisation.md` was executed on 2026-08-21 and, per D-A.1b, should have been deleted then; it was not, and it had since gone stale, citing a module path that had moved and a document that no longer exists. `pages/README.md` was a fifty-four-line restatement of this document's §2 and §3 governing a directory whose own last line said it was empty until the first user-facing page existed.
+
+**Deleting both left three `LOCKED` rows citing globs that match nothing,** which `torve rfc check` correctly reported as rot (D-32): an implemented RFC cites real areas.
+
+**Changed:** the Paths cells of D-A.1, D-A.1a and D-A.1c cite where the rule is *enforced* — `rfcs/**` and the validator — rather than the destinations it routes to. The decisions themselves are unchanged and still stand: a graded decision table makes an RFC, documentation goes to `pages/`, procedures go to `ops/` and are deleted once executed.
+
+**A directory is created when it has something in it.** A Paths cell names a governed area for the silence check; a decision about where files will go, when no such files exist, governs nothing, and pinning an empty directory open with a placeholder to satisfy a glob is the scaffolding this document's own §2 argues against. The routing message in the corpus check (D-A.18) still names both destinations, which is where the convention is visible to whoever trips over it.

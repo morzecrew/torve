@@ -718,6 +718,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Over-engineering audit (A-44 – A-54): the curated lazy front door is
+  gone — `torve.__init__` no longer re-exports, so `from torve import
+  Task` becomes `from torve.domain.task import Task`; every canonical
+  path is unchanged. Configuration and contract lookups resolve to one
+  location under `.torve/` with no fallback search, so the pre-`.torve/`
+  layouts (root `gates.yaml`, `torve.yaml`, `tasks/`, `logs/`, and flat
+  `.torve/tasks/T-nnnn.yaml`) no longer resolve. The `source-layout`
+  gate now checks only RFC 0015's module naming rule; the RFC 0014
+  separator, dash-placement and label checks return to review. The
+  `rfc-valid` gate is promoted to blocking and dropped from the
+  acceptance fallback, so the corpus is checked once, by name.
+  `SizePolicy`/`StaticThresholds` collapse to `sizing.estimate()`, and
+  the unused `DecisionSource` port, `RfcDirectory` adapter, `api_port`/
+  `db_name`/`compose_project` derivations and `store.step_relation`
+  setting are removed.
+
+- CI is now two steps: `torve gates check` then `torve gates run`. The
+  explicit `ruff`/`mypy`/`pytest`/`rfc check` steps ran the same battery
+  the acceptance gate runs, so every push type-checked and tested twice
+  (A-52). `basedpyright` is no longer a dev dependency and no longer in
+  the battery — `mypy` is the type checker of record (A-51); the
+  `[tool.pyright]` block stays for editor diagnostics.
+
 - `requires-python` is now `>=3.13,<3.15` (the forze substrate's floor).
 - `config_hash` now includes the Torve package version and the pinned forze
   version (D-9.8, from `migrations/substrate/FORZE_VERSION`) — both upgrades

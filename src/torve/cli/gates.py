@@ -10,8 +10,9 @@ from typing import Annotated
 
 import typer
 import yaml
+from rich.text import Text
 
-from torve.application.sizing import StaticThresholds
+from torve.application import sizing
 from torve.application.telemetry import append_record, build_record, config_hash
 from torve.cli.console import (
     STYLE_DIM,
@@ -28,7 +29,6 @@ from torve.cli.console import (
     make_table,
     mark,
     out,
-    styled,
 )
 from torve.cli.options import FormatOption, RootOption, load_config
 from torve.config import layout
@@ -99,17 +99,17 @@ def gates_run(
         for result in report.results:
             table.add_row(
                 mark(result.outcome), result.name,
-                styled(result.outcome, STYLE_FAIL if result.outcome in ("fail", "error")
+                Text(result.outcome, STYLE_FAIL if result.outcome in ("fail", "error")
                        else STYLE_DIM if result.outcome == "skipped" else ""),
-                styled(result.state, STYLE_DIM),
-                styled(f"{result.duration_s:.1f}s", STYLE_DIM))
+                Text(result.state, STYLE_DIM),
+                Text(f"{result.duration_s:.1f}s", STYLE_DIM))
         console.print(table)
         for result in report.results:
             if result.outcome in ("fail", "error") and result.output:
-                console.print(styled(f"  ✗ {result.name}", STYLE_FAIL))
+                console.print(Text(f"  ✗ {result.name}", STYLE_FAIL))
                 failure_detail(console, result.output)
             if result.bypass is not None:
-                console.print(styled(
+                console.print(Text(
                     f"  ⤳ {result.name} bypassed by {result.bypass.author}: "
                     f"{result.bypass.reason}", STYLE_WARN))
         closing(console, f"exit {report.exit_code}",
@@ -129,7 +129,7 @@ def gates_check(fmt: FormatOption = Format.TEXT) -> None:
         console = out(fmt)
         for o in outcomes:
             verdict = mark("pass" if o.ok else "fail")
-            console.print(verdict + styled(
+            console.print(verdict + Text(
                 f" {o.name:<40} expected {o.expected:<8} got {o.got}", ""))
             if not o.ok and o.detail:
                 for line in o.detail.splitlines()[:12]:
@@ -143,7 +143,7 @@ def size(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Estimate whether a task contract is the right size to dispatch."""
-    verdict = StaticThresholds().estimate(load_task(task_file))
+    verdict = sizing.estimate(load_task(task_file))
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "size": verdict.size, "reasons": verdict.reasons})
     else:

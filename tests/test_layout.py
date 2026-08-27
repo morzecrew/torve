@@ -1,5 +1,5 @@
-"""RFC 0013 resolution: canonical `.torve/` first, legacy root names as
-fallback, canonical returned when neither exists (D-13.1)."""
+"""RFC 0013 resolution: one path per lookup under `.torve/`, whether or not
+the file exists (D-13.1, A-48). `--config` is the only override (D-13.4)."""
 
 from __future__ import annotations
 
@@ -12,45 +12,7 @@ from torve.config import layout
 from torve.config.runconfig import load_runner_config
 
 
-def test_canonical_wins_over_legacy(tmp_path: Path) -> None:
-    (tmp_path / ".torve").mkdir()
-    (tmp_path / ".torve" / "gates.yaml").write_text("canonical")
-    (tmp_path / "gates.yaml").write_text("legacy")
-    assert layout.gates_file(tmp_path) == tmp_path / ".torve" / "gates.yaml"
-
-
-def test_legacy_fallback(tmp_path: Path) -> None:
-    (tmp_path / "gates.yaml").write_text("legacy")
-    (tmp_path / "torve.yaml").write_text("legacy")
-    (tmp_path / "tasks").mkdir()
-    (tmp_path / "tasks" / "T-1.yaml").write_text("legacy")
-    (tmp_path / "logs").mkdir()
-    (tmp_path / "logs" / "T-1.yaml").write_text("legacy")
-    assert layout.gates_file(tmp_path) == tmp_path / "gates.yaml"
-    assert layout.config_file(tmp_path) == tmp_path / "torve.yaml"
-    assert layout.task_file(tmp_path, "T-1") == tmp_path / "tasks" / "T-1.yaml"
-    assert layout.log_file(tmp_path, "T-1") == tmp_path / "logs" / "T-1.yaml"
-
-
-def test_flat_torve_layout_is_the_middle_fallback(tmp_path: Path) -> None:
-    # The pre-A-12 flat layout sits between per-task dirs and root legacy.
-    (tmp_path / ".torve" / "tasks").mkdir(parents=True)
-    (tmp_path / ".torve" / "logs").mkdir()
-    (tmp_path / ".torve" / "tasks" / "T-1.yaml").write_text("flat")
-    (tmp_path / ".torve" / "logs" / "T-1.yaml").write_text("flat")
-    assert layout.task_file(tmp_path, "T-1") == tmp_path / ".torve" / "tasks" / "T-1.yaml"
-    assert layout.log_file(tmp_path, "T-1") == tmp_path / ".torve" / "logs" / "T-1.yaml"
-    # The per-task directory wins once it exists (A-12).
-    (tmp_path / ".torve" / "tasks" / "T-1").mkdir()
-    (tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml").write_text("canonical")
-    (tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml").write_text("canonical")
-    assert layout.task_file(tmp_path, "T-1") == (
-        tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml")
-    assert layout.log_file(tmp_path, "T-1") == (
-        tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml")
-
-
-def test_missing_resolves_canonical(tmp_path: Path) -> None:
+def test_every_lookup_resolves_under_torve_dir(tmp_path: Path) -> None:
     assert layout.gates_file(tmp_path) == tmp_path / ".torve" / "gates.yaml"
     assert layout.config_file(tmp_path) == tmp_path / ".torve" / "config.yaml"
     assert layout.task_dir(tmp_path, "T-1") == tmp_path / ".torve" / "tasks" / "T-1"

@@ -7,7 +7,7 @@ depends_on: ["0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-3", "A-25"]
+amended_by: ["A-3", "A-25", "A-54"]
 owner: Lev Litvinov
 description: >-
   Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens.
@@ -157,3 +157,16 @@ This also gives a retirement path in the other direction: once a gate exists and
 **Found asking how the rest of the library gets in.** A-3 drew the boundary — Torve ships only what it parses — but left everything on the far side of it (review checklists, stack conventions, the `agent-skills` library) with no road into the sandbox.
 
 **Changed:** §4a — the sandbox-definition doctrine applied to skills. Vendored skills are committed under `.torve/skills-vendor/<name>/` and resolve by name beside shipped skills at materialization; a collision with a shipped skill is refused, structurally protecting the A-3 unit-of-versioning; the vendored tree's digest joins `config_hash`. The channel is task context (RFC 0017 §3) — repository content instructing the agent about the work, which is allowed, as distinct from the repository configuring the harness, which is not (D-17.4).
+
+### A-54 — 2026-08-27 — the specialisation rules come in from `ops/` (amends A-3, adds D-9.14)
+
+**Found deleting the executed procedure.** `ops/skill-specialisation.md` was executed on 2026-08-21 and kept past its deletion (D-A.1b), because four of its rules were still normative and had nowhere else to live. That is exactly the case §2 of RFC 0016 names: when a procedure accumulates decisions rather than steps, the decisions are promoted into an RFC and the procedure goes.
+
+**Adds D-9.14,** carrying the four rules intact:
+
+- **The ownership test.** Does Torve parse what this skill produces? If not, it stays upstream. This is A-3's boundary restated as a test rather than as a list, so it answers the next candidate without an amendment.
+- **No install step.** The runner writes the role-scoped set into the sandbox from package data at dispatch; nothing is checked into the consuming repository, so nothing can drift.
+- **The mandatory header.** A specialised skill states in its own first lines that it is a specialisation and what it diverges from — these are not forks kept in sync, they are supposed to diverge, and the divergence is deliberate from the first commit or it is discovered later as drift.
+- **The homonym lesson.** Before moving a skill, check that the Torve concept it maps to is the same concept and not the same word. `escape-hatch-policy` was on A-3's list and removed on review: Torve parses bypass records, and that skill does not produce them.
+
+**Note on A-3's wording.** A-3 cites `RfcDirectory` as the parser of `rfc-writer`'s output. That adapter was retired by RFC 0007 A-47; the parser is `torve.config.rfc_parse`, reached by `torve plan`, `torve rfc check` and adoption. A-3's text stands as written — amendments record what was decided when — and this note is the correction.

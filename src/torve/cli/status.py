@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
@@ -21,7 +22,6 @@ from torve.cli.console import (
     id_list,
     make_table,
     out,
-    styled,
 )
 from torve.cli.options import (
     ConfigOption,
@@ -57,11 +57,11 @@ def status(
         terminal_ready = str(state.state) == "ready"
         escalated = str(state.state) == "escalated"
         table.add_row(
-            styled(state.task_id, STYLE_ID),
-            styled(str(state.state),
+            Text(state.task_id, STYLE_ID),
+            Text(str(state.state),
                    STYLE_PASS if terminal_ready else STYLE_FAIL if escalated else ""),
             str(state.attempts),
-            styled(f"{state.heartbeat_age_s():.0f}s ago", STYLE_DIM),
+            Text(f"{state.heartbeat_age_s():.0f}s ago", STYLE_DIM),
             (f"{state.escalation.reason}: {state.escalation.detail}"
              if state.escalation is not None else ""))
     console.print(table)

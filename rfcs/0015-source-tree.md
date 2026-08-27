@@ -8,7 +8,7 @@ depends_on: ["0016"]
 informed_by: ["0002", "0003", "0014"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-19"]
+amended_by: ["A-19", "A-45", "A-46"]
 owner: Lev Litvinov
 description: >-
   The package layout of src/torve — layers, permitted import directions,
@@ -330,3 +330,21 @@ forbidden_modules = ["torve.config.rfc_parse"]
 §6.2's note: this contract is format containment — a gate or runtime that parses specification documents directly is how the containment breaks, and it breaks quietly. Sabotage case: a gate importing `config.rfc_parse`.
 
 **Unchanged:** everything else about the layering gate. The `rfc-valid` gate keeps calling `torve rfc check` — that is the CLI consuming the format at the planner's side of the line, not a gate parsing documents.
+
+### A-45 — 2026-08-27 — the front door was protecting nothing (amends §5, retires D-15.7)
+
+**Found in a whole-repository audit for over-engineering.** §5's curated lazy front door was an 85-line `torve/__init__.py`: a `_EXPORTS` name-to-module table, a `TYPE_CHECKING` block restating it for type checkers, an `__all__` list restating it again, `__getattr__`/`__dir__` implementing PEP 562, and a test asserting the three copies agree.
+
+**Nothing imported through it.** Across the package and the suite the only attribute ever read was `torve.__version__`, twice. The deep paths — `torve.gates.runner.run_gates`, `torve.domain.task.Task` — were what every caller actually used, including the gates library's own consumers.
+
+**The property it claimed to defend holds without it.** §9's rule is that the gates-only CI path must not pay for the runner. That was never at risk from an eager re-export table, because there was no eager re-export table to begin with: `torve/__init__.py` is now a docstring and a version string, and importing it pulls nothing. The check that proves it survives, moved to the layering suite where the rest of the import-direction rules are tested.
+
+**Changed:** §5 is retired as a mechanism. There is no re-export surface; names resolve from their canonical modules. D-15.7 goes with it.
+
+### A-46 — 2026-08-27 — the layering sabotage tests the gate, not import-linter (amends §6.2)
+
+**Found in the same audit.** §6.2's suite carried one red case per contract type — layers, forbidden, independence, format containment — each seeding a scratch package and asserting import-linter reddens. Four of the five cases were exercising the dependency's contract engine.
+
+**Changed:** the suite keeps one red case (a domain module importing an adapter — the inversion the other contracts are variations on) and the green twin, which still passes the scratch package through all four contracts at once. What is under test is the wiring: that the manifest entry runs import-linter against this repository's contracts, and that a violation reddens.
+
+**The contracts themselves are still all declared** in `pyproject.toml` and still all enforced on every run. Only the per-contract-type sabotage cases are gone.

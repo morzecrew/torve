@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from torve.adapters.tracker.github import GithubIssues
     from torve.config.runconfig import TrackerConfig
 
+from rich.text import Text
+
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_ID,
@@ -26,7 +28,6 @@ from torve.cli.console import (
     make_table,
     mark,
     out,
-    styled,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
@@ -137,8 +138,8 @@ def poll(
             table = make_table("", "task", "command", "actor", "outcome")
             for o in report.outcomes:
                 table.add_row(mark("pass" if o.applied else "fail"),
-                              styled(o.task_id, STYLE_ID), o.verb,
-                              styled(o.actor, STYLE_DIM), o.detail)
+                              Text(o.task_id, STYLE_ID), o.verb,
+                              Text(o.actor, STYLE_DIM), o.detail)
             console.print(table)
             closing(console, f"{sum(o.applied for o in report.outcomes)} applied "
                              f"of {len(report.outcomes)} command(s)")

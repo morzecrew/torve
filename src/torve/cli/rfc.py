@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
@@ -31,7 +32,6 @@ from torve.cli.console import (
     header,
     id_list,
     out,
-    styled,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.rfc import KINDS
@@ -108,9 +108,9 @@ def check(
     else:
         console = out(fmt)
         for problem in problems:
-            console.print(styled(f"PROBLEM {problem}", STYLE_FAIL))
+            console.print(Text(f"PROBLEM {problem}", STYLE_FAIL))
         for warning in warnings:
-            console.print(styled(f"WARN    {warning}", STYLE_WARN))
+            console.print(Text(f"WARN    {warning}", STYLE_WARN))
         verdict = "FAIL " if problems else "OK   "
         tail = f", {len(warnings)} warning(s)" if warnings else ""
         closing(console, f"{verdict} {report.count} RFC(s), {len(problems)} problem(s){tail}",
@@ -257,7 +257,7 @@ def graph(
                 # A node expands under its first parent only; here it is a
                 # back-reference, dimmed whole so the repeat never reads as
                 # a second document.
-                branch.add(styled(f"{number} {status} ↑", STYLE_DIM))
+                branch.add(Text(f"{number} {status} ↑", STYLE_DIM))
             return
         seen.add(number)
         if done(number):
@@ -267,7 +267,7 @@ def graph(
             for child in sorted(dependents.get(number, [])):
                 grow(branch, child)
             return
-        label = styled(number, STYLE_ID)
+        label = Text(number, STYLE_ID)
         label.append(" ")
         label.append(status, style=_STATUS_STYLES.get(status, STYLE_FAIL))
         implementation = str(front.get("implementation", ""))
@@ -292,6 +292,6 @@ def graph(
         footer(console, f"… {len(omitted)} accepted and complete, omitted: "
                         f"{id_list(sorted(omitted))}")
     for problem in problems:
-        console.print(styled(f"PROBLEM {problem}", STYLE_FAIL))
+        console.print(Text(f"PROBLEM {problem}", STYLE_FAIL))
     for warning in warnings:
-        console.print(styled(f"WARN    {warning}", STYLE_WARN))
+        console.print(Text(f"WARN    {warning}", STYLE_WARN))

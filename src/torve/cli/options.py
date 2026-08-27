@@ -1,7 +1,7 @@
 """Shared option types and the configuration loaders behind them.
 
-Files resolve under `.torve/` with the legacy root-level names as fallback
-(RFC 0013); `--gates` and `--config` are the only overrides (D-13.4). A
+Files resolve under `.torve/`, one location each (RFC 0013 A-48); `--gates`
+and `--config` are the only overrides (D-13.4). A
 malformed manifest or runner configuration exits 3 (D-13.6). `--format json`
 rides every result-producing command (D-11.2).
 """
@@ -32,7 +32,7 @@ class RuntimeName(StrEnum):
 
 ConfigOption = Annotated[Path | None, typer.Option(
     "--config", exists=True, dir_okay=False,
-    help="Runner configuration; defaults to .torve/config.yaml, then torve.yaml.")]
+    help="Runner configuration; defaults to .torve/config.yaml.")]
 RootOption = Annotated[Path, typer.Option(
     "--root", exists=True, file_okay=False, help="Repository root.")]
 FormatOption = Annotated[Format, typer.Option(

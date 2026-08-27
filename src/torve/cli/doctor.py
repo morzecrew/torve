@@ -15,8 +15,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
+from rich.text import Text
 
-from torve.cli.console import STYLE_FAIL, Format, emit_json, mark, out, styled
+from torve.cli.console import STYLE_FAIL, Format, emit_json, mark, out
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
@@ -113,5 +114,5 @@ def doctor(
         console = out(fmt)
         for _name, passed, detail in checks:
             verdict = mark("pass" if passed else "fail")
-            console.print(verdict + styled(f" {detail}", "" if passed else STYLE_FAIL))
+            console.print(verdict + Text(f" {detail}", "" if passed else STYLE_FAIL))
     raise typer.Exit(EXIT_OK if healthy else EXIT_CONFIG)

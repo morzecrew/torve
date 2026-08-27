@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
@@ -25,7 +26,6 @@ from torve.cli.console import (
     header,
     make_table,
     out,
-    styled,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
@@ -92,18 +92,18 @@ def plan_cmd(
         for planned in report.tasks:
             task = planned.task
             table.add_row(
-                styled(task.id, STYLE_ID), str(task.phase), planned.title,
-                styled(planned.size.size,
+                Text(task.id, STYLE_ID), str(task.phase), planned.title,
+                Text(planned.size.size,
                        "" if planned.size.size == "ok" else STYLE_WARN),
                 str(len(task.decisions)), str(len(task.scope.allow)),
-                styled(", ".join(task.depends_on), STYLE_DIM))
+                Text(", ".join(task.depends_on), STYLE_DIM))
         console.print(table)
         if dry_run:
             closing(console, "dry run — nothing written; pass --no-dry-run to mint",
                     STYLE_DIM)
         else:
             for path in written:
-                console.print(styled(f"  minted {path}", ""))
+                console.print(Text(f"  minted {path}", ""))
             closing(console, f"minted {len(written)} contract(s)", STYLE_PASS)
     raise typer.Exit(EXIT_OK)
 
@@ -132,9 +132,9 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
             table = make_table("task", "state", "document", "superseded by", "action")
             for stale in found:
                 table.add_row(
-                    styled(stale.task_id, STYLE_ID), stale.state, stale.document,
+                    Text(stale.task_id, STYLE_ID), stale.state, stale.document,
                     stale.superseded_by or "an unset successor",
-                    styled(stale.action,
+                    Text(stale.action,
                            STYLE_FAIL if "escalate" in stale.action else STYLE_DIM))
             console.print(table)
         if dry_run and any(s.action == "would escalate" for s in found):

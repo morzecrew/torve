@@ -203,41 +203,6 @@ def check_slug(path: Path, fm: dict[str, Any]) -> list[str]:
     return []
 
 
-def decision_rows(text: str) -> list[tuple[str, str, str, int]] | None:
-    """(identifier, grade, paths-cell, header-ok) rows, or None without a table.
-    header-ok is carried on the first row as 1/0 so the caller reports it once."""
-    heading = DECISIONS_HEADING.search(text)
-    if not heading:
-        return None
-    section = text[heading.end():]
-    following = re.search(r"^#{2,3}\s", section, re.M)
-    if following:
-        section = section[: following.start()]
-    rows: list[tuple[str, str, str, int]] = []
-    header_ok = 0
-    inside = False
-    for line in section.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("|"):
-            if inside and stripped:
-                break
-            continue
-        if not inside:
-            if stripped.lower().startswith("| #"):
-                inside = True
-                header_ok = int(stripped == TABLE_HEADER)
-            continue
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
-        if cells and cells[0] and set(cells[0]) <= set("- :"):
-            continue  # the |---| separator
-        if len(cells) < 4:
-            continue
-        rows.append((cells[0].strip("`* "), cells[1].strip("`* "), cells[3], header_ok))
-    if not inside:
-        return None
-    return rows
-
-
 def paths_globs(cell: str) -> list[str]:
     cleaned = cell.replace("`", " ").strip()
     if not cleaned or set(cleaned) <= set("—- "):
@@ -256,18 +221,30 @@ class DecisionRow:
     paths: list[str]
 
 
-def decision_table(text: str) -> list[DecisionRow]:
-    """Every row of the document's decision table with all cells — what a
-    minted contract inherits (grade and paths copied at write time)."""
+@dataclass(frozen=True)
+class DecisionSection:
+    """The Decisions section as the validator sees it. `rows is None` means
+    the document has no such section at all — distinct from a section with a
+    header and nothing under it, which is a different complaint."""
+
+    rows: list[DecisionRow] | None
+    header_ok: bool
+
+
+def decision_section(text: str) -> DecisionSection:
+    """The one parser of the decision table (A-47). `decision_table` is the
+    minting face of it; the validator wants the two absences told apart and
+    the header verdict, which the rows cannot carry."""
     heading = DECISIONS_HEADING.search(text)
     if not heading:
-        return []
+        return DecisionSection(rows=None, header_ok=False)
     section = text[heading.end():]
     following = re.search(r"^#{2,3}\s", section, re.M)
     if following:
         section = section[: following.start()]
     rows: list[DecisionRow] = []
     inside = False
+    header_ok = False
     for line in section.splitlines():
         stripped = line.strip()
         if not stripped.startswith("|"):
@@ -275,12 +252,14 @@ def decision_table(text: str) -> list[DecisionRow]:
                 break
             continue
         if not inside:
-            inside = stripped.lower().startswith("| #")
+            if stripped.lower().startswith("| #"):
+                inside = True
+                header_ok = stripped == TABLE_HEADER
             continue
         cells = [c.strip() for c in stripped.strip("|").split("|")]
         if cells and cells[0] and set(cells[0]) <= set("- :"):
-            continue
-        if len(cells) < 5:
+            continue  # the |---| separator
+        if len(cells) < 4:
             continue
         rows.append(DecisionRow(
             identifier=cells[0].strip("`* "),
@@ -288,7 +267,15 @@ def decision_table(text: str) -> list[DecisionRow]:
             text=cells[2],
             paths=paths_globs(cells[3]),
         ))
-    return rows
+    if not inside:
+        return DecisionSection(rows=None, header_ok=False)
+    return DecisionSection(rows=rows, header_ok=header_ok)
+
+
+def decision_table(text: str) -> list[DecisionRow]:
+    """Every row of the document's decision table — what a minted contract
+    inherits (grade and paths copied at write time)."""
+    return decision_section(text).rows or []
 
 
 def check_phasing(path: Path, text: str) -> list[str]:
@@ -371,18 +358,19 @@ def check_decisions(
     check_globs = fm.get("status") == "accepted" and implementation != "none"
     unbuilt: list[str] = []
     warnings: list[str] = []
-    found = decision_rows(text)
-    if found is None:
+    section = decision_section(text)
+    if section.rows is None:
         return [
             (f"{path.name}: no Decisions section with a table "
              "(D-A.1: the table is what makes it an RFC)")
         ], warnings
-    if not found:
+    if not section.rows:
         return [f"{path.name}: Decisions section has a header but no rows"], warnings
     problems: list[str] = []
-    if not found[0][3]:
+    if not section.header_ok:
         problems.append(f"{path.name}: decision table header is not exactly {TABLE_HEADER!r}")
-    for ident, grade, paths_cell, _ in found:
+    for row in section.rows:
+        ident, grade, globs = row.identifier, row.grade, row.paths
         if ident in seen:
             problems.append(
                 f"{path.name}: decision identifier {ident!r} already used in {seen[ident]} — "
@@ -394,7 +382,6 @@ def check_decisions(
             problems.append(
                 f"{path.name}: row {ident!r} has grade {grade!r}, not one of {', '.join(GRADES)}"
             )
-        globs = paths_globs(paths_cell)
         if grade == "LOCKED":
             if not globs:
                 problems.append(
@@ -525,10 +512,8 @@ def defined_identifiers(files: dict[str, Path]) -> set[str]:
     """Every decision identifier defined anywhere in the corpus."""
     defined: set[str] = set()
     for path in files.values():
-        for ident, _grade, _paths, _header in decision_rows(
-            path.read_text(encoding="utf-8")
-        ) or []:
-            defined.add(ident)
+        for row in decision_table(path.read_text(encoding="utf-8")):
+            defined.add(row.identifier)
     return defined
 
 

@@ -11,9 +11,9 @@ cannot prove it did what it was told.
 ```text
 rfcs/                      the design corpus; INDEX.md is generated (D-A.6),
                            amendments live inside their target RFCs (D-A.5)
-ops/                       one-off procedures, deleted once executed (D-A.1b)
-pages/                     published documentation — links to decisions,
-                           never restates them (D-A.1a)
+                           `ops/` and `pages/` are conventions, not standing
+                           directories: they exist when they hold something
+                           (D-A.1, D-A.1b)
 src/torve/                 the gates library and runner (RFC 0002 + 0003),
                            layered per RFC 0015: base/ domain/ application/
                            adapters/ gates/ config/ cli/ — enforced by the
@@ -22,8 +22,8 @@ skills/                    specialised skills shipped with the package (A-3)
 .torve/                    every Torve file, root stays clean (RFC 0013):
   gates.yaml               this repository's own gate manifest
   config.yaml              runner configuration (runtime adapter, store, ceilings)
-  tasks/  logs/            task contracts and YAML execution logs (A-1),
-                           logs pinned to a base_sha (D-A.7)
+  tasks/                   one directory per task: contract.yaml and log.yaml
+                           (A-1, A-12), logs pinned to a base_sha (D-A.7)
 ```
 
 ## Gates (RFC 0002, shipped here)

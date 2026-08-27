@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
@@ -26,7 +27,6 @@ from torve.cli.console import (
     id_list,
     make_table,
     out,
-    styled,
 )
 from torve.cli.options import ConfigOption, RootOption, load_config
 from torve.domain.states import EXIT_OK
@@ -102,11 +102,11 @@ def _render_rich(report: dict[str, Any]) -> None:
             continue
         progress = ", ".join(f"P{k}: {v}" for k, v in doc["progress"].items())
         programme.add_row(
-            styled(str(doc["rfc"]), STYLE_ID), str(doc["title"]),
-            styled(str(doc["status"]),
+            Text(str(doc["rfc"]), STYLE_ID), str(doc["title"]),
+            Text(str(doc["status"]),
                    STYLE_PASS if doc["status"] == "accepted" else STYLE_DIM),
             str(doc["implementation"]), progress,
-            styled("; ".join(notes), STYLE_WARN if doc["disagreement"] else ""))
+            Text("; ".join(notes), STYLE_WARN if doc["disagreement"] else ""))
     console.print(programme)
     if settled:
         footer(console, f"… plus {len(settled)} accepted and complete: "
@@ -120,7 +120,7 @@ def _render_rich(report: dict[str, Any]) -> None:
         # Newest first, so the bounded list surfaces recent work — the report
         # itself keeps its stable ascending order.
         tasks.add_row(
-            styled(state, STYLE_PASS if state == "ready"
+            Text(state, STYLE_PASS if state == "ready"
                    else STYLE_FAIL if state == "escalated" else ""),
             str(len(ids)), id_list(sorted(ids, reverse=True)))
     console.print(tasks)
@@ -134,7 +134,7 @@ def _render_rich(report: dict[str, Any]) -> None:
                            if item.get("age_s") is not None]
             ages += reason_ages
             escalations.add_row(
-                styled(reason, STYLE_FAIL),
+                Text(reason, STYLE_FAIL),
                 str(items[0].get("route", "")),
                 str(len(items)),
                 ", ".join(str(item["task"]) for item in items),
@@ -152,8 +152,8 @@ def _render_rich(report: dict[str, Any]) -> None:
                                title="Proposals awaiting the author",
                                lines=True, last_max_width=76)
         withheld = add_rows_truncated(proposals, [
-            (styled(str(item["decision"]), STYLE_ID),
-             styled(str(item["task"]), STYLE_ID),
+            (Text(str(item["decision"]), STYLE_ID),
+             Text(str(item["task"]), STYLE_ID),
              str(item["proposal"]).strip())
             for item in fresh
         ], limit=40)
@@ -171,10 +171,10 @@ def _render_rich(report: dict[str, Any]) -> None:
         for name, gate in sorted(report["gates"].items()):
             gates.add_row(
                 name, str(gate["runs"]),
-                styled(str(gate["failures"]), STYLE_FAIL if gate["failures"] else STYLE_DIM),
+                Text(str(gate["failures"]), STYLE_FAIL if gate["failures"] else STYLE_DIM),
                 str(gate["flaky"]), str(gate["bypassed"]),
-                styled(f"{gate['mean_duration_s']}s", STYLE_DIM),
-                styled(f"{gate['max_duration_s']}s", STYLE_DIM))
+                Text(f"{gate['mean_duration_s']}s", STYLE_DIM),
+                Text(f"{gate['max_duration_s']}s", STYLE_DIM))
         console.print(gates)
 
     if report["costs"]:
@@ -186,8 +186,8 @@ def _render_rich(report: dict[str, Any]) -> None:
             shown = f"${cost:.4f}" if isinstance(cost, (int, float)) else "unrecorded"
             detail = (f"attempts {row['attempts']}, {row['state']}"
                       if row["kind"] == "shadow" else str(row.get("adapter") or ""))
-            rows.append((row["kind"], styled(str(row["task"]), STYLE_ID),
-                         styled(str(row.get("config_hash")), STYLE_ID), shown, detail))
+            rows.append((row["kind"], Text(str(row["task"]), STYLE_ID),
+                         Text(str(row.get("config_hash")), STYLE_ID), shown, detail))
         withheld = add_rows_truncated(costs, rows, limit=40)
         console.print(costs)
         if withheld:

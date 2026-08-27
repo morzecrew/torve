@@ -454,9 +454,10 @@ def _append_intake_record(
 
 
 def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
-    """The planner's deterministic copy (D-20.9): grades and paths as they
-    stand at adoption, from an accepted document only — the same admission
-    torve plan enforces (D-7.7)."""
+    """The planner's rows, not a second copy of them (D-20.9, A-47): grades
+    and paths as they stand at adoption, from an accepted document only —
+    the same admission torve plan enforces (D-7.7)."""
+    from torve.application.planner import PlanError, inherit_decisions
     from torve.config import rfc_parse
 
     doc_path = (root / rfc).resolve()
@@ -467,9 +468,11 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
     if not frontmatter or frontmatter.get("status") != "accepted":
         raise ValueError(f"{rfc} is not accepted — a draft has no settled "
                          "decisions to inherit (D-7.7)")
-    return [{"id": row.identifier, "grade": row.grade,
-             "text": row.text.strip(), "paths": row.paths}
-            for row in rfc_parse.decision_table(text)]
+    try:
+        rows = inherit_decisions(text, doc_path.name)
+    except PlanError as exc:
+        raise ValueError(str(exc)) from exc
+    return [row.model_dump() for row in rows]
 
 
 def adopted_file(root: Path, task_id: str) -> Path:

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_ID,
@@ -23,7 +24,6 @@ from torve.cli.console import (
     header,
     make_table,
     out,
-    styled,
 )
 from torve.cli.options import (
     ConfigOption,
@@ -105,6 +105,6 @@ def build(
     header(console, "sandbox build", f"{len(built)} image(s)")
     table = make_table("name", "tag", "digest")
     for image in built:
-        table.add_row(image["name"], styled(image["tag"], STYLE_ID),
-                      styled(image["digest"], STYLE_ID))
+        table.add_row(image["name"], Text(image["tag"], STYLE_ID),
+                      Text(image["digest"], STYLE_ID))
     console.print(table)

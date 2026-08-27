@@ -29,7 +29,7 @@ from typing import Any, cast
 import yaml
 from pathspec import GitIgnoreSpec
 
-from torve.application.sizing import StaticThresholds
+from torve.application import sizing
 from torve.config import layout, rfc_parse
 from torve.domain.attempt import SizeVerdict
 from torve.domain.rfc import GRADES
@@ -200,6 +200,25 @@ def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
     return clashes
 
 
+def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
+    """The document's decision table as a contract inherits it (§3.1): grade
+    and paths copied at write time, so the executor sees what stood when the
+    task was minted. One implementation — `torve plan` and adoption mint the
+    same rows or the two drift (A-47).
+    """
+    decisions: list[InheritedDecision] = []
+    for row in rfc_parse.decision_table(text):
+        if row.grade not in GRADES:
+            raise PlanError(
+                f"{name}: decision {row.identifier} has grade {row.grade!r} — "
+                "not mintable (run `torve rfc check`)"
+            )
+        decisions.append(InheritedDecision(
+            id=row.identifier, grade=row.grade, text=row.text.strip(), paths=row.paths,
+        ))
+    return decisions
+
+
 def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
     any refusal (§3.1) — each names the offending document or entry."""
@@ -241,19 +260,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
                         "intersect — same-phase tasks must be disjoint (§3)"
                     )
 
-    rows = rfc_parse.decision_table(text)
-    decisions: list[InheritedDecision] = []
-    for row in rows:
-        if row.grade not in GRADES:
-            raise PlanError(
-                f"{doc_path.name}: decision {row.identifier} has grade {row.grade!r} — "
-                "not mintable (run `torve rfc check`)"
-            )
-        # Copied at write time (§3.1): the grade and paths the executor sees
-        # are the ones that stood when the task was minted.
-        decisions.append(InheritedDecision(
-            id=row.identifier, grade=row.grade, text=row.text.strip(), paths=row.paths,
-        ))
+    decisions = inherit_decisions(text, doc_path.name)
 
     document = str(doc_path.resolve().relative_to(root.resolve()))
     clashes = _already_minted(root, document, {e.phase for e in entries})
@@ -267,7 +274,6 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     next_number = next_task_number(root)
     ids_by_phase: dict[int, list[str]] = {}
     planned: list[PlannedTask] = []
-    sizing = StaticThresholds()
     for offset, entry in enumerate(ordered):
         task_id = f"T-{next_number + offset:04d}"
         ids_by_phase.setdefault(entry.phase, []).append(task_id)

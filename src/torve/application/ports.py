@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from forze.application.contracts.durable.function import DurableRunStorePort
 
     from torve.config.runconfig import StoreConfig
-    from torve.domain.task import InheritedDecision, Task
+    from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -160,14 +160,6 @@ class Agent(Protocol):
     kind: str
 
     def run(self, ctx: AgentContext) -> AgentResult: ...
-
-
-class DecisionSource(Protocol):
-    """Standing decisions for a repository area (RFC 0007 §6a, D-7.6): every
-    adapter is deterministic — model-assisted extraction runs outside the
-    engine, in a supervised session, and lands as a committed document."""
-
-    def standing(self, repo: str, paths: list[str]) -> list[InheritedDecision]: ...
 
 
 class Vcs(Protocol):

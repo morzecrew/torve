@@ -282,7 +282,8 @@ def test_the_lane_releases_the_engine_worktree_before_a_rebase(lane_repo):
 
 def test_require_ci_without_a_repo_is_a_configuration_error(lane_repo):
     candidate(lane_repo, "T-7007", "seven.py", "seven = 7\n")
-    (lane_repo / "torve.yaml").write_text(
+    (lane_repo / ".torve").mkdir(exist_ok=True)
+    (lane_repo / ".torve" / "config.yaml").write_text(
         "schema_version: 1\npromotion:\n  require_ci: true\n", encoding="utf-8")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 3, result.output

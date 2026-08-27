@@ -1,18 +1,21 @@
-"""Sabotage for the `layering` gate (RFC 0015 §6.2) — one red case per
-contract, plus the green twin.
+"""Sabotage for the `layering` gate (RFC 0015 §6.2): one red case, one green
+twin, plus the front door's import-weight rule (§9).
 
 This suite lives in the repository, not in the shipped sabotage set: layering
 is a self-development gate and `import-linter` is a dev dependency (D-15.10),
 so a consuming repository's `torve gates check` never depends on it.
 
-Each case seeds a scratch package with its own import-linter contracts
-mirroring the four shapes in pyproject.toml, then runs the gate exactly as
-the manifest would.
+What is checked here is the *wiring* — that the manifest entry runs
+import-linter against this repository's contracts and that a violation
+reddens. import-linter tests its own contract engine (A-46); a case per
+contract type re-tested the dependency, not the gate.
 """
 
 from __future__ import annotations
 
 import shutil
+import subprocess
+import sys
 import textwrap
 
 import pytest
@@ -22,7 +25,9 @@ from torve.config.manifest import load_manifest
 from torve.gates.context import build_context
 from torve.gates.runner import run_gates
 
-pytestmark = pytest.mark.skipif(
+# Scoped to the gate cases, not the module: the front-door check below runs
+# everywhere, import-linter installed or not.
+needs_linter = pytest.mark.skipif(
     shutil.which("lint-imports") is None, reason="import-linter not installed"
 )
 
@@ -105,33 +110,32 @@ def outcome(repo) -> str:
     return report.results[0].outcome
 
 
-def test_domain_importing_an_adapter_reddens(repo):
+@needs_linter
+def test_a_contract_violation_reddens(repo):
+    # The layers contract is the load-bearing one; a domain module reaching
+    # for an adapter is the inversion every other contract is a variation on.
     seed(repo, {"pkg/domain/thing.py":
                 "from pkg.adapters.runtime import docker  # noqa: F401\nTHING = 1\n"})
     assert outcome(repo) == "fail"
 
 
-def test_gate_importing_the_application_reddens(repo):
-    seed(repo, {"pkg/gates/check.py":
-                "from pkg.application import service  # noqa: F401\n"})
-    assert outcome(repo) == "fail"
-
-
-def test_adapter_importing_an_adapter_reddens(repo):
-    seed(repo, {"pkg/adapters/runtime/docker.py":
-                "from pkg.adapters.workspace import git  # noqa: F401\n"})
-    assert outcome(repo) == "fail"
-
-
-def test_gate_parsing_the_rfc_format_reddens(repo):
-    # 0015 A-19 / 0007 D-7.18: format containment — the clean twin above has
-    # the CLI importing rfc_parse legally, so the contract forbids the gate
-    # without over-forbidding the planner's side.
-    seed(repo, {"pkg/gates/check.py":
-                "from pkg.config import rfc_parse  # noqa: F401\n"})
-    assert outcome(repo) == "fail"
-
-
+@needs_linter
 def test_clean_package_passes(repo):
     seed(repo, {})
     assert outcome(repo) == "pass"
+
+
+# ....................... #
+
+
+def test_import_torve_stays_cheap():
+    # RFC 0015 §9: the gates-only path must not pay for the runner. With the
+    # front door gone (A-45) this holds because nothing in `torve/__init__.py`
+    # imports downward — this is the check that keeps it that way.
+    code = (
+        "import sys, torve\n"
+        "heavy = [m for m in sys.modules\n"
+        "         if m.startswith(('torve.application', 'torve.adapters', 'torve.cli'))]\n"
+        "assert not heavy, heavy\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

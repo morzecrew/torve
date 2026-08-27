@@ -40,15 +40,16 @@ gates:
     state: shadow
     origin: structural
     added: 2026-08-21
-  # The corpus validator, now the product gate of RFC 0007 §3a (D-7.14):
+  # The corpus validator, the product gate of RFC 0007 §3a (D-7.14):
   # `torve rfc check` covers format, graph and index drift in one run, from
-  # the package alone (D-7.12) — no store, no skill. Continues the shadow
-  # tenure the rfc-index gate served since 2026-08-21; CI keeps the blocking
-  # dedicated step meanwhile.
+  # the package alone (D-7.12) — no store, no skill. Promoted out of its
+  # shadow tenure when CI stopped running the battery a second time itself
+  # (A-52): this is now the only place the corpus is checked, so it blocks,
+  # and it is named, so a red corpus does not read as a red test suite.
   - name: rfc-valid
     run: "uv run torve rfc check"
     input: worktree
-    state: shadow
+    state: blocking
     origin: rfc/0007
     added: 2026-08-22
     timeout: 20
@@ -92,6 +93,4 @@ gates:
     commands:
       - "uv run ruff check src tests"
       - "uv run mypy src"
-      - "uv run basedpyright src"
       - "uv run pytest"
-      - "uv run torve rfc check"

@@ -7,7 +7,7 @@ depends_on: ["0001"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-2", "A-8"]
+amended_by: ["A-2", "A-8", "A-49", "A-52"]
 owner: Lev Litvinov
 description: >-
   The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment.
@@ -321,3 +321,21 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 **Identifier note:** the consolidating instruction numbered these decisions D-2.10–D-2.15, but those identifiers were already taken by the T-0002 acceptance rows; per D-A.4 identifiers are never reused, so the lifecycle rows are D-2.18–D-2.23.
 
 **Also edits:** RFC 0004 §6 (per-gate health metrics among the telemetry fields), RFC 0009 D-9.5 (retiring a gate shrinks or removes its paired skill in the same change), RFC 0011 §5 (cross-referenced from filter 5).
+
+### A-49 — 2026-08-27 — the size estimate is a function (amends §6b, D-2.9)
+
+**Found in a whole-repository audit for over-engineering.** §6b shipped a `SizePolicy` protocol with one implementation, `StaticThresholds`, whose three thresholds were constructor parameters no call site ever overrode, and whose `observe` method had an empty body and no callers. The protocol existed for a `HistoricalPercentile` arm that needs the attempt store and retrospective calibration — neither of which exists.
+
+**Changed:** the estimate is a module-level function over module-level thresholds. The seam returns when there is a second arm to put behind it; a protocol with one implementation is a seam that has not been tested by a second case, which is to say it is a guess about where the seam goes.
+
+**D-2.9 stands** — the estimate is still pre-dispatch, still advisory, still the thing `torve size` reports. Only its shape changed.
+
+### A-52 — 2026-08-27 — CI runs the gate, not the battery twice (amends §5, §7.3)
+
+**Found in the same audit.** The workflow ran `ruff`, `mypy`, `pytest` and `torve rfc check` as explicit steps, then ran `torve gates run`, whose acceptance gate ran the same four commands again from the manifest's fallback battery. On a branch with no task contract the whole suite executed twice per push; `torve rfc check` executed three times, because the `rfc-valid` gate ran it as well.
+
+**Changed:** CI is `torve gates check` followed by `torve gates run`. The manifest's fallback battery is the definition of the battery, and the gate running it is the thing under test — a green CI that never exercised the gate is the failure mode §5 exists to prevent.
+
+**`rfc-valid` is promoted out of shadow** in the same change, and dropped from the acceptance fallback. It was the only corpus check left blocking through the deleted CI step; leaving it at `shadow` would have made a red corpus advisory. Named and blocking, it also reports as a corpus failure rather than as a red test suite.
+
+**This is a §7.3 promotion without the §7.7 soak,** on the D-15.8/T-0014 precedent: `torve rfc check` is deterministic over committed documents and has no false-positive rate to measure. It had served a shadow tenure since 2026-08-22 with the blocking dedicated step beside it.

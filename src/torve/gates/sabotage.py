@@ -313,69 +313,17 @@ def _bypass_refused_for_secrets(repo: Repo) -> None:
              "try to bypass\n\nTorve-Bypass: secrets: just this once")
 
 
-LAYOUT_DASH = "# ----------------------- #"
-LAYOUT_DOT = "# ....................... #"
-
-
-def _layout_bad_width(repo: Repo) -> None:
-    repo.seed()
-    repo.write("src/mod.py", "import os\n\n# -------------------- #\n\n\nx = os.sep\n")
-    repo.commit("20-dash separator")
-
-
-def _layout_missing_dash(repo: Repo) -> None:
-    repo.seed()
-    repo.write("src/mod.py", "import os\n\n\ndef sep() -> str:\n    return os.sep\n")
-    repo.commit("imports with no post-import dash")
-
-
-def _layout_three_dashes(repo: Repo) -> None:
-    body = "import os\n\n" + LAYOUT_DASH + "\n\nA = 1\n\n" \
-        + LAYOUT_DASH + "\n# Second section — labelled, still one too many below.\n\nB = 2\n\n" \
-        + LAYOUT_DASH + "\n# Third section.\n\nC = os.sep\n"
-    repo.seed()
-    repo.write("src/mod.py", body)
-    repo.commit("three structural dashes")
-
-
-def _layout_unlabelled_second_dash(repo: Repo) -> None:
-    body = "import os\n\n" + LAYOUT_DASH + "\n\nA = 1\n\n" \
-        + LAYOUT_DASH + "\n\nB = os.sep\n"
-    repo.seed()
-    repo.write("src/mod.py", body)
-    repo.commit("second dash with no label")
-
-
-def _layout_labelled_dot(repo: Repo) -> None:
-    body = "import os\n\n" + LAYOUT_DASH + "\n\nA = 1\n\n" \
-        + LAYOUT_DOT + "\n# a label the dot must not carry\nB = os.sep\n"
-    repo.seed()
-    repo.write("src/mod.py", body)
-    repo.commit("labelled dot")
-
-
 def _layout_forbidden_name(repo: Repo) -> None:
-    # D-15.5: the file conforms to RFC 0014 internally; only the name is wrong.
+    # D-15.5: only the module name is wrong; nothing else is checked here.
     repo.seed()
-    repo.write("src/pkg/utils.py",
-               '"""Anything goes here, which is the problem."""\n\nimport os\n\n'
-               + LAYOUT_DASH + "\n\n\ndef sep() -> str:\n    return os.sep\n")
+    repo.write("src/pkg/utils.py", '"""Anything goes here, which is the problem."""\n')
     repo.commit("catch-all module")
 
 
 def _layout_clean(repo: Repo) -> None:
-    body = (
-        '"""A conforming module."""\n\nimport os\n\n'
-        + LAYOUT_DASH + "\n\n\n"
-        + "class Thing:\n"
-        + '    """Two members, dot-paced."""\n\n'
-        + "    a: int = 1\n\n"
-        + "    " + LAYOUT_DOT + "\n\n"
-        + "    def sep(self) -> str:\n        return os.sep\n"
-    )
     repo.seed()
-    repo.write("src/mod.py", body)
-    repo.commit("conforming module")
+    repo.write("src/pkg/sandbox_names.py", '"""A module named for what it holds."""\n')
+    repo.commit("named module")
 
 
 def _text_help_rfc(repo: Repo) -> None:
@@ -434,16 +382,9 @@ CASES: list[Case] = [
     Case("secrets: clean twin", "secrets", "pass", _secrets_clean),
     Case("bypass: signed trailer converts a red scope", "scope", "bypassed", _bypass_honored),
     Case("bypass: refused for secrets", "secrets", "fail", _bypass_refused_for_secrets),
-    Case("source-layout: 20-dash separator", "source-layout", "fail", _layout_bad_width),
-    Case("source-layout: missing post-import dash", "source-layout", "fail",
-         _layout_missing_dash),
-    Case("source-layout: three dashes", "source-layout", "fail", _layout_three_dashes),
-    Case("source-layout: unlabelled second dash", "source-layout", "fail",
-         _layout_unlabelled_second_dash),
-    Case("source-layout: labelled dot", "source-layout", "fail", _layout_labelled_dot),
     Case("source-layout: catch-all module name", "source-layout", "fail",
          _layout_forbidden_name),
-    Case("source-layout: conforming twin", "source-layout", "pass", _layout_clean),
+    Case("source-layout: named module twin", "source-layout", "pass", _layout_clean),
     Case("user-facing-text: help cites an RFC number", "user-facing-text", "fail",
          _text_help_rfc),
     Case("user-facing-text: command docstring cites a decision", "user-facing-text",

@@ -10,8 +10,13 @@ import subprocess
 import pytest
 from typer.testing import CliRunner
 
-from torve.adapters.decisions.rfc_directory import RfcDirectory
-from torve.application.planner import PlanError, globs_intersect, plan_document, write_contracts
+from torve.application.planner import (
+    PlanError,
+    globs_intersect,
+    inherit_decisions,
+    plan_document,
+    write_contracts,
+)
 from torve.cli import app
 from torve.config.rfc_parse import parse_phasing
 from torve.gates.context import load_task
@@ -224,7 +229,7 @@ def test_globs_intersect_is_conservative():
 
 
 # ....................... #
-# CLI and the DecisionSource port
+# CLI and decision inheritance
 
 
 def test_plan_cli_dry_run_by_default(plan_repo):
@@ -250,77 +255,17 @@ def test_plan_cli_mints_and_refuses_drafts_with_exit_3(plan_repo):
     assert "no settled decisions" in refused.stderr
 
 
-def test_rfc_directory_returns_standing_rows_for_an_area(plan_repo):
-    root, write_doc, git = plan_repo
-    write_doc("0091", "Sketch", status="draft", body=TABLE)  # draft: never consulted
-    git("add", "-A")
-    git("commit", "-qm", "draft")
-    source = RfcDirectory(root / "rfcs")
-    rows = source.standing("org/repo", ["src/widget/handlers.py"])
-    assert [r.id for r in rows] == ["D-90.1"]  # pathless and draft rows excluded
-    assert rows[0].grade == "LOCKED"
-    assert source.standing("org/repo", ["docs/**"]) == []
+def test_inherit_decisions_copies_the_table_intact():
+    # One helper mints for both `torve plan` and adoption (A-47): grade, text
+    # and paths as the row stands, pathless rows included.
+    rows = inherit_decisions(TABLE, "0090-widgets.md")
+    assert [(r.id, r.grade, r.paths) for r in rows] == [
+        ("D-90.1", "LOCKED", ["src/widget/**"]),
+        ("D-90.2", "ASSUMED", []),
+    ]
 
 
-# ....................... #
-# --reconcile (§3.3, charter A-22)
-
-
-def supersede_0090(root, write_doc, git):
-    write_doc("0099", "Widgets Two", body=TABLE + PHASING)
-    doc = next((root / "rfcs").glob("0090-*.md"))
-    text = doc.read_text(encoding="utf-8")
-    text = text.replace("status: accepted", "status: superseded")
-    text = text.replace("superseded_by: null", 'superseded_by: "0099"')
-    doc.write_text(text, encoding="utf-8")
-    git("add", "-A")
-    git("commit", "-qm", "supersede 0090")
-
-
-def test_reconcile_escalates_stale_tasks(plan_repo):
-    from torve.application.planner import reconcile
-    from torve.application.runstate import RunState
-    from torve.base import naming
-    from torve.domain.states import TaskState
-
-    root, write_doc, git = plan_repo
-    write_contracts(root, plan_document(root, root / "rfcs", "0090"))
-    # T-0001 ran to ready (terminal — untouched); T-0002 never ran; T-0003 untouched too.
-    done = RunState(task_id="T-0001", path=naming.state_file(root, "T-0001"))
-    for to, fact in ((TaskState.CLAIMED, "t"), (TaskState.RUNNING, "t"),
-                     (TaskState.GATED, "t"), (TaskState.REVIEWED, "t"),
-                     (TaskState.READY, "t")):
-        done.transition(to, fact)
-    done.save()
-    supersede_0090(root, write_doc, git)
-
-    preview = reconcile(root, root / "rfcs", dry_run=True)
-    assert {s.task_id: s.action for s in preview} == {
-        "T-0001": "skipped (terminal)",
-        "T-0002": "would escalate", "T-0003": "would escalate"}
-    assert not naming.state_file(root, "T-0002").exists()  # dry run wrote nothing
-
-    applied = reconcile(root, root / "rfcs", dry_run=False)
-    assert {s.task_id: s.action for s in applied} == {
-        "T-0001": "skipped (terminal)",
-        "T-0002": "escalated", "T-0003": "escalated"}
-    stale = RunState.load(naming.state_file(root, "T-0002"))
-    assert stale.state is TaskState.ESCALATED
-    assert stale.escalation is not None
-    assert stale.escalation.reason == "stale_inheritance"
-    assert "0099" in stale.escalation.detail
-
-    again = reconcile(root, root / "rfcs", dry_run=False)
-    assert {s.task_id: s.action for s in again} == {
-        "T-0001": "skipped (terminal)",
-        "T-0002": "already escalated (stale_inheritance)",
-        "T-0003": "already escalated (stale_inheritance)"}
-
-
-def test_reconcile_cli_is_exclusive_with_a_document(plan_repo):
-    root, _, _ = plan_repo
-    both = CliRunner().invoke(app, ["plan", "0090", "--reconcile", "--root", str(root)])
-    assert both.exit_code == 3
-    clean = CliRunner().invoke(app, ["plan", "--reconcile", "--root", str(root)])
-    assert clean.exit_code == 0
-    assert "nothing to reconcile" in clean.output
+def test_inherit_decisions_refuses_an_ungraded_row():
+    ungraded = TABLE.replace("`ASSUMED`", "`MAYBE`")
+    with pytest.raises(PlanError, match="not mintable"):
+        inherit_decisions(ungraded, "0090-widgets.md")

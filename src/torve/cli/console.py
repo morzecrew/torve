@@ -165,10 +165,6 @@ def mark(outcome: str) -> Text:
     return Text(OUTCOME_MARKS.get(outcome, "?"), style=OUTCOME_STYLES.get(outcome, ""))
 
 
-def styled(value: str, style: str) -> Text:
-    return Text(value, style=style)
-
-
 def failure_detail(console: Console, text: str, limit: int = 40) -> None:
     """A failing row's expansion: indented, capped, never
     interleaved with other rows."""

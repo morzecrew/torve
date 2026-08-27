@@ -8,7 +8,7 @@ depends_on: []
 informed_by: ["0002", "0011"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-44", "A-51"]
 owner: Lev Litvinov
 description: >-
   Semantic separators and module preamble structure for Torve's Python
@@ -294,7 +294,27 @@ Do the sweep now rather than scoping the gate to changed files only. At the curr
 | D-14.8 | `LOCKED` | One gate, one file, one section | `src/torve/gates/**` | A gate wanting a second section is two gates |
 | D-14.9 | `ASSUMED` | Lint configuration matches forze: line length 100, same rule selection | `pyproject.toml` | Two codebases read by the same people should not differ in mechanics |
 | D-14.10 | `ASSUMED` | Width, placement and labelling are script-checked; usefulness is review | `src/torve/gates/source_layout.py` | Checking what cannot be checked yields a linter nobody trusts |
-| D-14.11 | `LOCKED` | The checkable half ships as the `source-layout` gate with a sabotage case per check | `src/torve/gates/source_layout.py` `.torve/gates.yaml` | Otherwise this document sits at convention level, which its own neighbour forbids |
+| D-14.11 | `LOCKED` | The checkable half ships as the `source-layout` gate with a sabotage case per check. *(Narrowed by A-44 2026-08-27 to RFC 0015's module naming rule; the separator checks are review.)* | `src/torve/gates/source_layout.py` `.torve/gates.yaml` | Otherwise this document sits at convention level, which its own neighbour forbids |
 | D-14.12 | `ASSUMED` | The whole repository is swept once on adoption, not scoped to changed files | `src/torve/**` | A gate that reddens on untouched files trains people to ignore it |
-| D-14.13 | `ASSUMED` | The dash-placement check: the first dash falls after the last top-level import (a trailing TYPE_CHECKING block counts into the preamble) and before the first definition, over changed `.py` files under `src/`; blank-line spacing stays with review (D-14.10). Added by execution 2026-08-22 — see .torve/tasks/T-0011 | `src/torve/gates/source_layout.py` | — |
-| D-14.14 | `ASSUMED` | The typing battery: `mypy src` and `basedpyright src` both blocking and strict (one `[tool.pyright]` block serves every pyright-family checker); parsed documents are cast to their typed shape at exactly one boundary per reader; optional dependencies load via `import_module`. Added from the T-0007/T-0008 review 2026-08-22 — see .torve/tasks/T-0007 and .torve/tasks/T-0008 | `pyproject.toml` `src/torve/**` | — |
+| D-14.13 | `ASSUMED` | *Retired by A-44 2026-08-27 — the check no longer exists.* The dash-placement check: the first dash falls after the last top-level import (a trailing TYPE_CHECKING block counts into the preamble) and before the first definition, over changed `.py` files under `src/`; blank-line spacing stays with review (D-14.10). Added by execution 2026-08-22 — see .torve/tasks/T-0011 | `src/torve/gates/source_layout.py` | — |
+| D-14.14 | `ASSUMED` | The typing battery: `mypy src`, blocking and strict, is the checker of record (*amended by A-51 2026-08-27; `basedpyright` retired, the `[tool.pyright]` block kept for editors*); parsed documents are cast to their typed shape at exactly one boundary per reader; optional dependencies load via `import_module`. Added from the T-0007/T-0008 review 2026-08-22 — see .torve/tasks/T-0007 and .torve/tasks/T-0008 | `pyproject.toml` `src/torve/**` | — |
+
+## Amendments
+
+### A-44 — 2026-08-27 — the separator half stops being a gate (amends §9, D-14.11, retires D-14.13)
+
+**Found in a whole-repository audit for over-engineering.** The `source-layout` gate was 136 lines and seven sabotage cases enforcing that a separator is exactly 27 characters wide, that a second dash carries a label, that a dot does not, and that a dash falls between the last import and the first definition. It sat at `shadow` throughout, so it blocked nothing while costing a case per rule.
+
+**Changed:** §9's enforcement narrows to the one rule that is not style — RFC 0015's module naming (D-15.5). Width, placement, the dash ceiling and label-free dots return to review, where D-14.10 already put the questions a script cannot answer. The convention in §§1–8 is unchanged and still the house style; it is simply read by people now, as the rest of §5's spacing rules already were.
+
+**Why not promote it to blocking instead.** A gate earns `blocking` by catching something review misses. Over a shadow tenure this one caught formatting on files whose diff a reviewer was already reading. The cost was not the false-positive rate — a deterministic AST check has none — it was that the corpus carried a rule per rule, and every one of them had to be maintained, sabotaged and explained.
+
+**D-14.13 is retired,** not reworded: the dash-placement check no longer exists. D-14.11 stands with its scope reduced to the naming rule.
+
+### A-51 — 2026-08-27 — one type checker of record (amends D-14.14)
+
+**Found in the same audit.** `mypy src` and `basedpyright src` both ran strict over the same tree, in CI and in the acceptance battery. Two strict checkers over one codebase buy disagreement to arbitrate, not depth: where they differ, someone writes a suppression for whichever one is louder.
+
+**Changed:** `mypy` is the checker of record and the only one in the battery. The `[tool.pyright]` block stays, and stays strict, because pylance and cursorpyright read it — a developer's inline diagnostics should agree with the gate. It is no longer installed as a dev dependency and no longer runs anywhere automatically.
+
+**D-14.14 is amended:** the typing battery is `mypy src`, blocking and strict. The cast-at-one-boundary and `import_module` rules in that row are unchanged.

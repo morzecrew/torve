@@ -4,7 +4,7 @@ import json
 
 from typer.testing import CliRunner
 
-from torve.application.sizing import StaticThresholds
+from torve.application import sizing
 from torve.cli import app
 from torve.gates.sabotage import base_task, log_document
 
@@ -139,7 +139,7 @@ def test_run_missing_contract_is_a_config_error(tmp_path):
 
 
 def test_size_estimate():
-    verdict = StaticThresholds().estimate(base_task_model())
+    verdict = sizing.estimate(base_task_model())
     assert verdict.size == "ok"
 
 

@@ -7,7 +7,7 @@ depends_on: ["0003", "0016"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-47"]
 owner: Lev Litvinov
 description: >-
   Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface.
@@ -241,3 +241,15 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 
 - `torve plan` mints a phase from a real RFC with no manual editing of the result.
 - `torve context` surfaces a gate candidate that had not been noticed by hand.
+
+## Amendments
+
+### A-47 — 2026-08-27 — one decision-table reader, one inheritance helper (amends §6a, retires D-7.6's adapter)
+
+**Found in a whole-repository audit for over-engineering.** Three implementations read a document's decision table and produced inherited rows: `torve plan`'s inline loop, adoption's `_inherit_decisions`, and the `RfcDirectory` adapter behind the `DecisionSource` port. Two more parsed the markdown table itself — `decision_rows` for the validator and `decision_table` for minting, thirty lines apart, differing in whether a four-column row survives and passing the header verdict back as an integer repeated on every row.
+
+**`RfcDirectory` and `DecisionSource` had no production caller at all** — the port was never used as an annotation and the adapter was reached only from its own test. What it did, the planner already did, with one behavioural difference nobody had chosen: it dropped pathless rows, and the planner keeps them.
+
+**Changed:** one `inherit_decisions(text, name)` in the planner is what both `torve plan` and adoption mint from — if they can drift, they will, and a contract that inherited different grades depending on which door it came through is the failure D-7.7 is guarding against. One `decision_section` parses the table; `decision_table` is its minting face, and the validator takes the section, which tells "no Decisions section" apart from "a header with no rows under it" and carries the header verdict once.
+
+**The port is retired,** not replaced. §6a's requirement stands — standing decisions are read deterministically from committed documents, and model-assisted extraction stays outside the engine — but it is met by a function, not by a seam with one side.

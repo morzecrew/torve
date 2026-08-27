@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from torve.config.manifest import Gate
 from torve.gates.context import GateContext
-from torve.gates.contract import NO_TASK, BuiltinOutcome, matches_any, spec
+from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
 
 # ----------------------- #
 
@@ -21,8 +21,11 @@ def check_no_test_tampering(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:
         return NO_TASK
 
-    patterns = ctx.manifest.tests.patterns
+    # Both specs compiled once, not per path in the loop below.
+    tests = spec(ctx.manifest.tests.patterns) if ctx.manifest.tests.patterns else None
     allow = spec(ctx.task.scope.allow) if ctx.task.scope.allow else None
+    if tests is None:
+        return BuiltinOutcome("pass", "no test patterns configured; nothing to protect")
 
     unlicensed: list[str] = []
     for entry in ctx.diff:
@@ -30,7 +33,7 @@ def check_no_test_tampering(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             continue
         paths = [p for p in (entry.path, entry.old_path) if p]
         for path in paths:
-            if not matches_any(path, patterns):
+            if not tests.match_file(path):
                 continue
             if allow is not None and not allow.match_file(path):
                 unlicensed.append(f"{entry.status} {path}")

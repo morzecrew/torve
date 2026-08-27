@@ -7,7 +7,7 @@ depends_on: ["0002"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-6", "A-13", "A-18", "A-38"]
+amended_by: ["A-6", "A-13", "A-18", "A-38", "A-50"]
 owner: Lev Litvinov
 description: >-
   `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
@@ -246,3 +246,11 @@ forever behind the fence.
 lockfile; the labels remain the whole protocol (D-3.4's derivation
 discipline). And the reap stays aggressive inside its own root: an
 orphan with no live run dies exactly as before.
+
+### A-50 — 2026-08-27 — the unwired identifier derivations are removed (amends §4)
+
+**Found in a whole-repository audit for over-engineering.** §4 derives an API port, a database name and a Docker Compose project name from the task id, alongside the worktree path, sandbox name, branch and labels. The latter are load-bearing — the reaper's cleanup-by-convention depends on them entirely. The former three were implemented, never called from anywhere in the package or the suite, and nothing a sandbox runs today reaches a port, a database or a compose project.
+
+**Changed:** `api_port`, its `offset` helper, `db_name` and `compose_project` are deleted. The derivation *rule* stands and is the point of §4: everything addressable derives from the task id with a stable digest, never a runtime search for a free port, because two workers searching race for the same one. When a service needs a port, it derives one exactly this way — the four lines come back with a caller attached.
+
+**Nothing else in §4 changes.** The worktree, state file, trace file, sandbox name, branch, root key and label derivations are untouched.

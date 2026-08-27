@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
@@ -23,7 +24,6 @@ from torve.cli.console import (
     live_status,
     make_table,
     out,
-    styled,
 )
 from torve.cli.options import (
     ConfigOption,
@@ -129,6 +129,6 @@ def eval_cmd(
                          "tokens here; deletion is your call", STYLE_DIM)
     else:
         closing(console, "the skill beat its baseline on this evidence", STYLE_PASS)
-    console.print(styled("direction, never magnitude — a replay is a "
+    console.print(Text("direction, never magnitude — a replay is a "
                          "quasi-experiment", STYLE_DIM))
     raise typer.Exit(EXIT_OK)

@@ -100,7 +100,7 @@ async def battery(taskstore, suffix: str) -> None:
     await asyncio.sleep(0.2)
     expired = await taskstore.expire_abandoned()
     assert zombie.run_id in [r.run_id for r in expired]
-    landed = await taskstore.load(zombie.run_id)
+    landed = await taskstore.store.load(zombie.run_id)
     assert landed.status is DurableRunStatus.FAILED
     assert "lease_expired" in (landed.error or "")
 

@@ -90,7 +90,7 @@ def test_expired_lease_is_reclaimed_and_fenced():
 
         expired = await taskstore.expire_abandoned()
         assert [r.run_id for r in expired] == [record.run_id]
-        landed = await taskstore.load(record.run_id)
+        landed = await taskstore.store.load(record.run_id)
         assert landed.status is DurableRunStatus.FAILED
         assert "lease_expired" in (landed.error or "")
 
@@ -100,7 +100,7 @@ def test_expired_lease_is_reclaimed_and_fenced():
         with contextlib.suppress(Exception):
             await taskstore.store.complete(record.run_id, output_json={"late": True},
                                            fence=stale_fence)
-        final = await taskstore.load(record.run_id)
+        final = await taskstore.store.load(record.run_id)
         assert final.status is DurableRunStatus.FAILED
         assert final.output_json != {"late": True}
 

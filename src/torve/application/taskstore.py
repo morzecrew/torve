@@ -14,6 +14,10 @@ is direct port calls the store already made safe:
   backend that cannot deliver a cancel raises, never returns False.
 - `live_records` is the control-plane listing the sandbox sweep matches
   labels against.
+
+The methods that remain bind the execution context and the function name;
+a plain read goes through `.store` directly rather than being wrapped for
+symmetry (A-49).
 """
 
 from __future__ import annotations
@@ -94,9 +98,6 @@ class TaskStore:
 
     async def request_cancel(self, run_id: str) -> bool:
         return await self.runner.request_cancel(self.ctx, run_id)
-
-    async def load(self, run_id: str) -> DurableRunRecord | None:
-        return await self.store.load(run_id)
 
     async def expire_abandoned(self, *, limit: int = 50) -> list[DurableRunRecord]:
         """Reclaim runs whose lease expired and land them `lease_expired`.

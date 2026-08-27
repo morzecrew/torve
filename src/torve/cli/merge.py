@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
@@ -24,7 +25,6 @@ from torve.cli.console import (
     make_table,
     mark,
     out,
-    styled,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption
 from torve.domain.states import (
@@ -92,12 +92,12 @@ def merge_cmd(
             for result in results:
                 table.add_row(
                     mark(_MARKS.get(result.action, "skipped")),
-                    styled(result.task, STYLE_ID),
-                    styled(result.action,
+                    Text(result.task, STYLE_ID),
+                    Text(result.action,
                            STYLE_FAIL if result.action in ("conflict", "gates red")
                            else STYLE_PASS if "land" in result.action else STYLE_DIM),
                     result.detail,
-                    styled(result.sha[:10], STYLE_DIM))
+                    Text(result.sha[:10], STYLE_DIM))
             console.print(table)
             landed = sum(1 for r in results if r.landed)
             closing(console, f"{landed} landed of {len(results)} candidate(s)"
