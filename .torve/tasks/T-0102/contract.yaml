@@ -1,0 +1,112 @@
+# Minted by `torve plan 0023` — phase 2: path-digest-predicate-and-self-disable
+schema_version: 1
+id: T-0102
+rfc: rfcs/0023-standing-maintenance.md
+phase: 2
+role: implement
+intent: 'The second predicate kind and the last bound: path-digest compares a
+
+  digest of declared paths against the digest recorded at the last
+
+  firing, covering moved references without requiring a tool to exist;
+
+  self-disable stops a job after strike_limit consecutive non-landings
+
+  with an engine event naming it. The first two standing contracts land
+
+  in this repository under the mechanism — lockfile drift and flake
+
+  quarantine — which is what turns the exit criteria from a demo into
+
+  use.'
+depends_on:
+- T-0101
+targets: []
+scope:
+  allow:
+  - src/torve/application/standing.py
+  - .torve/standing/**
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+decisions:
+- id: D-23.1
+  grade: LOCKED
+  text: A standing contract is a committed, reviewed file under `.torve/standing/`; the human
+    signature is the file in a diff, never a per-firing approval
+  paths:
+  - .torve/standing/**
+  - src/torve/config/layout.py
+- id: D-23.2
+  grade: LOCKED
+  text: A trigger predicate is deterministic, runs in a sandbox with no agent, and answers
+    by exit code; no model participates in deciding that work is due
+  paths:
+  - src/torve/application/standing.py
+- id: D-23.3
+  grade: LOCKED
+  text: A predicate that errors mints nothing and records an engine event; the leg fails closed
+    toward not creating work
+  paths:
+  - src/torve/application/standing.py
+- id: D-23.4
+  grade: LOCKED
+  text: Instantiation uses RFC 0020 §5.3's adoption path unchanged — id under the tick lock,
+    contract committed as an engine record — and inherits decisions only through `inherit_decisions`
+  paths:
+  - src/torve/application/standing.py
+  - src/torve/application/intake.py
+- id: D-23.5
+  grade: LOCKED
+  text: A standing instance's intent is fixed at authoring time and identical across firings;
+    per-firing intent is not templated, and needing it means the job was a planner in disguise
+  paths:
+  - .torve/standing/**
+  - src/torve/application/standing.py
+- id: D-23.6
+  grade: ASSUMED
+  text: 'Four bounds, in order: the escalation pause suppresses evaluation entirely; per-job
+    `cooldown_hours` and `max_open`; `loop.standing_max_per_tick` default 1; self-disable
+    after `standing.strike_limit` consecutive non-landings'
+  paths:
+  - src/torve/application/loop.py
+  - src/torve/config/runconfig.py
+- id: D-23.7
+  grade: ASSUMED
+  text: 'No enable flag: an empty `.torve/standing/` is off and deleting a file is the disable'
+  paths:
+  - src/torve/config/layout.py
+- id: D-23.8
+  grade: ASSUMED
+  text: Two predicate kinds ship, `command` and `path-digest`; a third arrives with a job
+    that needs it and not before
+  paths:
+  - src/torve/application/standing.py
+- id: D-23.9
+  grade: ASSUMED
+  text: A standing contract's body is validated by RFC 0020's contract lint, unchanged
+  paths:
+  - src/torve/application/intake.py
+- id: D-23.10
+  grade: ASSUMED
+  text: Each instance records its originating job, so repeated firings form one population
+    for RFC 0022
+  paths:
+  - src/torve/application/standing.py
+  - src/torve/application/telemetry.py
+- id: D-23.11
+  grade: OPEN
+  text: Where the firing ledger lives — the host-local telemetry stream or a committed file
+    — and whether `max_open` counts escalated instances; execution decides both and logs them
+  paths:
+  - src/torve/application/standing.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor

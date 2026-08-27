@@ -1,0 +1,103 @@
+# Minted by `torve plan 0022` — phase 1: attribution-and-decision-report
+schema_version: 1
+id: T-0099
+rfc: rfcs/0022-specification-quality.md
+phase: 1
+role: implement
+intent: 'The reader and the join: telemetry, feedback and task logs indexed by
+
+  task id, joined to contracts for the grade as minted and to the corpus
+
+  parser for the row as it stands. Per-decision populations — inherited,
+
+  touched, cited, action counts, escalation outcomes — with denominators
+
+  printed and readings suppressed below the floor. torve rfc health as a
+
+  subcommand beside check and index, text and JSON. No corpus score, no
+
+  proposed text, no model.'
+depends_on: []
+targets: []
+scope:
+  allow:
+  - src/torve/application/specquality.py
+  - src/torve/cli/rfc.py
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+- uv run torve rfc check
+decisions:
+- id: D-22.1
+  grade: LOCKED
+  text: The report never edits a decision table, proposes no text, and invokes no model; its
+    output is evidence for a human writing an amendment
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/cli/rfc.py
+- id: D-22.2
+  grade: LOCKED
+  text: Grades are compared as copied onto the contract at mint time, never as they stand
+    in the table today
+  paths:
+  - src/torve/application/specquality.py
+- id: D-22.3
+  grade: ASSUMED
+  text: No single corpus score is computed or displayed; the output is populations with a
+    named reading and a printed denominator
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/cli/rfc.py
+- id: D-22.4
+  grade: ASSUMED
+  text: A decision inherited by tasks that touched its declared paths but cited by no log
+    entry is reported as decoration-or-paths-defect, naming both causes
+  paths:
+  - src/torve/application/specquality.py
+- id: D-22.5
+  grade: ASSUMED
+  text: 'Storage stays at RFC 0004 §6 stage 1: a plain reader over JSONL and YAML, no new
+    dependency, written so that moving to stage 2 is a change of reader'
+  paths:
+  - src/torve/application/specquality.py
+- id: D-22.6
+  grade: ASSUMED
+  text: The surface is `torve rfc health`, a subcommand of the existing corpus verb, plus
+    one section of the `torve context` projection
+  paths:
+  - src/torve/cli/rfc.py
+  - src/torve/application/projections.py
+- id: D-22.7
+  grade: LOCKED
+  text: RFC 0004 §6a's quasi-experiment caveat is printed with the report, not paraphrased
+    in documentation
+  paths:
+  - src/torve/cli/rfc.py
+- id: D-22.8
+  grade: ASSUMED
+  text: Readings are suppressed below a printed floor of observations; ratios always print
+    their denominator
+  paths:
+  - src/torve/application/specquality.py
+- id: D-22.9
+  grade: ASSUMED
+  text: Tasks without an `rfc` join at the decision level and are reported as their own population,
+    never merged into a document's numbers
+  paths:
+  - src/torve/application/specquality.py
+- id: D-22.10
+  grade: OPEN
+  text: Whether an abandoned task's entries weigh the same as a landed task's; execution reports
+    both and logs which the data supports
+  paths:
+  - src/torve/application/specquality.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
