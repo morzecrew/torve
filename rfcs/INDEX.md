@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0021**.
+number is **0025**.
 
 ## Design
 
@@ -18,7 +18,7 @@ number is **0021**.
 | [0004](0004-agents-tiering.md) | Agent adapters and tiering | accepted | partial | 0003 | — | Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable. |
 | [0005](0005-review-as-a-run.md) | Review as a run | accepted | partial | 0003, 0004 | A-32, A-41 | Independent automated review as a second run role: isolation rules, the finding contract, calibration, and replacing third-party PR reviewers. |
 | [0006](0006-merge-escalation.md) | Merge train and escalation policy | accepted | partial | 0003 | A-35, A-42, A-43 | Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted. |
-| [0007](0007-planner-context.md) | Planner and context | accepted | complete | 0003, 0016 | A-47 | Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface. |
+| [0007](0007-planner-context.md) | Planner and context | accepted | partial | 0003, 0016 | A-47, A-55 | Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface. |
 | [0008](0008-tracker-projection.md) | Tracker projection | accepted | complete | 0003 | A-30, A-33, A-36, A-40 | Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board. |
 | [0009](0009-skills-evals.md) | Skills and evals | accepted | partial | 0004 | A-3, A-25, A-54 | Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens. |
 | [0010](0010-vcs-provenance-revert.md) | VCS, provenance and revert | accepted | complete | 0003 | A-37 | How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role. |
@@ -29,6 +29,10 @@ number is **0021**.
 | [0018](0018-cli-presentation.md) | CLI presentation | accepted | complete | 0011 | — | One visual vocabulary for the human side of every verb — components, colour semantics, formats and live status — now that the hand-run commands are known. The machine contracts of RFC 0011 are untouched. |
 | [0019](0019-standing-loop.md) | The standing loop | accepted | partial | 0003, 0006, 0008 | A-27, A-28, A-29, A-31, A-34, A-39 | The bounded tick that makes the team standing: drain one queued task, process the lane under its existing approval switch, project the board, and stop — cadence delivered by the environment, never a resident daemon. Intake pauses while the escalation queue is non-empty, because a queue nobody triages must stop the machine, not the person. |
 | [0020](0020-intake-and-the-drafting-run.md) | Intake and the drafting run | accepted | complete | 0003, 0007, 0008 | — | A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption. |
+| [0021](0021-egress-broker.md) | The egress broker | draft | none | 0003, 0004 | — | Credential custody and outbound traffic for a sandbox: the agent holds no provider key and the broker injects, routes and meters at the wire — closing D-4b under Docker today, with the OpenSandbox vault as one adapter rather than a prerequisite. |
+| [0022](0022-specification-quality.md) | Specification quality as a measured quantity | draft | none | 0004, 0007 | — | Reading the records the engine already writes to measure the corpus that produced them: per-decision and per-document attribution, grade calibration, and the decoration check — reported to a human who then writes an amendment, never applied by the engine. |
+| [0023](0023-standing-maintenance.md) | Standing maintenance | draft | none | 0007, 0019, 0020 | — | Work that recurs on a condition rather than on a plan: a committed contract template plus a deterministic trigger the tick evaluates and instantiates — the machine recognising a condition a human already decided to answer, never inventing a backlog. |
+| [0024](0024-fleet.md) | Fleet — one department, many repositories | draft | none | 0008, 0013, 0019 | — | Running the standing loop over several repositories from one operator's attention: an operator-side manifest, a fleet-wide escalation pause, trust classes that bind per-repository capability, and aggregation that keeps every root authoritative for itself. |
 
 ## Conventions
 

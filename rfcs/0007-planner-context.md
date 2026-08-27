@@ -2,12 +2,12 @@
 id: "0007"
 title: Planner and context
 status: accepted
-implementation: complete
+implementation: partial
 depends_on: ["0003", "0016"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-47"]
+amended_by: ["A-47", "A-55"]
 owner: Lev Litvinov
 description: >-
   Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface.
@@ -16,7 +16,7 @@ schema_version: 1
 
 # RFC 0007 — Planner and context
 
-- **Implementation state:** phases 1–2 executed 2026-08-22 (T-0016, T-0024–T-0026 — `torve plan` as the deterministic minter, `torve context` as the loop's read leg, the D-7.27 report machinery; the D-7.24 citation convention and proposal sweeps operate on every corpus pass). §5's read-only MCP surface executed 2026-08-27 (T-0095, `torve mcp` — one query tool over the projections, stdio, wired to planning sessions by a repo-root `.mcp.json`), built the day its first consumer appeared: a planning session hand-carrying `torve context` output. §6a's cold start stands post-A-47 as a function, not a port: standing decisions inherit from committed decision tables through the planner's `inherit_decisions`, the one reader both `torve plan` and adoption mint from; the `ExecutionLog` and `Constitution` sources its table names are unbuilt, condition-gated on a brownfield adopter with no decision tables to read — the same refusal that kept §5 unbuilt until a consumer existed.
+- **Implementation state:** phases 1–2 executed 2026-08-22 (T-0016, T-0024–T-0026 — `torve plan` as the deterministic minter, `torve context` as the loop's read leg, the D-7.27 report machinery; the D-7.24 citation convention and proposal sweeps operate on every corpus pass). §5's read-only MCP surface executed 2026-08-27 (T-0095, `torve mcp` — one query tool over the projections, stdio, wired to planning sessions by a repo-root `.mcp.json`), built the day its first consumer appeared: a planning session hand-carrying `torve context` output. §6a's cold start stands post-A-47 as a function, not a port: standing decisions inherit from committed decision tables through the planner's `inherit_decisions`, the one reader both `torve plan` and adoption mint from; the `ExecutionLog` and `Constitution` sources its table names are unbuilt, condition-gated on a brownfield adopter with no decision tables to read — the same refusal that kept §5 unbuilt until a consumer existed. A-55 (the identifier lookup, `torve rfc show` and its MCP face) is specified 2026-08-27 and not yet executed.
 - **Scope:** The planner module: minting tasks from an approved RFC, projecting execution facts back into a planning session, and the read-only MCP surface. Excludes any model call inside the engine, permanently.
 - **Inherits:** D-1, D-2, D-25, D-31 from RFC 0001
 
@@ -86,7 +86,23 @@ The RFC format is what `torve plan` consumes, so the package owns it. Validation
 torve rfc check [PATH...]     # schema, decision table, links, cycles
 torve rfc index               # regenerate INDEX.md
 torve rfc graph               # depends_on edges and decision inheritance
+torve rfc show <identifier>   # resolve one corpus identifier (A-55)
 ```
+
+*Added by amendment A-55 2026-08-27.* `torve rfc show` resolves any corpus
+identifier from the parse the checks already run — never a second parser
+(D-7.12, A-47's rule). A decision identifier answers with its row as it
+stands: grade, text, paths, consequence, defining document, the documents
+whose prose cites it, and its `retired:` tombstone when one exists. An
+amendment identifier answers with its document, heading line and the rows it
+touched; the A-family output carries the next free amendment number, exactly
+as the index carries the next free document number — allocation by grep is
+how A-11, A-12 and A-17 each record landing under a different number than
+their source patch chose. A document number answers with frontmatter,
+implementation state and phases. Text for a person, JSON for a machine
+(RFC 0011); an identifier nothing defines exits 3 naming the nearest family.
+Lookup parses on demand from the committed documents like every `rfc` verb —
+no cache, no store read.
 
 ### Checks
 
@@ -155,6 +171,14 @@ Two constraints, enforced at wiring rather than by instruction:
 
 - **No write tools are exposed.** Queries only; `torve plan` is not among them.
 - **No agent in an execution sandbox gets this server.** It is for the planning session on a human's machine. An executor that can read other tasks' escalations is an executor that can rationalise its way out of its own scope.
+
+*Added by amendment A-55 2026-08-27.* The server carries a second read-only
+tool, `show`, over §3a's identifier lookup — same function, same parse, the
+MCP face of the same answer. A planning session citing D-6.8 gets the row
+without a human opening a file, which is this section's founding sentence
+applied to the corpus itself. Executors still inherit their decisions copied
+into the contract at mint time (D-31); the lookup changes nothing about what
+a sandbox sees.
 
 ## 6. The loop, closed
 
@@ -236,6 +260,8 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 | D-7.25 | `ASSUMED` | The context projections live in `projections.py` — the gates package owns the `context` module name. Added by execution 2026-08-22 — see .torve/tasks/T-0026 | `src/torve/application/projections.py` | — |
 | D-7.26 | `ASSUMED` | A task with no run state whose id a shipping commit cites projects as `shipped` — evidence of record, never a claim the engine ran it; a real run state always outranks the derivation. Added by execution 2026-08-22 — see .torve/tasks/T-0029 | `src/torve/application/projections.py` | — |
 | D-7.27 | `ASSUMED` | `torve rfc graph` renders the corpus as a dependency tree: roots first, a node expands under its first parent and back-references elsewhere, standalone documents appear as bare roots. Two hide rules, recorded by execution: the graph omits accepted-and-complete documents (interior nodes pass through, a footer names them); the programme view hides only note-free settled rows behind a dimmed count. Added by execution 2026-08-22 — see .torve/tasks/T-0032 and T-0034 | `src/torve/cli/rfc.py` `src/torve/cli/context.py` | — |
+| D-7.28 | `ASSUMED` | `torve rfc show <identifier>` resolves one corpus identifier — decision, amendment or document — from the single parse the checks run, on demand, no cache and no store; the A-family output names the next free amendment number; an undefined identifier exits 3 naming the nearest family. Added by amendment A-55 2026-08-27 | `src/torve/cli/rfc.py` `src/torve/config/rfc_parse.py` | A second parser is the drift D-7.12 exists to prevent, and number allocation by grep is three recorded collisions (A-11, A-12, A-17) |
+| D-7.29 | `ASSUMED` | The MCP server exposes the same lookup as a second read-only tool, calling the same function; the executor's view is unchanged — decisions still arrive copied into the contract at mint time | `src/torve/cli/mcp.py` | Two answers to "what does D-n say" — one per surface — would drift exactly as two parsers would (A-47) |
 
 ## 8. Exit criteria
 
@@ -243,6 +269,34 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 - `torve context` surfaces a gate candidate that had not been noticed by hand.
 
 ## Amendments
+
+### A-55 — 2026-08-27 — the identifier lookup: `torve rfc show` and its MCP face (amends §3a, §5)
+
+**Found in corpus authoring.** Every artefact in this system cites corpus
+identifiers — divergence logs cite decisions, escalations name them, task
+contracts inherit them, amendments amend them — and the only way to resolve
+one has been grep. The corpus itself records the cost three times: A-11,
+A-12 and A-17 each carry a note that their source patch chose an amendment
+number already taken, discovered at review rather than at allocation. The
+day this was written, a planning session drafting four RFCs re-derived the
+free number and the D-21 family collision by grepping the directory — the
+manual transfer §5's founding paragraph exists to remove, applied to the
+corpus rather than to execution facts.
+
+**Changed:** §3a gains `torve rfc show <identifier>` — one verb resolving a
+decision (row, grade, paths, consequence, defining and citing documents,
+tombstone), an amendment (document, heading, touched rows, and the next free
+A-number beside the family), or a document (frontmatter, implementation
+state, phases). It reads the same parse `torve rfc check` runs (D-7.12;
+A-47's one-reader rule), on demand, with no cache. §5's server gains a
+second read-only tool over the same function. Rows D-7.28 and D-7.29 record
+both.
+
+**Deliberately unchanged:** D-7.3 stands — the surface stays read-only and
+is never wired into an execution sandbox; executors keep receiving decisions
+copied into the contract at mint time (D-31), and the lookup adds nothing to
+what a sandbox sees. Full-text search is refused: grep exists, and the verb
+answers identifiers, not questions.
 
 ### A-47 — 2026-08-27 — one decision-table reader, one inheritance helper (amends §6a, retires D-7.6's adapter)
 
