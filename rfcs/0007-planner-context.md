@@ -2,7 +2,7 @@
 id: "0007"
 title: Planner and context
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0003", "0016"]
 informed_by: []
 supersedes: []
@@ -16,7 +16,7 @@ schema_version: 1
 
 # RFC 0007 — Planner and context
 
-- **Implementation state:** phases 1–2 executed 2026-08-22 (T-0016, T-0024–T-0026 — `torve plan` as the deterministic minter, `torve context` as the loop's read leg, the D-7.27 report machinery; the D-7.24 citation convention and proposal sweeps operate on every corpus pass). Outstanding: the read-only MCP surface, deliberately unbuilt until a consumer exists — building a protocol server for no client is the speculation this corpus refuses.
+- **Implementation state:** phases 1–2 executed 2026-08-22 (T-0016, T-0024–T-0026 — `torve plan` as the deterministic minter, `torve context` as the loop's read leg, the D-7.27 report machinery; the D-7.24 citation convention and proposal sweeps operate on every corpus pass). §5's read-only MCP surface executed 2026-08-27 (T-0095, `torve mcp` — one query tool over the projections, stdio, wired to planning sessions by a repo-root `.mcp.json`), built the day its first consumer appeared: a planning session hand-carrying `torve context` output.
 - **Scope:** The planner module: minting tasks from an approved RFC, projecting execution facts back into a planning session, and the read-only MCP surface. Excludes any model call inside the engine, permanently.
 - **Inherits:** D-1, D-2, D-25, D-31 from RFC 0001
 
@@ -211,7 +211,7 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 | --- | --- | --- | --- | --- |
 | D-7.1 | `LOCKED` | No model calls inside the planner, for any reason | `src/torve/application/planner.py` | The place where they will try to creep in; violation shows up as a new dependency |
 | D-7.2 | `LOCKED` | `torve plan` accepts only a committed, reviewed document | `src/torve/application/planner.py` | The human signature in the loop |
-| D-7.3 | `LOCKED` | The MCP surface is read-only and never given to an executing agent | `src/torve/application/planner.py` | A writable planning surface is autonomous planning by another route |
+| D-7.3 | `LOCKED` | The MCP surface is read-only and never given to an executing agent | `src/torve/cli/mcp.py` | A writable planning surface is autonomous planning by another route |
 | D-7.4 | `OPEN` | Output format of `torve context` | `src/torve/application/projections.py` | Markdown, JSON, or both — decided by use |
 | D-7.5 | `LOCKED` | An empty decision list is legal but must be explicit | `src/torve/gates/decisions_reported.py` `src/torve/domain/**` | Distinguishes "none apply" from "field forgotten" |
 | D-7.6 | `LOCKED` | `DecisionSource` adapters are deterministic; model-assisted extraction runs outside the engine | `src/torve/application/planner.py` | Keeps D-2 intact while still bootstrapping brownfield repositories |

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The read-only planning surface (T-0095, RFC 0007 complete): `torve
+  mcp` serves the context projections over stdio as an MCP server —
+  one read-only `context` tool with a section selector, registered
+  for planning sessions by a repo-root `.mcp.json` and never wired
+  into an execution sandbox. The `mcp` package rides the new
+  `torve[mcp]` extra, lazily imported like the migrate extra.
+
 - Intake polish and phase 3 (T-0092..T-0094, RFC 0020 complete): the
   intake ledger never blocks the lane; an adopted request's thread
   closes itself; board attempt comments show trace basenames, not host
