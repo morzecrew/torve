@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Intake and the drafting run (T-0089, RFC 0020 phase 1): a request in
+  prose becomes lint-gated draft task contracts through a sandboxed
+  drafting run — the new `draft` role on the planner tier's seat, its
+  output parsed as data and judged by the deterministic contract lint
+  (schema, scope hygiene, batch disjointness, and the T-0113 rule: an
+  existing module brings its existing test file). `torve adopt` is the
+  human signature: ids are minted at adoption under the tick lock,
+  `DRAFT-n` refs rewritten, decisions copied from a named accepted
+  document, and the contracts committed as engine records — closing
+  the id-assignment race structurally. `torve lint-contract` gives
+  hand-minted contracts the same protection.
+
 - The review verdict becomes a landing predicate (T-0087, A-43, RFC
   0006 D-6.14): `promotion.require_review` makes the lane land only a
   candidate whose producing run recorded a concluded review —

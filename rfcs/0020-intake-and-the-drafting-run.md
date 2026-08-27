@@ -1,7 +1,8 @@
 ---
 id: "0020"
 title: Intake and the drafting run
-status: draft
+status: accepted
+implementation: partial
 depends_on: ["0003", "0007", "0008"]
 informed_by: ["0005", "0019"]
 supersedes: []
@@ -15,6 +16,11 @@ schema_version: 1
 
 # RFC 0020 — Intake and the drafting run
 
+- **Implementation state:** phase 1 executed 2026-08-27 (T-0089 — the `draft`
+  role on the planner tier's seat, the drafting run with its draft-lint loop,
+  the contract lint standalone as `torve lint-contract`, and `torve adopt`
+  minting ids under the tick lock; D-20.8 settled at `intake.max_drafts: 4`).
+  Outstanding: phase 2 (board intake) and the demand-gated phase 3.
 - **Scope:** How a request in prose becomes one or more task contracts without
   a human writing YAML: a new run role (`draft`) executed by the existing
   runner machinery, a deterministic contract lint that gates its output, an
