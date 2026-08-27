@@ -13,7 +13,7 @@ INDEX.md is generated output, like a lockfile (D-A.6).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.text import Text
@@ -151,6 +151,100 @@ def check(
         )
 
     raise typer.Exit(EXIT_OK if not problems else EXIT_CONFIG)
+
+
+# ....................... #
+
+
+def _show_lines(found: dict[str, Any]) -> list[tuple[str, str]]:
+    """(label, value) rows for the text rendering, empties dropped."""
+
+    def joined(key: str) -> str:
+        items: list[str] = found.get(key) or []
+        return ", ".join(items)
+
+    kind = found["kind"]
+
+    if kind == "decision":
+        rows = [
+            ("grade", str(found.get("grade") or "")),
+            ("decision", str(found.get("text") or "")),
+            ("paths", joined("paths")),
+            ("consequence", str(found.get("consequence") or "")),
+            ("defined in", str(found.get("defined_in") or "")),
+            ("cited by", joined("cited_by")),
+            ("retired in", str(found.get("retired_in") or "")),
+        ]
+    elif kind == "amendment":
+        rows = [
+            ("defined in", str(found["defined_in"])),
+            ("heading", str(found["heading"])),
+            ("rows citing it", joined("rows")),
+            ("next free", str(found["next_free"])),
+        ]
+    else:
+        phases: list[dict[str, Any]] = found.get("phases") or []
+        rows = [
+            ("title", str(found["title"])),
+            ("status", str(found["status"])),
+            ("implementation", str(found["implementation"])),
+            ("depends on", joined("depends_on")),
+            ("amended by", joined("amended_by")),
+            ("description", str(found["description"])),
+            ("state", str(found["implementation_state"])),
+            ("phases", ", ".join(f"{e['phase']}: {e['title']}" for e in phases)),
+        ]
+
+    return [(label, value) for label, value in rows if value]
+
+
+# ....................... #
+
+
+@rfc_app.command("show")
+def show(
+    identifier: Annotated[
+        str,
+        typer.Argument(help="A decision (D-6.8), an amendment (A-47) or a document (0021)."),
+    ],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Resolve one corpus identifier from the same parse `check` runs
+    (D-7.28): no cache, no store — an undefined identifier is a
+    configuration error naming the nearest family."""
+
+    from torve.config.rfc_parse import lookup, next_amendment, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    found = lookup(rfc_dir, identifier)
+
+    if found is None:
+        files = rfc_files(rfc_dir)
+        family = (
+            f"the next free amendment number is {next_amendment(files)}"
+            if identifier.startswith("A-")
+            else f"the next free document number is {int(max(files, default='0000')) + 1:04d}"
+            if identifier.isdigit()
+            else "decision identifiers are listed in each document's Decisions table"
+        )
+
+        raise fail(f"configuration error: nothing defines {identifier!r} — {family}", EXIT_CONFIG)
+
+    if fmt is Format.JSON:
+        emit_json({"schema_version": 1, **found})
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    header(console, "rfc show", f"{identifier} · {found['kind']}")
+
+    for label, value in _show_lines(found):
+        line = Text(f"  {label:>14}  ", STYLE_DIM)
+        line.append(value, STYLE_ID if label in ("defined in", "next free") else "")
+        console.print(line)
+
+    raise typer.Exit(EXIT_OK)
 
 
 # ....................... #

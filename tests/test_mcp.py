@@ -24,7 +24,7 @@ def test_surface_is_one_read_only_query(plan_repo):  # noqa: F811
 
     tools = asyncio.run(server.list_tools())
 
-    assert [t.name for t in tools] == ["context"]
+    assert [t.name for t in tools] == ["context", "show"]
     assert all(t.annotations.read_only_hint for t in tools)
 
 
@@ -42,6 +42,19 @@ def test_context_tool_serves_the_report_and_slices(plan_repo):  # noqa: F811
     with pytest.raises(Exception) as caught:
         asyncio.run(server.call_tool("context", {"section": "gate_health"}))
     assert "one of:" in str(caught.value.__cause__)
+
+
+def test_show_tool_resolves_and_refuses(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    server = mcp_cli.build_server(root, root / "rfcs")
+
+    found = asyncio.run(server.call_tool("show", {"identifier": "0090"}))
+    document = json.loads(found.content[0].text)
+    assert document["kind"] == "document"
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(server.call_tool("show", {"identifier": "D-9.99"}))
+    assert "nothing defines" in str(caught.value.__cause__)
 
 
 def test_missing_package_is_a_config_error(plan_repo, monkeypatch):  # noqa: F811

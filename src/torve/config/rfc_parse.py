@@ -292,6 +292,7 @@ class DecisionRow:
     grade: str
     text: str
     paths: list[str]
+    consequence: str = ""
 
 
 # ....................... #
@@ -354,12 +355,15 @@ def decision_section(text: str) -> DecisionSection:
         if len(cells) < 4:
             continue
 
+        consequence = cells[4] if len(cells) > 4 else ""
+
         rows.append(
             DecisionRow(
                 identifier=cells[0].strip("`* "),
                 grade=cells[1].strip("`* "),
                 text=cells[2],
                 paths=paths_globs(cells[3]),
+                consequence="" if set(consequence) <= set("— -") else consequence,
             )
         )
 
@@ -727,6 +731,164 @@ def retired_identifiers(files: dict[str, Path]) -> dict[str, str]:
             retired.setdefault(ident, path.name)
 
     return retired
+
+
+# ....................... #
+
+# One corpus identifier, as a word: not inside a longer identifier, not a
+# dotted child (D-2 must not match inside D-2.10), not a digit-extended
+# sibling (A-4 must not match inside A-44).
+def _cites(ident: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![\w.]){re.escape(ident)}(?![\w.])")
+
+
+# ....................... #
+
+
+def next_amendment(files: dict[str, Path]) -> str:
+    """The next free global amendment number (D-A.5), derived from the `###
+    A-n` headings exactly as document numbers derive from filenames (D-A.17)
+    — allocation by grep is three recorded collisions (A-11, A-12, A-17)."""
+
+    taken = [
+        int(number[2:])
+        for path in files.values()
+        for number in AMENDMENT_HEADING.findall(path.read_text(encoding="utf-8"))
+    ]
+
+    return f"A-{max(taken, default=0) + 1}"
+
+
+# ....................... #
+
+
+def lookup(rfc_dir: Path, identifier: str) -> dict[str, Any] | None:
+    """One corpus identifier resolved from the same parse `check` runs
+    (D-7.28): a decision's row as it stands, an amendment's document and
+    touched rows, a document's frontmatter and phases. None when nothing
+    defines it — the caller names the nearest family."""
+
+    files = rfc_files(rfc_dir)
+
+    if re.fullmatch(r"\d{4}", identifier):
+        return _lookup_document(files, identifier)
+
+    if re.fullmatch(r"A-\d+", identifier):
+        return _lookup_amendment(files, identifier)
+
+    return _lookup_decision(files, identifier)
+
+
+# ....................... #
+
+
+def _lookup_decision(files: dict[str, Path], identifier: str) -> dict[str, Any] | None:
+    defined_in, found = "", None
+    cited_by: list[str] = []
+    cites = _cites(identifier)
+
+    for path in files.values():
+        text = path.read_text(encoding="utf-8")
+
+        for row in decision_table(text):
+            if row.identifier == identifier:
+                defined_in, found = path.name, row
+
+        if cites.search(strip_fences(text)):
+            cited_by.append(path.name)
+
+    retired = retired_identifiers(files).get(identifier)
+
+    if found is None and retired is None:
+        return None
+
+    result: dict[str, Any] = {
+        "kind": "decision",
+        "identifier": identifier,
+        "defined_in": defined_in or None,
+        "cited_by": [name for name in cited_by if name != defined_in],
+        "retired_in": retired,
+    }
+
+    if found is not None:
+        result |= {
+            "grade": found.grade,
+            "text": found.text,
+            "paths": found.paths,
+            "consequence": found.consequence,
+        }
+
+    return result
+
+
+# ....................... #
+
+
+def _lookup_amendment(files: dict[str, Path], identifier: str) -> dict[str, Any] | None:
+    heading_re = re.compile(rf"^### {re.escape(identifier)}(?!\d)\b.*$", re.M)
+    cites = _cites(identifier)
+
+    for path in files.values():
+        text = path.read_text(encoding="utf-8")
+        heading = heading_re.search(text)
+
+        if heading is None:
+            continue
+
+        rows = [
+            row.identifier
+            for other in files.values()
+            for row in decision_table(other.read_text(encoding="utf-8"))
+            if cites.search(row.text)
+        ]
+
+        return {
+            "kind": "amendment",
+            "identifier": identifier,
+            "defined_in": path.name,
+            "heading": heading.group(0).removeprefix("### "),
+            "rows": rows,
+            "next_free": next_amendment(files),
+        }
+
+    return None
+
+
+# ....................... #
+
+
+def _lookup_document(files: dict[str, Path], number: str) -> dict[str, Any] | None:
+    path = files.get(number)
+
+    if path is None:
+        return None
+
+    text = path.read_text(encoding="utf-8")
+    fm = parse_frontmatter(text) or {}
+    state = re.search(r"^- \*\*Implementation state:\*\* (.+?)(?=^- \*\*)", text, re.M | re.S)
+
+    try:
+        phases = parse_phasing(text) or []
+
+    except ValueError:
+        phases = []
+
+    return {
+        "kind": "document",
+        "identifier": number,
+        "file": path.name,
+        "title": str(fm.get("title", "")),
+        "status": str(fm.get("status", "")),
+        "implementation": str(fm.get("implementation") or "none"),
+        "depends_on": fm_list(fm, "depends_on"),
+        "amended_by": fm_list(fm, "amended_by"),
+        "description": str(fm.get("description", "")).strip(),
+        "implementation_state": " ".join(state.group(1).split()) if state else "",
+        "phases": [
+            {"phase": entry.phase, "title": entry.title, "depends_on": entry.depends_on}
+            for entry in phases
+        ],
+    }
 
 
 # ....................... #

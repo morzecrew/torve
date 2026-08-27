@@ -1,0 +1,32 @@
+# Minted by hand — RFC 0007 A-55: the identifier lookup, torve rfc show
+# and its MCP face (D-7.28, D-7.29).
+schema_version: 1
+id: T-0096
+rfc: rfcs/0007-planner-context.md
+phase: 4
+role: implement
+intent: |
+  Corpus identifiers stop resolving by grep: `torve rfc show <identifier>`
+  answers a decision with its row as it stands (grade, text, paths,
+  consequence, defining document, citing documents, tombstone), an
+  amendment with its document, heading and touched rows plus the next free
+  A-number, and a document with frontmatter, implementation state and
+  phases — all from the one parse the checks already run, on demand, no
+  cache. The MCP server exposes the same lookup as a second read-only
+  tool calling the same function. An undefined identifier exits 3 naming
+  the nearest family.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/cli/**"
+    - "src/torve/config/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest -q"
+decisions: []
+tier: executor

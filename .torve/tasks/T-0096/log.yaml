@@ -1,0 +1,65 @@
+schema_version: 1
+task: T-0096
+repo: morzecrew/torve
+base_sha: c688e44682fb9108689640107d7fcc8e8104761d
+drift_count: 0
+entries:
+  - decision: D-7.28
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: "2026-08-27T20:56:15Z"
+    attempt: 1
+    claim: the lookup reads the one parse the checks run and nothing else —
+      no cache, no store, no second parser; the A-family answer carries the
+      next free amendment number
+    evidence: "src/torve/config/rfc_parse.py — lookup/_lookup_decision/
+      _lookup_amendment/_lookup_document call decision_table, rfc_files,
+      parse_frontmatter, parse_phasing and retired_identifiers only;
+      tests/test_rfc_show.py pins next_free and the exit-3 family message"
+    action: decided
+  - decision: D-7.29
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: "2026-08-27T20:56:15Z"
+    attempt: 1
+    claim: the MCP face is the same function — the server's show tool calls
+      config.rfc_parse.lookup and renders nothing of its own; the surface
+      stays read-only and unwired from sandboxes
+    evidence: "src/torve/cli/mcp.py — show calls lookup(rfc_dir, identifier);
+      tests/test_mcp.py pins the tool list to [context, show], both
+      read-only"
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: "2026-08-27T20:56:15Z"
+    attempt: 1
+    claim: the spec says an undefined identifier exits 3 naming the nearest
+      family but not what a family answer is; shipped as the next free
+      number for the A- and document families, and a pointer to the
+      Decisions tables for decision identifiers — a per-document nearest
+      match would be guessing at intent
+    evidence: "src/torve/cli/rfc.py — the show verb's undefined branch;
+      tests/test_rfc_show.py::test_cli_json_and_undefined_exits_config"
+    action: decided
+    proposal: ASSUMED — the undefined-identifier answer names the next free
+      number for allocatable families (A-n, NNNN) and points decisions at
+      the tables; richer nearest-match suggestions wait for a mistyped
+      identifier to actually occur
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: "2026-08-27T20:56:15Z"
+    attempt: 1
+    claim: the row's Consequence cell was dropped by the parser (four cells
+      kept, the fifth ignored); showing it required carrying it, so
+      DecisionRow gains a consequence field filled by the same parse —
+      additive, minting untouched
+    evidence: "src/torve/config/rfc_parse.py — DecisionRow.consequence,
+      decision_section cells[4]; tests/test_rfc_show.py asserts the cell
+      round-trips"
+    action: decided

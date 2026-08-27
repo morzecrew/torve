@@ -58,6 +58,21 @@ def build_server(root: Path, rfc_dir: Path) -> Any:
 
         return report
 
+    @server.tool(annotations=types.ToolAnnotations(readOnlyHint=True))  # type: ignore[untyped-decorator]
+    def show(identifier: str) -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
+        """Resolve one corpus identifier — a decision (D-6.8), an
+        amendment (A-47) or a document (0021) — to its standing definition:
+        the same lookup `torve rfc show` serves (D-7.29)."""
+
+        from torve.config.rfc_parse import lookup
+
+        found = lookup(rfc_dir, identifier)
+
+        if found is None:
+            raise ValueError(f"nothing defines {identifier!r} in this corpus")
+
+        return found
+
     return server
 
 
