@@ -1,0 +1,28 @@
+# Minted by hand — RFC 0007 §5: the read-only MCP surface, built for its
+# first consumer (a planning session on the operator's machine).
+schema_version: 1
+id: T-0095
+rfc: rfcs/0007-planner-context.md
+phase: 3
+role: implement
+intent: |
+  A planning session stops hand-carrying `torve context` output: `torve mcp`
+  serves the projections over stdio as a read-only MCP server. Queries only —
+  no write tool exists on the surface, and the server is wired for the
+  planning session, never into an execution sandbox. The mcp package is an
+  optional extra, lazily imported like the migrate extra.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/cli/**"
+    - "tests/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - ".mcp.json"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest -q"
+decisions: []
+tier: executor

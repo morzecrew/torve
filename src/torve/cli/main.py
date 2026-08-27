@@ -25,6 +25,7 @@ from torve.cli import (
     feedback,
     gates,
     intake,
+    mcp,
     merge,
     migrate,
     plan,
@@ -101,6 +102,7 @@ app.command("shadow")(shadow.shadow_cmd)
 app.command("eval")(evals.eval_cmd)
 app.command("cancel")(run.cancel)
 app.command("kill")(run.kill)
+app.command("mcp")(mcp.mcp_cmd)
 app.command("merge")(merge.merge_cmd)
 app.command("migrate")(migrate.migrate_cmd)
 app.command("doctor")(doctor.doctor)

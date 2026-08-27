@@ -1,0 +1,87 @@
+schema_version: 1
+task: T-0095
+repo: morzecrew/torve
+base_sha: f766621b71d2e2002fe70192dba1b7025146c9af
+drift_count: 0
+entries:
+  - decision: D-7.3
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: "2026-08-27T19:53:10Z"
+    attempt: 1
+    claim: the surface is read-only by construction — one query tool over the
+      projections, no write verb registered; the server is a CLI verb on the
+      operator's machine and nothing adds it to a sandbox spec
+    evidence: "src/torve/cli/mcp.py:23-58 — the only registered tool wraps
+      context_report; tests/test_mcp.py:20-27 pins the registered tool list
+      so a write tool appearing reddens"
+    action: decided
+    notes: |
+      Close-out for the governing lock. The row's Paths cell names
+      src/torve/application/planner.py, but the server is presentation and
+      lands in cli/ per the presentation-stays-in-cli rule — a paths
+      relocation rides the docs commit (established relocation precedent).
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: "2026-08-27T19:53:10Z"
+    attempt: 1
+    claim: the spec names no dependency policy for the MCP SDK; shipped as an
+      optional extra with a lazy import and a config-error exit when absent
+    evidence: "src/torve/cli/mcp.py:26-33 — import_module inside build_server,
+      ModuleNotFoundError mapped to the install hint; pyproject.toml carries
+      the extra"
+    action: decided
+    proposal: ASSUMED — the mcp package is an optional extra, lazily imported
+      by the CLI verb, absent from a gates-only install (migrate-extra
+      precedent)
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: "2026-08-27T19:53:10Z"
+    attempt: 1
+    claim: the spec says queries over the projections but not which; shipped
+      one tool returning the full context report with an optional top-level
+      section selector, more tools when a session wants them
+    evidence: "src/torve/cli/mcp.py:42-56 — build_server registers exactly
+      one tool"
+    action: decided
+    proposal: ASSUMED — the surface starts as one context tool with a section
+      parameter; growth is driven by consumer demand, never speculation
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: "2026-08-27T19:53:10Z"
+    attempt: 1
+    claim: forze's operations framework was considered as the MCP substrate
+      and not adopted — the installed wheel carries catalog metadata for a
+      hypothetical MCP driving adapter but ships no MCP server, so adopting
+      it would add an operations runtime AND still leave the projection to
+      write; one tool over the projections does not warrant a catalog
+    evidence: "`grep -rln -i 'fastmcp\\|mcpserver\\|modelcontextprotocol' .venv/lib/python3.13/site-packages/forze` — no matches; only descriptor
+      docstrings name MCP as a possible consumer"
+    action: decided
+    proposal: ASSUMED — the read surface stays on the mcp package directly;
+      forze's operations catalog becomes the substrate only when the surface
+      grows past a handful of tools or a second surface (HTTP) wants shared
+      schemas — an RFC-level move, not a task-level one
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: "2026-08-27T19:53:10Z"
+    attempt: 1
+    claim: consumer wiring unspecified; a repo-root .mcp.json registers the
+      server for planning sessions opened in this checkout — the executor
+      sandbox never sees it (worktrees carry repo files, but no harness
+      config in the images reads .mcp.json, and the file is engine wiring
+      not workspace code)
+    evidence: ".mcp.json:1-8 — the server entry runs uv run torve mcp"
+    action: decided
+    proposal: ASSUMED — .mcp.json at the repo root is the planning-session
+      wiring; sandbox images carry no MCP client config, keeping the
+      never-given-to-executors constraint at wiring
