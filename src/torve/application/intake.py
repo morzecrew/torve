@@ -903,7 +903,7 @@ def ledger_file(root: Path) -> Path:
 
 
 def _title_for(root: Path, task_id: str) -> str:
-    from torve.application.tracker import _title
+    from torve.application.tracker import _title  # pyright: ignore[reportPrivateUsage]
 
     return _title(root, task_id)
 
