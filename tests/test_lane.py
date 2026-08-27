@@ -202,6 +202,9 @@ def test_engine_records_never_block_the_lane(lane_repo):
     (contract_dir / "contract.yaml").write_text("# runner-minted\n", encoding="utf-8")
     (lane_repo / ".torve" / "outbox.jsonl").write_text("{}\n", encoding="utf-8")
     (lane_repo / ".torve" / "outbox-ledger.jsonl").write_text("{}\n", encoding="utf-8")
+    # The intake ledger (T-0092): a claim's row blocked an approved
+    # landing live before the guard learned it.
+    (lane_repo / ".torve" / "intake.jsonl").write_text("{}\n", encoding="utf-8")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"

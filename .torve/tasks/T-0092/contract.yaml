@@ -1,0 +1,26 @@
+# Minted by hand — RFC 0020 phase 2 follow-up, found live within the
+# hour: the intake ledger is engine-authored dirt the lane's cleanliness
+# guard did not know, so every lane leg errored and an approved green
+# candidate could not land.
+schema_version: 1
+id: T-0092
+rfc: rfcs/0020-intake-and-the-drafting-run.md
+phase: 2
+role: implement
+intent: |
+  The intake ledger joins the lane's engine-record exemption: the
+  cleanliness guard recognizes .torve/intake.jsonl exactly as it does
+  the outbox pair, the pr-reviews ledger and the tick lock, so a
+  claimed request never blocks a landing.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/lane.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest -q"
+decisions: []
+tier: executor

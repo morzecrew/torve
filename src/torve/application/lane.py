@@ -102,6 +102,7 @@ def _engine_record(root: Path, rel: str) -> bool:
     contracts, telemetry appends, the outbox pair — must not demand an
     operator commit before every landing."""
     from torve.application.evals import EVAL_LEDGER
+    from torve.application.intake import INTAKE_LEDGER
     from torve.application.loop import LOCK
     from torve.application.outbox import LEDGER, OUTBOX
     from torve.application.review import PR_LEDGER
@@ -120,7 +121,12 @@ def _engine_record(root: Path, rel: str) -> bool:
                    # pr-reviews ledger is the same class of record.
                    f"{layout.TORVE_DIR}/{LOCK}",
                    f"{layout.TORVE_DIR}/{PR_LEDGER}",
-                   f"{layout.TORVE_DIR}/{EVAL_LEDGER}"}
+                   f"{layout.TORVE_DIR}/{EVAL_LEDGER}",
+                   # The intake ledger (RFC 0020 §5.4): the claim writes
+                   # it inside the tick, and the lane leg follows in the
+                   # same pass — found live when a claimed request blocked
+                   # an approved landing.
+                   f"{layout.TORVE_DIR}/{INTAKE_LEDGER}"}
 
 
 def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
