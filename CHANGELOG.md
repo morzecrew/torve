@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Board intake (T-0091, RFC 0020 phase 2): a `torve.intake`-labeled
+  issue from a commander is claimed by the tick — retitled to the
+  drafting task's row, run through the drafter, its lint-green drafts
+  projected onto the thread. `/torve adopt` adopts them under the
+  tick's own lock; `/torve revise` carries the comment's own text to
+  the drafter as feedback; `/torve abandon` refuses the request and
+  discards the batch. A ready drafting run also now survives the
+  reaper and never enters the lane — adoption is its disposal
+  (T-0090).
+
 - Intake and the drafting run (T-0089, RFC 0020 phase 1): a request in
   prose becomes lint-gated draft task contracts through a sandboxed
   drafting run — the new `draft` role on the planner tier's seat, its

@@ -19,8 +19,15 @@ schema_version: 1
 - **Implementation state:** phase 1 executed 2026-08-27 (T-0089 — the `draft`
   role on the planner tier's seat, the drafting run with its draft-lint loop,
   the contract lint standalone as `torve lint-contract`, and `torve adopt`
-  minting ids under the tick lock; D-20.8 settled at `intake.max_drafts: 4`).
-  Outstanding: phase 2 (board intake) and the demand-gated phase 3.
+  minting ids under the tick lock; D-20.8 settled at `intake.max_drafts: 4`;
+  T-0090 closed D-20.10 by operation: the reaper keeps READY drafts, the lane
+  skips them, adoption is the disposal). Phase 2 executed 2026-08-27 (T-0091 —
+  the tick's intake leg claims `torve.intake` issues by retitling them to the
+  drafting task's row, runs pending drafters, and projects drafts onto the
+  thread; `adopt` joined the verb vocabulary; a revise comment's own text is
+  the drafter's feedback — a logged departure from D-20.6's reuse assumption;
+  the phase's scope estimate omitted the tracker port, its adapter and the
+  loop — see .torve/tasks/T-0091). Outstanding: the demand-gated phase 3.
 - **Scope:** How a request in prose becomes one or more task contracts without
   a human writing YAML: a new run role (`draft`) executed by the existing
   runner machinery, a deterministic contract lint that gates its output, an
