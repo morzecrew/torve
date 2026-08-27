@@ -58,6 +58,7 @@ def context_cmd(
     """Project accumulated facts for a planning session: tasks
     by state, escalations by reason, proposals awaiting the author, gate
     health, cost against config_hash, and the programme view."""
+
     from torve.application.projections import context_report, render_markdown
 
     root = root.resolve()
@@ -70,6 +71,7 @@ def context_cmd(
         out().print(render_markdown(report))
     else:
         _render_rich(report)
+
     raise typer.Exit(EXIT_OK)
 
 
@@ -79,10 +81,13 @@ def context_cmd(
 def _age(seconds: float) -> str:
     """Coarse humanised age — days beat hours beat minutes; precision is
     noise at triage granularity."""
+
     if seconds >= 86400:
         return f"{seconds / 86400:.0f}d"
+
     if seconds >= 3600:
         return f"{seconds / 3600:.0f}h"
+
     return f"{max(1, seconds // 60):.0f}m"
 
 
@@ -96,19 +101,25 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     programme = make_table("rfc", "title", "status", "impl", "progress", "notes", title="Programme")
     settled: list[str] = []
+
     for doc in report["programme"]:
         notes: list[str] = []
+
         if doc["plannable"]:
             notes.append("plannable")
+
         if doc["unsatisfied_depends_on"]:
             notes.append(f"waits on {', '.join(doc['unsatisfied_depends_on'])}")
+
         if doc["disagreement"]:
             notes.append(f"⚠ {doc['disagreement']}")
+
         if doc["status"] == "accepted" and doc["implementation"] == "complete" and not notes:
             # Finished business earns a dim count, not a row — the JSON
             # report still carries every document.
             settled.append(str(doc["rfc"]))
             continue
+
         progress = ", ".join(f"P{k}: {v}" for k, v in doc["progress"].items())
         programme.add_row(
             Text(str(doc["rfc"]), STYLE_ID),
@@ -118,14 +129,18 @@ def _render_rich(report: dict[str, Any]) -> None:
             progress,
             Text("; ".join(notes), STYLE_WARN if doc["disagreement"] else ""),
         )
+
     console.print(programme)
+
     if settled:
         footer(console, f"… plus {len(settled)} accepted and complete: {id_list(settled)}")
 
     tasks = make_table("state", "count", "tasks", title="Tasks by state")
     by_state: dict[str, list[str]] = {}
+
     for task in report["tasks"]:
         by_state.setdefault(str(task["state"]), []).append(str(task["id"]))
+
     for state, ids in sorted(by_state.items()):
         # Newest first, so the bounded list surfaces recent work — the report
         # itself keeps its stable ascending order.
@@ -137,6 +152,7 @@ def _render_rich(report: dict[str, Any]) -> None:
             str(len(ids)),
             id_list(sorted(ids, reverse=True)),
         )
+
     console.print(tasks)
 
     if report["escalations"]:
@@ -144,6 +160,7 @@ def _render_rich(report: dict[str, Any]) -> None:
             "reason", "route", "count", "tasks", "oldest", title="Escalations by reason"
         )
         ages: list[float] = []
+
         for reason, items in sorted(report["escalations"].items()):
             reason_ages = [float(item["age_s"]) for item in items if item.get("age_s") is not None]
             ages += reason_ages
@@ -154,7 +171,9 @@ def _render_rich(report: dict[str, Any]) -> None:
                 ", ".join(str(item["task"]) for item in items),
                 _age(max(reason_ages)) if reason_ages else "",
             )
+
         console.print(escalations)
+
         if ages:
             # The queue's age is the alert, not its length: a queue nobody
             # triages looks identical to success from inside the runner.
@@ -165,6 +184,7 @@ def _render_rich(report: dict[str, Any]) -> None:
             )
 
     fresh = [p for p in report["proposals"] if not p.get("possibly_landed")]
+
     if report["proposals"]:
         proposals = make_table(
             "decision",
@@ -187,9 +207,12 @@ def _render_rich(report: dict[str, Any]) -> None:
             limit=40,
         )
         console.print(proposals)
+
         if withheld:
             footer(console, f"… {withheld} more fresh proposal(s) (see JSON)")
+
         landed = len(report["proposals"]) - len(fresh)
+
         if landed:
             footer(
                 console,
@@ -201,6 +224,7 @@ def _render_rich(report: dict[str, Any]) -> None:
         gates = make_table(
             "gate", "runs", "failures", "flaky", "bypassed", "mean", "max", title="Gate health"
         )
+
         for name, gate in sorted(report["gates"].items()):
             gates.add_row(
                 name,
@@ -211,11 +235,13 @@ def _render_rich(report: dict[str, Any]) -> None:
                 Text(f"{gate['mean_duration_s']}s", STYLE_DIM),
                 Text(f"{gate['max_duration_s']}s", STYLE_DIM),
             )
+
         console.print(gates)
 
     if report["costs"]:
         costs = make_table("kind", "task", "regime", "cost", "detail", title="Cost and iterations")
         rows: list[tuple[Any, ...]] = []
+
         for row in report["costs"]:
             cost = row.get("cost_usd")
             shown = f"${cost:.4f}" if isinstance(cost, (int, float)) else "unrecorded"
@@ -233,7 +259,9 @@ def _render_rich(report: dict[str, Any]) -> None:
                     detail,
                 )
             )
+
         withheld = add_rows_truncated(costs, rows, limit=40)
         console.print(costs)
+
         if withheld:
             footer(console, f"… {withheld} more record(s) (see JSON)")

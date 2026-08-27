@@ -71,6 +71,7 @@ class Gate(BaseModel):
     def _origin_shape(cls, value: str) -> str:
         if value == "structural" or value.startswith(("leak/", "rfc/")):
             return value
+
         raise ValueError(
             f"origin {value!r} must be 'structural', 'leak/<task>' or 'rfc/<id>' (D-2.19)"
         )
@@ -81,8 +82,10 @@ class Gate(BaseModel):
     def builtin(self) -> str | None:
         if self.run == "@task.acceptance":
             return "acceptance"
+
         if self.run.startswith("@"):
             return self.run[1:]
+
         return None
 
     # ....................... #
@@ -91,6 +94,7 @@ class Gate(BaseModel):
     def _commands_only_for_acceptance(self) -> Gate:
         if self.commands and self.builtin != "acceptance":
             raise ValueError(f"gate {self.name!r}: 'commands' only applies to @acceptance")
+
         return self
 
 
@@ -194,20 +198,30 @@ class Manifest(BaseModel):
 
     def resolved_gates(self) -> list[Gate]:
         """Gates with input and timeout filled in from builtin defaults."""
+
         resolved: list[Gate] = []
+
         for gate in self.gates:
             builtin = gate.builtin
+
             if builtin is not None and builtin not in BUILTIN_INPUTS:
                 raise ValueError(f"gate {gate.name!r}: unknown builtin {gate.run!r}")
+
             update: dict[str, object] = {}
+
             if gate.input is None:
                 update["input"] = BUILTIN_INPUTS.get(builtin or "", "worktree")
+
             if gate.timeout is None:
                 update["timeout"] = BUILTIN_TIMEOUTS.get(builtin or "", SHELL_GATE_TIMEOUT)
+
             resolved.append(gate.model_copy(update=update) if update else gate)
+
         names = [g.name for g in resolved]
+
         if len(names) != len(set(names)):
             raise ValueError("gate names must be unique")
+
         return resolved
 
 
@@ -216,8 +230,11 @@ class Manifest(BaseModel):
 
 def load_manifest(path: Path) -> Manifest:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: manifest must be a mapping")
+
     manifest = Manifest.model_validate(raw)
     manifest.resolved_gates()  # surface builtin/name errors at load time
+
     return manifest

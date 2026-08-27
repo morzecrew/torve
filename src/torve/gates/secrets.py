@@ -39,23 +39,29 @@ MAX_UNTRACKED_BYTES = 1_000_000
 
 def _added_lines(patch: str) -> list[tuple[str, int, str]]:
     """(path, new-file line number, line text) for every added line."""
+
     added: list[tuple[str, int, str]] = []
     path = ""
     line_no = 0
+
     for raw in patch.splitlines():
         if raw.startswith("+++ "):
             target = raw[4:].strip()
             path = "" if target == "/dev/null" else target.removeprefix("b/")
             continue
+
         match = HUNK.match(raw)
+
         if match:
             line_no = int(match.group(1))
             continue
+
         if raw.startswith("+") and not raw.startswith("+++"):
             added.append((path, line_no, raw[1:]))
             line_no += 1
         elif not raw.startswith("-") and not raw.startswith("\\"):
             line_no += 1
+
     return added
 
 
@@ -64,15 +70,20 @@ def _added_lines(patch: str) -> list[tuple[str, int, str]]:
 
 def _untracked_lines(ctx: GateContext) -> list[tuple[str, int, str]]:
     lines: list[tuple[str, int, str]] = []
+
     for rel in ctx.untracked:
         target = ctx.root / rel
+
         try:
             if target.stat().st_size > MAX_UNTRACKED_BYTES:
                 continue
+
             text = target.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue  # unreadable or binary; nothing line-scannable
+
         lines += [(rel, i, line) for i, line in enumerate(text.splitlines(), start=1)]
+
     return lines
 
 
@@ -82,14 +93,18 @@ def _untracked_lines(ctx: GateContext) -> list[tuple[str, int, str]]:
 def check_secrets(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     allow = [re.compile(p) for p in ctx.manifest.secrets.allow_patterns]
     hits: list[str] = []
+
     for path, line_no, text in _added_lines(ctx.patch) + _untracked_lines(ctx):
         for label, pattern in PATTERNS:
             if not pattern.search(text):
                 continue
+
             if any(a.search(text) for a in allow):
                 continue
+
             hits.append(f"{path}:{line_no}: {label}")
 
     if not hits:
         return BuiltinOutcome("pass", "no secret patterns in added lines")
+
     return BuiltinOutcome("fail", "\n".join(sorted(set(hits))))

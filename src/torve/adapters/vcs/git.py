@@ -37,11 +37,15 @@ def repository_name(root: Path) -> str:
     """The name provider routing keys on (RFC 0004 §6b): `org/repo` from the
     origin remote when one exists, the directory name otherwise — stable
     across checkouts, which a path is not."""
+
     proc = _git(root, "remote", "get-url", "origin")
+
     if proc.returncode == 0:
         found = re.search(r"[:/]([^/:]+/[^/:]+?)(?:\.git)?/?$", proc.stdout.strip())
+
         if found:
             return found.group(1)
+
     return root.resolve().name
 
 
@@ -54,20 +58,27 @@ class GitVcs:
     ) -> str | None:
         _git(worktree, "add", "-A")
         status = _git(worktree, "status", "--porcelain")
+
         if not status.stdout.strip():
             return None
+
         config = ["-c", "user.name=Torve", "-c", "user.email=torve@local"]
         commit = ["commit", "-m", message]
+
         if sign_key:
             config += ["-c", "gpg.format=ssh", "-c", f"user.signingkey={sign_key}"]
             commit.append("-S")
         else:
             commit.append("--no-gpg-sign")
+
         if author:
             commit += ["--author", author]
+
         proc = _git(worktree, *config, *commit)
+
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git commit failed")
+
         return _git(worktree, "rev-parse", "HEAD").stdout.strip()
 
     # ....................... #
@@ -75,9 +86,11 @@ class GitVcs:
     def landed_shas(self, worktree: Path, task_id: str) -> list[str]:
         """The commits a task landed, newest first — reconstructed from the
         Torve-Task trailer alone (D-10.4: git log is the surviving record)."""
+
         proc = _git(
             worktree, "log", "--format=%H", "--fixed-strings", f"--grep=Torve-Task: {task_id}"
         )
+
         return [line for line in proc.stdout.split() if line]
 
     # ....................... #
@@ -86,6 +99,7 @@ class GitVcs:
         """Stage the inverse of the given commits without committing — the
         landing commit carries the revert's own provenance. A conflict
         aborts, leaves the worktree clean, and returns False."""
+
         proc = _git(
             worktree,
             "-c",
@@ -96,10 +110,13 @@ class GitVcs:
             "--no-commit",
             *shas,
         )
+
         if proc.returncode == 0:
             return True
+
         _git(worktree, "revert", "--abort")
         _git(worktree, "reset", "--hard")
+
         return False
 
     # ....................... #
@@ -107,7 +124,9 @@ class GitVcs:
     def changed_names(self, worktree: Path) -> list[str]:
         """The head commit's touched paths — the pull-request body's
         `Changed` section is composed from this record (D-10.6)."""
+
         out = _git(worktree, "show", "--pretty=format:", "--name-only", "HEAD")
+
         return [line for line in out.stdout.splitlines() if line.strip()]
 
     # ....................... #
@@ -123,15 +142,20 @@ class GitVcs:
         the requeue (D-5.12). The token, when given, reaches git through a
         credential helper reading the runner's environment: never on argv,
         never in the worktree (D-4b)."""
+
         remotes = _git(worktree, "remote")
+
         if "origin" not in remotes.stdout.split():
             return False
+
         config: list[str] = []
         env = None
+
         if token:
             helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+
         force = ["--force-with-lease"] if supersede else []
         proc = subprocess.run(
             [
@@ -150,8 +174,10 @@ class GitVcs:
             check=False,
             env=env,
         )
+
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git push failed")
+
         return True
 
     # ....................... #
@@ -164,15 +190,20 @@ class GitVcs:
         transports report each differently), False when there is no
         origin; raises on anything else, so a half-applied retry refuses
         loudly."""
+
         remotes = _git(root, "remote")
+
         if "origin" not in remotes.stdout.split():
             return False
+
         config: list[str] = []
         env = None
+
         if token:
             helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+
         proc = subprocess.run(
             ["git", "-C", str(root), *config, "push", "origin", "--delete", f"refs/heads/{branch}"],
             capture_output=True,
@@ -180,10 +211,13 @@ class GitVcs:
             check=False,
             env=env,
         )
+
         if proc.returncode != 0:
             if "remote ref does not exist" in proc.stderr:
                 return True  # already gone — the postcondition holds
+
             raise RuntimeError(proc.stderr.strip() or "git push --delete failed")
+
         return True
 
     # ....................... #
@@ -196,15 +230,20 @@ class GitVcs:
         approvals concluded the review D-10.5 protects — and with lease, so
         a ref the engine does not expect refuses rather than clobbers.
         False when there is no origin; raises on a refused push."""
+
         remotes = _git(root, "remote")
+
         if "origin" not in remotes.stdout.split():
             return False
+
         config: list[str] = []
         env = None
+
         if token:
             helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+
         proc = subprocess.run(
             [
                 "git",
@@ -221,8 +260,10 @@ class GitVcs:
             check=False,
             env=env,
         )
+
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git push --force-with-lease failed")
+
         return True
 
     # ....................... #
@@ -234,12 +275,15 @@ class GitVcs:
         refs and return (base_sha, head_sha). The token reaches git the
         same way push's does: a credential helper reading the runner's
         environment, never argv (D-4b)."""
+
         config: list[str] = []
         env = None
+
         if token:
             helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
+
         head_ref, base_local = f"refs/torve/pr-{number}", f"refs/torve/pr-{number}-base"
         proc = subprocess.run(
             [
@@ -257,8 +301,10 @@ class GitVcs:
             check=False,
             env=env,
         )
+
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git fetch failed")
+
         return (
             _git(root, "rev-parse", base_local).stdout.strip(),
             _git(root, "rev-parse", head_ref).stdout.strip(),
@@ -268,6 +314,7 @@ class GitVcs:
 
     def worktree_at(self, root: Path, sha: str, workdir: Path) -> None:
         added = _git(root, "worktree", "add", "--detach", str(workdir), sha)
+
         if added.returncode != 0:
             raise RuntimeError(added.stderr.strip() or f"worktree add failed at {sha}")
 
@@ -288,9 +335,11 @@ class GitVcs:
     def task_trailers(self, root: Path, base: str, head: str) -> list[str]:
         log = _git(root, "log", "--format=%B", f"{base}..{head}").stdout
         seen: list[str] = []
+
         for found in re.findall(r"^Torve-Task: (T-\d{4})$", log, re.MULTILINE):
             if found not in seen:
                 seen.append(found)
+
         return seen
 
 
@@ -320,13 +369,16 @@ class GitLane:
 
     def dirty_paths(self, root: Path) -> list[str]:
         paths: list[str] = []
+
         for line in _git(root, "status", "--porcelain").stdout.splitlines():
             if not line.strip():
                 continue
+
             # Porcelain v1: two status columns, a space, then the path —
             # renames carry "orig -> dest" and the destination is the dirt.
             entry = line[3:].split(" -> ")[-1].strip().strip('"')
             paths.append(entry)
+
         return paths
 
     # ....................... #
@@ -334,7 +386,9 @@ class GitLane:
     def tip_age_s(self, root: Path, ref: str) -> float:
         """Seconds since the ref's tip commit — the quiet window's clock
         (RFC 0006 §3): a push resets it, because the new tip is young."""
+
         out = _git(root, "log", "-1", "--format=%ct", ref).stdout.strip()
+
         return max(0.0, time.time() - float(out)) if out else 0.0
 
     # ....................... #
@@ -344,23 +398,31 @@ class GitLane:
         carries with byte-identical content, so git's overwrite refusal is
         reserved for real differences. Engine records are text (contracts,
         ledgers); a file that does not decode is left for git to refuse."""
+
         incoming = _git(root, "diff", "--name-only", f"HEAD..{ref}").stdout.splitlines()
         tracked = set(_git(root, "ls-files").stdout.splitlines())
         adopted: list[str] = []
+
         for rel in (line.strip() for line in incoming):
             if not rel or rel in tracked:
                 continue
+
             target = root / rel
+
             if not target.is_file():
                 continue
+
             shown = _git(root, "show", f"{ref}:{rel}")
+
             try:
                 same = shown.returncode == 0 and shown.stdout == target.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
+
             if same:
                 target.unlink()
                 adopted.append(rel)
+
         return adopted
 
     # ....................... #
@@ -371,22 +433,30 @@ class GitLane:
         merges in memory — no worktree, no ref moves; exit 1 is a
         conflict verdict, not an error. Single-commit candidates
         (D-10.8) make the merge verdict the rebase verdict."""
+
         proc = _git(root, "merge-tree", "--write-tree", onto, branch)
+
         if proc.returncode in (0, 1):
             return proc.returncode == 1
+
         raise RuntimeError(proc.stderr.strip() or "git merge-tree failed")
 
     # ....................... #
 
     def rebase_in_worktree(self, root: Path, branch: str, onto: str, workdir: Path) -> bool:
         added = _git(root, "worktree", "add", str(workdir), branch)
+
         if added.returncode != 0:
             raise RuntimeError(added.stderr.strip() or f"worktree add failed for {branch}")
+
         rebased = _git(workdir, "rebase", onto)
+
         if rebased.returncode != 0:
             _git(workdir, "rebase", "--abort")
             self.remove_worktree(root, workdir)
+
             return False
+
         return True
 
     # ....................... #
@@ -398,8 +468,10 @@ class GitLane:
 
     def merge_ff(self, root: Path, ref: str) -> str:
         proc = _git(root, "merge", "--ff-only", ref)
+
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or f"fast-forward to {ref} refused")
+
         return _git(root, "rev-parse", "HEAD").stdout.strip()
 
     # ....................... #
@@ -449,27 +521,35 @@ class GhScm:
 
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
         env = None
+
         if self.token_env:
             token = os.environ.get(self.token_env)
+
             if not token:
                 raise RuntimeError(
                     f"scm.token_env names {self.token_env!r} but the runner's "
                     "environment does not carry it"
                 )
+
             env = {**os.environ, "GH_TOKEN": token}
 
         def run_gh(*args: str) -> subprocess.CompletedProcess[str]:
             command = ["gh", *args]
+
             if self.repo:
                 command += ["--repo", self.repo]
+
             return subprocess.run(
                 command, capture_output=True, text=True, check=False, cwd=worktree, env=env
             )
 
         proc = run_gh("pr", "create", "--head", branch, "--title", title, "--body", body)
+
         if proc.returncode == 0:
             return proc.stdout.strip()
+
         error = proc.stderr.strip()
+
         if "already exists" in error:
             # One pull request per task (D-10.10, A-37): the branch's open
             # pull request is the task's — reuse it, refreshing what the
@@ -483,38 +563,52 @@ class GhScm:
                     or "[]"
                 ),
             )
+
             if listed:
                 number = int(listed[0]["number"])
                 run_gh("pr", "edit", str(number), "--title", title, "--body", body)
+
                 return str(listed[0].get("url", ""))
+
         raise RuntimeError(error or "gh pr create failed")
 
     # ....................... #
 
     def _gh(self, *args: str) -> str:
         command = ["gh", *args]
+
         if self.repo:
             command += ["--repo", self.repo]
+
         env = None
+
         if self.token_env:
             token = os.environ.get(self.token_env)
+
             if not token:
                 raise RuntimeError(
                     f"scm.token_env names {self.token_env!r} but the runner's "
                     "environment does not carry it"
                 )
+
             env = {**os.environ, "GH_TOKEN": token}
+
         for attempt in (1, 2):
             proc = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
+
             if proc.returncode == 0:
                 return proc.stdout
+
             error = proc.stderr.strip() or f"gh {args[0]} failed"
+
             # One retry for a transient transport failure (T-0058): every
             # destination write is idempotent, so at-least-once is safe.
             if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
                 self.sleeper(2.0)
                 continue
+
             raise RuntimeError(error)
+
         raise RuntimeError("unreachable")  # for the type checker
 
     # ....................... #
@@ -533,6 +627,7 @@ class GhScm:
             ),
         )
         author = cast("dict[str, Any]", document.get("author") or {})
+
         return PrInfo(
             number=int(document["number"]),
             title=str(document.get("title", "")),
@@ -551,8 +646,10 @@ class GhScm:
         # absorbs an at-least-once duplicate.
         marker = f"<!-- torve-key:{key} -->"
         existing = self._gh("pr", "view", str(number), "--json", "comments")
+
         if marker in existing:
             return ""
+
         return self._gh("pr", "comment", str(number), "--body", f"{body}\n\n{marker}").strip()
 
     # ....................... #
@@ -560,25 +657,34 @@ class GhScm:
     def _api(self, *args: str) -> str:
         # `gh api` takes the repo in the endpoint, never as a flag.
         env = None
+
         if self.token_env:
             token = os.environ.get(self.token_env)
+
             if not token:
                 raise RuntimeError(
                     f"scm.token_env names {self.token_env!r} but the runner's "
                     "environment does not carry it"
                 )
+
             env = {**os.environ, "GH_TOKEN": token}
+
         for attempt in (1, 2):
             proc = subprocess.run(
                 ["gh", "api", *args], capture_output=True, text=True, check=False, env=env
             )
+
             if proc.returncode == 0:
                 return proc.stdout
+
             error = proc.stderr.strip() or "gh api failed"
+
             if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
                 self.sleeper(2.0)
                 continue
+
             raise RuntimeError(error)
+
         raise RuntimeError("unreachable")  # for the type checker
 
     # ....................... #
@@ -589,8 +695,10 @@ class GhScm:
         whole threads — replies from anyone ride along, they carry
         resolution — attributed per comment. No pull request, or an empty
         allow-list, is an empty capture."""
+
         if not allowed or not self.repo:
             return []
+
         listed = cast(
             "list[dict[str, Any]]",
             json.loads(
@@ -598,8 +706,10 @@ class GhScm:
                 or "[]"
             ),
         )
+
         if not listed:
             return []
+
         number = int(listed[0]["number"])
         raw = cast(
             "list[dict[str, Any]]",
@@ -608,12 +718,15 @@ class GhScm:
             ),
         )
         roots: dict[int, dict[str, Any]] = {}
+
         for comment in raw:
             if comment.get("in_reply_to_id") is None:
                 user = cast("dict[str, Any]", comment.get("user") or {})
                 author = str(user.get("login", ""))
+
                 if author not in allowed:
                     continue
+
                 roots[int(comment["id"])] = {
                     # id and pr are the reply address (D-5.14, A-41): the
                     # landing answers the threads its revision consumed.
@@ -623,13 +736,16 @@ class GhScm:
                     "line": comment.get("line"),
                     "comments": [{"author": author, "body": str(comment.get("body", ""))}],
                 }
+
         for comment in raw:
             parent = comment.get("in_reply_to_id")
+
             if parent is not None and int(parent) in roots:
                 user = cast("dict[str, Any]", comment.get("user") or {})
                 cast("list[dict[str, Any]]", roots[int(parent)]["comments"]).append(
                     {"author": str(user.get("login", "")), "body": str(comment.get("body", ""))}
                 )
+
         return list(roots.values())
 
     # ....................... #
@@ -641,25 +757,33 @@ class GhScm:
         reply carries its idempotency marker; a thread already marked is
         skipped, so a replay is absorbed at the destination. Returns
         (posted, skipped)."""
+
         if not self.repo:
             return (0, 0)
+
         posted = skipped = 0
         by_pr: dict[int, list[int]] = {}
+
         for record in records:
             by_pr.setdefault(int(record["pr"]), []).append(int(record["id"]))
+
         for pr_number, comment_ids in by_pr.items():
             existing = self._api(f"repos/{self.repo}/pulls/{pr_number}/comments", "--paginate")
+
             for comment_id in comment_ids:
                 marker = f"<!-- torve-key:answer:{comment_id} -->"
+
                 if marker in existing:
                     skipped += 1
                     continue
+
                 self._api(
                     f"repos/{self.repo}/pulls/{pr_number}/comments/{comment_id}/replies",
                     "-f",
                     f"body={body}\n\n{marker}",
                 )
                 posted += 1
+
         return (posted, skipped)
 
     # ....................... #
@@ -670,6 +794,7 @@ class GhScm:
         from an abandoned branch, so the engine says so itself — and
         deletes the head branch, whose commits are on the base. False when
         no open pull request exists for the branch."""
+
         listed = cast(
             "list[dict[str, Any]]",
             json.loads(
@@ -677,10 +802,13 @@ class GhScm:
                 or "[]"
             ),
         )
+
         if not listed:
             return False
+
         number = int(listed[0]["number"])
         self._gh("pr", "close", str(number), "--comment", comment, "--delete-branch")
+
         return True
 
     # ....................... #
@@ -694,6 +822,7 @@ class GhScm:
         "closed" (we closed it, branch deleted with it), or "absent" (no
         pull request needed retiring); the caller deletes the candidate
         branch in the non-"closed" cases."""
+
         for attempt in (1, 2, 3):
             listed = cast(
                 "list[dict[str, Any]]",
@@ -704,16 +833,23 @@ class GhScm:
                     or "[]"
                 ),
             )
+
             if not listed:
                 return "absent"
+
             state = str(listed[0].get("state", "")).upper()
+
             if state == "MERGED":
                 return "merged"
+
             if state == "CLOSED":
                 return "absent"
+
             if attempt < 3:
                 self.sleeper(2.0)
+
         self.close_pr(branch, comment)
+
         return "closed"
 
 
@@ -755,14 +891,18 @@ class GhCi:
 
     def _runs(self, sha: str) -> list[dict[str, Any]]:
         env = None
+
         if self.token_env:
             token = os.environ.get(self.token_env)
+
             if not token:
                 raise RuntimeError(
                     f"scm.token_env names {self.token_env!r} but the runner's "
                     "environment does not carry it"
                 )
+
             env = {**os.environ, "GH_TOKEN": token}
+
         for attempt in (1, 2):
             proc = subprocess.run(
                 [
@@ -777,30 +917,38 @@ class GhCi:
                 check=False,
                 env=env,
             )
+
             if proc.returncode == 0:
                 loaded: object = json.loads(proc.stdout or "[]")
                 return cast("list[dict[str, Any]]", loaded)
+
             error = proc.stderr.strip() or "gh api workflow runs failed"
+
             # One retry for a transient transport failure (T-0058's rule,
             # extended by T-0075): reads are idempotent, and a flaked CI
             # check was killing the whole lane leg.
             if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
                 self.sleeper(2.0)
                 continue
+
             raise RuntimeError(error)
+
         raise RuntimeError("unreachable")  # for the type checker
 
     # ....................... #
 
     def conclusion(self, sha: str) -> str:
         verdict = "absent"
+
         for attempt in range(self.attempts):
             # Newest first from the API; only the latest run of each
             # workflow counts — a re-run supersedes the run it replaces,
             # and a stale failure must not veto a green rerun.
             latest: dict[object, dict[str, Any]] = {}
+
             for run in self._runs(sha):
                 latest.setdefault(run.get("workflow_id"), run)
+
             if not latest:
                 verdict = "absent"  # the remote may not have started yet
             elif any(r.get("status") != "completed" for r in latest.values()):
@@ -812,6 +960,8 @@ class GhCi:
                     if conclusions == {"success"}
                     else next(c for c in sorted(conclusions) if c != "success")
                 )
+
             if attempt + 1 < self.attempts:
                 self.sleeper(self.delay_s)
+
         return verdict

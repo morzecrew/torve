@@ -43,9 +43,11 @@ class RunReport:
     @property
     def flaky_count_by_command(self) -> dict[str, int]:
         counts: dict[str, int] = {}
+
         for result in self.results:
             for command in result.flaky_commands:
                 counts[command] = counts.get(command, 0) + 1
+
         return counts
 
 
@@ -54,13 +56,18 @@ class RunReport:
 
 def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     builtin = gate.builtin
+
     if builtin is not None:
         return BUILTINS[builtin](gate, ctx)
+
     result = run_command(gate.run, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
+
     if result.exit_code == 0:
         outcome: GateOutcome = "flaky" if result.flaky else "pass"
         flaky = [gate.run] if result.flaky else []
+
         return BuiltinOutcome(outcome, result.output, exit_code=0, flaky_commands=flaky)
+
     return BuiltinOutcome("fail", result.output, exit_code=result.exit_code)
 
 
@@ -70,9 +77,11 @@ def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 def _find_bypass(gate: Gate, ctx: GateContext) -> BypassRecord | None:
     if gate.builtin == "secrets":
         return None  # D-2.8: no bypass, ever
+
     for record in ctx.bypasses:
         if record.gate == gate.name:
             return record
+
     return None
 
 
@@ -83,20 +92,26 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
     """Append the bypass to the task's `bypasses:` list (D-2.7) — the same
     A-1 YAML log, structurally appended: items are never removed or edited,
     which is what append-only means for a structured file."""
+
     if ctx.log_path is None:
         return
+
     import yaml
 
     document: dict[str, Any]
+
     if ctx.log_path.is_file():
         loaded: Any = yaml.safe_load(ctx.log_path.read_text(encoding="utf-8")) or {}
+
         if not isinstance(loaded, dict):
             return  # an unreadable log is the decisions-reported gate's finding
+
         document = cast(dict[str, Any], loaded)
     else:
         task_id = ctx.task.id if ctx.task else ""
         entries: list[Any] = []
         document = {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}
+
     fresh: list[dict[str, str]] = []
     cast(list[dict[str, str]], document.setdefault("bypasses", fresh)).append(
         {
@@ -120,10 +135,13 @@ def run_gates(
     ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
 ) -> RunReport:
     gates = ctx.manifest.resolved_gates()
+
     if only is not None:
         unknown = only - {g.name for g in gates}
+
         if unknown:
             raise ValueError(f"unknown gate(s): {', '.join(sorted(unknown))}")
+
         gates = [g for g in gates if g.name in only]
 
     # Cheapest first, by declared timeout as the cost proxy; manifest order
@@ -132,6 +150,7 @@ def run_gates(
 
     report = RunReport()
     blocking_failed = False
+
     for _, gate in ordered:
         if blocking_failed and gate.state == "blocking":
             report.results.append(
@@ -149,18 +168,23 @@ def run_gates(
             # Presentation's window into the pass (RFC 0018 §6): the name of
             # the gate about to run, nothing more — the runner stays silent.
             progress(gate.name)
+
         started = time.monotonic()
+
         try:
             outcome = _execute(gate, ctx)
         except Exception as exc:
             outcome = BuiltinOutcome("error", f"gate infrastructure failure: {exc!r}")
+
         duration = time.monotonic() - started
 
         bypass = None
+
         if outcome.outcome in ("fail", "error") and gate.state == "blocking":
             # A bypass on a gate that cannot block would be a signature spent
             # on nothing; shadow failures are measurement, not obstacles.
             bypass = _find_bypass(gate, ctx)
+
         result = GateResult(
             name=gate.name,
             outcome="bypassed" if bypass else outcome.outcome,
@@ -174,12 +198,15 @@ def run_gates(
             flaky_commands=outcome.flaky_commands,
             quarantined_failures=outcome.quarantined_failures,
         )
+
         if bypass:
             _log_bypass(ctx, bypass)
+
         report.results.append(result)
 
         if result.outcome in ("fail", "error") and gate.state == "blocking":
             blocking_failed = True
 
     report.exit_code = 1 if blocking_failed else 0
+
     return report

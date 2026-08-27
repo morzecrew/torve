@@ -31,14 +31,18 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
     config = load_config(root, config_path)
     checks: list[tuple[str, bool, str]] = []
+
     if config.runtime.adapter != "docker":
         return checks
+
     try:
         runtime = runtime_for(config, None)
     except Exception as error:  # an unusable runtime is the finding
         return [("images", False, f"runtime unavailable: {error}")]
+
     for image in configured_images(config):
         digest = runtime.resolve_image(image)
+
         if digest is None:
             checks.append(
                 (
@@ -51,10 +55,13 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                 )
             )
             continue
+
         detail = f"{image} = {digest[:19]}"
         prefix = "torve-agent:"
+
         if image.startswith(prefix):
             name = image.removeprefix(prefix)
+
             if not (definitions_root(root) / name / "Dockerfile").is_file():
                 checks.append(
                     (
@@ -68,8 +75,11 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                     )
                 )
                 continue
+
             detail += " (definition present)"
+
         checks.append((f"image {image}", True, detail))
+
     return checks
 
 
@@ -81,6 +91,7 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     from torve.application.migrate import MigrateError, pending_count
 
     config = load_config(root, config_path)
+
     if config.store.adapter != "postgres":
         return [
             (
@@ -92,10 +103,12 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                 ),
             )
         ]
+
     try:
         dsn = resolve_dsn(config.store)
     except RuntimeError as error:
         return [("store", False, str(error))]
+
     try:
         pending = pending_count("substrate", dsn)
     except MigrateError as error:
@@ -111,6 +124,7 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                 ),
             )
         ]
+
     if pending:
         return [
             (
@@ -122,6 +136,7 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                 ),
             )
         ]
+
     return [("store", True, "store: postgres reachable, substrate schema current")]
 
 
@@ -138,6 +153,7 @@ def doctor(
     be migrated), and every configured sandbox image resolvable in the
     runtime with its definition present. A failed check is a configuration
     error (exit 3), not a red gate."""
+
     from torve.application.migrate import check_forze_pin
 
     root = root.resolve()
@@ -160,7 +176,9 @@ def doctor(
         )
     else:
         console = out(fmt)
+
         for _name, passed, detail in checks:
             verdict = mark("pass" if passed else "fail")
             console.print(verdict + Text(f" {detail}", "" if passed else STYLE_FAIL))
+
     raise typer.Exit(EXIT_OK if healthy else EXIT_CONFIG)

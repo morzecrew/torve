@@ -83,18 +83,23 @@ def parse_drafts(output: str) -> DraftsDocument | None:
     """The last JSON document with a `drafts` key anywhere in the output —
     the findings-parse discipline (D-5.4's sibling): unparseable is None,
     recorded by the caller, never invented as an empty batch."""
+
     text = ANSI.sub("", output)
     decoder = json.JSONDecoder()
     last: object | None = None
+
     for brace in re.finditer(r"\{", text):
         try:
             document, _ = decoder.raw_decode(text, brace.start())
         except json.JSONDecodeError:
             continue
+
         if isinstance(document, dict) and "drafts" in document:
             last = cast("dict[str, Any]", document)
+
     if last is None:
         return None
+
     try:
         return DraftsDocument.model_validate(last)
     except ValidationError:
@@ -108,10 +113,12 @@ def parse_drafts(output: str) -> DraftsDocument | None:
 # lint is a red attempt; every error names the draft and the field.
 def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) -> list[str]:
     errors: list[str] = []
+
     for pattern in globs:
         if pattern.startswith("/") or ".." in pattern.split("/"):
             errors.append(f"{ref}: {kind} glob {pattern!r} escapes the tree")
             continue
+
         if any(ch in pattern for ch in "*?[") and not any(
             _matched(p, [pattern]) for p in tree_paths
         ):
@@ -119,6 +126,7 @@ def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) 
                 f"{ref}: {kind} glob {pattern!r} matches nothing in the tree "
                 "— a wildcard that can never match checks nothing"
             )
+
     return errors
 
 
@@ -147,47 +155,62 @@ def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[s
     The T-0113 rule is the first learned rule: a draft touching an existing
     module must allow that module's existing test file — the escalation
     that produced it burned a full poison ceiling on exactly this."""
+
     from torve.application.planner import globs_intersect
 
     errors: list[str] = []
     tree_paths = _tree_paths(tree)
     drafts = document.drafts
+
     if not drafts:
         return ["the document holds no drafts — an empty batch is a refusal, not a result"]
+
     if len(drafts) > max_drafts:
         errors.append(
             f"{len(drafts)} drafts exceed the ceiling of {max_drafts} (intake.max_drafts, D-20.8)"
         )
+
     refs = [d.ref for d in drafts]
+
     if len(set(refs)) != len(refs):
         errors.append("draft refs are not unique")
+
     for draft in drafts:
         ref = draft.ref
+
         if not DRAFT_REF.match(ref):
             errors.append(f"{ref!r}: refs are DRAFT-<n> — ids exist only from adoption (D-20.4)")
+
         if not draft.intent.strip():
             errors.append(f"{ref}: intent is empty")
+
         if not draft.acceptance:
             errors.append(f"{ref}: acceptance is empty — nothing would judge the work")
+
         for command in draft.acceptance:
             try:
                 if not shlex.split(command):
                     raise ValueError
             except ValueError:
                 errors.append(f"{ref}: acceptance command {command!r} does not shell-parse")
+
         if not draft.scope.allow:
             errors.append(
                 f"{ref}: scope.allow is empty — an unconstrained draft contends with everything"
             )
+
         errors.extend(_glob_errors(ref, tree_paths, draft.scope.allow, "allow"))
+
         for pattern in draft.scope.allow:
             if pattern in draft.scope.deny:
                 errors.append(f"{ref}: {pattern!r} is both allowed and denied")
+
         for dep in draft.depends_on:
             if dep == ref:
                 errors.append(f"{ref}: depends on itself")
             elif dep not in refs:
                 errors.append(f"{ref}: depends on unknown draft {dep!r}")
+
         # The T-0113 rule: existing modules bring their existing tests.
         for path in tree_paths:
             if (
@@ -196,11 +219,13 @@ def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[s
                 and _matched(path, draft.scope.allow)
             ):
                 test_file = Path("tests") / f"test_{path.stem}.py"
+
                 if (tree / test_file).is_file() and not _matched(test_file, draft.scope.allow):
                     errors.append(
                         f"{ref}: allows existing module {path} but not its "
                         f"existing test file {test_file} — the T-0113 rule"
                     )
+
     for i, one in enumerate(drafts):
         for other in drafts[i + 1 :]:
             if globs_intersect(one.scope.allow, other.scope.allow):
@@ -208,6 +233,7 @@ def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[s
                     f"{one.ref} and {other.ref}: scopes intersect — a batch "
                     "must be dispatchable in parallel"
                 )
+
     return errors
 
 
@@ -217,26 +243,33 @@ def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[s
 def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
     """The standalone face: the same protection for a hand-minted contract
     (RFC 0020 §5.2) — the operator path stays legal and gets safer."""
+
     try:
         raw = yaml.safe_load(contract.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         return [f"{contract.name}: not YAML ({exc})"]
+
     if not isinstance(raw, dict):
         return [f"{contract.name}: not a mapping"]
+
     data = cast("dict[str, Any]", raw)
+
     try:
         task = Task.model_validate({**data, "decisions": data.get("decisions", [])})
     except ValidationError as exc:
         return [f"{contract.name}: {exc.errors()[0]['msg']}"]
+
     if task.role != "implement":
         # A review carries no acceptance by contract law (D-5.10), a draft
         # none by D-20.3 — the batch checks below would misread both.
         return []
+
     document = DraftsDocument(
         drafts=[
             Draft(ref="DRAFT-1", intent=task.intent, scope=task.scope, acceptance=task.acceptance)
         ]
     )
+
     return [e.replace("DRAFT-1", task.id) for e in lint_drafts(tree, document, max_drafts)]
 
 
@@ -249,6 +282,7 @@ def mint_intake_task(
 ) -> Task:
     """Engine-minted at request time, like a review at gated — the id here
     names the drafting run itself, never its output (D-20.4)."""
+
     from torve.application.planner import next_task_number
 
     task = Task(
@@ -270,6 +304,7 @@ def mint_intake_task(
         + yaml.safe_dump(document, sort_keys=False),
         encoding="utf-8",
     )
+
     return task
 
 
@@ -280,37 +315,47 @@ def execution_facts(root: Path) -> str:
     """RFC 0020 phase 3: what the loop knows that a fresh drafter cannot —
     the live escalation queue, contended paths, recent landings. Bounded
     reads (telemetry tail), empty string when there is nothing to say."""
+
     lines: list[str] = []
     escalated = [
         (s.task_id, s.escalation.reason)
         for s in RunState.load_all(root / naming.WORKTREE_DIR)
         if s.state is TaskState.ESCALATED and s.escalation
     ]
+
     if escalated:
         lines.append("escalated now: " + "; ".join(f"{t} ({r})" for t, r in escalated[:6]))
+
     telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
     if telemetry.is_file():
         contended: dict[str, int] = {}
         landed: list[str] = []
+
         for line in telemetry.read_text(encoding="utf-8").splitlines()[-500:]:
             try:
                 record = cast("dict[str, Any]", json.loads(line))
             except json.JSONDecodeError:
                 continue
+
             if record.get("event") == "blocked_dispatch":
                 path = str(record.get("path", ""))
+
                 if path:
                     contended[path] = contended.get(path, 0) + 1
             elif record.get("event") == "lane_landed":
                 landed.append(str(record.get("task", "")))
+
         if contended:
             top = sorted(contended.items(), key=lambda kv: -kv[1])[:4]
             lines.append(
                 "contended paths (avoid scoping over these): "
                 + "; ".join(f"{p} ({n}x)" for p, n in top)
             )
+
         if landed:
             lines.append("recently landed: " + ", ".join(landed[-8:]))
+
     return "\n".join(f"- {entry}" for entry in lines)
 
 
@@ -329,15 +374,19 @@ def build_intake_prompt(
     on a retry — the lint's exact refusals. The calibration paragraph
     matters as much as review's: one honest draft beats a decomposition
     performed to look thorough."""
+
     listing = "\n".join(sorted(str(p) for p in _tree_paths(tree))[:400])
     retry_block = ""
+
     if lint_errors:
         joined = "\n".join(f"- {e}" for e in lint_errors)
         retry_block = (
             f"\n## Your previous batch was refused by the lint\n\n"
             f"{joined}\n\nFix exactly these; do not reshuffle what passed.\n"
         )
+
     feedback_block = ""
+
     if feedback and feedback.strip():
         feedback_block = (
             "\n## The commander's feedback on your previous "
@@ -345,9 +394,12 @@ def build_intake_prompt(
             "to answer it; keep what the feedback does not "
             "touch.\n"
         )
+
     facts_block = ""
+
     if facts:
         facts_block = f"\n## Recent execution facts (read-only context)\n\n{facts}\n"
+
     return f"""# Draft task contracts
 
 You are drafting contracts for work, not doing the work. The workspace is
@@ -422,18 +474,22 @@ def run_intake(
     budget with the lint's refusals in the next prompt; green persists the
     drafts and the run goes ready — drafts awaiting adoption, dispatching
     nothing (D-20.1)."""
+
     tier = tier_for(config, task.tier)
     state_path = naming.state_file(root, task.id)
+
     if state_path.exists():
         # A re-queued run (D-20.6): the commander's revise put it back to
         # QUEUED with its feedback written; the history continues.
         state = RunState.load(state_path)
+
         if state.state is not TaskState.QUEUED:
             raise ValueError(
                 f"{task.id} is {state.state} — a drafting run resumes only from queued"
             )
     else:
         state = RunState(task_id=task.id, path=state_path)
+
     state.transition(TaskState.CLAIMED, "engine-minted at intake")
     state.save()
     from torve.application.feedback import feedback_file
@@ -445,6 +501,7 @@ def run_intake(
     lint_errors: list[str] = []
     unparseable = False
     document: DraftsDocument | None = None
+
     for _ in range(budget):
         state.transition(TaskState.RUNNING, f"drafting attempt {state.attempts + 1}")
         state.save()
@@ -467,6 +524,7 @@ def run_intake(
         handle = runtime.create(spec, worktree)
         state.sandbox_id = handle.id
         state.save()
+
         try:
             result = agent.run(
                 AgentContext(
@@ -486,17 +544,21 @@ def run_intake(
             state.save()
 
         document = parse_drafts(result.output)
+
         if document is None:
             unparseable = True
             state.transition(TaskState.GATED, "drafter output unparseable — recorded, not empty")
             state.save()
             continue
+
         unparseable = False
         lint_errors = lint_drafts(worktree, document, config.intake.max_drafts)
+
         if lint_errors:
             state.transition(TaskState.GATED, f"lint red: {len(lint_errors)} refusal(s)")
             state.save()
             continue
+
         fact = f"{len(document.drafts)} draft(s) lint-green"
         state.transition(TaskState.GATED, "drafts produced; lint green")
         state.transition(TaskState.REVIEWED, fact)
@@ -533,6 +595,7 @@ def run_intake(
             "intake_drafted",
             {"task": task.id, "drafts": len(document.drafts), "attempts": state.attempts},
         )
+
         return IntakeOutcome(
             task.id, fact, list(document.drafts), document.rationale, state.attempts
         )
@@ -555,6 +618,7 @@ def run_intake(
         attempts=state.attempts,
         unparseable=unparseable,
     )
+
     return IntakeOutcome(
         task.id, detail, attempts=state.attempts, lint_errors=lint_errors, unparseable=unparseable
     )
@@ -578,11 +642,14 @@ def _append_intake_record(
 ) -> None:
     """The drafting run's telemetry — same stream, its own kind, so
     drafting quality is a query (D-20.8's settling evidence)."""
+
     from torve.application.telemetry import append_record
 
     manifest = layout.gates_file(root)
+
     if not manifest.is_file():
         return
+
     from torve.config.manifest import load_manifest
 
     append_record(
@@ -617,22 +684,28 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
     """The planner's rows, not a second copy of them (D-20.9, A-47): grades
     and paths as they stand at adoption, from an accepted document only —
     the same admission torve plan enforces (D-7.7)."""
+
     from torve.application.planner import PlanError, inherit_decisions
     from torve.config import rfc_parse
 
     doc_path = (root / rfc).resolve()
+
     if not doc_path.is_file():
         raise ValueError(f"no document at {rfc}")
+
     text = doc_path.read_text(encoding="utf-8")
     frontmatter = rfc_parse.parse_frontmatter(text)
+
     if not frontmatter or frontmatter.get("status") != "accepted":
         raise ValueError(
             f"{rfc} is not accepted — a draft has no settled decisions to inherit (D-7.7)"
         )
+
     try:
         rows = inherit_decisions(text, doc_path.name)
     except PlanError as exc:
         raise ValueError(str(exc)) from exc
+
     return [row.model_dump() for row in rows]
 
 
@@ -652,18 +725,24 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     dispatch them like hand-minted work (D-20.7). Returns the new ids.
     `assume_lock` is for a caller already inside the tick — the board's
     adopt command applies under the lock the tick holds."""
+
     from torve.application.loop import acquire_lock, release_lock
     from torve.application.planner import next_task_number
 
     marker = adopted_file(root, task_id)
+
     if marker.is_file():
         prior = cast("dict[str, Any]", json.loads(marker.read_text(encoding="utf-8")))
         raise ValueError(f"{task_id} was already adopted as {', '.join(prior.get('adopted', []))}")
+
     source = drafts_file(root, task_id)
+
     if not source.is_file():
         raise ValueError(f"{task_id} holds no drafts — nothing to adopt")
+
     state_path = naming.state_file(root, task_id)
     state = RunState.load(state_path) if state_path.exists() else None
+
     if state is not None and state.state is not TaskState.READY:
         raise ValueError(f"adopt needs a ready drafting run; {task_id} is {state.state}")
     # An absent state with drafts present is adoptable: the drafts file
@@ -679,10 +758,12 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
         raise RuntimeError(
             "the engine lock is held — a tick is running; adoption retries when it releases"
         )
+
     try:
         start = next_task_number(root)
         ids = {d.ref: f"T-{start + i:04d}" for i, d in enumerate(drafts)}
         written: list[Path] = []
+
         for draft in drafts:
             new_id = ids[draft.ref]
             contract_dir = root / layout.TORVE_DIR / "tasks" / new_id
@@ -698,8 +779,10 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                 "decisions": decisions,
                 "tier": "executor",
             }
+
             if rfc:
                 document["rfc"] = rfc
+
             path = contract_dir / "contract.yaml"
             path.write_text(
                 f"# Adopted from {task_id}'s drafts (RFC 0020) — "
@@ -707,12 +790,14 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                 encoding="utf-8",
             )
             written.append(path)
+
         proc = subprocess.run(
             ["git", "-C", str(root), "add", "--"] + [str(p.relative_to(root)) for p in written],
             capture_output=True,
             text=True,
             check=False,
         )
+
         if proc.returncode == 0:
             proc = subprocess.run(
                 [
@@ -727,6 +812,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                 text=True,
                 check=False,
             )
+
         if proc.returncode != 0:
             raise RuntimeError(
                 "adoption commit failed: " + (proc.stderr.strip() or proc.stdout.strip())
@@ -734,6 +820,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     finally:
         if not assume_lock:  # a borrowed lock is the tick's to release
             release_lock(root)
+
     # Adoption is the disposal (D-20.10): the run's purpose is consumed,
     # so its state goes with it — nothing is left for a reaper to judge.
     # The marker survives as the audit line telling adopted from fresh.
@@ -752,6 +839,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     state_path.unlink(missing_ok=True)
     source.unlink()
     engine_event(root, "intake_adopted", {"task": task_id, "adopted": list(ids.values())})
+
     return list(ids.values())
 
 
@@ -798,8 +886,10 @@ def _title_for(root: Path, task_id: str) -> str:
 
 def _ledger_rows(root: Path) -> list[dict[str, Any]]:
     path = ledger_file(root)
+
     if not path.is_file():
         return []
+
     return [
         cast("dict[str, Any]", json.loads(line))
         for line in path.read_text(encoding="utf-8").splitlines()
@@ -819,6 +909,7 @@ def _drafts_comment(record: dict[str, Any], task_id: str) -> str:
         ),
         "",
     ]
+
     for draft in cast("list[dict[str, Any]]", record["drafts"]):
         scope = cast("dict[str, Any]", draft.get("scope", {}))
         lines += [
@@ -828,12 +919,17 @@ def _drafts_comment(record: dict[str, Any], task_id: str) -> str:
             f"- acceptance: `{'`; `'.join(cast('list[str]', draft.get('acceptance', [])))}`",
         ]
         deps = cast("list[str]", draft.get("depends_on", []))
+
         if deps:
             lines.append(f"- depends on: {', '.join(deps)}")
+
         lines.append("")
+
     if record.get("rationale"):
         lines += [str(record["rationale"]), ""]
+
     lines.append("authority: the run store; this comment is a projection")
+
     return "\n".join(lines)
 
 
@@ -846,17 +942,21 @@ def intake_leg(
     """Claim, run, project — each bounded to this tick. Authorization
     precedes claiming (D-20.5, D-8.9's list): a request from outside the
     commander list is left unclaimed and counted, never interpreted."""
+
     from torve.application.outbox import Effect, stage
 
     claimed = ran = staged = skipped = 0
+
     for request in deps.tracker.intake_requests():
         if request.author not in commanders:
             skipped += 1
             continue
+
         text = request.title + ("\n\n" + request.body if request.body else "")
         found = RFC_LINE.search(request.body or "")
         task = mint_intake_task(root, text, config, rfc=found.group(1) if found else None)
         deps.tracker.retitle(request.number, f"{task.id}: {request.title}")
+
         with ledger_file(root).open("a", encoding="utf-8") as handle:
             handle.write(
                 json.dumps(
@@ -868,6 +968,7 @@ def intake_leg(
                 )
                 + "\n"
             )
+
         engine_event(
             root,
             "intake_claimed",
@@ -877,6 +978,7 @@ def intake_leg(
 
     for row in _ledger_rows(root):
         task_id = str(row["task"])
+
         if adopted_file(root, task_id).is_file():
             # The consumed thread closes itself (T-0093): keyed, so the
             # sync leg delivers it exactly once.
@@ -893,23 +995,31 @@ def intake_leg(
                 ),
             ):
                 staged += 1
+
             continue
+
         state_path = naming.state_file(root, task_id)
         state = RunState.load(state_path) if state_path.exists() else None
         fresh = state is None and not drafts_file(root, task_id).is_file()
         queued = state is not None and state.state is TaskState.QUEUED
+
         if fresh or queued:
             contract = layout.task_file(root, task_id)
+
             if not contract.is_file():
                 continue
+
             from torve.gates.context import load_task
 
             task = load_task(contract)
             tip = deps.base_tip()
+
             if tip is None:
                 continue
+
             workdir = root / naming.WORKTREE_DIR / f"{task_id}.intake"
             deps.worktree_at(root, tip, workdir)
+
             try:
                 run_intake(
                     root,
@@ -922,8 +1032,10 @@ def intake_leg(
                 )
             finally:
                 deps.remove_worktree(root, workdir)
+
             ran += 1
             state = RunState.load(state_path) if state_path.exists() else None
+
         if (
             state is not None
             and state.state is TaskState.READY
@@ -932,6 +1044,7 @@ def intake_leg(
             record = cast(
                 "dict[str, Any]", json.loads(drafts_file(root, task_id).read_text(encoding="utf-8"))
             )
+
             if stage(
                 root,
                 Effect(
@@ -943,7 +1056,10 @@ def intake_leg(
                 staged += 1
 
     parts = [f"claimed {claimed}", f"ran {ran}", f"projected {staged}"]
+
     if skipped:
         parts.append(f"skipped {skipped} non-commander request(s)")
+
     moved = bool(claimed or ran or staged)
+
     return (", ".join(parts) if moved or skipped else "no intake activity", moved)

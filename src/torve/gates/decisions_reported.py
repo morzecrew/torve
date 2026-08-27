@@ -48,9 +48,11 @@ BYPASS_FIELDS = {"gate", "reason", "author", "commit", "at"}
 
 def _norm(value: object) -> str:
     """YAML types scalars (timestamps, ints); the checks read strings."""
+
     if isinstance(value, datetime):
         text = value.isoformat().replace("+00:00", "Z")
         return text if text.endswith("Z") else text + "Z"
+
     return "" if value is None else str(value)
 
 
@@ -60,14 +62,18 @@ def _norm(value: object) -> str:
 def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
     """(document, error). A log that does not parse is a red result, not a
     skipped one — the gate is fail-closed."""
+
     try:
         loaded = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         return None, f"log is not valid YAML: {exc}"
+
     if not isinstance(loaded, dict):
         return None, "log must be a mapping (schema_version, task, drift_count, entries)"
+
     document = cast(dict[str, Any], loaded)
     entries: Any = document.get("entries")
+
     if entries is None:
         fresh: list[Any] = []
         document["entries"] = fresh
@@ -75,6 +81,7 @@ def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
         not isinstance(e, dict) for e in cast(list[object], entries)
     ):
         return None, "'entries' must be a list of mappings"
+
     return document, None
 
 
@@ -84,15 +91,20 @@ def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
 def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
     where = f"entry {index + 1}"
     problems: list[str] = []
+
     for key in entry:
         if key not in REQUIRED and key not in OPTIONAL:
             problems.append(f"{where}: unknown field {key!r}")
+
     for key in REQUIRED:
         if not _norm(entry.get(key)).strip():
             problems.append(f"{where}: missing {key}")
+
     kind, klass = _norm(entry.get("kind")), _norm(entry.get("class"))
+
     if not kind and not klass:
         problems.append(f"{where}: neither 'kind' nor 'class' present")
+
     for key, vocabulary, value in (
         ("grade", GRADES, _norm(entry.get("grade"))),
         ("kind", KINDS, kind),
@@ -101,19 +113,26 @@ def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
     ):
         if value and value not in vocabulary:
             problems.append(f"{where}: {key} {value!r} is not one of {sorted(vocabulary)}")
+
     at = entry.get("at")
+
     if at is not None:
         if isinstance(at, datetime):
             offset = at.utcoffset()
+
             if offset is not None and offset.total_seconds() != 0:
                 problems.append(f"{where}: at must be UTC")
         elif not RFC3339.match(_norm(at)):
             problems.append(f"{where}: at {_norm(at)!r} is not a UTC RFC 3339 timestamp")
+
     attempt = entry.get("attempt")
+
     if attempt is not None and (not isinstance(attempt, int) or attempt < 1):
         problems.append(f"{where}: attempt {attempt!r} is not a positive integer")
+
     if _norm(entry.get("decision")) == "unlisted" and not _norm(entry.get("proposal")).strip():
         problems.append(f"{where}: decision is unlisted, which owes a proposal")
+
     return problems
 
 
@@ -123,16 +142,20 @@ def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
 def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
     grade, action = _norm(entry.get("grade")), _norm(entry.get("action"))
     kind = _norm(entry.get("kind"))
+
     if grade not in GRADES or action not in ACTIONS:
         return []  # already reported by the schema check
+
     if kind == "resolved":
         legal = {"decided", "departed"}  # a close-out attests, it does not contradict
     elif kind == "blocked":
         legal = {"halted"}
     else:
         legal = {LEGAL[grade]}
+
     if action in legal:
         return []
+
     return [
         f"entry {index + 1}: grade {grade}"
         + (f" with kind {kind}" if kind else "")
@@ -145,13 +168,17 @@ def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
 
 def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list[str]:
     evidence = _norm(entry.get("evidence")).strip()
+
     if not evidence:
         return []  # already reported by the schema check
+
     # One locator, two consumers (D-5.4): this check and the review findings
     # filter share the mechanism in gates/evidence.py.
     problem = locate(evidence, ctx.root)
+
     if problem is None:
         return []
+
     return [f"entry {index + 1}: {problem}"]
 
 
@@ -160,13 +187,18 @@ def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list
 
 def _check_drift(document: dict[str, Any]) -> list[str]:
     declared = document.get("drift_count")
+
     if declared is None:
         return []  # the declared claim's presence is self-audit's finding
+
     if not isinstance(declared, int) or declared < 0:
         return [f"drift_count {declared!r} is not a non-negative integer"]
+
     actual = sum(1 for e in document["entries"] if _norm(e.get("class")) == "drift")
+
     if declared != actual:
         return [f"declared drift count {declared} != {actual} entries classed drift"]
+
     return []
 
 
@@ -175,17 +207,23 @@ def _check_drift(document: dict[str, Any]) -> list[str]:
 
 def _check_bypasses(document: dict[str, Any]) -> list[str]:
     bypasses: Any = document.get("bypasses")
+
     if bypasses is None:
         return []
+
     if not isinstance(bypasses, list) or any(
         not isinstance(b, dict) for b in cast(list[object], bypasses)
     ):
         return ["'bypasses' must be a list of mappings"]
+
     problems: list[str] = []
+
     for index, record in enumerate(cast(list[dict[str, Any]], bypasses)):
         missing = BYPASS_FIELDS - set(record)
+
         if missing:
             problems.append(f"bypass {index + 1}: missing {', '.join(sorted(missing))}")
+
     return problems
 
 
@@ -197,20 +235,25 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
     skipped: list[str] = []
     logged = {_norm(e.get("decision")) for e in document["entries"]}
     assert ctx.task is not None
+
     for decision in ctx.task.decisions:
         if decision.grade != "LOCKED":
             continue
+
         if not decision.paths:
             skipped.append(f"{decision.id}: declares no paths, so its area is unknown")
             continue
+
         area = spec(decision.paths)
         hits = [p for p in ctx.changed_paths if area.match_file(p)]
+
         if hits and decision.id not in logged:
             shown = ", ".join(sorted(hits)[:3]) + ("…" if len(hits) > 3 else "")
             problems.append(
                 f"decision {decision.id}: LOCKED, and the diff touches {len(hits)} "
                 f"file(s) it governs ({shown}), with no entry in the log"
             )
+
     return problems, skipped
 
 
@@ -220,6 +263,7 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
 def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:
         return NO_TASK
+
     if ctx.log_text is None or not ctx.log_text.strip():
         # A missing log is an empty log (A-13, D-3.21) — the file is created
         # by writing, so only the silence check can convict its absence: a
@@ -232,13 +276,16 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             "entries": [],
         }
         silence_problems, _skipped = _check_silence(ctx, empty)
+
         if silence_problems:
             header = (
                 "no execution log — absence is an empty log, and the silence check still applies:"
             )
             return BuiltinOutcome("fail", "\n".join([header, *silence_problems]))
+
         if not ctx.task.decisions:
             return BuiltinOutcome("pass", "decisions: [] — none apply, explicitly")
+
         return BuiltinOutcome(
             "pass",
             f"no execution log — absence is an empty log; "
@@ -246,14 +293,17 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         )
 
     document, parse_error = parse_log(ctx.log_text)
+
     if document is None:
         return BuiltinOutcome("fail", parse_error or "log did not parse")
 
     problems: list[str] = []
+
     for index, entry in enumerate(document["entries"]):
         problems += _check_schema(index, entry)
         problems += _check_legality(index, entry)
         problems += _check_evidence(index, entry, ctx)
+
     problems += _check_drift(document)
     problems += _check_bypasses(document)
     silence_problems, skipped = _check_silence(ctx, document)
@@ -261,7 +311,9 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
     if problems:
         return BuiltinOutcome("fail", "\n".join(problems))
+
     count = len(document["entries"])
     lines = [f"{count} entr{'y' if count == 1 else 'ies'}, all checks green"]
     lines += [f"skipped: {s}" for s in skipped]
+
     return BuiltinOutcome("pass", "\n".join(lines))

@@ -70,11 +70,13 @@ def _sweep_worktrees(
 ) -> None:
     for task_id, _path in workspace.list_worktrees():
         state = by_task.get(task_id)
+
         if state is None or state.state in TERMINAL:
             # No state file at all is pure convention debris; terminal runs
             # left their commits on the task branch.
             if not dry_run:
                 workspace.remove(task_id)
+
             report.worktrees_removed.append(task_id)
 
 
@@ -91,21 +93,28 @@ def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> boo
     adoption, which disposes of the state itself — the lab's first live
     drafting run was swept one tick after going green, orphaning the
     adoption it awaited."""
+
     if state.state is not TaskState.READY:
         return False
+
     contract = layout.task_file(root, state.task_id)
+
     if not contract.is_file():
         return False
+
     try:
         from torve.gates.context import load_task
 
         role = load_task(contract).role
     except ValueError:
         return False
+
     if role == "draft":
         return True
+
     if role not in ("implement", "revert"):
         return False
+
     return landed is None or not landed(state.task_id)
 
 
@@ -122,16 +131,22 @@ def _sweep_states(
     """A terminal run's remaining footprint: state file and trace logs, named
     by convention (D-3.4) beside the worktree. Driven by the state files, not
     the worktree listing — the worktree may already be gone."""
+
     wt_dir = root / naming.WORKTREE_DIR
+
     for state in states:
         if state.state not in TERMINAL:
             continue
+
         if _lane_input(root, state, landed):
             continue
+
         if not dry_run:
             for trace in sorted(wt_dir.glob(f"{state.task_id}.a*.trace.log")):
                 trace.unlink()
+
             state.path.unlink(missing_ok=True)
+
         report.states_removed.append(state.task_id)
 
 
@@ -142,6 +157,7 @@ def _escalate_if_active(state: RunState, reason: EscalationReason, detail: str) 
     if state.state in ACTIVE:
         state.escalate(reason, detail)
         return True
+
     return False
 
 
@@ -162,12 +178,14 @@ def _heartbeat_reap(
 
     for state in states:
         stale = state.heartbeat_age_s() > config.reap.stale_after
+
         if state.state in ACTIVE and (stale or force):
             if not dry_run:
                 state.escalate(
                     EscalationReason.LEASE_EXPIRED,
                     f"heartbeat stale ({state.heartbeat_age_s():.0f}s) at reap",
                 )
+
             report.runs_expired.append(state.task_id)
 
     live_runs = {
@@ -176,20 +194,25 @@ def _heartbeat_reap(
         if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after
     }
     own = naming.root_key(root)
+
     for sandbox in runtime.list_torve_sandboxes():
         # The reap keeps to its root (D-3.25, A-38): another engine's
         # sandbox on the shared daemon is not ours to judge; an unlabelled
         # one is a pre-A-38 stray and stays reapable by anyone.
         owner = sandbox.labels.get(naming.LABEL_ROOT)
+
         if owner is not None and owner != own:
             continue
+
         if sandbox.labels.get(naming.LABEL_RUN) not in live_runs:
             if not dry_run:
                 runtime.destroy_by_id(sandbox.id)
+
             report.sandboxes_destroyed.append(sandbox.name)
 
     _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run)
     _sweep_states(root, states, report, dry_run, landed)
+
     return report
 
 
@@ -218,13 +241,16 @@ async def _durable_reap(
     # IS the mutation — so runs_expired stays empty and only the read-only
     # sandbox/worktree candidates are reported.
     expired = [] if dry_run else await taskstore.expire_abandoned()
+
     if force and not dry_run:
         expired += await taskstore.force_fail_running()
 
     reason = EscalationReason.KILLED if force else EscalationReason.LEASE_EXPIRED
+
     for record in expired:
         engine_run = (record.input_json or {}).get("engine_run_id", "")
         state = by_engine_run.get(str(engine_run))
+
         if state is not None and _escalate_if_active(
             state, reason, f"durable run {record.run_id[:8]} reclaimed at reap"
         ):
@@ -233,18 +259,23 @@ async def _durable_reap(
     live = await taskstore.live_records()
     live_engine_runs = {str((r.input_json or {}).get("engine_run_id", "")) for r in live}
     own = naming.root_key(root)
+
     for sandbox in runtime.list_torve_sandboxes():
         # D-3.25 (A-38): same root fence as the local-regime reap.
         owner = sandbox.labels.get(naming.LABEL_ROOT)
+
         if owner is not None and owner != own:
             continue
+
         if sandbox.labels.get(naming.LABEL_RUN) not in live_engine_runs:
             if not dry_run:
                 runtime.destroy_by_id(sandbox.id)
+
             report.sandboxes_destroyed.append(sandbox.name)
 
     _sweep_worktrees(workspace, by_task, report, dry_run)
     _sweep_states(root, states, report, dry_run, landed)
+
     return report
 
 
@@ -264,7 +295,9 @@ def reap(
     if config.store.adapter == "postgres":
         if store is None:
             raise RuntimeError("a postgres reap needs a store factory injected by the caller")
+
         return asyncio.run(
             _durable_reap(root, config, runtime, workspace, force, dry_run, store, landed)
         )
+
     return _heartbeat_reap(root, config, runtime, workspace, force, dry_run, landed)

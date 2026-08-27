@@ -70,6 +70,7 @@ def merge_cmd(
     """Land ready candidates one at a time: an unmoved base fast-forwards as
     measured; a moved base rebases and re-runs the gates first; a conflict
     is reported and left for a human — the lane never resolves one."""
+
     from torve.adapters.vcs.git import GhCi, GitLane
     from torve.application.lane import process_lane
     from torve.cli.options import load_config
@@ -77,6 +78,7 @@ def merge_cmd(
     root = root.resolve()
     config = load_config(root, config_path)
     ci = None
+
     if config.promotion.require_ci:
         if not config.scm.repo:
             raise fail(
@@ -84,7 +86,9 @@ def merge_cmd(
                 "scm.repo to name the remote whose ci is consulted",
                 EXIT_CONFIG,
             )
+
         ci = GhCi(config.scm.repo, config.scm.token_env)
+
     try:
         results = process_lane(
             root,
@@ -104,10 +108,12 @@ def merge_cmd(
     else:
         console = out(fmt)
         header(console, "merge", "dry run" if dry_run else "serialized lane")
+
         if not results:
             console.print("no ready candidates")
         else:
             table = make_table("", "task", "action", "detail", "sha")
+
             for result in results:
                 table.add_row(
                     mark(_MARKS.get(result.action, "skipped")),
@@ -123,6 +129,7 @@ def merge_cmd(
                     result.detail,
                     Text(result.sha[:10], STYLE_DIM),
                 )
+
             console.print(table)
             landed = sum(1 for r in results if r.landed)
             closing(
@@ -133,10 +140,12 @@ def merge_cmd(
 
     if any(r.action == "conflict" for r in results):
         raise typer.Exit(EXIT_ESCALATED)
+
     if any(
         r.action
         in ("gates red", "ci not green", "approvals short", "review missing", "quiet window")
         for r in results
     ):
         raise typer.Exit(EXIT_GATES_RED)
+
     raise typer.Exit(EXIT_OK)

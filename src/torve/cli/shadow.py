@@ -73,6 +73,7 @@ def shadow_cmd(
 ) -> None:
     """Replay a completed task from its parent commit in a truncated-history
     workspace, never merging, and record the comparison."""
+
     from functools import partial
 
     from torve.adapters.agent.fake import FakeAgent, load_scenario
@@ -93,15 +94,19 @@ def shadow_cmd(
 
     if agent_name not in (None, "fake"):
         raise fail(f"configuration error: unknown agent {agent_name!r}", EXIT_CONFIG)
+
     root = root.resolve()
     task_file = layout.task_file(root, task_id)
+
     if not task_file.is_file():
         raise fail(f"configuration error: no task contract at {task_file}", EXIT_CONFIG)
+
     task = load_task(task_file)
     config = load_config(root, config_path)
 
     try:
         tier = tier_for(config, task.tier)
+
         # Same dispatch-time routing as a live run (D-4.8): a shadow replay
         # sends the repository to the provider exactly like a live one.
         if agent_name is None:
@@ -110,6 +115,7 @@ def shadow_cmd(
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     agent: Agent
+
     if agent_name == "fake" or tier.adapter == "fake":
         agent = FakeAgent(load_scenario(scenario) if scenario else None)
     else:
@@ -117,6 +123,7 @@ def shadow_cmd(
 
         if scenario is not None:
             raise fail("configuration error: --scenario is FakeAgent-only", EXIT_CONFIG)
+
         agent = HarnessAgent(tier)
 
     deps = RunDeps(
@@ -156,19 +163,24 @@ def shadow_cmd(
                 STYLE_PASS if ready else STYLE_FAIL,
             )
         )
+
         if record["escalation"]:
             console.print(Text(f"  escalated: {record['escalation']}", STYLE_FAIL))
+
         cost = record["cost_usd_total"]
         console.print(
             f"  cost: {'$' + format(cost, '.2f') if cost is not None else 'unrecorded'}"
             f" · adapter {record['adapter']}"
         )
+
         for label in ("shadow_diff", "shipped_diff"):
             stat = record[label]
             console.print(
                 f"  {label.replace('_', ' ')}: {stat['files_changed']} file(s), "
                 f"+{stat['insertions']} -{stat['deletions']}"
             )
+
         console.print(f"  overlap: {', '.join(record['overlap_files']) or 'none'}")
         closing(console, "nothing merged", STYLE_DIM)
+
     raise typer.Exit(EXIT_OK)

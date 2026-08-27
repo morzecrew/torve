@@ -59,10 +59,13 @@ class RelayReport:
 def _rows(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
+
     rows: list[dict[str, Any]] = []
+
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             rows.append(cast("dict[str, Any]", json.loads(line)))
+
     return rows
 
 
@@ -71,6 +74,7 @@ def _rows(path: Path) -> list[dict[str, Any]]:
 
 def _append(path: Path, record: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -94,8 +98,10 @@ def delivered_keys(root: Path) -> set[str]:
 
 def stage(root: Path, effect: Effect) -> bool:
     """Stage one effect; a key already staged is a no-op (False)."""
+
     if effect.key in staged_keys(root):
         return False
+
     _append(
         root / layout.TORVE_DIR / OUTBOX,
         {
@@ -105,6 +111,7 @@ def stage(root: Path, effect: Effect) -> bool:
             "at": effect.at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         },
     )
+
     return True
 
 
@@ -132,24 +139,30 @@ def relay(root: Path, deliver: Callable[[Effect], None]) -> RelayReport:
     """Deliver every pending effect, marking the ledger only after the
     delivery returned — the crash window between the two is what makes this
     at-least-once instead of at-most-once."""
+
     report = RelayReport()
     done = delivered_keys(root)
+
     for row in _rows(root / layout.TORVE_DIR / OUTBOX):
         key = str(row["key"])
+
         if key in done:
             report.skipped.append(key)
             continue
+
         effect = Effect(
             key=key,
             kind=str(row["kind"]),
             payload=cast("dict[str, Any]", row.get("payload", {})),
             at=str(row.get("at", "")),
         )
+
         try:
             deliver(effect)
         except Exception as exc:  # one destination must not dam the queue
             report.failed[key] = str(exc)
             continue
+
         _append(
             root / layout.TORVE_DIR / LEDGER,
             {
@@ -159,4 +172,5 @@ def relay(root: Path, deliver: Callable[[Effect], None]) -> RelayReport:
         )
         done.add(key)
         report.delivered.append(key)
+
     return report

@@ -48,6 +48,7 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
     """Runner-minted at gated (D-5.11): the same contract shape with a
     different role (D-5.9), decisions inherited from the target, one
     iteration. The planner never mints these — review follows execution."""
+
     from torve.application.planner import next_task_number
 
     review = Task(
@@ -71,6 +72,7 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
         + yaml.safe_dump(document, sort_keys=False),
         encoding="utf-8",
     )
+
     return review
 
 
@@ -87,6 +89,7 @@ def build_review_prompt(
     calibration paragraph is deliberate — this reviewer sees a diff after
     green gates, where clean is the normal outcome; without permission to
     say so it manufactures work."""
+
     gates_summary = (
         "\n".join(f"- {r.name}: {r.outcome}" for r in gate_results) or "- (none recorded)"
     )
@@ -100,6 +103,7 @@ def build_review_prompt(
         else f"## The task under review\n\nintent:\n{target.intent}\n\n"
         f"inherited decisions:\n{decisions}"
     )
+
     return f"""# Review
 
 You are reviewing a change, not fixing it. The workspace is read-only.
@@ -161,18 +165,23 @@ def parse_findings(output: str) -> list[Finding] | None:
     unparseable, never invented as clean. Harness output is hostile ground:
     ANSI escapes are stripped and the document may span lines or be followed
     by session chatter, so balanced decoding wins over line splitting."""
+
     text = ANSI.sub("", output)
     decoder = json.JSONDecoder()
     last: object | None = None
+
     for brace in re.finditer(r"\{", text):
         try:
             document, _ = decoder.raw_decode(text, brace.start())
         except json.JSONDecodeError:
             continue
+
         if isinstance(document, dict) and "findings" in document:
             last = cast("dict[str, Any]", document)
+
     if last is None:
         return None
+
     try:
         return _FindingsDocument.model_validate(last).findings
     except ValidationError:
@@ -211,6 +220,7 @@ def run_review(
     """One review attempt over the target's worktree, mounted read-only.
     Produces the review's run state and telemetry record; the caller applies
     the consequence to the target."""
+
     tier = tier_for(config, review.tier)
     state = RunState(task_id=review.id, path=naming.state_file(root, review.id))
     state.transition(TaskState.CLAIMED, "runner-minted review")
@@ -230,6 +240,7 @@ def run_review(
     handle = runtime.create(spec, worktree)
     state.sandbox_id = handle.id
     state.save()
+
     try:
         result = agent.run(
             AgentContext(
@@ -252,8 +263,10 @@ def run_review(
     unparseable = findings is None
     kept: list[Finding] = []
     discarded: list[str] = []
+
     if findings is not None:
         kept, discarded = filter_findings(findings, worktree)
+
     blockers = [f for f in kept if f.severity == "blocker"]
 
     if unparseable:
@@ -289,6 +302,7 @@ def run_review(
     from torve.application.telemetry import append_record
 
     manifest = layout.gates_file(worktree)
+
     if manifest.is_file():
         from torve.config.manifest import load_manifest
 
@@ -298,6 +312,7 @@ def run_review(
     state.transition(TaskState.REVIEWED, fact)
     state.transition(TaskState.READY, fact)
     state.save()
+
     return ReviewOutcome(
         review_id=review.id,
         fact=fact,
@@ -333,13 +348,17 @@ class PrReviewOutcome:
 
 def _reviewed_heads(root: Path) -> set[tuple[int, str]]:
     path = root / layout.TORVE_DIR / PR_LEDGER
+
     if not path.is_file():
         return set()
+
     heads: set[tuple[int, str]] = set()
+
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             row = cast("dict[str, Any]", json.loads(line))
             heads.add((int(row["pr"]), str(row["head"])))
+
     return heads
 
 
@@ -350,16 +369,20 @@ def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome, degraded:
     """Composed from the review's records, never the reviewer's prose —
     and posted by the runner: the reviewer holds no forge credential
     (D-5.2)."""
+
     lines = [f"torve review — {review_id} · head {head_sha[:12]} · {outcome.fact}"]
+
     if degraded:
         lines.append(
             "reviewed without a task contract — degraded input: no "
             "scope, no inherited decisions; spec-drift findings "
             "unavailable (D-5.8)"
         )
+
     ordered = outcome.blockers + [f for f in outcome.kept if f.severity != "blocker"]
     lines.extend(f"- [{f.severity}] {f.claim} ({f.evidence})" for f in ordered)
     lines += ["", "authority: the run store; this comment is a projection"]
+
     return "\n".join(lines)
 
 
@@ -383,27 +406,36 @@ def review_pull_request(
     task-informed input (D-5.8) and the findings posted back as one
     marker-deduped comment. Task state is never mutated here — blockers on
     a task-gated run escalate on that path; this one reports."""
+
     info = scm.pr_info(number)
+
     if info.state != "open":
         return PrReviewOutcome("skipped", f"pull request is {info.state or 'unknown'}")
+
     if info.draft:
         return PrReviewOutcome("skipped", "draft")
+
     if info.changed_files == 0:
         return PrReviewOutcome("skipped", "no changed files")
+
     if info.author in config.review.skip_authors:
         return PrReviewOutcome("skipped", f"author {info.author} is skipped by configuration")
+
     if (number, info.head_sha) in _reviewed_heads(root):
         return PrReviewOutcome("already reviewed", f"head {info.head_sha[:12]}")
 
     base_sha, head_sha = vcs.fetch_pr(root, number, info.base_ref, token)
     degraded, target = True, None
+
     for task_id in vcs.task_trailers(root, base_sha, head_sha):
         contract = layout.task_file(root, task_id)
+
         if contract.is_file():
             from torve.gates.context import load_task
 
             degraded, target = False, load_task(contract)
             break
+
     if target is None:
         target = Task(
             id=f"PR-{number}",
@@ -411,6 +443,7 @@ def review_pull_request(
             intent=f"Pull request #{number}: {info.title}",
             decisions=[],
         )
+
     review = mint_review_task(
         root,
         target,
@@ -423,6 +456,7 @@ def review_pull_request(
 
     workdir = root / naming.WORKTREE_DIR / f"{review.id}.pr"
     vcs.worktree_at(root, head_sha, workdir)
+
     try:
         diff_text = vcs.diff(root, base_sha, head_sha)
         from torve.application.telemetry import config_hash, engine_event
@@ -450,6 +484,7 @@ def review_pull_request(
         f"review:{number}:{head_sha[:12]}",
     )
     ledger = root / layout.TORVE_DIR / PR_LEDGER
+
     with ledger.open("a", encoding="utf-8") as handle:
         handle.write(
             json.dumps(
@@ -462,6 +497,7 @@ def review_pull_request(
             )
             + "\n"
         )
+
     engine_event(
         root,
         "pr_review",
@@ -474,6 +510,7 @@ def review_pull_request(
             "degraded": degraded,
         },
     )
+
     return PrReviewOutcome(
         "reviewed", outcome.fact, review.id, len(outcome.kept), len(outcome.blockers), url
     )

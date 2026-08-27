@@ -55,6 +55,7 @@ FormatOption = Annotated[
 def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
     """Configuration errors exit 3: a bad file is the operator's to
     fix, distinct from red gates (1) and infrastructure failure (4)."""
+
     from torve.config.runconfig import load_runner_config
 
     try:
@@ -71,11 +72,14 @@ def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:
     from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
 
     adapter = override.value if override else config.runtime.adapter
+
     if adapter == "docker":
         return DockerRuntime(network=config.runtime.network, docker_mode=config.runtime.docker)
+
     if adapter == "opensandbox":
         try:
             return OpenSandboxRuntime(config.runtime.opensandbox, docker_mode=config.runtime.docker)
         except ValueError as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
     raise fail(f"configuration error: unknown runtime adapter {adapter!r}", EXIT_CONFIG)

@@ -125,11 +125,14 @@ class TaskStore:
 
         The claim advances the fence, so the dead worker's late writes are
         no-ops; the reclaimed record's fence lands the failure."""
+
         claimed = await self.store.claim_abandoned(limit=limit, lease_for=timedelta(seconds=1))
+
         for record in claimed:
             await self.store.fail(
                 record.run_id, error="lease_expired: reclaimed at reap", fence=record.attempts
             )
+
         return list(claimed)
 
     # ....................... #
@@ -137,6 +140,7 @@ class TaskStore:
     async def live_records(self) -> list[DurableRunRecord]:
         admin = resolve_durable_run_admin(self.ctx)
         page = await admin.list_runs(status=DurableRunStatus.RUNNING, limit=200)
+
         return list(page.records)
 
     # ....................... #
@@ -145,7 +149,10 @@ class TaskStore:
         """Operator override for `torve reap --force`: unfenced terminal
         writes over every RUNNING record — the one deliberate use of an
         unfenced write, and it exists so a stuck system is always drainable."""
+
         records = await self.live_records()
+
         for record in records:
             await self.store.fail(record.run_id, error="forced reap by operator")
+
         return records

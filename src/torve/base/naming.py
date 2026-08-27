@@ -35,6 +35,7 @@ def worktree(root: Path, task_id: str) -> Path:
 def state_file(root: Path, task_id: str) -> Path:
     """Beside the worktree, not inside it — removing the worktree must not
     destroy the record of what happened to the task."""
+
     return root / WORKTREE_DIR / f"{task_id}.state.json"
 
 
@@ -44,6 +45,7 @@ def state_file(root: Path, task_id: str) -> Path:
 def trace_file(worktree: Path, attempt: int) -> Path:
     """Session trace, one per attempt (RFC 0004 §4) — beside the worktree for
     the same reason as the state file: triage outlives the workspace."""
+
     return worktree.parent / f"{worktree.name}.a{attempt}.trace.log"
 
 
@@ -62,6 +64,7 @@ def root_key(root: Path) -> str:
     stable digest of the resolved path — two engines on one machine, or
     two checkouts of one repository, never mistake each other's
     sandboxes for their own."""
+
     return hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:12]
 
 
@@ -86,4 +89,5 @@ def shadow_id(task_id: str) -> str:
     """The synthetic id shadow infrastructure derives from (RFC 0004 §5):
     worktree, state file and sandbox names all key on it, so a shadow run
     coexists with a live run of the same task and the reaper sweeps both."""
+
     return f"shadow-{task_id}"

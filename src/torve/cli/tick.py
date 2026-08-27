@@ -40,6 +40,7 @@ def tick_cmd(
     """One pass of the standing loop: reap, poll the board, dispatch at
     most one queued task, process the lane if auto-merge is on, sync the
     board. Exits when the pass is done; schedule it for cadence."""
+
     from torve.adapters.vcs.git import GhCi, GhScm, GitLane, GitVcs, NullScm
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.loop import TickDeps, run_tick
@@ -50,6 +51,7 @@ def tick_cmd(
     workspace = GitWorkspace(root)
 
     ci = None
+
     if config.promotion.require_ci:
         if not config.scm.repo:
             raise fail(
@@ -57,6 +59,7 @@ def tick_cmd(
                 "scm.repo to name the remote whose verdict counts",
                 EXIT_CONFIG,
             )
+
         ci = GhCi(config.scm.repo, config.scm.token_env)
 
     def reap_leg() -> tuple[str, bool]:
@@ -80,6 +83,7 @@ def tick_cmd(
             + len(report.runs_expired)
             + len(report.states_removed)
         )
+
         return (f"swept {swept} artefact(s)" if swept else "nothing to sweep", swept > 0)
 
     def _capture_for_revision(task_id: str) -> str:
@@ -89,13 +93,17 @@ def tick_cmd(
         D-5.12), and the branch persists — the next attempt supersedes it
         under lease (D-10.10), so its pull request stays the task's one
         thread of review."""
+
         from torve.application.feedback import capture_feedback
         from torve.base import naming
 
         branch = naming.branch(task_id)
+
         if not (config.review.feedback_from and config.scm.repo):
             return "branch kept; revision loop off"
+
         scm = GhScm(config.scm.repo, config.scm.token_env)
+
         try:
             threads = scm.review_threads(branch, tuple(config.review.feedback_from))
             diff = (
@@ -106,11 +114,13 @@ def tick_cmd(
             captured = capture_feedback(root, task_id, diff, threads)
         except RuntimeError as exc:
             return f"branch kept; feedback capture failed: {exc}"
+
         return "branch kept; feedback captured" if captured else "branch kept; nothing to capture"
 
     poll_leg: Leg | None = None
     sync_leg: Leg | None = None
     intake_leg_fn: Leg | None = None
+
     if config.tracker.kind == "github-issues" and config.tracker.repo:
         from torve.adapters.tracker.github import GithubIssues
         from torve.application.tracker import (
@@ -140,10 +150,13 @@ def tick_cmd(
             body = _re.sub(r"^/torve\s+[a-z]+\s*$", "", text, flags=_re.MULTILINE).strip()
             target = feedback_file(root, task_id)
             target.parent.mkdir(parents=True, exist_ok=True)
+
             if body:
                 target.write_text(body + "\n", encoding="utf-8")
                 return "thread feedback captured"
+
             target.unlink(missing_ok=True)
+
             return "no feedback text — the drafter re-runs on the request"
 
         def _intake() -> tuple[str, bool]:
@@ -163,6 +176,7 @@ def tick_cmd(
                 base_tip=lambda: GitLane().tip(root, resolve_base(root, config.base) or "HEAD"),
                 config_digest=config_hash(layout.gates_file(root), root, config),
             )
+
             return intake_leg(root, config, deps, tuple(config.tracker.commanders))
 
         intake_leg_fn = _intake
@@ -177,9 +191,12 @@ def tick_cmd(
                 _adopt_drafts,
                 _draft_feedback,
             )
+
             if not report.outcomes:
                 return ("no commands on the board", False)
+
             applied = sum(o.applied for o in report.outcomes)
+
             return (f"{applied} applied of {len(report.outcomes)} command(s)", applied > 0)
 
         def _sync() -> tuple[str, bool]:
@@ -188,6 +205,7 @@ def tick_cmd(
             staged = project(root, config.tracker.notify)
             staged += project_landings(root, lambda t: bool(vcs.landed_shas(root, t)))
             report = relay_to_tracker(root, board)
+
             return (f"staged {staged}, delivered {len(report.delivered)}", bool(report.delivered))
 
         poll_leg, sync_leg = _poll, _sync
@@ -228,11 +246,13 @@ def tick_cmd(
             else config.model_copy(update={"worker_slot": config.worker_slot + slot_offset})
         )
         state = run_task(root, task, run_config, deps)
+
         return f"{task_id}: {state.state} after {state.attempts} attempt(s)"
 
     def dispatch_leg(task_ids: list[str]) -> tuple[str, bool]:
         if len(task_ids) == 1:
             return (_dispatch_one(task_ids[0], 0), True)
+
         # D-19.14 (A-39): a scope-disjoint batch runs concurrently — the
         # loop admitted only what provably cannot collide, and the store's
         # per-task claims (D-6.9) stay the mutual-exclusion backstop.
@@ -243,14 +263,17 @@ def tick_cmd(
                 pool.submit(_dispatch_one, task_id, index) for index, task_id in enumerate(task_ids)
             ]
             outcomes: list[str] = []
+
             for task_id, future in zip(task_ids, futures, strict=True):
                 try:
                     outcomes.append(future.result())
                 except Exception as exc:  # one member's failure is its own
                     outcomes.append(f"{task_id}: error: {exc}")
+
         return ("; ".join(outcomes), True)
 
     lane_leg: Leg | None = None
+
     if config.promotion.auto_merge:
         from torve.application.lane import process_lane
 
@@ -268,8 +291,10 @@ def tick_cmd(
                 # manual lane never does.
                 on_conflict=_capture_for_revision,
             )
+
             if not results:
                 return ("no ready candidates", False)
+
             if config.tracker.kind == "github-issues" and config.tracker.repo:
                 from torve.application.tracker import project_approval_gap
 
@@ -278,8 +303,10 @@ def tick_cmd(
                 for r in results:
                     if r.action == "approvals short" and r.sha:
                         project_approval_gap(root, r.task, r.sha, config.promotion.approvals)
+
             landed = sum(1 for r in results if r.action == "landed")
             detail = f"landed {landed} of {len(results)} candidate(s)"
+
             if landed:
                 # D-19.9 (A-28): the loop publishes what it lands —
                 # fast-forward only for the base, no force path; a refusal
@@ -295,6 +322,7 @@ def tick_cmd(
                 # merge of every landed pull request; a refused lease falls
                 # through to the close-out below.
                 republished = 0
+
                 for r in results:
                     if r.action == "landed" and r.detail.startswith("rebased"):
                         try:
@@ -302,10 +330,13 @@ def tick_cmd(
                                 republished += 1
                         except RuntimeError:
                             pass
+
                 pushed = vcs.push(root, base, token)
                 detail += "; base pushed" if pushed else "; no origin to push"
+
                 if republished:
                     detail += f"; {republished} branch(es) republished"
+
                 if pushed and config.scm.open_pr and config.scm.repo:
                     # D-19.13: the forge gets a short grace to mark the
                     # landing merged; a still-open PR closes with the note
@@ -315,9 +346,11 @@ def tick_cmd(
 
                     scm = GhScm(config.scm.repo, config.scm.token_env)
                     outcomes: dict[str, int] = {}
+
                     for r in results:
                         if r.action != "landed":
                             continue
+
                         note = (
                             f"landed on {base} as {r.sha[:10]} by "
                             "fast-forward — this pull request was a "
@@ -325,15 +358,20 @@ def tick_cmd(
                             "it lives on the task's issue"
                         )
                         branch_name = naming.branch(r.task)
+
                         try:
                             word = scm.retire_pr(branch_name, note)
+
                             if word != "closed":
                                 vcs.delete_remote_branch(root, branch_name, token)
                         except RuntimeError:
                             word = "refused"
+
                         outcomes[word] = outcomes.get(word, 0) + 1
+
                     for word in sorted(outcomes):
                         detail += f"; {outcomes[word]} pr(s) {word}"
+
                     # D-5.14 (A-41): the landing answers the review threads
                     # its revision consumed — one reply per captured root,
                     # from records; the forge's cosmetics never fail the leg.
@@ -342,12 +380,16 @@ def tick_cmd(
                     from torve.application.feedback import threads_file
 
                     answered = 0
+
                     for r in results:
                         if r.action != "landed":
                             continue
+
                         pending = threads_file(root, r.task)
+
                         if not pending.is_file():
                             continue
+
                         try:
                             records = _json.loads(pending.read_text(encoding="utf-8"))
                             reply = (
@@ -361,8 +403,10 @@ def tick_cmd(
                             answered += done
                         except (RuntimeError, ValueError):
                             continue  # the file stays; the next tick retries
+
                     if answered:
                         detail += f"; {answered} review thread(s) answered"
+
             return (detail, landed > 0)
 
         lane_leg = _lane
@@ -397,12 +441,15 @@ def tick_cmd(
         console = out(fmt)
         header(console, "tick", "one bounded pass")
         table = make_table("leg", "outcome")
+
         for name, detail in report.legs:
             table.add_row(name, detail)
+
         console.print(table)
         closing(
             console,
             "noop — nothing moved" if report.noop else "work done",
             STYLE_DIM if report.noop else "",
         )
+
     raise typer.Exit(EXIT_OK)

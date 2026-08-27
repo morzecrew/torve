@@ -39,6 +39,7 @@ def feedback_file(root: Path, task_id: str) -> Path:
 def threads_file(root: Path, task_id: str) -> Path:
     """The captured threads' reply addresses (D-5.14, A-41): pending
     until the landing that consumed the record answers them."""
+
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_THREADS
 
 
@@ -49,6 +50,7 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
     """One markdown record: threads first (the critique is the point),
     the superseded diff after. Threads arrive already allow-listed by
     the adapter; each is {path, line, comments: [{author, body}]}."""
+
     lines = [
         f"# Revision feedback for {task_id}",
         "",
@@ -59,13 +61,17 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
         "## Review threads",
         "",
     ]
+
     if not threads:
         lines.append("- none captured.")
+
     for thread in threads:
         anchor = f"{thread.get('path', '?')}:{thread.get('line') or '-'}"
         lines += [f"### {anchor}", ""]
+
         for comment in thread.get("comments", []):
             lines += [f"**{comment.get('author', 'unknown')}:**", str(comment.get("body", "")), ""]
+
     lines += [
         "## The superseded candidate's diff",
         "",
@@ -75,9 +81,11 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
         "",
     ]
     text = "\n".join(lines)
+
     if len(text.encode("utf-8")) > FEEDBACK_CAP:
         clipped = text.encode("utf-8")[:FEEDBACK_CAP].decode("utf-8", "ignore")
         text = clipped + "\n\n> truncated at the size cap — the pull request holds the rest\n"
+
     return text
 
 
@@ -93,12 +101,15 @@ def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str
     must not have the next landing answer threads it never addressed.
     Captured threads also leave their reply addresses (D-5.14, A-41) so
     the landing that consumes this record can answer them."""
+
     path = feedback_file(root, task_id)
     addresses_path = threads_file(root, task_id)
     path.unlink(missing_ok=True)
     addresses_path.unlink(missing_ok=True)
+
     if not threads and not diff.strip():
         return False
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_feedback(task_id, diff, threads), encoding="utf-8")
     addresses = [
@@ -106,6 +117,8 @@ def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str
         for t in threads
         if t.get("id") and t.get("pr")
     ]
+
     if addresses:
         addresses_path.write_text(json.dumps(addresses, ensure_ascii=False), encoding="utf-8")
+
     return True

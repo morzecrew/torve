@@ -29,7 +29,9 @@ ExecuteOnce = Callable[[str, float], tuple[int | None, str]]
 def truncate(text: str) -> str:
     if len(text) <= OUTPUT_LIMIT:
         return text
+
     head, tail = text[:2000], text[-(OUTPUT_LIMIT - 2000) :]
+
     return f"{head}\n… truncated …\n{tail}"
 
 
@@ -62,6 +64,7 @@ def host_executor(cwd: Path) -> ExecuteOnce:
             )
         except subprocess.TimeoutExpired:
             return None, f"timed out after {timeout:.0f}s"
+
         return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
     return execute
@@ -81,14 +84,17 @@ def run_command(
     started = time.monotonic()
     code, output = execute(command, timeout)
     flaky = False
+
     if code not in (0, None) and retry_flaky:
         second_code, second_output = execute(command, timeout)
+
         if second_code == 0:
             flaky = True
             code = 0
             output += "\n--- immediate re-run passed: flaky ---\n" + second_output
         else:
             output += "\n--- immediate re-run also failed ---\n" + second_output
+
     return CommandResult(
         command=command,
         exit_code=code,

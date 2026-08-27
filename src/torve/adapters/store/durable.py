@@ -22,11 +22,13 @@ from torve.config.runconfig import StoreConfig
 
 def resolve_dsn(config: StoreConfig) -> str:
     dsn = os.environ.get(config.dsn_env, "")
+
     if not dsn:
         raise RuntimeError(
             f"store.adapter is 'postgres' but ${config.dsn_env} is not set — "
             "the DSN is named by environment variable, never committed (D-4b)"
         )
+
     return dsn
 
 
@@ -51,6 +53,7 @@ async def open_postgres_store(config: StoreConfig) -> DurableRunStorePort:
         client=client,
         config=PostgresDurableRunConfig(relation=(config.schema_name, config.run_relation)),
     )
+
     return store
 
 
@@ -60,6 +63,8 @@ async def open_postgres_store(config: StoreConfig) -> DurableRunStorePort:
 async def open_store(config: StoreConfig) -> DurableRunStorePort:
     if config.adapter == "mock":
         return open_mock_store()
+
     if config.adapter == "postgres":
         return await open_postgres_store(config)
+
     raise RuntimeError(f"unknown store adapter {config.adapter!r}")

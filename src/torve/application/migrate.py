@@ -35,11 +35,15 @@ class MigrateError(RuntimeError):
 
 def migrations_root() -> Path:
     packaged = Path(str(resources.files("torve"))) / "_migrations"
+
     if packaged.is_dir():
         return packaged
+
     development = Path(__file__).resolve().parents[3] / "migrations"
+
     if development.is_dir():
         return development
+
     raise MigrateError("torve ships no migrations data — broken installation")
 
 
@@ -49,9 +53,12 @@ def migrations_root() -> Path:
 def steps_for(target: str, engine: str = "postgres") -> list[Path]:
     if target not in TARGETS:
         raise MigrateError(f"unknown target {target!r}; one of {', '.join(TARGETS)}")
+
     directory = migrations_root() / target / engine
+
     if not directory.is_dir():
         return []
+
     return sorted(directory.glob("*.sql"))
 
 
@@ -69,12 +76,15 @@ def check_forze_pin() -> tuple[bool, str]:
     """(ok, message). The pin is the schema regime the substrate migrations
     were written against; a mismatch is a migration task, not a warning
     (D-12.7)."""
+
     import importlib.metadata
 
     pin = forze_pin()
     installed = importlib.metadata.version("forze")
+
     if pin == installed:
         return True, f"forze {installed} matches the substrate pin"
+
     return False, (
         f"installed forze {installed} != substrate pin {pin} — a forze upgrade that "
         "changes a substrate schema is a migration task in Torve, not a silent install; "
@@ -93,6 +103,7 @@ def _yoyo() -> tuple[Any, Any]:
             "yoyo-migrations is not installed — install the extra: pip install 'torve[migrate]'",
             exit_code=MISSING_EXTRA_EXIT,
         ) from exc
+
     return yoyo.get_backend, yoyo.read_migrations
 
 
@@ -102,8 +113,10 @@ def _yoyo() -> tuple[Any, Any]:
 def _yoyo_dsn(dsn: str) -> str:
     """yoyo routes bare postgresql:// through psycopg2; torve ships psycopg 3
     (via forze[postgres]), which yoyo addresses as postgresql+psycopg://."""
+
     if dsn.startswith("postgresql://"):
         return "postgresql+psycopg://" + dsn.removeprefix("postgresql://")
+
     return dsn
 
 
@@ -113,15 +126,20 @@ def _yoyo_dsn(dsn: str) -> str:
 def apply(target: str, dsn: str) -> int:
     """Apply the target's pending steps; return how many were applied.
     Forward-only by construction (D-12.4): no rollback path exists here."""
+
     steps = steps_for(target)
+
     if not steps:
         return 0
+
     get_backend, read_migrations = _yoyo()
     backend = get_backend(_yoyo_dsn(dsn), migration_table=f"_torve_migrations_{target}")
     migrations = read_migrations(str(steps[0].parent))
+
     with backend.lock():
         pending = backend.to_apply(migrations)
         backend.apply_migrations(pending)
+
         return len(pending)
 
 
@@ -132,12 +150,16 @@ def pending_count(target: str, dsn: str) -> int:
     """How many of the target's steps a reachable database still lacks —
     the currency question `torve doctor` and `migrate --status` share
     (D-12.7's spirit: a schema mismatch is a check, not a symptom)."""
+
     steps = steps_for(target)
+
     if not steps:
         return 0
+
     get_backend, read_migrations = _yoyo()
     backend = get_backend(_yoyo_dsn(dsn), migration_table=f"_torve_migrations_{target}")
     migrations = read_migrations(str(steps[0].parent))
+
     return len(backend.to_apply(migrations))
 
 
@@ -147,20 +169,28 @@ def pending_count(target: str, dsn: str) -> int:
 def status(dsn: str | None) -> list[str]:
     """One line per target: available steps, applied count where a database
     is reachable — the first question during a forze upgrade (§5)."""
+
     lines: list[str] = []
+
     for target in TARGETS:
         steps = steps_for(target)
+
         if not steps:
             lines.append(f"{target:<10} no migrations yet")
             continue
+
         applied = "database not configured"
+
         if dsn:
             try:
                 pending = pending_count(target, dsn)
                 applied = f"{len(steps) - pending}/{len(steps)} applied"
             except MigrateError:
                 applied = "yoyo not installed"
+
         lines.append(f"{target:<10} {len(steps)} step(s), {applied}")
+
     ok, message = check_forze_pin()
     lines.append(("" if ok else "MISMATCH  ") + message)
+
     return lines

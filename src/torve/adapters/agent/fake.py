@@ -74,8 +74,10 @@ sys.exit(step.get("exit", 0))
 def load_scenario(path: Path) -> list[dict[str, Any]]:
     raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
     steps: Any = cast(dict[str, Any], raw).get("attempts") if isinstance(raw, dict) else raw
+
     if not isinstance(steps, list) or not steps:
         raise ValueError(f"{path}: scenario must carry a non-empty 'attempts' list")
+
     return cast(list[dict[str, Any]], steps)
 
 
@@ -111,4 +113,5 @@ class FakeAgent:
         result = ctx.runtime.exec(
             ctx.handle, f"python {ctx.workdir}/.torve/tmp/fake_agent.py", ctx.timeout_s
         )
+
         return AgentResult(exit_code=result.exit_code, output=result.output)

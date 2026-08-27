@@ -43,15 +43,18 @@ def build_tier_agent(config: RunnerConfig, root: Path, tier_name: str) -> Agent:
     """A named tier's agent, provider-routed before a sandbox exists —
     shared by the run loop's review hook, the regression corpus, and the
     drafting run."""
+
     from torve.adapters.vcs.git import repository_name
     from torve.config.runconfig import route_provider, tier_for
 
     tier = tier_for(config, tier_name)
     route_provider(config.providers, repository_name(root), tier.provider)
+
     if tier.adapter == "fake":
         from torve.adapters.agent.fake import FakeAgent
 
         return FakeAgent(None)
+
     from torve.adapters.agent.harness import HarnessAgent
 
     return HarnessAgent(tier)
@@ -92,6 +95,7 @@ def run_cmd(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Run one task synchronously; the exit code carries the outcome."""
+
     from torve.adapters.agent.fake import FakeAgent, load_scenario
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GhScm, GitVcs, NullScm, repository_name
@@ -101,15 +105,19 @@ def run_cmd(
 
     if agent_name not in (None, "fake"):
         raise fail(f"configuration error: unknown agent {agent_name!r}", EXIT_CONFIG)
+
     root = root.resolve()
     task_file = layout.task_file(root, task_id)
+
     if not task_file.is_file():
         raise fail(f"configuration error: no task contract at {task_file}", EXIT_CONFIG)
+
     task = load_task(task_file)
     config = load_config(root, config_path)
 
     try:
         tier = tier_for(config, task.tier)
+
         # Provider routing is enforced here — at dispatch, before a sandbox
         # exists (D-4.8). A repository with no permitted provider for its
         # tier is a configuration error, never a quiet fallback. The --agent
@@ -120,6 +128,7 @@ def run_cmd(
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     agent: Agent
+
     if agent_name == "fake" or tier.adapter == "fake":
         agent = FakeAgent(load_scenario(scenario) if scenario else None)
     else:
@@ -127,9 +136,11 @@ def run_cmd(
 
         if scenario is not None:
             raise fail("configuration error: --scenario is FakeAgent-only", EXIT_CONFIG)
+
         agent = HarnessAgent(tier)
 
     review_agent: Agent | None = None
+
     if "task_gated" in config.review.on:
         try:
             review_agent = build_reviewer_agent(config, root)
@@ -160,16 +171,20 @@ def run_cmd(
     else:
         console = out(fmt)
         console.print(f"{task.id}: {state.state} after {state.attempts} attempt(s)")
+
         if state.escalation is not None:
             console.print(f"  escalated: {state.escalation.reason} — {state.escalation.detail}")
+
         for event in state.history[-4:]:
             console.print(f"  {event['from']} -> {event['to']}: {event['fact']}")
 
     if state.state is TaskState.READY:
         raise typer.Exit(EXIT_OK)
+
     if state.escalation is not None:
         reason = EscalationReason(state.escalation.reason)
         raise typer.Exit(EXIT_BY_REASON[reason])
+
     raise typer.Exit(EXIT_GATES_RED)
 
 
@@ -185,6 +200,7 @@ def kill(
 ) -> None:
     """Force-terminate a run: sandbox destroyed, state escalated as killed.
     The operator override for a run that ignores the cooperative ask."""
+
     from torve.application.runstate import RunState
     from torve.application.telemetry import engine_event
     from torve.base import naming
@@ -192,9 +208,12 @@ def kill(
 
     root = root.resolve()
     state_path = naming.state_file(root, task_id)
+
     if not state_path.exists():
         raise fail(f"configuration error: no run state for {task_id}", EXIT_CONFIG)
+
     state = RunState.load(state_path)
+
     if state.state in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
         raise fail(
             f"configuration error: {task_id} is already {state.state} — nothing to kill",
@@ -203,12 +222,14 @@ def kill(
 
     config = load_config(root, config_path)
     destroyed = ""
+
     if state.sandbox_id:
         try:
             runtime_for(config, runtime_name).destroy_by_id(state.sandbox_id)
             destroyed = state.sandbox_id
         except Exception as exc:  # the kill proceeds; the sandbox is reported
             destroyed = f"destroy failed: {exc}"
+
     state.sandbox_id = None
     state.escalate(EscalationReason.KILLED, "operator kill")
     engine_event(root, "killed", {"task": task_id, "sandbox": destroyed or None})
@@ -223,8 +244,10 @@ def kill(
             }
         )
         return
+
     console = out(fmt)
     console.print(f"{task_id}: killed — escalated for triage")
+
     if destroyed:
         console.print(f"  sandbox: {destroyed}")
 
@@ -240,6 +263,7 @@ def cancel(
 ) -> None:
     """Ask a running task to stop — cooperative on the ask, fenced on the
     landing. Fails closed when the store backend cannot deliver a cancel."""
+
     import asyncio
 
     from torve.adapters.store.durable import open_store
@@ -249,10 +273,13 @@ def cancel(
 
     root = root.resolve()
     state_path = naming.state_file(root, task_id)
+
     if not state_path.exists():
         raise fail(f"configuration error: no run state for {task_id}", EXIT_CONFIG)
+
     state = RunState.load(state_path)
     run_id = state.durable_run_id
+
     if not run_id:
         raise fail(f"configuration error: {task_id} has no durable run to cancel", EXIT_CONFIG)
 
@@ -266,6 +293,7 @@ def cancel(
         recorded = asyncio.run(_cancel())
     except Exception as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
+
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "task_id": task_id, "recorded": recorded})
     else:

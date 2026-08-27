@@ -40,19 +40,25 @@ def status(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Run states from the .wt/ state files."""
+
     from torve.application.runstate import RunState
     from torve.base import naming
 
     states = RunState.load_all(root.resolve() / naming.WORKTREE_DIR)
+
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "runs": [s.to_record() for s in states]})
         return
+
     console = out(fmt)
+
     if not states:
         console.print("no runs")
         return
+
     header(console, "status", f"{len(states)} run(s)")
     table = make_table("task", "state", "attempts", "heartbeat", "escalation")
+
     for state in states:
         terminal_ready = str(state.state) == "ready"
         escalated = str(state.state) == "escalated"
@@ -69,6 +75,7 @@ def status(
                 else ""
             ),
         )
+
     console.print(table)
 
 
@@ -97,6 +104,7 @@ def reap_cmd(
 ) -> None:
     """Sweep orphaned sandboxes, worktrees and finished run state, by
     convention."""
+
     from torve.adapters.store.durable import open_store
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.reaper import reap
@@ -112,6 +120,7 @@ def reap_cmd(
         dry_run=dry_run,
         store=open_store,
     )
+
     if fmt is Format.JSON:
         emit_json(
             {
@@ -124,9 +133,11 @@ def reap_cmd(
             }
         )
         return
+
     console = out(fmt)
     header(console, "reap", "dry run" if dry_run else "sweep")
     tense = "would be " if dry_run else ""
+
     for label, names in (
         ("sandboxes destroyed", report.sandboxes_destroyed),
         ("runs expired", report.runs_expired),

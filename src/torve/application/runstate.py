@@ -114,13 +114,16 @@ class RunState:
     def transition(self, to: TaskState, fact: str) -> None:
         """Transitions are executed from facts; the fact is recorded with the
         transition so the history explains itself."""
+
         check_transition(self.state, to)
         self.history.append({"at": _now(), "from": str(self.state), "to": str(to), "fact": fact})
+
         if to is TaskState.RUNNING:
             # Attempts increment on entry to running (RFC 0001 §4), and no
             # review verdict outlives the attempt it judged (D-6.14).
             self.attempts += 1
             self.reviewed_by = None
+
         self.state = to
         self.touch()
 
@@ -147,9 +150,11 @@ class RunState:
     def to_record(self) -> dict[str, object]:
         """The persisted shape — also what `--format json` emits (D-11.3):
         one record, no parallel CLI-only schema."""
+
         data = asdict(self)
         data.pop("path")
         data["state"] = str(self.state)
+
         return data
 
     # ....................... #
@@ -166,6 +171,7 @@ class RunState:
     def load(cls, path: Path) -> RunState:
         data = json.loads(path.read_text(encoding="utf-8"))
         escalation = data.pop("escalation", None)
+
         return cls(
             path=path,
             task_id=data["task_id"],
@@ -190,4 +196,5 @@ class RunState:
     def load_all(cls, wt_dir: Path) -> list[RunState]:
         if not wt_dir.is_dir():
             return []
+
         return [cls.load(p) for p in sorted(wt_dir.glob("*.state.json"))]

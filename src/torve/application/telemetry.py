@@ -47,6 +47,7 @@ def config_hash(
     The sandbox image digest joins when the caller resolved one (RFC 0017 §2,
     D-17.1): two runs under one tag but different digests are two regimes.
     """
+
     from torve.application.migrate import forze_pin
 
     parts: dict[str, str] = {
@@ -57,28 +58,38 @@ def config_hash(
         # torve doctor is what compares it to the installed version.
         "forze": forze_pin(),
     }
+
     if config is not None:
         parts["tiers"] = json.dumps(
             {name: tier.model_dump() for name, tier in sorted(config.tiers.items())},
             sort_keys=True,
         )
         parts["providers"] = json.dumps(config.providers.model_dump(), sort_keys=True)
+
     if image_digest is not None:
         parts["image"] = image_digest
+
     lock = root / "skills-lock.json"
+
     if lock.is_file():
         parts["skills-lock.json"] = lock.read_text(encoding="utf-8")
+
     # The vendored skills tree (RFC 0009 §4a, D-9.13): an edited vendored
     # skill is a regime change — the image-digest doctrine applied to
     # prompt-side inputs.
     vendor = layout.skills_vendor_dir(root)
+
     if vendor.is_dir():
         tree = hashlib.sha256()
+
         for file in sorted(p for p in vendor.rglob("*") if p.is_file()):
             tree.update(str(file.relative_to(vendor)).encode("utf-8"))
             tree.update(file.read_bytes())
+
         parts["skills-vendor"] = tree.hexdigest()
+
     digest = hashlib.sha256(json.dumps(parts, sort_keys=True).encode("utf-8"))
+
     return digest.hexdigest()[:12]
 
 
@@ -118,6 +129,7 @@ def build_record(
 
 def append_record(path: Path, record: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
     # One line per write, whole, under a dispatch batch (D-19.14, A-39):
     # concurrent attempts share this stream in one process.
     with _APPEND_LOCK, path.open("a", encoding="utf-8") as handle:
@@ -133,6 +145,7 @@ def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:
     system would be a second system to operate. Blocked dispatches, kills
     and lane outcomes land here so contention and triage lag are queries,
     not hunches."""
+
     from datetime import UTC, datetime
 
     from torve.config import layout
@@ -163,6 +176,7 @@ def feedback_record(task_id: str, human_minutes: int, rework_after_review: bool)
     """The two hand-entered fields (RFC 0004 §6), keyed by task id in their
     own append-only stream — appending is easy, updating a row in an
     append-only store is not."""
+
     return {
         "schema_version": SCHEMA_VERSION,
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),

@@ -81,13 +81,16 @@ class TierConfig(BaseModel):
     def _real_adapters_are_fully_named(self) -> TierConfig:
         if self.adapter not in ADAPTERS:
             raise ValueError(f"unknown agent adapter {self.adapter!r}; one of {ADAPTERS}")
+
         if self.adapter != "fake":
             if not self.command:
                 raise ValueError(f"adapter {self.adapter!r} needs a command to run in the sandbox")
+
             if not self.provider:
                 # Silence is not a policy (§6b): a real adapter sends the
                 # repository somewhere, and routing needs to know where.
                 raise ValueError(f"adapter {self.adapter!r} needs a provider for routing (D-4.8)")
+
         return self
 
 
@@ -139,13 +142,18 @@ def route_provider(providers: ProvidersConfig, repository: str, provider: str) -
     """Raises ProviderDenied unless `provider` may see `repository`. An empty
     provider is the fake adapter: nothing leaves the building, nothing to
     route."""
+
     if not provider:
         return
+
     rules = providers.repositories.get(repository)
     allowed = rules.allow if rules is not None and rules.allow else providers.default
+
     if provider in allowed:
         return
+
     reason = f" — {rules.deny_reason}" if rules is not None and rules.deny_reason else ""
+
     raise ProviderDenied(
         f"provider {provider!r} is not permitted for repository {repository!r}{reason}; "
         f"allowed: {', '.join(allowed) if allowed else 'none configured'}"
@@ -158,6 +166,7 @@ def route_provider(providers: ProvidersConfig, repository: str, provider: str) -
 def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
     """The task's tier resolved against the mapping — a missing entry is a
     configuration error, never a quiet default."""
+
     try:
         return config.tiers[tier_name]
     except KeyError:
@@ -173,6 +182,7 @@ def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
 def image_for(config: RunnerConfig, tier: TierConfig) -> str:
     """The tier's image when it names one, else the runtime default — the
     harness's identity is the image it runs in (RFC 0017 §3)."""
+
     return tier.image or config.runtime.image
 
 
@@ -182,8 +192,10 @@ def image_for(config: RunnerConfig, tier: TierConfig) -> str:
 def configured_images(config: RunnerConfig) -> list[str]:
     """Every image a run under this configuration could use — the runtime
     default plus each tier's override — for the doctor's existence check."""
+
     images = {config.runtime.image}
     images.update(tier.image for tier in config.tiers.values() if tier.image)
+
     return sorted(images)
 
 
@@ -382,11 +394,13 @@ class ReviewConfig(BaseModel):
     def _known_triggers(self) -> ReviewConfig:
         supported = {"task_gated", "pr_opened", "pr_synchronized"}
         unknown = [trigger for trigger in self.on if trigger not in supported]
+
         if unknown:
             raise ValueError(
                 f"unsupported review trigger(s) {', '.join(unknown)} — "
                 f"the vocabulary is {', '.join(sorted(supported))}"
             )
+
         return self
 
 
@@ -491,14 +505,21 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     """Explicit `path` is a flag-level override (D-13.4); otherwise the file
     is `.torve/config.yaml` and nowhere else. A missing default file means
     defaults; a missing explicit file is an error."""
+
     resolved = path if path is not None else layout.config_file(root)
+
     if not resolved.is_file():
         if path is not None:
             raise ValueError(f"no runner configuration at {resolved}")
+
         return RunnerConfig()
+
     raw = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+
     if raw is None:
         return RunnerConfig()
+
     if not isinstance(raw, dict):
         raise ValueError(f"{resolved}: runner configuration must be a mapping")
+
     return RunnerConfig.model_validate(raw)

@@ -21,18 +21,24 @@ from torve.gates.decisions_reported import parse_log
 def check_self_audit(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:
         return NO_TASK
+
     if ctx.log_text is None or not ctx.log_text.strip():
         return BuiltinOutcome(
             "pass", "no execution log — absence is an empty log, nothing to audit"
         )
+
     document, parse_error = parse_log(ctx.log_text)
+
     if document is None:
         return BuiltinOutcome("fail", parse_error or "log did not parse")
+
     declared = document.get("drift_count")
+
     if not isinstance(declared, int):
         return BuiltinOutcome(
             "fail",
             "execution log declares no 'drift_count'; an absent claim and an "
             "honest zero must not read identically",
         )
+
     return BuiltinOutcome("pass", f"drift count declared: {declared}")

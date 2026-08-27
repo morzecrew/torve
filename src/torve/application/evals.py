@@ -38,12 +38,15 @@ def without_skill(config: RunnerConfig, skill: str) -> RunnerConfig:
     """The baseline arm's configuration: the skill removed from every role
     set. A skill in no set is a configuration error — there is nothing to
     measure."""
+
     sets = {
         role: [name for name in names if name != skill]
         for role, names in config.skills.sets.items()
     }
+
     if sets == config.skills.sets:
         raise ValueError(f"skill {skill!r} is in no role set — nothing to measure")
+
     return config.model_copy(update={"skills": SkillsConfig(sets=sets)})
 
 
@@ -85,8 +88,10 @@ def run_skill_eval(
     """Both arms over every task, one eval record appended and returned.
     Raises ValueError for a skill in no role set or a task with no shipped
     commit; RuntimeError on infrastructure failure — as run_shadow does."""
+
     arms = {"with": config, "without": without_skill(config, skill)}
     results: dict[str, list[dict[str, Any]]] = {"with": [], "without": []}
+
     for task in tasks:
         for arm, arm_config in arms.items():
             record = run_shadow(
@@ -112,4 +117,5 @@ def run_skill_eval(
         "baseline_matched": matched,
     }
     append_record(root / layout.TORVE_DIR / EVAL_LEDGER, record)
+
     return record

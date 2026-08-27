@@ -126,12 +126,14 @@ class Runtime(Protocol):
         resolve the reference (RFC 0017 §2, D-17.1: the digest is the
         identity; an unresolved image is recorded as unresolved, never
         invented)."""
+
         ...
 
     def build_image(self, context: Path, tag: str) -> str:
         """Build the definition at *context* under *tag* and return the
         digest. An operator action invoked by `torve sandbox build` only —
         the engine never builds mid-run (D-17.3)."""
+
         ...
 
 

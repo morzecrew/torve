@@ -26,6 +26,7 @@ class BuiltinOutcome:
 def spec(patterns: list[str]) -> pathspec.GitIgnoreSpec:
     """The one pathspec dialect the gates match in: gitignore semantics, so a
     manifest glob means what the same glob means in `.gitignore`."""
+
     return pathspec.GitIgnoreSpec.from_lines(patterns)
 
 

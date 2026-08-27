@@ -56,6 +56,7 @@ def eval_cmd(
     replays twice in shadow — the configured role sets, then the sets with
     the skill removed — and one eval record lands in the evals ledger.
     Nothing a replay produces is ever merged."""
+
     from functools import partial
 
     from torve.adapters.agent.harness import HarnessAgent
@@ -78,14 +79,19 @@ def eval_cmd(
     root = root.resolve()
     config = load_config(root, config_path)
     tasks: list[Task] = []
+
     for task_id in task_ids:
         task_file = layout.task_file(root, task_id)
+
         if not task_file.is_file():
             raise fail(f"configuration error: no task contract at {task_file}", EXIT_CONFIG)
+
         tasks.append(load_task(task_file))
+
     try:
         without_skill(config, skill)  # refuse before any spend
         tiers = {task.tier for task in tasks}
+
         for name in tiers:
             tier = tier_for(config, name)
             route_provider(config.providers, repository_name(root), tier.provider)
@@ -120,9 +126,11 @@ def eval_cmd(
     if fmt is Format.JSON:
         emit_json(record)
         raise typer.Exit(EXIT_OK)
+
     console = out(fmt)
     header(console, "eval", skill)
     table = make_table("arm", "green", "attempts", "cost usd")
+
     for arm in ("with", "without"):
         row = record["summary"][arm]
         table.add_row(
@@ -131,7 +139,9 @@ def eval_cmd(
             str(row["attempts"]),
             "-" if row["cost_usd"] is None else f"{row['cost_usd']:.4f}",
         )
+
     console.print(table)
+
     if record["baseline_matched"]:
         closing(
             console,
@@ -140,5 +150,7 @@ def eval_cmd(
         )
     else:
         closing(console, "the skill beat its baseline on this evidence", STYLE_PASS)
+
     console.print(Text("direction, never magnitude — a replay is a quasi-experiment", STYLE_DIM))
+
     raise typer.Exit(EXIT_OK)

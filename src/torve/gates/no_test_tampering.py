@@ -24,22 +24,29 @@ def check_no_test_tampering(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     # Both specs compiled once, not per path in the loop below.
     tests = spec(ctx.manifest.tests.patterns) if ctx.manifest.tests.patterns else None
     allow = spec(ctx.task.scope.allow) if ctx.task.scope.allow else None
+
     if tests is None:
         return BuiltinOutcome("pass", "no test patterns configured; nothing to protect")
 
     unlicensed: list[str] = []
+
     for entry in ctx.diff:
         if entry.status == "A":
             continue
+
         paths = [p for p in (entry.path, entry.old_path) if p]
+
         for path in paths:
             if not tests.match_file(path):
                 continue
+
             if allow is not None and not allow.match_file(path):
                 unlicensed.append(f"{entry.status} {path}")
 
     if not unlicensed:
         return BuiltinOutcome("pass", "no unlicensed edits to existing tests")
+
     lines = ["test files edited outside the task's scope.allow:"]
     lines += sorted(set(unlicensed))
+
     return BuiltinOutcome("fail", "\n".join(lines))

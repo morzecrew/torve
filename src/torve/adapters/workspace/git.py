@@ -38,8 +38,10 @@ class GitWorkspace:
         proc = subprocess.run(
             ["git", "-C", str(self.root), *args], capture_output=True, text=True, check=False
         )
+
         if proc.returncode != 0:
             raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
+
         return proc.stdout
 
     # ....................... #
@@ -47,11 +49,14 @@ class GitWorkspace:
     def create(self, task_id: str, base_ref: str | None) -> Path:
         with _WORKTREE_LOCK:
             path = naming.worktree(self.root, task_id)
+
             if path.exists():
                 self._remove_locked(task_id)
+
             base = base_ref or "HEAD"
             branch = naming.branch(task_id)
             current = self._git("rev-parse", "--abbrev-ref", "HEAD").strip()
+
             if branch == current:
                 # The task's branch is checked out here (dogfooding the
                 # engine on its own repository); a worktree cannot share
@@ -59,6 +64,7 @@ class GitWorkspace:
                 self._git("worktree", "add", "--detach", str(path), base)
             else:
                 self._git("worktree", "add", "-B", branch, str(path), base)
+
             return path
 
     # ....................... #
@@ -77,8 +83,10 @@ class GitWorkspace:
             text=True,
             check=False,
         )
+
         if proc.returncode != 0 and path.exists():
             shutil.rmtree(path, ignore_errors=True)
+
         subprocess.run(
             ["git", "-C", str(self.root), "worktree", "prune"],
             capture_output=True,
@@ -89,8 +97,10 @@ class GitWorkspace:
 
     def list_worktrees(self) -> list[tuple[str, Path]]:
         wt_root = self.root / naming.WORKTREE_DIR
+
         if not wt_root.is_dir():
             return []
+
         return [(p.name, p) for p in sorted(wt_root.iterdir()) if p.is_dir()]
 
 
@@ -119,14 +129,17 @@ class ShadowWorkspace:
 
     def create(self, task_id: str, parent_sha: str) -> Path:
         path = self.path_for(task_id)
+
         if path.exists():
             shutil.rmtree(path)
+
         path.mkdir(parents=True)
 
         def run(*args: str) -> None:
             proc = subprocess.run(
                 ["git", "-C", str(path), *args], capture_output=True, text=True, check=False
             )
+
             if proc.returncode != 0:
                 raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
 
@@ -141,6 +154,7 @@ class ShadowWorkspace:
             parent_sha,
         )
         run("checkout", "-q", "-b", "shadow", "FETCH_HEAD")
+
         return path
 
     # ....................... #
@@ -160,6 +174,7 @@ def shipped_commit(root: Path, task_id: str) -> str | None:
     matches subjects only: `--grep` searches whole messages, and a later
     commit merely *mentioning* the id in its body must never shadow the
     commit that shipped the work."""
+
     proc = subprocess.run(
         [
             "git",
@@ -177,20 +192,26 @@ def shipped_commit(root: Path, task_id: str) -> str | None:
         check=False,
     )
     sha = proc.stdout.strip()
+
     if proc.returncode == 0 and sha:
         return sha
+
     proc = subprocess.run(
         ["git", "-C", str(root), "log", "--all", "--format=%H%x09%s"],
         capture_output=True,
         text=True,
         check=False,
     )
+
     if proc.returncode != 0:
         return None
+
     for line in proc.stdout.splitlines():
         sha, _, subject = line.partition("\t")
+
         if f"{task_id})" in subject:
             return sha
+
     return None
 
 
@@ -204,8 +225,10 @@ def parent_of(root: Path, sha: str) -> str:
         text=True,
         check=False,
     )
+
     if proc.returncode != 0:
         raise WorkspaceError(f"no parent commit for {sha!r}")
+
     return proc.stdout.strip()
 
 
@@ -215,15 +238,19 @@ def parent_of(root: Path, sha: str) -> str:
 def _parse_numstat(output: str) -> dict[str, object]:
     files: dict[str, dict[str, int]] = {}
     insertions = deletions = 0
+
     for line in output.splitlines():
         parts = line.split("\t")
+
         if len(parts) != 3:
             continue
+
         added = int(parts[0]) if parts[0].isdigit() else 0  # "-" for binary
         removed = int(parts[1]) if parts[1].isdigit() else 0
         files[parts[2]] = {"insertions": added, "deletions": removed}
         insertions += added
         deletions += removed
+
     return {
         "files_changed": len(files),
         "insertions": insertions,
@@ -237,14 +264,17 @@ def _parse_numstat(output: str) -> dict[str, object]:
 
 def diff_range(root: Path, sha: str) -> dict[str, object]:
     """What actually shipped: the commit against its first parent."""
+
     proc = subprocess.run(
         ["git", "-C", str(root), "diff", "--numstat", f"{sha}^", sha],
         capture_output=True,
         text=True,
         check=False,
     )
+
     if proc.returncode != 0:
         raise WorkspaceError(proc.stderr.strip() or f"git diff for {sha!r} failed")
+
     return _parse_numstat(proc.stdout)
 
 
@@ -257,6 +287,7 @@ def diff_worktree(workspace: Path, base: str) -> dict[str, object]:
     carries a real `.git` the sandbox can reach, so an agent may commit its
     own work — which moves HEAD and would read as an empty diff. Stages
     everything first — the workspace is a throwaway measurement artefact."""
+
     subprocess.run(["git", "-C", str(workspace), "add", "-A"], capture_output=True, check=False)
     proc = subprocess.run(
         ["git", "-C", str(workspace), "diff", "--cached", base, "--numstat"],
@@ -264,4 +295,5 @@ def diff_worktree(workspace: Path, base: str) -> dict[str, object]:
         text=True,
         check=False,
     )
+
     return _parse_numstat(proc.stdout)

@@ -91,6 +91,7 @@ LOCKED_D1 = [
 
 def entry(**overrides: Any) -> dict[str, Any]:
     """One A-1 YAML log entry; pass field overrides, or None to drop a field."""
+
     fields: dict[str, Any] = {
         "decision": "D-1",
         "grade": "LOCKED",
@@ -102,6 +103,7 @@ def entry(**overrides: Any) -> dict[str, Any]:
         "action": "decided",
     }
     fields.update(overrides)
+
     return {key: value for key, value in fields.items() if value is not None}
 
 
@@ -110,9 +112,12 @@ def entry(**overrides: Any) -> dict[str, Any]:
 
 def log_document(*entries: dict[str, Any], drift_count: int | None = 0) -> str:
     document: dict[str, Any] = {"schema_version": 1, "task": TASK_ID}
+
     if drift_count is not None:
         document["drift_count"] = drift_count
+
     document["entries"] = list(entries)
+
     return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
 
@@ -163,6 +168,7 @@ class Repo:
     def task(self, task: dict[str, Any], log: str | None) -> None:
         # One directory per task (A-12); the log only exists if written (A-13).
         self.write(f".torve/tasks/{TASK_ID}/contract.yaml", yaml.safe_dump(task, sort_keys=False))
+
         if log is not None:
             self.write(f".torve/tasks/{TASK_ID}/log.yaml", log)
 
@@ -576,6 +582,7 @@ def run_case(case: Case) -> CaseOutcome:
         report = run_gates(ctx, only={case.gate})
         result = report.results[0]
         ok = result.outcome == case.expected
+
         return CaseOutcome(
             name=case.name,
             gate=case.gate,

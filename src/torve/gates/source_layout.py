@@ -36,11 +36,15 @@ def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     )
     problems: list[str] = []
     checked = 0
+
     for rel in candidates:
         target = Path(ctx.root) / rel
+
         if not target.is_file():
             continue  # deleted in this diff
+
         checked += 1
+
         if target.name in FORBIDDEN_MODULE_NAMES:
             problems.append(
                 f"{rel}: module named {target.name!r} — a name that admits anything "
@@ -49,4 +53,5 @@ def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
     if problems:
         return BuiltinOutcome("fail", "\n".join(problems))
+
     return BuiltinOutcome("pass", f"{checked} changed source file(s) are named for what they hold")

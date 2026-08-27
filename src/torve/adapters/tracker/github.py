@@ -62,25 +62,34 @@ class GithubIssues:
 
     def _run(self, command: list[str]) -> str:
         env = None
+
         if self.token_env:
             token = os.environ.get(self.token_env)
+
             if not token:
                 raise RuntimeError(
                     f"tracker.token_env names {self.token_env!r} but the "
                     "runner's environment does not carry it"
                 )
+
             env = {**os.environ, "GH_TOKEN": token}
+
         for attempt in (1, 2):
             proc = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
+
             if proc.returncode == 0:
                 return proc.stdout
+
             error = proc.stderr.strip() or f"{command[1]} failed"
+
             # One retry for a transient transport failure (T-0058): every
             # destination write is idempotent, so at-least-once is safe.
             if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
                 self.sleeper(2.0)
                 continue
+
             raise RuntimeError(error)
+
         raise RuntimeError("unreachable")  # for the type checker
 
     # ....................... #
@@ -93,6 +102,7 @@ class GithubIssues:
     def _issue_for(self, task_id: str, title: str, create: bool = True) -> int | None:
         if task_id in self._issues:
             return self._issues[task_id]
+
         listed = cast(
             "list[dict[str, Any]]",
             json.loads(
@@ -109,12 +119,15 @@ class GithubIssues:
                 or "[]"
             ),
         )
+
         for issue in listed:
             if str(issue.get("title", "")).startswith(f"{task_id}:"):
                 self._issues[task_id] = int(issue["number"])
                 return self._issues[task_id]
+
         if not create:
             return None
+
         out = self._gh(
             "issue",
             "create",
@@ -125,6 +138,7 @@ class GithubIssues:
         )
         number = int(out.strip().rsplit("/", 1)[-1])
         self._issues[task_id] = number
+
         return number
 
     # ....................... #
@@ -137,10 +151,13 @@ class GithubIssues:
             "dict[str, Any]",
             json.loads(self._gh("issue", "view", str(number), "--json", "labels") or "{}"),
         )
+
         for worn in cast("list[dict[str, Any]]", listed.get("labels", [])):
             name = str(worn.get("name", ""))
+
             if name.startswith("state:") and name != label:
                 self._gh("issue", "edit", str(number), "--remove-label", name)
+
         self._gh("label", "create", label, "--force", "--color", "5319e7")
         self._gh("issue", "edit", str(number), "--add-label", label)
 
@@ -150,10 +167,13 @@ class GithubIssues:
         # A plain label (D-8.13/D-8.14): applied to an existing issue —
         # never creating one — and never touching the state:* family.
         number = self._issue_for(task_id, f"{task_id}: task", create=False)
+
         if number is None:
             return ReflectResult("applied", "no issue to label")
+
         self._gh("label", "create", name, "--force", "--color", "0e8a16")
         self._gh("issue", "edit", str(number), "--add-label", name)
+
         return ReflectResult("applied", f"issue #{number} labelled {name}")
 
     # ....................... #
@@ -163,14 +183,18 @@ class GithubIssues:
         # A-36): removal is idempotent — an absent label, like an absent
         # issue, is the postcondition already holding.
         number = self._issue_for(task_id, f"{task_id}: task", create=False)
+
         if number is None:
             return ReflectResult("applied", "no issue to unlabel")
+
         try:
             self._gh("issue", "edit", str(number), "--remove-label", name)
         except RuntimeError as error:
             if "not found" in str(error).lower():
                 return ReflectResult("applied", f"label {name} already absent")
+
             raise
+
         return ReflectResult("applied", f"issue #{number} unlabelled {name}")
 
     # ....................... #
@@ -180,27 +204,39 @@ class GithubIssues:
             # An adopted request's thread is consumed (RFC 0020 §5.4):
             # same close-out shape as landed, no issue means nothing to do.
             number = self._issue_for(task_id, title, create=False)
+
             if number is None:
                 return ReflectResult("applied", "no issue to close")
+
             self._set_label(number, "state:adopted")
             self._gh("issue", "close", str(number))
+
             return ReflectResult("applied", f"issue #{number} closed: adopted")
+
         if state == "landed":
             # The close-out for landed work (D-8.11): no issue means
             # nothing to close — never create one just to close it.
             number = self._issue_for(task_id, title, create=False)
+
             if number is None:
                 return ReflectResult("applied", "no issue to close")
+
             self._set_label(number, "state:landed")
             self._gh("issue", "close", str(number))
+
             return ReflectResult("applied", f"issue #{number} closed: landed")
+
         number = self._issue_for(task_id, title)
         assert number is not None
+
         if state == "created":
             return ReflectResult("applied", f"issue #{number}")
+
         self._set_label(number, f"state:{state}")
+
         if state == "abandoned":
             self._gh("issue", "close", str(number))
+
         return ReflectResult("applied", f"issue #{number} labelled state:{state}")
 
     # ....................... #
@@ -210,10 +246,13 @@ class GithubIssues:
         assert number is not None
         marker = f"<!-- {KEY_MARK}{key} -->"
         existing = self._gh("issue", "view", str(number), "--json", "comments")
+
         if marker in existing:
             # The at-least-once duplicate, absorbed at the destination.
             return ReflectResult("applied", "already commented")
+
         self._gh("issue", "comment", str(number), "--body", f"{body}\n\n{marker}")
+
         return ReflectResult("applied", f"comment on #{number}")
 
     # ....................... #
@@ -225,13 +264,17 @@ class GithubIssues:
         number = self._issue_for(task_id, f"{task_id}: task")
         assert number is not None
         assigned = "assigned"
+
         try:
             self._gh("issue", "edit", str(number), "--add-assignee", login)
         except RuntimeError as error:
             assigned = f"assign failed: {error}"
+
         result = self.comment(task_id, f"@{login} — {body}", key)
+
         if result.outcome != "applied":
             return result
+
         return ReflectResult("applied", f"notified @{login} on #{number} ({assigned})")
 
     # ....................... #
@@ -262,11 +305,14 @@ class GithubIssues:
                 or "[]"
             ),
         )
+
         for issue in listed:
             title = str(issue.get("title", ""))
             task_id = title.split(":", 1)[0].strip()
+
             if not re.fullmatch(r"T-\d{4}", task_id):
                 continue
+
             detail = cast(
                 "dict[str, Any]",
                 json.loads(self._gh("issue", "view", str(issue["number"]), "--json", "comments")),
@@ -277,16 +323,23 @@ class GithubIssues:
                 for c in comments
                 for m in re.findall(re.escape(KEY_MARK) + r"cmd:(\S+?) ", str(c.get("body", "")))
             }
+
             for comment in comments:
                 body = str(comment.get("body", ""))
+
                 if KEY_MARK in body:
                     continue  # our own projections are never commands
+
                 found = COMMAND_RE.search(body)
+
                 if not found or found.group(1) not in COMMANDS:
                     continue
+
                 source = str(comment.get("url", "")).rsplit("-", 1)[-1] or str(hash(body))
+
                 if source in answered:
                     continue
+
                 author = cast("dict[str, Any]", comment.get("author") or {})
                 commands.append(
                     TrackerCommand(
@@ -297,6 +350,7 @@ class GithubIssues:
                         text=body,
                     )
                 )
+
         return commands
 
     # ....................... #
@@ -327,10 +381,13 @@ class GithubIssues:
             ),
         )
         requests: list[IntakeRequest] = []
+
         for issue in listed:
             title = str(issue.get("title", ""))
+
             if re.match(r"^T-\d{4}:", title):
                 continue  # claimed: the drafting task's row already
+
             author = cast("dict[str, Any]", issue.get("author") or {})
             requests.append(
                 IntakeRequest(
@@ -340,6 +397,7 @@ class GithubIssues:
                     author=str(author.get("login", "unknown")),
                 )
             )
+
         return requests
 
     # ....................... #

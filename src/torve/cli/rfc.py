@@ -65,12 +65,14 @@ PathsArgument = Annotated[
 def corpus_dir(root: Path, config_path: Path | None) -> Path:
     config = load_config(root, config_path)
     resolved = root / config.rfcs.path
+
     if not resolved.is_dir():
         raise fail(
             f"configuration error: no corpus directory at {resolved} "
             "(the rfcs.path configuration key)",
             EXIT_CONFIG,
         )
+
     return resolved
 
 
@@ -79,14 +81,19 @@ def corpus_dir(root: Path, config_path: Path | None) -> Path:
 
 def _selected(lines: list[str], names: set[str]) -> list[str]:
     """Document-scoped findings filtered to *names*; corpus-scoped ones kept."""
+
     from torve.config.rfc_parse import RFC_FILENAME
 
     kept: list[str] = []
+
     for line in lines:
         head = line.split(":", 1)[0]
+
         if RFC_FILENAME.match(head) and head not in names:
             continue
+
         kept.append(line)
+
     return kept
 
 
@@ -103,11 +110,13 @@ def check(
     """Validate the corpus: directory contents, frontmatter, decision tables,
     links, the dependency graph, and INDEX.md drift. A malformed corpus is a
     configuration error — exit 3."""
+
     from torve.config.rfc_parse import check_corpus
 
     rfc_dir = corpus_dir(root, config)
     report = check_corpus(rfc_dir, root)
     problems, warnings = report.problems, report.warnings
+
     if paths:
         names = {p.name for p in paths}
         problems = _selected(problems, names)
@@ -125,10 +134,13 @@ def check(
         )
     else:
         console = out(fmt)
+
         for problem in problems:
             console.print(Text(f"PROBLEM {problem}", STYLE_FAIL))
+
         for warning in warnings:
             console.print(Text(f"WARN    {warning}", STYLE_WARN))
+
         verdict = "FAIL " if problems else "OK   "
         tail = f", {len(warnings)} warning(s)" if warnings else ""
         closing(
@@ -136,6 +148,7 @@ def check(
             f"{verdict} {report.count} RFC(s), {len(problems)} problem(s){tail}",
             STYLE_FAIL if problems else STYLE_PASS,
         )
+
     raise typer.Exit(EXIT_OK if not problems else EXIT_CONFIG)
 
 
@@ -153,6 +166,7 @@ def index(
     """Regenerate INDEX.md from frontmatter. The index is output,
     like a lockfile — with `--check`, drift is reported and nothing is
     written."""
+
     from torve.config.rfc_parse import build_index, rfc_files
 
     rfc_dir = corpus_dir(root, config)
@@ -160,15 +174,18 @@ def index(
     index_path = rfc_dir / "INDEX.md"
     rendered = build_index(files)
     current = index_path.read_text(encoding="utf-8") if index_path.is_file() else None
+
     if check_only:
         if current == rendered:
             out().print(f"OK    INDEX.md matches {len(files)} RFC(s)")
             raise typer.Exit(EXIT_OK)
+
         raise fail(
             "INDEX.md differs from what `torve rfc index` writes — it is "
             "generated output; regenerate it instead of editing it",
             EXIT_CONFIG,
         )
+
     index_path.write_text(rendered, encoding="utf-8")
     out().print(f"generated {index_path} ({len(files)} RFC(s))")
 
@@ -186,6 +203,7 @@ def new(
     """Create the next document from the rfc-writer template: the number is
     derived as the maximum plus one — never chosen, never reused — and the
     index is regenerated."""
+
     from torve.application.skills import skills_root
     from torve.config.rfc_parse import build_index, next_number, rfc_files, slugify
 
@@ -193,16 +211,20 @@ def new(
         raise fail(
             f"configuration error: kind {kind!r} is not one of {', '.join(KINDS)}", EXIT_CONFIG
         )
+
     rfc_dir = corpus_dir(root, config)
     slug = slugify(title)
+
     if not slug:
         raise fail("configuration error: title produces an empty slug", EXIT_CONFIG)
 
     template_path = skills_root() / "rfc-writer" / "references" / "rfc-template.md"
     template_text = template_path.read_text(encoding="utf-8")
     block = template_text.split("```markdown\n", 1)
+
     if len(block) < 2 or TEMPLATE_TITLE not in block[1]:
         raise fail(f"configuration error: no usable skeleton in {template_path}", EXIT_CONFIG)
+
     body = block[1].split("\n```", 1)[0]
 
     allocated = next_number(rfc_dir)
@@ -212,8 +234,10 @@ def new(
         .replace('id: "NNNN"', f'id: "{allocated:04d}"')
         .replace("title: <Title>", f"title: {title}")
     )
+
     if kind == "convention":
         body = body.replace("status: draft", "kind: convention\nstatus: draft", 1)
+
     try:
         with path.open("x", encoding="utf-8") as handle:
             handle.write(body + "\n")
@@ -223,6 +247,7 @@ def new(
             "process — re-run to take the next number",
             EXIT_CONFIG,
         ) from None
+
     (rfc_dir / "INDEX.md").write_text(build_index(rfc_files(rfc_dir)), encoding="utf-8")
     console = out()
     console.print(f"created {path}")
@@ -244,6 +269,7 @@ def graph(
     and complete are finished business: omitted from the tree (their
     dependents attach where they stood) and counted in a dim line. Also
     shows the inheritance hazards the corpus check would flag."""
+
     from rich.tree import Tree
 
     from torve.config.rfc_parse import check_graph, fm_list, parse_frontmatter, rfc_files
@@ -270,10 +296,12 @@ def graph(
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "edges": edges, "problems": problems, "warnings": warnings})
         return
+
     console = out(fmt)
     header(console, "rfc graph", f"{len(files)} RFC(s), {len(edges)} edge(s)")
     console.print()
     dependents: dict[str, list[str]] = {}
+
     for number, targets in depends.items():
         for target in targets:
             dependents.setdefault(target, []).append(number)
@@ -291,47 +319,63 @@ def graph(
     def grow(branch: Tree, number: str) -> None:
         front = frontmatter.get(number, {})
         status = str(front.get("status", "?"))
+
         if number in seen:
             if not done(number):
                 # A node expands under its first parent only; here it is a
                 # back-reference, dimmed whole so the repeat never reads as
                 # a second document.
                 branch.add(Text(f"{number} {status} ↑", STYLE_DIM))
+
             return
+
         seen.add(number)
+
         if done(number):
             # Finished business: the node itself is omitted and counted;
             # its dependents attach where it stood.
             omitted.append(number)
+
             for child in sorted(dependents.get(number, [])):
                 grow(branch, child)
+
             return
+
         label = Text(number, STYLE_ID)
         label.append(" ")
         label.append(status, style=_STATUS_STYLES.get(status, STYLE_FAIL))
         implementation = str(front.get("implementation", ""))
+
         if implementation and implementation != "none":
             label.append(f" {implementation}", style=STYLE_DIM)
+
         node = branch.add(label)
+
         for child in sorted(dependents.get(number, [])):
             grow(node, child)
 
     tree = Tree("", hide_root=True, guide_style=STYLE_DIM)
+
     for number in sorted(depends):
         if not depends[number]:
             grow(tree, number)
+
     # Anything unreachable from a root — a dependency cycle, or a document
     # whose only dependency dangles — still renders rather than vanishing.
     for number in sorted(depends):
         if number not in seen:
             grow(tree, number)
+
     console.print(tree)
+
     if omitted:
         console.print()
         footer(
             console, f"… {len(omitted)} accepted and complete, omitted: {id_list(sorted(omitted))}"
         )
+
     for problem in problems:
         console.print(Text(f"PROBLEM {problem}", STYLE_FAIL))
+
     for warning in warnings:
         console.print(Text(f"WARN    {warning}", STYLE_WARN))

@@ -93,6 +93,7 @@ def is_plain(fmt: Format | None = None) -> bool:
 
 def out(fmt: Format | None = None) -> Console:
     """Human results, stdout."""
+
     return Console(no_color=is_plain(fmt) or None, highlight=False, markup=False, soft_wrap=True)
 
 
@@ -101,6 +102,7 @@ def out(fmt: Format | None = None) -> Console:
 
 def err() -> Console:
     """Diagnostics, stderr — in both formats."""
+
     return Console(
         stderr=True, no_color=is_plain() or None, highlight=False, markup=False, soft_wrap=True
     )
@@ -112,6 +114,7 @@ def err() -> Console:
 def emit_json(document: dict[str, object]) -> None:
     """Exactly one JSON document on stdout and nothing else — written raw
     so no console width ever wraps it."""
+
     sys.stdout.write(json.dumps(document, ensure_ascii=False, indent=2) + "\n")
 
 
@@ -129,12 +132,15 @@ def fail(message: str, code: int) -> typer.Exit:
 def header(console: Console, verb: str, subject: str, regime: str | None = None) -> None:
     """`torve <verb> · <subject> · config <hash>` — what ran, on what,
     under which regime where one exists."""
+
     line = Text()
     line.append(f"torve {verb}", style="bold")
     line.append(f" · {subject}")
+
     if regime:
         line.append(" · config ", style=STYLE_DIM)
         line.append(regime, style=STYLE_ID)
+
     console.print(line)
 
 
@@ -148,6 +154,7 @@ def make_table(
     the content, the frame is not. `lines` separates rows, for tables whose
     cells wrap over several lines; `last_max_width` bounds the final column,
     for tables whose last cell is prose."""
+
     table = Table(
         box=box.SIMPLE_HEAD,
         title=title,
@@ -158,9 +165,11 @@ def make_table(
         expand=False,
         show_lines=lines,
     )
+
     for position, column in enumerate(columns):
         width = last_max_width if position == len(columns) - 1 else None
         table.add_column(column, overflow="fold", max_width=width)
+
     return table
 
 
@@ -171,8 +180,10 @@ def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]], limit: 
     """At most `limit` rows; returns how many were withheld. The
     caller prints the `… N more` line *after* the table with `footer` — a
     long note inside the first column would size the column to the note."""
+
     for row in rows[:limit]:
         table.add_row(*row)
+
     return max(0, len(rows) - limit)
 
 
@@ -184,6 +195,7 @@ def footer(console: Console, text: str) -> None:
     anything that describes the table rather than belonging in it. Column 0
     (the dim style is the separation; an indent reads as misalignment) and a
     trailing blank line so a note never runs into the next section's title."""
+
     console.print(Text(text, style=STYLE_DIM))
     console.print()
 
@@ -194,8 +206,10 @@ def footer(console: Console, text: str) -> None:
 def id_list(ids: list[str], shown: int = 8) -> str:
     """A bounded comma list: the first few identifiers, then `(+N more)` —
     27 task ids in one cell is noise wearing data."""
+
     if len(ids) <= shown:
         return ", ".join(ids)
+
     return ", ".join(ids[:shown]) + f" (+{len(ids) - shown} more)"
 
 
@@ -205,6 +219,7 @@ def id_list(ids: list[str], shown: int = 8) -> str:
 def mark(outcome: str) -> Text:
     """The verdict mark with its style — mark and word both carry the
     distinction, colour never alone."""
+
     return Text(OUTCOME_MARKS.get(outcome, "?"), style=OUTCOME_STYLES.get(outcome, ""))
 
 
@@ -214,9 +229,12 @@ def mark(outcome: str) -> Text:
 def failure_detail(console: Console, text: str, limit: int = 40) -> None:
     """A failing row's expansion: indented, capped, never
     interleaved with other rows."""
+
     lines = text.splitlines()
+
     for line in lines[:limit]:
         console.print(Text(f"      {line}"))
+
     if len(lines) > limit:
         console.print(Text(f"      … {len(lines) - limit} more line(s)", style=STYLE_DIM))
 
@@ -226,6 +244,7 @@ def failure_detail(console: Console, text: str, limit: int = 40) -> None:
 
 def closing(console: Console, text: str, style: str = "") -> None:
     """Outcome and what happens now — the last line of every verb."""
+
     console.print(Text(text, style=style))
 
 
@@ -239,9 +258,11 @@ def live_status(text: str, fmt: Format | None = None) -> Generator[Callable[[str
     over a pass that is 95% one gate explains nothing. TTY-only by rule, not
     by autodetection — absent under `--plain`, CI and `--format json`, where
     the updater is a no-op. Never a prompt."""
+
     if is_plain(fmt):
         yield lambda _text: None
         return
+
     progress = Progress(
         SpinnerColumn(style=STYLE_DIM),
         TextColumn("{task.description}", style=STYLE_DIM),
@@ -249,6 +270,7 @@ def live_status(text: str, fmt: Format | None = None) -> Generator[Callable[[str
         console=err(),  # presentation is diagnostics, results stay on stdout
         transient=True,
     )
+
     with progress:
         handle = progress.add_task(text, total=None)
 

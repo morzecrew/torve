@@ -22,12 +22,14 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         # Skipped, never passed with an empty list: a review's output is
         # findings, and acceptance does not apply to the role.
         return BuiltinOutcome("skipped", "review role: judged by findings, not commands")
+
     if ctx.task is not None:
         commands = ctx.task.acceptance
         source = "task contract"
     else:
         commands = gate.commands
         source = "manifest"
+
     if not commands:
         return BuiltinOutcome("skipped", f"no acceptance commands ({source})")
 
@@ -42,21 +44,27 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     for command in commands:
         result = run_command(command, ctx.root, timeout, execute=ctx.execute)
         status = "ok" if result.exit_code == 0 else f"exit {result.exit_code}"
+
         if result.flaky:
             status = "flaky (failed, then passed on immediate re-run)"
             flaky.append(command)
+
         if result.exit_code != 0:
             last_code = result.exit_code
+
             if command in quarantine:
                 status += " — quarantined, not blocking"
                 quarantined_failures.append(command)
             else:
                 failed = True
+
         sections.append(f"$ {command}  [{status}, {result.duration_s:.1f}s]\n{result.output}")
+
         if failed:
             break  # remaining acceptance commands cannot change the outcome
 
     output = "\n".join(sections)
+
     if failed:
         return BuiltinOutcome(
             "fail",
@@ -65,7 +73,9 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             flaky_commands=flaky,
             quarantined_failures=quarantined_failures,
         )
+
     outcome: GateOutcome = "flaky" if flaky else "pass"
+
     return BuiltinOutcome(
         outcome,
         output,

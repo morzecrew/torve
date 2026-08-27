@@ -37,6 +37,7 @@ PROMPT_RELPATH = ".torve/tmp/prompt.md"
 
 def build_prompt(task: Task, revision: bool = False) -> str:
     lines: list[str] = [f"# Torve task {task.id}", ""]
+
     if revision:
         # The revision loop (RFC 0005 §4a): a previous attempt was
         # reviewed; the record is in the workspace and the contract
@@ -51,21 +52,28 @@ def build_prompt(task: Task, revision: bool = False) -> str:
             ),
             "",
         ]
+
     if task.intent:
         lines += [task.intent.strip(), ""]
+
     if task.rfc:
         lines += [f"Specification: see the decisions below, inherited from `{task.rfc}`.", ""]
+
     lines += ["## Decisions", ""]
+
     if task.decisions:
         for decision in task.decisions:
             paths = f" — paths: {', '.join(decision.paths)}" if decision.paths else ""
             lines.append(f"- `{decision.id}` ({decision.grade}): {decision.text}{paths}")
     else:
         lines.append("- none apply (explicitly).")
+
     lines += ["", "## Scope", ""]
     lines.append(f"- allow: {', '.join(task.scope.allow) if task.scope.allow else 'unconstrained'}")
+
     if task.scope.deny:
         lines.append(f"- deny: {', '.join(task.scope.deny)}")
+
     lines += ["", "## Acceptance", ""]
     lines += [f"- `{command}`" for command in task.acceptance] or ["- none declared."]
     lines += [
@@ -87,6 +95,7 @@ def build_prompt(task: Task, revision: bool = False) -> str:
         ),
         "",
     ]
+
     return "\n".join(lines)
 
 
@@ -97,31 +106,40 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
     """(cost_usd, model_version) from a harness result, best effort: the last
     JSON object line wins (`claude -p --output-format json` and friends emit
     one). Absence is not an error — it is an uncontrolled regime (D-4.6)."""
+
     for line in reversed(output.strip().splitlines()):
         line = line.strip()
+
         if not (line.startswith("{") and line.endswith("}")):
             continue
+
         try:
             data: Any = json.loads(line)
         except ValueError:
             continue
+
         if not isinstance(data, dict):
             continue
+
         record = cast("dict[str, Any]", data)
         cost: Any = next(
             (record[k] for k in ("total_cost_usd", "cost_usd", "cost") if k in record), None
         )
         model: Any = next((record[k] for k in ("model_version", "model") if k in record), None)
+
         if not isinstance(model, str) or not model:
             # The claude CLI reports models as modelUsage keys — the dated
             # snapshot ids, which are exactly the drift-catcher D-4.6 wants.
             usage: Any = record.get("modelUsage")
+
             if isinstance(usage, dict) and usage:
                 model = "+".join(sorted(cast("dict[str, Any]", usage)))
+
         return (
             float(cost) if isinstance(cost, (int, float)) else None,
             str(model) if isinstance(model, str) and model else None,
         )
+
     return None, None
 
 
@@ -156,6 +174,7 @@ class HarnessAgent:
         trace = naming.trace_file(ctx.workspace, ctx.attempt)
         trace.write_text(result.output, encoding="utf-8")
         cost_usd, model_version = parse_metadata(result.output)
+
         return AgentResult(
             exit_code=result.exit_code,
             output=result.output,

@@ -37,9 +37,11 @@ def feedback(
 ) -> None:
     """Record a ReviewFeedback entry for a task: appended, never
     updated — keyed by task id, the latest entry wins at analysis time."""
+
     root = root.resolve()
     record = feedback_record(task_id, human_minutes, rework)
     append_record(layout.feedback_file(root), record)
+
     if fmt is Format.JSON:
         emit_json(record)
     else:
@@ -48,4 +50,5 @@ def feedback(
             f"{task_id}: {human_minutes} human minute(s), "
             f"rework={'yes' if rework else 'no'} — appended",
         )
+
     raise typer.Exit(EXIT_OK)

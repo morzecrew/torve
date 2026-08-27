@@ -37,11 +37,13 @@ COMMANDS = ("retry", "abandon", "unblock", "approve", "revise", "adopt")
 
 def _title(root: Path, task_id: str) -> str:
     task_file = layout.task_file(root, task_id)
+
     if task_file.is_file():
         try:
             from torve.gates.context import load_task
 
             intent = load_task(task_file).intent.strip()
+
             if intent:
                 head = intent.splitlines()[0]
                 return (
@@ -49,6 +51,7 @@ def _title(root: Path, task_id: str) -> str:
                 )
         except ValueError:
             pass
+
     return f"{task_id}: task"
 
 
@@ -58,33 +61,46 @@ def _title(root: Path, task_id: str) -> str:
 def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
     """One comment per attempt, never per gate (D-8.7), composed from the
     telemetry records — data, not the agent's prose."""
+
     manifest = root / layout.TORVE_DIR / "telemetry.jsonl"
     bodies: dict[int, str] = {}
+
     if not manifest.is_file():
         return bodies
+
     attempt_no = 0
+
     for line in manifest.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
+
         record = cast("dict[str, Any]", json.loads(line))
+
         if record.get("task_id") != task_id or record.get("kind") == "engine":
             continue
+
         attempt_no += 1
         results = cast("list[dict[str, Any]]", record.get("results", []))
         gates = ", ".join(f"{r.get('name')}={r.get('outcome')}" for r in results) or "none"
         agent = cast("dict[str, Any]", record.get("agent") or {})
         parts = [f"attempt {attempt_no}: gates {gates}"]
+
         if agent.get("cost_usd") is not None:
             parts.append(f"cost ${agent['cost_usd']}")
+
         if agent.get("trace_ref"):
             # The forge rule (T-0084): a host-absolute path says nothing
             # on the board — its basename names the artefact; a URI stays.
             trace = str(agent["trace_ref"])
+
             if "://" not in trace:
                 trace = Path(trace).name
+
             parts.append(f"trace {trace}")
+
         parts.append(f"config {record.get('config_hash', '')}")
         bodies[attempt_no] = " · ".join(parts)
+
     return bodies
 
 
@@ -93,8 +109,10 @@ def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
 
 def _task(root: Path, task_id: str) -> Any | None:
     contract = layout.task_file(root, task_id)
+
     if not contract.is_file():
         return None
+
     try:
         from torve.gates.context import load_task
 
@@ -118,6 +136,7 @@ def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
     """The board says where the human is needed (D-8.13): a candidate the
     lane refused for want of approvals prompts on its thread — keyed on
     the tip, so one prompt per tip and a superseded tip prompts afresh."""
+
     return stage(
         root,
         Effect(
@@ -138,8 +157,10 @@ def _review_effects(
     board row belongs to the work, and the review's milestones are
     comments there — an escalation notifies where the retry or abandon
     decision lives. Keys keep the review's own id, so replays dedupe."""
+
     title = _title(root, target)
     effects: list[Effect] = []
+
     if state.escalation is not None:
         route = escalation_route(str(state.escalation.reason))
         detail = f"review {task_id}: {state.escalation.detail}"
@@ -155,6 +176,7 @@ def _review_effects(
                 },
             )
         )
+
         if notify_login and route in ("notify", "harness owner"):
             effects.append(
                 Effect(
@@ -170,6 +192,7 @@ def _review_effects(
                     },
                 )
             )
+
     for attempt_no, body in _attempt_bodies(root, task_id).items():
         effects.append(
             Effect(
@@ -178,6 +201,7 @@ def _review_effects(
                 payload={"task": target, "title": title, "body": f"review {task_id} · {body}"},
             )
         )
+
     return effects
 
 
@@ -188,11 +212,14 @@ def project(root: Path, notify_login: str = "") -> int:
     """Derive effects from run state and stage them idempotently; returns
     how many were newly staged. Re-running against unchanged state stages
     nothing — the state file is the transaction the effects derive from."""
+
     staged = 0
     prompted = staged_keys(root)
+
     for state in RunState.load_all(root / naming.WORKTREE_DIR):
         task_id = state.task_id
         task = _task(root, task_id)
+
         if task is not None and task.role == "review":
             # No issue for the machine's own work (D-8.16): its milestones
             # reach the target's thread; targetless reviews project nothing.
@@ -202,7 +229,9 @@ def project(root: Path, notify_login: str = "") -> int:
                     for e in _review_effects(root, state, task_id, task.targets[0], notify_login)
                     if stage(root, e)
                 )
+
             continue
+
         title = _title(root, task_id)
         effects = [
             Effect(
@@ -219,6 +248,7 @@ def project(root: Path, notify_login: str = "") -> int:
                 payload={"task": task_id, "state": str(state.state), "title": title},
             )
         ]
+
         if state.state is not TaskState.READY and any(
             k.startswith(f"{task_id}:needs-approval:") for k in prompted
         ):
@@ -233,6 +263,7 @@ def project(root: Path, notify_login: str = "") -> int:
                     payload={"task": task_id, "name": "needs:approval"},
                 )
             )
+
         if state.escalation is not None:
             effects.append(
                 Effect(
@@ -251,6 +282,7 @@ def project(root: Path, notify_login: str = "") -> int:
             # (task, attempt, reason) — one escalation event notifies once
             # however often projection or relay replays.
             route = escalation_route(str(state.escalation.reason))
+
             if notify_login and route in ("notify", "harness owner"):
                 effects.append(
                     Effect(
@@ -266,6 +298,7 @@ def project(root: Path, notify_login: str = "") -> int:
                         },
                     )
                 )
+
         for attempt_no, body in _attempt_bodies(root, task_id).items():
             effects.append(
                 Effect(
@@ -274,7 +307,9 @@ def project(root: Path, notify_login: str = "") -> int:
                     payload={"task": task_id, "title": title, "body": body},
                 )
             )
+
         staged += sum(1 for e in effects if stage(root, e))
+
     return staged
 
 
@@ -285,14 +320,17 @@ def _discharged(contract: Path, task_id: str, landed: Callable[[str], bool]) -> 
     """Repo-recorded doneness (D-8.11): an executable task's own landing
     trailer — or, for a review, its every target's (T-0066): a review
     never lands, so its discharge is the landing of what it reviewed."""
+
     try:
         from torve.gates.context import load_task
 
         task = load_task(contract)
     except ValueError:
         return False
+
     if task.role == "review":
         return bool(task.targets) and all(landed(t) for t in task.targets)
+
     return landed(task_id)
 
 
@@ -305,6 +343,7 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
     landing trailer knows the task is done. One effect per task, ever —
     the ledger check keeps the git ask off already-closed history, and a
     task with a live state still owns its own projection."""
+
     staged = 0
     seen = staged_keys(root)
     tasks_dir = root / layout.TORVE_DIR / "tasks"
@@ -314,6 +353,7 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
         # before the amendment: the ledger remembers who was prompted.
         if not any(k.startswith(f"{task_id}:needs-approval:") for k in seen):
             return 0
+
         return int(
             stage(
                 root,
@@ -327,13 +367,17 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
 
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         task_id = contract.parent.name
+
         if f"{task_id}:landed" in seen:
             staged += _clear_prompt(task_id)
             continue
+
         if naming.state_file(root, task_id).exists():
             continue
+
         if not _discharged(contract, task_id, landed):
             continue
+
         if stage(
             root,
             Effect(
@@ -343,7 +387,9 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
             ),
         ):
             staged += 1
+
         staged += _clear_prompt(task_id)
+
     return staged
 
 
@@ -358,6 +404,7 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
     def deliver(effect: Effect) -> None:
         payload = effect.payload
         task_id, title = str(payload["task"]), str(payload.get("title", ""))
+
         if effect.kind == "created":
             result = tracker.reflect(task_id, "created", title)
         elif effect.kind == "state":
@@ -394,6 +441,7 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
             result = tracker.notify(task_id, str(payload["login"]), body, effect.key)
         else:
             result = tracker.comment(task_id, str(payload["body"]), effect.key)
+
         if result.outcome != "applied":
             engine_event(
                 root,
@@ -436,6 +484,7 @@ def _apply(
     draft_feedback: Callable[[str, str], str] | None = None,
 ) -> CommandOutcome:
     verb, task_id = command.verb, command.task_id
+
     if verb not in COMMANDS:
         return CommandOutcome(
             verb,
@@ -458,6 +507,7 @@ def _apply(
                 "adopt consumes a drafting run's output — "
                 f"this task's role is {_role(root, task_id) or 'unknown'!r}",
             )
+
         if adopt_drafts is None:
             return CommandOutcome(
                 verb,
@@ -466,17 +516,21 @@ def _apply(
                 False,
                 "no adoption wiring — the poller carries no config",
             )
+
         try:
             adopted = adopt_drafts(task_id)
         except (ValueError, RuntimeError) as exc:
             return CommandOutcome(verb, task_id, command.actor, False, str(exc))
+
         return CommandOutcome(verb, task_id, command.actor, True, f"adopted: {', '.join(adopted)}")
 
     state_path = naming.state_file(root, task_id)
+
     if not state_path.exists():
         return CommandOutcome(
             verb, task_id, command.actor, False, "no run state for this task — nothing to act on"
         )
+
     state = RunState.load(state_path)
 
     if verb == "retry":
@@ -488,11 +542,13 @@ def _apply(
                 False,
                 f"retry needs an escalated run; this one is {state.state}",
             )
+
         # The mechanical re-queue (T-0059): the stale remote branch goes
         # under the commander's explicit authority — a ref deletion, never
         # a rewrite — BEFORE the state moves, so a failed cleanup leaves
         # the escalation standing and the command retryable.
         cleanup = "no re-queue cleanup wired"
+
         if requeue is not None:
             try:
                 cleanup = requeue(task_id)
@@ -500,8 +556,10 @@ def _apply(
                 return CommandOutcome(
                     verb, task_id, command.actor, False, f"re-queue cleanup failed: {exc}"
                 )
+
         state.transition(TaskState.QUEUED, f"tracker command retry from {command.actor}")
         state.save()
+
         return CommandOutcome(verb, task_id, command.actor, True, f"re-queued ({cleanup})")
 
     if verb == "abandon":
@@ -516,9 +574,11 @@ def _apply(
             state.transition(TaskState.ABANDONED, f"tracker command abandon from {command.actor}")
             state.save()
             drafts_file(root, task_id).unlink(missing_ok=True)
+
             return CommandOutcome(
                 verb, task_id, command.actor, True, "request refused — drafts discarded"
             )
+
         if TaskState.ABANDONED not in TRANSITIONS[state.state]:
             return CommandOutcome(
                 verb,
@@ -527,8 +587,10 @@ def _apply(
                 False,
                 f"abandon is not a legal exit from {state.state}",
             )
+
         state.transition(TaskState.ABANDONED, f"tracker command abandon from {command.actor}")
         state.save()
+
         return CommandOutcome(verb, task_id, command.actor, True, "abandoned")
 
     if verb == "revise":
@@ -543,6 +605,7 @@ def _apply(
                 False,
                 "a review is never revised — it re-runs with its target",
             )
+
         if state.state is not TaskState.READY:
             return CommandOutcome(
                 verb,
@@ -551,6 +614,7 @@ def _apply(
                 False,
                 f"revise needs a ready candidate; this one is {state.state}",
             )
+
         if _role(root, task_id) == "draft":
             # RFC 0020 (D-20.6): the commander's comment IS the feedback —
             # its text reaches the drafter, and the run re-queues for the
@@ -563,13 +627,17 @@ def _apply(
                     False,
                     "no drafting-feedback wiring — the poller carries no config",
                 )
+
             note = draft_feedback(task_id, command.text)
             state.transition(TaskState.QUEUED, f"tracker command revise from {command.actor}")
             state.save()
+
             return CommandOutcome(
                 verb, task_id, command.actor, True, f"re-queued for re-drafting ({note})"
             )
+
         cleanup = "no re-queue cleanup wired"
+
         if requeue is not None:
             try:
                 cleanup = requeue(task_id)
@@ -577,8 +645,10 @@ def _apply(
                 return CommandOutcome(
                     verb, task_id, command.actor, False, f"revision capture failed: {exc}"
                 )
+
         state.transition(TaskState.QUEUED, f"tracker command revise from {command.actor}")
         state.save()
+
         return CommandOutcome(
             verb, task_id, command.actor, True, f"re-queued for revision ({cleanup})"
         )
@@ -594,6 +664,7 @@ def _apply(
                 False,
                 "this is a review task — it is never landed, so there is nothing to approve",
             )
+
         if state.state is not TaskState.READY:
             return CommandOutcome(
                 verb,
@@ -602,6 +673,7 @@ def _apply(
                 False,
                 f"approve needs a ready candidate; this one is {state.state}",
             )
+
         if approve_tip is None:
             return CommandOutcome(
                 verb,
@@ -610,11 +682,14 @@ def _apply(
                 False,
                 "no approval wiring — the poller carries no vcs",
             )
+
         tip = approve_tip(task_id)
+
         if tip is None:
             return CommandOutcome(
                 verb, task_id, command.actor, False, "no branch to approve — nothing would land"
             )
+
         from torve.application.lane import record_approval
 
         # Sha-bound at apply time (RFC 0006 §3): the approval covers the
@@ -623,6 +698,7 @@ def _apply(
             return CommandOutcome(
                 verb, task_id, command.actor, True, f"already approved {tip[:10]}"
             )
+
         # The label follows the gap (D-8.17, A-36): the approval this
         # prompt asked for arrived — its removal rides the same outbox.
         stage(
@@ -633,17 +709,20 @@ def _apply(
                 payload={"task": task_id, "name": "needs:approval"},
             ),
         )
+
         return CommandOutcome(verb, task_id, command.actor, True, f"approved {tip[:10]}")
 
     # unblock: dependency holds are checked at dispatch, so the command
     # validates and informs — it never mutates state it does not hold.
     task_file = layout.task_file(root, task_id)
+
     if task_file.is_file():
         from torve.gates.context import load_task
 
         for dep in load_task(task_file).depends_on:
             dep_path = naming.state_file(root, dep)
             dep_state = RunState.load(dep_path).state if dep_path.exists() else None
+
             if dep_state is not TaskState.READY:
                 return CommandOutcome(
                     verb,
@@ -652,6 +731,7 @@ def _apply(
                     False,
                     f"dependency {dep} is not ready — still holds",
                 )
+
     return CommandOutcome(
         verb, task_id, command.actor, True, "no active hold — dispatch re-checks at run time"
     )
@@ -674,7 +754,9 @@ def poll_and_apply(
     list refuses everyone (T-0054; the board is an unattended channel once
     the loop polls it). Every outcome — applied or refused — is answered
     on the thread it came from."""
+
     report = PollReport()
+
     for command in tracker.poll_commands():
         if command.actor not in commanders:
             outcome = CommandOutcome(
@@ -686,6 +768,7 @@ def poll_and_apply(
             )
         else:
             outcome = _apply(root, command, requeue, approve_tip, adopt_drafts, draft_feedback)
+
         word = "applied" if outcome.applied else "refused"
         tracker.comment(
             command.task_id,
@@ -705,4 +788,5 @@ def poll_and_apply(
             },
         )
         report.outcomes.append(outcome)
+
     return report

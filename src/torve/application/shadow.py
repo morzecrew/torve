@@ -75,14 +75,17 @@ def run_shadow(
     """One shadow replay; returns the telemetry record it appended. Raises
     ValueError when no shipped commit is findable (a configuration problem),
     RuntimeError on infrastructure failure."""
+
     import asyncio
 
     resolved = commit or source.shipped_commit(task.id)
+
     if resolved is None:
         raise ValueError(
             f"no shipped commit found for {task.id} (no 'Torve-Task: {task.id}' trailer "
             f"or '({task.id})' subject in history); pass --commit explicitly"
         )
+
     parent = source.parent_of(resolved)
     workspace = source.create_workspace(task.id, parent)
 
@@ -99,12 +102,16 @@ def run_shadow(
 
     async def attempt(attempt_state: RunState) -> AgentResult:
         result = await inner.attempt(attempt_state)
+
         if result.cost_usd is not None:
             costs.append(result.cost_usd)
+
         if result.trace_ref is not None:
             traces.append(result.trace_ref)
+
         if result.model_version is not None:
             model_versions.append(result.model_version)
+
         return result
 
     async def land(_state: RunState, _digest: str) -> str:
@@ -150,10 +157,12 @@ def run_shadow(
     shadow_files = set(record["shadow_diff"].get("files", {}))
     shipped_files = set(record["shipped_diff"].get("files", {}))
     record["overlap_files"] = sorted(shadow_files & shipped_files)
+
     if annotation is not None:
         # The caller's measurement context — the eval loop (RFC 0009 §5)
         # marks its arm here so the population stays separable.
         record["eval"] = annotation
 
     append_record(root / layout.TORVE_DIR / "telemetry.jsonl", record)
+
     return record

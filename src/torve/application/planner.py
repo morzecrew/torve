@@ -64,13 +64,18 @@ def _require_committed(root: Path, doc: Path) -> None:
     """Only a committed, reviewed document is admissible (D-7.2): the commit
     is the human signature in the loop, and planning uncommitted text plans
     something nobody reviewed."""
+
     rel = doc.resolve().relative_to(root.resolve())
     tracked = _git(root, "ls-files", "--error-unmatch", str(rel))
+
     if tracked.returncode != 0:
         raise PlanError(f"{doc.name} is not tracked by git — commit the reviewed document first")
+
     dirty = _git(root, "status", "--porcelain", "--", str(rel))
+
     if dirty.returncode != 0:
         raise PlanError(f"cannot verify {doc.name} against git: {dirty.stderr.strip()}")
+
     if dirty.stdout.strip():
         raise PlanError(
             f"{doc.name} has uncommitted changes — `torve plan` accepts only the "
@@ -83,20 +88,26 @@ def _require_committed(root: Path, doc: Path) -> None:
 
 def _admit(files: dict[str, Path], number: str) -> None:
     frontmatter: dict[str, dict[str, object]] = {}
+
     for num, path in files.items():
         fm = rfc_parse.parse_frontmatter(path.read_text(encoding="utf-8"))
+
         if fm is not None:
             frontmatter[num] = fm
 
     doc = frontmatter.get(number)
+
     if doc is None:
         raise PlanError(f"RFC {number} has no readable frontmatter")
+
     status = str(doc.get("status", ""))
+
     if status != "accepted":
         raise PlanError(
             f"RFC {number} is {status or 'unreadable'} — a {status or 'malformed'} document "
             "has no settled decisions to inherit (§3.1)"
         )
+
     if doc.get("superseded_by"):
         raise PlanError(
             f"RFC {number} is superseded by {doc.get('superseded_by')} — its decisions "
@@ -105,8 +116,10 @@ def _admit(files: dict[str, Path], number: str) -> None:
 
     for dep in _depends(frontmatter, number):
         target = frontmatter.get(dep)
+
         if target is None:
             raise PlanError(f"RFC {number} depends on {dep}, which does not exist")
+
         if str(target.get("status", "")) != "accepted":
             raise PlanError(
                 f"RFC {number} depends on {dep}, which is {target.get('status')} — "
@@ -119,12 +132,15 @@ def _admit(files: dict[str, Path], number: str) -> None:
 
     def visit(num: str, trail: list[str]) -> None:
         state[num] = 1
+
         for dep in _depends(frontmatter, num):
             if state.get(dep) == 1:
                 cycle = " -> ".join([*trail, num, dep])
                 raise PlanError(f"depends_on cycle reachable from {number}: {cycle}")
+
             if state.get(dep) != 2 and dep in frontmatter:
                 visit(dep, [*trail, num])
+
         state[num] = 2
 
     visit(number, [])
@@ -135,8 +151,10 @@ def _admit(files: dict[str, Path], number: str) -> None:
 
 def _depends(frontmatter: dict[str, dict[str, object]], number: str) -> list[str]:
     raw = frontmatter.get(number, {}).get("depends_on")
+
     if not isinstance(raw, list):
         return []
+
     return [str(dep) for dep in cast("list[object]", raw)]
 
 
@@ -168,19 +186,24 @@ def globs_intersect(left: list[str], right: list[str]) -> bool:
     set's glob matching another's glob read as a literal path (with its own
     wildcard tail stripped). Definite overlaps only — this refuses what is
     provably shared, not what is cleverly disjoint."""
+
     if set(left) & set(right):
         return True
 
     def literals(globs: list[str]) -> list[str]:
         found: list[str] = []
+
         for glob in globs:
             stripped = glob.split("*", 1)[0].rstrip("/")
+
             if stripped:
                 found.append(stripped)
+
         return found
 
     left_spec = GitIgnoreSpec.from_lines(left)
     right_spec = GitIgnoreSpec.from_lines(right)
+
     return any(right_spec.match_file(lit) for lit in literals(left)) or any(
         left_spec.match_file(lit) for lit in literals(right)
     )
@@ -192,11 +215,14 @@ def globs_intersect(left: list[str], right: list[str]) -> bool:
 def next_task_number(root: Path) -> int:
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     numbers = [0]
+
     if tasks_dir.is_dir():
         for entry in tasks_dir.iterdir():
             found = TASK_DIR_NAME.match(entry.name)
+
             if found:
                 numbers.append(int(found.group(1)))
+
     return max(numbers) + 1
 
 
@@ -207,20 +233,28 @@ def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
     """Task ids whose contracts already cite this document and one of these
     phases — minting twice mints duplicate work, and what to do with the
     first batch is a human decision."""
+
     tasks_dir = root / layout.TORVE_DIR / "tasks"
+
     if not tasks_dir.is_dir():
         return []
+
     clashes: list[str] = []
+
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
             raw: Any = yaml.safe_load(contract.read_text(encoding="utf-8"))
         except yaml.YAMLError:
             continue
+
         if not isinstance(raw, dict):
             continue
+
         record = cast("dict[str, Any]", raw)
+
         if str(record.get("rfc", "")) == document and record.get("phase") in phases:
             clashes.append(str(record.get("id", contract.parent.name)))
+
     return clashes
 
 
@@ -233,13 +267,16 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
     task was minted. One implementation — `torve plan` and adoption mint the
     same rows or the two drift (A-47).
     """
+
     decisions: list[InheritedDecision] = []
+
     for row in rfc_parse.decision_table(text):
         if row.grade not in GRADES:
             raise PlanError(
                 f"{name}: decision {row.identifier} has grade {row.grade!r} — "
                 "not mintable (run `torve rfc check`)"
             )
+
         decisions.append(
             InheritedDecision(
                 id=row.identifier,
@@ -248,6 +285,7 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
                 paths=row.paths,
             )
         )
+
     return decisions
 
 
@@ -257,24 +295,30 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
 def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
     any refusal (§3.1) — each names the offending document or entry."""
+
     files = rfc_parse.rfc_files(rfc_dir)
     number = identifier.strip().removesuffix(".md")
+
     if number not in files:
         matches = [n for n, p in files.items() if p.name == identifier or p.stem == number]
+
         if len(matches) == 1:
             number = matches[0]
         else:
             raise PlanError(f"no RFC {identifier!r} under {rfc_dir}")
+
     doc_path = files[number]
 
     _require_committed(root, doc_path)
     _admit(files, number)
 
     text = doc_path.read_text(encoding="utf-8")
+
     try:
         entries = rfc_parse.parse_phasing(text)
     except ValueError as exc:
         raise PlanError(f"{doc_path.name}: Phasing section does not mint — {exc}") from exc
+
     if not entries:
         raise PlanError(
             f"{doc_path.name} has no mintable Phasing section — a fenced YAML block "
@@ -284,8 +328,10 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     # Same-phase scopes must not intersect (§3): overlapping tasks cannot run
     # in parallel and the plan silently serialises.
     by_phase: dict[int, list[rfc_parse.PhasingEntry]] = {}
+
     for entry in entries:
         by_phase.setdefault(entry.phase, []).append(entry)
+
     for phase, siblings in sorted(by_phase.items()):
         for i, one in enumerate(siblings):
             for other in siblings[i + 1 :]:
@@ -299,6 +345,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
 
     document = str(doc_path.resolve().relative_to(root.resolve()))
     clashes = _already_minted(root, document, {e.phase for e in entries})
+
     if clashes:
         raise PlanError(
             f"phase(s) already minted from {document}: {', '.join(clashes)} — "
@@ -309,9 +356,11 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     next_number = next_task_number(root)
     ids_by_phase: dict[int, list[str]] = {}
     planned: list[PlannedTask] = []
+
     for offset, entry in enumerate(ordered):
         task_id = f"T-{next_number + offset:04d}"
         ids_by_phase.setdefault(entry.phase, []).append(task_id)
+
     for offset, entry in enumerate(ordered):
         task = Task(
             id=f"T-{next_number + offset:04d}",
@@ -325,6 +374,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
             decisions=decisions,
         )
         planned.append(PlannedTask(task=task, title=entry.title, size=sizing.estimate(task)))
+
     return PlanReport(number=number, document=document, tasks=planned)
 
 
@@ -333,10 +383,13 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
 
 def write_contracts(root: Path, report: PlanReport) -> list[Path]:
     written: list[Path] = []
+
     for planned in report.tasks:
         path = layout.task_dir(root, planned.task.id) / "contract.yaml"
+
         if path.exists():
             raise PlanError(f"{path} already exists — task ids are never reused")
+
         path.parent.mkdir(parents=True, exist_ok=True)
         header = (
             f"# Minted by `torve plan {report.number}` — phase "
@@ -350,6 +403,7 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
             encoding="utf-8",
         )
         written.append(path)
+
     return written
 
 
@@ -380,15 +434,19 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
     state file through the claimed -> escalated edge the reaper minted; a
     task already escalated for another reason is reported and left — one
     escalation, one human decision at a time."""
+
     from torve.application.runstate import RunState
     from torve.base import naming
     from torve.domain.states import TERMINAL, EscalationReason, TaskState
 
     superseded: dict[str, str | None] = {}
+
     for _number, path in rfc_parse.rfc_files(rfc_dir).items():
         fm = rfc_parse.parse_frontmatter(path.read_text(encoding="utf-8"))
+
         if fm is None:
             continue
+
         if str(fm.get("status", "")) == "superseded" or fm.get("superseded_by"):
             document = str(path.resolve().relative_to(root.resolve()))
             by = fm.get("superseded_by")
@@ -396,19 +454,25 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
 
     found: list[StaleTask] = []
     tasks_dir = root / layout.TORVE_DIR / "tasks"
+
     if not tasks_dir.is_dir() or not superseded:
         return found
+
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
             raw: Any = yaml.safe_load(contract.read_text(encoding="utf-8"))
         except yaml.YAMLError:
             continue
+
         if not isinstance(raw, dict):
             continue
+
         record = cast("dict[str, Any]", raw)
         document = str(record.get("rfc", ""))
+
         if document not in superseded:
             continue
+
         task_id = str(record.get("id", contract.parent.name))
         by = superseded[document]
         detail = (
@@ -417,13 +481,16 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
         )
 
         state_path = naming.state_file(root, task_id)
+
         if state_path.exists():
             state = RunState.load(state_path)
+
             if state.state in TERMINAL:
                 found.append(
                     StaleTask(task_id, document, by, str(state.state), "skipped (terminal)")
                 )
                 continue
+
             if state.state is TaskState.ESCALATED:
                 reason = state.escalation.reason if state.escalation else "unknown"
                 action = (
@@ -433,8 +500,10 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
                 )
                 found.append(StaleTask(task_id, document, by, str(state.state), action))
                 continue
+
             if not dry_run:
                 state.escalate(EscalationReason.STALE_INHERITANCE, detail)
+
             found.append(
                 StaleTask(
                     task_id,
@@ -451,6 +520,7 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
                     TaskState.CLAIMED, "torve plan --reconcile: claiming to record the fact"
                 )
                 state.escalate(EscalationReason.STALE_INHERITANCE, detail)
+
             found.append(
                 StaleTask(
                     task_id,
@@ -460,4 +530,5 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
                     "escalated" if not dry_run else "would escalate",
                 )
             )
+
     return found

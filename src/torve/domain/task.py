@@ -137,6 +137,7 @@ class Task(BaseModel):
                     "a review task carries no acceptance commands — its output "
                     "is findings, and the acceptance gate is skipped for the role"
                 )
+
             if not self.targets:
                 raise ValueError("a review task names the task(s) it reviews in targets")
         elif self.role == "revert":
@@ -154,8 +155,10 @@ class Task(BaseModel):
                     "a draft task carries no acceptance commands — its gate "
                     "is the contract lint over its drafts"
                 )
+
             if self.targets:
                 raise ValueError("targets is not meaningful for role 'draft'")
         elif self.targets:
             raise ValueError(f"targets is not meaningful for role {self.role!r}")
+
         return self

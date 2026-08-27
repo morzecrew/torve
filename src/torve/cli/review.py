@@ -53,8 +53,10 @@ CORPUS_DIR = "review-corpus"
 
 def _load_case(case_dir: Path) -> dict[str, Any]:
     document = yaml.safe_load((case_dir / "case.yaml").read_text(encoding="utf-8"))
+
     if not isinstance(document, dict):
         raise ValueError(f"{case_dir.name}: case.yaml is not a mapping")
+
     return cast("dict[str, Any]", document)
 
 
@@ -97,13 +99,17 @@ def _case_outcome(
     )
 
     missed: list[str] = []
+
     for expected in expectations:
         severity = str(expected.get("severity", ""))
         needle = str(expected.get("claim_contains", "")).lower()
         caught = any(f.severity == severity and needle in f.claim.lower() for f in outcome.kept)
+
         if not caught:
             missed.append(f"{severity}: …{needle}…")
+
     false_blockers = [f.claim for f in outcome.kept if f.severity == "blocker" and not expectations]
+
     return {
         "case": name,
         "expected": len(expectations),
@@ -133,6 +139,7 @@ def corpus(
     """Replay the seeded-defect corpus through the reviewer tier and report
     which expected findings were caught. A dropped catch or an invented
     blocker on a clean case is a regression — exit 1."""
+
     from torve.cli.run import build_reviewer_agent
 
     root = root.resolve()
@@ -143,10 +150,13 @@ def corpus(
         if corpus_root.is_dir()
         else []
     )
+
     if case is not None:
         cases = [d for d in cases if d.name == case]
+
         if not cases:
             raise fail(f"configuration error: no case {case!r} under {corpus_root}", EXIT_CONFIG)
+
     if not cases:
         raise fail(f"configuration error: no corpus cases under {corpus_root}", EXIT_CONFIG)
 
@@ -154,6 +164,7 @@ def corpus(
         agent = build_reviewer_agent(config, root)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
     runtime = runtime_for(config, runtime_name)
 
     results = [
@@ -165,31 +176,40 @@ def corpus(
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "ok": passed, "cases": results})
         raise typer.Exit(EXIT_OK if passed else EXIT_GATES_RED)
+
     console = out(fmt)
     header(console, "review corpus", f"{len(results)} case(s)")
     table = make_table("", "case", "caught", "notes")
+
     for result in results:
         notes: list[str] = []
+
         if result["missed"]:
             notes.append(f"missed: {'; '.join(result['missed'])}")
+
         if result["false_blockers"]:
             notes.append(f"invented blocker(s): {len(result['false_blockers'])}")
+
         if result["unparseable"]:
             notes.append("output unparseable")
+
         if result["discarded"]:
             notes.append(f"{result['discarded']} discarded")
+
         table.add_row(
             mark("pass" if result["ok"] else "fail"),
             result["case"],
             f"{result['caught']}/{result['expected']}",
             "; ".join(notes),
         )
+
     console.print(table)
     closing(
         console,
         "corpus green" if passed else "regression: the reviewer dropped a catch",
         STYLE_PASS if passed else STYLE_FAIL,
     )
+
     raise typer.Exit(EXIT_OK if passed else EXIT_GATES_RED)
 
 
@@ -206,6 +226,7 @@ def pr(
     """Review one pull request and post the findings back as a comment.
     Skips drafts, empty and closed pull requests, and configured authors;
     each head is reviewed at most once."""
+
     import os
 
     from torve.adapters.vcs.git import GhScm, GitVcs
@@ -214,18 +235,22 @@ def pr(
 
     root = root.resolve()
     config = load_config(root, config_path)
+
     if not {"pr_opened", "pr_synchronized"} & set(config.review.on):
         raise fail(
             "configuration error: review.on includes neither pr_opened nor "
             "pr_synchronized — configuring nothing decides nothing",
             EXIT_CONFIG,
         )
+
     if not config.scm.repo:
         raise fail("configuration error: scm.repo names the forge repository", EXIT_CONFIG)
+
     try:
         agent = build_reviewer_agent(config, root)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
     token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
     outcome = review_pull_request(
         root,
@@ -237,6 +262,7 @@ def pr(
         number,
         token,
     )
+
     if fmt is Format.JSON:
         emit_json(
             {
@@ -254,9 +280,13 @@ def pr(
         console = out(fmt)
         header(console, "review pr", f"#{number}")
         line = f"{outcome.action}: {outcome.detail}"
+
         if outcome.review_id:
             line += f" ({outcome.review_id}, {outcome.findings} finding(s))"
+
         console.print(line)
+
         if outcome.comment:
             closing(console, outcome.comment)
+
     raise typer.Exit(EXIT_OK)

@@ -79,9 +79,12 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
     (RFC 0020, D-20.1): it has no branch and nothing to land — adoption
     consumes it. Anything unreadable stays a candidate; the lane's own
     no-branch handling reports it rather than hiding it."""
+
     contract = layout.task_file(root, task_id)
+
     if not contract.is_file():
         return False
+
     try:
         from torve.gates.context import load_task
 
@@ -96,12 +99,15 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
 def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
     """The full battery over the rebased tree, exactly as `torve gates run`
     would judge it — fail-closed on a missing manifest."""
+
     from torve.gates.context import build_context, load_task, resolve_base
     from torve.gates.runner import run_gates
 
     manifest_path = layout.gates_file(workdir)
+
     if not manifest_path.is_file():
         return 1, "no gate manifest in the rebased tree"
+
     from torve.config.manifest import load_manifest
 
     manifest = load_manifest(manifest_path)
@@ -112,10 +118,13 @@ def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
         base=resolve_base(workdir, base_ref),
         task_path=task_path if task_path.is_file() else None,
     )
+
     if task_path.is_file():
         ctx.task = load_task(task_path)
+
     report = run_gates(ctx)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
+
     return report.exit_code, summary
 
 
@@ -128,6 +137,7 @@ def _engine_record(root: Path, rel: str) -> bool:
     checkout's engine state, so engine-authored dirt — minted task
     contracts, telemetry appends, the outbox pair — must not demand an
     operator commit before every landing."""
+
     from torve.application.evals import EVAL_LEDGER
     from torve.application.intake import INTAKE_LEDGER
     from torve.application.loop import LOCK
@@ -137,12 +147,14 @@ def _engine_record(root: Path, rel: str) -> bool:
 
     if rel.startswith(f"{layout.TORVE_DIR}/tasks/"):
         return True
+
     manifest_path = layout.gates_file(root)
     telemetry_rel = (
         load_manifest(manifest_path).telemetry
         if manifest_path.is_file()
         else Manifest(gates=[]).telemetry
     )
+
     return rel in {
         telemetry_rel,
         f"{layout.TORVE_DIR}/{OUTBOX}",
@@ -169,15 +181,19 @@ def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     state, deduped by (actor, sha) — approving the same tip twice is one
     approval, and an approval of a superseded tip stays in the record but
     counts for nothing at the lane. Returns False on the dedupe."""
+
     state = RunState.load(naming.state_file(root, task_id))
+
     if any(a.get("actor") == actor and a.get("sha") == sha for a in state.approvals):
         return False
+
     from datetime import UTC, datetime
 
     state.approvals.append(
         {"actor": actor, "sha": sha, "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
     )
     state.save()
+
     return True
 
 
@@ -199,11 +215,13 @@ def _dispose_conflict(
     pre-approval probe (D-6.13, A-42): escalate — the record and the
     queue-age alarm stand — then capture, keep the branch, re-queue. A
     refused cleanup leaves the escalation standing for the human."""
+
     state.escalate(
         EscalationReason.MERGE_CONFLICT,
         f"rebase onto {base!r} conflicts ({found_by}); capturing for the "
         "revision loop and re-queueing (A-35)",
     )
+
     try:
         cleanup = on_conflict(task_id)
     except RuntimeError as exc:
@@ -216,6 +234,7 @@ def _dispose_conflict(
             )
         )
         return
+
     state.transition(TaskState.QUEUED, f"conflict auto-requeue ({cleanup})")
     state.conflict_base = base_tip
     state.save()
@@ -249,21 +268,27 @@ def process_lane(
     on_conflict: Callable[[str], str] | None = None,
 ) -> list[LaneResult]:
     base = vcs.current_branch(root)
+
     if not dry_run:
         dirt = [p for p in vcs.dirty_paths(root) if not _engine_record(root, p)]
+
         if dirt:
             raise RuntimeError(
                 f"the working tree on {base!r} is not clean — the lane "
                 "fast-forwards the checkout, commit or stash first: " + ", ".join(sorted(dirt)[:5])
             )
+
     approver = vcs.approver(root)
     results: list[LaneResult] = []
+
     for state in ready_candidates(root):
         if only is not None and state.task_id != only:
             continue
+
         task_id = state.task_id
         branch = naming.branch(task_id)
         branch_tip = vcs.tip(root, branch)
+
         if branch_tip is None:
             results.append(
                 LaneResult(
@@ -271,6 +296,7 @@ def process_lane(
                 )
             )
             continue
+
         if vcs.is_ancestor(root, branch_tip, base):
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
             continue
@@ -298,6 +324,7 @@ def process_lane(
             # for the tip the remote actually saw. Only "success" lands; a
             # rebased tree is additionally judged by the local battery below.
             verdict = ci.conclusion(branch_tip)
+
             if verdict != "success":
                 engine_event(
                     root,
@@ -315,8 +342,10 @@ def process_lane(
             # Sha-bound (D-6.3): only approvals of the tip as measured now
             # count — an approval of a superseded tip approves nothing.
             current = [a for a in state.approvals if a.get("sha") == branch_tip]
+
             if len(current) < approvals_required:
                 probe_base = vcs.tip(root, base) or base
+
                 if (
                     on_conflict is not None
                     and state.conflict_base != probe_base
@@ -342,6 +371,7 @@ def process_lane(
                         found_by="probe",
                     )
                     continue
+
                 engine_event(
                     root,
                     "lane_approvals_short",
@@ -362,8 +392,10 @@ def process_lane(
                     )
                 )
                 continue
+
         if quiet_window_s and not dry_run:
             age = vcs.tip_age_s(root, branch_tip)
+
             if age < quiet_window_s:
                 # Pushing reset the window (§3): the tip is too fresh.
                 engine_event(
@@ -382,6 +414,7 @@ def process_lane(
                 continue
 
         base_tip = vcs.tip(root, base) or base
+
         if vcs.is_ancestor(root, base_tip, branch_tip):
             # The base has not moved under this branch: the tree that would
             # land is byte-identical to the one the gates measured.
@@ -392,6 +425,7 @@ def process_lane(
                     )
                 )
                 continue
+
             # D-19.11 (A-28): the landing may carry the task's own records
             # — an untracked byte-identical root copy is adopted, never a
             # reason for git to refuse the fast-forward.
@@ -412,16 +446,21 @@ def process_lane(
                 )
             )
             continue
+
         engine_wt = root / naming.WORKTREE_DIR / task_id
+
         if engine_wt.exists():
             # The run's own worktree still pins the branch, and git refuses
             # to check a branch out twice. A READY candidate's worktree is
             # disposable — the work lives on the branch, and the reap would
             # collect it anyway — so the lane releases it for the rebase.
             vcs.remove_worktree(root, engine_wt)
+
         workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
+
         if not vcs.rebase_in_worktree(root, branch, base, workdir):
             engine_event(root, "lane_conflict", {"task": task_id, "base": base})
+
             if on_conflict is not None and state.conflict_base != base_tip:
                 # D-6.10 as amended by A-35: the escalation's standard
                 # disposal is mechanical, so the loop applies it in place
@@ -440,6 +479,7 @@ def process_lane(
                     found_by="rebase",
                 )
                 continue
+
             state.escalate(
                 EscalationReason.MERGE_CONFLICT,
                 f"rebase onto {base!r} conflicts; branch untouched — re-queue or abandon",
@@ -453,14 +493,17 @@ def process_lane(
                 )
             )
             continue
+
         try:
             exit_code, summary = _regate(workdir, base, task_id)
         finally:
             vcs.remove_worktree(root, workdir)
+
         if exit_code != 0:
             engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
             results.append(LaneResult(task_id, branch, "gates red", summary))
             continue
+
         vcs.adopt_identical(root, branch)
         sha = vcs.merge_ff(root, branch)
         engine_event(
@@ -469,4 +512,5 @@ def process_lane(
             {"task": task_id, "mode": "rebased", "sha": sha, "approver": approver},
         )
         results.append(LaneResult(task_id, branch, "landed", "rebased, gates green", sha))
+
     return results

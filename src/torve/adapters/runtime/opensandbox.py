@@ -62,12 +62,16 @@ def _sdk() -> Any:
 
 def _workspace_tar(workspace: Path) -> bytes:
     buffer = io.BytesIO()
+
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
         for entry in sorted(workspace.rglob("*")):
             rel = entry.relative_to(workspace)
+
             if rel.parts and rel.parts[0] == ".git":
                 continue
+
             tar.add(entry, arcname=str(rel), recursive=False)
+
     return buffer.getvalue()
 
 
@@ -79,8 +83,10 @@ def _extract_tar(data: bytes, workspace: Path) -> None:
         for member in tar.getmembers():
             # tar -C dir . yields ./-prefixed names; normalize before judging.
             parts = [p for p in PurePosixPath(member.name).parts if p != "."]
+
             if not parts or parts[0] == ".git" or ".." in parts or member.name.startswith("/"):
                 continue  # never let the sandbox rewrite git metadata or escape
+
             tar.extract(member, workspace, filter="data")
 
 
@@ -91,10 +97,13 @@ def _exec_result(execution: Any, started: float) -> ExecResult:
     exit_code = getattr(execution, "exit_code", None)
     logs = getattr(execution, "logs", None)
     parts: list[str] = []
+
     for stream in ("stdout", "stderr"):
         entries: list[Any] = getattr(logs, stream, None) or []
+
         for entry in entries:
             parts.append(getattr(entry, "text", str(entry)))
+
     return ExecResult(
         exit_code=exit_code,
         output=truncate("".join(parts)),
@@ -117,6 +126,7 @@ class OpenSandboxRuntime:
                 "use the docker runtime for a repository whose battery "
                 "drives containers"
             )
+
         self._sdk = sdk or _sdk()
         api_key = os.environ.get(config.api_key_env, "")
         self._connection = self._sdk.ConnectionConfigSync(domain=config.domain, api_key=api_key)
@@ -131,6 +141,7 @@ class OpenSandboxRuntime:
                 "need the Docker runtime (D-4.2); OpenSandbox credentials belong "
                 "to its vault (RFC 0003 §4.1)"
             )
+
         # Passthrough resolves here, at the API boundary — the last host-side
         # point before the value must exist. This is where the vault would sit.
         passthrough = {
@@ -160,11 +171,14 @@ class OpenSandboxRuntime:
             f"mkdir -p {spec.workdir} && base64 -d {staging} "
             f"| tar xzf - -C {spec.workdir} && rm {staging}"
         )
+
         if getattr(seed, "exit_code", 0) not in (0, None):
             sandbox.destroy()
             raise RuntimeError(f"workspace seed failed in sandbox: {_exec_result(seed, 0).output}")
+
         handle = SandboxHandle(id=str(sandbox.id), name=spec.name)
         self._live[handle.id] = (sandbox, spec.workdir)
+
         return handle
 
     # ....................... #
@@ -183,6 +197,7 @@ class OpenSandboxRuntime:
         execution = sandbox.commands.run(
             f"cd {workdir} && ({command})", timeout=timedelta(seconds=timeout_s)
         )
+
         return _exec_result(execution, started)
 
     # ....................... #
@@ -191,14 +206,17 @@ class OpenSandboxRuntime:
         sandbox, workdir = self._sandbox(handle)
         execution = sandbox.commands.run(f"tar czf - -C {workdir} . | base64 -w0")
         result = _exec_result(execution, time.monotonic())
+
         if result.exit_code not in (0, None):
             raise RuntimeError(f"workspace sync_out failed: {result.output}")
+
         _extract_tar(base64.b64decode(result.output.strip()), workspace)
 
     # ....................... #
 
     def destroy(self, handle: SandboxHandle) -> None:
         entry = self._live.pop(handle.id, None)
+
         if entry is not None:
             entry[0].destroy()
         else:
@@ -219,6 +237,7 @@ class OpenSandboxRuntime:
         # registry.
         if "@sha256:" in image:
             return "sha256:" + image.rsplit("@sha256:", 1)[1]
+
         return None
 
     # ....................... #
@@ -234,11 +253,15 @@ class OpenSandboxRuntime:
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:
             infos = manager.list_sandbox_infos(self._sdk.SandboxFilter(states=["RUNNING"]))
+
         found: list[SandboxInfo] = []
+
         for info in infos:
             metadata = dict(getattr(info, "metadata", None) or {})
+
             if naming.LABEL_TASK not in metadata:
                 continue
+
             found.append(
                 SandboxInfo(
                     id=str(info.id),
@@ -246,4 +269,5 @@ class OpenSandboxRuntime:
                     labels=metadata,
                 )
             )
+
         return found

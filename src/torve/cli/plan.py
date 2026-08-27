@@ -59,6 +59,7 @@ def plan_cmd(
 ) -> None:
     """Mint task contracts from one accepted, committed specification.
     Deterministic; no model is called at any point."""
+
     from torve.application.planner import PlanError, plan_document, write_contracts
 
     root = root.resolve()
@@ -71,8 +72,11 @@ def plan_cmd(
                 "configuration error: --reconcile sweeps the whole corpus and takes no document",
                 EXIT_CONFIG,
             )
+
         _reconcile(root, rfc_dir, dry_run, fmt)
+
         return
+
     if identifier is None:
         raise fail("configuration error: torve plan takes exactly one document", EXIT_CONFIG)
 
@@ -99,6 +103,7 @@ def plan_cmd(
         console = out(fmt)
         header(console, "plan", f"{report.document} · {len(report.tasks)} task(s)")
         table = make_table("task", "phase", "title", "size", "decisions", "scope", "after")
+
         for planned in report.tasks:
             task = planned.task
             table.add_row(
@@ -110,13 +115,17 @@ def plan_cmd(
                 str(len(task.scope.allow)),
                 Text(", ".join(task.depends_on), STYLE_DIM),
             )
+
         console.print(table)
+
         if dry_run:
             closing(console, "dry run — nothing written; pass --no-dry-run to mint", STYLE_DIM)
         else:
             for path in written:
                 console.print(Text(f"  minted {path}", ""))
+
             closing(console, f"minted {len(written)} contract(s)", STYLE_PASS)
+
     raise typer.Exit(EXIT_OK)
 
 
@@ -127,6 +136,7 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
     from torve.application.planner import reconcile
 
     found = reconcile(root, rfc_dir, dry_run=dry_run)
+
     if fmt is Format.JSON:
         emit_json(
             {
@@ -147,10 +157,12 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
     else:
         console = out(fmt)
         header(console, "plan --reconcile", f"{len(found)} stale task(s)")
+
         if not found:
             closing(console, "no tasks minted from superseded documents — nothing to reconcile")
         else:
             table = make_table("task", "state", "document", "superseded by", "action")
+
             for stale in found:
                 table.add_row(
                     Text(stale.task_id, STYLE_ID),
@@ -159,7 +171,10 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
                     stale.superseded_by or "an unset successor",
                     Text(stale.action, STYLE_FAIL if "escalate" in stale.action else STYLE_DIM),
                 )
+
             console.print(table)
+
         if dry_run and any(s.action == "would escalate" for s in found):
             closing(console, "dry run — nothing written; pass --no-dry-run to escalate", STYLE_DIM)
+
     raise typer.Exit(EXIT_OK)

@@ -81,6 +81,7 @@ class TickReport:
 def _run_record_exists(root: Path, task_id: str) -> bool:
     if naming.state_file(root, task_id).exists():
         return True
+
     from torve.config.manifest import Manifest, load_manifest
 
     manifest_path = layout.gates_file(root)
@@ -89,14 +90,19 @@ def _run_record_exists(root: Path, task_id: str) -> bool:
         if manifest_path.is_file()
         else Manifest(gates=[]).telemetry
     )
+
     if not telemetry.is_file():
         return False
+
     for line in telemetry.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
+
         record = cast("dict[str, Any]", json.loads(line))
+
         if record.get("task_id") == task_id:
             return True
+
     return False
 
 
@@ -125,6 +131,7 @@ def _scopes_clash(left: list[str], right: list[str]) -> bool:
     # touch anything can prove itself disjoint from nothing.
     if not left or not right:
         return True
+
     from torve.application.planner import globs_intersect
 
     return globs_intersect(left, right)
@@ -137,16 +144,21 @@ def _inflight_scopes(root: Path) -> list[list[str]]:
     from torve.gates.context import load_task
 
     scopes: list[list[str]] = []
+
     for state in RunState.load_all(root / naming.WORKTREE_DIR):
         if state.state not in INFLIGHT:
             continue
+
         contract = layout.task_file(root, state.task_id)
+
         if not contract.is_file():
             continue
+
         try:
             scopes.append(load_task(contract).scope.allow)
         except ValueError:
             continue
+
     return scopes
 
 
@@ -160,19 +172,24 @@ def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> l
     disjoint and disjoint from every in-flight run's (D-19.14). The
     intersection test is the planner's conservative one: what is provably
     shared serializes; only the provably disjoint runs together."""
+
     from torve.gates.context import load_task
 
     admitted: list[str] = []
     claimed_scopes = _inflight_scopes(root)
     tasks_dir = root / layout.TORVE_DIR / "tasks"
+
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
             task = load_task(contract)
         except ValueError:
             continue  # an unreadable contract is not this leg's problem
+
         if task.role not in ("implement", "revert"):
             continue
+
         state_path = naming.state_file(root, task.id)
+
         if state_path.exists():
             # A QUEUED state is a board re-queue (T-0059): §4's re-entry
             # is the human act, and it already happened. Any other state
@@ -181,20 +198,26 @@ def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> l
                 continue
         elif _run_record_exists(root, task.id):
             continue
+
         # A-29: the repository outranks the host. A landed task is never
         # queued — state files and telemetry are host-local, so a fresh
         # clone holds neither and would otherwise re-run landed history.
         # Asked here so the common tick still reads local files alone.
         if landed(task.id):
             continue
+
         if not all(_dependency_satisfied(dep, landed) for dep in task.depends_on):
             continue
+
         if any(_scopes_clash(task.scope.allow, held) for held in claimed_scopes):
             continue
+
         admitted.append(task.id)
         claimed_scopes.append(task.scope.allow)
+
         if len(admitted) >= limit:
             break
+
     return admitted
 
 
@@ -218,6 +241,7 @@ def _now() -> datetime:
 
 def acquire_lock(root: Path, budget_s: int) -> bool:
     lock = root / layout.TORVE_DIR / LOCK
+
     if lock.exists():
         try:
             row = cast("dict[str, Any]", json.loads(lock.read_text(encoding="utf-8")))
@@ -227,14 +251,18 @@ def acquire_lock(root: Path, budget_s: int) -> bool:
             age = (_now() - held_at).total_seconds()
         except (json.JSONDecodeError, ValueError):
             row, age = {}, float("inf")
+
         if age <= budget_s:
             return False
+
         # The stale break is loud, never a silent steal (D-19.2).
         engine_event(root, "tick_lock_broken", {"stale_holder": row.get("pid"), "age_s": age})
+
     lock.write_text(
         json.dumps({"pid": os.getpid(), "at": _now().strftime("%Y-%m-%dT%H:%M:%SZ")}),
         encoding="utf-8",
     )
+
     return True
 
 
@@ -263,24 +291,29 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
     """One pass, fixed order, every leg's failure recorded rather than
     fatal — a bounded tick must reach its sync leg so the board reflects
     whatever did happen."""
+
     if not acquire_lock(root, config.loop.tick_budget):
         engine_event(root, "tick", {"noop": True, "locked": True})
         return TickReport(
             legs=[("lock", "held by a running tick — no-op")], noop=True, locked_out=True
         )
+
     legs: list[tuple[str, str]] = []
     moved = False
 
     def leg(name: str, call: Leg | None, skip_reason: str) -> None:
         nonlocal moved
+
         if call is None:
             legs.append((name, f"skipped: {skip_reason}"))
             return
+
         try:
             detail, did = call()
         except Exception as exc:  # a leg's failure is recorded, never fatal
             legs.append((name, f"error: {exc}"))
             return
+
         legs.append((name, detail))
         moved = moved or did
 
@@ -296,11 +329,13 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
         leg("reap", deps.reap, "")
 
         escalated = _escalated_count(root)
+
         if escalated >= config.loop.pause_escalations:
             # D-19.5: the queue may drain during a pause; it may not grow.
             legs.append(("dispatch", f"paused: escalation queue at {escalated}"))
         else:
             batch = queued_batch(root, deps.landed, max(1, config.loop.dispatch_workers))
+
             if not batch:
                 legs.append(("dispatch", "nothing queued"))
             else:
@@ -311,4 +346,5 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
         release_lock(root)
 
     engine_event(root, "tick", {"noop": not moved, **dict(legs)})
+
     return TickReport(legs=legs, noop=not moved)
