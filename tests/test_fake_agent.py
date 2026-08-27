@@ -20,12 +20,22 @@ class HostShellRuntime:
 
     def exec(self, handle, command, timeout_s):
         try:
-            proc = subprocess.run(command, shell=True, cwd=self.workspace, timeout=timeout_s,
-                                  capture_output=True, text=True, check=False)
+            proc = subprocess.run(
+                command,
+                shell=True,
+                cwd=self.workspace,
+                timeout=timeout_s,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
         except subprocess.TimeoutExpired:
             return ExecResult(exit_code=None, output="timed out", duration_s=timeout_s)
-        return ExecResult(exit_code=proc.returncode,
-                          output=(proc.stdout or "") + (proc.stderr or ""), duration_s=0.0)
+        return ExecResult(
+            exit_code=proc.returncode,
+            output=(proc.stdout or "") + (proc.stderr or ""),
+            duration_s=0.0,
+        )
 
 
 def ctx_for(tmp_path, steps, attempt=1, timeout=20.0):
@@ -33,9 +43,13 @@ def ctx_for(tmp_path, steps, attempt=1, timeout=20.0):
     workspace.mkdir(exist_ok=True)
     task = Task(id="T-9001", decisions=[])
     return AgentContext(
-        task=task, attempt=attempt, workspace=workspace,
-        handle=SandboxHandle(id="h", name="h"), runtime=HostShellRuntime(workspace),
-        workdir=str(workspace), timeout_s=timeout,
+        task=task,
+        attempt=attempt,
+        workspace=workspace,
+        handle=SandboxHandle(id="h", name="h"),
+        runtime=HostShellRuntime(workspace),
+        workdir=str(workspace),
+        timeout_s=timeout,
     ), FakeAgent(steps)
 
 
@@ -62,9 +76,11 @@ def test_crash_dies_mid_write(tmp_path):
 def test_locked_conflict_appends_a_halted_entry(tmp_path):
     import yaml
 
-    entry = ("  - decision: D-1\n    grade: LOCKED\n    kind: contradicted\n"
-             "    at: 2026-08-21T00:00:00Z\n    attempt: 1\n"
-             "    claim: sim conflict\n    evidence: src/x.py:1\n    action: halted\n")
+    entry = (
+        "  - decision: D-1\n    grade: LOCKED\n    kind: contradicted\n"
+        "    at: 2026-08-21T00:00:00Z\n    attempt: 1\n"
+        "    claim: sim conflict\n    evidence: src/x.py:1\n    action: halted\n"
+    )
     ctx, agent = ctx_for(tmp_path, [{"log_entry": entry, "exit": 0}])
     agent.run(ctx)
     log = ctx.workspace / ".torve" / "tasks" / "T-9001" / "log.yaml"

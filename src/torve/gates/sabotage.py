@@ -34,17 +34,33 @@ BASE_MANIFEST: dict[str, Any] = {
     "gates": [
         {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"},
         {"name": "secrets", "run": "@secrets", "state": "blocking", "origin": "structural"},
-        {"name": "no-test-tampering", "run": "@no-test-tampering",
-         "state": "blocking", "origin": "structural"},
-        {"name": "decisions-reported", "run": "@decisions-reported",
-         "state": "blocking", "origin": "structural"},
+        {
+            "name": "no-test-tampering",
+            "run": "@no-test-tampering",
+            "state": "blocking",
+            "origin": "structural",
+        },
+        {
+            "name": "decisions-reported",
+            "run": "@decisions-reported",
+            "state": "blocking",
+            "origin": "structural",
+        },
         {"name": "self-audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
-        {"name": "source-layout", "run": "@source-layout",
-         "state": "shadow", "origin": "rfc/0014"},
-        {"name": "user-facing-text", "run": "@user-facing-text",
-         "state": "shadow", "origin": "rfc/0011"},
-        {"name": "acceptance", "run": "@task.acceptance",
-         "state": "blocking", "origin": "structural", "commands": ["true"]},
+        {"name": "source-layout", "run": "@source-layout", "state": "shadow", "origin": "rfc/0014"},
+        {
+            "name": "user-facing-text",
+            "run": "@user-facing-text",
+            "state": "shadow",
+            "origin": "rfc/0011",
+        },
+        {
+            "name": "acceptance",
+            "run": "@task.acceptance",
+            "state": "blocking",
+            "origin": "structural",
+            "commands": ["true"],
+        },
     ],
 }
 
@@ -122,8 +138,7 @@ class Repo:
 
     def task(self, task: dict[str, Any], log: str | None) -> None:
         # One directory per task (A-12); the log only exists if written (A-13).
-        self.write(f".torve/tasks/{TASK_ID}/contract.yaml",
-                   yaml.safe_dump(task, sort_keys=False))
+        self.write(f".torve/tasks/{TASK_ID}/contract.yaml", yaml.safe_dump(task, sort_keys=False))
         if log is not None:
             self.write(f".torve/tasks/{TASK_ID}/log.yaml", log)
 
@@ -167,8 +182,14 @@ def _scope_clean(repo: Repo) -> None:
 def _acceptance_bad(repo: Repo) -> None:
     manifest = dict(BASE_MANIFEST)
     manifest["gates"] = [
-        {"name": "acceptance", "run": "@task.acceptance", "state": "blocking",
-         "origin": "structural", "commands": ["false"], "timeout": 30}
+        {
+            "name": "acceptance",
+            "run": "@task.acceptance",
+            "state": "blocking",
+            "origin": "structural",
+            "commands": ["false"],
+            "timeout": 30,
+        }
     ]
     repo.seed(manifest)
     repo.write("src/app.py", "print('red build')\n")
@@ -185,8 +206,14 @@ def _acceptance_flaky(repo: Repo) -> None:
     flaky = "test -e .torve/marker || { mkdir -p .torve; touch .torve/marker; exit 1; }"
     manifest = dict(BASE_MANIFEST)
     manifest["gates"] = [
-        {"name": "acceptance", "run": "@task.acceptance", "state": "blocking",
-         "origin": "structural", "commands": [flaky], "timeout": 30}
+        {
+            "name": "acceptance",
+            "run": "@task.acceptance",
+            "state": "blocking",
+            "origin": "structural",
+            "commands": [flaky],
+            "timeout": 30,
+        }
     ]
     repo.seed(manifest)
     repo.write("src/app.py", "print('flaky build')\n")
@@ -224,8 +251,9 @@ def _decisions_silence_no_log(repo: Repo) -> None:
 
 def _decisions_no_log_untouched(repo: Repo) -> None:
     # The twin: inherited decisions whose area was never touched need no log.
-    decisions = [{"id": "D-1", "grade": "LOCKED",
-                  "text": "docs layout is settled", "paths": ["docs/**"]}]
+    decisions = [
+        {"id": "D-1", "grade": "LOCKED", "text": "docs layout is settled", "paths": ["docs/**"]}
+    ]
     repo.seed()
     repo.task(base_task(allow=["src/**"], decisions=decisions), None)
     repo.write("src/app.py", "print('outside the governed area')\n")
@@ -236,8 +264,9 @@ def _decisions_illegal(repo: Repo) -> None:
     repo.seed()
     repo.task(
         base_task(allow=["src/**"], decisions=LOCKED_D1),
-        log_document(entry(kind="contradicted", action="departed",
-                           claim="departed from a locked decision")),
+        log_document(
+            entry(kind="contradicted", action="departed", claim="departed from a locked decision")
+        ),
     )
     repo.write("src/app.py", "print('flipped a lock')\n")
     repo.commit("illegal action for the grade")
@@ -301,16 +330,26 @@ def _bypass_honored(repo: Repo) -> None:
     _scope_bad(repo)
     repo.write("rogue2.txt", "second file\n")
     repo.git("add", "-A")
-    repo.git("commit", "-q", "--no-gpg-sign", "-m",
-             "widen scope\n\nTorve-Bypass: scope: allow list predates this task, fix follows")
+    repo.git(
+        "commit",
+        "-q",
+        "--no-gpg-sign",
+        "-m",
+        "widen scope\n\nTorve-Bypass: scope: allow list predates this task, fix follows",
+    )
 
 
 def _bypass_refused_for_secrets(repo: Repo) -> None:
     _secrets_bad(repo)
     repo.write("src/other.py", "x = 1\n")
     repo.git("add", "-A")
-    repo.git("commit", "-q", "--no-gpg-sign", "-m",
-             "try to bypass\n\nTorve-Bypass: secrets: just this once")
+    repo.git(
+        "commit",
+        "-q",
+        "--no-gpg-sign",
+        "-m",
+        "try to bypass\n\nTorve-Bypass: secrets: just this once",
+    )
 
 
 def _layout_forbidden_name(repo: Repo) -> None:
@@ -328,22 +367,19 @@ def _layout_clean(repo: Repo) -> None:
 
 def _text_help_rfc(repo: Repo) -> None:
     repo.seed()
-    repo.write("src/torve/cli/thing.py",
-               'HELP = "Mint contracts per RFC 0007."\n')
+    repo.write("src/torve/cli/thing.py", 'HELP = "Mint contracts per RFC 0007."\n')
     repo.commit("help text citing an RFC number")
 
 
 def _text_docstring_decision(repo: Repo) -> None:
     repo.seed()
-    repo.write("src/torve/cli/thing.py",
-               'def thing() -> None:\n    """Size estimate (D-2.9)."""\n')
+    repo.write("src/torve/cli/thing.py", 'def thing() -> None:\n    """Size estimate (D-2.9)."""\n')
     repo.commit("command docstring citing a decision")
 
 
 def _text_corpus_path(repo: Repo) -> None:
     repo.seed()
-    repo.write("src/torve/cli/thing.py",
-               'ERROR = "see rfcs/0012-migrations.md"\n')
+    repo.write("src/torve/cli/thing.py", 'ERROR = "see rfcs/0012-migrations.md"\n')
     repo.commit("string citing a corpus path")
 
 
@@ -351,9 +387,11 @@ def _text_module_docstring_passes(repo: Repo) -> None:
     # The case that matters most: the surface where references are wanted
     # must never be flagged, or the gate teaches people to strip them.
     repo.seed()
-    repo.write("src/torve/cli/thing.py",
-               '"""The thing command (D-2.9, RFC 0007 §3); see rfcs/ for why."""\n\n'
-               'def _helper() -> None:\n    """Private, editor-facing (D-2.9)."""\n')
+    repo.write(
+        "src/torve/cli/thing.py",
+        '"""The thing command (D-2.9, RFC 0007 §3); see rfcs/ for why."""\n\n'
+        'def _helper() -> None:\n    """Private, editor-facing (D-2.9)."""\n',
+    )
     repo.commit("module and private docstrings citing decisions")
 
 
@@ -366,33 +404,54 @@ CASES: list[Case] = [
     Case("no-test-tampering: unlicensed edit", "no-test-tampering", "fail", _tampering_bad),
     Case("no-test-tampering: clean twin", "no-test-tampering", "pass", _tampering_clean),
     Case("decisions-reported: silence", "decisions-reported", "fail", _decisions_silence),
-    Case("decisions-reported: silence with no log at all", "decisions-reported", "fail",
-         _decisions_silence_no_log),
-    Case("decisions-reported: no log, nothing governed touched", "decisions-reported",
-         "pass", _decisions_no_log_untouched),
+    Case(
+        "decisions-reported: silence with no log at all",
+        "decisions-reported",
+        "fail",
+        _decisions_silence_no_log,
+    ),
+    Case(
+        "decisions-reported: no log, nothing governed touched",
+        "decisions-reported",
+        "pass",
+        _decisions_no_log_untouched,
+    ),
     Case("decisions-reported: illegal action", "decisions-reported", "fail", _decisions_illegal),
-    Case("decisions-reported: unlocatable evidence", "decisions-reported", "fail",
-         _decisions_unlocatable),
+    Case(
+        "decisions-reported: unlocatable evidence",
+        "decisions-reported",
+        "fail",
+        _decisions_unlocatable,
+    ),
     Case("decisions-reported: valid log", "decisions-reported", "pass", _decisions_valid),
     Case("self-audit: no drift count", "self-audit", "fail", _self_audit_bad),
     Case("self-audit: clean twin", "self-audit", "pass", _self_audit_clean),
-    Case("self-audit: absent log is an empty log", "self-audit", "pass",
-         _self_audit_absent),
+    Case("self-audit: absent log is an empty log", "self-audit", "pass", _self_audit_absent),
     Case("secrets: leaked key", "secrets", "fail", _secrets_bad),
     Case("secrets: clean twin", "secrets", "pass", _secrets_clean),
     Case("bypass: signed trailer converts a red scope", "scope", "bypassed", _bypass_honored),
     Case("bypass: refused for secrets", "secrets", "fail", _bypass_refused_for_secrets),
-    Case("source-layout: catch-all module name", "source-layout", "fail",
-         _layout_forbidden_name),
+    Case("source-layout: catch-all module name", "source-layout", "fail", _layout_forbidden_name),
     Case("source-layout: named module twin", "source-layout", "pass", _layout_clean),
-    Case("user-facing-text: help cites an RFC number", "user-facing-text", "fail",
-         _text_help_rfc),
-    Case("user-facing-text: command docstring cites a decision", "user-facing-text",
-         "fail", _text_docstring_decision),
-    Case("user-facing-text: string cites a corpus path", "user-facing-text", "fail",
-         _text_corpus_path),
-    Case("user-facing-text: module docstring cites freely", "user-facing-text", "pass",
-         _text_module_docstring_passes),
+    Case("user-facing-text: help cites an RFC number", "user-facing-text", "fail", _text_help_rfc),
+    Case(
+        "user-facing-text: command docstring cites a decision",
+        "user-facing-text",
+        "fail",
+        _text_docstring_decision,
+    ),
+    Case(
+        "user-facing-text: string cites a corpus path",
+        "user-facing-text",
+        "fail",
+        _text_corpus_path,
+    ),
+    Case(
+        "user-facing-text: module docstring cites freely",
+        "user-facing-text",
+        "pass",
+        _text_module_docstring_passes,
+    ),
 ]
 
 

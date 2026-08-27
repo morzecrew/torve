@@ -62,7 +62,11 @@ class _Commands:
     def run(self, command: str, timeout=None) -> _Execution:
         try:
             proc = subprocess.run(
-                command, shell=True, capture_output=True, text=True, check=False,
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                check=False,
                 timeout=timeout.total_seconds() if timeout else None,
             )
         except subprocess.TimeoutExpired:
@@ -89,8 +93,9 @@ class SandboxSync:
         self.files = _Files()
 
     @classmethod
-    def create(cls, image: str, *, connection_config=None, timeout=None,
-               env=None, metadata=None, **_kwargs) -> SandboxSync:
+    def create(
+        cls, image: str, *, connection_config=None, timeout=None, env=None, metadata=None, **_kwargs
+    ) -> SandboxSync:
         sandbox = cls(image, dict(metadata or {}))
         sandbox.env = dict(env or {})  # recorded so tests can assert what the SDK was told
         REGISTRY[sandbox.id] = sandbox

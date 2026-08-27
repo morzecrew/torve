@@ -37,8 +37,7 @@ StoreFactory = Callable[["StoreConfig"], Awaitable["DurableRunStorePort"]]
 # the same variables the host's own processes do, or its traffic silently
 # takes a different (often blocked) route. Runtimes forward these by name —
 # the values ride the runtime's own environment, never a spec.
-PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy",
-             "socks_proxy", "no_proxy")
+PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy", "socks_proxy", "no_proxy")
 
 
 @dataclass(frozen=True)
@@ -168,16 +167,17 @@ class Vcs(Protocol):
     committer is Torve, and the signing key, when configured, never enters
     a sandbox (D-10.3)."""
 
-    def commit_all(self, worktree: Path, message: str, author: str | None = None,
-                   sign_key: str | None = None) -> str | None: ...
+    def commit_all(
+        self, worktree: Path, message: str, author: str | None = None, sign_key: str | None = None
+    ) -> str | None: ...
 
     def changed_names(self, worktree: Path) -> list[str]: ...
 
-    def push(self, worktree: Path, branch: str, token: str | None = None,
-             supersede: bool = False) -> bool: ...
+    def push(
+        self, worktree: Path, branch: str, token: str | None = None, supersede: bool = False
+    ) -> bool: ...
 
-    def republish_branch(self, root: Path, branch: str,
-                         token: str | None = None) -> bool: ...
+    def republish_branch(self, root: Path, branch: str, token: str | None = None) -> bool: ...
 
     def landed_shas(self, worktree: Path, task_id: str) -> list[str]: ...
 
@@ -246,8 +246,9 @@ class PrVcs(Protocol):
     and base, materialise a detached worktree to review, diff, and read
     Torve-Task trailers to map the head back to a task contract."""
 
-    def fetch_pr(self, root: Path, number: int, base_ref: str,
-                 token: str | None = None) -> tuple[str, str]: ...
+    def fetch_pr(
+        self, root: Path, number: int, base_ref: str, token: str | None = None
+    ) -> tuple[str, str]: ...
 
     def worktree_at(self, root: Path, sha: str, workdir: Path) -> None: ...
 

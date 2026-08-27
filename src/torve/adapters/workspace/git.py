@@ -59,13 +59,16 @@ class GitWorkspace:
         path = naming.worktree(self.root, task_id)
         proc = subprocess.run(
             ["git", "-C", str(self.root), "worktree", "remove", "--force", str(path)],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if proc.returncode != 0 and path.exists():
             shutil.rmtree(path, ignore_errors=True)
         subprocess.run(
             ["git", "-C", str(self.root), "worktree", "prune"],
-            capture_output=True, check=False,
+            capture_output=True,
+            check=False,
         )
 
     def list_worktrees(self) -> list[tuple[str, Path]]:
@@ -108,9 +111,15 @@ class ShadowWorkspace:
                 raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
 
         run("init", "-q")
-        run("fetch", "-q", f"--depth={self.depth}",
-            "--upload-pack", "git -c uploadpack.allowanysha1inwant=true upload-pack",
-            str(self.root), parent_sha)
+        run(
+            "fetch",
+            "-q",
+            f"--depth={self.depth}",
+            "--upload-pack",
+            "git -c uploadpack.allowanysha1inwant=true upload-pack",
+            str(self.root),
+            parent_sha,
+        )
         run("checkout", "-q", "-b", "shadow", "FETCH_HEAD")
         return path
 
@@ -127,16 +136,29 @@ def shipped_commit(root: Path, task_id: str) -> str | None:
     commit merely *mentioning* the id in its body must never shadow the
     commit that shipped the work."""
     proc = subprocess.run(
-        ["git", "-C", str(root), "log", "--all", "-1", "--format=%H",
-         "--fixed-strings", f"--grep=Torve-Task: {task_id}"],
-        capture_output=True, text=True, check=False,
+        [
+            "git",
+            "-C",
+            str(root),
+            "log",
+            "--all",
+            "-1",
+            "--format=%H",
+            "--fixed-strings",
+            f"--grep=Torve-Task: {task_id}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     sha = proc.stdout.strip()
     if proc.returncode == 0 and sha:
         return sha
     proc = subprocess.run(
         ["git", "-C", str(root), "log", "--all", "--format=%H%x09%s"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if proc.returncode != 0:
         return None
@@ -150,7 +172,9 @@ def shipped_commit(root: Path, task_id: str) -> str | None:
 def parent_of(root: Path, sha: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", f"{sha}^"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if proc.returncode != 0:
         raise WorkspaceError(f"no parent commit for {sha!r}")
@@ -169,15 +193,21 @@ def _parse_numstat(output: str) -> dict[str, object]:
         files[parts[2]] = {"insertions": added, "deletions": removed}
         insertions += added
         deletions += removed
-    return {"files_changed": len(files), "insertions": insertions,
-            "deletions": deletions, "files": files}
+    return {
+        "files_changed": len(files),
+        "insertions": insertions,
+        "deletions": deletions,
+        "files": files,
+    }
 
 
 def diff_range(root: Path, sha: str) -> dict[str, object]:
     """What actually shipped: the commit against its first parent."""
     proc = subprocess.run(
         ["git", "-C", str(root), "diff", "--numstat", f"{sha}^", sha],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if proc.returncode != 0:
         raise WorkspaceError(proc.stderr.strip() or f"git diff for {sha!r} failed")
@@ -190,10 +220,11 @@ def diff_worktree(workspace: Path, base: str) -> dict[str, object]:
     carries a real `.git` the sandbox can reach, so an agent may commit its
     own work — which moves HEAD and would read as an empty diff. Stages
     everything first — the workspace is a throwaway measurement artefact."""
-    subprocess.run(["git", "-C", str(workspace), "add", "-A"],
-                   capture_output=True, check=False)
+    subprocess.run(["git", "-C", str(workspace), "add", "-A"], capture_output=True, check=False)
     proc = subprocess.run(
         ["git", "-C", str(workspace), "diff", "--cached", base, "--numstat"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     return _parse_numstat(proc.stdout)

@@ -63,14 +63,24 @@ def build_reviewer_agent(config: RunnerConfig, root: Path) -> Agent:
 
 def run_cmd(
     task_id: Annotated[str, typer.Argument()],
-    agent_name: Annotated[str | None, typer.Option(
-        "--agent", help="Override the tier's adapter with 'fake' (scenario replay); "
-                        "by default the task's tier picks the adapter.")] = None,
-    scenario: Annotated[Path | None, typer.Option(
-        exists=True,
-        help="FakeAgent scenario YAML; default writes one marker file and exits 0.")] = None,
-    runtime_name: Annotated[RuntimeName | None, typer.Option(
-        "--runtime", help="Override the configured runtime adapter.")] = None,
+    agent_name: Annotated[
+        str | None,
+        typer.Option(
+            "--agent",
+            help="Override the tier's adapter with 'fake' (scenario replay); "
+            "by default the task's tier picks the adapter.",
+        ),
+    ] = None,
+    scenario: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True, help="FakeAgent scenario YAML; default writes one marker file and exits 0."
+        ),
+    ] = None,
+    runtime_name: Annotated[
+        RuntimeName | None,
+        typer.Option("--runtime", help="Override the configured runtime adapter."),
+    ] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -103,7 +113,6 @@ def run_cmd(
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-
     agent: Agent
     if agent_name == "fake" or tier.adapter == "fake":
         agent = FakeAgent(load_scenario(scenario) if scenario else None)
@@ -126,8 +135,7 @@ def run_cmd(
         runtime=runtime_for(config, runtime_name),
         agent=agent,
         vcs=GitVcs(),
-        scm=(GhScm(config.scm.repo, config.scm.token_env)
-             if config.scm.open_pr else NullScm()),
+        scm=(GhScm(config.scm.repo, config.scm.token_env) if config.scm.open_pr else NullScm()),
         store=open_store,
         review_agent=review_agent,
     )
@@ -147,8 +155,7 @@ def run_cmd(
         console = out(fmt)
         console.print(f"{task.id}: {state.state} after {state.attempts} attempt(s)")
         if state.escalation is not None:
-            console.print(
-                f"  escalated: {state.escalation.reason} — {state.escalation.detail}")
+            console.print(f"  escalated: {state.escalation.reason} — {state.escalation.detail}")
         for event in state.history[-4:]:
             console.print(f"  {event['from']} -> {event['to']}: {event['fact']}")
 
@@ -180,8 +187,10 @@ def kill(
         raise fail(f"configuration error: no run state for {task_id}", EXIT_CONFIG)
     state = RunState.load(state_path)
     if state.state in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
-        raise fail(f"configuration error: {task_id} is already {state.state} — "
-                   "nothing to kill", EXIT_CONFIG)
+        raise fail(
+            f"configuration error: {task_id} is already {state.state} — nothing to kill",
+            EXIT_CONFIG,
+        )
 
     config = load_config(root, config_path)
     destroyed = ""
@@ -196,8 +205,14 @@ def kill(
     engine_event(root, "killed", {"task": task_id, "sandbox": destroyed or None})
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "task_id": task_id,
-                   "state": str(state.state), "sandbox": destroyed or None})
+        emit_json(
+            {
+                "schema_version": 1,
+                "task_id": task_id,
+                "state": str(state.state),
+                "sandbox": destroyed or None,
+            }
+        )
         return
     console = out(fmt)
     console.print(f"{task_id}: killed — escalated for triage")
@@ -227,8 +242,7 @@ def cancel(
     state = RunState.load(state_path)
     run_id = state.durable_run_id
     if not run_id:
-        raise fail(f"configuration error: {task_id} has no durable run to cancel",
-                   EXIT_CONFIG)
+        raise fail(f"configuration error: {task_id} has no durable run to cancel", EXIT_CONFIG)
 
     config = load_config(root, config_path)
 
@@ -245,4 +259,6 @@ def cancel(
     else:
         out(fmt).print(
             "cancel recorded — the holder observes it on the next lease renewal"
-            if recorded else "nothing to stop (run already terminal or ask refused)")
+            if recorded
+            else "nothing to stop (run already terminal or ask refused)"
+        )

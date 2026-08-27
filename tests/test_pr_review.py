@@ -46,8 +46,7 @@ class FakePrScm:
 
 
 class FakePrVcs:
-    def __init__(self, trailers: list[str] | None = None,
-                 refuse_fetch: bool = False) -> None:
+    def __init__(self, trailers: list[str] | None = None, refuse_fetch: bool = False) -> None:
         self.trailers = trailers or []
         self.refuse_fetch = refuse_fetch
         self.removed: list[Path] = []
@@ -72,9 +71,14 @@ class FakePrVcs:
 
 def pr_info(**overrides) -> PrInfo:
     values = {
-        "number": 7, "title": "an organic change", "author": "misery7100",
-        "draft": False, "head_sha": "a" * 40, "base_ref": "main",
-        "changed_files": 2, "state": "open",
+        "number": 7,
+        "title": "an organic change",
+        "author": "misery7100",
+        "draft": False,
+        "head_sha": "a" * 40,
+        "base_ref": "main",
+        "changed_files": 2,
+        "state": "open",
     }
     values.update(overrides)
     return PrInfo(**values)
@@ -84,20 +88,27 @@ def pr_info(**overrides) -> PrInfo:
 def root(tmp_path: Path) -> Path:
     (tmp_path / ".torve").mkdir()
     (tmp_path / ".torve" / "gates.yaml").write_text(
-        "schema_version: 1\ngates: []\n", encoding="utf-8")
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
     return tmp_path
 
 
 def config(**review) -> RunnerConfig:
     return RunnerConfig.model_validate(
-        {"review": {"on": ["pr_opened", "pr_synchronized"], **review}})
+        {"review": {"on": ["pr_opened", "pr_synchronized"], **review}}
+    )
 
 
-def run(root: Path, scm: FakePrScm, vcs: FakePrVcs, cfg: RunnerConfig | None = None,
-        agent: RecordingAgent | None = None):
+def run(
+    root: Path,
+    scm: FakePrScm,
+    vcs: FakePrVcs,
+    cfg: RunnerConfig | None = None,
+    agent: RecordingAgent | None = None,
+):
     return review_pull_request(
-        root, cfg or config(), MockRuntime(), agent or RecordingAgent(),
-        scm, vcs, 7)
+        root, cfg or config(), MockRuntime(), agent or RecordingAgent(), scm, vcs, 7
+    )
 
 
 def test_skip_rules_run_before_any_fetch(root):
@@ -113,8 +124,7 @@ def test_skip_rules_run_before_any_fetch(root):
 
 def test_a_configured_author_is_skipped(root):
     cfg = config(skip_authors=["dependabot"])
-    outcome = run(root, FakePrScm(pr_info(author="dependabot")),
-                  FakePrVcs(refuse_fetch=True), cfg)
+    outcome = run(root, FakePrScm(pr_info(author="dependabot")), FakePrVcs(refuse_fetch=True), cfg)
     assert outcome.action == "skipped" and "dependabot" in outcome.detail
 
 
@@ -132,8 +142,7 @@ def test_an_organic_pr_reviews_degraded_and_posts_one_comment(root):
     assert (number, key) == (7, f"review:7:{'a' * 12}")
     assert "degraded input" in body
     # The minted review contract targets the pull request, not a task.
-    contract = (root / ".torve" / "tasks" / outcome.review_id /
-                "contract.yaml").read_text()
+    contract = (root / ".torve" / "tasks" / outcome.review_id / "contract.yaml").read_text()
     assert "PR-7" in contract
     # The disposable worktree is gone.
     assert vcs.removed
@@ -146,8 +155,7 @@ def test_a_head_reviews_at_most_once(root):
     assert first.action == "reviewed"
     assert again.action == "already reviewed"
     assert len(scm.comments) == 1
-    rows = [json.loads(line) for line in
-            (root / ".torve" / PR_LEDGER).read_text().splitlines()]
+    rows = [json.loads(line) for line in (root / ".torve" / PR_LEDGER).read_text().splitlines()]
     assert len(rows) == 1 and rows[0]["pr"] == 7
 
 
@@ -166,10 +174,10 @@ def test_a_torve_task_trailer_maps_to_its_contract(root):
     (contract_dir / "contract.yaml").write_text(
         "schema_version: 1\nid: T-0101\nrole: implement\n"
         "intent: the mapped task intent sentence\ndecisions: []\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     agent = RecordingAgent()
-    outcome = run(root, FakePrScm(pr_info()), FakePrVcs(trailers=["T-0101"]),
-                  agent=agent)
+    outcome = run(root, FakePrScm(pr_info()), FakePrVcs(trailers=["T-0101"]), agent=agent)
     assert outcome.action == "reviewed"
     # Task-informed, not degraded: the contract's intent reaches the prompt.
     assert "the mapped task intent sentence" in agent.prompts[0]
@@ -177,10 +185,14 @@ def test_a_torve_task_trailer_maps_to_its_contract(root):
 
 
 def test_findings_reach_the_comment_blockers_first(root):
-    output = json.dumps({"findings": [
-        {"severity": "minor", "claim": "a nit", "evidence": "x.py:1 — minor"},
-        {"severity": "blocker", "claim": "wrong", "evidence": "x.py:2 — bad"},
-    ]})
+    output = json.dumps(
+        {
+            "findings": [
+                {"severity": "minor", "claim": "a nit", "evidence": "x.py:1 — minor"},
+                {"severity": "blocker", "claim": "wrong", "evidence": "x.py:2 — bad"},
+            ]
+        }
+    )
     root_x = root / "x.py"
     root_x.write_text("line1\nline2\n", encoding="utf-8")
     agent = RecordingAgent(output=output)
@@ -223,10 +235,18 @@ def scripted_gh(monkeypatch, responses: dict[str, str]):
 
 
 def test_ghscm_pr_info_parses_the_forge_shape(monkeypatch):
-    view = json.dumps({
-        "number": 12, "title": "t", "author": {"login": "someone"},
-        "isDraft": False, "headRefOid": "d" * 40, "baseRefName": "main",
-        "changedFiles": 3, "state": "OPEN"})
+    view = json.dumps(
+        {
+            "number": 12,
+            "title": "t",
+            "author": {"login": "someone"},
+            "isDraft": False,
+            "headRefOid": "d" * 40,
+            "baseRefName": "main",
+            "changedFiles": 3,
+            "state": "OPEN",
+        }
+    )
     scripted_gh(monkeypatch, {"pr view": view})
     info = GhScm("example/lab", token_env=None).pr_info(12)
     assert (info.number, info.author, info.state) == (12, "someone", "open")
@@ -237,40 +257,58 @@ def test_ghscm_review_threads_allow_lists_roots_and_keeps_replies(monkeypatch):
     # D-5.12: a stranger's root comment never reaches an agent; replies
     # in a kept thread ride along — they carry resolution.
     listed = json.dumps([{"number": 12}])
-    comments = json.dumps([
-        {"id": 1, "in_reply_to_id": None, "path": "a.py", "line": 3,
-         "user": {"login": "coderabbitai[bot]"}, "body": "root finding"},
-        {"id": 2, "in_reply_to_id": 1, "path": "a.py", "line": 3,
-         "user": {"login": "Misery7100"}, "body": "fixed in abc"},
-        {"id": 3, "in_reply_to_id": None, "path": "b.py", "line": 9,
-         "user": {"login": "drive-by"}, "body": "ignore me"},
-    ])
+    comments = json.dumps(
+        [
+            {
+                "id": 1,
+                "in_reply_to_id": None,
+                "path": "a.py",
+                "line": 3,
+                "user": {"login": "coderabbitai[bot]"},
+                "body": "root finding",
+            },
+            {
+                "id": 2,
+                "in_reply_to_id": 1,
+                "path": "a.py",
+                "line": 3,
+                "user": {"login": "Misery7100"},
+                "body": "fixed in abc",
+            },
+            {
+                "id": 3,
+                "in_reply_to_id": None,
+                "path": "b.py",
+                "line": 9,
+                "user": {"login": "drive-by"},
+                "body": "ignore me",
+            },
+        ]
+    )
     scripted_gh(monkeypatch, {"pr list": listed, "pulls/12/comments": comments})
     threads = GhScm("example/lab", token_env=None).review_threads(
-        "torve/T-0100", ("coderabbitai[bot]", "Misery7100"))
+        "torve/T-0100", ("coderabbitai[bot]", "Misery7100")
+    )
     assert len(threads) == 1
     assert threads[0]["path"] == "a.py"
     # The reply address rides the capture (D-5.14, A-41).
     assert threads[0]["id"] == 1 and threads[0]["pr"] == 12
-    assert [c["author"] for c in threads[0]["comments"]] == [
-        "coderabbitai[bot]", "Misery7100"]
+    assert [c["author"] for c in threads[0]["comments"]] == ["coderabbitai[bot]", "Misery7100"]
     # An empty allow-list is off — no forge calls at all.
     calls = scripted_gh(monkeypatch, {"pr list": listed})
-    assert GhScm("example/lab", token_env=None).review_threads(
-        "torve/T-0100", ()) == []
+    assert GhScm("example/lab", token_env=None).review_threads("torve/T-0100", ()) == []
     assert calls == []
 
 
 def test_answer_captured_threads_posts_once_and_absorbs_replays(monkeypatch):
     # D-5.14 (A-41): one reply per captured root, marker-deduped at the
     # destination — a thread already marked is skipped, not re-answered.
-    existing = json.dumps([
-        {"id": 5, "body": "old reply\n\n<!-- torve-key:answer:5 -->"}])
-    calls = scripted_gh(monkeypatch, {"replies": "{}",
-                                      "pulls/12/comments": existing})
+    existing = json.dumps([{"id": 5, "body": "old reply\n\n<!-- torve-key:answer:5 -->"}])
+    calls = scripted_gh(monkeypatch, {"replies": "{}", "pulls/12/comments": existing})
     scm = GhScm("example/lab", token_env=None)
     posted, skipped = scm.answer_captured_threads(
-        [{"pr": 12, "id": 5}, {"pr": 12, "id": 7}], "landed as abc123")
+        [{"pr": 12, "id": 5}, {"pr": 12, "id": 7}], "landed as abc123"
+    )
     assert (posted, skipped) == (1, 1)
     reply_calls = [c for c in calls if "replies" in c]
     assert len(reply_calls) == 1 and "comments/7/replies" in reply_calls[0]
@@ -282,19 +320,18 @@ def test_ghscm_close_pr_closes_and_deletes_or_noops(monkeypatch):
     # close, branch deleted. No open PR for the branch is a no-op.
     listed = json.dumps([{"number": 31}])
     calls = scripted_gh(monkeypatch, {"pr list": listed})
-    assert GhScm("example/lab", token_env=None).close_pr(
-        "torve/T-0100", "landed as abc") is True
+    assert GhScm("example/lab", token_env=None).close_pr("torve/T-0100", "landed as abc") is True
     assert any("pr close 31" in c and "--delete-branch" in c for c in calls)
 
     bare = scripted_gh(monkeypatch, {"pr list": "[]"})
-    assert GhScm("example/lab", token_env=None).close_pr(
-        "torve/T-0100", "landed as abc") is False
+    assert GhScm("example/lab", token_env=None).close_pr("torve/T-0100", "landed as abc") is False
     assert not any("pr close" in c for c in bare)
 
 
 def test_ghscm_comment_dedupes_on_the_marker(monkeypatch):
-    existing = json.dumps({"comments": [
-        {"body": "torve review\n\n<!-- torve-key:review:12:abc -->"}]})
+    existing = json.dumps(
+        {"comments": [{"body": "torve review\n\n<!-- torve-key:review:12:abc -->"}]}
+    )
     calls = scripted_gh(monkeypatch, {"pr view": existing})
     url = GhScm("example/lab", token_env=None).comment(12, "again", "review:12:abc")
     assert url == ""
@@ -307,8 +344,9 @@ def test_ghscm_comment_dedupes_on_the_marker(monkeypatch):
 
 
 def git(cwd: Path, *args: str) -> str:
-    proc = subprocess.run(["git", "-C", str(cwd), *args],
-                          capture_output=True, text=True, check=True)
+    proc = subprocess.run(
+        ["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True
+    )
     return proc.stdout.strip()
 
 
@@ -326,8 +364,7 @@ def test_gitvcs_pr_surface_over_a_local_origin(tmp_path: Path) -> None:
     git(seed, "checkout", "-q", "-b", "feature")
     (seed / "feature.py").write_text("feature = 2\n", encoding="utf-8")
     git(seed, "add", "-A")
-    git(seed, "commit", "-q", "--no-gpg-sign", "-m",
-        "work\n\nTorve-Task: T-0042")
+    git(seed, "commit", "-q", "--no-gpg-sign", "-m", "work\n\nTorve-Task: T-0042")
     git(seed, "push", "-q", "origin", "HEAD:refs/pull/7/head")
 
     root = tmp_path / "engine"
@@ -349,17 +386,25 @@ def test_gitvcs_pr_surface_over_a_local_origin(tmp_path: Path) -> None:
 
 def test_ghscm_retries_a_transient_failure_once(monkeypatch):
     # T-0058, the same transport contract as the tracker adapter's.
-    view = json.dumps({"number": 12, "title": "t", "author": {"login": "x"},
-                       "isDraft": False, "headRefOid": "e" * 40,
-                       "baseRefName": "main", "changedFiles": 1,
-                       "state": "OPEN"})
-    outcomes = iter([
-        subprocess.CompletedProcess([], 1, stdout="",
-                                    stderr="net/http: TLS handshake timeout"),
-        subprocess.CompletedProcess([], 0, stdout=view, stderr=""),
-    ])
-    monkeypatch.setattr(git_module.subprocess, "run",
-                        lambda *a, **k: next(outcomes))
+    view = json.dumps(
+        {
+            "number": 12,
+            "title": "t",
+            "author": {"login": "x"},
+            "isDraft": False,
+            "headRefOid": "e" * 40,
+            "baseRefName": "main",
+            "changedFiles": 1,
+            "state": "OPEN",
+        }
+    )
+    outcomes = iter(
+        [
+            subprocess.CompletedProcess([], 1, stdout="", stderr="net/http: TLS handshake timeout"),
+            subprocess.CompletedProcess([], 0, stdout=view, stderr=""),
+        ]
+    )
+    monkeypatch.setattr(git_module.subprocess, "run", lambda *a, **k: next(outcomes))
     naps: list[float] = []
     scm = GhScm("example/lab", token_env=None, sleeper=naps.append)
     assert scm.pr_info(12).number == 12
@@ -471,18 +516,19 @@ def test_retire_pr_defers_to_the_forge_then_falls_back(monkeypatch):
     assert naps == [2.0, 2.0]
 
     bare = scripted_gh(monkeypatch, {"pr list": "[]"})
-    assert GhScm("example/lab", token_env=None).retire_pr(
-        "torve/T-0100", "landed") == "absent"
+    assert GhScm("example/lab", token_env=None).retire_pr("torve/T-0100", "landed") == "absent"
     assert not any("pr close" in c for c in bare)
 
 
 def test_retire_pr_sees_a_flip_inside_the_grace(monkeypatch):
     # The forge's merge detection is asynchronous: open on the first look,
     # merged on the second — the grace exists exactly for this.
-    bodies = iter([
-        json.dumps([{"number": 31, "state": "OPEN"}]),
-        json.dumps([{"number": 31, "state": "MERGED"}]),
-    ])
+    bodies = iter(
+        [
+            json.dumps([{"number": 31, "state": "OPEN"}]),
+            json.dumps([{"number": 31, "state": "MERGED"}]),
+        ]
+    )
     calls: list[str] = []
 
     def fake_run(command, **kwargs):

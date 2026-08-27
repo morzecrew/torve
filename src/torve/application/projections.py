@@ -47,7 +47,9 @@ def _shipped_ids(root: Path) -> set[str]:
     not run it, but a shipping commit records that someone did."""
     proc = subprocess.run(
         ["git", "-C", str(root), "log", "--all", "--format=%x1e%s%x1f%b"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if proc.returncode != 0:
         return set()
@@ -100,8 +102,13 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             if state.escalation is not None:
                 entry["escalation"] = state.escalation.reason
                 entry["escalated_at"] = next(
-                    (event["at"] for event in reversed(state.history)
-                     if event["to"] == "escalated"), None)
+                    (
+                        event["at"]
+                        for event in reversed(state.history)
+                        if event["to"] == "escalated"
+                    ),
+                    None,
+                )
         found.append(entry)
     return found
 
@@ -137,20 +144,22 @@ def _proposals(root: Path, rfc_dir: Path) -> list[dict[str, Any]]:
             if not proposal:
                 continue
             task_id = str(document.get("task", log.parent.name))
-            found.append({
-                "task": task_id,
-                "decision": record.get("decision"),
-                "grade": record.get("grade"),
-                "claim": record.get("claim"),
-                "proposal": proposal,
-                "evidence": record.get("evidence"),
-                # Any corpus mention of the task id is evidence the author
-                # has been through its log — the weaker claim "possibly
-                # landed", never "accepted". Logs promoted before the
-                # provenance convention carry no citation and stay visible;
-                # surfacing them is the feature, not a defect.
-                "possibly_landed": task_id in cited,
-            })
+            found.append(
+                {
+                    "task": task_id,
+                    "decision": record.get("decision"),
+                    "grade": record.get("grade"),
+                    "claim": record.get("claim"),
+                    "proposal": proposal,
+                    "evidence": record.get("evidence"),
+                    # Any corpus mention of the task id is evidence the author
+                    # has been through its log — the weaker claim "possibly
+                    # landed", never "accepted". Logs promoted before the
+                    # provenance convention carry no citation and stay visible;
+                    # surfacing them is the feature, not a defect.
+                    "possibly_landed": task_id in cited,
+                }
+            )
     return found
 
 
@@ -176,10 +185,17 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
                 continue
             row = cast("dict[str, Any]", result)
             name = str(row.get("name", "?"))
-            gate = stats.setdefault(name, {
-                "runs": 0, "failures": 0, "flaky": 0, "bypassed": 0,
-                "total_duration_s": 0.0, "max_duration_s": 0.0,
-            })
+            gate = stats.setdefault(
+                name,
+                {
+                    "runs": 0,
+                    "failures": 0,
+                    "flaky": 0,
+                    "bypassed": 0,
+                    "total_duration_s": 0.0,
+                    "max_duration_s": 0.0,
+                },
+            )
             gate["runs"] += 1
             outcome = str(row.get("outcome", ""))
             if outcome in ("fail", "error"):
@@ -214,23 +230,30 @@ def _costs(root: Path) -> list[dict[str, Any]]:
             continue
         row = cast("dict[str, Any]", record)
         if row.get("kind") == "shadow":
-            found.append({
-                "kind": "shadow", "task": row.get("task_id"),
-                "config_hash": row.get("config_hash"),
-                "cost_usd": row.get("cost_usd_total"),
-                "attempts": row.get("attempts"), "state": row.get("state"),
-            })
+            found.append(
+                {
+                    "kind": "shadow",
+                    "task": row.get("task_id"),
+                    "config_hash": row.get("config_hash"),
+                    "cost_usd": row.get("cost_usd_total"),
+                    "attempts": row.get("attempts"),
+                    "state": row.get("state"),
+                }
+            )
             continue
         agent: Any = row.get("agent")
         if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("cost_usd") is not None:
             block = cast("dict[str, Any]", agent)
-            found.append({
-                "kind": "attempt", "task": row.get("task_id"),
-                "config_hash": row.get("config_hash"),
-                "cost_usd": block.get("cost_usd"),
-                "adapter": block.get("adapter"),
-                "model_version": block.get("model_version"),
-            })
+            found.append(
+                {
+                    "kind": "attempt",
+                    "task": row.get("task_id"),
+                    "config_hash": row.get("config_hash"),
+                    "cost_usd": block.get("cost_usd"),
+                    "adapter": block.get("adapter"),
+                    "model_version": block.get("model_version"),
+                }
+            )
     return found
 
 
@@ -284,34 +307,37 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
         status = statuses[number]
         implementation = str(fm.get("implementation") or "none")
         unsatisfied = [
-            dep for dep in _list_field(fm, "depends_on")
-            if statuses.get(dep, "") != "accepted"
+            dep for dep in _list_field(fm, "depends_on") if statuses.get(dep, "") != "accepted"
         ]
         declared_phases: set[int] = {entry.phase for entry in phasing or []}
         unminted = sorted(declared_phases - set(phases))
-        plannable = (status == "accepted" and not unsatisfied
-                     and bool(unminted))
+        plannable = status == "accepted" and not unsatisfied and bool(unminted)
 
         disagreement: str | None = None
-        if implementation == "complete" and progress and any(
-                p != "shipped" for p in progress.values()):
+        if (
+            implementation == "complete"
+            and progress
+            and any(p != "shipped" for p in progress.values())
+        ):
             disagreement = "asserted complete, but a phase is not shipped"
         elif implementation == "none" and any(p == "shipped" for p in progress.values()):
             disagreement = "a phase shipped, but the assertion still says none"
 
-        view.append({
-            "rfc": number,
-            "title": str(fm.get("title", "")),
-            "status": status,
-            "kind": fm.get("kind") or "design",
-            "implementation": implementation,
-            "unsatisfied_depends_on": unsatisfied,
-            "declared_phases": sorted(declared_phases),
-            "minted_phases": {str(k): len(v) for k, v in sorted(phases.items())},
-            "progress": {str(k): v for k, v in progress.items()},
-            "plannable": plannable,
-            "disagreement": disagreement,
-        })
+        view.append(
+            {
+                "rfc": number,
+                "title": str(fm.get("title", "")),
+                "status": status,
+                "kind": fm.get("kind") or "design",
+                "implementation": implementation,
+                "unsatisfied_depends_on": unsatisfied,
+                "declared_phases": sorted(declared_phases),
+                "minted_phases": {str(k): len(v) for k, v in sorted(phases.items())},
+                "progress": {str(k): v for k, v in progress.items()},
+                "plannable": plannable,
+                "disagreement": disagreement,
+            }
+        )
     return view
 
 
@@ -356,11 +382,15 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
         if task["escalation"]:
             # The queue's age is the primary signal (D-6.8): a queue nobody
             # triages looks identical to success from inside the runner.
-            escalations.setdefault(str(task["escalation"]), []).append({
-                "task": task["id"], "at": task["escalated_at"], "rfc": task["rfc"],
-                "age_s": _age_seconds(task["escalated_at"]),
-                "route": escalation_route(str(task["escalation"])),
-            })
+            escalations.setdefault(str(task["escalation"]), []).append(
+                {
+                    "task": task["id"],
+                    "at": task["escalated_at"],
+                    "rfc": task["rfc"],
+                    "age_s": _age_seconds(task["escalated_at"]),
+                    "route": escalation_route(str(task["escalation"])),
+                }
+            )
     return {
         "schema_version": SCHEMA_VERSION,
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -396,7 +426,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append(
             f"- **{doc['rfc']}** {doc['title']} — {doc['status']}, "
             f"impl {doc['implementation']} · {progress}"
-            + (" · " + " · ".join(marks) if marks else ""))
+            + (" · " + " · ".join(marks) if marks else "")
+        )
     lines.append("")
 
     lines.append("## Tasks by state")
@@ -424,11 +455,13 @@ def render_markdown(report: dict[str, Any]) -> str:
         for item in fresh:
             lines.append(
                 f"- `{item['decision']}` ({item['grade']}) from {item['task']}: "
-                f"{str(item['proposal']).strip()}")
+                f"{str(item['proposal']).strip()}"
+            )
         if landed:
             lines.append(
                 f"- …plus {landed} proposal(s) from tasks the decision tables already "
-                "cite — likely landed; the JSON report carries them all")
+                "cite — likely landed; the JSON report carries them all"
+            )
         lines.append("")
 
     if report["gates"]:
@@ -438,7 +471,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             lines.append(
                 f"- {name}: {gate['runs']} run(s), {gate['failures']} failure(s), "
                 f"{gate['flaky']} flaky, {gate['bypassed']} bypassed, "
-                f"mean {gate['mean_duration_s']}s, max {gate['max_duration_s']}s")
+                f"mean {gate['mean_duration_s']}s, max {gate['max_duration_s']}s"
+            )
         lines.append("")
 
     if report["costs"]:
@@ -447,10 +481,14 @@ def render_markdown(report: dict[str, Any]) -> str:
         for row in report["costs"]:
             cost = row.get("cost_usd")
             shown = f"${cost:.4f}" if isinstance(cost, (int, float)) else "unrecorded"
-            extra = (f", attempts {row['attempts']}, {row['state']}"
-                     if row["kind"] == "shadow" else f", {row.get('adapter')}")
+            extra = (
+                f", attempts {row['attempts']}, {row['state']}"
+                if row["kind"] == "shadow"
+                else f", {row.get('adapter')}"
+            )
             lines.append(
-                f"- {row['kind']} {row['task']} @ {row.get('config_hash')}: {shown}{extra}")
+                f"- {row['kind']} {row['task']} @ {row.get('config_hash')}: {shown}{extra}"
+            )
         lines.append("")
 
     return "\n".join(lines)

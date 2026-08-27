@@ -82,21 +82,24 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
         entries: list[Any] = []
         document = {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}
     fresh: list[dict[str, str]] = []
-    cast(list[dict[str, str]], document.setdefault("bypasses", fresh)).append({
-        "gate": record.gate,
-        "reason": record.reason,
-        "author": record.author,
-        "commit": record.commit,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    })
+    cast(list[dict[str, str]], document.setdefault("bypasses", fresh)).append(
+        {
+            "gate": record.gate,
+            "reason": record.reason,
+            "author": record.author,
+            "commit": record.commit,
+            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    )
     ctx.log_path.parent.mkdir(parents=True, exist_ok=True)
     ctx.log_path.write_text(
         yaml.safe_dump(document, sort_keys=False, allow_unicode=True), encoding="utf-8"
     )
 
 
-def run_gates(ctx: GateContext, only: set[str] | None = None,
-              progress: Callable[[str], None] | None = None) -> RunReport:
+def run_gates(
+    ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
+) -> RunReport:
     gates = ctx.manifest.resolved_gates()
     if only is not None:
         unknown = only - {g.name for g in gates}

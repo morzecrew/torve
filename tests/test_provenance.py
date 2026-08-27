@@ -23,8 +23,9 @@ from torve.domain.task import Scope, Task
 
 
 def git(root: Path, *args: str) -> str:
-    proc = subprocess.run(["git", "-C", str(root), *args],
-                          capture_output=True, text=True, check=True)
+    proc = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+    )
     return proc.stdout.strip()
 
 
@@ -44,11 +45,12 @@ def vcs_repo(tmp_path: Path) -> Path:
 def test_the_commit_is_authored_by_the_agent_and_committed_by_torve(vcs_repo):
     (vcs_repo / "app.py").write_text("value = 2\n", encoding="utf-8")
     sha = GitVcs().commit_all(
-        vcs_repo, "torve(T-8101): attempt 1 green\n\nTorve-Task: T-8101",
-        author="harness/deepseek-chat@v3 <agents@torve.local>")
+        vcs_repo,
+        "torve(T-8101): attempt 1 green\n\nTorve-Task: T-8101",
+        author="harness/deepseek-chat@v3 <agents@torve.local>",
+    )
     assert sha
-    author, email, committer = git(
-        vcs_repo, "log", "-1", "--format=%an|%ae|%cn").split("|")
+    author, email, committer = git(vcs_repo, "log", "-1", "--format=%an|%ae|%cn").split("|")
     assert author == "harness/deepseek-chat@v3"
     assert email == "agents@torve.local"
     assert committer == "Torve"
@@ -58,10 +60,13 @@ def test_landed_shas_reconstruct_a_task_from_trailers_alone(vcs_repo):
     vcs = GitVcs()
     for n in (1, 2):
         (vcs_repo / "app.py").write_text(f"value = {n + 1}\n", encoding="utf-8")
-        vcs.commit_all(vcs_repo, f"torve(T-8102): attempt {n} green\n\n"
-                                 f"Torve-Task: T-8102\nTorve-Attempt: {n}")
+        vcs.commit_all(
+            vcs_repo, f"torve(T-8102): attempt {n} green\n\nTorve-Task: T-8102\nTorve-Attempt: {n}"
+        )
     assert vcs.landed_shas(vcs_repo, "T-8102") == [
-        git(vcs_repo, "rev-parse", "HEAD"), git(vcs_repo, "rev-parse", "HEAD~1")]
+        git(vcs_repo, "rev-parse", "HEAD"),
+        git(vcs_repo, "rev-parse", "HEAD~1"),
+    ]
     assert vcs.landed_shas(vcs_repo, "T-9999") == []
 
 
@@ -71,20 +76,36 @@ def test_a_signed_commit_with_the_key_outside_the_worktree(vcs_repo, tmp_path):
     # never under the tree the sandbox sees, and verification succeeds.
     keydir = tmp_path / "runner-keys"
     keydir.mkdir()
-    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "",
-                    "-f", str(keydir / "signing")], check=True)
+    subprocess.run(
+        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(keydir / "signing")], check=True
+    )
     (vcs_repo / "app.py").write_text("value = 3\n", encoding="utf-8")
-    sha = GitVcs().commit_all(vcs_repo, "torve(T-8103): attempt 1 green",
-                              author="fake <agents@torve.local>",
-                              sign_key=str(keydir / "signing"))
+    sha = GitVcs().commit_all(
+        vcs_repo,
+        "torve(T-8103): attempt 1 green",
+        author="fake <agents@torve.local>",
+        sign_key=str(keydir / "signing"),
+    )
     assert sha
     signers = tmp_path / "allowed_signers"
     pubkey = (keydir / "signing.pub").read_text(encoding="utf-8").strip()
     signers.write_text(f"torve@local {pubkey}\n", encoding="utf-8")
     subprocess.run(
-        ["git", "-C", str(vcs_repo), "-c", "gpg.format=ssh",
-         "-c", f"gpg.ssh.allowedSignersFile={signers}", "verify-commit", sha],
-        capture_output=True, text=True, check=True)
+        [
+            "git",
+            "-C",
+            str(vcs_repo),
+            "-c",
+            "gpg.format=ssh",
+            "-c",
+            f"gpg.ssh.allowedSignersFile={signers}",
+            "verify-commit",
+            sha,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     assert not list(vcs_repo.rglob("signing*"))  # the key never entered the tree
 
 
@@ -119,18 +140,17 @@ def engine_repo(tmp_path: Path, monkeypatch) -> Path:
     subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
     git(root, "config", "user.name", "Engine Operator")
     git(root, "config", "user.email", "operator@example.invalid")
-    (root / ".torve" / "gates.yaml").write_text(
-        "schema_version: 1\ngates: []\n", encoding="utf-8")
-    (root / ".gitignore").write_text(
-        ".wt/\n.torve/telemetry.jsonl\n", encoding="utf-8")
+    (root / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    (root / ".gitignore").write_text(".wt/\n.torve/telemetry.jsonl\n", encoding="utf-8")
     (root / "app.py").write_text("value = 1\n", encoding="utf-8")
     git(root, "add", "-A")
     git(root, "commit", "-q", "--no-gpg-sign", "-m", "init")
     # The target task's landed commit, trailer and all (D-10.4 is what
     # makes it findable later).
     (root / "app.py").write_text("value = 2\n", encoding="utf-8")
-    GitVcs().commit_all(root, "torve(T-8200): attempt 1 green\n\n"
-                              "Torve-Task: T-8200\nTorve-Attempt: 1")
+    GitVcs().commit_all(
+        root, "torve(T-8200): attempt 1 green\n\nTorve-Task: T-8200\nTorve-Attempt: 1"
+    )
 
     def scripted_gates(*args, **kwargs):
         return 0, "scripted", "cafecafe1234", [], ""
@@ -141,15 +161,25 @@ def engine_repo(tmp_path: Path, monkeypatch) -> Path:
 
 def revert_task(target: str = "T-8200") -> Task:
     from torve.domain.task import InheritedDecision
-    return Task(id="T-8201", role="revert", targets=[target], scope=Scope(),
-                decisions=[InheritedDecision(id="D-77", grade="LOCKED",
-                                             text="the reverted rule")])
+
+    return Task(
+        id="T-8201",
+        role="revert",
+        targets=[target],
+        scope=Scope(),
+        decisions=[InheritedDecision(id="D-77", grade="LOCKED", text="the reverted rule")],
+    )
 
 
 def engine_deps(root: Path) -> RunDeps:
-    return RunDeps(workspace=GitWorkspace(root), runtime=MockRuntime(),
-                   agent=ScriptedAgent([OK]), vcs=GitVcs(), scm=MockScm(),
-                   store=open_store)
+    return RunDeps(
+        workspace=GitWorkspace(root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=GitVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
 
 
 def test_a_revert_runs_as_a_task_and_lands_with_its_own_provenance(engine_repo):
@@ -189,8 +219,7 @@ def test_a_conflicting_revert_escalates_as_merge_conflict(engine_repo):
 
 def test_an_unresolvable_target_fails_loudly_before_dispatch(engine_repo):
     with pytest.raises(ValueError, match="no landed commits"):
-        run_task(engine_repo, revert_task("T-0000"), RunnerConfig(),
-                 engine_deps(engine_repo))
+        run_task(engine_repo, revert_task("T-0000"), RunnerConfig(), engine_deps(engine_repo))
 
 
 def test_a_revert_contract_names_its_targets():

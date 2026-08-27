@@ -20,15 +20,16 @@ from torve.gates.contract import BuiltinOutcome
 # ----------------------- #
 
 # Names that admit anything accumulate everything (D-15.5).
-FORBIDDEN_MODULE_NAMES = frozenset(
-    {"models.py", "utils.py", "helpers.py", "common.py", "base.py"}
-)
+FORBIDDEN_MODULE_NAMES = frozenset({"models.py", "utils.py", "helpers.py", "common.py", "base.py"})
 
 
 def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     candidates = sorted(
-        {p for p in [*ctx.changed_paths, *ctx.untracked]
-         if p.endswith(".py") and p.startswith("src/")}
+        {
+            p
+            for p in [*ctx.changed_paths, *ctx.untracked]
+            if p.endswith(".py") and p.startswith("src/")
+        }
     )
     problems: list[str] = []
     checked = 0

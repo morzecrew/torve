@@ -56,8 +56,9 @@ def test_image_digest_changes_the_regime_hash(tmp_path):
 def test_tier_image_overrides_the_runtime_default():
     config = RunnerConfig()
     plain = TierConfig()
-    harness = TierConfig(adapter="harness", command="run {prompt}",
-                         provider="deepseek", image="torve-agent:dsh")
+    harness = TierConfig(
+        adapter="harness", command="run {prompt}", provider="deepseek", image="torve-agent:dsh"
+    )
     assert image_for(config, plain) == config.runtime.image
     assert image_for(config, harness) == "torve-agent:dsh"
     config.tiers["executor"] = harness
@@ -87,7 +88,8 @@ def seed_repo(tmp_path: Path, config: dict[str, object]) -> Path:
     root = tmp_path / "repo"
     (root / ".torve").mkdir(parents=True)
     (root / ".torve" / "config.yaml").write_text(
-        yaml.safe_dump({"schema_version": 1, **config}), encoding="utf-8")
+        yaml.safe_dump({"schema_version": 1, **config}), encoding="utf-8"
+    )
     return root
 
 
@@ -97,41 +99,46 @@ def test_sandbox_build_reports_a_digest_that_tracks_content(tmp_path):
     definition = root / ".torve" / "sandbox" / "probe"
     definition.mkdir(parents=True)
     definition.joinpath("Dockerfile").write_text(
-        "FROM python:3.13-slim\nLABEL torve.probe=one\n", encoding="utf-8")
+        "FROM python:3.13-slim\nLABEL torve.probe=one\n", encoding="utf-8"
+    )
 
-    first = CliRunner().invoke(app, ["sandbox", "build", "probe", "--root", str(root),
-                                     "--format", "json"])
+    first = CliRunner().invoke(
+        app, ["sandbox", "build", "probe", "--root", str(root), "--format", "json"]
+    )
     assert first.exit_code == 0, first.output
-    again = CliRunner().invoke(app, ["sandbox", "build", "probe", "--root", str(root),
-                                     "--format", "json"])
+    again = CliRunner().invoke(
+        app, ["sandbox", "build", "probe", "--root", str(root), "--format", "json"]
+    )
     assert again.exit_code == 0, again.output
 
     import json
+
     digest_one = json.loads(first.stdout)["images"][0]["digest"]
     assert digest_one.startswith("sha256:")
     # Same definition -> same identity.
     assert json.loads(again.stdout)["images"][0]["digest"] == digest_one
 
     definition.joinpath("Dockerfile").write_text(
-        "FROM python:3.13-slim\nLABEL torve.probe=two\n", encoding="utf-8")
-    rebuilt = CliRunner().invoke(app, ["sandbox", "build", "probe", "--root", str(root),
-                                       "--format", "json"])
+        "FROM python:3.13-slim\nLABEL torve.probe=two\n", encoding="utf-8"
+    )
+    rebuilt = CliRunner().invoke(
+        app, ["sandbox", "build", "probe", "--root", str(root), "--format", "json"]
+    )
     assert rebuilt.exit_code == 0, rebuilt.output
     # Changed definition -> changed identity: the drift the hash now sees.
     assert json.loads(rebuilt.stdout)["images"][0]["digest"] != digest_one
 
-    subprocess.run(["docker", "rmi", "-f", "torve-agent:probe"],
-                   capture_output=True, check=False)
+    subprocess.run(["docker", "rmi", "-f", "torve-agent:probe"], capture_output=True, check=False)
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 def test_doctor_reds_on_a_configured_image_that_does_not_exist(tmp_path):
-    root = seed_repo(tmp_path, {
-        "runtime": {"image": "torve-agent:definitely-not-built"}})
+    root = seed_repo(tmp_path, {"runtime": {"image": "torve-agent:definitely-not-built"}})
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     assert result.exit_code == 3, result.output
 
     import json
+
     checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
     image_check = checks["image torve-agent:definitely-not-built"]
     assert image_check["ok"] is False

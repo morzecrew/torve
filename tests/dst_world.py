@@ -71,8 +71,9 @@ class World:
         task = Task(id=task_id, decisions=[], budget=Budget())
         ceiling = 99 if self.twin == "no_ceiling" else CEILING
         config = RunnerConfig(poison_ceiling=ceiling)
-        state = RunState(task_id=task_id,
-                         path=self.run_dir / f"{run_key.replace(':', '-')}.state.json")
+        state = RunState(
+            task_id=task_id, path=self.run_dir / f"{run_key.replace(':', '-')}.state.json"
+        )
         state.transition(TaskState.CLAIMED, "sim claim")  # what run_task does before the loop
         saw_red_gates = False
 
@@ -110,8 +111,9 @@ class World:
 
         async def land(current: RunState, _digest: str) -> str:
             truth_green = current.attempts >= plan["agent_fails"] + plan["gate_fails"] + 1
-            record_event("ready", task=task_id, run=run_key,
-                         gates="green" if truth_green else "red")
+            record_event(
+                "ready", task=task_id, run=run_key, gates="green" if truth_green else "red"
+            )
             if self.twin == "dup_land" or run_key not in self.landed:
                 self.landed.add(run_key)
                 record_event("landed", run=run_key)
@@ -145,8 +147,10 @@ class World:
             {"task": task_id, "engine_run_id": engine_run, "plan": args["plan"]},
             idempotency_key=key,
         )
-        if record.status is not DurableRunStatus.PENDING and \
-                record.status is not DurableRunStatus.RUNNING:
+        if (
+            record.status is not DurableRunStatus.PENDING
+            and record.status is not DurableRunStatus.RUNNING
+        ):
             self.generation[task_id] = generation + 1  # terminal: next dispatch is a new claim
 
     async def op_zombie(self, args) -> None:
@@ -155,10 +159,13 @@ class World:
         # Zombies live on their own task id: recovery re-running an abandoned
         # task while a fresh dispatch of the same task runs is a dispatch-layer
         # concern (RFC 0006), not this simulation's mutual-exclusion claim.
-        record = await self.taskstore.enqueue({
-            "task": "T-Z", "engine_run_id": f"z{uuid.uuid4().hex[:8]}",
-            "plan": args["plan"],
-        })
+        record = await self.taskstore.enqueue(
+            {
+                "task": "T-Z",
+                "engine_run_id": f"z{uuid.uuid4().hex[:8]}",
+                "plan": args["plan"],
+            }
+        )
         claimed = await self.taskstore.store.begin(
             record.run_id, lease_for=timedelta(milliseconds=20)
         )
@@ -181,8 +188,12 @@ class World:
         Its own task id — the property under test is landing idempotence;
         mutual exclusion against store-claimed runs is the store's property,
         which direct invocation deliberately bypasses."""
-        payload = {"task": "T-D", "engine_run_id": f"d{uuid.uuid4().hex[:8]}",
-                   "plan": args["plan"], "tracked": False}
+        payload = {
+            "task": "T-D",
+            "engine_run_id": f"d{uuid.uuid4().hex[:8]}",
+            "plan": args["plan"],
+            "tracked": False,
+        }
         await self.body(None, payload)
         await self.body(None, dict(payload))
 
@@ -192,20 +203,25 @@ class World:
         def wrap(fn):
             return lambda _ctx: fn
 
-        return OperationRegistry(handlers={
-            "run": wrap(self.op_run),
-            "zombie": wrap(self.op_zombie),
-            "recover": wrap(self.op_recover),
-            "cancel": wrap(self.op_cancel),
-            "double_deliver": wrap(self.op_double_deliver),
-        }).freeze()
+        return OperationRegistry(
+            handlers={
+                "run": wrap(self.op_run),
+                "zombie": wrap(self.op_zombie),
+                "recover": wrap(self.op_recover),
+                "cancel": wrap(self.op_cancel),
+                "double_deliver": wrap(self.op_double_deliver),
+            }
+        ).freeze()
 
     def cases(self) -> list[OperationCase]:
         rogue = self.twin == "rogue"
 
         def run_inputs(rng):
-            return {"task": rng.choice(TASK_POOL), "plan": self._plan(rng),
-                    "key": f"rogue:{rng.random()}" if rogue else None}
+            return {
+                "task": rng.choice(TASK_POOL),
+                "plan": self._plan(rng),
+                "key": f"rogue:{rng.random()}" if rogue else None,
+            }
 
         def task_inputs(rng):
             return {"task": rng.choice(TASK_POOL), "plan": self._plan(rng)}

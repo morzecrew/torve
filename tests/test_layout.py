@@ -17,9 +17,9 @@ def test_every_lookup_resolves_under_torve_dir(tmp_path: Path) -> None:
     assert layout.config_file(tmp_path) == tmp_path / ".torve" / "config.yaml"
     assert layout.task_dir(tmp_path, "T-1") == tmp_path / ".torve" / "tasks" / "T-1"
     assert layout.task_file(tmp_path, "T-1") == (
-        tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml")
-    assert layout.log_file(tmp_path, "T-1") == (
-        tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml")
+        tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
+    )
+    assert layout.log_file(tmp_path, "T-1") == (tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml")
 
 
 def test_runner_config_reads_canonical_location(tmp_path: Path) -> None:

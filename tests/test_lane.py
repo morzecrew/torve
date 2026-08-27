@@ -20,8 +20,9 @@ from torve.domain.states import TaskState
 
 
 def git(root: Path, *args: str) -> str:
-    proc = subprocess.run(["git", "-C", str(root), *args],
-                          capture_output=True, text=True, check=True)
+    proc = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+    )
     return proc.stdout.strip()
 
 
@@ -32,8 +33,7 @@ def lane_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
     git(root, "config", "user.name", "Lane Operator")
     git(root, "config", "user.email", "lane@example.invalid")
-    (root / ".torve" / "gates.yaml").write_text(
-        "schema_version: 1\ngates: []\n", encoding="utf-8")
+    (root / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
     (root / ".gitignore").write_text(".wt/\n.torve/telemetry.jsonl\n", encoding="utf-8")
     (root / "app.py").write_text("base = 1\n", encoding="utf-8")
     git(root, "add", "-A")
@@ -54,8 +54,7 @@ def candidate(root: Path, task_id: str, filename: str, content: str) -> None:
 
 
 def invoke_merge(root: Path, *extra: str):
-    return CliRunner().invoke(app, ["merge", "--root", str(root),
-                                    "--format", "json", *extra])
+    return CliRunner().invoke(app, ["merge", "--root", str(root), "--format", "json", *extra])
 
 
 def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
@@ -76,8 +75,10 @@ def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
     assert (lane_repo / "one.py").is_file() and (lane_repo / "two.py").is_file()
 
     # The lane's outcomes rode the telemetry stream.
-    records = [json.loads(line) for line in
-               (lane_repo / ".torve" / "telemetry.jsonl").read_text().splitlines()]
+    records = [
+        json.loads(line)
+        for line in (lane_repo / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
     landed = [r for r in records if r.get("event") == "lane_landed"]
     assert {r["mode"] for r in landed} == {"fast-forward", "rebased"}
     assert all(r["approver"] == "Lane Operator" for r in landed)
@@ -251,10 +252,11 @@ def test_ci_not_green_refuses_the_landing_and_touches_nothing(lane_repo):
     assert "failure" in results[0].detail
     assert ci.asked == [branch_tip]
     assert git(lane_repo, "rev-parse", "HEAD") == base_tip
-    records = [json.loads(line) for line in
-               (lane_repo / ".torve" / "telemetry.jsonl").read_text().splitlines()]
-    assert any(r.get("event") == "lane_ci_not_green" and r["verdict"] == "failure"
-               for r in records)
+    records = [
+        json.loads(line)
+        for line in (lane_repo / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    assert any(r.get("event") == "lane_ci_not_green" and r["verdict"] == "failure" for r in records)
 
     # The same candidate lands once the remote goes green.
     landed = process_lane(lane_repo, GitLane(), ci=FakeCi("success"))
@@ -284,7 +286,8 @@ def test_require_ci_without_a_repo_is_a_configuration_error(lane_repo):
     candidate(lane_repo, "T-7007", "seven.py", "seven = 7\n")
     (lane_repo / ".torve").mkdir(exist_ok=True)
     (lane_repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\npromotion:\n  require_ci: true\n", encoding="utf-8")
+        "schema_version: 1\npromotion:\n  require_ci: true\n", encoding="utf-8"
+    )
     result = invoke_merge(lane_repo)
     assert result.exit_code == 3, result.output
 
@@ -363,18 +366,20 @@ def test_a_conflicting_tip_is_never_offered_for_approval(lane_repo):
         captured.append(task_id)
         return "branch kept; feedback captured"
 
-    results = process_lane(lane_repo, GitLane(), approvals_required=1,
-                           on_conflict=disposal)
+    results = process_lane(lane_repo, GitLane(), approvals_required=1, on_conflict=disposal)
     assert results[0].action == "conflict requeued"
     assert "probe" in results[0].detail
     assert captured == ["T-7030"]
-    assert RunState.load(
-        naming.state_file(lane_repo, "T-7030")).state is TaskState.QUEUED
+    assert RunState.load(naming.state_file(lane_repo, "T-7030")).state is TaskState.QUEUED
     # The probe is read-only: the branch tip never moved.
     assert git(lane_repo, "rev-parse", naming.branch("T-7030")) == branch_tip
-    events = [json.loads(line) for line in
-              (lane_repo / ".torve" / "telemetry.jsonl")
-              .read_text(encoding="utf-8").splitlines() if line.strip()]
+    events = [
+        json.loads(line)
+        for line in (lane_repo / ".torve" / "telemetry.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
     assert not any(e.get("event") == "lane_approvals_short" for e in events)
 
 
@@ -385,8 +390,9 @@ def test_a_clean_probe_still_prompts_for_approval(lane_repo):
     (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
     git(lane_repo, "add", "-A")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
-    results = process_lane(lane_repo, GitLane(), approvals_required=1,
-                           on_conflict=lambda _t: "unused")
+    results = process_lane(
+        lane_repo, GitLane(), approvals_required=1, on_conflict=lambda _t: "unused"
+    )
     assert results[0].action == "approvals short"
 
 
@@ -399,14 +405,14 @@ def test_the_manual_lane_never_probes(lane_repo):
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
     results = process_lane(lane_repo, GitLane(), approvals_required=1)
     assert results[0].action == "approvals short"
-    assert RunState.load(
-        naming.state_file(lane_repo, "T-7032")).state is TaskState.READY
+    assert RunState.load(naming.state_file(lane_repo, "T-7032")).state is TaskState.READY
 
 
 def test_approvals_required_refuses_an_unapproved_candidate(lane_repo):
     candidate(lane_repo, "T-7020", "twenty.py", "twenty = 20\n")
     (lane_repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8")
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8"
+    )
     git(lane_repo, "add", ".torve/config.yaml")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
     result = invoke_merge(lane_repo)
@@ -421,7 +427,8 @@ def test_an_approval_of_the_current_tip_lands(lane_repo):
 
     candidate(lane_repo, "T-7021", "twentyone.py", "t = 21\n")
     (lane_repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8")
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8"
+    )
     git(lane_repo, "add", ".torve/config.yaml")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
     tip = git(lane_repo, "rev-parse", naming.branch("T-7021"))
@@ -438,7 +445,8 @@ def test_an_approval_of_a_superseded_tip_counts_for_nothing(lane_repo):
 
     candidate(lane_repo, "T-7022", "twentytwo.py", "t = 22\n")
     (lane_repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8")
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8"
+    )
     git(lane_repo, "add", ".torve/config.yaml")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
     old_tip = git(lane_repo, "rev-parse", naming.branch("T-7022"))
@@ -458,7 +466,8 @@ def test_an_approval_of_a_superseded_tip_counts_for_nothing(lane_repo):
 def test_the_quiet_window_refuses_a_fresh_tip_and_passes_an_old_one(lane_repo):
     candidate(lane_repo, "T-7023", "twentythree.py", "t = 23\n")
     (lane_repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\npromotion:\n  quiet_window: 3600\n", encoding="utf-8")
+        "schema_version: 1\npromotion:\n  quiet_window: 3600\n", encoding="utf-8"
+    )
     git(lane_repo, "add", ".torve/config.yaml")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: quiet window")
     result = invoke_merge(lane_repo)
@@ -469,14 +478,28 @@ def test_the_quiet_window_refuses_a_fresh_tip_and_passes_an_old_one(lane_repo):
     git(lane_repo, "checkout", "-q", naming.branch("T-7023"))
     (lane_repo / "twentythree.py").write_text("t = 24\n", encoding="utf-8")
     git(lane_repo, "add", "-A")
-    subprocess.run(["git", "-C", str(lane_repo), "-c",
-                    "user.name=Lane Operator", "-c",
-                    "user.email=lane@example.invalid",
-                    "commit", "-q", "--no-gpg-sign", "-m", "aged"],
-                   env={**__import__("os").environ,
-                        "GIT_COMMITTER_DATE": "2001-01-01T00:00:00",
-                        "GIT_AUTHOR_DATE": "2001-01-01T00:00:00"},
-                   check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(lane_repo),
+            "-c",
+            "user.name=Lane Operator",
+            "-c",
+            "user.email=lane@example.invalid",
+            "commit",
+            "-q",
+            "--no-gpg-sign",
+            "-m",
+            "aged",
+        ],
+        env={
+            **__import__("os").environ,
+            "GIT_COMMITTER_DATE": "2001-01-01T00:00:00",
+            "GIT_AUTHOR_DATE": "2001-01-01T00:00:00",
+        },
+        check=True,
+    )
     git(lane_repo, "checkout", "-q", "main")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 0, result.output
@@ -490,8 +513,9 @@ def _events(root: Path) -> list[dict]:
     path = root / ".torve" / "telemetry.jsonl"
     if not path.is_file():
         return []
-    return [json.loads(line) for line in
-            path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
 def test_require_review_refuses_a_candidate_without_a_verdict(lane_repo):
@@ -500,10 +524,8 @@ def test_require_review_refuses_a_candidate_without_a_verdict(lane_repo):
     assert results[0].action == "review missing"
     assert "promotion.require_review" in results[0].detail
     # A standing refusal, like ci-not-green: the candidate stays READY.
-    assert RunState.load(
-        naming.state_file(lane_repo, "T-7040")).state is TaskState.READY
-    assert any(e.get("event") == "lane_review_missing"
-               for e in _events(lane_repo))
+    assert RunState.load(naming.state_file(lane_repo, "T-7040")).state is TaskState.READY
+    assert any(e.get("event") == "lane_review_missing" for e in _events(lane_repo))
 
 
 def test_a_recorded_review_verdict_lands(lane_repo):
@@ -519,18 +541,16 @@ def test_review_missing_precedes_the_approvals_prompt(lane_repo):
     # D-6.14: a candidate the policy cannot land is never offered for
     # approval — the refusal fires before the approvals check.
     candidate(lane_repo, "T-7042", "fortytwo.py", "f = 42\n")
-    results = process_lane(lane_repo, GitLane(), require_review=True,
-                           approvals_required=1)
+    results = process_lane(lane_repo, GitLane(), require_review=True, approvals_required=1)
     assert results[0].action == "review missing"
-    assert not any(e.get("event") == "lane_approvals_short"
-                   for e in _events(lane_repo))
+    assert not any(e.get("event") == "lane_approvals_short" for e in _events(lane_repo))
 
 
 def test_require_review_flows_from_configuration(lane_repo):
     candidate(lane_repo, "T-7043", "fortythree.py", "f = 43\n")
     (lane_repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\npromotion:\n  require_review: true\n",
-        encoding="utf-8")
+        "schema_version: 1\npromotion:\n  require_review: true\n", encoding="utf-8"
+    )
     git(lane_repo, "add", ".torve/config.yaml")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: review")
     result = invoke_merge(lane_repo)

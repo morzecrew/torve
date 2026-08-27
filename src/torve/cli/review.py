@@ -43,8 +43,7 @@ from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_OK
 
 # ----------------------- #
 
-review_app = typer.Typer(no_args_is_help=True,
-                         help="The reviewer and its regression corpus.")
+review_app = typer.Typer(no_args_is_help=True, help="The reviewer and its regression corpus.")
 
 CORPUS_DIR = "review-corpus"
 
@@ -56,8 +55,9 @@ def _load_case(case_dir: Path) -> dict[str, Any]:
     return cast("dict[str, Any]", document)
 
 
-def _case_outcome(case_dir: Path, document: dict[str, Any], config: Any,
-                  runtime: Any, agent: Any, root: Path) -> dict[str, Any]:
+def _case_outcome(
+    case_dir: Path, document: dict[str, Any], config: Any, runtime: Any, agent: Any, root: Path
+) -> dict[str, Any]:
     from torve.application.review import run_review
     from torve.domain.task import Budget, Task
 
@@ -77,23 +77,27 @@ def _case_outcome(case_dir: Path, document: dict[str, Any], config: Any,
         tier="reviewer",
     )
     outcome = run_review(
-        root, case_dir / "tree", target, review, config, runtime, agent,
+        root,
+        case_dir / "tree",
+        target,
+        review,
+        config,
+        runtime,
+        agent,
         (case_dir / "diff.patch").read_text(encoding="utf-8"),
-        [], "corpus", degraded=bool(document.get("degraded", False)),
+        [],
+        "corpus",
+        degraded=bool(document.get("degraded", False)),
     )
 
     missed: list[str] = []
     for expected in expectations:
         severity = str(expected.get("severity", ""))
         needle = str(expected.get("claim_contains", "")).lower()
-        caught = any(
-            f.severity == severity and needle in f.claim.lower()
-            for f in outcome.kept
-        )
+        caught = any(f.severity == severity and needle in f.claim.lower() for f in outcome.kept)
         if not caught:
             missed.append(f"{severity}: …{needle}…")
-    false_blockers = [f.claim for f in outcome.kept if f.severity == "blocker"
-                      and not expectations]
+    false_blockers = [f.claim for f in outcome.kept if f.severity == "blocker" and not expectations]
     return {
         "case": name,
         "expected": len(expectations),
@@ -109,8 +113,9 @@ def _case_outcome(case_dir: Path, document: dict[str, Any], config: Any,
 
 @review_app.command("corpus")
 def corpus(
-    case: Annotated[str | None, typer.Argument(
-        help="One case to replay; omit to replay every case.")] = None,
+    case: Annotated[
+        str | None, typer.Argument(help="One case to replay; omit to replay every case.")
+    ] = None,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -124,17 +129,17 @@ def corpus(
     root = root.resolve()
     config = load_config(root, config_path)
     corpus_root = root / ".torve" / CORPUS_DIR
-    cases = sorted(d for d in corpus_root.iterdir()
-                   if d.is_dir() and (d / "case.yaml").is_file()) \
-        if corpus_root.is_dir() else []
+    cases = (
+        sorted(d for d in corpus_root.iterdir() if d.is_dir() and (d / "case.yaml").is_file())
+        if corpus_root.is_dir()
+        else []
+    )
     if case is not None:
         cases = [d for d in cases if d.name == case]
         if not cases:
-            raise fail(f"configuration error: no case {case!r} under {corpus_root}",
-                       EXIT_CONFIG)
+            raise fail(f"configuration error: no case {case!r} under {corpus_root}", EXIT_CONFIG)
     if not cases:
-        raise fail(f"configuration error: no corpus cases under {corpus_root}",
-                   EXIT_CONFIG)
+        raise fail(f"configuration error: no corpus cases under {corpus_root}", EXIT_CONFIG)
 
     try:
         agent = build_reviewer_agent(config, root)
@@ -168,11 +173,14 @@ def corpus(
             mark("pass" if result["ok"] else "fail"),
             result["case"],
             f"{result['caught']}/{result['expected']}",
-            "; ".join(notes))
+            "; ".join(notes),
+        )
     console.print(table)
-    closing(console,
-            "corpus green" if passed else "regression: the reviewer dropped a catch",
-            STYLE_PASS if passed else STYLE_FAIL)
+    closing(
+        console,
+        "corpus green" if passed else "regression: the reviewer dropped a catch",
+        STYLE_PASS if passed else STYLE_FAIL,
+    )
     raise typer.Exit(EXIT_OK if passed else EXIT_GATES_RED)
 
 
@@ -197,24 +205,39 @@ def pr(
     if not {"pr_opened", "pr_synchronized"} & set(config.review.on):
         raise fail(
             "configuration error: review.on includes neither pr_opened nor "
-            "pr_synchronized — configuring nothing decides nothing", EXIT_CONFIG)
+            "pr_synchronized — configuring nothing decides nothing",
+            EXIT_CONFIG,
+        )
     if not config.scm.repo:
-        raise fail("configuration error: scm.repo names the forge repository",
-                   EXIT_CONFIG)
+        raise fail("configuration error: scm.repo names the forge repository", EXIT_CONFIG)
     try:
         agent = build_reviewer_agent(config, root)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
-    token = (os.environ.get(config.scm.token_env)
-             if config.scm.token_env else None)
+    token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
     outcome = review_pull_request(
-        root, config, runtime_for(config, None), agent,
-        GhScm(config.scm.repo, config.scm.token_env), GitVcs(), number, token)
+        root,
+        config,
+        runtime_for(config, None),
+        agent,
+        GhScm(config.scm.repo, config.scm.token_env),
+        GitVcs(),
+        number,
+        token,
+    )
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "pr": number, "action": outcome.action,
-                   "detail": outcome.detail, "review": outcome.review_id,
-                   "findings": outcome.findings, "blockers": outcome.blockers,
-                   "comment": outcome.comment})
+        emit_json(
+            {
+                "schema_version": 1,
+                "pr": number,
+                "action": outcome.action,
+                "detail": outcome.detail,
+                "review": outcome.review_id,
+                "findings": outcome.findings,
+                "blockers": outcome.blockers,
+                "comment": outcome.comment,
+            }
+        )
     else:
         console = out(fmt)
         header(console, "review pr", f"#{number}")

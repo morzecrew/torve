@@ -27,8 +27,16 @@ from torve.domain.rfc import GRADES, IMPLEMENTATIONS, KINDS, STATUSES
 
 TABLE_HEADER = "| # | Grade | Decision | Paths | Consequence |"
 REQUIRED_FIELDS = (
-    "id", "title", "status", "depends_on", "informed_by", "supersedes",
-    "amended_by", "owner", "description", "schema_version",
+    "id",
+    "title",
+    "status",
+    "depends_on",
+    "informed_by",
+    "supersedes",
+    "amended_by",
+    "owner",
+    "description",
+    "schema_version",
 )
 LIST_FIELDS = ("depends_on", "informed_by", "supersedes", "amended_by", "retired")
 
@@ -167,9 +175,7 @@ def check_frontmatter(path: Path, fm: dict[str, Any] | None, number: str) -> lis
         problems.append(f"{path.name}: superseded without superseded_by")
     kind = fm.get("kind")
     if kind is not None and kind not in KINDS:
-        problems.append(
-            f"{path.name}: kind {kind!r} is not one of {', '.join(KINDS)}"
-        )
+        problems.append(f"{path.name}: kind {kind!r} is not one of {', '.join(KINDS)}")
     implementation = fm.get("implementation")
     if implementation is not None and implementation not in IMPLEMENTATIONS:
         problems.append(
@@ -197,8 +203,10 @@ def check_slug(path: Path, fm: dict[str, Any]) -> list[str]:
     title_words = {w for w in slugify(title).split("-") if len(w) >= 4}
     if slug_words and title_words and not slug_words & title_words:
         return [
-            (f"{path.name}: filename slug shares no word with title {title!r} — "
-            "a materially different title is usually a new document (D-A.20)")
+            (
+                f"{path.name}: filename slug shares no word with title {title!r} — "
+                "a materially different title is usually a new document (D-A.20)"
+            )
         ]
     return []
 
@@ -238,7 +246,7 @@ def decision_section(text: str) -> DecisionSection:
     heading = DECISIONS_HEADING.search(text)
     if not heading:
         return DecisionSection(rows=None, header_ok=False)
-    section = text[heading.end():]
+    section = text[heading.end() :]
     following = re.search(r"^#{2,3}\s", section, re.M)
     if following:
         section = section[: following.start()]
@@ -261,12 +269,14 @@ def decision_section(text: str) -> DecisionSection:
             continue  # the |---| separator
         if len(cells) < 4:
             continue
-        rows.append(DecisionRow(
-            identifier=cells[0].strip("`* "),
-            grade=cells[1].strip("`* "),
-            text=cells[2],
-            paths=paths_globs(cells[3]),
-        ))
+        rows.append(
+            DecisionRow(
+                identifier=cells[0].strip("`* "),
+                grade=cells[1].strip("`* "),
+                text=cells[2],
+                paths=paths_globs(cells[3]),
+            )
+        )
     if not inside:
         return DecisionSection(rows=None, header_ok=False)
     return DecisionSection(rows=rows, header_ok=header_ok)
@@ -321,7 +331,7 @@ def parse_phasing(text: str) -> list[PhasingEntry] | None:
     heading = PHASING_HEADING.search(text)
     if not heading:
         return None
-    section = text[heading.end():]
+    section = text[heading.end() :]
     following = re.search(r"^##\s", section, re.M)
     if following:
         section = section[: following.start()]
@@ -361,8 +371,10 @@ def check_decisions(
     section = decision_section(text)
     if section.rows is None:
         return [
-            (f"{path.name}: no Decisions section with a table "
-             "(D-A.1: the table is what makes it an RFC)")
+            (
+                f"{path.name}: no Decisions section with a table "
+                "(D-A.1: the table is what makes it an RFC)"
+            )
         ], warnings
     if not section.rows:
         return [f"{path.name}: Decisions section has a header but no rows"], warnings
@@ -413,7 +425,7 @@ def check_decisions(
 def check_amendments(path: Path, text: str, fm: dict[str, Any]) -> list[str]:
     declared = fm_list(fm, "amended_by")
     section = AMENDMENTS_SECTION.search(text)
-    present = AMENDMENT_HEADING.findall(text[section.end():]) if section else []
+    present = AMENDMENT_HEADING.findall(text[section.end() :]) if section else []
     problems: list[str] = []
     for a in declared:
         if a not in present:
@@ -549,12 +561,13 @@ def check_graph(
         state[number] = 1
         for target in edges.get(number, []):
             if state.get(target) == 1:
-                cycle = [*trail[trail.index(target):], target]
+                cycle = [*trail[trail.index(target) :], target]
                 key = frozenset(cycle)
                 if key not in seen_cycles:
                     seen_cycles.add(key)
                     problems.append(
-                        "depends_on cycle: " + " -> ".join(cycle)
+                        "depends_on cycle: "
+                        + " -> ".join(cycle)
                         + " — the graph must be acyclic (0007 §3a)"
                     )
             elif state.get(target) != 2:
@@ -669,8 +682,7 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
     for number, paths in sorted(seen_numbers.items()):
         if len(paths) > 1:
             report.problems.append(
-                f"RFC {number} is claimed by {len(paths)} files: "
-                f"{', '.join(p.name for p in paths)}"
+                f"RFC {number} is claimed by {len(paths)} files: {', '.join(p.name for p in paths)}"
             )
 
     files = rfc_files(rfc_dir)

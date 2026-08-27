@@ -23,7 +23,7 @@ from torve.gates.sabotage import BASE_MANIFEST
 
 def test_owner_grouped_layout():
     assert steps_for("substrate") and steps_for("substrate")[0].name == "0001_durable.sql"
-    assert steps_for("torve") == []      # history starts at the first document table
+    assert steps_for("torve") == []  # history starts at the first document table
     assert steps_for("telemetry") == []  # stage 1: a file has no schema
     with pytest.raises(MigrateError, match="unknown target"):
         steps_for("everything")

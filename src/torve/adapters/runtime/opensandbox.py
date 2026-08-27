@@ -91,8 +91,9 @@ def _exec_result(execution: Any, started: float) -> ExecResult:
 
 
 class OpenSandboxRuntime:
-    def __init__(self, config: OpenSandboxConfig, sdk: Any | None = None,
-                 docker_mode: str = "") -> None:
+    def __init__(
+        self, config: OpenSandboxConfig, sdk: Any | None = None, docker_mode: str = ""
+    ) -> None:
         if docker_mode:
             # RFC 0017 §2a, D-17.10: refused in any mode until the
             # live-server integration decides what the server can offer.
@@ -124,7 +125,8 @@ class OpenSandboxRuntime:
         # only guarantees the sandbox sees the same variables the runner did.
         proxies = {
             variant: os.environ[variant]
-            for name in PROXY_ENV for variant in (name, name.upper())
+            for name in PROXY_ENV
+            for variant in (name, name.upper())
             if variant in os.environ
         }
         sandbox = self._sdk.SandboxSync.create(
@@ -204,9 +206,11 @@ class OpenSandboxRuntime:
             metadata = dict(getattr(info, "metadata", None) or {})
             if naming.LABEL_TASK not in metadata:
                 continue
-            found.append(SandboxInfo(
-                id=str(info.id),
-                name=metadata.get("torve.name", str(info.id)),
-                labels=metadata,
-            ))
+            found.append(
+                SandboxInfo(
+                    id=str(info.id),
+                    name=metadata.get("torve.name", str(info.id)),
+                    labels=metadata,
+                )
+            )
         return found

@@ -60,7 +60,8 @@ def locate(evidence: str, root: Path) -> str | None:
 
 
 def filter_findings(
-    findings: list[Finding], root: Path,
+    findings: list[Finding],
+    root: Path,
 ) -> tuple[list[Finding], list[str]]:
     """(kept, discard reasons): findings whose evidence locates under *root*,
     and one recorded reason per discarded finding — discarded is a counted

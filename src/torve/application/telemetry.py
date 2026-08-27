@@ -29,7 +29,9 @@ _APPEND_LOCK = threading.Lock()
 
 
 def config_hash(
-    manifest_path: Path, root: Path, config: RunnerConfig | None = None,
+    manifest_path: Path,
+    root: Path,
+    config: RunnerConfig | None = None,
     image_digest: str | None = None,
 ) -> str:
     """Digest of the regime a run belongs to (RFC 0002 §8, D-9.8): gates.yaml,
@@ -78,7 +80,9 @@ def config_hash(
 
 
 def build_record(
-    ctx: GateContext, report: RunReport, config_hash: str,
+    ctx: GateContext,
+    report: RunReport,
+    config_hash: str,
     agent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -123,15 +127,21 @@ def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:
     from torve.config.manifest import Manifest, load_manifest
 
     manifest_path = layout.gates_file(root)
-    telemetry_rel = (load_manifest(manifest_path).telemetry
-                     if manifest_path.is_file() else Manifest(gates=[]).telemetry)
-    append_record(root / telemetry_rel, {
-        "schema_version": SCHEMA_VERSION,
-        "kind": "engine",
-        "event": event,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        **details,
-    })
+    telemetry_rel = (
+        load_manifest(manifest_path).telemetry
+        if manifest_path.is_file()
+        else Manifest(gates=[]).telemetry
+    )
+    append_record(
+        root / telemetry_rel,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "kind": "engine",
+            "event": event,
+            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            **details,
+        },
+    )
 
 
 # ....................... #

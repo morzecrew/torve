@@ -53,14 +53,17 @@ def context_for(store: object) -> ExecutionContext:
     forze's mock and Postgres stores each implement both. Lives here rather
     than beside the adapters: it is forze wiring over the port, and the
     facade may not import `adapters` (RFC 0015 §2.1)."""
+
     def provide(_ctx: ExecutionContext) -> object:
         return store
 
     return context_from_deps(
-        Deps.plain({
-            DurableRunStoreDepKey: provide,
-            DurableRunAdminDepKey: provide,
-        })
+        Deps.plain(
+            {
+                DurableRunStoreDepKey: provide,
+                DurableRunAdminDepKey: provide,
+            }
+        )
     )
 
 
@@ -104,9 +107,7 @@ class TaskStore:
 
         The claim advances the fence, so the dead worker's late writes are
         no-ops; the reclaimed record's fence lands the failure."""
-        claimed = await self.store.claim_abandoned(
-            limit=limit, lease_for=timedelta(seconds=1)
-        )
+        claimed = await self.store.claim_abandoned(limit=limit, lease_for=timedelta(seconds=1))
         for record in claimed:
             await self.store.fail(
                 record.run_id, error="lease_expired: reclaimed at reap", fence=record.attempts

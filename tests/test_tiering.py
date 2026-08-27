@@ -85,8 +85,11 @@ def test_unconfigured_policy_denies_a_real_provider():
 def test_repository_allow_overrides_the_default():
     policy = providers(
         default=["cheap-vendor"],
-        repositories={"payments-core": RepositoryProviders(
-            allow=["vendor-eu-only"], deny_reason="customer data in fixtures")},
+        repositories={
+            "payments-core": RepositoryProviders(
+                allow=["vendor-eu-only"], deny_reason="customer data in fixtures"
+            )
+        },
     )
     route_provider(policy, "payments-core", "vendor-eu-only")
     with pytest.raises(ProviderDenied, match="customer data in fixtures"):
@@ -101,7 +104,8 @@ def test_repository_name_prefers_the_origin_remote(tmp_path):
     assert repository_name(root) == "checkout-dir"  # no remote -> directory name
     subprocess.run(
         ["git", "remote", "add", "origin", "git@github.com:morzecrew/torve.git"],
-        cwd=root, check=True,
+        cwd=root,
+        check=True,
     )
     assert repository_name(root) == "morzecrew/torve"
 
@@ -112,7 +116,8 @@ def test_repository_name_parses_https_remotes(tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     subprocess.run(
         ["git", "remote", "add", "origin", "https://github.com/morzecrew/torve"],
-        cwd=root, check=True,
+        cwd=root,
+        check=True,
     )
     assert repository_name(root) == "morzecrew/torve"
 
@@ -122,8 +127,7 @@ def test_repository_name_parses_https_remotes(tmp_path):
 
 
 def test_api_and_harness_pass_key_names_never_values():
-    tier = TierConfig(adapter="api", command="run", provider="p",
-                      api_key_env=["ANTHROPIC_API_KEY"])
+    tier = TierConfig(adapter="api", command="run", provider="p", api_key_env=["ANTHROPIC_API_KEY"])
     env_passthrough, volumes = _sandbox_auth(tier, worker_slot=0)
     assert env_passthrough == ("ANTHROPIC_API_KEY",)
     assert volumes == {}
@@ -187,10 +191,20 @@ class HostShellRuntime:
         self.workspace = workspace
 
     def exec(self, handle, command, timeout_s):
-        proc = subprocess.run(command, shell=True, cwd=self.workspace, timeout=timeout_s,
-                              capture_output=True, text=True, check=False)
-        return ExecResult(exit_code=proc.returncode,
-                          output=(proc.stdout or "") + (proc.stderr or ""), duration_s=0.0)
+        proc = subprocess.run(
+            command,
+            shell=True,
+            cwd=self.workspace,
+            timeout=timeout_s,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return ExecResult(
+            exit_code=proc.returncode,
+            output=(proc.stdout or "") + (proc.stderr or ""),
+            duration_s=0.0,
+        )
 
 
 def harness_ctx(tmp_path, tier):
@@ -201,20 +215,29 @@ def harness_ctx(tmp_path, tier):
         intent="Make the widget idempotent.",
         scope=Scope(allow=["src/**"]),
         acceptance=["pytest -q"],
-        decisions=[InheritedDecision(id="D-9", grade="LOCKED",
-                                     text="Widgets are idempotent", paths=["src/widget.py"])],
+        decisions=[
+            InheritedDecision(
+                id="D-9", grade="LOCKED", text="Widgets are idempotent", paths=["src/widget.py"]
+            )
+        ],
     )
     return AgentContext(
-        task=task, attempt=1, workspace=workspace,
-        handle=SandboxHandle(id="h", name="h"), runtime=HostShellRuntime(workspace),
-        workdir=str(workspace), timeout_s=30.0,
+        task=task,
+        attempt=1,
+        workspace=workspace,
+        handle=SandboxHandle(id="h", name="h"),
+        runtime=HostShellRuntime(workspace),
+        workdir=str(workspace),
+        timeout_s=30.0,
     ), HarnessAgent(tier)
 
 
 def test_harness_agent_stages_prompt_and_captures_trace(tmp_path):
     tier = TierConfig(
-        adapter="api", provider="anthropic", model="test-model-1",
-        command="cat {prompt} && echo '{\"total_cost_usd\": 0.12, \"model\": \"{model}\"}'",
+        adapter="api",
+        provider="anthropic",
+        model="test-model-1",
+        command='cat {prompt} && echo \'{"total_cost_usd": 0.12, "model": "{model}"}\'',
     )
     ctx, agent = harness_ctx(tmp_path, tier)
     result = agent.run(ctx)
@@ -267,11 +290,13 @@ def seeded_run_repo(tmp_path, tier_yaml, providers_yaml="providers: {default: []
     (root / ".torve" / "tasks" / "T-0042").mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     (root / ".torve" / "tasks" / "T-0042" / "contract.yaml").write_text(
-        "schema_version: 1\nid: T-0042\ndecisions: []\n", encoding="utf-8")
+        "schema_version: 1\nid: T-0042\ndecisions: []\n", encoding="utf-8"
+    )
     (root / ".torve" / "config.yaml").write_text(
         f"schema_version: 1\ntiers:\n  planner: {{adapter: fake}}\n"
         f"  reviewer: {{adapter: fake}}\n  executor: {tier_yaml}\n{providers_yaml}\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     return root
 
 
@@ -288,7 +313,8 @@ def test_run_refuses_an_unrouted_provider_with_exit_3(tmp_path):
 def test_run_refuses_a_missing_tier_with_exit_3(tmp_path):
     root = seeded_run_repo(tmp_path, "{adapter: fake}")
     (root / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\ntiers:\n  planner: {adapter: fake}\n", encoding="utf-8")
+        "schema_version: 1\ntiers:\n  planner: {adapter: fake}\n", encoding="utf-8"
+    )
     result = CliRunner().invoke(app, ["run", "T-0042", "--root", str(root)])
     assert result.exit_code == 3
     assert "no tier 'executor'" in result.stderr
@@ -303,7 +329,8 @@ def test_scenario_with_a_real_tier_is_refused(tmp_path):
     scenario = tmp_path / "scenario.yaml"
     scenario.write_text("attempts:\n  - {exit: 0}\n", encoding="utf-8")
     result = CliRunner().invoke(
-        app, ["run", "T-0042", "--root", str(root), "--scenario", str(scenario)])
+        app, ["run", "T-0042", "--root", str(root), "--scenario", str(scenario)]
+    )
     assert result.exit_code == 3
     assert "FakeAgent-only" in result.stderr
 
@@ -318,10 +345,13 @@ def test_config_hash_moves_with_the_tier_mapping(tmp_path):
     manifest = tmp_path / "gates.yaml"
     manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
     plain = RunnerConfig()
-    tiered = RunnerConfig(tiers={
-        "planner": TierConfig(), "reviewer": TierConfig(),
-        "executor": TierConfig(adapter="api", command="c", provider="p"),
-    })
+    tiered = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="api", command="c", provider="p"),
+        }
+    )
     assert config_hash(manifest, tmp_path, plain) != config_hash(manifest, tmp_path, tiered)
     assert config_hash(manifest, tmp_path, plain) == config_hash(manifest, tmp_path, plain)
 
@@ -329,10 +359,20 @@ def test_config_hash_moves_with_the_tier_mapping(tmp_path):
 def test_feedback_appends_a_keyed_record(tmp_path):
     root = tmp_path / "repo"
     (root / ".torve").mkdir(parents=True)
-    result = CliRunner().invoke(app, [
-        "feedback", "T-0042", "--human-minutes", "25", "--rework",
-        "--root", str(root), "--format", "json",
-    ])
+    result = CliRunner().invoke(
+        app,
+        [
+            "feedback",
+            "T-0042",
+            "--human-minutes",
+            "25",
+            "--rework",
+            "--root",
+            str(root),
+            "--format",
+            "json",
+        ],
+    )
     assert result.exit_code == 0, result.output
     emitted = json.loads(result.stdout)
     assert emitted["task_id"] == "T-0042"
@@ -345,7 +385,10 @@ def test_feedback_appends_a_keyed_record(tmp_path):
 def test_parse_metadata_reads_claude_model_usage_keys():
     # The claude CLI's json result names models as modelUsage keys — the
     # dated snapshot ids D-4.6 wants recorded (found in the first live run).
-    line = json.dumps({"total_cost_usd": 0.0999,
-                       "modelUsage": {"claude-haiku-4-5-20251001": {},
-                                      "claude-sonnet-5": {}}})
+    line = json.dumps(
+        {
+            "total_cost_usd": 0.0999,
+            "modelUsage": {"claude-haiku-4-5-20251001": {}, "claude-sonnet-5": {}},
+        }
+    )
     assert parse_metadata(line) == (0.0999, "claude-haiku-4-5-20251001+claude-sonnet-5")

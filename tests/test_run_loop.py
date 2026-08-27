@@ -85,7 +85,9 @@ class ScriptedAgent:
             (log_dir / "log.yaml").write_text(
                 "schema_version: 1\ntask: " + ctx.task.id + "\ndrift_count: 0\n"
                 "entries:\n  - decision: D-1\n    grade: LOCKED\n"
-                "    kind: contradicted\n    action: halted\n", encoding="utf-8")
+                "    kind: contradicted\n    action: halted\n",
+                encoding="utf-8",
+            )
         return self.results[min(ctx.attempt - 1, len(self.results) - 1)]
 
 
@@ -123,16 +125,21 @@ TIMEOUT = AgentResult(exit_code=None, output="hard timeout")
 
 
 def task_for(repo, iterations=None):
-    return Task(id="T-9001", scope=Scope(), decisions=[],
-                budget=Budget(iterations=iterations))
+    return Task(id="T-9001", scope=Scope(), decisions=[], budget=Budget(iterations=iterations))
 
 
 @pytest.fixture
 def rig(repo, monkeypatch):
     repo.seed()  # a real git repo so base resolution works
     runtime, vcs = MockRuntime(), MockVcs()
-    deps = RunDeps(workspace=MockWorkspace(repo.root), runtime=runtime,
-                   agent=ScriptedAgent([OK]), vcs=vcs, scm=MockScm(), store=open_store)
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=runtime,
+        agent=ScriptedAgent([OK]),
+        vcs=vcs,
+        scm=MockScm(),
+        store=open_store,
+    )
     gate_outcomes: list[int] = []
 
     def scripted_gates(*args, **kwargs):
@@ -235,8 +242,7 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
 
     class PeekingAgent:
         def run(self, ctx):
-            seen["during_attempt"] = (
-                ctx.workspace / ".torve" / "feedback.md").is_file()
+            seen["during_attempt"] = (ctx.workspace / ".torve" / "feedback.md").is_file()
             return OK
 
     def peeking_gates(worktree, *args, **kwargs):

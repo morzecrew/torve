@@ -25,10 +25,19 @@ from torve.domain.task import Scope, Task
 def active_run(root, task_id: str, allow: list[str]) -> RunState:
     contract_dir = root / ".torve" / "tasks" / task_id
     contract_dir.mkdir(parents=True, exist_ok=True)
-    (contract_dir / "contract.yaml").write_text(yaml.safe_dump({
-        "schema_version": 1, "id": task_id, "role": "implement",
-        "scope": {"allow": allow, "deny": []}, "acceptance": [], "decisions": [],
-    }), encoding="utf-8")
+    (contract_dir / "contract.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": task_id,
+                "role": "implement",
+                "scope": {"allow": allow, "deny": []},
+                "acceptance": [],
+                "decisions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
     state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
     state.transition(TaskState.CLAIMED, "seeded active run")
     state.transition(TaskState.RUNNING, "seeded active run")
@@ -37,9 +46,14 @@ def active_run(root, task_id: str, allow: list[str]) -> RunState:
 
 
 def deps(repo):
-    return RunDeps(workspace=MockWorkspace(repo.root), runtime=MockRuntime(),
-                   agent=ScriptedAgent([OK]), vcs=MockVcs(), scm=MockScm(),
-                   store=open_store)
+    return RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
 
 
 def test_overlapping_dispatch_is_refused_and_counted(repo):
@@ -50,8 +64,10 @@ def test_overlapping_dispatch_is_refused_and_counted(repo):
     with pytest.raises(BlockedDispatch, match="blocked_by_overlap: T-8001"):
         run_task(repo.root, task, RunnerConfig(), deps(repo))
 
-    records = [json.loads(line) for line in
-               (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()]
+    records = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
     blocked = [r for r in records if r.get("event") == "blocked_dispatch"]
     assert blocked and blocked[-1]["blocked_by"] == "T-8001"
     assert blocked[-1]["path"] == "src/app/**"
@@ -88,17 +104,19 @@ def test_kill_escalates_and_destroys_the_sandbox(repo):
     state.sandbox_id = "sbx-live"
     state.save()
 
-    result = CliRunner().invoke(app, ["kill", "T-8005", "--root", str(repo.root),
-                                      "--format", "json"])
+    result = CliRunner().invoke(
+        app, ["kill", "T-8005", "--root", str(repo.root), "--format", "json"]
+    )
     assert result.exit_code == 0, result.output
 
     reloaded = RunState.load(naming.state_file(repo.root, "T-8005"))
     assert reloaded.state is TaskState.ESCALATED
     assert reloaded.escalation.reason == "killed"
-    records = [json.loads(line) for line in
-               (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()]
-    assert any(r.get("event") == "killed" and r.get("task") == "T-8005"
-               for r in records)
+    records = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    assert any(r.get("event") == "killed" and r.get("task") == "T-8005" for r in records)
 
 
 def test_kill_refuses_a_terminal_run(repo):

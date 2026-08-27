@@ -128,6 +128,9 @@ select = [
     "SIM",
 ]
 ignore = [
+    "E501", # line length is owned by `ruff format` (code is wrapped at 100); the remaining long
+    # lines are unwrappable prose
+    "ISC001", # single-line implicit concat: conflicts with `ruff format`
     "RUF001", # ambiguous unicode: docstrings deliberately use typographic punctuation (—, §, ·)
     "RUF002", # see RUF001
     "RUF003", # see RUF001

@@ -43,8 +43,9 @@ def repository_name(root: Path) -> str:
 
 
 class GitVcs:
-    def commit_all(self, worktree: Path, message: str, author: str | None = None,
-                   sign_key: str | None = None) -> str | None:
+    def commit_all(
+        self, worktree: Path, message: str, author: str | None = None, sign_key: str | None = None
+    ) -> str | None:
         _git(worktree, "add", "-A")
         status = _git(worktree, "status", "--porcelain")
         if not status.stdout.strip():
@@ -66,16 +67,25 @@ class GitVcs:
     def landed_shas(self, worktree: Path, task_id: str) -> list[str]:
         """The commits a task landed, newest first — reconstructed from the
         Torve-Task trailer alone (D-10.4: git log is the surviving record)."""
-        proc = _git(worktree, "log", "--format=%H", "--fixed-strings",
-                    f"--grep=Torve-Task: {task_id}")
+        proc = _git(
+            worktree, "log", "--format=%H", "--fixed-strings", f"--grep=Torve-Task: {task_id}"
+        )
         return [line for line in proc.stdout.split() if line]
 
     def revert(self, worktree: Path, shas: list[str]) -> bool:
         """Stage the inverse of the given commits without committing — the
         landing commit carries the revert's own provenance. A conflict
         aborts, leaves the worktree clean, and returns False."""
-        proc = _git(worktree, "-c", "user.name=Torve", "-c", "user.email=torve@local",
-                    "revert", "--no-commit", *shas)
+        proc = _git(
+            worktree,
+            "-c",
+            "user.name=Torve",
+            "-c",
+            "user.email=torve@local",
+            "revert",
+            "--no-commit",
+            *shas,
+        )
         if proc.returncode == 0:
             return True
         _git(worktree, "revert", "--abort")
@@ -88,8 +98,9 @@ class GitVcs:
         out = _git(worktree, "show", "--pretty=format:", "--name-only", "HEAD")
         return [line for line in out.stdout.splitlines() if line.strip()]
 
-    def push(self, worktree: Path, branch: str, token: str | None = None,
-             supersede: bool = False) -> bool:
+    def push(
+        self, worktree: Path, branch: str, token: str | None = None, supersede: bool = False
+    ) -> bool:
         """Push targets only the task's own branch. Without *supersede* the
         push is additive — no force path, which is how the base is pushed
         (D-19.9). With it, the attempt wholly supersedes the prior candidate
@@ -104,22 +115,32 @@ class GitVcs:
         config: list[str] = []
         env = None
         if token:
-            helper = ("!f() { echo username=x-access-token; "
-                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
         force = ["--force-with-lease"] if supersede else []
         proc = subprocess.run(
-            ["git", "-C", str(worktree), *config,
-             "push", *force, "-u", "origin", f"HEAD:refs/heads/{branch}"],
-            capture_output=True, text=True, check=False, env=env,
+            [
+                "git",
+                "-C",
+                str(worktree),
+                *config,
+                "push",
+                *force,
+                "-u",
+                "origin",
+                f"HEAD:refs/heads/{branch}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
         )
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git push failed")
         return True
 
-    def delete_remote_branch(self, root: Path, branch: str,
-                             token: str | None = None) -> bool:
+    def delete_remote_branch(self, root: Path, branch: str, token: str | None = None) -> bool:
         """The retry command's re-queue cleanup (T-0059): delete the task's
         own remote branch — a ref deletion under the commander's explicit
         authority, never a history rewrite (D-10.5 stands). Returns True
@@ -133,14 +154,15 @@ class GitVcs:
         config: list[str] = []
         env = None
         if token:
-            helper = ("!f() { echo username=x-access-token; "
-                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
         proc = subprocess.run(
-            ["git", "-C", str(root), *config,
-             "push", "origin", "--delete", f"refs/heads/{branch}"],
-            capture_output=True, text=True, check=False, env=env,
+            ["git", "-C", str(root), *config, "push", "origin", "--delete", f"refs/heads/{branch}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
         )
         if proc.returncode != 0:
             if "remote ref does not exist" in proc.stderr:
@@ -148,8 +170,7 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git push --delete failed")
         return True
 
-    def republish_branch(self, root: Path, branch: str,
-                         token: str | None = None) -> bool:
+    def republish_branch(self, root: Path, branch: str, token: str | None = None) -> bool:
         """The landed form returns to its branch (D-19.12, A-34): a rebased
         landing republishes the candidate branch at its landed tip so the
         forge recognizes the base push as the merge of its pull request.
@@ -163,21 +184,32 @@ class GitVcs:
         config: list[str] = []
         env = None
         if token:
-            helper = ("!f() { echo username=x-access-token; "
-                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
         proc = subprocess.run(
-            ["git", "-C", str(root), *config, "push", "--force-with-lease",
-             "origin", f"{branch}:refs/heads/{branch}"],
-            capture_output=True, text=True, check=False, env=env,
+            [
+                "git",
+                "-C",
+                str(root),
+                *config,
+                "push",
+                "--force-with-lease",
+                "origin",
+                f"{branch}:refs/heads/{branch}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
         )
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git push --force-with-lease failed")
         return True
 
-    def fetch_pr(self, root: Path, number: int, base_ref: str,
-                 token: str | None = None) -> tuple[str, str]:
+    def fetch_pr(
+        self, root: Path, number: int, base_ref: str, token: str | None = None
+    ) -> tuple[str, str]:
         """Fetch the pull request's head and its base branch into local
         refs and return (base_sha, head_sha). The token reaches git the
         same way push's does: a credential helper reading the runner's
@@ -185,21 +217,32 @@ class GitVcs:
         config: list[str] = []
         env = None
         if token:
-            helper = ("!f() { echo username=x-access-token; "
-                      'echo "password=$TORVE_PUSH_TOKEN"; }; f')
+            helper = '!f() { echo username=x-access-token; echo "password=$TORVE_PUSH_TOKEN"; }; f'
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
         head_ref, base_local = f"refs/torve/pr-{number}", f"refs/torve/pr-{number}-base"
         proc = subprocess.run(
-            ["git", "-C", str(root), *config, "fetch", "origin",
-             f"+refs/pull/{number}/head:{head_ref}",
-             f"+refs/heads/{base_ref}:{base_local}"],
-            capture_output=True, text=True, check=False, env=env,
+            [
+                "git",
+                "-C",
+                str(root),
+                *config,
+                "fetch",
+                "origin",
+                f"+refs/pull/{number}/head:{head_ref}",
+                f"+refs/heads/{base_ref}:{base_local}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
         )
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git fetch failed")
-        return (_git(root, "rev-parse", base_local).stdout.strip(),
-                _git(root, "rev-parse", head_ref).stdout.strip())
+        return (
+            _git(root, "rev-parse", base_local).stdout.strip(),
+            _git(root, "rev-parse", head_ref).stdout.strip(),
+        )
 
     def worktree_at(self, root: Path, sha: str, workdir: Path) -> None:
         added = _git(root, "worktree", "add", "--detach", str(workdir), sha)
@@ -271,8 +314,7 @@ class GitLane:
                 continue
             shown = _git(root, "show", f"{ref}:{rel}")
             try:
-                same = shown.returncode == 0 and \
-                    shown.stdout == target.read_text(encoding="utf-8")
+                same = shown.returncode == 0 and shown.stdout == target.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
             if same:
@@ -317,9 +359,18 @@ class GitLane:
 
 # Network-shaped failures worth one retry (T-0058). Kept in each GitHub
 # adapter separately — adapters are independent and may not share code.
-TRANSIENT = ("timeout", "tls handshake", "connection reset",
-             "connection refused", "temporary failure", "no such host",
-             "unexpected eof", "network is unreachable", "502", "503")
+TRANSIENT = (
+    "timeout",
+    "tls handshake",
+    "connection reset",
+    "connection refused",
+    "temporary failure",
+    "no such host",
+    "unexpected eof",
+    "network is unreachable",
+    "502",
+    "503",
+)
 
 
 class GhScm:
@@ -328,8 +379,12 @@ class GhScm:
     CONFIGURED environment-variable name at call time and handed to gh as
     GH_TOKEN in the subprocess environment only."""
 
-    def __init__(self, repo: str | None = None, token_env: str | None = None,
-                 sleeper: Callable[[float], None] = time.sleep) -> None:
+    def __init__(
+        self,
+        repo: str | None = None,
+        token_env: str | None = None,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
         self.repo = repo
         self.token_env = token_env
         self.sleeper = sleeper
@@ -349,11 +404,11 @@ class GhScm:
             command = ["gh", *args]
             if self.repo:
                 command += ["--repo", self.repo]
-            return subprocess.run(command, capture_output=True, text=True,
-                                  check=False, cwd=worktree, env=env)
+            return subprocess.run(
+                command, capture_output=True, text=True, check=False, cwd=worktree, env=env
+            )
 
-        proc = run_gh("pr", "create", "--head", branch,
-                      "--title", title, "--body", body)
+        proc = run_gh("pr", "create", "--head", branch, "--title", title, "--body", body)
         if proc.returncode == 0:
             return proc.stdout.strip()
         error = proc.stderr.strip()
@@ -361,13 +416,18 @@ class GhScm:
             # One pull request per task (D-10.10, A-37): the branch's open
             # pull request is the task's — reuse it, refreshing what the
             # attempt changed.
-            listed = cast("list[dict[str, Any]]", json.loads(run_gh(
-                "pr", "list", "--head", branch, "--state", "open",
-                "--json", "number,url").stdout or "[]"))
+            listed = cast(
+                "list[dict[str, Any]]",
+                json.loads(
+                    run_gh(
+                        "pr", "list", "--head", branch, "--state", "open", "--json", "number,url"
+                    ).stdout
+                    or "[]"
+                ),
+            )
             if listed:
                 number = int(listed[0]["number"])
-                run_gh("pr", "edit", str(number),
-                       "--title", title, "--body", body)
+                run_gh("pr", "edit", str(number), "--title", title, "--body", body)
                 return str(listed[0].get("url", ""))
         raise RuntimeError(error or "gh pr create failed")
 
@@ -385,8 +445,7 @@ class GhScm:
                 )
             env = {**os.environ, "GH_TOKEN": token}
         for attempt in (1, 2):
-            proc = subprocess.run(command, capture_output=True, text=True,
-                                  check=False, env=env)
+            proc = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
             if proc.returncode == 0:
                 return proc.stdout
             error = proc.stderr.strip() or f"gh {args[0]} failed"
@@ -399,9 +458,18 @@ class GhScm:
         raise RuntimeError("unreachable")  # for the type checker
 
     def pr_info(self, number: int) -> PrInfo:
-        document = cast("dict[str, Any]", json.loads(self._gh(
-            "pr", "view", str(number), "--json",
-            "number,title,author,isDraft,headRefOid,baseRefName,changedFiles,state")))
+        document = cast(
+            "dict[str, Any]",
+            json.loads(
+                self._gh(
+                    "pr",
+                    "view",
+                    str(number),
+                    "--json",
+                    "number,title,author,isDraft,headRefOid,baseRefName,changedFiles,state",
+                )
+            ),
+        )
         author = cast("dict[str, Any]", document.get("author") or {})
         return PrInfo(
             number=int(document["number"]),
@@ -421,8 +489,7 @@ class GhScm:
         existing = self._gh("pr", "view", str(number), "--json", "comments")
         if marker in existing:
             return ""
-        return self._gh("pr", "comment", str(number),
-                        "--body", f"{body}\n\n{marker}").strip()
+        return self._gh("pr", "comment", str(number), "--body", f"{body}\n\n{marker}").strip()
 
     def _api(self, *args: str) -> str:
         # `gh api` takes the repo in the endpoint, never as a flag.
@@ -436,8 +503,9 @@ class GhScm:
                 )
             env = {**os.environ, "GH_TOKEN": token}
         for attempt in (1, 2):
-            proc = subprocess.run(["gh", "api", *args], capture_output=True,
-                                  text=True, check=False, env=env)
+            proc = subprocess.run(
+                ["gh", "api", *args], capture_output=True, text=True, check=False, env=env
+            )
             if proc.returncode == 0:
                 return proc.stdout
             error = proc.stderr.strip() or "gh api failed"
@@ -447,8 +515,7 @@ class GhScm:
             raise RuntimeError(error)
         raise RuntimeError("unreachable")  # for the type checker
 
-    def review_threads(self, branch: str,
-                       allowed: tuple[str, ...]) -> list[dict[str, Any]]:
+    def review_threads(self, branch: str, allowed: tuple[str, ...]) -> list[dict[str, Any]]:
         """The branch's pull-request review threads whose root author is
         allow-listed (RFC 0005 §4a, D-5.12): line-anchored comments only,
         whole threads — replies from anyone ride along, they carry
@@ -456,14 +523,22 @@ class GhScm:
         allow-list, is an empty capture."""
         if not allowed or not self.repo:
             return []
-        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
-            "pr", "list", "--head", branch, "--state", "all",
-            "--json", "number") or "[]"))
+        listed = cast(
+            "list[dict[str, Any]]",
+            json.loads(
+                self._gh("pr", "list", "--head", branch, "--state", "all", "--json", "number")
+                or "[]"
+            ),
+        )
         if not listed:
             return []
         number = int(listed[0]["number"])
-        raw = cast("list[dict[str, Any]]", json.loads(self._api(
-            f"repos/{self.repo}/pulls/{number}/comments", "--paginate") or "[]"))
+        raw = cast(
+            "list[dict[str, Any]]",
+            json.loads(
+                self._api(f"repos/{self.repo}/pulls/{number}/comments", "--paginate") or "[]"
+            ),
+        )
         roots: dict[int, dict[str, Any]] = {}
         for comment in raw:
             if comment.get("in_reply_to_id") is None:
@@ -474,22 +549,22 @@ class GhScm:
                 roots[int(comment["id"])] = {
                     # id and pr are the reply address (D-5.14, A-41): the
                     # landing answers the threads its revision consumed.
-                    "id": int(comment["id"]), "pr": number,
-                    "path": comment.get("path"), "line": comment.get("line"),
-                    "comments": [{"author": author,
-                                  "body": str(comment.get("body", ""))}]}
+                    "id": int(comment["id"]),
+                    "pr": number,
+                    "path": comment.get("path"),
+                    "line": comment.get("line"),
+                    "comments": [{"author": author, "body": str(comment.get("body", ""))}],
+                }
         for comment in raw:
             parent = comment.get("in_reply_to_id")
             if parent is not None and int(parent) in roots:
                 user = cast("dict[str, Any]", comment.get("user") or {})
-                cast("list[dict[str, Any]]",
-                     roots[int(parent)]["comments"]).append({
-                    "author": str(user.get("login", "")),
-                    "body": str(comment.get("body", ""))})
+                cast("list[dict[str, Any]]", roots[int(parent)]["comments"]).append(
+                    {"author": str(user.get("login", "")), "body": str(comment.get("body", ""))}
+                )
         return list(roots.values())
 
-    def answer_captured_threads(self, records: list[dict[str, Any]],
-                                body: str) -> tuple[int, int]:
+    def answer_captured_threads(self, records: list[dict[str, Any]], body: str) -> tuple[int, int]:
         """Answer the review threads a landed revision consumed (D-5.14,
         A-41): one reply per captured root, composed from records — it
         says what the loop did, never what the finding deserves. Each
@@ -503,17 +578,17 @@ class GhScm:
         for record in records:
             by_pr.setdefault(int(record["pr"]), []).append(int(record["id"]))
         for pr_number, comment_ids in by_pr.items():
-            existing = self._api(
-                f"repos/{self.repo}/pulls/{pr_number}/comments", "--paginate")
+            existing = self._api(f"repos/{self.repo}/pulls/{pr_number}/comments", "--paginate")
             for comment_id in comment_ids:
                 marker = f"<!-- torve-key:answer:{comment_id} -->"
                 if marker in existing:
                     skipped += 1
                     continue
                 self._api(
-                    f"repos/{self.repo}/pulls/{pr_number}/comments/"
-                    f"{comment_id}/replies",
-                    "-f", f"body={body}\n\n{marker}")
+                    f"repos/{self.repo}/pulls/{pr_number}/comments/{comment_id}/replies",
+                    "-f",
+                    f"body={body}\n\n{marker}",
+                )
                 posted += 1
         return (posted, skipped)
 
@@ -523,14 +598,17 @@ class GhScm:
         from an abandoned branch, so the engine says so itself — and
         deletes the head branch, whose commits are on the base. False when
         no open pull request exists for the branch."""
-        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
-            "pr", "list", "--head", branch, "--state", "open",
-            "--json", "number") or "[]"))
+        listed = cast(
+            "list[dict[str, Any]]",
+            json.loads(
+                self._gh("pr", "list", "--head", branch, "--state", "open", "--json", "number")
+                or "[]"
+            ),
+        )
         if not listed:
             return False
         number = int(listed[0]["number"])
-        self._gh("pr", "close", str(number), "--comment", comment,
-                 "--delete-branch")
+        self._gh("pr", "close", str(number), "--comment", comment, "--delete-branch")
         return True
 
     def retire_pr(self, branch: str, comment: str) -> str:
@@ -543,9 +621,15 @@ class GhScm:
         pull request needed retiring); the caller deletes the candidate
         branch in the non-"closed" cases."""
         for attempt in (1, 2, 3):
-            listed = cast("list[dict[str, Any]]", json.loads(self._gh(
-                "pr", "list", "--head", branch, "--state", "all",
-                "--json", "number,state") or "[]"))
+            listed = cast(
+                "list[dict[str, Any]]",
+                json.loads(
+                    self._gh(
+                        "pr", "list", "--head", branch, "--state", "all", "--json", "number,state"
+                    )
+                    or "[]"
+                ),
+            )
             if not listed:
                 return "absent"
             state = str(listed[0].get("state", "")).upper()
@@ -573,9 +657,14 @@ class GhCi:
     because the rate budget is shared with the agents (§1). The credential
     follows GhScm's rule: resolved by NAME at call time, environment only."""
 
-    def __init__(self, repo: str, token_env: str | None = None,
-                 attempts: int = 6, delay_s: float = 20.0,
-                 sleeper: Callable[[float], None] = time.sleep) -> None:
+    def __init__(
+        self,
+        repo: str,
+        token_env: str | None = None,
+        attempts: int = 6,
+        delay_s: float = 20.0,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
         self.repo = repo
         self.token_env = token_env
         self.attempts = attempts
@@ -594,9 +683,17 @@ class GhCi:
             env = {**os.environ, "GH_TOKEN": token}
         for attempt in (1, 2):
             proc = subprocess.run(
-                ["gh", "api", f"repos/{self.repo}/actions/runs?head_sha={sha}",
-                 "--jq", "[.workflow_runs[] | {status, conclusion, workflow_id}]"],
-                capture_output=True, text=True, check=False, env=env,
+                [
+                    "gh",
+                    "api",
+                    f"repos/{self.repo}/actions/runs?head_sha={sha}",
+                    "--jq",
+                    "[.workflow_runs[] | {status, conclusion, workflow_id}]",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
             )
             if proc.returncode == 0:
                 loaded: object = json.loads(proc.stdout or "[]")
@@ -626,8 +723,11 @@ class GhCi:
                 verdict = "pending"
             else:
                 conclusions = {str(r.get("conclusion")) for r in latest.values()}
-                return "success" if conclusions == {"success"} else \
-                    next(c for c in sorted(conclusions) if c != "success")
+                return (
+                    "success"
+                    if conclusions == {"success"}
+                    else next(c for c in sorted(conclusions) if c != "success")
+                )
             if attempt + 1 < self.attempts:
                 self.sleeper(self.delay_s)
         return verdict

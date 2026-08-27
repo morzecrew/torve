@@ -29,13 +29,21 @@ def root(tmp_path: Path) -> Path:
 
 
 THREADS = [
-    {"path": "src/lab/stats.py", "line": 12, "comments": [
-        {"author": "coderabbitai[bot]", "body": "**Off-by-one in median.**"},
-        {"author": "Misery7100", "body": "Fixed in abc123."},
-    ]},
-    {"path": "tests/test_stats.py", "line": None, "comments": [
-        {"author": "greptile-apps[bot]", "body": "Missing empty-list case."},
-    ]},
+    {
+        "path": "src/lab/stats.py",
+        "line": 12,
+        "comments": [
+            {"author": "coderabbitai[bot]", "body": "**Off-by-one in median.**"},
+            {"author": "Misery7100", "body": "Fixed in abc123."},
+        ],
+    },
+    {
+        "path": "tests/test_stats.py",
+        "line": None,
+        "comments": [
+            {"author": "greptile-apps[bot]", "body": "Missing empty-list case."},
+        ],
+    },
 ]
 
 
@@ -63,8 +71,15 @@ def test_capture_retains_reply_addresses_when_threads_carry_them(root):
 
     from torve.application.feedback import threads_file
 
-    addressed = [{"pr": 12, "id": 5, "path": "a.py", "line": 3,
-                  "comments": [{"author": "bot", "body": "finding"}]}]
+    addressed = [
+        {
+            "pr": 12,
+            "id": 5,
+            "path": "a.py",
+            "line": 3,
+            "comments": [{"author": "bot", "body": "finding"}],
+        }
+    ]
     assert capture_feedback(root, "T-8004", "", addressed) is True
     saved = json.loads(threads_file(root, "T-8004").read_text(encoding="utf-8"))
     assert saved == [{"pr": 12, "id": 5, "path": "a.py", "line": 3}]
@@ -74,8 +89,9 @@ def test_capture_retains_reply_addresses_when_threads_carry_them(root):
 
 
 def test_the_size_cap_is_recorded_never_silent():
-    huge = [{"path": "a.py", "line": 1, "comments": [
-        {"author": "bot", "body": "x" * FEEDBACK_CAP}]}]
+    huge = [
+        {"path": "a.py", "line": 1, "comments": [{"author": "bot", "body": "x" * FEEDBACK_CAP}]}
+    ]
     text = render_feedback("T-8003", "", huge)
     assert len(text.encode("utf-8")) < FEEDBACK_CAP + 200
     assert "truncated at the size cap" in text
@@ -96,8 +112,15 @@ def test_an_empty_capture_clears_the_stale_record(root):
     # record from an earlier revision round must not brief the next
     # attempt as if current, and a stale reply address must not have
     # the next landing answer threads it never addressed.
-    addressed = [{"pr": 12, "id": 5, "path": "a.py", "line": 3,
-                  "comments": [{"author": "bot", "body": "finding"}]}]
+    addressed = [
+        {
+            "pr": 12,
+            "id": 5,
+            "path": "a.py",
+            "line": 3,
+            "comments": [{"author": "bot", "body": "finding"}],
+        }
+    ]
     assert capture_feedback(root, "T-8006", "", addressed) is True
     assert feedback_file(root, "T-8006").exists()
     assert threads_file(root, "T-8006").exists()
@@ -108,8 +131,15 @@ def test_an_empty_capture_clears_the_stale_record(root):
 
 
 def test_a_fresh_capture_supersedes_stale_reply_addresses(root):
-    addressed = [{"pr": 12, "id": 5, "path": "a.py", "line": 3,
-                  "comments": [{"author": "bot", "body": "finding"}]}]
+    addressed = [
+        {
+            "pr": 12,
+            "id": 5,
+            "path": "a.py",
+            "line": 3,
+            "comments": [{"author": "bot", "body": "finding"}],
+        }
+    ]
     assert capture_feedback(root, "T-8007", "", addressed) is True
     # The next round captures address-less threads: the old addresses
     # must not survive to be answered by a landing that never saw them.

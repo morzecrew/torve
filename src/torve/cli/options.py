@@ -30,13 +30,21 @@ class RuntimeName(StrEnum):
     OPENSANDBOX = "opensandbox"
 
 
-ConfigOption = Annotated[Path | None, typer.Option(
-    "--config", exists=True, dir_okay=False,
-    help="Runner configuration; defaults to .torve/config.yaml.")]
-RootOption = Annotated[Path, typer.Option(
-    "--root", exists=True, file_okay=False, help="Repository root.")]
-FormatOption = Annotated[Format, typer.Option(
-    "--format", help="text for a person, json for a machine.")]
+ConfigOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--config",
+        exists=True,
+        dir_okay=False,
+        help="Runner configuration; defaults to .torve/config.yaml.",
+    ),
+]
+RootOption = Annotated[
+    Path, typer.Option("--root", exists=True, file_okay=False, help="Repository root.")
+]
+FormatOption = Annotated[
+    Format, typer.Option("--format", help="text for a person, json for a machine.")
+]
 
 
 def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
@@ -56,12 +64,10 @@ def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:
 
     adapter = override.value if override else config.runtime.adapter
     if adapter == "docker":
-        return DockerRuntime(network=config.runtime.network,
-                             docker_mode=config.runtime.docker)
+        return DockerRuntime(network=config.runtime.network, docker_mode=config.runtime.docker)
     if adapter == "opensandbox":
         try:
-            return OpenSandboxRuntime(config.runtime.opensandbox,
-                                      docker_mode=config.runtime.docker)
+            return OpenSandboxRuntime(config.runtime.opensandbox, docker_mode=config.runtime.docker)
         except ValueError as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
     raise fail(f"configuration error: unknown runtime adapter {adapter!r}", EXIT_CONFIG)

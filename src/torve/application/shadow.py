@@ -51,14 +51,19 @@ class ShadowSource:
     diff_worktree: Callable[[Path, str], dict[str, Any]]
 
 
-async def _drive(state: RunState, task: Task, config: RunnerConfig,
-                 hooks: AttemptHooks) -> RunState:
+async def _drive(
+    state: RunState, task: Task, config: RunnerConfig, hooks: AttemptHooks
+) -> RunState:
     return await drive_attempts(state, task, config, hooks)
 
 
 def run_shadow(
-    root: Path, task: Task, config: RunnerConfig, deps: RunDeps,
-    source: ShadowSource, commit: str | None = None,
+    root: Path,
+    task: Task,
+    config: RunnerConfig,
+    deps: RunDeps,
+    source: ShadowSource,
+    commit: str | None = None,
     annotation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One shadow replay; returns the telemetry record it appended. Raises
@@ -81,8 +86,7 @@ def run_shadow(
     )
     state.transition(TaskState.CLAIMED, f"shadow replay of {resolved[:10]} from {parent[:10]}")
 
-    inner = real_hooks(root, task, config, deps, workspace,
-                        shadow=True, gates_base=parent)
+    inner = real_hooks(root, task, config, deps, workspace, shadow=True, gates_base=parent)
     costs: list[float] = []
     traces: list[str] = []
     model_versions: list[str] = []
@@ -109,15 +113,16 @@ def run_shadow(
     manifest_path = layout.gates_file(workspace)
     # The replay's image identity, resolved the same way a live dispatch
     # resolves it (D-17.1) — a rebuild between two replays is two regimes.
-    image_digest = deps.runtime.resolve_image(
-        image_for(config, tier_for(config, task.tier)))
+    image_digest = deps.runtime.resolve_image(image_for(config, tier_for(config, task.tier)))
     record: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "shadow",
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "config_hash": (config_hash(manifest_path, workspace, config,
-                                    image_digest=image_digest)
-                        if manifest_path.is_file() else None),
+        "config_hash": (
+            config_hash(manifest_path, workspace, config, image_digest=image_digest)
+            if manifest_path.is_file()
+            else None
+        ),
         "image_digest": image_digest,
         "task_id": task.id,
         "commit": resolved,

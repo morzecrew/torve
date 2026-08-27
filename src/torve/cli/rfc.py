@@ -39,8 +39,7 @@ from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 # ----------------------- #
 
-rfc_app = typer.Typer(no_args_is_help=True,
-                      help="Validate and author the RFC corpus.")
+rfc_app = typer.Typer(no_args_is_help=True, help="Validate and author the RFC corpus.")
 
 TEMPLATE_TITLE = "RFC NNNN — <Title>"
 
@@ -52,8 +51,12 @@ _STATUS_STYLES: dict[str, str] = {
     "superseded": STYLE_DIM,
 }
 
-PathsArgument = Annotated[list[Path] | None, typer.Argument(
-    help="Report only findings for these documents; corpus-wide findings always show.")]
+PathsArgument = Annotated[
+    list[Path] | None,
+    typer.Argument(
+        help="Report only findings for these documents; corpus-wide findings always show."
+    ),
+]
 
 
 def corpus_dir(root: Path, config_path: Path | None) -> Path:
@@ -62,7 +65,9 @@ def corpus_dir(root: Path, config_path: Path | None) -> Path:
     if not resolved.is_dir():
         raise fail(
             f"configuration error: no corpus directory at {resolved} "
-            "(the rfcs.path configuration key)", EXIT_CONFIG)
+            "(the rfcs.path configuration key)",
+            EXIT_CONFIG,
+        )
     return resolved
 
 
@@ -103,8 +108,15 @@ def check(
         warnings = _selected(warnings, names)
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "ok": not problems, "count": report.count,
-                   "problems": problems, "warnings": warnings})
+        emit_json(
+            {
+                "schema_version": 1,
+                "ok": not problems,
+                "count": report.count,
+                "problems": problems,
+                "warnings": warnings,
+            }
+        )
     else:
         console = out(fmt)
         for problem in problems:
@@ -113,15 +125,19 @@ def check(
             console.print(Text(f"WARN    {warning}", STYLE_WARN))
         verdict = "FAIL " if problems else "OK   "
         tail = f", {len(warnings)} warning(s)" if warnings else ""
-        closing(console, f"{verdict} {report.count} RFC(s), {len(problems)} problem(s){tail}",
-                STYLE_FAIL if problems else STYLE_PASS)
+        closing(
+            console,
+            f"{verdict} {report.count} RFC(s), {len(problems)} problem(s){tail}",
+            STYLE_FAIL if problems else STYLE_PASS,
+        )
     raise typer.Exit(EXIT_OK if not problems else EXIT_CONFIG)
 
 
 @rfc_app.command("index")
 def index(
-    check_only: Annotated[bool, typer.Option(
-        "--check", help="Compare instead of writing; drift exits 3.")] = False,
+    check_only: Annotated[
+        bool, typer.Option("--check", help="Compare instead of writing; drift exits 3.")
+    ] = False,
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
@@ -139,9 +155,11 @@ def index(
         if current == rendered:
             out().print(f"OK    INDEX.md matches {len(files)} RFC(s)")
             raise typer.Exit(EXIT_OK)
-        raise fail("INDEX.md differs from what `torve rfc index` writes — it is "
-                   "generated output; regenerate it instead of editing it",
-                   EXIT_CONFIG)
+        raise fail(
+            "INDEX.md differs from what `torve rfc index` writes — it is "
+            "generated output; regenerate it instead of editing it",
+            EXIT_CONFIG,
+        )
     index_path.write_text(rendered, encoding="utf-8")
     out().print(f"generated {index_path} ({len(files)} RFC(s))")
 
@@ -149,8 +167,7 @@ def index(
 @rfc_app.command("new")
 def new(
     title: Annotated[str, typer.Argument(help="Document title; the slug derives from it.")],
-    kind: Annotated[str, typer.Option(
-        "--kind", help="design (default) or convention.")] = "design",
+    kind: Annotated[str, typer.Option("--kind", help="design (default) or convention.")] = "design",
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
@@ -161,8 +178,9 @@ def new(
     from torve.config.rfc_parse import build_index, next_number, rfc_files, slugify
 
     if kind not in KINDS:
-        raise fail(f"configuration error: kind {kind!r} is not one of "
-                   f"{', '.join(KINDS)}", EXIT_CONFIG)
+        raise fail(
+            f"configuration error: kind {kind!r} is not one of {', '.join(KINDS)}", EXIT_CONFIG
+        )
     rfc_dir = corpus_dir(root, config)
     slug = slugify(title)
     if not slug:
@@ -172,8 +190,7 @@ def new(
     template_text = template_path.read_text(encoding="utf-8")
     block = template_text.split("```markdown\n", 1)
     if len(block) < 2 or TEMPLATE_TITLE not in block[1]:
-        raise fail(f"configuration error: no usable skeleton in {template_path}",
-                   EXIT_CONFIG)
+        raise fail(f"configuration error: no usable skeleton in {template_path}", EXIT_CONFIG)
     body = block[1].split("\n```", 1)[0]
 
     allocated = next_number(rfc_dir)
@@ -189,8 +206,11 @@ def new(
         with path.open("x", encoding="utf-8") as handle:
             handle.write(body + "\n")
     except FileExistsError:
-        raise fail(f"configuration error: {path.name} was created by another "
-                   "process — re-run to take the next number", EXIT_CONFIG) from None
+        raise fail(
+            f"configuration error: {path.name} was created by another "
+            "process — re-run to take the next number",
+            EXIT_CONFIG,
+        ) from None
     (rfc_dir / "INDEX.md").write_text(build_index(rfc_files(rfc_dir)), encoding="utf-8")
     console = out()
     console.print(f"created {path}")
@@ -219,19 +239,21 @@ def graph(
         number: parse_frontmatter(path.read_text(encoding="utf-8")) or {}
         for number, path in files.items()
     }
-    depends = {number: fm_list(frontmatter[number], "depends_on")
-               for number in frontmatter}
+    depends = {number: fm_list(frontmatter[number], "depends_on") for number in frontmatter}
     edges = [
-        {"from": number, "from_status": str(frontmatter[number].get("status", "?")),
-         "to": target, "to_status": str(frontmatter.get(target, {}).get("status", "?"))}
+        {
+            "from": number,
+            "from_status": str(frontmatter[number].get("status", "?")),
+            "to": target,
+            "to_status": str(frontmatter.get(target, {}).get("status", "?")),
+        }
         for number in sorted(depends)
         for target in depends[number]
     ]
     problems, warnings = check_graph(files, frontmatter)
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "edges": edges,
-                   "problems": problems, "warnings": warnings})
+        emit_json({"schema_version": 1, "edges": edges, "problems": problems, "warnings": warnings})
         return
     console = out(fmt)
     header(console, "rfc graph", f"{len(files)} RFC(s), {len(edges)} edge(s)")
@@ -246,8 +268,10 @@ def graph(
 
     def done(number: str) -> bool:
         front = frontmatter.get(number, {})
-        return (str(front.get("status")) == "accepted"
-                and str(front.get("implementation")) == "complete")
+        return (
+            str(front.get("status")) == "accepted"
+            and str(front.get("implementation")) == "complete"
+        )
 
     def grow(branch: Tree, number: str) -> None:
         front = frontmatter.get(number, {})
@@ -289,8 +313,9 @@ def graph(
     console.print(tree)
     if omitted:
         console.print()
-        footer(console, f"… {len(omitted)} accepted and complete, omitted: "
-                        f"{id_list(sorted(omitted))}")
+        footer(
+            console, f"… {len(omitted)} accepted and complete, omitted: {id_list(sorted(omitted))}"
+        )
     for problem in problems:
         console.print(Text(f"PROBLEM {problem}", STYLE_FAIL))
     for warning in warnings:

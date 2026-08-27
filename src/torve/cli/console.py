@@ -75,20 +75,21 @@ def set_plain(value: bool) -> None:
 
 
 def is_plain(fmt: Format | None = None) -> bool:
-    return (_plain_flag or fmt is Format.JSON or bool(os.environ.get("CI"))
-            or not sys.stdout.isatty())
+    return (
+        _plain_flag or fmt is Format.JSON or bool(os.environ.get("CI")) or not sys.stdout.isatty()
+    )
 
 
 def out(fmt: Format | None = None) -> Console:
     """Human results, stdout."""
-    return Console(no_color=is_plain(fmt) or None, highlight=False, markup=False,
-                   soft_wrap=True)
+    return Console(no_color=is_plain(fmt) or None, highlight=False, markup=False, soft_wrap=True)
 
 
 def err() -> Console:
     """Diagnostics, stderr — in both formats."""
-    return Console(stderr=True, no_color=is_plain() or None, highlight=False,
-                   markup=False, soft_wrap=True)
+    return Console(
+        stderr=True, no_color=is_plain() or None, highlight=False, markup=False, soft_wrap=True
+    )
 
 
 def emit_json(document: dict[str, object]) -> None:
@@ -117,23 +118,30 @@ def header(console: Console, verb: str, subject: str, regime: str | None = None)
     console.print(line)
 
 
-def make_table(*columns: str, title: str | None = None, lines: bool = False,
-               last_max_width: int | None = None) -> Table:
+def make_table(
+    *columns: str, title: str | None = None, lines: bool = False, last_max_width: int | None = None
+) -> Table:
     """The house table: simple rules, dim headers, no outer border — rows are
     the content, the frame is not. `lines` separates rows, for tables whose
     cells wrap over several lines; `last_max_width` bounds the final column,
     for tables whose last cell is prose."""
-    table = Table(box=box.SIMPLE_HEAD, title=title, title_style="bold",
-                  title_justify="left", header_style=STYLE_DIM, pad_edge=False,
-                  expand=False, show_lines=lines)
+    table = Table(
+        box=box.SIMPLE_HEAD,
+        title=title,
+        title_style="bold",
+        title_justify="left",
+        header_style=STYLE_DIM,
+        pad_edge=False,
+        expand=False,
+        show_lines=lines,
+    )
     for position, column in enumerate(columns):
         width = last_max_width if position == len(columns) - 1 else None
         table.add_column(column, overflow="fold", max_width=width)
     return table
 
 
-def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]],
-                       limit: int = 50) -> int:
+def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]], limit: int = 50) -> int:
     """At most `limit` rows; returns how many were withheld. The
     caller prints the `… N more` line *after* the table with `footer` — a
     long note inside the first column would size the column to the note."""

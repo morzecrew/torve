@@ -37,19 +37,29 @@ from torve.domain.states import (
 
 # ----------------------- #
 
-_MARKS = {"landed": "pass", "already landed": "pass", "would land": "pass",
-          "would rebase": "pass", "conflict": "fail", "gates red": "fail",
-          "ci not green": "fail", "approvals short": "fail",
-          "review missing": "fail",
-          "quiet window": "fail", "no branch": "skipped"}
+_MARKS = {
+    "landed": "pass",
+    "already landed": "pass",
+    "would land": "pass",
+    "would rebase": "pass",
+    "conflict": "fail",
+    "gates red": "fail",
+    "ci not green": "fail",
+    "approvals short": "fail",
+    "review missing": "fail",
+    "quiet window": "fail",
+    "no branch": "skipped",
+}
 
 
 def merge_cmd(
-    task: Annotated[str | None, typer.Argument(
-        help="One candidate to land; omit to process the whole queue.")] = None,
-    dry_run: Annotated[bool, typer.Option(
-        "--dry-run", help="Report what the lane would do without moving anything.")]
-    = False,
+    task: Annotated[
+        str | None, typer.Argument(help="One candidate to land; omit to process the whole queue.")
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Report what the lane would do without moving anything."),
+    ] = False,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -66,22 +76,28 @@ def merge_cmd(
     ci = None
     if config.promotion.require_ci:
         if not config.scm.repo:
-            raise fail("configuration error: promotion.require_ci needs "
-                       "scm.repo to name the remote whose ci is consulted",
-                       EXIT_CONFIG)
+            raise fail(
+                "configuration error: promotion.require_ci needs "
+                "scm.repo to name the remote whose ci is consulted",
+                EXIT_CONFIG,
+            )
         ci = GhCi(config.scm.repo, config.scm.token_env)
     try:
         results = process_lane(
-            root, GitLane(), dry_run=dry_run, only=task, ci=ci,
+            root,
+            GitLane(),
+            dry_run=dry_run,
+            only=task,
+            ci=ci,
             approvals_required=config.promotion.approvals,
             require_review=config.promotion.require_review,
-            quiet_window_s=config.promotion.quiet_window)
+            quiet_window_s=config.promotion.quiet_window,
+        )
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "dry_run": dry_run,
-                   "results": [vars(r) for r in results]})
+        emit_json({"schema_version": 1, "dry_run": dry_run, "results": [vars(r) for r in results]})
     else:
         console = out(fmt)
         header(console, "merge", "dry run" if dry_run else "serialized lane")
@@ -93,19 +109,31 @@ def merge_cmd(
                 table.add_row(
                     mark(_MARKS.get(result.action, "skipped")),
                     Text(result.task, STYLE_ID),
-                    Text(result.action,
-                           STYLE_FAIL if result.action in ("conflict", "gates red")
-                           else STYLE_PASS if "land" in result.action else STYLE_DIM),
+                    Text(
+                        result.action,
+                        STYLE_FAIL
+                        if result.action in ("conflict", "gates red")
+                        else STYLE_PASS
+                        if "land" in result.action
+                        else STYLE_DIM,
+                    ),
                     result.detail,
-                    Text(result.sha[:10], STYLE_DIM))
+                    Text(result.sha[:10], STYLE_DIM),
+                )
             console.print(table)
             landed = sum(1 for r in results if r.landed)
-            closing(console, f"{landed} landed of {len(results)} candidate(s)"
-                    + (" (dry run)" if dry_run else ""))
+            closing(
+                console,
+                f"{landed} landed of {len(results)} candidate(s)"
+                + (" (dry run)" if dry_run else ""),
+            )
 
     if any(r.action == "conflict" for r in results):
         raise typer.Exit(EXIT_ESCALATED)
-    if any(r.action in ("gates red", "ci not green", "approvals short",
-                        "review missing", "quiet window") for r in results):
+    if any(
+        r.action
+        in ("gates red", "ci not green", "approvals short", "review missing", "quiet window")
+        for r in results
+    ):
         raise typer.Exit(EXIT_GATES_RED)
     raise typer.Exit(EXIT_OK)

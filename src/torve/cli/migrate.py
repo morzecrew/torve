@@ -17,13 +17,16 @@ from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE
 
 
 def migrate_cmd(
-    target: Annotated[str | None, typer.Argument(
-        help="torve | substrate | telemetry")] = None,
-    apply_all: Annotated[bool, typer.Option(
-        "--all", help="Apply every target's pending steps.")] = False,
-    show_status: Annotated[bool, typer.Option(
-        "--status", help="Available and applied steps per target, plus the forze pin.")]
-    = False,
+    target: Annotated[str | None, typer.Argument(help="torve | substrate | telemetry")] = None,
+    apply_all: Annotated[
+        bool, typer.Option("--all", help="Apply every target's pending steps.")
+    ] = False,
+    show_status: Annotated[
+        bool,
+        typer.Option(
+            "--status", help="Available and applied steps per target, plus the forze pin."
+        ),
+    ] = False,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
 ) -> None:
@@ -55,8 +58,7 @@ def migrate_cmd(
         if apply_all:
             targets = all_targets
         elif target is None:
-            raise fail("configuration error: give a target, --all, or --status",
-                       EXIT_CONFIG)
+            raise fail("configuration error: give a target, --all, or --status", EXIT_CONFIG)
         elif target not in all_targets:
             raise fail(f"configuration error: unknown target {target!r}", EXIT_CONFIG)
         else:

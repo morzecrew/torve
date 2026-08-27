@@ -75,20 +75,30 @@ def stage(root: Path, effect: Effect) -> bool:
     """Stage one effect; a key already staged is a no-op (False)."""
     if effect.key in staged_keys(root):
         return False
-    _append(root / layout.TORVE_DIR / OUTBOX, {
-        "key": effect.key, "kind": effect.kind, "payload": effect.payload,
-        "at": effect.at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    })
+    _append(
+        root / layout.TORVE_DIR / OUTBOX,
+        {
+            "key": effect.key,
+            "kind": effect.kind,
+            "payload": effect.payload,
+            "at": effect.at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+    )
     return True
 
 
 def pending(root: Path) -> list[Effect]:
     done = delivered_keys(root)
-    return [Effect(key=str(row["key"]), kind=str(row["kind"]),
-                   payload=cast("dict[str, Any]", row.get("payload", {})),
-                   at=str(row.get("at", "")))
-            for row in _rows(root / layout.TORVE_DIR / OUTBOX)
-            if str(row["key"]) not in done]
+    return [
+        Effect(
+            key=str(row["key"]),
+            kind=str(row["kind"]),
+            payload=cast("dict[str, Any]", row.get("payload", {})),
+            at=str(row.get("at", "")),
+        )
+        for row in _rows(root / layout.TORVE_DIR / OUTBOX)
+        if str(row["key"]) not in done
+    ]
 
 
 def relay(root: Path, deliver: Callable[[Effect], None]) -> RelayReport:
@@ -102,18 +112,24 @@ def relay(root: Path, deliver: Callable[[Effect], None]) -> RelayReport:
         if key in done:
             report.skipped.append(key)
             continue
-        effect = Effect(key=key, kind=str(row["kind"]),
-                        payload=cast("dict[str, Any]", row.get("payload", {})),
-                        at=str(row.get("at", "")))
+        effect = Effect(
+            key=key,
+            kind=str(row["kind"]),
+            payload=cast("dict[str, Any]", row.get("payload", {})),
+            at=str(row.get("at", "")),
+        )
         try:
             deliver(effect)
         except Exception as exc:  # one destination must not dam the queue
             report.failed[key] = str(exc)
             continue
-        _append(root / layout.TORVE_DIR / LEDGER, {
-            "key": key,
-            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        })
+        _append(
+            root / layout.TORVE_DIR / LEDGER,
+            {
+                "key": key,
+                "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+        )
         done.add(key)
         report.delivered.append(key)
     return report

@@ -20,12 +20,17 @@ INVARIANT_MESSAGES = {
 
 def invariants():
     return [
-        expect("double_hold", lambda _event: False,
-               message=INVARIANT_MESSAGES["double_hold"]),
-        expect("attempt", lambda event: event.fields["n"] <= CEILING,
-               message=INVARIANT_MESSAGES["ceiling"]),
-        expect("ready", lambda event: event.fields["gates"] == "green",
-               message=INVARIANT_MESSAGES["red_ready"]),
+        expect("double_hold", lambda _event: False, message=INVARIANT_MESSAGES["double_hold"]),
+        expect(
+            "attempt",
+            lambda event: event.fields["n"] <= CEILING,
+            message=INVARIANT_MESSAGES["ceiling"],
+        ),
+        expect(
+            "ready",
+            lambda event: event.fields["gates"] == "green",
+            message=INVARIANT_MESSAGES["red_ready"],
+        ),
         no_duplicate_effect("landed", by="run"),
     ]
 
@@ -59,8 +64,7 @@ def test_invariants_hold_and_targets_fire(tmp_path):
     assert report is None, f"violation in the honest engine:\n{report}"
     # Reachability: an invariant sweep that never visited the hard states
     # proves nothing (D-3.5).
-    required = {"lease_reclaimed", "zombie_abandoned", "gate_red_then_green",
-                "cancel_observed"}
+    required = {"lease_reclaimed", "zombie_abandoned", "gate_red_then_green", "cancel_observed"}
     assert required <= world.reach, f"targets never fired: {required - world.reach}"
 
 

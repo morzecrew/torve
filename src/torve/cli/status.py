@@ -58,24 +58,35 @@ def status(
         escalated = str(state.state) == "escalated"
         table.add_row(
             Text(state.task_id, STYLE_ID),
-            Text(str(state.state),
-                   STYLE_PASS if terminal_ready else STYLE_FAIL if escalated else ""),
+            Text(
+                str(state.state), STYLE_PASS if terminal_ready else STYLE_FAIL if escalated else ""
+            ),
             str(state.attempts),
             Text(f"{state.heartbeat_age_s():.0f}s ago", STYLE_DIM),
-            (f"{state.escalation.reason}: {state.escalation.detail}"
-             if state.escalation is not None else ""))
+            (
+                f"{state.escalation.reason}: {state.escalation.detail}"
+                if state.escalation is not None
+                else ""
+            ),
+        )
     console.print(table)
 
 
 def reap_cmd(
-    force: Annotated[bool, typer.Option(
-        "--force",
-        help="Treat every non-terminal run as orphaned regardless of heartbeat age.")]
-    = False,
-    dry_run: Annotated[bool, typer.Option(
-        "--dry-run", help="Report what would be swept without touching anything; "
-                          "durable lease expiry cannot be predicted and is not shown.")]
-    = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force", help="Treat every non-terminal run as orphaned regardless of heartbeat age."
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Report what would be swept without touching anything; "
+            "durable lease expiry cannot be predicted and is not shown.",
+        ),
+    ] = False,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -89,21 +100,35 @@ def reap_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
-    report = reap(root, config, runtime_for(config, runtime_name), GitWorkspace(root),
-                  force=force, dry_run=dry_run, store=open_store)
+    report = reap(
+        root,
+        config,
+        runtime_for(config, runtime_name),
+        GitWorkspace(root),
+        force=force,
+        dry_run=dry_run,
+        store=open_store,
+    )
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "dry_run": dry_run,
-                   "sandboxes_destroyed": report.sandboxes_destroyed,
-                   "runs_expired": report.runs_expired,
-                   "worktrees_removed": report.worktrees_removed,
-                   "states_removed": report.states_removed})
+        emit_json(
+            {
+                "schema_version": 1,
+                "dry_run": dry_run,
+                "sandboxes_destroyed": report.sandboxes_destroyed,
+                "runs_expired": report.runs_expired,
+                "worktrees_removed": report.worktrees_removed,
+                "states_removed": report.states_removed,
+            }
+        )
         return
     console = out(fmt)
     header(console, "reap", "dry run" if dry_run else "sweep")
     tense = "would be " if dry_run else ""
-    for label, names in (("sandboxes destroyed", report.sandboxes_destroyed),
-                         ("runs expired", report.runs_expired),
-                         ("worktrees removed", report.worktrees_removed),
-                         ("run states removed", report.states_removed)):
+    for label, names in (
+        ("sandboxes destroyed", report.sandboxes_destroyed),
+        ("runs expired", report.runs_expired),
+        ("worktrees removed", report.worktrees_removed),
+        ("run states removed", report.states_removed),
+    ):
         detail = f" ({id_list(names)})" if names else ""
         console.print(f"{tense}{label}: {len(names)}{detail}")

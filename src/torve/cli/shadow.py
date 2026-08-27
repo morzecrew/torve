@@ -46,17 +46,27 @@ from torve.gates.context import load_task
 
 def shadow_cmd(
     task_id: Annotated[str, typer.Argument()],
-    commit: Annotated[str | None, typer.Option(
-        "--commit", help="The commit that shipped the task; found by its "
-                         "Torve-Task trailer when omitted.")] = None,
-    agent_name: Annotated[str | None, typer.Option(
-        "--agent", help="Override the tier's adapter with 'fake' (scenario replay).")] = None,
-    scenario: Annotated[Path | None, typer.Option(
-        exists=True, help="FakeAgent scenario YAML.")] = None,
-    runtime_name: Annotated[RuntimeName | None, typer.Option(
-        "--runtime", help="Override the configured runtime adapter.")] = None,
-    depth: Annotated[int, typer.Option(
-        min=1, help="History depth of the truncated shadow clone.")] = 50,
+    commit: Annotated[
+        str | None,
+        typer.Option(
+            "--commit",
+            help="The commit that shipped the task; found by its Torve-Task trailer when omitted.",
+        ),
+    ] = None,
+    agent_name: Annotated[
+        str | None,
+        typer.Option("--agent", help="Override the tier's adapter with 'fake' (scenario replay)."),
+    ] = None,
+    scenario: Annotated[
+        Path | None, typer.Option(exists=True, help="FakeAgent scenario YAML.")
+    ] = None,
+    runtime_name: Annotated[
+        RuntimeName | None,
+        typer.Option("--runtime", help="Override the configured runtime adapter."),
+    ] = None,
+    depth: Annotated[
+        int, typer.Option(min=1, help="History depth of the truncated shadow clone.")
+    ] = 50,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -110,8 +120,12 @@ def shadow_cmd(
         agent = HarnessAgent(tier)
 
     deps = RunDeps(
-        workspace=GitWorkspace(root), runtime=runtime_for(config, runtime_name),
-        agent=agent, vcs=GitVcs(), scm=NullScm(), store=open_store,
+        workspace=GitWorkspace(root),
+        runtime=runtime_for(config, runtime_name),
+        agent=agent,
+        vcs=GitVcs(),
+        scm=NullScm(),
+        store=open_store,
     )
     shadow_ws = ShadowWorkspace(root, depth=depth)
     source = ShadowSource(
@@ -136,19 +150,25 @@ def shadow_cmd(
         console = out(fmt)
         header(console, "shadow", f"{task_id} · replay of {record['commit'][:10]}")
         ready = record["state"] == "ready"
-        console.print(Text(
-            f"  {record['state']} after {record['attempts']} attempt(s)",
-            STYLE_PASS if ready else STYLE_FAIL))
+        console.print(
+            Text(
+                f"  {record['state']} after {record['attempts']} attempt(s)",
+                STYLE_PASS if ready else STYLE_FAIL,
+            )
+        )
         if record["escalation"]:
             console.print(Text(f"  escalated: {record['escalation']}", STYLE_FAIL))
         cost = record["cost_usd_total"]
         console.print(
             f"  cost: {'$' + format(cost, '.2f') if cost is not None else 'unrecorded'}"
-            f" · adapter {record['adapter']}")
+            f" · adapter {record['adapter']}"
+        )
         for label in ("shadow_diff", "shipped_diff"):
             stat = record[label]
-            console.print(f"  {label.replace('_', ' ')}: {stat['files_changed']} file(s), "
-                          f"+{stat['insertions']} -{stat['deletions']}")
+            console.print(
+                f"  {label.replace('_', ' ')}: {stat['files_changed']} file(s), "
+                f"+{stat['insertions']} -{stat['deletions']}"
+            )
         console.print(f"  overlap: {', '.join(record['overlap_files']) or 'none'}")
         closing(console, "nothing merged", STYLE_DIM)
     raise typer.Exit(EXIT_OK)

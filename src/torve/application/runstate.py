@@ -65,9 +65,7 @@ class RunState:
         """Transitions are executed from facts; the fact is recorded with the
         transition so the history explains itself."""
         check_transition(self.state, to)
-        self.history.append(
-            {"at": _now(), "from": str(self.state), "to": str(to), "fact": fact}
-        )
+        self.history.append({"at": _now(), "from": str(self.state), "to": str(to), "fact": fact})
         if to is TaskState.RUNNING:
             # Attempts increment on entry to running (RFC 0001 §4), and no
             # review verdict outlives the attempt it judged (D-6.14).

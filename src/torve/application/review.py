@@ -55,8 +55,8 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
         rfc=target.rfc,
         role="review",
         targets=[target.id],
-        intent=intent or (f"Review {target.id}'s diff against its contract "
-                          "and inherited decisions."),
+        intent=intent
+        or (f"Review {target.id}'s diff against its contract and inherited decisions."),
         decisions=target.decisions,
         budget=Budget(iterations=1),
         tier="reviewer",
@@ -75,24 +75,26 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
 
 
 def build_review_prompt(
-    target: Task, diff_text: str, gate_results: list[GateResult],
+    target: Task,
+    diff_text: str,
+    gate_results: list[GateResult],
     degraded: bool = False,
 ) -> str:
     """The reviewer's whole input (D-5.3: no author trace, ever). The
     calibration paragraph is deliberate — this reviewer sees a diff after
     green gates, where clean is the normal outcome; without permission to
     say so it manufactures work."""
-    gates_summary = "\n".join(
-        f"- {r.name}: {r.outcome}" for r in gate_results) or "- (none recorded)"
-    decisions = "\n".join(
-        f"- {d.id} [{d.grade}] {d.text}" for d in target.decisions) or "- none"
+    gates_summary = (
+        "\n".join(f"- {r.name}: {r.outcome}" for r in gate_results) or "- (none recorded)"
+    )
+    decisions = "\n".join(f"- {d.id} [{d.grade}] {d.text}" for d in target.decisions) or "- none"
     spec_block = (
         "No task contract exists for this change: you are reviewing in "
         "degraded mode. You have no scope and no inherited decisions — do "
         "NOT invent a specification to check against; spec-drift findings "
         "are unavailable, and that is expected."
-        if degraded else
-        f"## The task under review\n\nintent:\n{target.intent}\n\n"
+        if degraded
+        else f"## The task under review\n\nintent:\n{target.intent}\n\n"
         f"inherited decisions:\n{decisions}"
     )
     return f"""# Review
@@ -177,10 +179,17 @@ class ReviewOutcome:
 
 
 def run_review(
-    root: Path, worktree: Path, target: Task, review: Task,
-    config: RunnerConfig, runtime: Runtime, agent: Agent,
-    diff_text: str, gate_results: list[GateResult],
-    config_digest: str, degraded: bool = False,
+    root: Path,
+    worktree: Path,
+    target: Task,
+    review: Task,
+    config: RunnerConfig,
+    runtime: Runtime,
+    agent: Agent,
+    diff_text: str,
+    gate_results: list[GateResult],
+    config_digest: str,
+    degraded: bool = False,
 ) -> ReviewOutcome:
     """One review attempt over the target's worktree, mounted read-only.
     Produces the review's run state and telemetry record; the caller applies
@@ -205,11 +214,18 @@ def run_review(
     state.sandbox_id = handle.id
     state.save()
     try:
-        result = agent.run(AgentContext(
-            task=review, attempt=1, workspace=worktree, handle=handle,
-            runtime=runtime, workdir=spec.workdir,
-            timeout_s=config.runtime.agent_timeout, prompt=prompt,
-        ))
+        result = agent.run(
+            AgentContext(
+                task=review,
+                attempt=1,
+                workspace=worktree,
+                handle=handle,
+                runtime=runtime,
+                workdir=spec.workdir,
+                timeout_s=config.runtime.agent_timeout,
+                prompt=prompt,
+            )
+        )
     finally:
         runtime.destroy(handle)
         state.sandbox_id = None
@@ -243,10 +259,14 @@ def run_review(
         "discarded": discarded,
         "unparseable": unparseable,
         "agent": {
-            "tier": review.tier, "adapter": getattr(agent, "kind", tier.adapter),
-            "provider": tier.provider or None, "model": tier.model or None,
-            "model_version": result.model_version, "cost_usd": result.cost_usd,
-            "trace_ref": result.trace_ref, "shadow": False,
+            "tier": review.tier,
+            "adapter": getattr(agent, "kind", tier.adapter),
+            "provider": tier.provider or None,
+            "model": tier.model or None,
+            "model_version": result.model_version,
+            "cost_usd": result.cost_usd,
+            "trace_ref": result.trace_ref,
+            "shadow": False,
         },
     }
     from torve.application.telemetry import append_record
@@ -261,8 +281,14 @@ def run_review(
     state.transition(TaskState.REVIEWED, fact)
     state.transition(TaskState.READY, fact)
     state.save()
-    return ReviewOutcome(review_id=review.id, fact=fact, blockers=blockers,
-                         kept=kept, discarded=discarded, unparseable=unparseable)
+    return ReviewOutcome(
+        review_id=review.id,
+        fact=fact,
+        blockers=blockers,
+        kept=kept,
+        discarded=discarded,
+        unparseable=unparseable,
+    )
 
 
 # ----------------------- #
@@ -294,26 +320,32 @@ def _reviewed_heads(root: Path) -> set[tuple[int, str]]:
     return heads
 
 
-def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome,
-                degraded: bool) -> str:
+def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome, degraded: bool) -> str:
     """Composed from the review's records, never the reviewer's prose —
     and posted by the runner: the reviewer holds no forge credential
     (D-5.2)."""
     lines = [f"torve review — {review_id} · head {head_sha[:12]} · {outcome.fact}"]
     if degraded:
-        lines.append("reviewed without a task contract — degraded input: no "
-                     "scope, no inherited decisions; spec-drift findings "
-                     "unavailable (D-5.8)")
-    ordered = outcome.blockers + [f for f in outcome.kept
-                                  if f.severity != "blocker"]
+        lines.append(
+            "reviewed without a task contract — degraded input: no "
+            "scope, no inherited decisions; spec-drift findings "
+            "unavailable (D-5.8)"
+        )
+    ordered = outcome.blockers + [f for f in outcome.kept if f.severity != "blocker"]
     lines.extend(f"- [{f.severity}] {f.claim} ({f.evidence})" for f in ordered)
     lines += ["", "authority: the run store; this comment is a projection"]
     return "\n".join(lines)
 
 
 def review_pull_request(
-    root: Path, config: RunnerConfig, runtime: Runtime, agent: Agent,
-    scm: PrScm, vcs: PrVcs, number: int, token: str | None = None,
+    root: Path,
+    config: RunnerConfig,
+    runtime: Runtime,
+    agent: Agent,
+    scm: PrScm,
+    vcs: PrVcs,
+    number: int,
+    token: str | None = None,
 ) -> PrReviewOutcome:
     """RFC 0005 §4: skip rules first (draft, zero changed files, configured
     authors, not open); one review per head — the pull regime's debounce,
@@ -330,8 +362,7 @@ def review_pull_request(
     if info.changed_files == 0:
         return PrReviewOutcome("skipped", "no changed files")
     if info.author in config.review.skip_authors:
-        return PrReviewOutcome(
-            "skipped", f"author {info.author} is skipped by configuration")
+        return PrReviewOutcome("skipped", f"author {info.author} is skipped by configuration")
     if (number, info.head_sha) in _reviewed_heads(root):
         return PrReviewOutcome("already reviewed", f"head {info.head_sha[:12]}")
 
@@ -345,13 +376,21 @@ def review_pull_request(
             degraded, target = False, load_task(contract)
             break
     if target is None:
-        target = Task(id=f"PR-{number}", role="implement",
-                      intent=f"Pull request #{number}: {info.title}",
-                      decisions=[])
+        target = Task(
+            id=f"PR-{number}",
+            role="implement",
+            intent=f"Pull request #{number}: {info.title}",
+            decisions=[],
+        )
     review = mint_review_task(
-        root, target,
-        intent=(f"Review pull request #{number} at {head_sha[:12]} — no "
-                "task contract, degraded input." if degraded else None))
+        root,
+        target,
+        intent=(
+            f"Review pull request #{number} at {head_sha[:12]} — no task contract, degraded input."
+            if degraded
+            else None
+        ),
+    )
 
     workdir = root / naming.WORKTREE_DIR / f"{review.id}.pr"
     vcs.worktree_at(root, head_sha, workdir)
@@ -360,22 +399,52 @@ def review_pull_request(
         from torve.application.telemetry import config_hash, engine_event
 
         digest = config_hash(layout.gates_file(root), root, config)
-        outcome = run_review(root, workdir, target, review, config, runtime,
-                             agent, diff_text, [], digest, degraded=degraded)
+        outcome = run_review(
+            root,
+            workdir,
+            target,
+            review,
+            config,
+            runtime,
+            agent,
+            diff_text,
+            [],
+            digest,
+            degraded=degraded,
+        )
     finally:
         vcs.remove_worktree(root, workdir)
 
-    url = scm.comment(number, _pr_comment(review.id, head_sha, outcome, degraded),
-                      f"review:{number}:{head_sha[:12]}")
+    url = scm.comment(
+        number,
+        _pr_comment(review.id, head_sha, outcome, degraded),
+        f"review:{number}:{head_sha[:12]}",
+    )
     ledger = root / layout.TORVE_DIR / PR_LEDGER
     with ledger.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({
-            "pr": number, "head": head_sha, "review": review.id,
-            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        }) + "\n")
-    engine_event(root, "pr_review", {
-        "pr": number, "head": head_sha, "review": review.id,
-        "findings": len(outcome.kept), "blockers": len(outcome.blockers),
-        "degraded": degraded})
-    return PrReviewOutcome("reviewed", outcome.fact, review.id,
-                           len(outcome.kept), len(outcome.blockers), url)
+        handle.write(
+            json.dumps(
+                {
+                    "pr": number,
+                    "head": head_sha,
+                    "review": review.id,
+                    "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }
+            )
+            + "\n"
+        )
+    engine_event(
+        root,
+        "pr_review",
+        {
+            "pr": number,
+            "head": head_sha,
+            "review": review.id,
+            "findings": len(outcome.kept),
+            "blockers": len(outcome.blockers),
+            "degraded": degraded,
+        },
+    )
+    return PrReviewOutcome(
+        "reviewed", outcome.fact, review.id, len(outcome.kept), len(outcome.blockers), url
+    )

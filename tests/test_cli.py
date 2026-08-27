@@ -95,7 +95,8 @@ def _doctor_repo(tmp_path, config):
     root = tmp_path / "repo"
     (root / ".torve").mkdir(parents=True)
     (root / ".torve" / "config.yaml").write_text(
-        yaml.safe_dump({"schema_version": 1, **config}), encoding="utf-8")
+        yaml.safe_dump({"schema_version": 1, **config}), encoding="utf-8"
+    )
     return root
 
 
@@ -109,8 +110,9 @@ def test_doctor_names_the_mock_store_as_test_only(tmp_path):
 
 def test_doctor_reds_on_a_postgres_store_with_no_dsn(tmp_path, monkeypatch):
     monkeypatch.delenv("TORVE_PG_DSN", raising=False)
-    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"},
-                                   "store": {"adapter": "postgres"}})
+    root = _doctor_repo(
+        tmp_path, {"runtime": {"adapter": "opensandbox"}, "store": {"adapter": "postgres"}}
+    )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     assert result.exit_code == 3
     checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
@@ -121,10 +123,12 @@ def test_doctor_reds_on_a_postgres_store_with_no_dsn(tmp_path, monkeypatch):
 def test_doctor_reds_on_a_postgres_store_that_does_not_answer(tmp_path, monkeypatch):
     # A DSN pointing nowhere: the unreachable database is the finding, with
     # an instruction, not a traceback.
-    monkeypatch.setenv("TORVE_PG_DSN",
-                       "postgresql://nobody:nothing@127.0.0.1:1/none?connect_timeout=1")
-    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"},
-                                   "store": {"adapter": "postgres"}})
+    monkeypatch.setenv(
+        "TORVE_PG_DSN", "postgresql://nobody:nothing@127.0.0.1:1/none?connect_timeout=1"
+    )
+    root = _doctor_repo(
+        tmp_path, {"runtime": {"adapter": "opensandbox"}, "store": {"adapter": "postgres"}}
+    )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     assert result.exit_code == 3
     checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}

@@ -35,15 +35,24 @@ from torve.domain.task import SCHEMA_VERSION
 
 
 def plan_cmd(
-    identifier: Annotated[str | None, typer.Argument(
-        help="Exactly one document — no sets, no subgraphs, no --all.")] = None,
-    reconcile: Annotated[bool, typer.Option(
-        "--reconcile",
-        help="Mark non-terminal tasks minted from superseded documents as "
-             "stale_inheritance; takes no document.")] = False,
-    dry_run: Annotated[bool, typer.Option(
-        "--dry-run/--no-dry-run",
-        help="Preview without writing (the default); --no-dry-run mints.")] = True,
+    identifier: Annotated[
+        str | None, typer.Argument(help="Exactly one document — no sets, no subgraphs, no --all.")
+    ] = None,
+    reconcile: Annotated[
+        bool,
+        typer.Option(
+            "--reconcile",
+            help="Mark non-terminal tasks minted from superseded documents as "
+            "stale_inheritance; takes no document.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run/--no-dry-run",
+            help="Preview without writing (the default); --no-dry-run mints.",
+        ),
+    ] = True,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -58,13 +67,14 @@ def plan_cmd(
 
     if reconcile:
         if identifier is not None:
-            raise fail("configuration error: --reconcile sweeps the whole corpus "
-                       "and takes no document", EXIT_CONFIG)
+            raise fail(
+                "configuration error: --reconcile sweeps the whole corpus and takes no document",
+                EXIT_CONFIG,
+            )
         _reconcile(root, rfc_dir, dry_run, fmt)
         return
     if identifier is None:
-        raise fail("configuration error: torve plan takes exactly one document",
-                   EXIT_CONFIG)
+        raise fail("configuration error: torve plan takes exactly one document", EXIT_CONFIG)
 
     try:
         report = plan_document(root, rfc_dir, identifier)
@@ -73,34 +83,36 @@ def plan_cmd(
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     if fmt is Format.JSON:
-        emit_json({
-            "schema_version": SCHEMA_VERSION,
-            "document": report.document,
-            "dry_run": dry_run,
-            "tasks": [
-                {**planned.task.model_dump(), "title": planned.title,
-                 "size": planned.size.size}
-                for planned in report.tasks
-            ],
-            "written": [str(path) for path in written],
-        })
+        emit_json(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "document": report.document,
+                "dry_run": dry_run,
+                "tasks": [
+                    {**planned.task.model_dump(), "title": planned.title, "size": planned.size.size}
+                    for planned in report.tasks
+                ],
+                "written": [str(path) for path in written],
+            }
+        )
     else:
         console = out(fmt)
         header(console, "plan", f"{report.document} · {len(report.tasks)} task(s)")
-        table = make_table("task", "phase", "title", "size", "decisions",
-                           "scope", "after")
+        table = make_table("task", "phase", "title", "size", "decisions", "scope", "after")
         for planned in report.tasks:
             task = planned.task
             table.add_row(
-                Text(task.id, STYLE_ID), str(task.phase), planned.title,
-                Text(planned.size.size,
-                       "" if planned.size.size == "ok" else STYLE_WARN),
-                str(len(task.decisions)), str(len(task.scope.allow)),
-                Text(", ".join(task.depends_on), STYLE_DIM))
+                Text(task.id, STYLE_ID),
+                str(task.phase),
+                planned.title,
+                Text(planned.size.size, "" if planned.size.size == "ok" else STYLE_WARN),
+                str(len(task.decisions)),
+                str(len(task.scope.allow)),
+                Text(", ".join(task.depends_on), STYLE_DIM),
+            )
         console.print(table)
         if dry_run:
-            closing(console, "dry run — nothing written; pass --no-dry-run to mint",
-                    STYLE_DIM)
+            closing(console, "dry run — nothing written; pass --no-dry-run to mint", STYLE_DIM)
         else:
             for path in written:
                 console.print(Text(f"  minted {path}", ""))
@@ -113,31 +125,38 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
 
     found = reconcile(root, rfc_dir, dry_run=dry_run)
     if fmt is Format.JSON:
-        emit_json({
-            "schema_version": SCHEMA_VERSION,
-            "dry_run": dry_run,
-            "stale": [
-                {"task": s.task_id, "rfc": s.document, "superseded_by": s.superseded_by,
-                 "state": s.state, "action": s.action}
-                for s in found
-            ],
-        })
+        emit_json(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "dry_run": dry_run,
+                "stale": [
+                    {
+                        "task": s.task_id,
+                        "rfc": s.document,
+                        "superseded_by": s.superseded_by,
+                        "state": s.state,
+                        "action": s.action,
+                    }
+                    for s in found
+                ],
+            }
+        )
     else:
         console = out(fmt)
         header(console, "plan --reconcile", f"{len(found)} stale task(s)")
         if not found:
-            closing(console,
-                    "no tasks minted from superseded documents — nothing to reconcile")
+            closing(console, "no tasks minted from superseded documents — nothing to reconcile")
         else:
             table = make_table("task", "state", "document", "superseded by", "action")
             for stale in found:
                 table.add_row(
-                    Text(stale.task_id, STYLE_ID), stale.state, stale.document,
+                    Text(stale.task_id, STYLE_ID),
+                    stale.state,
+                    stale.document,
                     stale.superseded_by or "an unset successor",
-                    Text(stale.action,
-                           STYLE_FAIL if "escalate" in stale.action else STYLE_DIM))
+                    Text(stale.action, STYLE_FAIL if "escalate" in stale.action else STYLE_DIM),
+                )
             console.print(table)
         if dry_run and any(s.action == "would escalate" for s in found):
-            closing(console, "dry run — nothing written; pass --no-dry-run to escalate",
-                    STYLE_DIM)
+            closing(console, "dry run — nothing written; pass --no-dry-run to escalate", STYLE_DIM)
     raise typer.Exit(EXIT_OK)

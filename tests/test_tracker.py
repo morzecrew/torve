@@ -25,8 +25,7 @@ from torve.domain.states import TaskState
 
 
 class FakeTracker:
-    def __init__(self, reflect_outcome: str = "applied",
-                 notify_outcome: str = "applied") -> None:
+    def __init__(self, reflect_outcome: str = "applied", notify_outcome: str = "applied") -> None:
         self.reflected: list[tuple[str, str]] = []
         self.labelled: list[tuple[str, str]] = []
         self.unlabelled: list[tuple[str, str]] = []
@@ -47,7 +46,6 @@ class FakeTracker:
     def unlabel(self, task_id: str, name: str) -> ReflectResult:
         self.unlabelled.append((task_id, name))
         return ReflectResult("applied", "faked unlabel")
-
 
     def comment(self, task_id: str, body: str, key: str) -> ReflectResult:
         self.comments.append((task_id, body, key))
@@ -102,13 +100,16 @@ def test_projection_stages_by_key_and_a_rerun_delivers_nothing(root):
     assert len(tracker.reflected) == 2
 
 
-def contract(root: Path, task_id: str, role: str = "implement",
-             targets: list[str] | None = None) -> None:
+def contract(
+    root: Path, task_id: str, role: str = "implement", targets: list[str] | None = None
+) -> None:
     folder = root / ".torve" / "tasks" / task_id
     folder.mkdir(parents=True)
-    lines = [f"schema_version: 1\nid: {task_id}\nrole: {role}\n",
-             "intent: close-out probe\nscope:\n  allow: ['src/**']\n  deny: []\n",
-             "decisions: []\n"]
+    lines = [
+        f"schema_version: 1\nid: {task_id}\nrole: {role}\n",
+        "intent: close-out probe\nscope:\n  allow: ['src/**']\n  deny: []\n",
+        "decisions: []\n",
+    ]
     if targets:
         lines.append(f"targets: [{', '.join(targets)}]\n")
     (folder / "contract.yaml").write_text("".join(lines), encoding="utf-8")
@@ -131,8 +132,8 @@ def test_a_landed_task_with_no_state_closes_its_issue_once(root):
 
 def test_a_live_or_unlanded_task_is_not_closed(root):
     contract(root, "T-6102")
-    run_state(root, "T-6102", TaskState.READY)   # live state owns it
-    contract(root, "T-6103")                     # no landing trailer
+    run_state(root, "T-6102", TaskState.READY)  # live state owns it
+    contract(root, "T-6103")  # no landing trailer
     assert project_landings(root, lambda t: t == "T-6102") == 0
 
 
@@ -165,8 +166,7 @@ def test_an_applied_approval_retires_the_needs_approval_label(root):
     project_approval_gap(root, "T-6140", "a" * 40, 1)
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("approve", "T-6140", "misery7100", "c40")]
-    poll_and_apply(root, tracker, ("misery7100",),
-                   approve_tip=lambda _t: "a" * 40)
+    poll_and_apply(root, tracker, ("misery7100",), approve_tip=lambda _t: "a" * 40)
     relay_to_tracker(root, tracker)
     assert ("T-6140", "needs:approval") in tracker.unlabelled
 
@@ -196,8 +196,12 @@ def test_the_landings_pass_clears_prompts_retroactively(root):
 
     contract(root, "T-6143")
     project_approval_gap(root, "T-6143", "a" * 40, 1)
-    stage(root, Effect(key="T-6143:landed", kind="landed",
-                       payload={"task": "T-6143", "title": "T-6143: t"}))
+    stage(
+        root,
+        Effect(
+            key="T-6143:landed", kind="landed", payload={"task": "T-6143", "title": "T-6143: t"}
+        ),
+    )
     tracker = FakeTracker()
     assert project_landings(root, lambda _t: True) == 1
     relay_to_tracker(root, tracker)
@@ -209,8 +213,7 @@ def test_github_unlabel_absorbs_an_absent_label(monkeypatch):
     # issue, is the postcondition already holding.
     issue = json.dumps([{"number": 5, "title": "T-6144: probe"}])
     calls = scripted_gh(monkeypatch, {"issue list": issue})
-    result = GithubIssues("o/r", token_env=None).unlabel(
-        "T-6144", "needs:approval")
+    result = GithubIssues("o/r", token_env=None).unlabel("T-6144", "needs:approval")
     assert result.outcome == "applied"
     assert any("--remove-label" in " ".join(c) for c in calls)
 
@@ -258,8 +261,7 @@ def test_a_review_milestone_reaches_the_targets_thread(root):
     relay_to_tracker(root, tracker)
     assert ("T-6130", "escalated:blocker_finding") in tracker.reflected
     assert not any(t == "T-6131" for t, _ in tracker.reflected)
-    assert any(t == "T-6130" and "review T-6131" in b
-               for t, _login, b, _k in tracker.notified)
+    assert any(t == "T-6130" and "review T-6131" in b for t, _login, b, _k in tracker.notified)
 
 
 def test_a_revisited_state_is_reflected_again(root):
@@ -276,10 +278,8 @@ def test_a_revisited_state_is_reflected_again(root):
 
     # The revisit is a longer history at the same state and attempt —
     # the shape a retry's excursion leaves behind.
-    state.history.append({"at": "t", "from": "ready", "to": "escalated",
-                          "fact": "conflict"})
-    state.history.append({"at": "t", "from": "escalated", "to": "queued",
-                          "fact": "retry"})
+    state.history.append({"at": "t", "from": "ready", "to": "escalated", "fact": "conflict"})
+    state.history.append({"at": "t", "from": "escalated", "to": "queued", "fact": "retry"})
     state.save()
     project(root)
     relay_to_tracker(root, tracker)
@@ -291,8 +291,9 @@ def test_approve_refuses_a_review_task(root):
     run_state(root, "T-6123", TaskState.READY)
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("approve", "T-6123", "misery7100", "c9")]
-    outcome = poll_and_apply(root, tracker, ("misery7100",),
-                             approve_tip=lambda _t: "c" * 40).outcomes[0]
+    outcome = poll_and_apply(
+        root, tracker, ("misery7100",), approve_tip=lambda _t: "c" * 40
+    ).outcomes[0]
     assert outcome.applied is False and "review" in outcome.detail
     assert RunState.load(naming.state_file(root, "T-6123")).approvals == []
 
@@ -302,7 +303,7 @@ def test_a_review_is_discharged_by_its_targets_landing(root):
     # landing of what it reviewed — every target, or it stays open.
     contract(root, "T-6110", role="review", targets=["T-6101"])
     contract(root, "T-6111", role="review", targets=["T-6101", "T-6103"])
-    contract(root, "T-6112", role="review")      # no targets: never closed
+    contract(root, "T-6112", role="review")  # no targets: never closed
     tracker = FakeTracker()
     project_landings(root, lambda t: t == "T-6101")
     relay_to_tracker(root, tracker)
@@ -330,8 +331,7 @@ def test_a_refused_reflection_is_a_logged_divergence_not_an_exception(root):
     # Delivered, not failed: the engine stays right whether or not the
     # board accepted it, and a refusal is never retried forever.
     assert len(report.delivered) == 2 and report.failed == {}
-    events = [r for r in telemetry_records(root)
-              if r.get("event") == "tracker_divergence"]
+    events = [r for r in telemetry_records(root) if r.get("event") == "tracker_divergence"]
     assert len(events) == 2
     # Engine state untouched by the board's opinion.
     assert RunState.load(naming.state_file(root, "T-6003")).state is TaskState.READY
@@ -399,23 +399,40 @@ def scripted_gh(monkeypatch, responses: dict[str, str]):
 
 def test_github_poll_parses_allow_listed_commands_and_skips_answered(monkeypatch):
     issues = json.dumps([{"number": 7, "title": "T-6008: something"}])
-    comments = json.dumps({"comments": [
-        {"body": "/torve retry", "author": {"login": "misery7100"},
-         "url": "https://x/#issuecomment-101"},
-        {"body": "please redeploy everything now", "author": {"login": "rando"},
-         "url": "https://x/#issuecomment-102"},
-        {"body": "/torve abandon", "author": {"login": "misery7100"},
-         "url": "https://x/#issuecomment-103"},
-        {"body": "refused: abandon — no\n\n<!-- torve-key:cmd:103 -->",
-         "author": {"login": "torve"}, "url": "https://x/#issuecomment-104"},
-    ]})
+    comments = json.dumps(
+        {
+            "comments": [
+                {
+                    "body": "/torve retry",
+                    "author": {"login": "misery7100"},
+                    "url": "https://x/#issuecomment-101",
+                },
+                {
+                    "body": "please redeploy everything now",
+                    "author": {"login": "rando"},
+                    "url": "https://x/#issuecomment-102",
+                },
+                {
+                    "body": "/torve abandon",
+                    "author": {"login": "misery7100"},
+                    "url": "https://x/#issuecomment-103",
+                },
+                {
+                    "body": "refused: abandon — no\n\n<!-- torve-key:cmd:103 -->",
+                    "author": {"login": "torve"},
+                    "url": "https://x/#issuecomment-104",
+                },
+            ]
+        }
+    )
     scripted_gh(monkeypatch, {"issue list": issues, "issue view": comments})
 
     commands = GithubIssues("example/lab", token_env=None).poll_commands()
     # The free-text plea is not a command (D-8.5); the answered abandon is
     # not returned again; the fresh retry is.
     assert [(c.verb, c.task_id, c.actor, c.source) for c in commands] == [
-        ("retry", "T-6008", "misery7100", "101")]
+        ("retry", "T-6008", "misery7100", "101")
+    ]
 
 
 # The notifier (RFC 0003 D-3.18, landed with 0006's policy): interrupt-class
@@ -447,9 +464,15 @@ def test_github_reflect_retires_stale_state_labels(monkeypatch):
     # D-8.12: the board wears one state label at a time; non-state labels
     # are untouched.
     issue = json.dumps([{"number": 7, "title": "T-6106: probe"}])
-    labels = json.dumps({"labels": [{"name": "state:escalated"},
-                                    {"name": "state:escalated:poison_ceiling"},
-                                    {"name": "priority"}]})
+    labels = json.dumps(
+        {
+            "labels": [
+                {"name": "state:escalated"},
+                {"name": "state:escalated:poison_ceiling"},
+                {"name": "priority"},
+            ]
+        }
+    )
     calls = scripted_gh(monkeypatch, {"issue list": issue, "issue view": labels})
     GithubIssues("o/r", token_env=None).reflect("T-6106", "ready", "T-6106: probe")
     joined = [" ".join(c) for c in calls]
@@ -526,8 +549,7 @@ def test_a_refused_notification_is_a_logged_divergence(root):
     report = relay_to_tracker(root, tracker)
     # Done, not pending forever: the divergence is the record.
     assert report.failed == {}
-    events = [r for r in telemetry_records(root)
-              if r.get("event") == "tracker_divergence"]
+    events = [r for r in telemetry_records(root) if r.get("event") == "tracker_divergence"]
     assert len(events) == 1 and ":notify:" in str(events[0].get("key"))
 
 
@@ -539,19 +561,19 @@ def test_github_notify_mentions_even_when_assignment_fails(monkeypatch):
         cmd = " ".join(str(part) for part in command)
         calls.append(cmd)
         if "--add-assignee" in cmd:
-            return subprocess.CompletedProcess(command, 1, stdout="",
-                                               stderr="could not assign")
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="could not assign")
         if "issue list" in cmd:
             return subprocess.CompletedProcess(command, 0, stdout=issues, stderr="")
         if "issue view" in cmd:
             return subprocess.CompletedProcess(
-                command, 0, stdout=json.dumps({"comments": []}), stderr="")
+                command, 0, stdout=json.dumps({"comments": []}), stderr=""
+            )
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(gh_module.subprocess, "run", fake_run)
     result = GithubIssues("example/lab", token_env=None).notify(
-        "T-6009", "operator", "escalated: blocker_finding — x",
-        "T-6009:notify:1:blocker_finding")
+        "T-6009", "operator", "escalated: blocker_finding — x", "T-6009:notify:1:blocker_finding"
+    )
     # The mention is the notification; a login the forge cannot assign must
     # not leave it pending forever.
     assert result.outcome == "applied" and "assign failed" in result.detail
@@ -593,14 +615,18 @@ def test_a_transient_gh_failure_retries_exactly_once(monkeypatch):
     # T-0058: the scheduled ticks hit TLS handshake timeouts through the
     # local proxy — transient, never twice. One retry; the destination's
     # marker dedupe absorbs any at-least-once duplicate.
-    outcomes = iter([
-        subprocess.CompletedProcess([], 1, stdout="",
-                                    stderr='Post "https://api.github.com/graphql": '
-                                           "net/http: TLS handshake timeout"),
-        subprocess.CompletedProcess([], 0, stdout="[]", stderr=""),
-    ])
-    monkeypatch.setattr(gh_module.subprocess, "run",
-                        lambda *a, **k: next(outcomes))
+    outcomes = iter(
+        [
+            subprocess.CompletedProcess(
+                [],
+                1,
+                stdout="",
+                stderr='Post "https://api.github.com/graphql": net/http: TLS handshake timeout',
+            ),
+            subprocess.CompletedProcess([], 0, stdout="[]", stderr=""),
+        ]
+    )
+    monkeypatch.setattr(gh_module.subprocess, "run", lambda *a, **k: next(outcomes))
     naps: list[float] = []
     board = GithubIssues("example/lab", token_env=None, sleeper=naps.append)
     assert board._gh("issue", "list") == "[]"
@@ -612,8 +638,9 @@ def test_a_real_gh_failure_raises_without_retry(monkeypatch):
 
     def fake_run(*a, **k):
         calls.append(1)
-        return subprocess.CompletedProcess([], 1, stdout="",
-                                           stderr="GraphQL: Could not resolve issue")
+        return subprocess.CompletedProcess(
+            [], 1, stdout="", stderr="GraphQL: Could not resolve issue"
+        )
 
     monkeypatch.setattr(gh_module.subprocess, "run", fake_run)
     naps: list[float] = []
@@ -628,8 +655,7 @@ def test_a_twice_transient_failure_raises_after_the_single_retry(monkeypatch):
 
     def fake_run(*a, **k):
         calls.append(1)
-        return subprocess.CompletedProcess([], 1, stdout="",
-                                           stderr="connection reset by peer")
+        return subprocess.CompletedProcess([], 1, stdout="", stderr="connection reset by peer")
 
     monkeypatch.setattr(gh_module.subprocess, "run", fake_run)
     board = GithubIssues("example/lab", token_env=None, sleeper=lambda _s: None)
@@ -653,8 +679,7 @@ def test_retry_runs_the_requeue_cleanup_before_the_transition(root):
 
     def requeue(task_id: str) -> str:
         # The state must still be escalated when cleanup runs.
-        assert RunState.load(naming.state_file(root, task_id)).state \
-            is TaskState.ESCALATED
+        assert RunState.load(naming.state_file(root, task_id)).state is TaskState.ESCALATED
         cleaned.append(task_id)
         return "remote branch deleted"
 
@@ -678,8 +703,7 @@ def test_a_failed_requeue_cleanup_refuses_and_leaves_the_escalation(root):
     outcome = poll_and_apply(root, tracker, ("misery7100",), requeue).outcomes[0]
     assert not outcome.applied and "origin unreachable" in outcome.detail
     # The escalation stands; the command is retryable.
-    assert RunState.load(naming.state_file(root, "T-6121")).state \
-        is TaskState.ESCALATED
+    assert RunState.load(naming.state_file(root, "T-6121")).state is TaskState.ESCALATED
 
 
 # approve joins the vocabulary (T-0061): sha-bound, ready-only, idempotent.
@@ -698,12 +722,10 @@ def test_revise_requeues_a_ready_candidate_with_capture_first(root):
         captured.append(task_id)
         return "branch kept; feedback captured"
 
-    outcome = poll_and_apply(root, tracker, ("misery7100",),
-                             requeue=requeue).outcomes[0]
+    outcome = poll_and_apply(root, tracker, ("misery7100",), requeue=requeue).outcomes[0]
     assert outcome.applied and "feedback captured" in outcome.detail
     assert captured == ["T-6150"]
-    assert RunState.load(
-        naming.state_file(root, "T-6150")).state is TaskState.QUEUED
+    assert RunState.load(naming.state_file(root, "T-6150")).state is TaskState.QUEUED
 
 
 def test_revise_refuses_off_ready_and_review_roles(root):
@@ -730,27 +752,28 @@ def test_revise_leaves_the_run_ready_when_capture_refuses(root):
     def refusing(_task_id: str) -> str:
         raise RuntimeError("forge unreachable")
 
-    outcome = poll_and_apply(root, tracker, ("misery7100",),
-                             requeue=refusing).outcomes[0]
+    outcome = poll_and_apply(root, tracker, ("misery7100",), requeue=refusing).outcomes[0]
     assert not outcome.applied and "capture failed" in outcome.detail
-    assert RunState.load(
-        naming.state_file(root, "T-6153")).state is TaskState.READY
+    assert RunState.load(naming.state_file(root, "T-6153")).state is TaskState.READY
 
 
 def test_approve_records_a_sha_bound_approval_on_a_ready_candidate(root):
     run_state(root, "T-6130", TaskState.READY)
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("approve", "T-6130", "misery7100", "c30")]
-    outcome = poll_and_apply(root, tracker, ("misery7100",),
-                             approve_tip=lambda _t: "a" * 40).outcomes[0]
+    outcome = poll_and_apply(
+        root, tracker, ("misery7100",), approve_tip=lambda _t: "a" * 40
+    ).outcomes[0]
     assert outcome.applied and "approved aaaaaaaaaa" in outcome.detail
     state = RunState.load(naming.state_file(root, "T-6130"))
     assert state.approvals == [
-        {"actor": "misery7100", "sha": "a" * 40, "at": state.approvals[0]["at"]}]
+        {"actor": "misery7100", "sha": "a" * 40, "at": state.approvals[0]["at"]}
+    ]
     # Idempotent: the same actor approving the same tip again.
     tracker.commands = [TrackerCommand("approve", "T-6130", "misery7100", "c31")]
-    again = poll_and_apply(root, tracker, ("misery7100",),
-                           approve_tip=lambda _t: "a" * 40).outcomes[0]
+    again = poll_and_apply(
+        root, tracker, ("misery7100",), approve_tip=lambda _t: "a" * 40
+    ).outcomes[0]
     assert again.applied and "already approved" in again.detail
     assert len(RunState.load(naming.state_file(root, "T-6130")).approvals) == 1
 
@@ -759,12 +782,14 @@ def test_approve_refuses_off_ready_and_branchless_candidates(root):
     run_state(root, "T-6131", TaskState.RUNNING)
     tracker = FakeTracker()
     tracker.commands = [TrackerCommand("approve", "T-6131", "misery7100", "c32")]
-    outcome = poll_and_apply(root, tracker, ("misery7100",),
-                             approve_tip=lambda _t: "a" * 40).outcomes[0]
+    outcome = poll_and_apply(
+        root, tracker, ("misery7100",), approve_tip=lambda _t: "a" * 40
+    ).outcomes[0]
     assert not outcome.applied and "ready candidate" in outcome.detail
 
     run_state(root, "T-6132", TaskState.READY)
     tracker.commands = [TrackerCommand("approve", "T-6132", "misery7100", "c33")]
-    outcome = poll_and_apply(root, tracker, ("misery7100",),
-                             approve_tip=lambda _t: None).outcomes[0]
+    outcome = poll_and_apply(root, tracker, ("misery7100",), approve_tip=lambda _t: None).outcomes[
+        0
+    ]
     assert not outcome.applied and "no branch to approve" in outcome.detail

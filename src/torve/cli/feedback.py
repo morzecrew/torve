@@ -20,12 +20,18 @@ from torve.domain.states import EXIT_OK
 
 def feedback(
     task_id: Annotated[str, typer.Argument()],
-    human_minutes: Annotated[int, typer.Option(
-        "--human-minutes", min=0,
-        help="Minutes a human spent on this task after the engine parked it.")],
-    rework: Annotated[bool, typer.Option(
-        "--rework/--no-rework",
-        help="Whether review sent the work back for rework.")] = False,
+    human_minutes: Annotated[
+        int,
+        typer.Option(
+            "--human-minutes",
+            min=0,
+            help="Minutes a human spent on this task after the engine parked it.",
+        ),
+    ],
+    rework: Annotated[
+        bool,
+        typer.Option("--rework/--no-rework", help="Whether review sent the work back for rework."),
+    ] = False,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
@@ -37,7 +43,9 @@ def feedback(
     if fmt is Format.JSON:
         emit_json(record)
     else:
-        closing(out(fmt),
-                f"{task_id}: {human_minutes} human minute(s), "
-                f"rework={'yes' if rework else 'no'} — appended")
+        closing(
+            out(fmt),
+            f"{task_id}: {human_minutes} human minute(s), "
+            f"rework={'yes' if rework else 'no'} — appended",
+        )
     raise typer.Exit(EXIT_OK)

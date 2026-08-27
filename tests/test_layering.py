@@ -34,15 +34,17 @@ needs_linter = pytest.mark.skipif(
 MANIFEST = {
     "schema_version": 1,
     "scope": {"allow": [], "deny": []},
-    "gates": [{
-        "name": "layering",
-        # The scratch package is importable from the repository root.
-        "run": "PYTHONPATH=. lint-imports",
-        "state": "blocking",
-        "origin": "rfc/0015",
-        "input": "worktree",
-        "timeout": 120,
-    }],
+    "gates": [
+        {
+            "name": "layering",
+            # The scratch package is importable from the repository root.
+            "run": "PYTHONPATH=. lint-imports",
+            "state": "blocking",
+            "origin": "rfc/0015",
+            "input": "worktree",
+            "timeout": 120,
+        }
+    ],
 }
 
 PYPROJECT = textwrap.dedent("""\
@@ -80,8 +82,7 @@ CLEAN = {
     "pkg/application/service.py": "from pkg.domain import thing  # noqa: F401\n",
     "pkg/adapters/__init__.py": "",
     "pkg/adapters/runtime/__init__.py": "",
-    "pkg/adapters/runtime/docker.py": (
-        "from pkg.application import service  # noqa: F401\n"),
+    "pkg/adapters/runtime/docker.py": ("from pkg.application import service  # noqa: F401\n"),
     "pkg/adapters/workspace/__init__.py": "",
     "pkg/adapters/workspace/git.py": "WORKSPACE = 1\n",
     "pkg/gates/__init__.py": "",
@@ -90,8 +91,10 @@ CLEAN = {
     "pkg/config/rfc_parse.py": "FORMAT = 1\n",
     "pkg/cli/__init__.py": "",
     # The CLI reading the format is the planner's side of the line (A-19).
-    "pkg/cli/main.py": ("from pkg.adapters.runtime import docker  # noqa: F401\n"
-                        "from pkg.config import rfc_parse  # noqa: F401\n"),
+    "pkg/cli/main.py": (
+        "from pkg.adapters.runtime import docker  # noqa: F401\n"
+        "from pkg.config import rfc_parse  # noqa: F401\n"
+    ),
 }
 
 
@@ -105,8 +108,7 @@ def seed(repo, overrides):
 
 def outcome(repo) -> str:
     manifest = load_manifest(layout.gates_file(repo.root))
-    report = run_gates(build_context(repo.root, manifest, base="main"),
-                       only={"layering"})
+    report = run_gates(build_context(repo.root, manifest, base="main"), only={"layering"})
     return report.results[0].outcome
 
 
@@ -114,8 +116,12 @@ def outcome(repo) -> str:
 def test_a_contract_violation_reddens(repo):
     # The layers contract is the load-bearing one; a domain module reaching
     # for an adapter is the inversion every other contract is a variation on.
-    seed(repo, {"pkg/domain/thing.py":
-                "from pkg.adapters.runtime import docker  # noqa: F401\nTHING = 1\n"})
+    seed(
+        repo,
+        {
+            "pkg/domain/thing.py": "from pkg.adapters.runtime import docker  # noqa: F401\nTHING = 1\n"
+        },
+    )
     assert outcome(repo) == "fail"
 
 

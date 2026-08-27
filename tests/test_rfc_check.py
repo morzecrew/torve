@@ -136,8 +136,10 @@ def test_a_hand_edited_index_reddens(tmp_path: Path) -> None:
 def test_inheriting_from_a_draft_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1",
-                                   status="accepted", depends='["0002"]')),
+        (
+            "0001-alpha.md",
+            rfc_text("0001", "Alpha", "D-T.1", status="accepted", depends='["0002"]'),
+        ),
         ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2")),
     )
     result = invoke(tmp_path, "check")
@@ -203,8 +205,10 @@ def test_a_document_missing_from_the_index_reddens(tmp_path: Path) -> None:
 def test_a_stale_implementation_value_reddens(tmp_path: Path) -> None:
     rfcs = seed(tmp_path)
     doc = rfcs / "0001-widget.md"
-    doc.write_text(doc.read_text(encoding="utf-8").replace(
-        "implementation: none", "implementation: partial"), encoding="utf-8")
+    doc.write_text(
+        doc.read_text(encoding="utf-8").replace("implementation: none", "implementation: partial"),
+        encoding="utf-8",
+    )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
     assert "INDEX.md differs" in result.output
@@ -232,10 +236,11 @@ def test_an_unknown_kind_reddens(tmp_path: Path) -> None:
 
 
 def locked_doc(implementation: str) -> str:
-    doc = rfc_text("0001", "Widget", "D-T.1", status="accepted",
-                   implementation=implementation)
-    return doc.replace("| D-T.1 | `ASSUMED` | Something is decided | — | — |",
-                       "| D-T.1 | `LOCKED` | Something is decided | `src/ghost/**` | — |")
+    doc = rfc_text("0001", "Widget", "D-T.1", status="accepted", implementation=implementation)
+    return doc.replace(
+        "| D-T.1 | `ASSUMED` | Something is decided | — | — |",
+        "| D-T.1 | `LOCKED` | Something is decided | `src/ghost/**` | — |",
+    )
 
 
 def test_a_complete_rfc_citing_a_missing_area_reddens(tmp_path: Path) -> None:
@@ -265,8 +270,7 @@ def test_an_accepted_but_unbuilt_rfc_may_name_intended_modules(tmp_path: Path) -
 def test_citing_a_real_path_with_a_line_number_reddens(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "mod.py").write_text("x = 1\n", encoding="utf-8")
-    doc = rfc_text("0001", "Widget", "D-T.1",
-                   body_extra="\nSee `src/mod.py:12` for the loop.\n")
+    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\nSee `src/mod.py:12` for the loop.\n")
     seed(tmp_path, ("0001-widget.md", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -274,8 +278,9 @@ def test_citing_a_real_path_with_a_line_number_reddens(tmp_path: Path) -> None:
 
 
 def test_an_illustrative_location_passes(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1",
-                   body_extra="\nA model can cite a real `file.py:42` and lie.\n")
+    doc = rfc_text(
+        "0001", "Widget", "D-T.1", body_extra="\nA model can cite a real `file.py:42` and lie.\n"
+    )
     seed(tmp_path, ("0001-widget.md", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
@@ -313,8 +318,9 @@ def test_new_with_convention_kind_lands_in_the_conventions_group(tmp_path: Path)
 
 
 def test_two_identically_named_sections_redden(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1",
-                   body_extra="\n## Parts\n\nprose\n\n## 2. Parts\n\nmore\n")
+    doc = rfc_text(
+        "0001", "Widget", "D-T.1", body_extra="\n## Parts\n\nprose\n\n## 2. Parts\n\nmore\n"
+    )
     seed(tmp_path, ("0001-widget.md", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -331,8 +337,13 @@ def test_an_unresolvable_citation_reddens(tmp_path: Path) -> None:
 
 def test_a_retired_identifier_resolves(tmp_path: Path) -> None:
     # D-16.1: the tombstone's citation is history, not a typo.
-    doc = rfc_text("0001", "Widget", "D-T.1", extra_front='retired: ["D-T.9"]\n',
-                   body_extra="\nD-T.9 was removed 2026-08-22; the identifier is retired.\n")
+    doc = rfc_text(
+        "0001",
+        "Widget",
+        "D-T.1",
+        extra_front='retired: ["D-T.9"]\n',
+        body_extra="\nD-T.9 was removed 2026-08-22; the identifier is retired.\n",
+    )
     seed(tmp_path, ("0001-widget.md", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
@@ -341,8 +352,7 @@ def test_a_retired_identifier_resolves(tmp_path: Path) -> None:
 def test_redefining_a_retired_identifier_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1",
-                                   extra_front='retired: ["D-T.9"]\n')),
+        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1", extra_front='retired: ["D-T.9"]\n')),
         ("0002-beta.md", rfc_text("0002", "Beta", "D-T.9")),
     )
     result = invoke(tmp_path, "check")
@@ -354,8 +364,10 @@ def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
     seed(
         tmp_path,
         ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2",
-                                  body_extra="\nInherits D-T.1 from Alpha.\n")),
+        (
+            "0002-beta.md",
+            rfc_text("0002", "Beta", "D-T.2", body_extra="\nInherits D-T.1 from Alpha.\n"),
+        ),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
@@ -363,8 +375,7 @@ def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
 
 
 def test_a_citation_inside_a_code_fence_is_illustration(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1",
-                   body_extra="\n```yaml\ndecision: D-9.9\n```\n")
+    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\n```yaml\ndecision: D-9.9\n```\n")
     seed(tmp_path, ("0001-widget.md", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
@@ -415,10 +426,21 @@ def test_graph_shows_standalone_documents(tmp_path: Path) -> None:
 def test_graph_shows_implementation_state_and_omits_finished_documents(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1",
-                                   status="accepted", implementation="partial")),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2", depends='["0001"]',
-                                  status="accepted", implementation="complete")),
+        (
+            "0001-alpha.md",
+            rfc_text("0001", "Alpha", "D-T.1", status="accepted", implementation="partial"),
+        ),
+        (
+            "0002-beta.md",
+            rfc_text(
+                "0002",
+                "Beta",
+                "D-T.2",
+                depends='["0001"]',
+                status="accepted",
+                implementation="complete",
+            ),
+        ),
         ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3", depends='["0002"]')),
     )
     result = invoke(tmp_path, "graph")

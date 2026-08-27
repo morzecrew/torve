@@ -61,12 +61,13 @@ def vendor(tmp_path: Path, name: str, body: str = "vendored\n") -> Path:
     (root / name / "SKILL.md").write_text(body, encoding="utf-8")
     return root
 
+
 def test_a_vendored_skill_resolves_beside_shipped_ones(tmp_path):
     vendor_root = vendor(tmp_path, "team-checklist")
     dest = tmp_path / "out"
-    written = materialize("review", dest,
-                          {"review": ["flag-dont-flip", "team-checklist"]},
-                          vendor_root)
+    written = materialize(
+        "review", dest, {"review": ["flag-dont-flip", "team-checklist"]}, vendor_root
+    )
     assert written == ["flag-dont-flip", "team-checklist"]
     assert (dest / "team-checklist" / "SKILL.md").read_text() == "vendored\n"
 
@@ -74,8 +75,7 @@ def test_a_vendored_skill_resolves_beside_shipped_ones(tmp_path):
 def test_a_collision_with_a_shipped_skill_is_refused_both_directions(tmp_path):
     vendor_root = vendor(tmp_path, "flag-dont-flip")
     with pytest.raises(RuntimeError, match="both shipped and vendored"):
-        materialize("implement", tmp_path / "out",
-                    {"implement": ["flag-dont-flip"]}, vendor_root)
+        materialize("implement", tmp_path / "out", {"implement": ["flag-dont-flip"]}, vendor_root)
 
 
 def test_the_committed_vendor_directory_is_well_formed():

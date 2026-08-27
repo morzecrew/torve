@@ -52,10 +52,10 @@ class TickDeps:
     configuration turned off; the tick records the skip reason itself."""
 
     reap: Leg
-    poll: Leg | None       # None: no tracker configured
+    poll: Leg | None  # None: no tracker configured
     dispatch: Callable[[list[str]], tuple[str, bool]]
-    lane: Leg | None       # None: promotion.auto_merge is off
-    sync: Leg | None       # None: no tracker configured
+    lane: Leg | None  # None: promotion.auto_merge is off
+    sync: Leg | None  # None: no tracker configured
     landed: Callable[[str], bool]  # has this task id landed on the base?
     # RFC 0020 phase 2: claim intake requests, run pending drafting
     # tasks, project drafts. None: no tracker configured.
@@ -75,8 +75,11 @@ def _run_record_exists(root: Path, task_id: str) -> bool:
     from torve.config.manifest import Manifest, load_manifest
 
     manifest_path = layout.gates_file(root)
-    telemetry = root / (load_manifest(manifest_path).telemetry
-                        if manifest_path.is_file() else Manifest(gates=[]).telemetry)
+    telemetry = root / (
+        load_manifest(manifest_path).telemetry
+        if manifest_path.is_file()
+        else Manifest(gates=[]).telemetry
+    )
     if not telemetry.is_file():
         return False
     for line in telemetry.read_text(encoding="utf-8").splitlines():
@@ -97,8 +100,7 @@ def _dependency_satisfied(dep: str, landed: Callable[[str], bool]) -> bool:
 
 # The states whose scopes fence the dispatch batch (D-19.14): a run the
 # loop must not touch is also a run whose files nothing else may claim.
-INFLIGHT = frozenset({TaskState.CLAIMED, TaskState.RUNNING,
-                      TaskState.GATED, TaskState.REVIEWED})
+INFLIGHT = frozenset({TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED})
 
 
 def _scopes_clash(left: list[str], right: list[str]) -> bool:
@@ -128,8 +130,7 @@ def _inflight_scopes(root: Path) -> list[list[str]]:
     return scopes
 
 
-def queued_batch(root: Path, landed: Callable[[str], bool],
-                 limit: int = 1) -> list[str]:
+def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> list[str]:
     """The file-system rule (D-19.4 as amended by A-39): executable-role
     contracts with no run record and satisfied dependencies, ascending id
     first — admitted up to *limit* while their scopes stay pairwise
@@ -163,11 +164,9 @@ def queued_batch(root: Path, landed: Callable[[str], bool],
         # Asked here so the common tick still reads local files alone.
         if landed(task.id):
             continue
-        if not all(_dependency_satisfied(dep, landed)
-                   for dep in task.depends_on):
+        if not all(_dependency_satisfied(dep, landed) for dep in task.depends_on):
             continue
-        if any(_scopes_clash(task.scope.allow, held)
-               for held in claimed_scopes):
+        if any(_scopes_clash(task.scope.allow, held) for held in claimed_scopes):
             continue
         admitted.append(task.id)
         claimed_scopes.append(task.scope.allow)
@@ -190,19 +189,20 @@ def acquire_lock(root: Path, budget_s: int) -> bool:
     if lock.exists():
         try:
             row = cast("dict[str, Any]", json.loads(lock.read_text(encoding="utf-8")))
-            held_at = datetime.strptime(
-                str(row.get("at", "")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+            held_at = datetime.strptime(str(row.get("at", "")), "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=UTC
+            )
             age = (_now() - held_at).total_seconds()
         except (json.JSONDecodeError, ValueError):
             row, age = {}, float("inf")
         if age <= budget_s:
             return False
         # The stale break is loud, never a silent steal (D-19.2).
-        engine_event(root, "tick_lock_broken", {
-            "stale_holder": row.get("pid"), "age_s": age})
-    lock.write_text(json.dumps({
-        "pid": os.getpid(), "at": _now().strftime("%Y-%m-%dT%H:%M:%SZ")}),
-        encoding="utf-8")
+        engine_event(root, "tick_lock_broken", {"stale_holder": row.get("pid"), "age_s": age})
+    lock.write_text(
+        json.dumps({"pid": os.getpid(), "at": _now().strftime("%Y-%m-%dT%H:%M:%SZ")}),
+        encoding="utf-8",
+    )
     return True
 
 
@@ -211,8 +211,11 @@ def release_lock(root: Path) -> None:
 
 
 def _escalated_count(root: Path) -> int:
-    return sum(1 for state in RunState.load_all(root / naming.WORKTREE_DIR)
-               if state.state is TaskState.ESCALATED)
+    return sum(
+        1
+        for state in RunState.load_all(root / naming.WORKTREE_DIR)
+        if state.state is TaskState.ESCALATED
+    )
 
 
 def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
@@ -221,8 +224,9 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
     whatever did happen."""
     if not acquire_lock(root, config.loop.tick_budget):
         engine_event(root, "tick", {"noop": True, "locked": True})
-        return TickReport(legs=[("lock", "held by a running tick — no-op")],
-                          noop=True, locked_out=True)
+        return TickReport(
+            legs=[("lock", "held by a running tick — no-op")], noop=True, locked_out=True
+        )
     legs: list[tuple[str, str]] = []
     moved = False
 
@@ -255,8 +259,7 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
             # D-19.5: the queue may drain during a pause; it may not grow.
             legs.append(("dispatch", f"paused: escalation queue at {escalated}"))
         else:
-            batch = queued_batch(root, deps.landed,
-                                 max(1, config.loop.dispatch_workers))
+            batch = queued_batch(root, deps.landed, max(1, config.loop.dispatch_workers))
             if not batch:
                 legs.append(("dispatch", "nothing queued"))
             else:

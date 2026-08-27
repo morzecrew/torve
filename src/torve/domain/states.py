@@ -106,8 +106,9 @@ TERMINAL = frozenset({TaskState.READY, TaskState.ABANDONED})
 
 class IllegalTransition(Exception):
     def __init__(self, current: TaskState, to: TaskState) -> None:
-        super().__init__(f"illegal transition {current} -> {to}; "
-                         f"legal: {sorted(TRANSITIONS[current])}")
+        super().__init__(
+            f"illegal transition {current} -> {to}; legal: {sorted(TRANSITIONS[current])}"
+        )
         self.current, self.to = current, to
 
 

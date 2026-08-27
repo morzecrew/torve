@@ -42,14 +42,22 @@ def _divergences(worktree: Path, task_id: str) -> list[str]:
             continue
         entry = cast("dict[str, Any]", raw)
         if str(entry.get("kind")) in DIVERGENT_KINDS:
-            found.append(f"{entry.get('decision', '?')} {entry.get('kind')}: "
-                         f"{str(entry.get('claim', '')).strip()}")
+            found.append(
+                f"{entry.get('decision', '?')} {entry.get('kind')}: "
+                f"{str(entry.get('claim', '')).strip()}"
+            )
     return found
 
 
-def compose_pr(task: Task, attempts: int, digest: str, meta: dict[str, Any],
-               results: list[GateResult], worktree: Path,
-               changed: list[str] | None = None) -> tuple[str, str]:
+def compose_pr(
+    task: Task,
+    attempts: int,
+    digest: str,
+    meta: dict[str, Any],
+    results: list[GateResult],
+    worktree: Path,
+    changed: list[str] | None = None,
+) -> tuple[str, str]:
     """(title, body), composed entirely from records. The agent's output
     appears nowhere: if it had something to say beyond code, it belongs in
     an execution-log entry with evidence. The body leads with what a
@@ -60,44 +68,62 @@ def compose_pr(task: Task, attempts: int, digest: str, meta: dict[str, Any],
         summary = summary[:71].rstrip() + "…"
     title = f"{task.id}: {summary}"
 
-    lines = [f"**{task.id} · attempt {attempts} · config `{digest}`**", "",
-             ("Reading surface: this pull request lands by fast-forward and "
-              "the merge button is never used. Approval and revision live on "
-              "the task's issue — `/torve approve` · `/torve revise`."), ""]
+    lines = [
+        f"**{task.id} · attempt {attempts} · config `{digest}`**",
+        "",
+        (
+            "Reading surface: this pull request lands by fast-forward and "
+            "the merge button is never used. Approval and revision live on "
+            "the task's issue — `/torve approve` · `/torve revise`."
+        ),
+        "",
+    ]
     if attempts > 1:
-        lines += [(f"Attempt {attempts} supersedes the previous candidate on "
-                   "this branch; its review threads were captured into the "
-                   "revision record."), ""]
+        lines += [
+            (
+                f"Attempt {attempts} supersedes the previous candidate on "
+                "this branch; its review threads were captured into the "
+                "revision record."
+            ),
+            "",
+        ]
     if changed:
         lines += ["## Changed", *(f"- `{path}`" for path in changed), ""]
     if results:
         red = [r for r in results if r.outcome not in ("pass", "bypassed")]
         if red:
-            lines += ["## Gates",
-                      *(f"- {r.name}: {r.outcome} ({r.duration_s:.1f}s)"
-                        for r in results), ""]
+            lines += [
+                "## Gates",
+                *(f"- {r.name}: {r.outcome} ({r.duration_s:.1f}s)" for r in results),
+                "",
+            ]
         else:
             slowest = max(results, key=lambda r: r.duration_s)
-            lines += [(f"**Gates** — all {len(results)} pass "
-                       f"(slowest: {slowest.name} {slowest.duration_s:.1f}s)."), ""]
+            lines += [
+                (
+                    f"**Gates** — all {len(results)} pass "
+                    f"(slowest: {slowest.name} {slowest.duration_s:.1f}s)."
+                ),
+                "",
+            ]
     divergences = _divergences(worktree, task.id)
     if divergences:
         lines += ["## Divergences", *(f"- {d}" for d in divergences), ""]
     if task.decisions:
-        lines += ["## Inherited decisions",
-                  *(f"- {d.id} ({d.grade}): {d.text}" for d in task.decisions), ""]
+        lines += [
+            "## Inherited decisions",
+            *(f"- {d.id} ({d.grade}): {d.text}" for d in task.decisions),
+            "",
+        ]
     if task.intent.strip():
-        lines += ["<details><summary>Contract</summary>", "",
-                  task.intent.strip(), ""]
+        lines += ["<details><summary>Contract</summary>", "", task.intent.strip(), ""]
         if task.acceptance:
-            lines += ["**Acceptance**",
-                      *(f"- `{command}`" for command in task.acceptance), ""]
+            lines += ["**Acceptance**", *(f"- `{command}`" for command in task.acceptance), ""]
         lines += ["</details>", ""]
     cost = meta.get("cost_usd")
     trace = meta.get("trace_ref")
     model = meta.get("model")
-    agent = (f"{meta.get('adapter')}/{model}" if model
-             else str(meta.get("adapter")))
+    agent = f"{meta.get('adapter')}/{model}" if model else str(meta.get("adapter"))
     footer = [f"agent: {agent}"]
     if cost is not None:
         footer.append(f"cost: ${cost:.4f}")

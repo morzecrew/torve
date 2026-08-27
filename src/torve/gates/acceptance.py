@@ -21,8 +21,7 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is not None and ctx.task.role == "review":
         # Skipped, never passed with an empty list: a review's output is
         # findings, and acceptance does not apply to the role.
-        return BuiltinOutcome("skipped",
-                              "review role: judged by findings, not commands")
+        return BuiltinOutcome("skipped", "review role: judged by findings, not commands")
     if ctx.task is not None:
         commands = ctx.task.acceptance
         source = "task contract"

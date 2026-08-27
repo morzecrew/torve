@@ -213,9 +213,14 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
                 f"{name}: decision {row.identifier} has grade {row.grade!r} — "
                 "not mintable (run `torve rfc check`)"
             )
-        decisions.append(InheritedDecision(
-            id=row.identifier, grade=row.grade, text=row.text.strip(), paths=row.paths,
-        ))
+        decisions.append(
+            InheritedDecision(
+                id=row.identifier,
+                grade=row.grade,
+                text=row.text.strip(),
+                paths=row.paths,
+            )
+        )
     return decisions
 
 
@@ -253,7 +258,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
         by_phase.setdefault(entry.phase, []).append(entry)
     for phase, siblings in sorted(by_phase.items()):
         for i, one in enumerate(siblings):
-            for other in siblings[i + 1:]:
+            for other in siblings[i + 1 :]:
                 if globs_intersect(one.scope, other.scope):
                     raise PlanError(
                         f"phase {phase}: scopes of {one.title!r} and {other.title!r} "
@@ -300,11 +305,15 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
         if path.exists():
             raise PlanError(f"{path} already exists — task ids are never reused")
         path.parent.mkdir(parents=True, exist_ok=True)
-        header = (f"# Minted by `torve plan {report.number}` — phase "
-                  f"{planned.task.phase}: {planned.title}\n")
+        header = (
+            f"# Minted by `torve plan {report.number}` — phase "
+            f"{planned.task.phase}: {planned.title}\n"
+        )
         path.write_text(
-            header + yaml.safe_dump(planned.task.model_dump(), sort_keys=False,
-                                    allow_unicode=True, width=88),
+            header
+            + yaml.safe_dump(
+                planned.task.model_dump(), sort_keys=False, allow_unicode=True, width=88
+            ),
             encoding="utf-8",
         )
         written.append(path)
@@ -366,33 +375,53 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
             continue
         task_id = str(record.get("id", contract.parent.name))
         by = superseded[document]
-        detail = (f"minted from {document}, superseded by {by or 'an unset successor'} "
-                  "(charter A-22): its inherited decisions no longer stand")
+        detail = (
+            f"minted from {document}, superseded by {by or 'an unset successor'} "
+            "(charter A-22): its inherited decisions no longer stand"
+        )
 
         state_path = naming.state_file(root, task_id)
         if state_path.exists():
             state = RunState.load(state_path)
             if state.state in TERMINAL:
-                found.append(StaleTask(task_id, document, by, str(state.state),
-                                       "skipped (terminal)"))
+                found.append(
+                    StaleTask(task_id, document, by, str(state.state), "skipped (terminal)")
+                )
                 continue
             if state.state is TaskState.ESCALATED:
                 reason = state.escalation.reason if state.escalation else "unknown"
-                action = ("already escalated (stale_inheritance)"
-                          if reason == "stale_inheritance"
-                          else f"already escalated ({reason}) — left for triage")
+                action = (
+                    "already escalated (stale_inheritance)"
+                    if reason == "stale_inheritance"
+                    else f"already escalated ({reason}) — left for triage"
+                )
                 found.append(StaleTask(task_id, document, by, str(state.state), action))
                 continue
             if not dry_run:
                 state.escalate(EscalationReason.STALE_INHERITANCE, detail)
-            found.append(StaleTask(task_id, document, by, str(state.state),
-                                   "escalated" if not dry_run else "would escalate"))
+            found.append(
+                StaleTask(
+                    task_id,
+                    document,
+                    by,
+                    str(state.state),
+                    "escalated" if not dry_run else "would escalate",
+                )
+            )
         else:
             if not dry_run:
                 state = RunState(task_id=task_id, path=state_path)
-                state.transition(TaskState.CLAIMED,
-                                 "torve plan --reconcile: claiming to record the fact")
+                state.transition(
+                    TaskState.CLAIMED, "torve plan --reconcile: claiming to record the fact"
+                )
                 state.escalate(EscalationReason.STALE_INHERITANCE, detail)
-            found.append(StaleTask(task_id, document, by, "unstarted",
-                                   "escalated" if not dry_run else "would escalate"))
+            found.append(
+                StaleTask(
+                    task_id,
+                    document,
+                    by,
+                    "unstarted",
+                    "escalated" if not dry_run else "would escalate",
+                )
+            )
     return found

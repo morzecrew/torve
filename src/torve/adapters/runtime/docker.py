@@ -38,8 +38,9 @@ class DockerError(RuntimeError):
 
 
 class DockerRuntime:
-    def __init__(self, docker_bin: str = "docker", network: str = "",
-                 docker_mode: str = "") -> None:
+    def __init__(
+        self, docker_bin: str = "docker", network: str = "", docker_mode: str = ""
+    ) -> None:
         self.docker = docker_bin
         self.network = network  # "" = daemon default; "host" shares the host stack
         # "socket" mounts the host daemon into every sandbox (RFC 0017 §2a,
@@ -54,10 +55,19 @@ class DockerRuntime:
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
         mount_mode = ":ro" if spec.workspace_read_only else ""
-        args = ["run", "-d", "--init", "--name", spec.name,
-                "--user", f"{os.getuid()}:{os.getgid()}",
-                "-v", f"{workspace.resolve()}:{spec.workdir}{mount_mode}",
-                "-w", spec.workdir]
+        args = [
+            "run",
+            "-d",
+            "--init",
+            "--name",
+            spec.name,
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            "-v",
+            f"{workspace.resolve()}:{spec.workdir}{mount_mode}",
+            "-w",
+            spec.workdir,
+        ]
         if "HOME" not in spec.env:
             # The container runs as the invoking uid with no passwd entry, so
             # HOME is `/` — and every tool that caches under ~ (uv, pip, git,
@@ -139,8 +149,14 @@ class DockerRuntime:
         return digest
 
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
-        proc = self._run("ps", "-a", "--filter", f"label={naming.LABEL_TASK}",
-                         "--format", "{{.ID}}\t{{.Names}}\t{{.Labels}}")
+        proc = self._run(
+            "ps",
+            "-a",
+            "--filter",
+            f"label={naming.LABEL_TASK}",
+            "--format",
+            "{{.ID}}\t{{.Names}}\t{{.Labels}}",
+        )
         if proc.returncode != 0:
             raise DockerError(proc.stderr.strip() or "docker ps failed")
         infos: list[SandboxInfo] = []
@@ -148,8 +164,6 @@ class DockerRuntime:
             parts = line.split("\t")
             if len(parts) != 3:
                 continue
-            labels = dict(
-                pair.split("=", 1) for pair in parts[2].split(",") if "=" in pair
-            )
+            labels = dict(pair.split("=", 1) for pair in parts[2].split(",") if "=" in pair)
             infos.append(SandboxInfo(id=parts[0], name=parts[1], labels=labels))
         return infos

@@ -38,29 +38,35 @@ PHASING = (
     "  title: widget-core\n"
     "  intent: >-\n"
     "    Build the widget core.\n"
-    "  scope: [\"src/widget/**\", \"tests/widget/**\"]\n"
-    "  acceptance: [\"make test\"]\n"
+    '  scope: ["src/widget/**", "tests/widget/**"]\n'
+    '  acceptance: ["make test"]\n'
     "- phase: 1\n"
     "  title: frob-side\n"
     "  intent: >-\n"
     "    Build the frobnicator beside it.\n"
-    "  scope: [\"src/frob/**\"]\n"
+    '  scope: ["src/frob/**"]\n'
     "- phase: 2\n"
     "  title: wire-together\n"
     "  intent: >-\n"
     "    Wire core and frobnicator together.\n"
-    "  scope: [\"src/app.py\"]\n"
+    '  scope: ["src/app.py"]\n'
     "  depends_on: [1]\n"
     "```\n"
 )
 
 
-def rfc_doc(number: str, title: str, status: str = "accepted", *,
-            depends: str = "[]", superseded_by: str = "null",
-            body: str = "") -> str:
+def rfc_doc(
+    number: str,
+    title: str,
+    status: str = "accepted",
+    *,
+    depends: str = "[]",
+    superseded_by: str = "null",
+    body: str = "",
+) -> str:
     slug = title.lower().replace(" ", "-")
     return (
-        f"---\nid: \"{number}\"\ntitle: {title}\nstatus: {status}\n"
+        f'---\nid: "{number}"\ntitle: {title}\nstatus: {status}\n'
         f"implementation: none\ndepends_on: {depends}\ninformed_by: []\n"
         f"supersedes: []\nsuperseded_by: {superseded_by}\namended_by: []\n"
         f"owner: Test\ndescription: {slug}\nschema_version: 1\n---\n\n"
@@ -84,7 +90,8 @@ def plan_repo(tmp_path):
     def write_doc(number: str, title: str, **kwargs) -> None:
         slug = title.lower().replace(" ", "-")
         (root / "rfcs" / f"{number}-{slug}.md").write_text(
-            rfc_doc(number, title, **kwargs), encoding="utf-8")
+            rfc_doc(number, title, **kwargs), encoding="utf-8"
+        )
 
     write_doc("0090", "Widgets", body=TABLE + PHASING)
     (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
@@ -146,8 +153,7 @@ def test_a_draft_dependency_is_refused(plan_repo):
 
 def test_supersession_is_refused(plan_repo):
     root, write_doc, git = plan_repo
-    write_doc("0093", "Old", status="superseded", superseded_by='"0090"',
-              body=TABLE + PHASING)
+    write_doc("0093", "Old", status="superseded", superseded_by='"0090"', body=TABLE + PHASING)
     git("add", "-A")
     git("commit", "-qm", "superseded")
     with pytest.raises(PlanError, match="superseded"):
@@ -201,14 +207,16 @@ def test_parse_phasing_absent_and_prose_are_none():
 
 
 def test_parse_phasing_rejects_undefined_phase_dependency():
-    text = ("## Phasing\n\n```yaml\n- phase: 2\n  title: t\n  intent: i\n"
-            "  scope: [\"src/**\"]\n  depends_on: [1]\n```\n")
+    text = (
+        "## Phasing\n\n```yaml\n- phase: 2\n  title: t\n  intent: i\n"
+        '  scope: ["src/**"]\n  depends_on: [1]\n```\n'
+    )
     with pytest.raises(ValueError, match="undefined phase"):
         parse_phasing(text)
 
 
 def test_parse_phasing_rejects_missing_intent():
-    text = ("## Phasing\n\n```yaml\n- phase: 1\n  title: t\n  scope: [\"src/**\"]\n```\n")
+    text = '## Phasing\n\n```yaml\n- phase: 1\n  title: t\n  scope: ["src/**"]\n```\n'
     with pytest.raises(ValueError):
         parse_phasing(text)
 
@@ -237,8 +245,11 @@ def test_plan_cli_dry_run_by_default(plan_repo):
     result = CliRunner().invoke(app, ["plan", "0090", "--root", str(root)])
     assert result.exit_code == 0, result.output
     assert "dry run — nothing written" in result.output
-    assert not list((root / ".torve" / "tasks").glob("T-*")) if (
-        root / ".torve" / "tasks").is_dir() else True
+    assert (
+        not list((root / ".torve" / "tasks").glob("T-*"))
+        if (root / ".torve" / "tasks").is_dir()
+        else True
+    )
 
 
 def test_plan_cli_mints_and_refuses_drafts_with_exit_3(plan_repo):

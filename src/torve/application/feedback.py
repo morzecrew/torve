@@ -36,8 +36,7 @@ def threads_file(root: Path, task_id: str) -> Path:
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_THREADS
 
 
-def render_feedback(task_id: str, diff: str,
-                    threads: list[dict[str, Any]]) -> str:
+def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> str:
     """One markdown record: threads first (the critique is the point),
     the superseded diff after. Threads arrive already allow-listed by
     the adapter; each is {path, line, comments: [{author, body}]}."""
@@ -57,20 +56,23 @@ def render_feedback(task_id: str, diff: str,
         anchor = f"{thread.get('path', '?')}:{thread.get('line') or '-'}"
         lines += [f"### {anchor}", ""]
         for comment in thread.get("comments", []):
-            lines += [f"**{comment.get('author', 'unknown')}:**",
-                      str(comment.get("body", "")), ""]
-    lines += ["## The superseded candidate's diff", "",
-              "```diff", diff.rstrip() or "(no diff captured)", "```", ""]
+            lines += [f"**{comment.get('author', 'unknown')}:**", str(comment.get("body", "")), ""]
+    lines += [
+        "## The superseded candidate's diff",
+        "",
+        "```diff",
+        diff.rstrip() or "(no diff captured)",
+        "```",
+        "",
+    ]
     text = "\n".join(lines)
     if len(text.encode("utf-8")) > FEEDBACK_CAP:
         clipped = text.encode("utf-8")[:FEEDBACK_CAP].decode("utf-8", "ignore")
-        text = (clipped + "\n\n> truncated at the size cap — the pull "
-                "request holds the rest\n")
+        text = clipped + "\n\n> truncated at the size cap — the pull request holds the rest\n"
     return text
 
 
-def capture_feedback(root: Path, task_id: str, diff: str,
-                     threads: list[dict[str, Any]]) -> bool:
+def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str, Any]]) -> bool:
     """Write the record beside the contract; False when there is nothing
     worth carrying (no threads and no diff — an escalation that never
     reached a branch captures nothing, honestly). A capture REPLACES the
@@ -87,10 +89,11 @@ def capture_feedback(root: Path, task_id: str, diff: str,
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_feedback(task_id, diff, threads), encoding="utf-8")
-    addresses = [{"pr": t["pr"], "id": t["id"],
-                  "path": t.get("path"), "line": t.get("line")}
-                 for t in threads if t.get("id") and t.get("pr")]
+    addresses = [
+        {"pr": t["pr"], "id": t["id"], "path": t.get("path"), "line": t.get("line")}
+        for t in threads
+        if t.get("id") and t.get("pr")
+    ]
     if addresses:
-        addresses_path.write_text(
-            json.dumps(addresses, ensure_ascii=False), encoding="utf-8")
+        addresses_path.write_text(json.dumps(addresses, ensure_ascii=False), encoding="utf-8")
     return True

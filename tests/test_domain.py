@@ -15,8 +15,14 @@ from torve.domain.states import (
 
 
 def test_the_happy_path_is_legal():
-    order = [TaskState.QUEUED, TaskState.CLAIMED, TaskState.RUNNING,
-             TaskState.GATED, TaskState.REVIEWED, TaskState.READY]
+    order = [
+        TaskState.QUEUED,
+        TaskState.CLAIMED,
+        TaskState.RUNNING,
+        TaskState.GATED,
+        TaskState.REVIEWED,
+        TaskState.READY,
+    ]
     for current, to in itertools.pairwise(order):
         check_transition(current, to)
 
@@ -25,8 +31,7 @@ def test_terminal_states_are_terminal_to_the_engine():
     # ready keeps two exits, both human-or-lane acts: the lane's conflict
     # edge (charter A-26, RFC 0006 D-6.10) and the commander's revise
     # (RFC 0008 D-8.18, A-40); abandoned keeps none.
-    assert TRANSITIONS[TaskState.READY] == frozenset(
-        {TaskState.ESCALATED, TaskState.QUEUED})
+    assert TRANSITIONS[TaskState.READY] == frozenset({TaskState.ESCALATED, TaskState.QUEUED})
     assert TRANSITIONS[TaskState.ABANDONED] == frozenset()
     check_transition(TaskState.READY, TaskState.ESCALATED)
     check_transition(TaskState.READY, TaskState.QUEUED)

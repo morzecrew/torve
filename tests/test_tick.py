@@ -29,13 +29,18 @@ from torve.domain.states import EscalationReason, TaskState
 def root(tmp_path: Path) -> Path:
     (tmp_path / ".torve").mkdir()
     (tmp_path / ".torve" / "gates.yaml").write_text(
-        "schema_version: 1\ngates: []\n", encoding="utf-8")
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
     return tmp_path
 
 
-def contract(root: Path, task_id: str, role: str = "implement",
-             depends_on: list[str] | None = None,
-             allow: list[str] | None = None) -> None:
+def contract(
+    root: Path,
+    task_id: str,
+    role: str = "implement",
+    depends_on: list[str] | None = None,
+    allow: list[str] | None = None,
+) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True)
     deps = f"depends_on: {depends_on}\n" if depends_on else ""
@@ -45,7 +50,8 @@ def contract(root: Path, task_id: str, role: str = "implement",
         f"intent: work\n{deps}{scope}"
         + ("targets: ['T-0001']\n" if role == "review" else "")
         + "decisions: []\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
 
 
 def run_state(root: Path, task_id: str, state: TaskState) -> RunState:
@@ -65,21 +71,26 @@ class Recorder:
         def call() -> tuple[str, bool]:
             self.calls.append(name)
             return (f"{name} ran", moved)
+
         return call
 
     def dispatch(self, detail: str = "ran", moved: bool = True):
         def call(task_ids: list[str]) -> tuple[str, bool]:
             self.calls.extend(f"dispatch:{t}" for t in task_ids)
             return (detail, moved)
+
         return call
 
 
 def deps_for(rec: Recorder, lane: bool = True) -> TickDeps:
     return TickDeps(
-        reap=rec.leg("reap"), poll=rec.leg("poll"),
+        reap=rec.leg("reap"),
+        poll=rec.leg("poll"),
         dispatch=rec.dispatch(),
         lane=rec.leg("lane") if lane else None,
-        sync=rec.leg("sync"), landed=lambda _task: False)
+        sync=rec.leg("sync"),
+        landed=lambda _task: False,
+    )
 
 
 def config() -> RunnerConfig:
@@ -90,8 +101,11 @@ def tick_events(root: Path) -> list[dict[str, object]]:
     path = root / ".torve" / "telemetry.jsonl"
     if not path.is_file():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines()
-            if line.strip() and json.loads(line).get("event") == "tick"]
+    return [
+        json.loads(line)
+        for line in path.read_text().splitlines()
+        if line.strip() and json.loads(line).get("event") == "tick"
+    ]
 
 
 def test_legs_run_in_the_fixed_order(root):
@@ -116,15 +130,19 @@ def test_a_held_lock_makes_the_tick_a_recorded_noop(root):
 
 
 def test_a_stale_lock_is_broken_loudly(root):
-    (root / ".torve" / LOCK).write_text(
-        json.dumps({"pid": 1, "at": "2001-01-01T00:00:00Z"}))
+    (root / ".torve" / LOCK).write_text(json.dumps({"pid": 1, "at": "2001-01-01T00:00:00Z"}))
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec))
     assert not report.locked_out
     assert rec.calls[0] == "poll"  # the tick ran
-    events = [r for r in (json.loads(line) for line in
-              (root / ".torve" / "telemetry.jsonl").read_text().splitlines())
-              if r.get("event") == "tick_lock_broken"]
+    events = [
+        r
+        for r in (
+            json.loads(line)
+            for line in (root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+        )
+        if r.get("event") == "tick_lock_broken"
+    ]
     assert len(events) == 1 and events[0]["stale_holder"] == 1
     assert not (root / ".torve" / LOCK).exists()  # released after the pass
 
@@ -176,8 +194,9 @@ def test_a_reaped_task_with_telemetry_is_not_redispatched(root):
     contract(root, "T-9001")
     contract(root, "T-9002")
     (root / ".torve" / "telemetry.jsonl").write_text(
-        json.dumps({"schema_version": 1, "kind": "attempt",
-                    "task_id": "T-9001"}) + "\n", encoding="utf-8")
+        json.dumps({"schema_version": 1, "kind": "attempt", "task_id": "T-9001"}) + "\n",
+        encoding="utf-8",
+    )
     assert next_queued(root, lambda _t: False) == "T-9002"
 
 
@@ -212,8 +231,11 @@ def test_an_escalation_pauses_intake_but_drains_everything_else(root):
     report = run_tick(root, config(), deps_for(rec))
     assert not any(c.startswith("dispatch:") for c in rec.calls)
     assert "poll" in rec.calls and "lane" in rec.calls and "sync" in rec.calls
-    assert any("paused: escalation queue at 1" in detail
-               for name, detail in report.legs if name == "dispatch")
+    assert any(
+        "paused: escalation queue at 1" in detail
+        for name, detail in report.legs
+        if name == "dispatch"
+    )
 
 
 def test_auto_merge_off_skips_the_lane_with_its_reason(root):
@@ -237,9 +259,14 @@ def test_a_leg_error_is_recorded_and_the_tick_reaches_sync(root):
     def broken(task_id: str) -> tuple[str, bool]:
         raise RuntimeError("sandbox exploded")
 
-    deps = TickDeps(reap=rec.leg("reap"), poll=rec.leg("poll"),
-                    dispatch=broken, lane=rec.leg("lane"),
-                    sync=rec.leg("sync"), landed=lambda _t: False)
+    deps = TickDeps(
+        reap=rec.leg("reap"),
+        poll=rec.leg("poll"),
+        dispatch=broken,
+        lane=rec.leg("lane"),
+        sync=rec.leg("sync"),
+        landed=lambda _t: False,
+    )
     report = run_tick(root, config(), deps)
     assert ("dispatch", "error: sandbox exploded") in report.legs
     assert "sync" in rec.calls
@@ -262,24 +289,23 @@ def test_the_tick_pushes_what_the_lane_lands(tmp_path: Path) -> None:
     from torve.cli.main import app
 
     def git(cwd: Path, *args: str) -> str:
-        proc = subprocess.run(["git", "-C", str(cwd), *args],
-                              capture_output=True, text=True, check=True)
+        proc = subprocess.run(
+            ["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True
+        )
         return proc.stdout.strip()
 
     origin = tmp_path / "origin.git"
-    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)],
-                   check=True)
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
     repo = tmp_path / "repo"
     subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
     git(repo, "config", "user.name", "Loop Operator")
     git(repo, "config", "user.email", "loop@example.invalid")
     (repo / ".torve").mkdir()
-    (repo / ".torve" / "gates.yaml").write_text(
-        "schema_version: 1\ngates: []\n", encoding="utf-8")
+    (repo / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
     (repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\npromotion:\n  auto_merge: true\n", encoding="utf-8")
-    (repo / ".gitignore").write_text(".wt/\n.torve/telemetry.jsonl\n",
-                                     encoding="utf-8")
+        "schema_version: 1\npromotion:\n  auto_merge: true\n", encoding="utf-8"
+    )
+    (repo / ".gitignore").write_text(".wt/\n.torve/telemetry.jsonl\n", encoding="utf-8")
     (repo / "app.py").write_text("base = 1\n", encoding="utf-8")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "--no-gpg-sign", "-m", "init")
@@ -317,10 +343,10 @@ def test_the_reap_leg_carries_the_store_factory(tmp_path: Path, monkeypatch) -> 
     repo = tmp_path / "repo"
     (repo / ".torve").mkdir(parents=True)
     subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
-    (repo / ".torve" / "gates.yaml").write_text(
-        "schema_version: 1\ngates: []\n", encoding="utf-8")
+    (repo / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
     (repo / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\nstore:\n  adapter: postgres\n", encoding="utf-8")
+        "schema_version: 1\nstore:\n  adapter: postgres\n", encoding="utf-8"
+    )
 
     result = CliRunner().invoke(app, ["tick", "--root", str(repo)])
     assert result.exit_code == 0, result.output
@@ -333,8 +359,9 @@ def test_a_board_requeued_task_is_selected_again(root):
     # state is queued, telemetry record notwithstanding.
     contract(root, "T-9001")
     (root / ".torve" / "telemetry.jsonl").write_text(
-        json.dumps({"schema_version": 1, "kind": "attempt",
-                    "task_id": "T-9001"}) + "\n", encoding="utf-8")
+        json.dumps({"schema_version": 1, "kind": "attempt", "task_id": "T-9001"}) + "\n",
+        encoding="utf-8",
+    )
     assert next_queued(root, lambda _t: False) is None  # ran, not re-queued
     run_state(root, "T-9001", TaskState.QUEUED)
     assert next_queued(root, lambda _t: False) == "T-9001"

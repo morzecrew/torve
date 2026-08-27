@@ -46,8 +46,9 @@ def test_secrets_allow_patterns_suppress_reviewed_false_positives(repo):
     manifest = {
         "schema_version": 1,
         "secrets": {"allow_patterns": ["EXAMPLE'"]},
-        "gates": [{"name": "secrets", "run": "@secrets",
-                   "state": "blocking", "origin": "structural"}],
+        "gates": [
+            {"name": "secrets", "run": "@secrets", "state": "blocking", "origin": "structural"}
+        ],
     }
     repo.seed(manifest)
     repo.write("src/config.py", "key = '" + "AKIA" + "IOSFODNN7EXAMPLE" + "'\n")
@@ -155,8 +156,9 @@ def test_run_gates_reports_progress_by_gate_name(repo):
     repo.commit("change")
     seen: list[str] = []
     report = run_gates(context_for(repo), progress=seen.append)
-    announced = [r.name for r in report.results
-                 if "an earlier blocking gate failed" not in r.output]
+    announced = [
+        r.name for r in report.results if "an earlier blocking gate failed" not in r.output
+    ]
     assert seen == announced  # every gate that ran announced itself, in order
     # (a degraded-mode gate runs and reports skipped — it still announces)
     assert "scope" in seen and "secrets" in seen

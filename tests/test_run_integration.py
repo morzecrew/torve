@@ -43,16 +43,27 @@ def seed_run_repo(repo) -> None:
     task = base_task(allow=["src/**"])
     task["acceptance"] = ["test -f src/feature.py"]
     repo.task(task, None)
-    repo.write(".torve/config.yaml", yaml.safe_dump({
-        "runtime": {"sandbox_timeout": 300, "agent_timeout": 90},
-        "poison_ceiling": 2,
-    }))
+    repo.write(
+        ".torve/config.yaml",
+        yaml.safe_dump(
+            {
+                "runtime": {"sandbox_timeout": 300, "agent_timeout": 90},
+                "poison_ceiling": 2,
+            }
+        ),
+    )
     repo.commit("task minted")
 
 
 def deps_for(repo, agent) -> RunDeps:
-    return RunDeps(workspace=GitWorkspace(repo.root), runtime=DockerRuntime(),
-                   agent=agent, vcs=GitVcs(), scm=NullScm(), store=open_store)
+    return RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=DockerRuntime(),
+        agent=agent,
+        vcs=GitVcs(),
+        scm=NullScm(),
+        store=open_store,
+    )
 
 
 def test_one_task_end_to_end(repo):
@@ -78,8 +89,9 @@ def test_one_task_end_to_end(repo):
     assert outcomes["acceptance"] == "pass"
     assert outcomes["scope"] == "pass"
     # Nothing survived the run: every torve sandbox for this task is gone.
-    leftovers = [i for i in DockerRuntime().list_torve_sandboxes()
-                 if i.labels.get("torve.task") == TASK_ID]
+    leftovers = [
+        i for i in DockerRuntime().list_torve_sandboxes() if i.labels.get("torve.task") == TASK_ID
+    ]
     assert not leftovers
 
 
@@ -89,9 +101,19 @@ def test_reap_cleans_up_after_kill_nine(repo):
     scenario.write_text(yaml.safe_dump({"attempts": [{"sleep": 300}]}), encoding="utf-8")
 
     proc = subprocess.Popen(
-        [sys.executable, "-m", "torve.cli", "run", TASK_ID,
-         "--root", str(repo.root), "--scenario", str(scenario)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        [
+            sys.executable,
+            "-m",
+            "torve.cli",
+            "run",
+            TASK_ID,
+            "--root",
+            str(repo.root),
+            "--scenario",
+            str(scenario),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     state_path = repo.root / ".wt" / f"{TASK_ID}.state.json"
     runtime = DockerRuntime()
@@ -110,16 +132,14 @@ def test_reap_cleans_up_after_kill_nine(repo):
         os.kill(proc.pid, signal.SIGKILL)
         proc.wait(timeout=30)
 
-        alive = [i for i in runtime.list_torve_sandboxes()
-                 if i.labels.get("torve.task") == TASK_ID]
+        alive = [i for i in runtime.list_torve_sandboxes() if i.labels.get("torve.task") == TASK_ID]
         assert alive, "the orphan must still exist before reap to prove anything"
 
         report = reap(repo.root, CONFIG, runtime, GitWorkspace(repo.root), force=True)
 
         assert report.runs_expired == [TASK_ID]
         assert report.sandboxes_destroyed
-        after = [i for i in runtime.list_torve_sandboxes()
-                 if i.labels.get("torve.task") == TASK_ID]
+        after = [i for i in runtime.list_torve_sandboxes() if i.labels.get("torve.task") == TASK_ID]
         assert not after
         state = RunState.load(state_path)
         assert state.state is TaskState.ESCALATED
@@ -160,8 +180,10 @@ def test_log_entry_written_before_failure_is_on_disk(repo):
     # A-13/D-3.20: the log is created by its first entry, flushed as written —
     # an abnormal end must not lose what the agent honestly wrote.
     seed_run_repo(repo)
-    entry = ("  - decision: D-1\n    grade: LOCKED\n    kind: resolved\n"
-             "    action: decided\n    claim: written before dying\n")
+    entry = (
+        "  - decision: D-1\n    grade: LOCKED\n    kind: resolved\n"
+        "    action: decided\n    claim: written before dying\n"
+    )
     agent = FakeAgent([{"log_entry": entry, "exit": 137}])
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
@@ -183,22 +205,27 @@ def test_harness_tier_end_to_end(repo):
 
     seed_run_repo(repo)
     tier = TierConfig(
-        adapter="api", provider="test-vendor", model="fake-model-9",
-        command=("grep -q 'Torve task' {prompt} && echo FEATURE = True > src/feature.py"
-                 " && echo '{\"total_cost_usd\": 0.05, \"model\": \"{model}\"}'"),
+        adapter="api",
+        provider="test-vendor",
+        model="fake-model-9",
+        command=(
+            "grep -q 'Torve task' {prompt} && echo FEATURE = True > src/feature.py"
+            ' && echo \'{"total_cost_usd": 0.05, "model": "{model}"}\''
+        ),
         api_key_env=["TORVE_TEST_KEY"],
     )
-    config = CONFIG.model_copy(update={
-        "tiers": {"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
-        "providers": ProvidersConfig(default=["test-vendor"]),
-    })
+    config = CONFIG.model_copy(
+        update={
+            "tiers": {"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
+            "providers": ProvidersConfig(default=["test-vendor"]),
+        }
+    )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
     state = run_task(repo.root, task, config, deps_for(repo, HarnessAgent(tier)))
 
     assert state.state is TaskState.READY, state.history
-    record = json.loads(
-        (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()[-1])
+    record = json.loads((repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()[-1])
     agent_block = record["agent"]
     assert agent_block["adapter"] == "api"
     assert agent_block["provider"] == "test-vendor"

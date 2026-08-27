@@ -59,9 +59,15 @@ def review_rig(repo, monkeypatch):
     monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
 
     def deps_with_reviewer(review_agent):
-        return RunDeps(workspace=MockWorkspace(repo.root), runtime=runtime,
-                       agent=ScriptedAgent([OK]), vcs=MockVcs(), scm=MockScm(),
-                       store=open_store, review_agent=review_agent)
+        return RunDeps(
+            workspace=MockWorkspace(repo.root),
+            runtime=runtime,
+            agent=ScriptedAgent([OK]),
+            vcs=MockVcs(),
+            scm=MockScm(),
+            store=open_store,
+            review_agent=review_agent,
+        )
 
     return repo, runtime, deps_with_reviewer
 
@@ -94,9 +100,22 @@ def test_a_surviving_blocker_escalates_the_target(review_rig):
     worktree = repo.root / ".wt" / "T-9001"
     worktree.mkdir(parents=True, exist_ok=True)
     (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
-    reviewer = ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output(
-        [{"severity": "blocker", "claim": "the change is wrong",
-          "evidence": "app.py:1 — the flag"}]))])
+    reviewer = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=reviewer_output(
+                    [
+                        {
+                            "severity": "blocker",
+                            "claim": "the change is wrong",
+                            "evidence": "app.py:1 — the flag",
+                        }
+                    ]
+                ),
+            )
+        ]
+    )
 
     state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
 
@@ -117,9 +136,22 @@ def test_the_unconfigured_bridge_never_records_a_verdict(review_rig):
 
 def test_a_blocker_with_unlocatable_evidence_is_discarded(review_rig):
     repo, _runtime, deps_for = review_rig
-    reviewer = ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output(
-        [{"severity": "blocker", "claim": "invented",
-          "evidence": "ghost.py:9 — nothing here"}]))])
+    reviewer = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=reviewer_output(
+                    [
+                        {
+                            "severity": "blocker",
+                            "claim": "invented",
+                            "evidence": "ghost.py:9 — nothing here",
+                        }
+                    ]
+                ),
+            )
+        ]
+    )
 
     state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
 
@@ -172,21 +204,24 @@ def test_the_degraded_prompt_forbids_invented_specifications():
 
 
 def test_parse_findings_takes_the_last_document():
-    output = "thinking...\n{\"findings\": []}"
+    output = 'thinking...\n{"findings": []}'
     assert parse_findings(output) == []
-    found = parse_findings(json.dumps(
-        {"findings": [{"severity": "nit", "claim": "c", "evidence": "e"}]}))
+    found = parse_findings(
+        json.dumps({"findings": [{"severity": "nit", "claim": "c", "evidence": "e"}]})
+    )
     assert found == [Finding(severity="nit", claim="c", evidence="e")]
     assert parse_findings("no document here") is None
-    assert parse_findings("{\"findings\": \"not a list\"}") is None
+    assert parse_findings('{"findings": "not a list"}') is None
 
 
 def test_parse_findings_survives_ansi_and_multiline_documents():
     # Real harness output (opencode, first live corpus run): escape codes
     # around a pretty-printed document with session chatter after it.
-    output = ("\x1b[0m{\"findings\": [\n"
-              "  {\"severity\": \"blocker\", \"claim\": \"swallowed\",\n"
-              "   \"evidence\": \"src/app.py:3 — the bare except\"}\n"
-              "]}\x1b[0m\n> build · model\n→ Read src/app.py\n")
+    output = (
+        '\x1b[0m{"findings": [\n'
+        '  {"severity": "blocker", "claim": "swallowed",\n'
+        '   "evidence": "src/app.py:3 — the bare except"}\n'
+        "]}\x1b[0m\n> build · model\n→ Read src/app.py\n"
+    )
     found = parse_findings(output)
     assert found is not None and found[0].severity == "blocker"

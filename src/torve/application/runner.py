@@ -105,12 +105,14 @@ async def drive_attempts(
     while True:
         # Poison ceiling is checked before dispatch, never after (RFC 0001 §4).
         if state.attempts >= ceiling:
-            state.escalate(EscalationReason.POISON_CEILING,
-                           f"{state.attempts} attempts, ceiling {ceiling}")
+            state.escalate(
+                EscalationReason.POISON_CEILING, f"{state.attempts} attempts, ceiling {ceiling}"
+            )
             return state
         if iterations is not None and state.attempts >= iterations:
-            state.escalate(EscalationReason.BUDGET_EXHAUSTED,
-                           f"{state.attempts} attempts, budget {iterations}")
+            state.escalate(
+                EscalationReason.BUDGET_EXHAUSTED, f"{state.attempts} attempts, budget {iterations}"
+            )
             return state
 
         state.transition(TaskState.RUNNING, f"attempt {state.attempts + 1} dispatched")
@@ -120,13 +122,18 @@ async def drive_attempts(
         if hooks.halted():
             # Terminal by design, not an error: the one case where a task
             # stops on working code (RFC 0001 §4).
-            state.escalate(EscalationReason.LOCKED_CONFLICT,
-                           f"halted divergence entry in the {task.id} execution log")
+            state.escalate(
+                EscalationReason.LOCKED_CONFLICT,
+                f"halted divergence entry in the {task.id} execution log",
+            )
             return state
 
         if result.timed_out or result.exit_code != 0:
-            fact = ("agent hit the hard timeout" if result.timed_out
-                    else f"agent exited {result.exit_code}") + "; gates not run"
+            fact = (
+                "agent hit the hard timeout"
+                if result.timed_out
+                else f"agent exited {result.exit_code}"
+            ) + "; gates not run"
             state.transition(TaskState.GATED, fact)
             state.save()
             continue
@@ -142,8 +149,14 @@ async def drive_attempts(
             return state
 
         if exit_code != 0:
-            state.history.append({"at": state.heartbeat, "from": str(state.state),
-                                  "to": str(state.state), "fact": f"gates red: {summary}"})
+            state.history.append(
+                {
+                    "at": state.heartbeat,
+                    "from": str(state.state),
+                    "to": str(state.state),
+                    "fact": f"gates red: {summary}",
+                }
+            )
             state.save()
             continue
 
@@ -239,9 +252,15 @@ class _SandboxExecutor:
 
 
 def _run_gates_in_worktree(
-    worktree: Path, task_id: str, config: RunnerConfig, runtime: Runtime,
-    run_id: str, root: Path, agent_meta: dict[str, Any] | None = None,
-    base: str | None = None, image: str | None = None,
+    worktree: Path,
+    task_id: str,
+    config: RunnerConfig,
+    runtime: Runtime,
+    run_id: str,
+    root: Path,
+    agent_meta: dict[str, Any] | None = None,
+    base: str | None = None,
+    image: str | None = None,
     image_digest: str | None = None,
 ) -> tuple[int, str, str, list[GateResult], str]:
     """(exit_code, summary, config_hash, results, patch) — the results and
@@ -275,7 +294,8 @@ def _run_gates_in_worktree(
     )
     try:
         ctx = build_context(
-            worktree, manifest,
+            worktree,
+            manifest,
             base=resolve_base(worktree, base or config.base),
             task_path=task_file if task_file.is_file() else None,
         )
@@ -302,8 +322,7 @@ def _agent_identity(meta: dict[str, Any]) -> str:
     return f"{ident}@{version}" if version else ident
 
 
-def _provenance_message(task: Task, attempts: int, digest: str,
-                        meta: dict[str, Any]) -> str:
+def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, Any]) -> str:
     """The full trailer set (D-10.4): enough that `git log --grep`
     reconstructs a task's history with the store offline. The subject
     carries the intent's head (D-10.6: composed from the contract, never
@@ -312,11 +331,14 @@ def _provenance_message(task: Task, attempts: int, digest: str,
     if len(head) > 46:
         head = head[:45].rstrip() + "…"
     what = f" {head} —" if head else ""
-    lines = [f"torve({task.id}):{what} attempt {attempts} green", "",
-             f"Torve-Task: {task.id}",
-             f"Torve-Attempt: {attempts}",
-             f"Torve-Agent: {_agent_identity(meta)}",
-             f"Torve-Config: {digest}"]
+    lines = [
+        f"torve({task.id}):{what} attempt {attempts} green",
+        "",
+        f"Torve-Task: {task.id}",
+        f"Torve-Attempt: {attempts}",
+        f"Torve-Agent: {_agent_identity(meta)}",
+        f"Torve-Config: {digest}",
+    ]
     if task.decisions:
         graded = " ".join(f"{d.id}({d.grade})" for d in task.decisions)
         lines.append(f"Torve-Decisions: {graded}")
@@ -351,8 +373,7 @@ def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
     return shas
 
 
-def _write_revert_log(worktree: Path, task: Task, attempt: int,
-                      shas: list[str]) -> None:
+def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str]) -> None:
     """Every revert emits resolved entries against the inherited decisions
     (RFC 0010 §7): the reason work was undone reaches the next planning
     session as data, not folklore. Machine-written — a mechanical revert has
@@ -360,25 +381,39 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int,
     stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     short = " ".join(sha[:10] for sha in shas)
     entries: list[dict[str, Any]] = [
-        {"decision": d.id, "grade": str(d.grade), "kind": "resolved",
-         "at": stamp, "attempt": attempt,
-         "claim": f"the work under this decision was undone by {task.id}: "
-                  f"{', '.join(task.targets)} reverted mechanically, "
-                  "inverse tree staged for the landing commit",
-         "evidence": f"`git revert --no-commit {short}` — clean",
-         "action": "decided"}
+        {
+            "decision": d.id,
+            "grade": str(d.grade),
+            "kind": "resolved",
+            "at": stamp,
+            "attempt": attempt,
+            "claim": f"the work under this decision was undone by {task.id}: "
+            f"{', '.join(task.targets)} reverted mechanically, "
+            "inverse tree staged for the landing commit",
+            "evidence": f"`git revert --no-commit {short}` — clean",
+            "action": "decided",
+        }
         for d in task.decisions
     ]
     log_path = layout.log_file(worktree, task.id)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_path.write_text(yaml.safe_dump(
-        {"schema_version": 1, "task": task.id, "drift_count": 0,
-         "entries": entries}, sort_keys=False), encoding="utf-8")
+    log_path.write_text(
+        yaml.safe_dump(
+            {"schema_version": 1, "task": task.id, "drift_count": 0, "entries": entries},
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def real_hooks(
-    root: Path, task: Task, config: RunnerConfig, deps: RunDeps, worktree: Path,
-    shadow: bool = False, gates_base: str | None = None,
+    root: Path,
+    task: Task,
+    config: RunnerConfig,
+    deps: RunDeps,
+    worktree: Path,
+    shadow: bool = False,
+    gates_base: str | None = None,
 ) -> AttemptHooks:
     tier = tier_for(config, task.tier)
     # What actually runs, not what the tier configured — an --agent fake
@@ -394,10 +429,13 @@ def real_hooks(
     # gate passes are marked so the measurement population stays separable
     # from live attempts in one stream.
     agent_meta: dict[str, Any] = {
-        "tier": task.tier, "adapter": kind,
+        "tier": task.tier,
+        "adapter": kind,
         "provider": (tier.provider or None) if real else None,
         "model": (tier.model or None) if real else None,
-        "model_version": None, "cost_usd": None, "trace_ref": None,
+        "model_version": None,
+        "cost_usd": None,
+        "trace_ref": None,
         "image_digest": image_digest,
         "shadow": shadow,
         # Per-skill attribution (RFC 0009 §5): filled with what materialize
@@ -414,8 +452,11 @@ def real_hooks(
         # directory beside package data (RFC 0009 §4a) — reviewed repository
         # content instructing the agent about the work.
         agent_meta["skills"] = materialize(
-            task.role, worktree / ".torve" / "skills",
-            config.skills.sets, layout.skills_vendor_dir(worktree))
+            task.role,
+            worktree / ".torve" / "skills",
+            config.skills.sets,
+            layout.skills_vendor_dir(worktree),
+        )
         # The revision loop (RFC 0005 §4a, D-5.13): a retry's feedback
         # record travels into the sandbox beside the skills; the prompt
         # names it as untrusted review data.
@@ -428,9 +469,7 @@ def real_hooks(
 
             planted.parent.mkdir(parents=True, exist_ok=True)
             _shutil.copyfile(captured, planted)
-        env_passthrough, volumes = (
-            _sandbox_auth(tier, config.worker_slot) if real else ((), {})
-        )
+        env_passthrough, volumes = _sandbox_auth(tier, config.worker_slot) if real else ((), {})
         infra_id = naming.shadow_id(task.id) if shadow else task.id
         spec = SandboxSpec(
             name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
@@ -445,14 +484,24 @@ def real_hooks(
         state.sandbox_id = handle.id
         state.save()
         try:
-            result = await asyncio.to_thread(deps.agent.run, AgentContext(
-                task=task, attempt=state.attempts, workspace=worktree,
-                handle=handle, runtime=deps.runtime, workdir=spec.workdir,
-                timeout_s=config.runtime.agent_timeout,
-            ))
+            result = await asyncio.to_thread(
+                deps.agent.run,
+                AgentContext(
+                    task=task,
+                    attempt=state.attempts,
+                    workspace=worktree,
+                    handle=handle,
+                    runtime=deps.runtime,
+                    workdir=spec.workdir,
+                    timeout_s=config.runtime.agent_timeout,
+                ),
+            )
             deps.runtime.sync_out(handle, worktree)
-            agent_meta.update(model_version=result.model_version,
-                              cost_usd=result.cost_usd, trace_ref=result.trace_ref)
+            agent_meta.update(
+                model_version=result.model_version,
+                cost_usd=result.cost_usd,
+                trace_ref=result.trace_ref,
+            )
             return result
         finally:
             # Synchronous on purpose: a cancelled task cannot await its own
@@ -477,8 +526,17 @@ def real_hooks(
 
     async def gates(state: RunState) -> tuple[int, str, str]:
         exit_code, summary, digest, results, patch = await asyncio.to_thread(
-            _run_gates_in_worktree, worktree, task.id, config, deps.runtime,
-            state.run_id, root, agent_meta, gates_base, image, image_digest,
+            _run_gates_in_worktree,
+            worktree,
+            task.id,
+            config,
+            deps.runtime,
+            state.run_id,
+            root,
+            agent_meta,
+            gates_base,
+            image,
+            image_digest,
         )
         last_pass.update(results=results, patch=patch, digest=digest)
         return exit_code, summary, digest
@@ -491,28 +549,42 @@ def real_hooks(
         # configured (D-10.3).
         message = _provenance_message(task, state.attempts, digest, agent_meta)
         author = f"{_agent_identity(agent_meta)} <agents@torve.local>"
-        sha = await asyncio.to_thread(deps.vcs.commit_all, worktree, message,
-                                      author, config.vcs.signing_key)
+        sha = await asyncio.to_thread(
+            deps.vcs.commit_all, worktree, message, author, config.vcs.signing_key
+        )
         # The credential is resolved by NAME here, at the runner boundary
         # (D-4b): the value lives only in this process and the subprocess
         # environments the adapters compose.
-        token = (os.environ.get(config.scm.token_env)
-                 if config.scm.token_env else None)
-        pushed = (await asyncio.to_thread(
-            # supersede (D-10.10, A-37): the attempt owns the task's
-            # persistent branch — a prior candidate there is superseded
-            # under lease, its feedback captured at the requeue.
-            deps.vcs.push, worktree, naming.branch(task.id), token, True)
-            if sha else False)
+        token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
+        pushed = (
+            await asyncio.to_thread(
+                # supersede (D-10.10, A-37): the attempt owns the task's
+                # persistent branch — a prior candidate there is superseded
+                # under lease, its feedback captured at the requeue.
+                deps.vcs.push,
+                worktree,
+                naming.branch(task.id),
+                token,
+                True,
+            )
+            if sha
+            else False
+        )
         pr_url = ""
         if pushed and config.scm.open_pr:
-            title, pr_body = compose_pr(task, state.attempts, digest,
-                                        agent_meta, list(last_pass["results"]),
-                                        worktree,
-                                        changed=deps.vcs.changed_names(worktree))
+            title, pr_body = compose_pr(
+                task,
+                state.attempts,
+                digest,
+                agent_meta,
+                list(last_pass["results"]),
+                worktree,
+                changed=deps.vcs.changed_names(worktree),
+            )
             pr_url = await asyncio.to_thread(
-                deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body)
-        fact = (f"committed {sha[:10]}" if sha else "nothing to commit")
+                deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body
+            )
+        fact = f"committed {sha[:10]}" if sha else "nothing to commit"
         fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
         return fact
 
@@ -534,8 +606,7 @@ def real_hooks(
                     f"{', '.join(task.targets)} — revert aborted, worktree clean"
                 )
             _write_revert_log(worktree, task, state.attempts, revert_shas)
-            return AgentResult(exit_code=0,
-                               output=f"reverted {len(revert_shas)} commit(s)")
+            return AgentResult(exit_code=0, output=f"reverted {len(revert_shas)} commit(s)")
 
         attempt_hook = revert_attempt
 
@@ -545,8 +616,7 @@ def real_hooks(
         # planner. A shadow replay measures the harness, not the reviewer.
         if deps.review_agent is None:
             raise ValueError(
-                "review is configured (review.on: task_gated) but no reviewer "
-                "agent was provided"
+                "review is configured (review.on: task_gated) but no reviewer agent was provided"
             )
         reviewer_agent = deps.review_agent
 
@@ -555,15 +625,23 @@ def real_hooks(
 
             review_task = mint_review_task(root, task)
             outcome = await asyncio.to_thread(
-                run_review, root, worktree, task, review_task, config,
-                deps.runtime, reviewer_agent,
-                str(last_pass["patch"]), list(last_pass["results"]),
+                run_review,
+                root,
+                worktree,
+                task,
+                review_task,
+                config,
+                deps.runtime,
+                reviewer_agent,
+                str(last_pass["patch"]),
+                list(last_pass["results"]),
                 str(last_pass["digest"]),
             )
             if outcome.blockers:
                 detail = "; ".join(f.claim for f in outcome.blockers)
-                state.escalate(EscalationReason.BLOCKER_FINDING,
-                               f"{outcome.review_id}: {detail[:300]}")
+                state.escalate(
+                    EscalationReason.BLOCKER_FINDING, f"{outcome.review_id}: {detail[:300]}"
+                )
                 return None
             # The verdict the lane's require_review predicate reads
             # (D-6.14, A-43); cleared on the next entry to running.
@@ -572,8 +650,9 @@ def real_hooks(
 
         review_hook = review_hook_fn
 
-    return AttemptHooks(attempt=attempt_hook, halted=halted, gates=gates,
-                        land=land, review=review_hook)
+    return AttemptHooks(
+        attempt=attempt_hook, halted=halted, gates=gates, land=land, review=review_hook
+    )
 
 
 async def _run_task_async(
@@ -598,8 +677,9 @@ async def _run_task_async(
             final = state
         except asyncio.CancelledError:
             if state.state not in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
-                state.escalate(EscalationReason.KILLED,
-                               "cancellation observed via the lease heartbeat")
+                state.escalate(
+                    EscalationReason.KILLED, "cancellation observed via the lease heartbeat"
+                )
             raise
         return {
             "task_id": task.id,
@@ -616,10 +696,14 @@ async def _run_task_async(
         idempotency_key=f"{task.id}:{state.run_id}",
     )
 
-    if (record.status is DurableRunStatus.TIMED_OUT and state.escalation is None
-            and state.state not in (TaskState.READY, TaskState.ABANDONED)):
-        state.escalate(EscalationReason.BUDGET_EXHAUSTED,
-                       "max run duration reached (store watchdog)")
+    if (
+        record.status is DurableRunStatus.TIMED_OUT
+        and state.escalation is None
+        and state.state not in (TaskState.READY, TaskState.ABANDONED)
+    ):
+        state.escalate(
+            EscalationReason.BUDGET_EXHAUSTED, "max run duration reached (store watchdog)"
+        )
     if record.status is DurableRunStatus.FAILED:
         raise RuntimeError(f"durable run failed: {record.error}")
     return state
@@ -661,8 +745,7 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
         previous = RunState.load(state_path)
         # QUEUED is a board re-queue (T-0059): the human act already
         # happened, and dispatch is exactly what it asked for.
-        if previous.state not in (TaskState.READY, TaskState.ABANDONED,
-                                  TaskState.QUEUED):
+        if previous.state not in (TaskState.READY, TaskState.ABANDONED, TaskState.QUEUED):
             raise RuntimeError(
                 f"{task.id} has an existing run in state {previous.state} "
                 f"(run {previous.run_id[:8]}); triage it or `torve reap` first"
@@ -671,8 +754,9 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
     blocked = _blocking_overlap(root, task)
     if blocked is not None:
         blocker, path = blocked
-        engine_event(root, "blocked_dispatch",
-                     {"task": task.id, "blocked_by": blocker, "path": path})
+        engine_event(
+            root, "blocked_dispatch", {"task": task.id, "blocked_by": blocker, "path": path}
+        )
         raise BlockedDispatch(f"blocked_by_overlap: {blocker} on {path}")
 
     state = RunState(task_id=task.id, path=state_path)

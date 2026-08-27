@@ -65,10 +65,15 @@ def test_finding_severities_are_the_documented_vocabulary():
 def test_acceptance_is_skipped_for_the_review_role(tmp_path):
     from torve.config.manifest import Manifest
 
-    gate = Gate(name="acceptance", run="@task.acceptance", state="blocking",
-                origin="structural")
-    ctx = GateContext(root=tmp_path, manifest=Manifest(gates=[gate]),
-                      head_sha="", base=None, merge_base=None, task=review_task())
+    gate = Gate(name="acceptance", run="@task.acceptance", state="blocking", origin="structural")
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=[gate]),
+        head_sha="",
+        base=None,
+        merge_base=None,
+        task=review_task(),
+    )
     outcome = check_acceptance(gate, ctx)
     assert outcome.outcome == "skipped"
     assert "findings" in outcome.output
@@ -81,12 +86,11 @@ def test_acceptance_is_skipped_for_the_review_role(tmp_path):
 def test_findings_with_unlocatable_evidence_are_discarded_and_counted(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "app.py").write_text("one\ntwo\nthree\n", encoding="utf-8")
-    real = Finding(severity="major", claim="off by one",
-                   evidence="src/app.py:2 — the loop bound")
-    fabricated = Finding(severity="blocker", claim="invented",
-                         evidence="src/ghost.py:9 — no such file")
-    prose = Finding(severity="minor", claim="just an opinion",
-                    evidence="it feels wrong")
+    real = Finding(severity="major", claim="off by one", evidence="src/app.py:2 — the loop bound")
+    fabricated = Finding(
+        severity="blocker", claim="invented", evidence="src/ghost.py:9 — no such file"
+    )
+    prose = Finding(severity="minor", claim="just an opinion", evidence="it feels wrong")
 
     kept, discarded = filter_findings([real, fabricated, prose], tmp_path)
 

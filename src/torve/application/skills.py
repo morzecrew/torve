@@ -28,12 +28,14 @@ def skills_root() -> Path:
 
 
 def available() -> list[str]:
-    return sorted(p.name for p in skills_root().iterdir()
-                  if p.is_dir() and (p / "SKILL.md").is_file())
+    return sorted(
+        p.name for p in skills_root().iterdir() if p.is_dir() and (p / "SKILL.md").is_file()
+    )
 
 
-def materialize(role: str, dest: Path, sets: dict[str, list[str]],
-                vendor_root: Path | None = None) -> list[str]:
+def materialize(
+    role: str, dest: Path, sets: dict[str, list[str]], vendor_root: Path | None = None
+) -> list[str]:
     """Write the role's skill set under *dest* (one directory per skill) and
     return the names written. A name resolves against package data and the
     repository's vendored directory together (RFC 0009 §4a, D-9.11); a name

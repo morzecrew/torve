@@ -34,12 +34,16 @@ DATA_MODULES = ("src/torve/gates/sabotage.py",)
 # pattern — the gate scans string values, its own included. Corpus RFC
 # numbers are zero-padded to four digits; public standards ("RFC 3339") are
 # cited unpadded and are not corpus identifiers.
-IDENTIFIERS = re.compile("|".join((
-    r"RFC 0[0-9]{3}",
-    r"\bD-[A-Za-z0-9][A-Za-z0-9.]*",
-    chr(0xA7),  # the section mark
-    r"\brfcs" + "/",
-)))
+IDENTIFIERS = re.compile(
+    "|".join(
+        (
+            r"RFC 0[0-9]{3}",
+            r"\bD-[A-Za-z0-9][A-Za-z0-9.]*",
+            chr(0xA7),  # the section mark
+            r"\brfcs" + "/",
+        )
+    )
+)
 
 
 def _first_string(body: list[ast.stmt]) -> ast.Constant | None:
@@ -63,8 +67,10 @@ def _exempt_nodes(tree: ast.Module, cli: bool) -> set[int]:
         if doc is None:
             continue
         rendered_as_help = (
-            cli and not isinstance(owner, ast.ClassDef)
-            and owner in tree.body and not owner.name.startswith("_")
+            cli
+            and not isinstance(owner, ast.ClassDef)
+            and owner in tree.body
+            and not owner.name.startswith("_")
         )
         if not rendered_as_help:
             exempt.add(id(doc))
@@ -80,7 +86,8 @@ def _check_file(rel: str, text: str) -> list[str]:
     problems: list[str] = []
     for node in ast.walk(tree):
         if (
-            isinstance(node, ast.Constant) and isinstance(node.value, str)
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
             and id(node) not in exempt
         ):
             found = IDENTIFIERS.search(node.value)
@@ -95,8 +102,11 @@ def _check_file(rel: str, text: str) -> list[str]:
 
 def check_user_facing_text(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     candidates = sorted(
-        {p for p in [*ctx.changed_paths, *ctx.untracked]
-         if p.endswith(".py") and p.startswith(PREFIXES) and p not in DATA_MODULES}
+        {
+            p
+            for p in [*ctx.changed_paths, *ctx.untracked]
+            if p.endswith(".py") and p.startswith(PREFIXES) and p not in DATA_MODULES
+        }
     )
     problems: list[str] = []
     checked = 0

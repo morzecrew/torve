@@ -37,8 +37,11 @@ def state_at(tmp_path, task_id, state, age_s=0.0):
 
 
 def sandbox_for(run):
-    return SandboxInfo(id=f"sbx-{run.task_id}", name=f"torve-{run.task_id}",
-                       labels={"torve.task": run.task_id, "torve.run": run.run_id})
+    return SandboxInfo(
+        id=f"sbx-{run.task_id}",
+        name=f"torve-{run.task_id}",
+        labels={"torve.task": run.task_id, "torve.run": run.run_id},
+    )
 
 
 def test_stale_run_is_expired_and_its_sandbox_destroyed(tmp_path):
@@ -59,8 +62,11 @@ def test_stale_run_is_expired_and_its_sandbox_destroyed(tmp_path):
 
 def test_orphaned_sandbox_with_no_state_at_all_is_destroyed(tmp_path):
     runtime = MockRuntime()
-    runtime.registry = [SandboxInfo(id="sbx-x", name="torve-mystery",
-                                    labels={"torve.task": "T-0000", "torve.run": "gone"})]
+    runtime.registry = [
+        SandboxInfo(
+            id="sbx-x", name="torve-mystery", labels={"torve.task": "T-0000", "torve.run": "gone"}
+        )
+    ]
     report = reap(tmp_path, RunnerConfig(), runtime, ListingWorkspace([]))
     assert report.sandboxes_destroyed == ["torve-mystery"]
 
@@ -74,14 +80,25 @@ def test_the_reap_keeps_to_its_root(tmp_path):
 
     runtime = MockRuntime()
     runtime.registry = [
-        SandboxInfo(id="sbx-own", name="torve-own-orphan",
-                    labels={"torve.task": "T-0001", "torve.run": "gone",
-                            "torve.root": naming.root_key(tmp_path)}),
-        SandboxInfo(id="sbx-foreign", name="torve-foreign",
-                    labels={"torve.task": "T-0001", "torve.run": "gone",
-                            "torve.root": "b" * 12}),
-        SandboxInfo(id="sbx-legacy", name="torve-legacy",
-                    labels={"torve.task": "T-0002", "torve.run": "gone"}),
+        SandboxInfo(
+            id="sbx-own",
+            name="torve-own-orphan",
+            labels={
+                "torve.task": "T-0001",
+                "torve.run": "gone",
+                "torve.root": naming.root_key(tmp_path),
+            },
+        ),
+        SandboxInfo(
+            id="sbx-foreign",
+            name="torve-foreign",
+            labels={"torve.task": "T-0001", "torve.run": "gone", "torve.root": "b" * 12},
+        ),
+        SandboxInfo(
+            id="sbx-legacy",
+            name="torve-legacy",
+            labels={"torve.task": "T-0002", "torve.run": "gone"},
+        ),
     ]
     report = reap(tmp_path, RunnerConfig(), runtime, ListingWorkspace([]))
     assert report.sandboxes_destroyed == ["torve-own-orphan", "torve-legacy"]
@@ -98,11 +115,13 @@ def test_labels_carry_the_root_identity(tmp_path):
 def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):
     state_at(tmp_path, "T-9201", TaskState.READY)
     escalated = state_at(tmp_path, "T-9202", TaskState.RUNNING, age_s=3600)
-    workspace = ListingWorkspace([
-        ("T-9201", tmp_path / ".wt" / "T-9201"),
-        ("T-9202", tmp_path / ".wt" / "T-9202"),  # becomes escalated: kept for triage
-        ("T-9203", tmp_path / ".wt" / "T-9203"),  # no state file: convention debris
-    ])
+    workspace = ListingWorkspace(
+        [
+            ("T-9201", tmp_path / ".wt" / "T-9201"),
+            ("T-9202", tmp_path / ".wt" / "T-9202"),  # becomes escalated: kept for triage
+            ("T-9203", tmp_path / ".wt" / "T-9203"),  # no state file: convention debris
+        ]
+    )
     report = reap(tmp_path, RunnerConfig(), MockRuntime(), workspace)
     assert sorted(report.worktrees_removed) == ["T-9201", "T-9203"]
     assert escalated.task_id not in report.worktrees_removed
@@ -179,15 +198,18 @@ def implement_contract(tmp_path, task_id, role="implement"):
     (task_dir / "contract.yaml").write_text(
         f"schema_version: 1\nid: {task_id}\nrole: {role}\nintent: work\n"
         + ("targets: ['T-0001']\n" if role == "review" else "")
-        + "decisions: []\n", encoding="utf-8")
+        + "decisions: []\n",
+        encoding="utf-8",
+    )
 
 
 def test_an_unlanded_ready_implement_state_survives_the_sweep(tmp_path):
     (tmp_path / ".torve").mkdir()
     implement_contract(tmp_path, "T-9110")
     state_at(tmp_path, "T-9110", TaskState.READY)
-    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
-                  landed=lambda _t: False)
+    report = reap(
+        tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]), landed=lambda _t: False
+    )
     assert report.states_removed == []
     assert (tmp_path / ".wt" / "T-9110.state.json").exists()
 
@@ -196,8 +218,13 @@ def test_a_landed_ready_state_is_swept(tmp_path):
     (tmp_path / ".torve").mkdir()
     implement_contract(tmp_path, "T-9111")
     state_at(tmp_path, "T-9111", TaskState.READY)
-    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
-                  landed=lambda t: t == "T-9111")
+    report = reap(
+        tmp_path,
+        RunnerConfig(),
+        MockRuntime(),
+        ListingWorkspace([]),
+        landed=lambda t: t == "T-9111",
+    )
     assert report.states_removed == ["T-9111"]
 
 
@@ -205,8 +232,9 @@ def test_a_ready_review_state_stays_sweepable(tmp_path):
     (tmp_path / ".torve").mkdir()
     implement_contract(tmp_path, "T-9112", role="review")
     state_at(tmp_path, "T-9112", TaskState.READY)
-    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
-                  landed=lambda _t: False)
+    report = reap(
+        tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]), landed=lambda _t: False
+    )
     assert report.states_removed == ["T-9112"]
 
 
@@ -224,7 +252,8 @@ def test_a_ready_draft_state_survives_unconditionally(tmp_path):
     (tmp_path / ".torve").mkdir()
     implement_contract(tmp_path, "T-9114", role="draft")
     state_at(tmp_path, "T-9114", TaskState.READY)
-    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
-                  landed=lambda _t: True)
+    report = reap(
+        tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]), landed=lambda _t: True
+    )
     assert report.states_removed == []
     assert (tmp_path / ".wt" / "T-9114.state.json").exists()

@@ -44,17 +44,26 @@ from torve.gates.runner import run_gates
 
 
 def gates_run(
-    base: Annotated[str | None, typer.Option(
-        help="Base ref; defaults to origin/main, then main.")] = None,
-    only: Annotated[str | None, typer.Option(
-        help="Comma-separated gate names.")] = None,
-    task_path: Annotated[Path | None, typer.Option(
-        "--task", exists=True,
-        help="Task contract; defaults to .torve/tasks/<id>.yaml for a torve/T-nnnn branch.")]
-    = None,
-    manifest_path: Annotated[Path | None, typer.Option(
-        "--gates", "--manifest",
-        help="Gate manifest; defaults to .torve/gates.yaml, then legacy gates.yaml.")] = None,
+    base: Annotated[
+        str | None, typer.Option(help="Base ref; defaults to origin/main, then main.")
+    ] = None,
+    only: Annotated[str | None, typer.Option(help="Comma-separated gate names.")] = None,
+    task_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--task",
+            exists=True,
+            help="Task contract; defaults to .torve/tasks/<id>.yaml for a torve/T-nnnn branch.",
+        ),
+    ] = None,
+    manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--gates",
+            "--manifest",
+            help="Gate manifest; defaults to .torve/gates.yaml, then legacy gates.yaml.",
+        ),
+    ] = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
@@ -76,8 +85,7 @@ def gates_run(
         ctx = build_context(root, manifest, base=base, task_path=task_path)
         selected = {name.strip() for name in only.split(",")} if only else None
         with live_status("running gates", fmt) as update:
-            report = run_gates(ctx, only=selected,
-                               progress=lambda name: update(f"running {name}"))
+            report = run_gates(ctx, only=selected, progress=lambda name: update(f"running {name}"))
     except GitError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
     except ValueError as exc:
@@ -85,8 +93,7 @@ def gates_run(
 
     # The runner configuration joins the hash (RFC 0004 §6, D-4.3): the tier
     # mapping and provider policy are part of the regime a number belongs to.
-    record = build_record(
-        ctx, report, config_hash(manifest_path, root, load_config(root, None)))
+    record = build_record(ctx, report, config_hash(manifest_path, root, load_config(root, None)))
     append_record(root / manifest.telemetry, record)
 
     if fmt is Format.JSON:
@@ -98,22 +105,35 @@ def gates_run(
         table = make_table("", "gate", "outcome", "state", "duration")
         for result in report.results:
             table.add_row(
-                mark(result.outcome), result.name,
-                Text(result.outcome, STYLE_FAIL if result.outcome in ("fail", "error")
-                       else STYLE_DIM if result.outcome == "skipped" else ""),
+                mark(result.outcome),
+                result.name,
+                Text(
+                    result.outcome,
+                    STYLE_FAIL
+                    if result.outcome in ("fail", "error")
+                    else STYLE_DIM
+                    if result.outcome == "skipped"
+                    else "",
+                ),
                 Text(result.state, STYLE_DIM),
-                Text(f"{result.duration_s:.1f}s", STYLE_DIM))
+                Text(f"{result.duration_s:.1f}s", STYLE_DIM),
+            )
         console.print(table)
         for result in report.results:
             if result.outcome in ("fail", "error") and result.output:
                 console.print(Text(f"  ✗ {result.name}", STYLE_FAIL))
                 failure_detail(console, result.output)
             if result.bypass is not None:
-                console.print(Text(
-                    f"  ⤳ {result.name} bypassed by {result.bypass.author}: "
-                    f"{result.bypass.reason}", STYLE_WARN))
-        closing(console, f"exit {report.exit_code}",
-                STYLE_PASS if report.exit_code == 0 else STYLE_FAIL)
+                console.print(
+                    Text(
+                        f"  ⤳ {result.name} bypassed by {result.bypass.author}: "
+                        f"{result.bypass.reason}",
+                        STYLE_WARN,
+                    )
+                )
+        closing(
+            console, f"exit {report.exit_code}", STYLE_PASS if report.exit_code == 0 else STYLE_FAIL
+        )
     raise typer.Exit(report.exit_code)
 
 
@@ -129,8 +149,7 @@ def gates_check(fmt: FormatOption = Format.TEXT) -> None:
         console = out(fmt)
         for o in outcomes:
             verdict = mark("pass" if o.ok else "fail")
-            console.print(verdict + Text(
-                f" {o.name:<40} expected {o.expected:<8} got {o.got}", ""))
+            console.print(verdict + Text(f" {o.name:<40} expected {o.expected:<8} got {o.got}", ""))
             if not o.ok and o.detail:
                 for line in o.detail.splitlines()[:12]:
                     console.print(f"      {line}")

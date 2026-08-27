@@ -39,11 +39,17 @@ from torve.domain.states import EXIT_CONFIG, EXIT_ESCALATED, EXIT_GATES_RED, EXI
 
 
 def intake_cmd(
-    request: Annotated[str, typer.Argument(
-        help="The request, in prose — what should exist and why.")],
-    rfc: Annotated[str | None, typer.Option(
-        "--rfc", help="Governing document; its decisions are copied at "
-        "adoption (accepted documents only).")] = None,
+    request: Annotated[
+        str, typer.Argument(help="The request, in prose — what should exist and why.")
+    ],
+    rfc: Annotated[
+        str | None,
+        typer.Option(
+            "--rfc",
+            help="Governing document; its decisions are copied at "
+            "adoption (accepted documents only).",
+        ),
+    ] = None,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -83,12 +89,18 @@ def intake_cmd(
         vcs.remove_worktree(root, workdir)
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "task": outcome.task_id,
-                   "fact": outcome.fact, "attempts": outcome.attempts,
-                   "rationale": outcome.rationale,
-                   "drafts": [d.model_dump() for d in outcome.drafts],
-                   "lint_errors": outcome.lint_errors,
-                   "unparseable": outcome.unparseable})
+        emit_json(
+            {
+                "schema_version": 1,
+                "task": outcome.task_id,
+                "fact": outcome.fact,
+                "attempts": outcome.attempts,
+                "rationale": outcome.rationale,
+                "drafts": [d.model_dump() for d in outcome.drafts],
+                "lint_errors": outcome.lint_errors,
+                "unparseable": outcome.unparseable,
+            }
+        )
         raise typer.Exit(EXIT_OK if outcome.drafts else EXIT_ESCALATED)
     console = out(fmt)
     header(console, "intake", outcome.task_id)
@@ -111,8 +123,7 @@ def intake_cmd(
 
 
 def adopt_cmd(
-    task_id: Annotated[str, typer.Argument(
-        help="The drafting run whose drafts to adopt.")],
+    task_id: Annotated[str, typer.Argument(help="The drafting run whose drafts to adopt.")],
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -140,8 +151,7 @@ def adopt_cmd(
 
 
 def lint_contract_cmd(
-    contract: Annotated[Path, typer.Argument(
-        help="A contract.yaml to lint against the tree.")],
+    contract: Annotated[Path, typer.Argument(help="A contract.yaml to lint against the tree.")],
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
@@ -154,8 +164,9 @@ def lint_contract_cmd(
         raise fail(f"configuration error: no contract at {contract}", EXIT_CONFIG)
     errors = lint_contract(root, contract)
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "contract": str(contract),
-                   "ok": not errors, "errors": errors})
+        emit_json(
+            {"schema_version": 1, "contract": str(contract), "ok": not errors, "errors": errors}
+        )
         raise typer.Exit(EXIT_OK if not errors else EXIT_GATES_RED)
     console = out(fmt)
     header(console, "lint-contract", contract.name)

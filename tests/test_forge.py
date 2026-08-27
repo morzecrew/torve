@@ -18,9 +18,12 @@ from torve.domain.task import InheritedDecision, Scope, Task
 
 def task_with_contract() -> Task:
     return Task(
-        id="T-8301", intent="Rotate the keys.\nBecause they leaked.",
-        scope=Scope(), acceptance=["uv run pytest"],
-        decisions=[InheritedDecision(id="D-9", grade="LOCKED", text="keys rotate")])
+        id="T-8301",
+        intent="Rotate the keys.\nBecause they leaked.",
+        scope=Scope(),
+        acceptance=["uv run pytest"],
+        decisions=[InheritedDecision(id="D-9", grade="LOCKED", text="keys rotate")],
+    )
 
 
 def test_the_pr_is_composed_from_records_never_prose(tmp_path: Path):
@@ -30,15 +33,25 @@ def test_the_pr_is_composed_from_records_never_prose(tmp_path: Path):
         "schema_version: 1\ntask: T-8301\ndrift_count: 1\nentries:\n"
         "  - decision: D-9\n    kind: departed\n    claim: took the other road\n"
         "  - decision: D-9\n    kind: resolved\n    claim: routine\n",
-        encoding="utf-8")
-    results = [GateResult(name="scope", outcome="pass", state="blocking",
-                          duration_s=0.2)]
-    meta = {"adapter": "harness", "model": "deepseek-chat",
-            "cost_usd": 0.0123, "trace_ref": "trace://run/1"}
+        encoding="utf-8",
+    )
+    results = [GateResult(name="scope", outcome="pass", state="blocking", duration_s=0.2)]
+    meta = {
+        "adapter": "harness",
+        "model": "deepseek-chat",
+        "cost_usd": 0.0123,
+        "trace_ref": "trace://run/1",
+    }
 
-    title, body = compose_pr(task_with_contract(), 2, "cafecafe1234", meta,
-                             results, tmp_path,
-                             changed=["src/keys.py", "tests/test_keys.py"])
+    title, body = compose_pr(
+        task_with_contract(),
+        2,
+        "cafecafe1234",
+        meta,
+        results,
+        tmp_path,
+        changed=["src/keys.py", "tests/test_keys.py"],
+    )
     assert title == "T-8301: Rotate the keys."
     long_task = task_with_contract().model_copy(update={"intent": "x" * 200})
     long_title, _ = compose_pr(long_task, 1, "d", meta, [], tmp_path)
@@ -61,11 +74,9 @@ def test_the_pr_is_composed_from_records_never_prose(tmp_path: Path):
 
     # A red gate itemizes instead of summarizing; a host path shrinks to
     # its basename while a URI trace stays whole.
-    red = [GateResult(name="scope", outcome="fail", state="blocking",
-                      duration_s=0.1)]
+    red = [GateResult(name="scope", outcome="fail", state="blocking", duration_s=0.1)]
     host_meta = dict(meta, trace_ref="/home/op/lab/.wt/T-8301.a1.trace.log")
-    _, red_body = compose_pr(task_with_contract(), 1, "d", host_meta,
-                             red, tmp_path)
+    _, red_body = compose_pr(task_with_contract(), 1, "d", host_meta, red, tmp_path)
     assert "- scope: fail (0.1s)" in red_body
     assert "trace: T-8301.a1.trace.log" in red_body
     assert "/home/op" not in red_body
@@ -100,9 +111,9 @@ def test_gh_receives_the_named_token_and_the_configured_repo(tmp_path, monkeypat
     def fake_run(command, **kwargs):
         captured["command"] = command
         captured["env"] = kwargs.get("env")
-        return subprocess.CompletedProcess(command, 0,
-                                           stdout="https://github.com/example/lab/pull/1\n",
-                                           stderr="")
+        return subprocess.CompletedProcess(
+            command, 0, stdout="https://github.com/example/lab/pull/1\n", stderr=""
+        )
 
     monkeypatch.setattr(git_module.subprocess, "run", fake_run)
     monkeypatch.setenv("LAB_TOKEN", "sekrit-value")
@@ -136,14 +147,21 @@ def test_open_pr_reuses_the_branchs_open_pull_request(tmp_path, monkeypatch):
         joined = " ".join(cmd)
         if "pr create" in joined:
             return subprocess.CompletedProcess(
-                command, 1, stdout="",
-                stderr="a pull request for branch \"torve/T-8302\" "
-                       "already exists: https://github.com/example/lab/pull/31")
+                command,
+                1,
+                stdout="",
+                stderr='a pull request for branch "torve/T-8302" '
+                "already exists: https://github.com/example/lab/pull/31",
+            )
         if "pr list" in joined:
             return subprocess.CompletedProcess(
-                command, 0, stderr="", stdout=json.dumps(
-                    [{"number": 31,
-                      "url": "https://github.com/example/lab/pull/31"}]))
+                command,
+                0,
+                stderr="",
+                stdout=json.dumps(
+                    [{"number": 31, "url": "https://github.com/example/lab/pull/31"}]
+                ),
+            )
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(git_module.subprocess, "run", fake_run)
@@ -171,8 +189,9 @@ def ci_with_script(monkeypatch, bodies: list[str], **kwargs):
         return subprocess.CompletedProcess(command, 0, stdout=body, stderr="")
 
     monkeypatch.setattr(git_module.subprocess, "run", fake_run)
-    ci = GhCi("example/lab", token_env="LAB_TOKEN",
-              sleeper=lambda s: calls["sleeps"].append(s), **kwargs)  # type: ignore[union-attr]
+    ci = GhCi(
+        "example/lab", token_env="LAB_TOKEN", sleeper=lambda s: calls["sleeps"].append(s), **kwargs
+    )  # type: ignore[union-attr]
     return ci, calls
 
 
@@ -185,8 +204,7 @@ def test_ghci_polls_with_backoff_until_the_run_settles(monkeypatch):
     assert ci.conclusion("cafe" * 10) == "success"
     assert calls["sleeps"] == [7.0, 7.0]  # two waits, then the settled verdict
     first = [str(part) for part in calls["commands"][0]]  # type: ignore[index]
-    assert any("repos/example/lab/actions/runs?head_sha=" + "cafe" * 10 in part
-               for part in first)
+    assert any("repos/example/lab/actions/runs?head_sha=" + "cafe" * 10 in part for part in first)
     env = calls["env"]
     assert isinstance(env, dict) and env["GH_TOKEN"] == "sekrit-value"
 
@@ -206,12 +224,16 @@ def test_ghci_lets_a_rerun_supersede_the_run_it_replaced(monkeypatch):
     # Newest first from the API: a green re-run outranks the stale failure
     # of the same workflow; a red run of a DIFFERENT workflow still vetoes.
     monkeypatch.setenv("LAB_TOKEN", "sekrit-value")
-    rerun = ('[{"status": "completed", "conclusion": "success", "workflow_id": 7},'
-             ' {"status": "completed", "conclusion": "failure", "workflow_id": 7}]')
+    rerun = (
+        '[{"status": "completed", "conclusion": "success", "workflow_id": 7},'
+        ' {"status": "completed", "conclusion": "failure", "workflow_id": 7}]'
+    )
     ci, _ = ci_with_script(monkeypatch, [rerun])
     assert ci.conclusion("abc1234") == "success"
 
-    mixed = ('[{"status": "completed", "conclusion": "success", "workflow_id": 7},'
-             ' {"status": "completed", "conclusion": "failure", "workflow_id": 8}]')
+    mixed = (
+        '[{"status": "completed", "conclusion": "success", "workflow_id": 7},'
+        ' {"status": "completed", "conclusion": "failure", "workflow_id": 8}]'
+    )
     ci, _ = ci_with_script(monkeypatch, [mixed])
     assert ci.conclusion("abc1234") == "failure"

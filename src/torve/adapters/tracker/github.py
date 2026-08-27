@@ -32,14 +32,24 @@ KEY_MARK = "torve-key:"
 
 # Network-shaped failures worth one retry (T-0058). Kept in each GitHub
 # adapter separately — adapters are independent and may not share code.
-TRANSIENT = ("timeout", "tls handshake", "connection reset",
-             "connection refused", "temporary failure", "no such host",
-             "unexpected eof", "network is unreachable", "502", "503")
+TRANSIENT = (
+    "timeout",
+    "tls handshake",
+    "connection reset",
+    "connection refused",
+    "temporary failure",
+    "no such host",
+    "unexpected eof",
+    "network is unreachable",
+    "502",
+    "503",
+)
 
 
 class GithubIssues:
-    def __init__(self, repo: str, token_env: str | None = None,
-                 sleeper: Callable[[float], None] = time.sleep) -> None:
+    def __init__(
+        self, repo: str, token_env: str | None = None, sleeper: Callable[[float], None] = time.sleep
+    ) -> None:
         self.repo = repo
         self.token_env = token_env
         self.sleeper = sleeper
@@ -56,8 +66,7 @@ class GithubIssues:
                 )
             env = {**os.environ, "GH_TOKEN": token}
         for attempt in (1, 2):
-            proc = subprocess.run(command, capture_output=True, text=True,
-                                  check=False, env=env)
+            proc = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
             if proc.returncode == 0:
                 return proc.stdout
             error = proc.stderr.strip() or f"{command[1]} failed"
@@ -75,18 +84,36 @@ class GithubIssues:
     def _issue_for(self, task_id: str, title: str, create: bool = True) -> int | None:
         if task_id in self._issues:
             return self._issues[task_id]
-        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
-            "issue", "list", "--state", "all", "--search", f"{task_id} in:title",
-            "--json", "number,title") or "[]"))
+        listed = cast(
+            "list[dict[str, Any]]",
+            json.loads(
+                self._gh(
+                    "issue",
+                    "list",
+                    "--state",
+                    "all",
+                    "--search",
+                    f"{task_id} in:title",
+                    "--json",
+                    "number,title",
+                )
+                or "[]"
+            ),
+        )
         for issue in listed:
             if str(issue.get("title", "")).startswith(f"{task_id}:"):
                 self._issues[task_id] = int(issue["number"])
                 return self._issues[task_id]
         if not create:
             return None
-        out = self._gh("issue", "create", "--title", title,
-                       "--body", "projection of the torve run store — "
-                                 "the store is the authority, this issue is a view")
+        out = self._gh(
+            "issue",
+            "create",
+            "--title",
+            title,
+            "--body",
+            "projection of the torve run store — the store is the authority, this issue is a view",
+        )
         number = int(out.strip().rsplit("/", 1)[-1])
         self._issues[task_id] = number
         return number
@@ -95,8 +122,10 @@ class GithubIssues:
         # Labels are created idempotently, then applied — and the board
         # wears one state label at a time (D-8.12): stale state siblings
         # are retired, history stays in the comments and the store.
-        listed = cast("dict[str, Any]", json.loads(
-            self._gh("issue", "view", str(number), "--json", "labels") or "{}"))
+        listed = cast(
+            "dict[str, Any]",
+            json.loads(self._gh("issue", "view", str(number), "--json", "labels") or "{}"),
+        )
         for worn in cast("list[dict[str, Any]]", listed.get("labels", [])):
             name = str(worn.get("name", ""))
             if name.startswith("state:") and name != label:
@@ -188,25 +217,41 @@ class GithubIssues:
         # Issues have no inline file annotations: the D-8.6 unsupported
         # path, honestly — the finding still reaches the issue as a comment
         # through the caller's divergence handling if it chooses to.
-        return ReflectResult("unsupported",
-                             "github issues carry no inline annotations")
+        return ReflectResult("unsupported", "github issues carry no inline annotations")
 
     def poll_commands(self) -> list[TrackerCommand]:
         commands: list[TrackerCommand] = []
-        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
-            "issue", "list", "--state", "all", "--search", "in:title T-",
-            "--json", "number,title") or "[]"))
+        listed = cast(
+            "list[dict[str, Any]]",
+            json.loads(
+                self._gh(
+                    "issue",
+                    "list",
+                    "--state",
+                    "all",
+                    "--search",
+                    "in:title T-",
+                    "--json",
+                    "number,title",
+                )
+                or "[]"
+            ),
+        )
         for issue in listed:
             title = str(issue.get("title", ""))
             task_id = title.split(":", 1)[0].strip()
             if not re.fullmatch(r"T-\d{4}", task_id):
                 continue
-            detail = cast("dict[str, Any]", json.loads(self._gh(
-                "issue", "view", str(issue["number"]), "--json", "comments")))
+            detail = cast(
+                "dict[str, Any]",
+                json.loads(self._gh("issue", "view", str(issue["number"]), "--json", "comments")),
+            )
             comments = cast("list[dict[str, Any]]", detail.get("comments", []))
-            answered = {m for c in comments
-                        for m in re.findall(re.escape(KEY_MARK) + r"cmd:(\S+?) ",
-                                            str(c.get("body", "")))}
+            answered = {
+                m
+                for c in comments
+                for m in re.findall(re.escape(KEY_MARK) + r"cmd:(\S+?) ", str(c.get("body", "")))
+            }
             for comment in comments:
                 body = str(comment.get("body", ""))
                 if KEY_MARK in body:
@@ -218,10 +263,15 @@ class GithubIssues:
                 if source in answered:
                     continue
                 author = cast("dict[str, Any]", comment.get("author") or {})
-                commands.append(TrackerCommand(
-                    verb=found.group(1), task_id=task_id,
-                    actor=str(author.get("login", "unknown")), source=source,
-                    text=body))
+                commands.append(
+                    TrackerCommand(
+                        verb=found.group(1),
+                        task_id=task_id,
+                        actor=str(author.get("login", "unknown")),
+                        source=source,
+                        text=body,
+                    )
+                )
         return commands
 
     # The intake surface (RFC 0020 §5.4): torve.intake-labeled issues
@@ -232,19 +282,36 @@ class GithubIssues:
     INTAKE_LABEL = "torve.intake"
 
     def intake_requests(self) -> list[IntakeRequest]:
-        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
-            "issue", "list", "--state", "open", "--label", self.INTAKE_LABEL,
-            "--json", "number,title,body,author") or "[]"))
+        listed = cast(
+            "list[dict[str, Any]]",
+            json.loads(
+                self._gh(
+                    "issue",
+                    "list",
+                    "--state",
+                    "open",
+                    "--label",
+                    self.INTAKE_LABEL,
+                    "--json",
+                    "number,title,body,author",
+                )
+                or "[]"
+            ),
+        )
         requests: list[IntakeRequest] = []
         for issue in listed:
             title = str(issue.get("title", ""))
             if re.match(r"^T-\d{4}:", title):
                 continue  # claimed: the drafting task's row already
             author = cast("dict[str, Any]", issue.get("author") or {})
-            requests.append(IntakeRequest(
-                number=int(issue["number"]), title=title,
-                body=str(issue.get("body", "")),
-                author=str(author.get("login", "unknown"))))
+            requests.append(
+                IntakeRequest(
+                    number=int(issue["number"]),
+                    title=title,
+                    body=str(issue.get("body", "")),
+                    author=str(author.get("login", "unknown")),
+                )
+            )
         return requests
 
     def retitle(self, number: int, title: str) -> ReflectResult:

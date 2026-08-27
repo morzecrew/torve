@@ -57,7 +57,9 @@ class ReapReport:
 
 
 def _sweep_worktrees(
-    workspace: WorkspacePort, by_task: dict[str, RunState], report: ReapReport,
+    workspace: WorkspacePort,
+    by_task: dict[str, RunState],
+    report: ReapReport,
     dry_run: bool,
 ) -> None:
     for task_id, _path in workspace.list_worktrees():
@@ -70,8 +72,7 @@ def _sweep_worktrees(
             report.worktrees_removed.append(task_id)
 
 
-def _lane_input(root: Path, state: RunState,
-                landed: LandedOracle | None) -> bool:
+def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> bool:
     """D-19.10 (A-28, narrowing D-3.23): a READY implement or revert run
     whose task has not landed on the base is the lane's input, not debris —
     its state file survives the sweep. Without a landed oracle the answer
@@ -100,7 +101,10 @@ def _lane_input(root: Path, state: RunState,
 
 
 def _sweep_states(
-    root: Path, states: list[RunState], report: ReapReport, dry_run: bool,
+    root: Path,
+    states: list[RunState],
+    report: ReapReport,
+    dry_run: bool,
     landed: LandedOracle | None = None,
 ) -> None:
     """A terminal run's remaining footprint: state file and trace logs, named
@@ -127,8 +131,13 @@ def _escalate_if_active(state: RunState, reason: EscalationReason, detail: str) 
 
 
 def _heartbeat_reap(
-    root: Path, config: RunnerConfig, runtime: Runtime, workspace: WorkspacePort,
-    force: bool, dry_run: bool, landed: LandedOracle | None = None,
+    root: Path,
+    config: RunnerConfig,
+    runtime: Runtime,
+    workspace: WorkspacePort,
+    force: bool,
+    dry_run: bool,
+    landed: LandedOracle | None = None,
 ) -> ReapReport:
     report = ReapReport()
     states = RunState.load_all(root / naming.WORKTREE_DIR)
@@ -137,12 +146,17 @@ def _heartbeat_reap(
         stale = state.heartbeat_age_s() > config.reap.stale_after
         if state.state in ACTIVE and (stale or force):
             if not dry_run:
-                state.escalate(EscalationReason.LEASE_EXPIRED,
-                               f"heartbeat stale ({state.heartbeat_age_s():.0f}s) at reap")
+                state.escalate(
+                    EscalationReason.LEASE_EXPIRED,
+                    f"heartbeat stale ({state.heartbeat_age_s():.0f}s) at reap",
+                )
             report.runs_expired.append(state.task_id)
 
-    live_runs = {s.run_id for s in states
-                 if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after}
+    live_runs = {
+        s.run_id
+        for s in states
+        if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after
+    }
     own = naming.root_key(root)
     for sandbox in runtime.list_torve_sandboxes():
         # The reap keeps to its root (D-3.25, A-38): another engine's
@@ -162,8 +176,13 @@ def _heartbeat_reap(
 
 
 async def _durable_reap(
-    root: Path, config: RunnerConfig, runtime: Runtime, workspace: WorkspacePort,
-    force: bool, dry_run: bool, store: StoreFactory,
+    root: Path,
+    config: RunnerConfig,
+    runtime: Runtime,
+    workspace: WorkspacePort,
+    force: bool,
+    dry_run: bool,
+    store: StoreFactory,
     landed: LandedOracle | None = None,
 ) -> ReapReport:
     from torve.application.taskstore import TaskStore
@@ -221,6 +240,7 @@ def reap(
     if config.store.adapter == "postgres":
         if store is None:
             raise RuntimeError("a postgres reap needs a store factory injected by the caller")
-        return asyncio.run(_durable_reap(root, config, runtime, workspace, force, dry_run,
-                                         store, landed))
+        return asyncio.run(
+            _durable_reap(root, config, runtime, workspace, force, dry_run, store, landed)
+        )
     return _heartbeat_reap(root, config, runtime, workspace, force, dry_run, landed)

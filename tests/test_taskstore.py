@@ -98,8 +98,9 @@ def test_expired_lease_is_reclaimed_and_fenced():
         # reclaim advanced the fence, so the stale fence cannot land — whether
         # the store refuses loudly or discards silently, the verdict stands.
         with contextlib.suppress(Exception):
-            await taskstore.store.complete(record.run_id, output_json={"late": True},
-                                           fence=stale_fence)
+            await taskstore.store.complete(
+                record.run_id, output_json={"late": True}, fence=stale_fence
+            )
         final = await taskstore.store.load(record.run_id)
         assert final.status is DurableRunStatus.FAILED
         assert final.output_json != {"late": True}

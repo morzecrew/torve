@@ -37,8 +37,9 @@ from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE
 
 # ----------------------- #
 
-sandbox_app = typer.Typer(no_args_is_help=True,
-                          help="Sandbox image definitions: build and identify.")
+sandbox_app = typer.Typer(
+    no_args_is_help=True, help="Sandbox image definitions: build and identify."
+)
 
 DEFINITIONS_DIR = "sandbox"
 
@@ -53,8 +54,11 @@ def definition_names(root: Path) -> list[str]:
     base = definitions_root(root)
     if not base.is_dir():
         return []
-    return sorted(entry.name for entry in base.iterdir()
-                  if entry.is_dir() and (entry / "Dockerfile").is_file())
+    return sorted(
+        entry.name
+        for entry in base.iterdir()
+        if entry.is_dir() and (entry / "Dockerfile").is_file()
+    )
 
 
 def image_tag(name: str) -> str:
@@ -63,8 +67,9 @@ def image_tag(name: str) -> str:
 
 @sandbox_app.command("build")
 def build(
-    name: Annotated[str | None, typer.Argument(
-        help="One definition to build; omit to build every definition.")] = None,
+    name: Annotated[
+        str | None, typer.Argument(help="One definition to build; omit to build every definition.")
+    ] = None,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -81,21 +86,24 @@ def build(
     if name is not None:
         if name not in names:
             listed = ", ".join(names) or "none"
-            raise fail(f"configuration error: no definition directory with a "
-                       f"Dockerfile for {name!r} under {definitions_root(root)} "
-                       f"(defined: {listed})", EXIT_CONFIG)
+            raise fail(
+                f"configuration error: no definition directory with a "
+                f"Dockerfile for {name!r} under {definitions_root(root)} "
+                f"(defined: {listed})",
+                EXIT_CONFIG,
+            )
         names = [name]
     if not names:
-        raise fail(f"configuration error: no image definitions under "
-                   f"{definitions_root(root)}", EXIT_CONFIG)
+        raise fail(
+            f"configuration error: no image definitions under {definitions_root(root)}", EXIT_CONFIG
+        )
 
     built: list[dict[str, str]] = []
     for entry in names:
         try:
             digest = runtime.build_image(definitions_root(root) / entry, image_tag(entry))
         except Exception as error:  # the build tool's failure is the message
-            raise fail(f"build failed for {entry!r}: {error}",
-                       EXIT_INFRASTRUCTURE) from None
+            raise fail(f"build failed for {entry!r}: {error}", EXIT_INFRASTRUCTURE) from None
         built.append({"name": entry, "tag": image_tag(entry), "digest": digest})
 
     if fmt is Format.JSON:
@@ -105,6 +113,5 @@ def build(
     header(console, "sandbox build", f"{len(built)} image(s)")
     table = make_table("name", "tag", "digest")
     for image in built:
-        table.add_row(image["name"], Text(image["tag"], STYLE_ID),
-                      Text(image["digest"], STYLE_ID))
+        table.add_row(image["name"], Text(image["tag"], STYLE_ID), Text(image["digest"], STYLE_ID))
     console.print(table)

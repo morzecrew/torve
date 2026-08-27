@@ -24,9 +24,7 @@ def estimate(task: Task) -> SizeVerdict:
     if len(task.scope.allow) > MAX_ALLOW_GLOBS:
         reasons.append(f"{len(task.scope.allow)} allow globs (threshold {MAX_ALLOW_GLOBS})")
     if len(task.acceptance) > MAX_ACCEPTANCE:
-        reasons.append(
-            f"{len(task.acceptance)} acceptance commands (threshold {MAX_ACCEPTANCE})"
-        )
+        reasons.append(f"{len(task.acceptance)} acceptance commands (threshold {MAX_ACCEPTANCE})")
     modules = {glob.split("/", 1)[0] for glob in task.scope.allow if "/" in glob}
     if len(modules) > MAX_MODULES:
         listed = ", ".join(sorted(modules))

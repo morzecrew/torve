@@ -35,30 +35,40 @@ def without_skill(config: RunnerConfig, skill: str) -> RunnerConfig:
     """The baseline arm's configuration: the skill removed from every role
     set. A skill in no set is a configuration error — there is nothing to
     measure."""
-    sets = {role: [name for name in names if name != skill]
-            for role, names in config.skills.sets.items()}
+    sets = {
+        role: [name for name in names if name != skill]
+        for role, names in config.skills.sets.items()
+    }
     if sets == config.skills.sets:
-        raise ValueError(
-            f"skill {skill!r} is in no role set — nothing to measure")
+        raise ValueError(f"skill {skill!r} is in no role set — nothing to measure")
     return config.model_copy(update={"skills": SkillsConfig(sets=sets)})
 
 
 def _arm_row(record: dict[str, Any]) -> dict[str, Any]:
-    return {"task": record["task_id"], "state": record["state"],
-            "attempts": record["attempts"],
-            "cost_usd": record["cost_usd_total"]}
+    return {
+        "task": record["task_id"],
+        "state": record["state"],
+        "attempts": record["attempts"],
+        "cost_usd": record["cost_usd_total"],
+    }
 
 
 def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     costs = [r["cost_usd"] for r in rows if r["cost_usd"] is not None]
-    return {"green": sum(1 for r in rows if r["state"] == "ready"),
-            "attempts": sum(int(r["attempts"]) for r in rows),
-            "cost_usd": round(sum(costs), 6) if costs else None}
+    return {
+        "green": sum(1 for r in rows if r["state"] == "ready"),
+        "attempts": sum(int(r["attempts"]) for r in rows),
+        "cost_usd": round(sum(costs), 6) if costs else None,
+    }
 
 
 def run_skill_eval(
-    root: Path, skill: str, tasks: list[Task], config: RunnerConfig,
-    deps: RunDeps, source: ShadowSource,
+    root: Path,
+    skill: str,
+    tasks: list[Task],
+    config: RunnerConfig,
+    deps: RunDeps,
+    source: ShadowSource,
 ) -> dict[str, Any]:
     """Both arms over every task, one eval record appended and returned.
     Raises ValueError for a skill in no role set or a task with no shipped
@@ -67,13 +77,16 @@ def run_skill_eval(
     results: dict[str, list[dict[str, Any]]] = {"with": [], "without": []}
     for task in tasks:
         for arm, arm_config in arms.items():
-            record = run_shadow(root, task, arm_config, deps, source,
-                                annotation={"skill": skill, "arm": arm})
+            record = run_shadow(
+                root, task, arm_config, deps, source, annotation={"skill": skill, "arm": arm}
+            )
             results[arm].append(_arm_row(record))
 
     with_arm, without_arm = _summary(results["with"]), _summary(results["without"])
-    matched = (without_arm["green"] >= with_arm["green"]
-               and without_arm["attempts"] <= with_arm["attempts"])
+    matched = (
+        without_arm["green"] >= with_arm["green"]
+        and without_arm["attempts"] <= with_arm["attempts"]
+    )
     record = {
         "schema_version": SCHEMA_VERSION,
         "kind": "skill-eval",

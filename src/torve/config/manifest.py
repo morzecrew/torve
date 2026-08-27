@@ -64,6 +64,7 @@ class Gate(BaseModel):
             raise ValueError(f"gate {self.name!r}: 'commands' only applies to @acceptance")
         return self
 
+
 # Builtins: expected input and a cost proxy used for cheapest-first ordering.
 # Diff-, task- and log-input builtins are near-free; only acceptance shells out.
 BUILTIN_INPUTS: dict[str, str] = {

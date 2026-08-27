@@ -49,9 +49,11 @@ def tick_cmd(
     ci = None
     if config.promotion.require_ci:
         if not config.scm.repo:
-            raise fail("configuration error: promotion.require_ci needs "
-                       "scm.repo to name the remote whose verdict counts",
-                       EXIT_CONFIG)
+            raise fail(
+                "configuration error: promotion.require_ci needs "
+                "scm.repo to name the remote whose verdict counts",
+                EXIT_CONFIG,
+            )
         ci = GhCi(config.scm.repo, config.scm.token_env)
 
     def reap_leg() -> tuple[str, bool]:
@@ -61,13 +63,21 @@ def tick_cmd(
 
         # The factory travels regardless of adapter: under postgres the
         # reap is durable (D-3.15) and would refuse without it.
-        report = reap(root, config, runtime_for(config, None), workspace,
-                      store=open_store,
-                      landed=lambda t: bool(vcs.landed_shas(root, t)))
-        swept = (len(report.sandboxes_destroyed) + len(report.worktrees_removed)
-                 + len(report.runs_expired) + len(report.states_removed))
-        return (f"swept {swept} artefact(s)" if swept else "nothing to sweep",
-                swept > 0)
+        report = reap(
+            root,
+            config,
+            runtime_for(config, None),
+            workspace,
+            store=open_store,
+            landed=lambda t: bool(vcs.landed_shas(root, t)),
+        )
+        swept = (
+            len(report.sandboxes_destroyed)
+            + len(report.worktrees_removed)
+            + len(report.runs_expired)
+            + len(report.states_removed)
+        )
+        return (f"swept {swept} artefact(s)" if swept else "nothing to sweep", swept > 0)
 
     def _capture_for_revision(task_id: str) -> str:
         """The re-queue cleanup the retry command and the lane's conflict
@@ -84,15 +94,16 @@ def tick_cmd(
             return "branch kept; revision loop off"
         scm = GhScm(config.scm.repo, config.scm.token_env)
         try:
-            threads = scm.review_threads(
-                branch, tuple(config.review.feedback_from))
-            diff = (vcs.diff(root, config.base or "origin/main", branch)
-                    if GitLane().tip(root, branch) else "")
+            threads = scm.review_threads(branch, tuple(config.review.feedback_from))
+            diff = (
+                vcs.diff(root, config.base or "origin/main", branch)
+                if GitLane().tip(root, branch)
+                else ""
+            )
             captured = capture_feedback(root, task_id, diff, threads)
         except RuntimeError as exc:
             return f"branch kept; feedback capture failed: {exc}"
-        return ("branch kept; feedback captured" if captured
-                else "branch kept; nothing to capture")
+        return "branch kept; feedback captured" if captured else "branch kept; nothing to capture"
 
     poll_leg: Leg | None = None
     sync_leg: Leg | None = None
@@ -123,8 +134,7 @@ def tick_cmd(
 
             from torve.application.feedback import feedback_file
 
-            body = _re.sub(r"^/torve\s+[a-z]+\s*$", "", text,
-                           flags=_re.MULTILINE).strip()
+            body = _re.sub(r"^/torve\s+[a-z]+\s*$", "", text, flags=_re.MULTILINE).strip()
             target = feedback_file(root, task_id)
             target.parent.mkdir(parents=True, exist_ok=True)
             if body:
@@ -147,34 +157,35 @@ def tick_cmd(
                 agent_factory=lambda: build_tier_agent(config, root, "planner"),
                 worktree_at=vcs.worktree_at,
                 remove_worktree=vcs.remove_worktree,
-                base_tip=lambda: GitLane().tip(
-                    root, resolve_base(root, config.base) or "HEAD"),
+                base_tip=lambda: GitLane().tip(root, resolve_base(root, config.base) or "HEAD"),
                 config_digest=config_hash(layout.gates_file(root), root, config),
             )
-            return intake_leg(root, config, deps,
-                              tuple(config.tracker.commanders))
+            return intake_leg(root, config, deps, tuple(config.tracker.commanders))
 
         intake_leg_fn = _intake
 
         def _poll() -> tuple[str, bool]:
-            report = poll_and_apply(root, board, tuple(config.tracker.commanders),
-                                    _capture_for_revision, _approve_tip,
-                                    _adopt_drafts, _draft_feedback)
+            report = poll_and_apply(
+                root,
+                board,
+                tuple(config.tracker.commanders),
+                _capture_for_revision,
+                _approve_tip,
+                _adopt_drafts,
+                _draft_feedback,
+            )
             if not report.outcomes:
                 return ("no commands on the board", False)
             applied = sum(o.applied for o in report.outcomes)
-            return (f"{applied} applied of {len(report.outcomes)} command(s)",
-                    applied > 0)
+            return (f"{applied} applied of {len(report.outcomes)} command(s)", applied > 0)
 
         def _sync() -> tuple[str, bool]:
             from torve.application.tracker import project_landings
 
             staged = project(root, config.tracker.notify)
-            staged += project_landings(
-                root, lambda t: bool(vcs.landed_shas(root, t)))
+            staged += project_landings(root, lambda t: bool(vcs.landed_shas(root, t)))
             report = relay_to_tracker(root, board)
-            return (f"staged {staged}, delivered {len(report.delivered)}",
-                    bool(report.delivered))
+            return (f"staged {staged}, delivered {len(report.delivered)}", bool(report.delivered))
 
         poll_leg, sync_leg = _poll, _sync
 
@@ -193,21 +204,26 @@ def tick_cmd(
         task = load_task(root / ".torve" / "tasks" / task_id / "contract.yaml")
         tier = tier_for(config, task.tier)
         route_provider(config.providers, repository_name(root), tier.provider)
-        agent: Agent = (FakeAgent(None) if tier.adapter == "fake"
-                        else HarnessAgent(tier))
-        review_agent = (build_reviewer_agent(config, root)
-                        if "task_gated" in config.review.on else None)
+        agent: Agent = FakeAgent(None) if tier.adapter == "fake" else HarnessAgent(tier)
+        review_agent = (
+            build_reviewer_agent(config, root) if "task_gated" in config.review.on else None
+        )
         deps = RunDeps(
-            workspace=workspace, runtime=runtime_for(config, None), agent=agent,
+            workspace=workspace,
+            runtime=runtime_for(config, None),
+            agent=agent,
             vcs=vcs,
-            scm=(GhScm(config.scm.repo, config.scm.token_env)
-                 if config.scm.open_pr else NullScm()),
-            store=open_store, review_agent=review_agent,
+            scm=(GhScm(config.scm.repo, config.scm.token_env) if config.scm.open_pr else NullScm()),
+            store=open_store,
+            review_agent=review_agent,
         )
         # A batch member runs under its own worker slot (D-19.14): auth
         # volumes are per-slot (D-4.2), and two runs must never share one.
-        run_config = (config if slot_offset == 0 else config.model_copy(
-            update={"worker_slot": config.worker_slot + slot_offset}))
+        run_config = (
+            config
+            if slot_offset == 0
+            else config.model_copy(update={"worker_slot": config.worker_slot + slot_offset})
+        )
         state = run_task(root, task, run_config, deps)
         return f"{task_id}: {state.state} after {state.attempts} attempt(s)"
 
@@ -220,8 +236,9 @@ def tick_cmd(
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=len(task_ids)) as pool:
-            futures = [pool.submit(_dispatch_one, task_id, index)
-                       for index, task_id in enumerate(task_ids)]
+            futures = [
+                pool.submit(_dispatch_one, task_id, index) for index, task_id in enumerate(task_ids)
+            ]
             outcomes: list[str] = []
             for task_id, future in zip(task_ids, futures, strict=True):
                 try:
@@ -237,14 +254,17 @@ def tick_cmd(
         def _lane() -> tuple[str, bool]:
             lane_vcs = GitLane()
             results = process_lane(
-                root, lane_vcs, ci=ci,
+                root,
+                lane_vcs,
+                ci=ci,
                 approvals_required=config.promotion.approvals,
                 require_review=config.promotion.require_review,
                 quiet_window_s=config.promotion.quiet_window,
                 # D-6.10 as amended by A-35: the loop disposes of its own
                 # conflicts through the revision loop; the operator's
                 # manual lane never does.
-                on_conflict=_capture_for_revision)
+                on_conflict=_capture_for_revision,
+            )
             if not results:
                 return ("no ready candidates", False)
             if config.tracker.kind == "github-issues" and config.tracker.repo:
@@ -254,8 +274,7 @@ def tick_cmd(
                 # this same tick's sync leg.
                 for r in results:
                     if r.action == "approvals short" and r.sha:
-                        project_approval_gap(root, r.task, r.sha,
-                                             config.promotion.approvals)
+                        project_approval_gap(root, r.task, r.sha, config.promotion.approvals)
             landed = sum(1 for r in results if r.action == "landed")
             detail = f"landed {landed} of {len(results)} candidate(s)"
             if landed:
@@ -266,8 +285,7 @@ def tick_cmd(
 
                 from torve.base import naming
 
-                token = (os.environ.get(config.scm.token_env)
-                         if config.scm.token_env else None)
+                token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
                 base = lane_vcs.current_branch(root)
                 # D-19.12 (A-34): the landed form returns to its branch
                 # BEFORE the base push, so the forge sees that push as the
@@ -277,8 +295,7 @@ def tick_cmd(
                 for r in results:
                     if r.action == "landed" and r.detail.startswith("rebased"):
                         try:
-                            if vcs.republish_branch(
-                                    root, naming.branch(r.task), token):
+                            if vcs.republish_branch(root, naming.branch(r.task), token):
                                 republished += 1
                         except RuntimeError:
                             pass
@@ -298,10 +315,12 @@ def tick_cmd(
                     for r in results:
                         if r.action != "landed":
                             continue
-                        note = (f"landed on {base} as {r.sha[:10]} by "
-                                "fast-forward — this pull request was a "
-                                "review surface; the approval that landed "
-                                "it lives on the task's issue")
+                        note = (
+                            f"landed on {base} as {r.sha[:10]} by "
+                            "fast-forward — this pull request was a "
+                            "review surface; the approval that landed "
+                            "it lives on the task's issue"
+                        )
                         branch_name = naming.branch(r.task)
                         try:
                             word = scm.retire_pr(branch_name, note)
@@ -327,14 +346,14 @@ def tick_cmd(
                         if not pending.is_file():
                             continue
                         try:
-                            records = _json.loads(
-                                pending.read_text(encoding="utf-8"))
-                            reply = (f"Captured into {r.task}'s revision "
-                                     "record; the revised candidate landed "
-                                     f"as `{r.sha[:10]}`. The finding's "
-                                     "disposition stays the reviewer's call.")
-                            done, _already = scm.answer_captured_threads(
-                                records, reply)
+                            records = _json.loads(pending.read_text(encoding="utf-8"))
+                            reply = (
+                                f"Captured into {r.task}'s revision "
+                                "record; the revised candidate landed "
+                                f"as `{r.sha[:10]}`. The finding's "
+                                "disposition stays the reviewer's call."
+                            )
+                            done, _already = scm.answer_captured_threads(records, reply)
                             pending.unlink()
                             answered += done
                         except (RuntimeError, ValueError):
@@ -348,15 +367,29 @@ def tick_cmd(
     def landed(task_id: str) -> bool:
         return bool(vcs.landed_shas(root, task_id))
 
-    report = run_tick(root, config, TickDeps(
-        reap=reap_leg, poll=poll_leg, dispatch=dispatch_leg,
-        lane=lane_leg, sync=sync_leg, landed=landed,
-        intake=intake_leg_fn))
+    report = run_tick(
+        root,
+        config,
+        TickDeps(
+            reap=reap_leg,
+            poll=poll_leg,
+            dispatch=dispatch_leg,
+            lane=lane_leg,
+            sync=sync_leg,
+            landed=landed,
+            intake=intake_leg_fn,
+        ),
+    )
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "noop": report.noop,
-                   "locked_out": report.locked_out,
-                   "legs": dict(report.legs)})
+        emit_json(
+            {
+                "schema_version": 1,
+                "noop": report.noop,
+                "locked_out": report.locked_out,
+                "legs": dict(report.legs),
+            }
+        )
     else:
         console = out(fmt)
         header(console, "tick", "one bounded pass")
@@ -364,6 +397,9 @@ def tick_cmd(
         for name, detail in report.legs:
             table.add_row(name, detail)
         console.print(table)
-        closing(console, "noop — nothing moved" if report.noop else "work done",
-                STYLE_DIM if report.noop else "")
+        closing(
+            console,
+            "noop — nothing moved" if report.noop else "work done",
+            STYLE_DIM if report.noop else "",
+        )
     raise typer.Exit(EXIT_OK)

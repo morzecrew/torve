@@ -84,9 +84,12 @@ def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
     kind, klass = _norm(entry.get("kind")), _norm(entry.get("class"))
     if not kind and not klass:
         problems.append(f"{where}: neither 'kind' nor 'class' present")
-    for key, vocabulary, value in (("grade", GRADES, _norm(entry.get("grade"))),
-                                   ("kind", KINDS, kind), ("class", CLASSES, klass),
-                                   ("action", ACTIONS, _norm(entry.get("action")))):
+    for key, vocabulary, value in (
+        ("grade", GRADES, _norm(entry.get("grade"))),
+        ("kind", KINDS, kind),
+        ("class", CLASSES, klass),
+        ("action", ACTIONS, _norm(entry.get("action"))),
+    ):
         if value and value not in vocabulary:
             problems.append(f"{where}: {key} {value!r} is not one of {sorted(vocabulary)}")
     at = entry.get("at")
@@ -195,12 +198,17 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         # by writing, so only the silence check can convict its absence: a
         # touched LOCKED area with no entry is a violation exactly as it
         # would be in a written log without the matching entry.
-        empty: dict[str, Any] = {"schema_version": 1, "task": ctx.task.id,
-                                 "drift_count": 0, "entries": []}
+        empty: dict[str, Any] = {
+            "schema_version": 1,
+            "task": ctx.task.id,
+            "drift_count": 0,
+            "entries": [],
+        }
         silence_problems, _skipped = _check_silence(ctx, empty)
         if silence_problems:
-            header = ("no execution log — absence is an empty log, "
-                      "and the silence check still applies:")
+            header = (
+                "no execution log — absence is an empty log, and the silence check still applies:"
+            )
             return BuiltinOutcome("fail", "\n".join([header, *silence_problems]))
         if not ctx.task.decisions:
             return BuiltinOutcome("pass", "decisions: [] — none apply, explicitly")

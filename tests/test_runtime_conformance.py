@@ -102,8 +102,9 @@ def test_listing_and_destroy_by_id(runtime_case):
     assert infos[0].labels[naming.LABEL_TASK] == "T-9902"
 
     runtime.destroy_by_id(infos[0].id)
-    remaining = [i for i in runtime.list_torve_sandboxes()
-                 if i.labels.get("torve.task") == "T-9902"]
+    remaining = [
+        i for i in runtime.list_torve_sandboxes() if i.labels.get("torve.task") == "T-9902"
+    ]
     assert not remaining
     runtime.destroy(handle)  # idempotent cleanup
 
@@ -156,9 +157,21 @@ def test_docker_auth_volume_outlives_the_sandbox(docker_case):
     # A fresh named volume mounts root-owned; seeding ownership is the
     # operator's one-time step when the slot is provisioned (§2).
     subprocess.run(
-        ["docker", "run", "--rm", "-u", "0:0", "-v", f"{volume}:/auth", TEST_IMAGE,
-         "chown", f"{os.getuid()}:{os.getgid()}", "/auth"],
-        capture_output=True, check=True,
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-u",
+            "0:0",
+            "-v",
+            f"{volume}:/auth",
+            TEST_IMAGE,
+            "chown",
+            f"{os.getuid()}:{os.getgid()}",
+            "/auth",
+        ],
+        capture_output=True,
+        check=True,
     )
     try:
         first = runtime.create(auth_spec(volumes={volume: "/auth"}), workspace)
@@ -183,8 +196,12 @@ def test_opensandbox_refuses_volumes(tmp_path):
     workspace = tmp_path / "ws2"
     workspace.mkdir()
     spec = SandboxSpec(
-        name="torve-refuse", image=TEST_IMAGE, labels=naming.labels("T-9904", "r", Path.cwd()),
-        timeout_s=60, workdir=str(tmp_path / "remote"), volumes={"torve-auth-0": "/auth"},
+        name="torve-refuse",
+        image=TEST_IMAGE,
+        labels=naming.labels("T-9904", "r", Path.cwd()),
+        timeout_s=60,
+        workdir=str(tmp_path / "remote"),
+        volumes={"torve-auth-0": "/auth"},
     )
     with pytest.raises(RuntimeError, match="no per-slot auth volumes"):
         runtime.create(spec, workspace)
@@ -219,8 +236,7 @@ def test_docker_default_mode_mounts_no_socket(docker_case):
 
 def test_opensandbox_refuses_docker_in_any_mode():
     with pytest.raises(ValueError, match="refuses docker access"):
-        OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub,
-                           docker_mode="socket")
+        OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub, docker_mode="socket")
 
 
 # ....................... #
@@ -254,7 +270,10 @@ def test_docker_network_host_shares_the_host_stack(docker_case, monkeypatch):
     try:
         mode = subprocess.run(
             ["docker", "inspect", "--format", "{{.HostConfig.NetworkMode}}", handle.id],
-            capture_output=True, text=True, check=True).stdout.strip()
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
         assert mode == "host"
         seen = runtime.exec(handle, 'printf "%s" "$HTTPS_PROXY"', 30)
         assert seen.output == "http://127.0.0.1:9999"
@@ -285,9 +304,13 @@ def test_opensandbox_forwards_proxy_and_passthrough_values(tmp_path, monkeypatch
     workspace = tmp_path / "ws3"
     workspace.mkdir()
     spec = SandboxSpec(
-        name="torve-proxy", image=TEST_IMAGE, labels=naming.labels("T-9905", "r", Path.cwd()),
-        timeout_s=60, workdir=str(tmp_path / "remote3"),
-        env_passthrough=("TORVE_TEST_KEY",), env={"EXPLICIT": "wins"},
+        name="torve-proxy",
+        image=TEST_IMAGE,
+        labels=naming.labels("T-9905", "r", Path.cwd()),
+        timeout_s=60,
+        workdir=str(tmp_path / "remote3"),
+        env_passthrough=("TORVE_TEST_KEY",),
+        env={"EXPLICIT": "wins"},
     )
     handle = runtime.create(spec, workspace)
     try:

@@ -41,8 +41,11 @@ from torve.domain.states import EXIT_OK
 
 # ----------------------- #
 
-app = typer.Typer(add_completion=False, no_args_is_help=True,
-                  help="Deterministic gates for agent and human pull requests.")
+app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help="Deterministic gates for agent and human pull requests.",
+)
 gates_app = typer.Typer(no_args_is_help=True, help="Run or verify the gate set.")
 app.add_typer(gates_app, name="gates")
 app.add_typer(rfc.rfc_app, name="rfc")
@@ -59,12 +62,20 @@ def _version(value: bool) -> None:
 
 @app.callback()
 def root_options(
-    plain: Annotated[bool, typer.Option(
-        "--plain", help="No colour, spinners or live redraw; implied by CI, "
-                        "a non-TTY stdout, or --format json.")] = False,
-    version: Annotated[bool, typer.Option(
-        "--version", callback=_version, is_eager=True,
-        help="Print the version and exit.")] = False,
+    plain: Annotated[
+        bool,
+        typer.Option(
+            "--plain",
+            help="No colour, spinners or live redraw; implied by CI, "
+            "a non-TTY stdout, or --format json.",
+        ),
+    ] = False,
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version", callback=_version, is_eager=True, help="Print the version and exit."
+        ),
+    ] = False,
 ) -> None:
     console.set_plain(plain)
 

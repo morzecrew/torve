@@ -36,10 +36,21 @@ ADMIN_DSN = f"postgresql://postgres:torve-test@127.0.0.1:{PORT}/postgres"
 def pg_server():
     name = f"torve-pg-{uuid.uuid4().hex[:8]}"
     subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", name,
-         "-e", "POSTGRES_PASSWORD=torve-test",
-         "-p", f"127.0.0.1:{PORT}:5432", "postgres:16-alpine"],
-        check=True, capture_output=True,
+        [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            name,
+            "-e",
+            "POSTGRES_PASSWORD=torve-test",
+            "-p",
+            f"127.0.0.1:{PORT}:5432",
+            "postgres:16-alpine",
+        ],
+        check=True,
+        capture_output=True,
     )
     try:
         import psycopg
@@ -85,13 +96,13 @@ async def make_taskstore(store_config):
 async def battery(taskstore, suffix: str) -> None:
     """The differential conformance battery: the same properties asserted over
     the mock in test_taskstore.py, against the migrated real store."""
-    record = await taskstore.run_now({"task_id": f"T-PG-{suffix}"},
-                                     idempotency_key=f"T-PG-{suffix}:r1")
+    record = await taskstore.run_now(
+        {"task_id": f"T-PG-{suffix}"}, idempotency_key=f"T-PG-{suffix}:r1"
+    )
     assert record.status is DurableRunStatus.COMPLETED
     assert record.output_json == {"echo": {"task_id": f"T-PG-{suffix}"}}
 
-    again = await taskstore.run_now({"task_id": "ignored"},
-                                    idempotency_key=f"T-PG-{suffix}:r1")
+    again = await taskstore.run_now({"task_id": "ignored"}, idempotency_key=f"T-PG-{suffix}:r1")
     assert again.run_id == record.run_id  # idempotent resubmit converges
 
     zombie = await taskstore.enqueue({"task_id": f"T-PG-Z-{suffix}"})
@@ -122,15 +133,19 @@ def test_doctor_store_check_tracks_migration_currency(pg_dsn, monkeypatch, tmp_p
     monkeypatch.setenv("TORVE_PG_DSN", pg_dsn)
     root = tmp_path / "repo"
     (root / ".torve").mkdir(parents=True)
-    (root / ".torve" / "config.yaml").write_text(yaml.safe_dump({
-        "schema_version": 1,
-        "runtime": {"adapter": "opensandbox"},
-        "store": {"adapter": "postgres"},
-    }), encoding="utf-8")
+    (root / ".torve" / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "runtime": {"adapter": "opensandbox"},
+                "store": {"adapter": "postgres"},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     def store_check():
-        result = CliRunner().invoke(
-            app, ["doctor", "--root", str(root), "--format", "json"])
+        result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
         return {c["name"]: c for c in json.loads(result.stdout)["checks"]}["store"]
 
     assert pending_count("substrate", pg_dsn) > 0
@@ -147,12 +162,13 @@ def test_doctor_store_check_tracks_migration_currency(pg_dsn, monkeypatch, tmp_p
 
 def test_migrated_database_passes_the_battery_fresh_and_populated(pg_dsn, monkeypatch):
     monkeypatch.setenv("TORVE_PG_DSN", pg_dsn)
-    store_config = StoreConfig(adapter="postgres", lease_for=0.5,
-                               heartbeat_divisor=2, max_run_duration=30)
+    store_config = StoreConfig(
+        adapter="postgres", lease_for=0.5, heartbeat_divisor=2, max_run_duration=30
+    )
 
     # Run 1 — from scratch: every step applied to a clean database.
     assert migrate_apply("substrate", pg_dsn) == 1
-    assert migrate_apply("torve", pg_dsn) == 0      # no document tables yet
+    assert migrate_apply("torve", pg_dsn) == 0  # no document tables yet
     assert migrate_apply("telemetry", pg_dsn) == 0  # stage 1: a file has no schema
 
     async def scenario():

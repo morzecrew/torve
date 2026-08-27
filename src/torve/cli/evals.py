@@ -41,10 +41,13 @@ from torve.gates.context import load_task
 
 def eval_cmd(
     skill: Annotated[str, typer.Argument(help="The skill under measurement.")],
-    task_ids: Annotated[list[str], typer.Option(
-        "--task", help="A completed task to replay in both arms; repeatable.")],
-    depth: Annotated[int, typer.Option(
-        min=1, help="History depth of the truncated shadow clones.")] = 50,
+    task_ids: Annotated[
+        list[str],
+        typer.Option("--task", help="A completed task to replay in both arms; repeatable."),
+    ],
+    depth: Annotated[
+        int, typer.Option(min=1, help="History depth of the truncated shadow clones.")
+    ] = 50,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -78,8 +81,7 @@ def eval_cmd(
     for task_id in task_ids:
         task_file = layout.task_file(root, task_id)
         if not task_file.is_file():
-            raise fail(f"configuration error: no task contract at {task_file}",
-                       EXIT_CONFIG)
+            raise fail(f"configuration error: no task contract at {task_file}", EXIT_CONFIG)
         tasks.append(load_task(task_file))
     try:
         without_skill(config, skill)  # refuse before any spend
@@ -91,9 +93,12 @@ def eval_cmd(
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     deps = RunDeps(
-        workspace=GitWorkspace(root), runtime=runtime_for(config, None),
+        workspace=GitWorkspace(root),
+        runtime=runtime_for(config, None),
         agent=HarnessAgent(tier_for(config, tasks[0].tier)),
-        vcs=GitVcs(), scm=NullScm(), store=open_store,
+        vcs=GitVcs(),
+        scm=NullScm(),
+        store=open_store,
     )
     shadow_ws = ShadowWorkspace(root, depth=depth)
     source = ShadowSource(
@@ -120,15 +125,20 @@ def eval_cmd(
     table = make_table("arm", "green", "attempts", "cost usd")
     for arm in ("with", "without"):
         row = record["summary"][arm]
-        table.add_row(arm, f"{row['green']}/{len(record['tasks'])}",
-                      str(row["attempts"]),
-                      "-" if row["cost_usd"] is None else f"{row['cost_usd']:.4f}")
+        table.add_row(
+            arm,
+            f"{row['green']}/{len(record['tasks'])}",
+            str(row["attempts"]),
+            "-" if row["cost_usd"] is None else f"{row['cost_usd']:.4f}",
+        )
     console.print(table)
     if record["baseline_matched"]:
-        closing(console, "baseline matched — this skill did not earn its "
-                         "tokens here; deletion is your call", STYLE_DIM)
+        closing(
+            console,
+            "baseline matched — this skill did not earn its tokens here; deletion is your call",
+            STYLE_DIM,
+        )
     else:
         closing(console, "the skill beat its baseline on this evidence", STYLE_PASS)
-    console.print(Text("direction, never magnitude — a replay is a "
-                         "quasi-experiment", STYLE_DIM))
+    console.print(Text("direction, never magnitude — a replay is a quasi-experiment", STYLE_DIM))
     raise typer.Exit(EXIT_OK)
