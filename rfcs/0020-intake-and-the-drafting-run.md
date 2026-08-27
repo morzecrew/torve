@@ -2,7 +2,7 @@
 id: "0020"
 title: Intake and the drafting run
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0003", "0007", "0008"]
 informed_by: ["0005", "0019"]
 supersedes: []
@@ -27,7 +27,14 @@ schema_version: 1
   thread; `adopt` joined the verb vocabulary; a revise comment's own text is
   the drafter's feedback — a logged departure from D-20.6's reuse assumption;
   the phase's scope estimate omitted the tracker port, its adapter and the
-  loop — see .torve/tasks/T-0091). Outstanding: the demand-gated phase 3.
+  loop — see .torve/tasks/T-0091). Follow-ups executed 2026-08-27 (T-0092 —
+  the intake ledger joined the lane's engine-record exemption, found live
+  when a claim blocked an approved landing; T-0093 — adopted threads close
+  themselves, board trace references show basenames, the tick lock's
+  acquire/release went public as the T-0089 log proposed). Phase 3 executed
+  2026-08-27 (T-0094 — the drafter's prompt gains execution facts: the live
+  escalation queue by reason, contended paths from blocked-dispatch
+  telemetry, recent landings; injected only when non-empty). Complete.
 - **Scope:** How a request in prose becomes one or more task contracts without
   a human writing YAML: a new run role (`draft`) executed by the existing
   runner machinery, a deterministic contract lint that gates its output, an

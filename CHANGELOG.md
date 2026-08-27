@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Intake polish and phase 3 (T-0092..T-0094, RFC 0020 complete): the
+  intake ledger never blocks the lane; an adopted request's thread
+  closes itself; board attempt comments show trace basenames, not host
+  paths; the tick lock's acquire/release pair is public; and the
+  drafter's prompt gains execution facts — the live escalation queue,
+  contended paths, recent landings — only when there is something to
+  say.
+
 - Board intake (T-0091, RFC 0020 phase 2): a `torve.intake`-labeled
   issue from a commander is claimed by the tick — retitled to the
   drafting task's row, run through the drafter, its lint-green drafts
