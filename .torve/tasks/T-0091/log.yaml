@@ -1,0 +1,77 @@
+schema_version: 1
+task: T-0091
+repo: morzecrew/torve
+base_sha: 5cb818104e24b827df88f38f9d1bf83ed1f66732
+drift_count: 1
+entries:
+  - decision: D-20.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-27T00:00:00Z
+    attempt: 1
+    claim: >-
+      the board's adopt is the same signature with the same authority
+      chain — the verb is commander-gated like every verb, resolves
+      before the state guard because a swept READY draft is
+      legitimately stateless, and applies through the identical
+      application-level adopt the CLI uses, borrowing the tick's lock
+      rather than taking a second one
+    evidence: src/torve/application/tracker.py:326 — the verb before
+      the state guard; src/torve/application/intake.py:510 — the
+      borrowed lock
+    action: decided
+  - decision: D-20.6
+    grade: ASSUMED
+    kind: departed
+    class: drift
+    at: 2026-08-27T00:01:00Z
+    attempt: 1
+    claim: >-
+      the intake revision does NOT reuse the A-40/A-41 capture
+      machinery verbatim as the decision assumed — that machinery
+      captures pull-request review threads for a branch, and a drafting
+      run has neither branch nor pull request; instead the commander's
+      revise comment IS the feedback: its own text (command line
+      stripped) is written to the task's feedback file and reaches the
+      drafter's next prompt, which is smaller and needs no polling
+    evidence: src/torve/application/tracker.py:405 — the draft branch
+      of revise; tests/test_intake.py:487 — the comment text reaches
+      the second prompt
+    action: departed
+  - decision: D-20.5
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-27T00:02:00Z
+    attempt: 1
+    claim: >-
+      claiming retitles the issue to the drafting task's row
+      ("T-nnnn: <original title>"), which makes every existing
+      projection and command path apply to intake threads with zero
+      parser changes; an intake ledger scopes the tick's leg to
+      board-claimed runs so a CLI-run drafter and the tick can never
+      race one task; non-commander requests are left unclaimed and
+      counted in the leg's summary, never interpreted
+    evidence: src/torve/application/intake.py:625 — the leg;
+      src/torve/application/loop.py:247 — its slot after poll
+    action: decided
+  - decision: D-20.10
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-27T00:03:00Z
+    attempt: 1
+    claim: >-
+      abandoning a ready draft routes through the legal edges
+      (ready -> escalated -> abandoned, one command, both facts
+      recorded) and discards the drafts file in the same act — a swept
+      state must not leave refused drafts adoptable
+    evidence: src/torve/application/tracker.py:385 — the refusal path
+      and its disposal
+    action: decided
+proposals:
+  - >-
+    RFC 0020 Phasing, phase 2 entry: the scope estimate omitted
+    src/torve/application/ports.py, src/torve/application/loop.py and
+    src/torve/adapters/tracker/github.py — the tracker port needed
+    intake_requests/retitle and TrackerCommand.text, and the tick a leg
+    slot. The executed contract carries the true scope; the phasing
+    entry should gain an execution note.

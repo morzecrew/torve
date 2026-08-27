@@ -1,0 +1,60 @@
+# Minted by hand — RFC 0020 phase 2: board intake. Scope is wider than
+# the phasing entry's estimate: the tracker port and its adapter were
+# missing from it (logged in this task's log with a proposal).
+schema_version: 1
+id: T-0091
+rfc: rfcs/0020-intake-and-the-drafting-run.md
+phase: 2
+role: implement
+intent: |
+  The board becomes the intake surface: torve.intake-labeled issues from
+  commanders mint drafting tasks (the issue is retitled to the task's
+  row, recorded in an intake ledger); the tick gains an intake leg that
+  runs pending drafting tasks over a worktree at base and projects
+  lint-green drafts onto the issue thread through the outbox; adopt
+  joins the verb vocabulary with standard authorization, role refusal,
+  and tolerance for a swept state; revise on a draft carries the
+  commander's comment text to the drafter as feedback; abandon on a
+  ready draft discards the drafts and closes the run.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/intake.py"
+    - "src/torve/application/tracker.py"
+    - "src/torve/application/loop.py"
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/tracker/github.py"
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest -q"
+decisions:
+  - id: D-20.1
+    grade: LOCKED
+    text: >-
+      A draft never dispatches without a human's adoption; adoption is
+      RFC 0007 §6's signature, relocated but never removed.
+    paths: ["src/torve/application/intake.py", "src/torve/application/tracker.py"]
+  - id: D-20.5
+    grade: ASSUMED
+    text: >-
+      Intake authorization is the commander list (D-8.9); requests
+      arrive as torve.intake-labeled issues in phase 2, CLI in phase 1.
+    paths: ["src/torve/application/tracker.py", "src/torve/cli/**"]
+  - id: D-20.6
+    grade: ASSUMED
+    text: >-
+      The intake thread is a revision loop: /torve revise captures
+      thread feedback and re-runs the drafter through the A-40/A-41
+      machinery, reused not re-implemented.
+    paths: ["src/torve/application/tracker.py", "src/torve/application/feedback.py"]
+  - id: D-20.7
+    grade: ASSUMED
+    text: >-
+      Adopted contracts commit as engine records on base and dispatch
+      through the ordinary loop; no post-adoption special path.
+    paths: ["src/torve/application/intake.py", "src/torve/application/loop.py"]
+tier: executor

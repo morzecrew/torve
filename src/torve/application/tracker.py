@@ -29,7 +29,7 @@ from torve.domain.states import TRANSITIONS, TaskState
 
 # ----------------------- #
 
-COMMANDS = ("retry", "abandon", "unblock", "approve", "revise")
+COMMANDS = ("retry", "abandon", "unblock", "approve", "revise", "adopt")
 
 
 def _title(root: Path, task_id: str) -> str:
@@ -314,11 +314,33 @@ class PollReport:
 
 def _apply(root: Path, command: TrackerCommand,
            requeue: Callable[[str], str] | None = None,
-           approve_tip: Callable[[str], str | None] | None = None) -> CommandOutcome:
+           approve_tip: Callable[[str], str | None] | None = None,
+           adopt_drafts: Callable[[str], list[str]] | None = None,
+           draft_feedback: Callable[[str, str], str] | None = None,
+           ) -> CommandOutcome:
     verb, task_id = command.verb, command.task_id
     if verb not in COMMANDS:
         return CommandOutcome(verb, task_id, command.actor, False,
                               f"unknown command {verb!r} — the vocabulary is fixed")
+
+    if verb == "adopt":
+        # Before the state guard (RFC 0020, D-20.1): a swept READY draft
+        # is legitimately stateless — the drafts file is the evidence of
+        # its green run, and the application refuses everything else.
+        if _role(root, task_id) != "draft":
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  "adopt consumes a drafting run's output — "
+                                  f"this task's role is {_role(root, task_id) or 'unknown'!r}")
+        if adopt_drafts is None:
+            return CommandOutcome(verb, task_id, command.actor, False,
+                                  "no adoption wiring — the poller carries no config")
+        try:
+            adopted = adopt_drafts(task_id)
+        except (ValueError, RuntimeError) as exc:
+            return CommandOutcome(verb, task_id, command.actor, False, str(exc))
+        return CommandOutcome(verb, task_id, command.actor, True,
+                              f"adopted: {', '.join(adopted)}")
+
     state_path = naming.state_file(root, task_id)
     if not state_path.exists():
         return CommandOutcome(verb, task_id, command.actor, False,
@@ -346,6 +368,21 @@ def _apply(root: Path, command: TrackerCommand,
                               f"re-queued ({cleanup})")
 
     if verb == "abandon":
+        if _role(root, task_id) == "draft" and state.state is TaskState.READY:
+            # RFC 0020 §5.4: refusing a request discards its drafts — the
+            # legal route to the terminal verdict runs through escalated,
+            # and the drafts must not outlive the refusal (a swept state
+            # would otherwise leave them adoptable, D-20.10).
+            from torve.application.intake import drafts_file
+
+            state.transition(TaskState.ESCALATED,
+                             f"tracker command abandon from {command.actor}")
+            state.transition(TaskState.ABANDONED,
+                             f"tracker command abandon from {command.actor}")
+            state.save()
+            drafts_file(root, task_id).unlink(missing_ok=True)
+            return CommandOutcome(verb, task_id, command.actor, True,
+                                  "request refused — drafts discarded")
         if TaskState.ABANDONED not in TRANSITIONS[state.state]:
             return CommandOutcome(verb, task_id, command.actor, False,
                                   f"abandon is not a legal exit from {state.state}")
@@ -365,6 +402,20 @@ def _apply(root: Path, command: TrackerCommand,
         if state.state is not TaskState.READY:
             return CommandOutcome(verb, task_id, command.actor, False,
                                   f"revise needs a ready candidate; this one is {state.state}")
+        if _role(root, task_id) == "draft":
+            # RFC 0020 (D-20.6): the commander's comment IS the feedback —
+            # its text reaches the drafter, and the run re-queues for the
+            # intake leg. No branch, no capture: drafts have neither.
+            if draft_feedback is None:
+                return CommandOutcome(verb, task_id, command.actor, False,
+                                      "no drafting-feedback wiring — the "
+                                      "poller carries no config")
+            note = draft_feedback(task_id, command.text)
+            state.transition(TaskState.QUEUED,
+                             f"tracker command revise from {command.actor}")
+            state.save()
+            return CommandOutcome(verb, task_id, command.actor, True,
+                                  f"re-queued for re-drafting ({note})")
         cleanup = "no re-queue cleanup wired"
         if requeue is not None:
             try:
@@ -430,6 +481,8 @@ def poll_and_apply(root: Path, tracker: Tracker,
                    commanders: tuple[str, ...] = (),
                    requeue: Callable[[str], str] | None = None,
                    approve_tip: Callable[[str], str | None] | None = None,
+                   adopt_drafts: Callable[[str], list[str]] | None = None,
+                   draft_feedback: Callable[[str, str], str] | None = None,
                    ) -> PollReport:
     """Inbound commands: authorization precedes validation — a command
     applies only when its actor is a configured commander, and an empty
@@ -444,7 +497,8 @@ def poll_and_apply(root: Path, tracker: Tracker,
                 f"actor {command.actor} is not a configured commander "
                 "(tracker.commanders)")
         else:
-            outcome = _apply(root, command, requeue, approve_tip)
+            outcome = _apply(root, command, requeue, approve_tip,
+                             adopt_drafts, draft_feedback)
         word = "applied" if outcome.applied else "refused"
         tracker.comment(
             command.task_id,

@@ -22,7 +22,7 @@ import time
 from collections.abc import Callable
 from typing import Any, cast
 
-from torve.application.ports import ReflectResult, TrackerCommand
+from torve.application.ports import IntakeRequest, ReflectResult, TrackerCommand
 from torve.application.tracker import COMMANDS
 
 # ----------------------- #
@@ -211,5 +211,33 @@ class GithubIssues:
                 author = cast("dict[str, Any]", comment.get("author") or {})
                 commands.append(TrackerCommand(
                     verb=found.group(1), task_id=task_id,
-                    actor=str(author.get("login", "unknown")), source=source))
+                    actor=str(author.get("login", "unknown")), source=source,
+                    text=body))
         return commands
+
+    # The intake surface (RFC 0020 §5.4): torve.intake-labeled issues
+    # whose titles carry no task row yet are unclaimed requests; claiming
+    # retitles the issue to the drafting task's row, so every existing
+    # projection and command path applies from that moment on.
+
+    INTAKE_LABEL = "torve.intake"
+
+    def intake_requests(self) -> list[IntakeRequest]:
+        listed = cast("list[dict[str, Any]]", json.loads(self._gh(
+            "issue", "list", "--state", "open", "--label", self.INTAKE_LABEL,
+            "--json", "number,title,body,author") or "[]"))
+        requests: list[IntakeRequest] = []
+        for issue in listed:
+            title = str(issue.get("title", ""))
+            if re.match(r"^T-\d{4}:", title):
+                continue  # claimed: the drafting task's row already
+            author = cast("dict[str, Any]", issue.get("author") or {})
+            requests.append(IntakeRequest(
+                number=int(issue["number"]), title=title,
+                body=str(issue.get("body", "")),
+                author=str(author.get("login", "unknown"))))
+        return requests
+
+    def retitle(self, number: int, title: str) -> ReflectResult:
+        self._gh("issue", "edit", str(number), "--title", title)
+        return ReflectResult("applied", f"issue #{number} retitled")

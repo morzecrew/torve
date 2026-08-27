@@ -96,6 +96,7 @@ def tick_cmd(
 
     poll_leg: Leg | None = None
     sync_leg: Leg | None = None
+    intake_leg_fn: Leg | None = None
     if config.tracker.kind == "github-issues" and config.tracker.repo:
         from torve.adapters.tracker.github import GithubIssues
         from torve.application.tracker import (
@@ -111,9 +112,54 @@ def tick_cmd(
 
             return GitLane().tip(root, naming.branch(task_id))
 
+        def _adopt_drafts(task_id: str) -> list[str]:
+            from torve.application.intake import adopt
+
+            # The poll runs under the tick's lock — adoption borrows it.
+            return adopt(root, task_id, config, assume_lock=True)
+
+        def _draft_feedback(task_id: str, text: str) -> str:
+            import re as _re
+
+            from torve.application.feedback import feedback_file
+
+            body = _re.sub(r"^/torve\s+[a-z]+\s*$", "", text,
+                           flags=_re.MULTILINE).strip()
+            target = feedback_file(root, task_id)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if body:
+                target.write_text(body + "\n", encoding="utf-8")
+                return "thread feedback captured"
+            target.unlink(missing_ok=True)
+            return "no feedback text — the drafter re-runs on the request"
+
+        def _intake() -> tuple[str, bool]:
+            from torve.application.intake import IntakeDeps, intake_leg
+            from torve.application.telemetry import config_hash
+            from torve.cli.options import runtime_for
+            from torve.cli.run import build_tier_agent
+            from torve.config import layout
+            from torve.gates.context import resolve_base
+
+            deps = IntakeDeps(
+                tracker=board,
+                runtime=runtime_for(config, None),
+                agent_factory=lambda: build_tier_agent(config, root, "planner"),
+                worktree_at=vcs.worktree_at,
+                remove_worktree=vcs.remove_worktree,
+                base_tip=lambda: GitLane().tip(
+                    root, resolve_base(root, config.base) or "HEAD"),
+                config_digest=config_hash(layout.gates_file(root), root, config),
+            )
+            return intake_leg(root, config, deps,
+                              tuple(config.tracker.commanders))
+
+        intake_leg_fn = _intake
+
         def _poll() -> tuple[str, bool]:
             report = poll_and_apply(root, board, tuple(config.tracker.commanders),
-                                    _capture_for_revision, _approve_tip)
+                                    _capture_for_revision, _approve_tip,
+                                    _adopt_drafts, _draft_feedback)
             if not report.outcomes:
                 return ("no commands on the board", False)
             applied = sum(o.applied for o in report.outcomes)
@@ -304,7 +350,8 @@ def tick_cmd(
 
     report = run_tick(root, config, TickDeps(
         reap=reap_leg, poll=poll_leg, dispatch=dispatch_leg,
-        lane=lane_leg, sync=sync_leg, landed=landed))
+        lane=lane_leg, sync=sync_leg, landed=landed,
+        intake=intake_leg_fn))
 
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "noop": report.noop,

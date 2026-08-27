@@ -57,6 +57,9 @@ class TickDeps:
     lane: Leg | None       # None: promotion.auto_merge is off
     sync: Leg | None       # None: no tracker configured
     landed: Callable[[str], bool]  # has this task id landed on the base?
+    # RFC 0020 phase 2: claim intake requests, run pending drafting
+    # tasks, project drafts. None: no tracker configured.
+    intake: Leg | None = None
 
 
 @dataclass
@@ -238,6 +241,10 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
 
     try:
         leg("poll", deps.poll, "no tracker configured")
+        # Intake after poll (RFC 0020 §5.4): a revise or adopt the poll
+        # just applied is what this leg acts on — re-running a re-queued
+        # drafter, or skipping a run adoption just consumed.
+        leg("intake", deps.intake, "no tracker configured")
         # The lane before the reaper (A-27): READY is sweepable, so the
         # candidates must land while their states still exist.
         leg("lane", deps.lane, "auto_merge off")

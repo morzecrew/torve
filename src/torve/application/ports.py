@@ -286,6 +286,21 @@ class TrackerCommand:
     task_id: str
     actor: str
     source: str  # the comment id the reply threads back to
+    # The command comment's full body (RFC 0020, D-20.6): a revise on a
+    # drafting task carries its feedback in the same comment. Untrusted
+    # text everywhere (D-8.5) — it steers a drafter, never the engine.
+    text: str = ""
+
+
+@dataclass
+class IntakeRequest:
+    """One unclaimed intake issue (RFC 0020 §5.4): a torve.intake-labeled
+    request a commander filed, not yet retitled to a task's row."""
+
+    number: int
+    title: str
+    body: str
+    author: str
 
 
 class Tracker(Protocol):
@@ -305,6 +320,10 @@ class Tracker(Protocol):
     def notify(self, task_id: str, login: str, body: str, key: str) -> ReflectResult: ...
 
     def poll_commands(self) -> list[TrackerCommand]: ...
+
+    def intake_requests(self) -> list[IntakeRequest]: ...
+
+    def retitle(self, number: int, title: str) -> ReflectResult: ...
 
 
 class CiStatus(Protocol):

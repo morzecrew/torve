@@ -15,6 +15,7 @@ import json
 import re
 import shlex
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from fnmatch import fnmatch
@@ -37,6 +38,14 @@ from torve.domain.task import SCHEMA_VERSION, Budget, Scope, Task
 
 DRAFTS_FILE = "drafts.json"
 DRAFT_REF = re.compile(r"^DRAFT-(\d+)$")
+# One row per claimed request (phase 2): {issue, task, at} — the leg's
+# scope. CLI-minted drafting runs never enter it, so the tick and an
+# operator's terminal cannot race one run.
+INTAKE_LEDGER = "intake.jsonl"
+# Adoption's terminal marker: with state and drafts both consumed, this
+# is what tells a fresh mint from an adopted one.
+ADOPTED_FILE = "adopted.json"
+RFC_LINE = re.compile(r"^rfc:\s*(\S+)\s*$", re.MULTILINE)
 
 
 class Draft(BaseModel):
@@ -231,7 +240,8 @@ def mint_intake_task(root: Path, request: str, config: RunnerConfig,
 
 
 def build_intake_prompt(request: str, tree: Path, max_drafts: int,
-                        lint_errors: list[str] | None = None) -> str:
+                        lint_errors: list[str] | None = None,
+                        feedback: str | None = None) -> str:
     """The drafter's whole input: the request, the tree, the ceiling, and —
     on a retry — the lint's exact refusals. The calibration paragraph
     matters as much as review's: one honest draft beats a decomposition
@@ -242,6 +252,12 @@ def build_intake_prompt(request: str, tree: Path, max_drafts: int,
         joined = "\n".join(f"- {e}" for e in lint_errors)
         retry_block = (f"\n## Your previous batch was refused by the lint\n\n"
                        f"{joined}\n\nFix exactly these; do not reshuffle what passed.\n")
+    feedback_block = ""
+    if feedback and feedback.strip():
+        feedback_block = ("\n## The commander's feedback on your previous "
+                          f"drafts\n\n{feedback.strip()}\n\nRevise the batch "
+                          "to answer it; keep what the feedback does not "
+                          "touch.\n")
     return f"""# Draft task contracts
 
 You are drafting contracts for work, not doing the work. The workspace is
@@ -250,7 +266,7 @@ read-only; read it to write honest file scopes and acceptance commands.
 ## The request
 
 {request}
-
+{feedback_block}
 ## The repository tree
 
 ```text
@@ -303,9 +319,23 @@ def run_intake(
     drafts and the run goes ready — drafts awaiting adoption, dispatching
     nothing (D-20.1)."""
     tier = tier_for(config, task.tier)
-    state = RunState(task_id=task.id, path=naming.state_file(root, task.id))
+    state_path = naming.state_file(root, task.id)
+    if state_path.exists():
+        # A re-queued run (D-20.6): the commander's revise put it back to
+        # QUEUED with its feedback written; the history continues.
+        state = RunState.load(state_path)
+        if state.state is not TaskState.QUEUED:
+            raise ValueError(f"{task.id} is {state.state} — a drafting run "
+                             "resumes only from queued")
+    else:
+        state = RunState(task_id=task.id, path=state_path)
     state.transition(TaskState.CLAIMED, "engine-minted at intake")
     state.save()
+    from torve.application.feedback import feedback_file
+
+    feedback_path = feedback_file(root, task.id)
+    feedback = (feedback_path.read_text(encoding="utf-8")
+                if feedback_path.is_file() else None)
 
     budget = task.budget.iterations or config.intake.iterations
     lint_errors: list[str] = []
@@ -324,7 +354,7 @@ def run_intake(
         )
         prompt = build_intake_prompt(task.intent, worktree,
                                      config.intake.max_drafts,
-                                     lint_errors or None)
+                                     lint_errors or None, feedback)
         handle = runtime.create(spec, worktree)
         state.sandbox_id = handle.id
         state.save()
@@ -442,13 +472,25 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
             for row in rfc_parse.decision_table(text)]
 
 
-def adopt(root: Path, task_id: str, config: RunnerConfig) -> list[str]:
+def adopted_file(root: Path, task_id: str) -> Path:
+    return root / layout.TORVE_DIR / "tasks" / task_id / ADOPTED_FILE
+
+
+def adopt(root: Path, task_id: str, config: RunnerConfig,
+          assume_lock: bool = False) -> list[str]:
     """Adopt every draft the run produced: ids minted here and nowhere
     else, contracts committed as engine records on base, the loop left to
-    dispatch them like hand-minted work (D-20.7). Returns the new ids."""
+    dispatch them like hand-minted work (D-20.7). Returns the new ids.
+    `assume_lock` is for a caller already inside the tick — the board's
+    adopt command applies under the lock the tick holds."""
     from torve.application.loop import _acquire_lock, _release_lock
     from torve.application.planner import next_task_number
 
+    marker = adopted_file(root, task_id)
+    if marker.is_file():
+        prior = cast("dict[str, Any]", json.loads(marker.read_text(encoding="utf-8")))
+        raise ValueError(f"{task_id} was already adopted as "
+                         f"{', '.join(prior.get('adopted', []))}")
     source = drafts_file(root, task_id)
     if not source.is_file():
         raise ValueError(f"{task_id} holds no drafts — nothing to adopt")
@@ -465,7 +507,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig) -> list[str]:
     rfc = record.get("rfc")
     decisions = _inherit_decisions(root, str(rfc)) if rfc else []
 
-    if not _acquire_lock(root, config.loop.tick_budget):
+    if not assume_lock and not _acquire_lock(root, config.loop.tick_budget):
         raise RuntimeError("the engine lock is held — a tick is running; "
                            "adoption retries when it releases")
     try:
@@ -511,11 +553,140 @@ def adopt(root: Path, task_id: str, config: RunnerConfig) -> list[str]:
             raise RuntimeError("adoption commit failed: "
                                + (proc.stderr.strip() or proc.stdout.strip()))
     finally:
-        _release_lock(root)
+        if not assume_lock:  # a borrowed lock is the tick's to release
+            _release_lock(root)
     # Adoption is the disposal (D-20.10): the run's purpose is consumed,
     # so its state goes with it — nothing is left for a reaper to judge.
+    # The marker survives as the audit line telling adopted from fresh.
+    adopted_file(root, task_id).write_text(json.dumps({
+        "schema_version": 1, "adopted": list(ids.values()),
+        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")},
+        indent=2) + "\n", encoding="utf-8")
     state_path.unlink(missing_ok=True)
     source.unlink()
     engine_event(root, "intake_adopted", {
         "task": task_id, "adopted": list(ids.values())})
     return list(ids.values())
+
+
+# The board's intake leg (RFC 0020 §5.4): claim commander-filed requests,
+# run the drafting they ask for, and project the lint-green drafts back
+# onto the thread the request lives on. Ledger-scoped: a run this leg did
+# not claim is the operator's, and the leg never touches it.
+
+
+@dataclass
+class IntakeDeps:
+    """The leg's wiring, built by the tick: the tracker is the surface,
+    the agent factory is lazy so the drafter's harness is constructed
+    only when a request actually needs it."""
+
+    tracker: Any
+    runtime: Runtime
+    agent_factory: Callable[[], Agent]
+    worktree_at: Callable[[Path, str, Path], None]
+    remove_worktree: Callable[[Path, Path], None]
+    base_tip: Callable[[], str | None]
+    config_digest: str
+
+
+def ledger_file(root: Path) -> Path:
+    return root / layout.TORVE_DIR / INTAKE_LEDGER
+
+
+def _ledger_rows(root: Path) -> list[dict[str, Any]]:
+    path = ledger_file(root)
+    if not path.is_file():
+        return []
+    return [cast("dict[str, Any]", json.loads(line))
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+
+
+def _drafts_comment(record: dict[str, Any], task_id: str) -> str:
+    lines = [(f"drafts from {task_id} — adopt with `/torve adopt`, revise "
+              "with `/torve revise` (your comment's own text reaches the "
+              "drafter as feedback), refuse with `/torve abandon`"), ""]
+    for draft in cast("list[dict[str, Any]]", record["drafts"]):
+        scope = cast("dict[str, Any]", draft.get("scope", {}))
+        lines += [f"**{draft['ref']}** — {draft['intent']}", "",
+                  f"- allow: `{'`, `'.join(cast('list[str]', scope.get('allow', [])))}`",
+                  f"- acceptance: `{'`; `'.join(cast('list[str]', draft.get('acceptance', [])))}`"]
+        deps = cast("list[str]", draft.get("depends_on", []))
+        if deps:
+            lines.append(f"- depends on: {', '.join(deps)}")
+        lines.append("")
+    if record.get("rationale"):
+        lines += [str(record["rationale"]), ""]
+    lines.append("authority: the run store; this comment is a projection")
+    return "\n".join(lines)
+
+
+def intake_leg(root: Path, config: RunnerConfig, deps: IntakeDeps,
+               commanders: tuple[str, ...]) -> tuple[str, bool]:
+    """Claim, run, project — each bounded to this tick. Authorization
+    precedes claiming (D-20.5, D-8.9's list): a request from outside the
+    commander list is left unclaimed and counted, never interpreted."""
+    from torve.application.outbox import Effect, stage
+
+    claimed = ran = staged = skipped = 0
+    for request in deps.tracker.intake_requests():
+        if request.author not in commanders:
+            skipped += 1
+            continue
+        text = request.title + ("\n\n" + request.body if request.body else "")
+        found = RFC_LINE.search(request.body or "")
+        task = mint_intake_task(root, text, config,
+                                rfc=found.group(1) if found else None)
+        deps.tracker.retitle(request.number, f"{task.id}: {request.title}")
+        with ledger_file(root).open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "issue": request.number, "task": task.id,
+                "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}) + "\n")
+        engine_event(root, "intake_claimed", {
+            "issue": request.number, "task": task.id, "actor": request.author})
+        claimed += 1
+
+    for row in _ledger_rows(root):
+        task_id = str(row["task"])
+        if adopted_file(root, task_id).is_file():
+            continue
+        state_path = naming.state_file(root, task_id)
+        state = RunState.load(state_path) if state_path.exists() else None
+        fresh = state is None and not drafts_file(root, task_id).is_file()
+        queued = state is not None and state.state is TaskState.QUEUED
+        if fresh or queued:
+            contract = layout.task_file(root, task_id)
+            if not contract.is_file():
+                continue
+            from torve.gates.context import load_task
+
+            task = load_task(contract)
+            tip = deps.base_tip()
+            if tip is None:
+                continue
+            workdir = root / naming.WORKTREE_DIR / f"{task_id}.intake"
+            deps.worktree_at(root, tip, workdir)
+            try:
+                run_intake(root, workdir, task, config, deps.runtime,
+                           deps.agent_factory(), deps.config_digest)
+            finally:
+                deps.remove_worktree(root, workdir)
+            ran += 1
+            state = RunState.load(state_path) if state_path.exists() else None
+        if state is not None and state.state is TaskState.READY \
+                and drafts_file(root, task_id).is_file():
+            record = cast("dict[str, Any]", json.loads(
+                drafts_file(root, task_id).read_text(encoding="utf-8")))
+            if stage(root, Effect(
+                    key=f"{task_id}:drafts:a{state.attempts}", kind="drafts",
+                    payload={"task": task_id,
+                             "body": _drafts_comment(record, task_id)})):
+                staged += 1
+
+    parts = [f"claimed {claimed}", f"ran {ran}", f"projected {staged}"]
+    if skipped:
+        parts.append(f"skipped {skipped} non-commander request(s)")
+    moved = bool(claimed or ran or staged)
+    return (", ".join(parts) if moved or skipped else "no intake activity",
+            moved)
