@@ -1,0 +1,25 @@
+schema_version: 1
+task: T-0090
+repo: morzecrew/torve
+base_sha: 35298a6b1bb2dcc05ef871f9cdb4293088dea79b
+drift_count: 0
+entries:
+  - decision: D-20.10
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-27T00:00:00Z
+    attempt: 1
+    claim: >-
+      disposal is adoption's own act, not the reaper's — the reaper
+      keeps a READY draft state unconditionally (its landing is
+      adoption, not the lane), the lane's candidate scan skips it, and
+      adoption unlinks the state file on success; an absent state with
+      drafts present stays adoptable, because the drafts file only ever
+      persists from a green run and a pre-fix reaper may have swept the
+      state first — which is exactly what the lab did to its first live
+      drafting run, one tick after it went green
+    evidence: src/torve/application/reaper.py:95 — the unconditional
+      keep; src/torve/application/lane.py:57 — the lane's skip;
+      src/torve/application/intake.py:517 — adoption's disposal;
+      tests/test_intake.py:381 — both halves regression-pinned
+    action: decided

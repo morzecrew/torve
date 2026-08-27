@@ -360,3 +360,32 @@ def test_adopt_refuses_without_a_ready_run(seeded):
         encoding="utf-8")
     with pytest.raises(ValueError, match="ready drafting run"):
         adopt(seeded.root, task.id, config)
+
+
+# The follow-up (T-0090): a READY draft run is intake's output, not the
+# lane's input, and adoption is the disposal.
+
+
+def test_the_lane_skips_a_ready_draft_run(seeded):
+    from torve.application.lane import ready_candidates
+
+    config = RunnerConfig()
+    task = mint_intake_task(seeded.root, "add a widget", config)
+    agent = ScriptedAgent([output_for(draft_dict())])
+    run_intake(seeded.root, seeded.root, task, config, StubRuntime(),
+               agent, "digest")
+
+    assert ready_candidates(seeded.root) == []
+
+
+def test_adopt_tolerates_a_swept_state_and_disposes_of_a_kept_one(seeded):
+    source = adopted_ready_run(seeded)
+    state_path = naming.state_file(seeded.root, source)
+    assert state_path.exists()
+    adopt(seeded.root, source, RunnerConfig())
+    assert not state_path.exists()  # adoption is the disposal (D-20.10)
+
+    swept = adopted_ready_run(seeded)
+    naming.state_file(seeded.root, swept).unlink()  # a pre-fix reaper's sweep
+    adopted = adopt(seeded.root, swept, RunnerConfig())
+    assert len(adopted) == 2

@@ -454,9 +454,11 @@ def adopt(root: Path, task_id: str, config: RunnerConfig) -> list[str]:
         raise ValueError(f"{task_id} holds no drafts — nothing to adopt")
     state_path = naming.state_file(root, task_id)
     state = RunState.load(state_path) if state_path.exists() else None
-    if state is None or state.state is not TaskState.READY:
-        held = state.state if state else "no run state"
-        raise ValueError(f"adopt needs a ready drafting run; {task_id} is {held}")
+    if state is not None and state.state is not TaskState.READY:
+        raise ValueError(f"adopt needs a ready drafting run; {task_id} is {state.state}")
+    # An absent state with drafts present is adoptable: the drafts file
+    # only ever persists from a green run, and a reaper may have swept
+    # the READY state before this human arrived (D-20.10).
 
     record = cast("dict[str, Any]", json.loads(source.read_text(encoding="utf-8")))
     drafts: list[Draft] = [Draft.model_validate(d) for d in record["drafts"]]
@@ -510,11 +512,9 @@ def adopt(root: Path, task_id: str, config: RunnerConfig) -> list[str]:
                                + (proc.stderr.strip() or proc.stdout.strip()))
     finally:
         _release_lock(root)
-    state.history.append({
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-        "from": str(state.state), "to": str(state.state),
-        "fact": f"adopted as {', '.join(ids.values())}"})
-    state.save()
+    # Adoption is the disposal (D-20.10): the run's purpose is consumed,
+    # so its state goes with it — nothing is left for a reaper to judge.
+    state_path.unlink(missing_ok=True)
     source.unlink()
     engine_event(root, "intake_adopted", {
         "task": task_id, "adopted": list(ids.values())})

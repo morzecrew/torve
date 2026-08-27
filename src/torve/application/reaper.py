@@ -76,7 +76,11 @@ def _lane_input(root: Path, state: RunState,
     whose task has not landed on the base is the lane's input, not debris —
     its state file survives the sweep. Without a landed oracle the answer
     is conservative: keep. Review-role READY states never land and stay
-    sweepable; so does a READY state with no contract to land."""
+    sweepable; so does a READY state with no contract to land. A READY
+    draft run is kept unconditionally (RFC 0020, D-20.10): its landing is
+    adoption, which disposes of the state itself — the lab's first live
+    drafting run was swept one tick after going green, orphaning the
+    adoption it awaited."""
     if state.state is not TaskState.READY:
         return False
     contract = layout.task_file(root, state.task_id)
@@ -88,6 +92,8 @@ def _lane_input(root: Path, state: RunState,
         role = load_task(contract).role
     except ValueError:
         return False
+    if role == "draft":
+        return True
     if role not in ("implement", "revert"):
         return False
     return landed is None or not landed(state.task_id)

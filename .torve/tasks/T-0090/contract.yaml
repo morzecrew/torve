@@ -1,0 +1,37 @@
+# Minted by hand — RFC 0020 phase 1 follow-up: the reaper swept a READY
+# drafting run one tick after it went green (lab, T-0134, 2026-08-27),
+# and the lane briefly treated it as a landing candidate. D-20.10's open
+# disposal question, answered by operation.
+schema_version: 1
+id: T-0090
+rfc: rfcs/0020-intake-and-the-drafting-run.md
+phase: 1
+role: implement
+intent: |
+  A READY drafting run survives until its human disposes of it: the
+  reaper keeps role-draft READY states (their landing is adoption, not
+  the lane), the lane's candidate scan skips them, and adoption itself
+  becomes the disposal — it unlinks the state file on success and
+  tolerates a state already swept by a pre-fix reaper, since the drafts
+  file only ever persists from a green run.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/reaper.py"
+    - "src/torve/application/lane.py"
+    - "src/torve/application/intake.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest -q"
+decisions:
+  - id: D-20.10
+    grade: OPEN
+    text: >-
+      Disposal of a consumed drafting task (adopted or abandoned) —
+      expected to follow the review task's reap path; the executor
+      confirms and logs.
+    paths: ["src/torve/application/reaper.py"]
+tier: executor

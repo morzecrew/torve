@@ -216,3 +216,15 @@ def test_without_a_landed_oracle_the_reaper_keeps_conservatively(tmp_path):
     state_at(tmp_path, "T-9113", TaskState.READY)
     report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]))
     assert report.states_removed == []
+
+
+def test_a_ready_draft_state_survives_unconditionally(tmp_path):
+    # RFC 0020 D-20.10: a draft's landing is adoption — the lab's first
+    # live drafting run was swept one tick after green, orphaning it.
+    (tmp_path / ".torve").mkdir()
+    implement_contract(tmp_path, "T-9114", role="draft")
+    state_at(tmp_path, "T-9114", TaskState.READY)
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]),
+                  landed=lambda _t: True)
+    assert report.states_removed == []
+    assert (tmp_path / ".wt" / "T-9114.state.json").exists()

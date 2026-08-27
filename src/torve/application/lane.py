@@ -48,8 +48,26 @@ class LaneResult:
 
 def ready_candidates(root: Path) -> list[RunState]:
     states = RunState.load_all(root / naming.WORKTREE_DIR)
-    return sorted((s for s in states if s.state is TaskState.READY),
+    return sorted((s for s in states
+                   if s.state is TaskState.READY
+                   and not _awaits_adoption(root, s.task_id)),
                   key=lambda s: s.task_id)
+
+
+def _awaits_adoption(root: Path, task_id: str) -> bool:
+    """A READY draft run is intake's output, not the lane's input
+    (RFC 0020, D-20.1): it has no branch and nothing to land — adoption
+    consumes it. Anything unreadable stays a candidate; the lane's own
+    no-branch handling reports it rather than hiding it."""
+    contract = layout.task_file(root, task_id)
+    if not contract.is_file():
+        return False
+    try:
+        from torve.gates.context import load_task
+
+        return load_task(contract).role == "draft"
+    except ValueError:
+        return False
 
 
 def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
