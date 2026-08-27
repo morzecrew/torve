@@ -185,7 +185,7 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _acquire_lock(root: Path, budget_s: int) -> bool:
+def acquire_lock(root: Path, budget_s: int) -> bool:
     lock = root / layout.TORVE_DIR / LOCK
     if lock.exists():
         try:
@@ -206,7 +206,7 @@ def _acquire_lock(root: Path, budget_s: int) -> bool:
     return True
 
 
-def _release_lock(root: Path) -> None:
+def release_lock(root: Path) -> None:
     (root / layout.TORVE_DIR / LOCK).unlink(missing_ok=True)
 
 
@@ -219,7 +219,7 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
     """One pass, fixed order, every leg's failure recorded rather than
     fatal — a bounded tick must reach its sync leg so the board reflects
     whatever did happen."""
-    if not _acquire_lock(root, config.loop.tick_budget):
+    if not acquire_lock(root, config.loop.tick_budget):
         engine_event(root, "tick", {"noop": True, "locked": True})
         return TickReport(legs=[("lock", "held by a running tick — no-op")],
                           noop=True, locked_out=True)
@@ -264,7 +264,7 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
 
         leg("sync", deps.sync, "no tracker configured")
     finally:
-        _release_lock(root)
+        release_lock(root)
 
     engine_event(root, "tick", {"noop": not moved, **dict(legs)})
     return TickReport(legs=legs, noop=not moved)

@@ -486,7 +486,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig,
     dispatch them like hand-minted work (D-20.7). Returns the new ids.
     `assume_lock` is for a caller already inside the tick — the board's
     adopt command applies under the lock the tick holds."""
-    from torve.application.loop import _acquire_lock, _release_lock
+    from torve.application.loop import acquire_lock, release_lock
     from torve.application.planner import next_task_number
 
     marker = adopted_file(root, task_id)
@@ -510,7 +510,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig,
     rfc = record.get("rfc")
     decisions = _inherit_decisions(root, str(rfc)) if rfc else []
 
-    if not assume_lock and not _acquire_lock(root, config.loop.tick_budget):
+    if not assume_lock and not acquire_lock(root, config.loop.tick_budget):
         raise RuntimeError("the engine lock is held — a tick is running; "
                            "adoption retries when it releases")
     try:
@@ -557,7 +557,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig,
                                + (proc.stderr.strip() or proc.stdout.strip()))
     finally:
         if not assume_lock:  # a borrowed lock is the tick's to release
-            _release_lock(root)
+            release_lock(root)
     # Adoption is the disposal (D-20.10): the run's purpose is consumed,
     # so its state goes with it — nothing is left for a reaper to judge.
     # The marker survives as the audit line telling adopted from fresh.
@@ -595,6 +595,12 @@ class IntakeDeps:
 
 def ledger_file(root: Path) -> Path:
     return root / layout.TORVE_DIR / INTAKE_LEDGER
+
+
+def _title_for(root: Path, task_id: str) -> str:
+    from torve.application.tracker import _title
+
+    return _title(root, task_id)
 
 
 def _ledger_rows(root: Path) -> list[dict[str, Any]]:
@@ -653,6 +659,13 @@ def intake_leg(root: Path, config: RunnerConfig, deps: IntakeDeps,
     for row in _ledger_rows(root):
         task_id = str(row["task"])
         if adopted_file(root, task_id).is_file():
+            # The consumed thread closes itself (T-0093): keyed, so the
+            # sync leg delivers it exactly once.
+            if stage(root, Effect(
+                    key=f"{task_id}:adopted-close", kind="state",
+                    payload={"task": task_id, "state": "adopted",
+                             "title": _title_for(root, task_id)})):
+                staged += 1
             continue
         state_path = naming.state_file(root, task_id)
         state = RunState.load(state_path) if state_path.exists() else None

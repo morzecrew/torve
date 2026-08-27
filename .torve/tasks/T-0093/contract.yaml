@@ -1,0 +1,28 @@
+# Minted by hand — RFC 0020 follow-ups from the phase-2 live fire.
+schema_version: 1
+id: T-0093
+rfc: rfcs/0020-intake-and-the-drafting-run.md
+phase: 2
+role: implement
+intent: |
+  Three papercuts from operation: an adopted intake issue closes itself
+  (the leg stages a state:adopted effect; the adapter closes on it like
+  landed); the board's attempt comments carry the trace's basename, not
+  a host-absolute path (the same rule PR bodies got at T-0084); and the
+  tick lock's acquire/release become the public pair the T-0089 log
+  proposed — adoption is a second legitimate holder.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/tracker.py"
+    - "src/torve/application/intake.py"
+    - "src/torve/application/loop.py"
+    - "src/torve/adapters/tracker/github.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest -q"
+decisions: []
+tier: executor

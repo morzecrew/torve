@@ -562,3 +562,23 @@ def test_abandon_discards_a_ready_drafts_batch(seeded):
     assert not drafts_file(seeded.root, source).exists()
     with pytest.raises(ValueError, match="nothing to adopt"):
         adopt(seeded.root, source, RunnerConfig())
+
+
+def test_intake_leg_closes_an_adopted_thread(seeded):
+    from torve.application.intake import intake_leg, ledger_file
+    from torve.application.outbox import staged_keys
+
+    source = adopted_ready_run(seeded)
+    with ledger_file(seeded.root).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"issue": 9, "task": source, "at": "t"}) + "\n")
+    adopt(seeded.root, source, RunnerConfig())
+
+    tracker = FakeIntakeTracker()
+    intake_leg(seeded.root, RunnerConfig(),
+               leg_deps(tracker, ScriptedAgent([])), ("cmdr",))
+    assert f"{source}:adopted-close" in staged_keys(seeded.root)
+    # Keyed: a second pass stages nothing new.
+    intake_leg(seeded.root, RunnerConfig(),
+               leg_deps(tracker, ScriptedAgent([])), ("cmdr",))
+    assert len([k for k in staged_keys(seeded.root)
+                if k == f"{source}:adopted-close"]) == 1

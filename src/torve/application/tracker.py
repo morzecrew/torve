@@ -70,7 +70,12 @@ def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
         if agent.get("cost_usd") is not None:
             parts.append(f"cost ${agent['cost_usd']}")
         if agent.get("trace_ref"):
-            parts.append(f"trace {agent['trace_ref']}")
+            # The forge rule (T-0084): a host-absolute path says nothing
+            # on the board — its basename names the artefact; a URI stays.
+            trace = str(agent["trace_ref"])
+            if "://" not in trace:
+                trace = Path(trace).name
+            parts.append(f"trace {trace}")
         parts.append(f"config {record.get('config_hash', '')}")
         bodies[attempt_no] = " · ".join(parts)
     return bodies

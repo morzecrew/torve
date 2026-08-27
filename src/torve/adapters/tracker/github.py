@@ -130,6 +130,15 @@ class GithubIssues:
         return ReflectResult("applied", f"issue #{number} unlabelled {name}")
 
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
+        if state == "adopted":
+            # An adopted request's thread is consumed (RFC 0020 §5.4):
+            # same close-out shape as landed, no issue means nothing to do.
+            number = self._issue_for(task_id, title, create=False)
+            if number is None:
+                return ReflectResult("applied", "no issue to close")
+            self._set_label(number, "state:adopted")
+            self._gh("issue", "close", str(number))
+            return ReflectResult("applied", f"issue #{number} closed: adopted")
         if state == "landed":
             # The close-out for landed work (D-8.11): no issue means
             # nothing to close — never create one just to close it.
