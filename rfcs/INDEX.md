@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0020**.
+number is **0021**.
 
 ## Design
 
@@ -28,6 +28,7 @@ number is **0020**.
 | [0017](0017-sandbox-provisioning.md) | Sandbox provisioning and harness configuration | accepted | complete | 0003, 0004 | A-24 | How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory. |
 | [0018](0018-cli-presentation.md) | CLI presentation | accepted | complete | 0011 | — | One visual vocabulary for the human side of every verb — components, colour semantics, formats and live status — now that the hand-run commands are known. The machine contracts of RFC 0011 are untouched. |
 | [0019](0019-standing-loop.md) | The standing loop | accepted | partial | 0003, 0006, 0008 | A-27, A-28, A-29, A-31, A-34, A-39 | The bounded tick that makes the team standing: drain one queued task, process the lane under its existing approval switch, project the board, and stop — cadence delivered by the environment, never a resident daemon. Intake pauses while the escalation queue is non-empty, because a queue nobody triages must stop the machine, not the person. |
+| [0020](0020-intake-and-the-drafting-run.md) | Intake and the drafting run | draft | none | 0003, 0007, 0008 | — | A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption. |
 
 ## Conventions
 
