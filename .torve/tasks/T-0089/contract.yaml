@@ -1,0 +1,78 @@
+# Minted by hand — RFC 0020 phase 1: the drafting run and the lint.
+schema_version: 1
+id: T-0089
+rfc: rfcs/0020-intake-and-the-drafting-run.md
+phase: 1
+role: implement
+intent: |
+  The role, the run, the lint, and CLI adoption: role vocabulary gains
+  "draft"; a drafting run executes a request from the command line into
+  lint-gated draft documents persisted under the task's directory; the
+  contract lint ships with the schema, scope-hygiene, batch-disjointness
+  and T-0113 checks and is invocable standalone; torve adopt mints ids
+  under the lock, rewrites DRAFT-n refs, copies decisions from a named
+  accepted document, and commits the contracts as engine records.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/intake.py"
+    - "src/torve/domain/task.py"
+    - "src/torve/config/runconfig.py"
+    - "src/torve/cli/**"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run pytest -q"
+  - "uv run torve rfc check"
+decisions:
+  - id: D-20.1
+    grade: LOCKED
+    text: >-
+      A draft never dispatches without a human's adoption; adoption is
+      RFC 0007 §6's signature, relocated but never removed.
+    paths: ["src/torve/application/intake.py", "src/torve/application/tracker.py"]
+  - id: D-20.2
+    grade: LOCKED
+    text: >-
+      Drafting is a run under the runner — role "draft", its own tier
+      seat, read-only workspace — never a planner-module model call;
+      D-7.1 stands untouched.
+    paths: ["src/torve/application/intake.py", "src/torve/application/runner.py", "src/torve/domain/task.py"]
+  - id: D-20.3
+    grade: LOCKED
+    text: >-
+      Draft output is data gated by the deterministic contract lint; red
+      lint is a red attempt; unparseable output is recorded, never
+      treated as empty.
+    paths: ["src/torve/application/intake.py"]
+  - id: D-20.4
+    grade: LOCKED
+    text: >-
+      Task ids are minted at adoption, atomically with the contract
+      commit under the engine lock; drafts carry request-local DRAFT-n
+      refs.
+    paths: ["src/torve/application/intake.py"]
+  - id: D-20.8
+    grade: OPEN
+    text: >-
+      The decomposition ceiling per request — the knob's default and
+      where it lives; settled by the first weeks of drafting telemetry.
+    paths: ["src/torve/config/runconfig.py"]
+  - id: D-20.9
+    grade: ASSUMED
+    text: >-
+      Decision inheritance at adoption is a deterministic copy from a
+      named accepted document, by the planner's existing path; the
+      drafter proposes applicability in prose only and never writes a
+      row or a grade.
+    paths: ["src/torve/application/intake.py", "src/torve/application/planner.py"]
+  - id: D-20.10
+    grade: OPEN
+    text: >-
+      Disposal of a consumed drafting task (adopted or abandoned) —
+      expected to follow the review task's reap path; the executor
+      confirms and logs.
+    paths: ["src/torve/application/reaper.py"]
+tier: executor

@@ -344,6 +344,17 @@ class LoopConfig(BaseModel):
     tick_budget: int = 3600
 
 
+class IntakeConfig(BaseModel):
+    """The drafting run's knobs (RFC 0020). `max_drafts` is D-20.8's
+    decomposition ceiling — how many contracts one request may yield;
+    `iterations` bounds the draft-lint loop like any attempt budget."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_drafts: int = 4
+    iterations: int = 3
+
+
 class RunnerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -363,6 +374,7 @@ class RunnerConfig(BaseModel):
     tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     loop: LoopConfig = Field(default_factory=LoopConfig)
+    intake: IntakeConfig = Field(default_factory=IntakeConfig)
     worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not
 
 

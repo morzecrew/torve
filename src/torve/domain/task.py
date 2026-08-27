@@ -59,7 +59,7 @@ class Task(BaseModel):
     id: str
     rfc: str | None = None
     phase: int = 0
-    role: Literal["implement", "review", "revert"] = "implement"
+    role: Literal["implement", "review", "revert", "draft"] = "implement"
     # One paragraph: what changes and why — never steps (D-1.7, A-11).
     # Optional until the A-11 execution makes minting enforce it; contracts
     # minted before the amendment carry none.
@@ -93,6 +93,17 @@ class Task(BaseModel):
                     "a revert task names what it undoes in targets — task ids "
                     "or explicit commit shas"
                 )
+        elif self.role == "draft":
+            # RFC 0020 D-20.3: the drafting run's gate is the contract lint,
+            # not an exit code — acceptance commands are a contract error,
+            # the same shape rule a review carries (D-5.10).
+            if self.acceptance:
+                raise ValueError(
+                    "a draft task carries no acceptance commands — its gate "
+                    "is the contract lint over its drafts"
+                )
+            if self.targets:
+                raise ValueError("targets is not meaningful for role 'draft'")
         elif self.targets:
             raise ValueError(f"targets is not meaningful for role {self.role!r}")
         return self

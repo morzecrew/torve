@@ -39,21 +39,26 @@ from torve.gates.context import load_task
 # ----------------------- #
 
 
-def build_reviewer_agent(config: RunnerConfig, root: Path) -> Agent:
-    """The reviewer tier's agent, provider-routed before a sandbox exists —
-    shared by the run loop's review hook and the regression corpus."""
+def build_tier_agent(config: RunnerConfig, root: Path, tier_name: str) -> Agent:
+    """A named tier's agent, provider-routed before a sandbox exists —
+    shared by the run loop's review hook, the regression corpus, and the
+    drafting run."""
     from torve.adapters.vcs.git import repository_name
     from torve.config.runconfig import route_provider, tier_for
 
-    reviewer_tier = tier_for(config, "reviewer")
-    route_provider(config.providers, repository_name(root), reviewer_tier.provider)
-    if reviewer_tier.adapter == "fake":
+    tier = tier_for(config, tier_name)
+    route_provider(config.providers, repository_name(root), tier.provider)
+    if tier.adapter == "fake":
         from torve.adapters.agent.fake import FakeAgent
 
         return FakeAgent(None)
     from torve.adapters.agent.harness import HarnessAgent
 
-    return HarnessAgent(reviewer_tier)
+    return HarnessAgent(tier)
+
+
+def build_reviewer_agent(config: RunnerConfig, root: Path) -> Agent:
+    return build_tier_agent(config, root, "reviewer")
 
 
 def run_cmd(

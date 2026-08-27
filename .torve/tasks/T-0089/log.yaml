@@ -1,0 +1,82 @@
+schema_version: 1
+task: T-0089
+repo: morzecrew/torve
+base_sha: 417f94f4470b42bb7f43ad9e9dbe6a36d6a85aed
+drift_count: 0
+entries:
+  - decision: D-20.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-27T00:00:00Z
+    attempt: 1
+    claim: >-
+      the drafting run ends at READY with drafts persisted and nothing
+      dispatched — adoption is a separate, human-invoked CLI act; no
+      code path leads from a green lint to a dispatchable contract
+      without it
+    evidence: src/torve/application/intake.py:366 — the run's terminal
+      transition awaits adoption; src/torve/application/intake.py:445 —
+      adoption is its own entry point, reached only from the CLI
+    action: decided
+  - decision: D-20.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-27T00:01:00Z
+    attempt: 1
+    claim: >-
+      "its own tier seat" is the pre-existing planner seat — Task.tier
+      already carried "planner" in its vocabulary, unused since the
+      charter; the drafting run claims it rather than growing a fourth
+      name, so no model or config-schema change was needed, and the
+      planner module gains no model call
+    evidence: src/torve/application/intake.py:218 — the mint sets
+      tier="planner"; the seat ships in _default_tiers
+    action: decided
+  - decision: D-20.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-27T00:02:00Z
+    attempt: 1
+    claim: >-
+      the lint is the run's gate — every parsed batch passes through
+      lint_drafts before anything persists, a red lint transitions to
+      gated and iterates, and unparseable output is recorded as its own
+      fact, never coerced to an empty batch
+    evidence: src/torve/application/intake.py:350 — the lint between
+      parse and persist; tests/test_intake.py:273 — spent budget on
+      unparseable output escalates with the fact recorded
+    action: decided
+  - decision: D-20.8
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-27T00:03:00Z
+    attempt: 1
+    claim: >-
+      the decomposition ceiling lives as intake.max_drafts (default 4)
+      beside intake.iterations (default 3, the draft-lint loop's
+      budget) in a new IntakeConfig block — small defaults, both
+      overridable per repository, telemetry (kind "intake") records
+      drafts and attempts so the defaults can be argued with data
+    evidence: src/torve/config/runconfig.py:354 — the knob and its
+      default
+    action: decided
+  - decision: D-20.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-27T00:04:00Z
+    attempt: 1
+    claim: >-
+      the engine lock adoption holds is the loop's own tick lock,
+      reused via its module-private _acquire_lock/_release_lock — a
+      second lock file would let adoption and a tick race the id
+      counter, which is the exact hole D-20.4 closes
+    evidence: src/torve/application/intake.py:449 — the import;
+      tests/test_intake.py:312 — adoption rewrites refs, commits, and
+      releases the lock
+    action: decided
+proposals:
+  - >-
+    RFC 0019: promote the tick lock's acquire/release to a public pair
+    on torve.application.loop — adoption (RFC 0020) is now a second
+    legitimate holder, and cross-module use of private names is the
+    kind of seam a later refactor breaks silently.

@@ -24,6 +24,7 @@ from torve.cli import (
     evals,
     feedback,
     gates,
+    intake,
     merge,
     migrate,
     plan,
@@ -72,6 +73,9 @@ gates_app.command("run")(gates.gates_run)
 gates_app.command("check")(gates.gates_check)
 app.command("size")(gates.size)
 app.command("plan")(plan.plan_cmd)
+app.command("intake")(intake.intake_cmd)
+app.command("adopt")(intake.adopt_cmd)
+app.command("lint-contract")(intake.lint_contract_cmd)
 app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
 app.command("shadow")(shadow.shadow_cmd)
