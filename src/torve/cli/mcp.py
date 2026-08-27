@@ -41,17 +41,20 @@ def build_server(root: Path, rfc_dir: Path) -> Any:
 
     @server.tool(annotations=types.ToolAnnotations(readOnlyHint=True))  # type: ignore[untyped-decorator]
     def context(section: str = "") -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
-        """Accumulated execution facts for a planning session: tasks by
-        state, escalations by reason, proposals awaiting the author, gate
-        health, cost, and the programme view. Pass a top-level section name
-        to fetch just that section; empty returns the full report."""
+        """Accumulated execution facts for a planning session. Sections:
+        tasks, escalations, proposals, gates, costs, programme. Pass one
+        section name to fetch just that section; empty returns the full
+        report."""
 
         from torve.application.projections import context_report
 
         report = context_report(root, rfc_dir)
 
+        if section and section not in report:
+            raise ValueError(f"unknown section {section!r} — one of: {', '.join(report)}")
+
         if section:
-            return {section: report.get(section)}
+            return {section: report[section]}
 
         return report
 

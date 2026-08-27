@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
 from test_plan import PHASING, TABLE, plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
@@ -37,6 +38,10 @@ def test_context_tool_serves_the_report_and_slices(plan_repo):  # noqa: F811
 
     sliced = asyncio.run(server.call_tool("context", {"section": "tasks"}))
     assert set(json.loads(sliced.content[0].text)) == {"tasks"}
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(server.call_tool("context", {"section": "gate_health"}))
+    assert "one of:" in str(caught.value.__cause__)
 
 
 def test_missing_package_is_a_config_error(plan_repo, monkeypatch):  # noqa: F811
