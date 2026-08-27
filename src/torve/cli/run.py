@@ -124,6 +124,7 @@ def run_cmd(
         # fake override sends nothing anywhere, so it routes as fake does.
         if agent_name is None:
             route_provider(config.providers, repository_name(root), tier.provider)
+
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -144,6 +145,7 @@ def run_cmd(
     if "task_gated" in config.review.on:
         try:
             review_agent = build_reviewer_agent(config, root)
+
         except ValueError as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -156,13 +158,16 @@ def run_cmd(
         store=open_store,
         review_agent=review_agent,
     )
+
     from torve.application.runner import BlockedDispatch
 
     try:
         state = run_task(root, task, config, deps)
+
     except BlockedDispatch as exc:
         # Never a silent wait: the cause prints, the refusal is counted.
         raise fail(str(exc), EXIT_GATES_RED) from exc
+
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
@@ -227,6 +232,7 @@ def kill(
         try:
             runtime_for(config, runtime_name).destroy_by_id(state.sandbox_id)
             destroyed = state.sandbox_id
+
         except Exception as exc:  # the kill proceeds; the sandbox is reported
             destroyed = f"destroy failed: {exc}"
 
@@ -243,6 +249,7 @@ def kill(
                 "sandbox": destroyed or None,
             }
         )
+
         return
 
     console = out(fmt)
@@ -291,6 +298,7 @@ def cancel(
 
     try:
         recorded = asyncio.run(_cancel())
+
     except Exception as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 

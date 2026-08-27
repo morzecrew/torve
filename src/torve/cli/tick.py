@@ -77,6 +77,7 @@ def tick_cmd(
             store=open_store,
             landed=lambda t: bool(vcs.landed_shas(root, t)),
         )
+
         swept = (
             len(report.sandboxes_destroyed)
             + len(report.worktrees_removed)
@@ -106,12 +107,15 @@ def tick_cmd(
 
         try:
             threads = scm.review_threads(branch, tuple(config.review.feedback_from))
+
             diff = (
                 vcs.diff(root, config.base or "origin/main", branch)
                 if GitLane().tip(root, branch)
                 else ""
             )
+
             captured = capture_feedback(root, task_id, diff, threads)
+
         except RuntimeError as exc:
             return f"branch kept; feedback capture failed: {exc}"
 
@@ -226,9 +230,11 @@ def tick_cmd(
         tier = tier_for(config, task.tier)
         route_provider(config.providers, repository_name(root), tier.provider)
         agent: Agent = FakeAgent(None) if tier.adapter == "fake" else HarnessAgent(tier)
+
         review_agent = (
             build_reviewer_agent(config, root) if "task_gated" in config.review.on else None
         )
+
         deps = RunDeps(
             workspace=workspace,
             runtime=runtime_for(config, None),
@@ -238,6 +244,7 @@ def tick_cmd(
             store=open_store,
             review_agent=review_agent,
         )
+
         # A batch member runs under its own worker slot (D-19.14): auth
         # volumes are per-slot (D-4.2), and two runs must never share one.
         run_config = (
@@ -245,6 +252,7 @@ def tick_cmd(
             if slot_offset == 0
             else config.model_copy(update={"worker_slot": config.worker_slot + slot_offset})
         )
+
         state = run_task(root, task, run_config, deps)
 
         return f"{task_id}: {state.state} after {state.attempts} attempt(s)"
@@ -262,11 +270,13 @@ def tick_cmd(
             futures = [
                 pool.submit(_dispatch_one, task_id, index) for index, task_id in enumerate(task_ids)
             ]
+
             outcomes: list[str] = []
 
             for task_id, future in zip(task_ids, futures, strict=True):
                 try:
                     outcomes.append(future.result())
+
                 except Exception as exc:  # one member's failure is its own
                     outcomes.append(f"{task_id}: error: {exc}")
 
@@ -279,6 +289,7 @@ def tick_cmd(
 
         def _lane() -> tuple[str, bool]:
             lane_vcs = GitLane()
+
             results = process_lane(
                 root,
                 lane_vcs,
@@ -328,6 +339,7 @@ def tick_cmd(
                         try:
                             if vcs.republish_branch(root, naming.branch(r.task), token):
                                 republished += 1
+
                         except RuntimeError:
                             pass
 
@@ -357,6 +369,7 @@ def tick_cmd(
                             "review surface; the approval that landed "
                             "it lives on the task's issue"
                         )
+
                         branch_name = naming.branch(r.task)
 
                         try:
@@ -364,6 +377,7 @@ def tick_cmd(
 
                             if word != "closed":
                                 vcs.delete_remote_branch(root, branch_name, token)
+
                         except RuntimeError:
                             word = "refused"
 
@@ -392,15 +406,18 @@ def tick_cmd(
 
                         try:
                             records = _json.loads(pending.read_text(encoding="utf-8"))
+
                             reply = (
                                 f"Captured into {r.task}'s revision "
                                 "record; the revised candidate landed "
                                 f"as `{r.sha[:10]}`. The finding's "
                                 "disposition stays the reviewer's call."
                             )
+
                             done, _already = scm.answer_captured_threads(records, reply)
                             pending.unlink()
                             answered += done
+
                         except (RuntimeError, ValueError):
                             continue  # the file stays; the next tick retries
 
@@ -446,6 +463,7 @@ def tick_cmd(
             table.add_row(name, detail)
 
         console.print(table)
+
         closing(
             console,
             "noop — nothing moved" if report.noop else "work done",

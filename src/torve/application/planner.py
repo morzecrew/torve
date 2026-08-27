@@ -244,6 +244,7 @@ def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
             raw: Any = yaml.safe_load(contract.read_text(encoding="utf-8"))
+
         except yaml.YAMLError:
             continue
 
@@ -316,6 +317,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
 
     try:
         entries = rfc_parse.parse_phasing(text)
+
     except ValueError as exc:
         raise PlanError(f"{doc_path.name}: Phasing section does not mint — {exc}") from exc
 
@@ -373,6 +375,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
             acceptance=list(entry.acceptance),
             decisions=decisions,
         )
+
         planned.append(PlannedTask(task=task, title=entry.title, size=sizing.estimate(task)))
 
     return PlanReport(number=number, document=document, tasks=planned)
@@ -391,10 +394,12 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
             raise PlanError(f"{path} already exists — task ids are never reused")
 
         path.parent.mkdir(parents=True, exist_ok=True)
+
         header = (
             f"# Minted by `torve plan {report.number}` — phase "
             f"{planned.task.phase}: {planned.title}\n"
         )
+
         path.write_text(
             header
             + yaml.safe_dump(
@@ -402,6 +407,7 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
             ),
             encoding="utf-8",
         )
+
         written.append(path)
 
     return written
@@ -461,6 +467,7 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
             raw: Any = yaml.safe_load(contract.read_text(encoding="utf-8"))
+
         except yaml.YAMLError:
             continue
 
@@ -475,6 +482,7 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
 
         task_id = str(record.get("id", contract.parent.name))
         by = superseded[document]
+
         detail = (
             f"minted from {document}, superseded by {by or 'an unset successor'} "
             "(charter A-22): its inherited decisions no longer stand"
@@ -489,15 +497,18 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
                 found.append(
                     StaleTask(task_id, document, by, str(state.state), "skipped (terminal)")
                 )
+
                 continue
 
             if state.state is TaskState.ESCALATED:
                 reason = state.escalation.reason if state.escalation else "unknown"
+
                 action = (
                     "already escalated (stale_inheritance)"
                     if reason == "stale_inheritance"
                     else f"already escalated ({reason}) — left for triage"
                 )
+
                 found.append(StaleTask(task_id, document, by, str(state.state), action))
                 continue
 
@@ -516,9 +527,11 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
         else:
             if not dry_run:
                 state = RunState(task_id=task_id, path=state_path)
+
                 state.transition(
                     TaskState.CLAIMED, "torve plan --reconcile: claiming to record the fact"
                 )
+
                 state.escalate(EscalationReason.STALE_INHERITANCE, detail)
 
             found.append(

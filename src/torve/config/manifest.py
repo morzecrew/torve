@@ -31,37 +31,13 @@ class Gate(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-
-    # ....................... #
-
     name: str
-
-    # ....................... #
-
     run: str
-
-    # ....................... #
-
     state: GateState
-
-    # ....................... #
-
     origin: str  # structural | leak/<task> | rfc/<id> — why this gate exists
-
-    # ....................... #
-
     added: date | None = None
-
-    # ....................... #
-
     input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
-
-    # ....................... #
-
     timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
-
-    # ....................... #
-
     commands: list[str] = Field(default_factory=list)
 
     # ....................... #
@@ -162,36 +138,16 @@ class SecretsConfig(BaseModel):
 
 class Manifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    # ....................... #
-
     schema_version: int = SCHEMA_VERSION
-
-    # ....................... #
-
     scope: Scope = Field(default_factory=Scope)
-
-    # ....................... #
-
     tests: TestsConfig = Field(default_factory=TestsConfig)
-
-    # ....................... #
-
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
-
-    # ....................... #
 
     # Acceptance commands that flake; their failures are recorded but stop
     # blocking until fixed (RFC 0002 §6a). Maintained by humans from the flake
     # counters in telemetry until a store exists (RFC 0003).
     quarantine: list[str] = Field(default_factory=list)
-
-    # ....................... #
-
     telemetry: str = ".torve/telemetry.jsonl"
-
-    # ....................... #
-
     gates: list[Gate] = Field(default_factory=list)
 
     # ....................... #

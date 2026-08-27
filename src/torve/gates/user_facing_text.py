@@ -99,6 +99,7 @@ def _exempt_nodes(tree: ast.Module, cli: bool) -> set[int]:
 def _check_file(rel: str, text: str) -> list[str]:
     try:
         tree = ast.parse(text)
+
     except SyntaxError:
         return []  # not this gate's finding; acceptance owns broken code
 
@@ -134,6 +135,7 @@ def check_user_facing_text(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             if p.endswith(".py") and p.startswith(PREFIXES) and p not in DATA_MODULES
         }
     )
+
     problems: list[str] = []
     checked = 0
 

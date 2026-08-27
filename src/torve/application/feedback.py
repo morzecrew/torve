@@ -80,6 +80,7 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
         "```",
         "",
     ]
+
     text = "\n".join(lines)
 
     if len(text.encode("utf-8")) > FEEDBACK_CAP:
@@ -112,6 +113,7 @@ def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_feedback(task_id, diff, threads), encoding="utf-8")
+
     addresses = [
         {"pr": t["pr"], "id": t["id"], "path": t.get("path"), "line": t.get("line")}
         for t in threads

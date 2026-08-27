@@ -49,6 +49,7 @@ async def open_postgres_store(config: StoreConfig) -> DurableRunStorePort:
 
     client = PostgresClient()
     await client.initialize(dsn=resolve_dsn(config))
+
     store = PostgresDurableRunStore(
         client=client,
         config=PostgresDurableRunConfig(relation=(config.schema_name, config.run_relation)),

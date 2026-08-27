@@ -85,6 +85,7 @@ def _run_record_exists(root: Path, task_id: str) -> bool:
     from torve.config.manifest import Manifest, load_manifest
 
     manifest_path = layout.gates_file(root)
+
     telemetry = root / (
         load_manifest(manifest_path).telemetry
         if manifest_path.is_file()
@@ -156,6 +157,7 @@ def _inflight_scopes(root: Path) -> list[list[str]]:
 
         try:
             scopes.append(load_task(contract).scope.allow)
+
         except ValueError:
             continue
 
@@ -182,6 +184,7 @@ def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> l
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
             task = load_task(contract)
+
         except ValueError:
             continue  # an unreadable contract is not this leg's problem
 
@@ -245,10 +248,13 @@ def acquire_lock(root: Path, budget_s: int) -> bool:
     if lock.exists():
         try:
             row = cast("dict[str, Any]", json.loads(lock.read_text(encoding="utf-8")))
+
             held_at = datetime.strptime(str(row.get("at", "")), "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=UTC
             )
+
             age = (_now() - held_at).total_seconds()
+
         except (json.JSONDecodeError, ValueError):
             row, age = {}, float("inf")
 
@@ -294,6 +300,7 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
 
     if not acquire_lock(root, config.loop.tick_budget):
         engine_event(root, "tick", {"noop": True, "locked": True})
+
         return TickReport(
             legs=[("lock", "held by a running tick — no-op")], noop=True, locked_out=True
         )
@@ -310,6 +317,7 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
 
         try:
             detail, did = call()
+
         except Exception as exc:  # a leg's failure is recorded, never fatal
             legs.append((name, f"error: {exc}"))
             return
@@ -342,6 +350,7 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
                 leg("dispatch", lambda: deps.dispatch(batch), "")
 
         leg("sync", deps.sync, "no tracker configured")
+
     finally:
         release_lock(root)
 

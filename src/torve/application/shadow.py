@@ -93,6 +93,7 @@ def run_shadow(
         task_id=naming.shadow_id(task.id),
         path=naming.state_file(root, naming.shadow_id(task.id)),
     )
+
     state.transition(TaskState.CLAIMED, f"shadow replay of {resolved[:10]} from {parent[:10]}")
 
     inner = real_hooks(root, task, config, deps, workspace, shadow=True, gates_base=parent)
@@ -127,6 +128,7 @@ def run_shadow(
     # The replay's image identity, resolved the same way a live dispatch
     # resolves it (D-17.1) — a rebuild between two replays is two regimes.
     image_digest = deps.runtime.resolve_image(image_for(config, tier_for(config, task.tier)))
+
     record: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "shadow",
@@ -154,6 +156,7 @@ def run_shadow(
         "shadow_diff": source.diff_worktree(workspace, parent),
         "shipped_diff": source.diff_range(resolved),
     }
+
     shadow_files = set(record["shadow_diff"].get("files", {}))
     shipped_files = set(record["shipped_diff"].get("files", {}))
     record["overlap_files"] = sorted(shadow_files & shipped_files)

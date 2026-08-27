@@ -53,6 +53,7 @@ def locate(evidence: str, root: Path) -> str | None:
 
     try:
         target = (resolved_root / found.group("path")).resolve()
+
     except OSError:
         target = None
 

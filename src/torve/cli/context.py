@@ -121,6 +121,7 @@ def _render_rich(report: dict[str, Any]) -> None:
             continue
 
         progress = ", ".join(f"P{k}: {v}" for k, v in doc["progress"].items())
+
         programme.add_row(
             Text(str(doc["rfc"]), STYLE_ID),
             str(doc["title"]),
@@ -159,11 +160,13 @@ def _render_rich(report: dict[str, Any]) -> None:
         escalations = make_table(
             "reason", "route", "count", "tasks", "oldest", title="Escalations by reason"
         )
+
         ages: list[float] = []
 
         for reason, items in sorted(report["escalations"].items()):
             reason_ages = [float(item["age_s"]) for item in items if item.get("age_s") is not None]
             ages += reason_ages
+
             escalations.add_row(
                 Text(reason, STYLE_FAIL),
                 str(items[0].get("route", "")),
@@ -194,6 +197,7 @@ def _render_rich(report: dict[str, Any]) -> None:
             lines=True,
             last_max_width=76,
         )
+
         withheld = add_rows_truncated(
             proposals,
             [
@@ -206,6 +210,7 @@ def _render_rich(report: dict[str, Any]) -> None:
             ],
             limit=40,
         )
+
         console.print(proposals)
 
         if withheld:
@@ -245,11 +250,13 @@ def _render_rich(report: dict[str, Any]) -> None:
         for row in report["costs"]:
             cost = row.get("cost_usd")
             shown = f"${cost:.4f}" if isinstance(cost, (int, float)) else "unrecorded"
+
             detail = (
                 f"attempts {row['attempts']}, {row['state']}"
                 if row["kind"] == "shadow"
                 else str(row.get("adapter") or "")
             )
+
             rows.append(
                 (
                     row["kind"],

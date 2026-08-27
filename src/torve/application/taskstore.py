@@ -78,6 +78,7 @@ class TaskStore:
         self.store = store
         self.ctx = context_for(store)
         self.registry = DurableFunctionRegistry()
+
         self.runner = DurableFunctionRunner(
             registry=self.registry,
             lease_for=timedelta(seconds=config.lease_for),

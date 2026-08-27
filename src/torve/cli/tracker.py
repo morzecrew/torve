@@ -92,6 +92,7 @@ def sync(
         console = out(fmt)
         header(console, "tracker", "sync")
         console.print(f"staged {staged} new effect(s)")
+
         closing(
             console,
             f"delivered {len(report.delivered)}, "
@@ -138,12 +139,15 @@ def poll(
 
         try:
             threads = scm.review_threads(branch, tuple(config.review.feedback_from))
+
             diff = (
                 GitVcs().diff(root, config.base or "origin/main", branch)
                 if GitLane().tip(root, branch)
                 else ""
             )
+
             captured = capture_feedback(root, task_id, diff, threads)
+
         except RuntimeError as exc:
             return f"branch kept; feedback capture failed: {exc}"
 
@@ -175,6 +179,7 @@ def poll(
                 )
 
             console.print(table)
+
             closing(
                 console,
                 f"{sum(o.applied for o in report.outcomes)} applied "

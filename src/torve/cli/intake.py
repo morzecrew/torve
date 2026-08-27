@@ -71,6 +71,7 @@ def intake_cmd(
 
     try:
         agent = build_tier_agent(config, root, "planner")
+
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -90,6 +91,7 @@ def intake_cmd(
     try:
         digest = config_hash(layout.gates_file(root), root, config)
         outcome = run_intake(root, workdir, task, config, runtime, agent, digest)
+
     finally:
         vcs.remove_worktree(root, workdir)
 
@@ -106,6 +108,7 @@ def intake_cmd(
                 "unparseable": outcome.unparseable,
             }
         )
+
         raise typer.Exit(EXIT_OK if outcome.drafts else EXIT_ESCALATED)
 
     console = out(fmt)
@@ -155,8 +158,10 @@ def adopt_cmd(
 
     try:
         adopted = adopt(root, task_id, config)
+
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_ESCALATED) from exc
 
@@ -194,6 +199,7 @@ def lint_contract_cmd(
         emit_json(
             {"schema_version": 1, "contract": str(contract), "ok": not errors, "errors": errors}
         )
+
         raise typer.Exit(EXIT_OK if not errors else EXIT_GATES_RED)
 
     console = out(fmt)

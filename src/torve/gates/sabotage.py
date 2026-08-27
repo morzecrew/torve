@@ -102,6 +102,7 @@ def entry(**overrides: Any) -> dict[str, Any]:
         "evidence": "src/app.py:1",
         "action": "decided",
     }
+
     fields.update(overrides)
 
     return {key: value for key, value in fields.items() if value is not None}
@@ -223,6 +224,7 @@ def _scope_clean(repo: Repo) -> None:
 
 def _acceptance_bad(repo: Repo) -> None:
     manifest = dict(BASE_MANIFEST)
+
     manifest["gates"] = [
         {
             "name": "acceptance",
@@ -233,6 +235,7 @@ def _acceptance_bad(repo: Repo) -> None:
             "timeout": 30,
         }
     ]
+
     repo.seed(manifest)
     repo.write("src/app.py", "print('red build')\n")
     repo.commit("change")
@@ -253,6 +256,7 @@ def _acceptance_clean(repo: Repo) -> None:
 def _acceptance_flaky(repo: Repo) -> None:
     flaky = "test -e .torve/marker || { mkdir -p .torve; touch .torve/marker; exit 1; }"
     manifest = dict(BASE_MANIFEST)
+
     manifest["gates"] = [
         {
             "name": "acceptance",
@@ -263,6 +267,7 @@ def _acceptance_flaky(repo: Repo) -> None:
             "timeout": 30,
         }
     ]
+
     repo.seed(manifest)
     repo.write("src/app.py", "print('flaky build')\n")
     repo.commit("change")
@@ -317,6 +322,7 @@ def _decisions_no_log_untouched(repo: Repo) -> None:
     decisions = [
         {"id": "D-1", "grade": "LOCKED", "text": "docs layout is settled", "paths": ["docs/**"]}
     ]
+
     repo.seed()
     repo.task(base_task(allow=["src/**"], decisions=decisions), None)
     repo.write("src/app.py", "print('outside the governed area')\n")
@@ -328,12 +334,14 @@ def _decisions_no_log_untouched(repo: Repo) -> None:
 
 def _decisions_illegal(repo: Repo) -> None:
     repo.seed()
+
     repo.task(
         base_task(allow=["src/**"], decisions=LOCKED_D1),
         log_document(
             entry(kind="contradicted", action="departed", claim="departed from a locked decision")
         ),
     )
+
     repo.write("src/app.py", "print('flipped a lock')\n")
     repo.commit("illegal action for the grade")
 
@@ -343,10 +351,12 @@ def _decisions_illegal(repo: Repo) -> None:
 
 def _decisions_unlocatable(repo: Repo) -> None:
     repo.seed()
+
     repo.task(
         base_task(allow=["src/**"], decisions=LOCKED_D1),
         log_document(entry(evidence="nowhere/nothing.py:5")),
     )
+
     repo.write("src/app.py", "print('evidence points nowhere')\n")
     repo.commit("unlocatable evidence")
 
@@ -422,6 +432,7 @@ def _bypass_honored(repo: Repo) -> None:
     _scope_bad(repo)
     repo.write("rogue2.txt", "second file\n")
     repo.git("add", "-A")
+
     repo.git(
         "commit",
         "-q",
@@ -438,6 +449,7 @@ def _bypass_refused_for_secrets(repo: Repo) -> None:
     _secrets_bad(repo)
     repo.write("src/other.py", "x = 1\n")
     repo.git("add", "-A")
+
     repo.git(
         "commit",
         "-q",
@@ -500,11 +512,13 @@ def _text_module_docstring_passes(repo: Repo) -> None:
     # The case that matters most: the surface where references are wanted
     # must never be flagged, or the gate teaches people to strip them.
     repo.seed()
+
     repo.write(
         "src/torve/cli/thing.py",
         '"""The thing command (D-2.9, RFC 0007 §3); see rfcs/ for why."""\n\n'
         'def _helper() -> None:\n    """Private, editor-facing (D-2.9)."""\n',
     )
+
     repo.commit("module and private docstrings citing decisions")
 
 

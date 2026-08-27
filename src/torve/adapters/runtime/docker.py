@@ -60,6 +60,7 @@ class DockerRuntime:
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
         mount_mode = ":ro" if spec.workspace_read_only else ""
+
         args = [
             "run",
             "-d",
@@ -129,8 +130,10 @@ class DockerRuntime:
 
         try:
             proc = self._run("exec", handle.id, "sh", "-c", command, timeout=timeout_s)
+
         except subprocess.TimeoutExpired as exc:
             output = (exc.stdout or b"").decode(errors="replace") if exc.stdout else ""
+
             return ExecResult(
                 exit_code=None,
                 output=truncate(output + f"\n[hard timeout after {timeout_s:.0f}s]"),

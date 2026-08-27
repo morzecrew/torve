@@ -40,39 +40,16 @@ class TierConfig(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-
-    # ....................... #
-
     adapter: str = "fake"  # fake | api | harness | subscription
-
-    # ....................... #
-
     command: str = ""  # in-sandbox command line; {prompt} and {model} substituted
-
-    # ....................... #
-
     model: str = ""  # recorded in telemetry, substituted into the command
-
-    # ....................... #
-
     provider: str = ""  # routing identity (§6b); empty only for fake
-
-    # ....................... #
 
     # The tier's sandbox image — harness identity is the image (RFC 0017 §3,
     # D-17.4). Empty falls back to runtime.image.
     image: str = ""
-
-    # ....................... #
-
     api_key_env: list[str] = Field(default_factory=list)
-
-    # ....................... #
-
     auth_volume: str = "torve-auth"
-
-    # ....................... #
-
     auth_mount: str = "/auth"
 
     # ....................... #
@@ -169,8 +146,10 @@ def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
 
     try:
         return config.tiers[tier_name]
+
     except KeyError:
         configured = ", ".join(sorted(config.tiers)) or "none"
+
         raise ValueError(
             f"no tier {tier_name!r} in the runner configuration; configured: {configured}"
         ) from None
@@ -372,16 +351,8 @@ class ReviewConfig(BaseModel):
     pull requests always skip."""
 
     model_config = ConfigDict(extra="forbid")
-
-    # ....................... #
-
     on: list[str] = Field(default_factory=list)
-
-    # ....................... #
-
     skip_authors: list[str] = Field(default_factory=list)
-
-    # ....................... #
 
     # The revision loop's allow-list (RFC 0005 §4a, A-52): forge logins
     # whose review threads become revision context at retry. Empty = off;

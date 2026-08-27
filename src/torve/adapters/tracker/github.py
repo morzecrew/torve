@@ -136,6 +136,7 @@ class GithubIssues:
             "--body",
             "projection of the torve run store — the store is the authority, this issue is a view",
         )
+
         number = int(out.strip().rsplit("/", 1)[-1])
         self._issues[task_id] = number
 
@@ -189,6 +190,7 @@ class GithubIssues:
 
         try:
             self._gh("issue", "edit", str(number), "--remove-label", name)
+
         except RuntimeError as error:
             if "not found" in str(error).lower():
                 return ReflectResult("applied", f"label {name} already absent")
@@ -267,6 +269,7 @@ class GithubIssues:
 
         try:
             self._gh("issue", "edit", str(number), "--add-assignee", login)
+
         except RuntimeError as error:
             assigned = f"assign failed: {error}"
 
@@ -289,6 +292,7 @@ class GithubIssues:
 
     def poll_commands(self) -> list[TrackerCommand]:
         commands: list[TrackerCommand] = []
+
         listed = cast(
             "list[dict[str, Any]]",
             json.loads(
@@ -317,7 +321,9 @@ class GithubIssues:
                 "dict[str, Any]",
                 json.loads(self._gh("issue", "view", str(issue["number"]), "--json", "comments")),
             )
+
             comments = cast("list[dict[str, Any]]", detail.get("comments", []))
+
             answered = {
                 m
                 for c in comments
@@ -341,6 +347,7 @@ class GithubIssues:
                     continue
 
                 author = cast("dict[str, Any]", comment.get("author") or {})
+
                 commands.append(
                     TrackerCommand(
                         verb=found.group(1),
@@ -380,6 +387,7 @@ class GithubIssues:
                 or "[]"
             ),
         )
+
         requests: list[IntakeRequest] = []
 
         for issue in listed:
@@ -389,6 +397,7 @@ class GithubIssues:
                 continue  # claimed: the drafting task's row already
 
             author = cast("dict[str, Any]", issue.get("author") or {})
+
             requests.append(
                 IntakeRequest(
                     number=int(issue["number"]),

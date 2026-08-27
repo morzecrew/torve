@@ -37,6 +37,7 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
     try:
         runtime = runtime_for(config, None)
+
     except Exception as error:  # an unusable runtime is the finding
         return [("images", False, f"runtime unavailable: {error}")]
 
@@ -54,6 +55,7 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                     ),
                 )
             )
+
             continue
 
         detail = f"{image} = {digest[:19]}"
@@ -74,6 +76,7 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                         ),
                     )
                 )
+
                 continue
 
             detail += " (definition present)"
@@ -106,13 +109,16 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
     try:
         dsn = resolve_dsn(config.store)
+
     except RuntimeError as error:
         return [("store", False, str(error))]
 
     try:
         pending = pending_count("substrate", dsn)
+
     except MigrateError as error:
         return [("store", False, str(error))]
+
     except Exception as error:  # the unreachable database is the finding
         return [
             (

@@ -117,6 +117,7 @@ class IllegalTransition(Exception):
         super().__init__(
             f"illegal transition {current} -> {to}; legal: {sorted(TRANSITIONS[current])}"
         )
+
         self.current, self.to = current, to
 
 

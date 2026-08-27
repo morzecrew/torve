@@ -34,6 +34,7 @@ def _divergences(worktree: Path, task_id: str) -> list[str]:
 
     try:
         loaded: object = yaml.safe_load(log_path.read_text(encoding="utf-8"))
+
     except yaml.YAMLError:
         return ["execution log unparseable — read it before merging"]
 
@@ -122,6 +123,7 @@ def compose_pr(
             ]
         else:
             slowest = max(results, key=lambda r: r.duration_s)
+
             lines += [
                 (
                     f"**Gates** — all {len(results)} pass "

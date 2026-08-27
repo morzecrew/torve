@@ -34,6 +34,7 @@ def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             if p.endswith(".py") and p.startswith("src/")
         }
     )
+
     problems: list[str] = []
     checked = 0
 

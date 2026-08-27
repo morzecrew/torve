@@ -76,6 +76,7 @@ def build_prompt(task: Task, revision: bool = False) -> str:
 
     lines += ["", "## Acceptance", ""]
     lines += [f"- `{command}`" for command in task.acceptance] or ["- none declared."]
+
     lines += [
         "",
         "## Working rules",
@@ -115,6 +116,7 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
 
         try:
             data: Any = json.loads(line)
+
         except ValueError:
             continue
 
@@ -122,9 +124,11 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
             continue
 
         record = cast("dict[str, Any]", data)
+
         cost: Any = next(
             (record[k] for k in ("total_cost_usd", "cost_usd", "cost") if k in record), None
         )
+
         model: Any = next((record[k] for k in ("model_version", "model") if k in record), None)
 
         if not isinstance(model, str) or not model:
@@ -169,6 +173,7 @@ class HarnessAgent:
         command = self.tier.command.replace("{prompt}", PROMPT_RELPATH).replace(
             "{model}", self.tier.model
         )
+
         result = ctx.runtime.exec(ctx.handle, command, ctx.timeout_s)
 
         trace = naming.trace_file(ctx.workspace, ctx.attempt)

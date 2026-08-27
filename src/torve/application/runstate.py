@@ -43,66 +43,27 @@ class Escalation:
 @dataclass
 class RunState:
     task_id: str
-
-    # ....................... #
-
     path: Path
-
-    # ....................... #
-
     schema_version: int = SCHEMA_VERSION
-
-    # ....................... #
-
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
-
-    # ....................... #
-
     state: TaskState = TaskState.QUEUED
-
-    # ....................... #
-
     attempts: int = 0
-
-    # ....................... #
-
     heartbeat: str = field(default_factory=_now)
-
-    # ....................... #
-
     sandbox_id: str | None = None
-
-    # ....................... #
-
     durable_run_id: str | None = None  # the store's run this engine run executes under
-
-    # ....................... #
-
     worktree: str | None = None
-
-    # ....................... #
-
     escalation: Escalation | None = None
-
-    # ....................... #
-
     history: list[dict[str, str]] = field(default_factory=list)
-
-    # ....................... #
 
     # Sha-bound promotion approvals (RFC 0006 §3): {actor, sha, at} — an
     # approval that predates the last push approves nothing, so the lane
     # counts only entries matching the current branch tip.
     approvals: list[dict[str, str]] = field(default_factory=list)
 
-    # ....................... #
-
     # The base tip this run last conflicted against (D-6.12, A-35): the
     # lane's automatic conflict disposal re-queues only against a base
     # that has moved since — a repeat against this tip is a human's turn.
     conflict_base: str | None = None
-
-    # ....................... #
 
     # The review task that concluded over this candidate without a
     # surviving blocker (D-6.14, A-43) — the lane's require_review

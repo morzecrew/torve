@@ -62,6 +62,7 @@ def status(
     for state in states:
         terminal_ready = str(state.state) == "ready"
         escalated = str(state.state) == "escalated"
+
         table.add_row(
             Text(state.task_id, STYLE_ID),
             Text(
@@ -111,6 +112,7 @@ def reap_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
+
     report = reap(
         root,
         config,
@@ -132,6 +134,7 @@ def reap_cmd(
                 "states_removed": report.states_removed,
             }
         )
+
         return
 
     console = out(fmt)

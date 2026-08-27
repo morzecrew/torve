@@ -65,6 +65,7 @@ def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
 
     try:
         loaded = yaml.safe_load(text)
+
     except yaml.YAMLError as exc:
         return None, f"log is not valid YAML: {exc}"
 
@@ -249,6 +250,7 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
 
         if hits and decision.id not in logged:
             shown = ", ".join(sorted(hits)[:3]) + ("…" if len(hits) > 3 else "")
+
             problems.append(
                 f"decision {decision.id}: LOCKED, and the diff touches {len(hits)} "
                 f"file(s) it governs ({shown}), with no entry in the log"
@@ -275,12 +277,14 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             "drift_count": 0,
             "entries": [],
         }
+
         silence_problems, _skipped = _check_silence(ctx, empty)
 
         if silence_problems:
             header = (
                 "no execution log — absence is an empty log, and the silence check still applies:"
             )
+
             return BuiltinOutcome("fail", "\n".join([header, *silence_problems]))
 
         if not ctx.task.decisions:

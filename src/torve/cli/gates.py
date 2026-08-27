@@ -81,6 +81,7 @@ def gates_run(
 
     try:
         manifest = load_manifest(manifest_path)
+
     except (ValueError, yaml.YAMLError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -90,8 +91,10 @@ def gates_run(
 
         with live_status("running gates", fmt) as update:
             report = run_gates(ctx, only=selected, progress=lambda name: update(f"running {name}"))
+
     except GitError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
+
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 

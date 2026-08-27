@@ -62,11 +62,13 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
         budget=Budget(iterations=1),
         tier="reviewer",
     )
+
     contract_dir = root / layout.TORVE_DIR / "tasks" / review.id
     contract_dir.mkdir(parents=True, exist_ok=True)
     document = review.model_dump(exclude_defaults=True)
     document["schema_version"] = SCHEMA_VERSION
     document["decisions"] = [d.model_dump() for d in review.decisions]
+
     (contract_dir / "contract.yaml").write_text(
         "# Minted by the runner at gated — review follows execution.\n"
         + yaml.safe_dump(document, sort_keys=False),
@@ -93,7 +95,9 @@ def build_review_prompt(
     gates_summary = (
         "\n".join(f"- {r.name}: {r.outcome}" for r in gate_results) or "- (none recorded)"
     )
+
     decisions = "\n".join(f"- {d.id} [{d.grade}] {d.text}" for d in target.decisions) or "- none"
+
     spec_block = (
         "No task contract exists for this change: you are reviewing in "
         "degraded mode. You have no scope and no inherited decisions — do "
@@ -173,6 +177,7 @@ def parse_findings(output: str) -> list[Finding] | None:
     for brace in re.finditer(r"\{", text):
         try:
             document, _ = decoder.raw_decode(text, brace.start())
+
         except json.JSONDecodeError:
             continue
 
@@ -184,6 +189,7 @@ def parse_findings(output: str) -> list[Finding] | None:
 
     try:
         return _FindingsDocument.model_validate(last).findings
+
     except ValidationError:
         return None
 
@@ -228,6 +234,7 @@ def run_review(
     state.save()
 
     image = image_for(config, tier)
+
     spec = SandboxSpec(
         name=naming.sandbox_name(review.id, state.run_id) + "-a1",
         image=image,
@@ -236,6 +243,7 @@ def run_review(
         env_passthrough=tuple(tier.api_key_env),
         workspace_read_only=True,
     )
+
     prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded)
     handle = runtime.create(spec, worktree)
     state.sandbox_id = handle.id
@@ -254,6 +262,7 @@ def run_review(
                 prompt=prompt,
             )
         )
+
     finally:
         runtime.destroy(handle)
         state.sandbox_id = None
@@ -299,6 +308,7 @@ def run_review(
             "shadow": False,
         },
     }
+
     from torve.application.telemetry import append_record
 
     manifest = layout.gates_file(worktree)
@@ -462,6 +472,7 @@ def review_pull_request(
         from torve.application.telemetry import config_hash, engine_event
 
         digest = config_hash(layout.gates_file(root), root, config)
+
         outcome = run_review(
             root,
             workdir,
@@ -475,6 +486,7 @@ def review_pull_request(
             digest,
             degraded=degraded,
         )
+
     finally:
         vcs.remove_worktree(root, workdir)
 
@@ -483,6 +495,7 @@ def review_pull_request(
         _pr_comment(review.id, head_sha, outcome, degraded),
         f"review:{number}:{head_sha[:12]}",
     )
+
     ledger = root / layout.TORVE_DIR / PR_LEDGER
 
     with ledger.open("a", encoding="utf-8") as handle:

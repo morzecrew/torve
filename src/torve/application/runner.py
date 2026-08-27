@@ -115,12 +115,14 @@ async def drive_attempts(
             state.escalate(
                 EscalationReason.POISON_CEILING, f"{state.attempts} attempts, ceiling {ceiling}"
             )
+
             return state
 
         if iterations is not None and state.attempts >= iterations:
             state.escalate(
                 EscalationReason.BUDGET_EXHAUSTED, f"{state.attempts} attempts, budget {iterations}"
             )
+
             return state
 
         state.transition(TaskState.RUNNING, f"attempt {state.attempts + 1} dispatched")
@@ -134,6 +136,7 @@ async def drive_attempts(
                 EscalationReason.LOCKED_CONFLICT,
                 f"halted divergence entry in the {task.id} execution log",
             )
+
             return state
 
         if result.timed_out or result.exit_code != 0:
@@ -142,6 +145,7 @@ async def drive_attempts(
                 if result.timed_out
                 else f"agent exited {result.exit_code}"
             ) + "; gates not run"
+
             state.transition(TaskState.GATED, fact)
             state.save()
             continue
@@ -151,8 +155,10 @@ async def drive_attempts(
 
         try:
             exit_code, summary, digest = await hooks.gates(state)
+
         except asyncio.CancelledError:
             raise
+
         except Exception as exc:
             state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
             return state
@@ -166,6 +172,7 @@ async def drive_attempts(
                     "fact": f"gates red: {summary}",
                 }
             )
+
             state.save()
             continue
 
@@ -197,6 +204,7 @@ def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
 
     try:
         document = yaml.safe_load(log.read_text(encoding="utf-8"))
+
     except yaml.YAMLError:
         return False  # an unreadable log is the decisions-reported gate's finding
 
@@ -356,8 +364,10 @@ def _run_gates_in_worktree(
             base=resolve_base(worktree, base or config.base),
             task_path=task_file if task_file.is_file() else None,
         )
+
         ctx.execute = executor
         report = run_gates(ctx)
+
     finally:
         executor.close()
 
@@ -400,6 +410,7 @@ def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, 
         head = head[:45].rstrip() + "…"
 
     what = f" {head} —" if head else ""
+
     lines = [
         f"torve({task.id}):{what} attempt {attempts} green",
         "",
@@ -469,6 +480,7 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
 
     stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     short = " ".join(sha[:10] for sha in shas)
+
     entries: list[dict[str, Any]] = [
         {
             "decision": d.id,
@@ -484,8 +496,10 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
         }
         for d in task.decisions
     ]
+
     log_path = layout.log_file(worktree, task.id)
     log_path.parent.mkdir(parents=True, exist_ok=True)
+
     log_path.write_text(
         yaml.safe_dump(
             {"schema_version": 1, "task": task.id, "drift_count": 0, "entries": entries},
@@ -516,6 +530,7 @@ def real_hooks(
     # dispatch; None is recorded as unresolved, never invented.
     image = image_for(config, tier)
     image_digest = deps.runtime.resolve_image(image)
+
     # Denormalised into every record this run appends (RFC 0004 §6): which
     # adapter and model did the work cannot be reconstructed later. Shadow
     # gate passes are marked so the measurement population stays separable
@@ -549,6 +564,7 @@ def real_hooks(
             config.skills.sets,
             layout.skills_vendor_dir(worktree),
         )
+
         # The revision loop (RFC 0005 §4a, D-5.13): a retry's feedback
         # record travels into the sandbox beside the skills; the prompt
         # names it as untrusted review data.
@@ -565,6 +581,7 @@ def real_hooks(
 
         env_passthrough, volumes = _sandbox_auth(tier, config.worker_slot) if real else ((), {})
         infra_id = naming.shadow_id(task.id) if shadow else task.id
+
         spec = SandboxSpec(
             name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
             image=image,
@@ -573,6 +590,7 @@ def real_hooks(
             env_passthrough=env_passthrough,
             volumes=volumes,
         )
+
         withheld = _withhold_never_send(worktree, config.providers.never_send)
         handle = deps.runtime.create(spec, worktree)
         state.sandbox_id = handle.id
@@ -591,7 +609,9 @@ def real_hooks(
                     timeout_s=config.runtime.agent_timeout,
                 ),
             )
+
             deps.runtime.sync_out(handle, worktree)
+
             agent_meta.update(
                 model_version=result.model_version,
                 cost_usd=result.cost_usd,
@@ -599,6 +619,7 @@ def real_hooks(
             )
 
             return result
+
         finally:
             # Synchronous on purpose: a cancelled task cannot await its own
             # cleanup, and the sandbox must die regardless (D-4).
@@ -634,6 +655,7 @@ def real_hooks(
             image,
             image_digest,
         )
+
         last_pass.update(results=results, patch=patch, digest=digest)
 
         return exit_code, summary, digest
@@ -646,13 +668,16 @@ def real_hooks(
         # configured (D-10.3).
         message = _provenance_message(task, state.attempts, digest, agent_meta)
         author = f"{_agent_identity(agent_meta)} <agents@torve.local>"
+
         sha = await asyncio.to_thread(
             deps.vcs.commit_all, worktree, message, author, config.vcs.signing_key
         )
+
         # The credential is resolved by NAME here, at the runner boundary
         # (D-4b): the value lives only in this process and the subprocess
         # environments the adapters compose.
         token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
+
         pushed = (
             await asyncio.to_thread(
                 # supersede (D-10.10, A-37): the attempt owns the task's
@@ -667,6 +692,7 @@ def real_hooks(
             if sha
             else False
         )
+
         pr_url = ""
 
         if pushed and config.scm.open_pr:
@@ -679,6 +705,7 @@ def real_hooks(
                 worktree,
                 changed=deps.vcs.changed_names(worktree),
             )
+
             pr_url = await asyncio.to_thread(
                 deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body
             )
@@ -730,6 +757,7 @@ def real_hooks(
             from torve.application.review import mint_review_task, run_review
 
             review_task = mint_review_task(root, task)
+
             outcome = await asyncio.to_thread(
                 run_review,
                 root,
@@ -746,6 +774,7 @@ def real_hooks(
 
             if outcome.blockers:
                 detail = "; ".join(f.claim for f in outcome.blockers)
+
                 state.escalate(
                     EscalationReason.BLOCKER_FINDING, f"{outcome.review_id}: {detail[:300]}"
                 )
@@ -785,11 +814,13 @@ async def _run_task_async(
 
         try:
             final = await drive_attempts(state, task, config, hooks)
+
         except RevertConflict as exc:
             # RFC 0010 §7: a dependent-commit conflict escalates as
             # merge_conflict — the revert aborted and the worktree is clean.
             state.escalate(EscalationReason.MERGE_CONFLICT, str(exc))
             final = state
+
         except asyncio.CancelledError:
             if state.state not in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
                 state.escalate(
@@ -808,6 +839,7 @@ async def _run_task_async(
     store = await deps.store(config.store)
     taskstore = TaskStore(store, config.store)
     taskstore.register(body)
+
     record = await taskstore.run_now(
         {"task_id": task.id, "engine_run_id": state.run_id},
         idempotency_key=f"{task.id}:{state.run_id}",
@@ -893,6 +925,7 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
 
     if blocked is not None:
         blocker, path = blocked
+
         engine_event(
             root, "blocked_dispatch", {"task": task.id, "blocked_by": blocker, "path": path}
         )
@@ -904,6 +937,7 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
 
     try:
         return asyncio.run(_run_task_async(root, task, config, deps, state))
+
     except KeyboardInterrupt:
         if state.state not in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
             state.escalate(EscalationReason.KILLED, "interrupted by operator")

@@ -106,6 +106,7 @@ def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> boo
         from torve.gates.context import load_task
 
         role = load_task(contract).role
+
     except ValueError:
         return False
 
@@ -193,6 +194,7 @@ def _heartbeat_reap(
         for s in states
         if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after
     }
+
     own = naming.root_key(root)
 
     for sandbox in runtime.list_torve_sandboxes():

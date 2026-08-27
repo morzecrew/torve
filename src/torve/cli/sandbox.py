@@ -102,6 +102,7 @@ def build(
     if name is not None:
         if name not in names:
             listed = ", ".join(names) or "none"
+
             raise fail(
                 f"configuration error: no definition directory with a "
                 f"Dockerfile for {name!r} under {definitions_root(root)} "
@@ -121,6 +122,7 @@ def build(
     for entry in names:
         try:
             digest = runtime.build_image(definitions_root(root) / entry, image_tag(entry))
+
         except Exception as error:  # the build tool's failure is the message
             raise fail(f"build failed for {entry!r}: {error}", EXIT_INFRASTRUCTURE) from None
 

@@ -120,6 +120,7 @@ def stage(root: Path, effect: Effect) -> bool:
 
 def pending(root: Path) -> list[Effect]:
     done = delivered_keys(root)
+
     return [
         Effect(
             key=str(row["key"]),
@@ -159,6 +160,7 @@ def relay(root: Path, deliver: Callable[[Effect], None]) -> RelayReport:
 
         try:
             deliver(effect)
+
         except Exception as exc:  # one destination must not dam the queue
             report.failed[key] = str(exc)
             continue
@@ -170,6 +172,7 @@ def relay(root: Path, deliver: Callable[[Effect], None]) -> RelayReport:
                 "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             },
         )
+
         done.add(key)
         report.delivered.append(key)
 

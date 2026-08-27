@@ -64,6 +64,7 @@ def config_hash(
             {name: tier.model_dump() for name, tier in sorted(config.tiers.items())},
             sort_keys=True,
         )
+
         parts["providers"] = json.dumps(config.providers.model_dump(), sort_keys=True)
 
     if image_digest is not None:
@@ -152,11 +153,13 @@ def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:
     from torve.config.manifest import Manifest, load_manifest
 
     manifest_path = layout.gates_file(root)
+
     telemetry_rel = (
         load_manifest(manifest_path).telemetry
         if manifest_path.is_file()
         else Manifest(gates=[]).telemetry
     )
+
     append_record(
         root / telemetry_rel,
         {

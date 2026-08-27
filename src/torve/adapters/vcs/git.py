@@ -157,6 +157,7 @@ class GitVcs:
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
 
         force = ["--force-with-lease"] if supersede else []
+
         proc = subprocess.run(
             [
                 "git",
@@ -285,6 +286,7 @@ class GitVcs:
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
 
         head_ref, base_local = f"refs/torve/pr-{number}", f"refs/torve/pr-{number}-base"
+
         proc = subprocess.run(
             [
                 "git",
@@ -416,6 +418,7 @@ class GitLane:
 
             try:
                 same = shown.returncode == 0 and shown.stdout == target.read_text(encoding="utf-8")
+
             except UnicodeDecodeError:
                 continue
 
@@ -626,6 +629,7 @@ class GhScm:
                 )
             ),
         )
+
         author = cast("dict[str, Any]", document.get("author") or {})
 
         return PrInfo(
@@ -711,12 +715,14 @@ class GhScm:
             return []
 
         number = int(listed[0]["number"])
+
         raw = cast(
             "list[dict[str, Any]]",
             json.loads(
                 self._api(f"repos/{self.repo}/pulls/{number}/comments", "--paginate") or "[]"
             ),
         )
+
         roots: dict[int, dict[str, Any]] = {}
 
         for comment in raw:
@@ -742,6 +748,7 @@ class GhScm:
 
             if parent is not None and int(parent) in roots:
                 user = cast("dict[str, Any]", comment.get("user") or {})
+
                 cast("list[dict[str, Any]]", roots[int(parent)]["comments"]).append(
                     {"author": str(user.get("login", "")), "body": str(comment.get("body", ""))}
                 )
@@ -782,6 +789,7 @@ class GhScm:
                     "-f",
                     f"body={body}\n\n{marker}",
                 )
+
                 posted += 1
 
         return (posted, skipped)
@@ -955,6 +963,7 @@ class GhCi:
                 verdict = "pending"
             else:
                 conclusions = {str(r.get("conclusion")) for r in latest.values()}
+
                 return (
                     "success"
                     if conclusions == {"success"}

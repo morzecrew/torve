@@ -67,6 +67,7 @@ def _arm_row(record: dict[str, Any]) -> dict[str, Any]:
 
 def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     costs = [r["cost_usd"] for r in rows if r["cost_usd"] is not None]
+
     return {
         "green": sum(1 for r in rows if r["state"] == "ready"),
         "attempts": sum(int(r["attempts"]) for r in rows),
@@ -97,13 +98,16 @@ def run_skill_eval(
             record = run_shadow(
                 root, task, arm_config, deps, source, annotation={"skill": skill, "arm": arm}
             )
+
             results[arm].append(_arm_row(record))
 
     with_arm, without_arm = _summary(results["with"]), _summary(results["without"])
+
     matched = (
         without_arm["green"] >= with_arm["green"]
         and without_arm["attempts"] <= with_arm["attempts"]
     )
+
     record = {
         "schema_version": SCHEMA_VERSION,
         "kind": "skill-eval",
@@ -116,6 +120,7 @@ def run_skill_eval(
         # here — the deletion decision stays with a person (D-9.4).
         "baseline_matched": matched,
     }
+
     append_record(root / layout.TORVE_DIR / EVAL_LEDGER, record)
 
     return record

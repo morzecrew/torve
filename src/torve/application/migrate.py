@@ -98,6 +98,7 @@ def check_forze_pin() -> tuple[bool, str]:
 def _yoyo() -> tuple[Any, Any]:
     try:
         yoyo = import_module("yoyo")
+
     except ImportError as exc:
         raise MigrateError(
             "yoyo-migrations is not installed — install the extra: pip install 'torve[migrate]'",
@@ -185,6 +186,7 @@ def status(dsn: str | None) -> list[str]:
             try:
                 pending = pending_count(target, dsn)
                 applied = f"{len(steps) - pending}/{len(steps)} applied"
+
             except MigrateError:
                 applied = "yoyo not installed"
 

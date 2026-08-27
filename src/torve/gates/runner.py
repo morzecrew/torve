@@ -27,9 +27,6 @@ from torve.gates.contract import BuiltinOutcome
 @dataclass
 class RunReport:
     results: list[GateResult] = field(default_factory=list)
-
-    # ....................... #
-
     exit_code: int = 0
 
     # ....................... #
@@ -113,6 +110,7 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
         document = {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}
 
     fresh: list[dict[str, str]] = []
+
     cast(list[dict[str, str]], document.setdefault("bypasses", fresh)).append(
         {
             "gate": record.gate,
@@ -122,7 +120,9 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
             "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
     )
+
     ctx.log_path.parent.mkdir(parents=True, exist_ok=True)
+
     ctx.log_path.write_text(
         yaml.safe_dump(document, sort_keys=False, allow_unicode=True), encoding="utf-8"
     )
@@ -162,6 +162,7 @@ def run_gates(
                     output="not run: an earlier blocking gate failed",
                 )
             )
+
             continue
 
         if progress is not None:
@@ -173,6 +174,7 @@ def run_gates(
 
         try:
             outcome = _execute(gate, ctx)
+
         except Exception as exc:
             outcome = BuiltinOutcome("error", f"gate infrastructure failure: {exc!r}")
 

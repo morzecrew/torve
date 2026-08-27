@@ -111,6 +111,7 @@ def shadow_cmd(
         # sends the repository to the provider exactly like a live one.
         if agent_name is None:
             route_provider(config.providers, repository_name(root), tier.provider)
+
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -134,7 +135,9 @@ def shadow_cmd(
         scm=NullScm(),
         store=open_store,
     )
+
     shadow_ws = ShadowWorkspace(root, depth=depth)
+
     source = ShadowSource(
         create_workspace=shadow_ws.create,
         shipped_commit=partial(shipped_commit, root),
@@ -146,8 +149,10 @@ def shadow_cmd(
     try:
         with live_status(f"shadow replay of {task_id}", fmt):
             record = run_shadow(root, task, config, deps, source, commit=commit)
+
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
@@ -157,6 +162,7 @@ def shadow_cmd(
         console = out(fmt)
         header(console, "shadow", f"{task_id} · replay of {record['commit'][:10]}")
         ready = record["state"] == "ready"
+
         console.print(
             Text(
                 f"  {record['state']} after {record['attempts']} attempt(s)",
@@ -168,6 +174,7 @@ def shadow_cmd(
             console.print(Text(f"  escalated: {record['escalation']}", STYLE_FAIL))
 
         cost = record["cost_usd_total"]
+
         console.print(
             f"  cost: {'$' + format(cost, '.2f') if cost is not None else 'unrecorded'}"
             f" · adapter {record['adapter']}"
@@ -175,6 +182,7 @@ def shadow_cmd(
 
         for label in ("shadow_diff", "shipped_diff"):
             stat = record[label]
+
             console.print(
                 f"  {label.replace('_', ' ')}: {stat['files_changed']} file(s), "
                 f"+{stat['insertions']} -{stat['deletions']}"

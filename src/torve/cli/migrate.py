@@ -76,7 +76,9 @@ def migrate_cmd(
         for name in targets:
             applied = apply(name, dsn)
             closing(console, f"{name}: {applied} step(s) applied", STYLE_PASS)
+
     except MigrateError as exc:
         raise fail(str(exc), exc.exit_code) from exc
+
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc

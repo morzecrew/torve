@@ -46,9 +46,11 @@ def _title(root: Path, task_id: str) -> str:
 
             if intent:
                 head = intent.splitlines()[0]
+
                 return (
                     f"{task_id}: {head[:71].rstrip()}…" if len(head) > 72 else f"{task_id}: {head}"
                 )
+
         except ValueError:
             pass
 
@@ -117,6 +119,7 @@ def _task(root: Path, task_id: str) -> Any | None:
         from torve.gates.context import load_task
 
         return load_task(contract)
+
     except ValueError:
         return None
 
@@ -164,6 +167,7 @@ def _review_effects(
     if state.escalation is not None:
         route = escalation_route(str(state.escalation.reason))
         detail = f"review {task_id}: {state.escalation.detail}"
+
         effects.append(
             Effect(
                 key=f"{task_id}:escalated:{state.attempts}:{state.escalation.reason}",
@@ -233,11 +237,13 @@ def project(root: Path, notify_login: str = "") -> int:
             continue
 
         title = _title(root, task_id)
+
         effects = [
             Effect(
                 key=f"{task_id}:created", kind="created", payload={"task": task_id, "title": title}
             )
         ]
+
         effects += [
             # The transition ordinal joins the key (A-30): a state revisited
             # at the same attempt is a new fact; a replay between
@@ -277,6 +283,7 @@ def project(root: Path, notify_login: str = "") -> int:
                     },
                 )
             )
+
             # The notifier (RFC 0003 D-3.18, policy D-6.4): interrupt-class
             # routes page a person; batch stays board-visible only. Keyed on
             # (task, attempt, reason) — one escalation event notifies once
@@ -325,6 +332,7 @@ def _discharged(contract: Path, task_id: str, landed: Callable[[str], bool]) -> 
         from torve.gates.context import load_task
 
         task = load_task(contract)
+
     except ValueError:
         return False
 
@@ -413,6 +421,7 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
             result = tracker.reflect(task_id, "landed", title)
         elif effect.kind == "approval_needed":
             tracker.label(task_id, "needs:approval")
+
             result = tracker.comment(
                 task_id,
                 (
@@ -427,6 +436,7 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
                 f"escalated: {payload['reason']} — {payload['detail']}\n\n"
                 "authority: the run store; this board is a projection"
             )
+
             tracker.reflect(task_id, f"escalated:{payload['reason']}", title)
             result = tracker.comment(task_id, body, effect.key)
         elif effect.kind == "unlabel":
@@ -438,6 +448,7 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
                 "interrupts; the queue's age is the primary alert)\n\n"
                 "authority: the run store; this board is a projection"
             )
+
             result = tracker.notify(task_id, str(payload["login"]), body, effect.key)
         else:
             result = tracker.comment(task_id, str(payload["body"]), effect.key)
@@ -519,6 +530,7 @@ def _apply(
 
         try:
             adopted = adopt_drafts(task_id)
+
         except (ValueError, RuntimeError) as exc:
             return CommandOutcome(verb, task_id, command.actor, False, str(exc))
 
@@ -552,6 +564,7 @@ def _apply(
         if requeue is not None:
             try:
                 cleanup = requeue(task_id)
+
             except Exception as exc:  # refused, never half-applied
                 return CommandOutcome(
                     verb, task_id, command.actor, False, f"re-queue cleanup failed: {exc}"
@@ -641,6 +654,7 @@ def _apply(
         if requeue is not None:
             try:
                 cleanup = requeue(task_id)
+
             except Exception as exc:  # refused, never half-applied
                 return CommandOutcome(
                     verb, task_id, command.actor, False, f"revision capture failed: {exc}"
@@ -770,12 +784,14 @@ def poll_and_apply(
             outcome = _apply(root, command, requeue, approve_tip, adopt_drafts, draft_feedback)
 
         word = "applied" if outcome.applied else "refused"
+
         tracker.comment(
             command.task_id,
             f"{word}: {command.verb} — {outcome.detail}\n\n"
             "authority: the run store; this board is a projection",
             f"cmd:{command.source}",
         )
+
         engine_event(
             root,
             "tracker_command",
@@ -787,6 +803,7 @@ def poll_and_apply(
                 "detail": outcome.detail,
             },
         )
+
         report.outcomes.append(outcome)
 
     return report

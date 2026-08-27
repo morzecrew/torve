@@ -63,56 +63,18 @@ class DiffEntry:
 @dataclass
 class GateContext:
     root: Path
-
-    # ....................... #
-
     manifest: Manifest
-
-    # ....................... #
-
     head_sha: str
-
-    # ....................... #
-
     base: str | None
-
-    # ....................... #
-
     merge_base: str | None
-
-    # ....................... #
-
     diff: list[DiffEntry] = field(default_factory=list)
-
-    # ....................... #
-
     patch: str = ""
-
-    # ....................... #
-
     untracked: list[str] = field(default_factory=list)
-
-    # ....................... #
-
     task: Task | None = None
-
-    # ....................... #
-
     task_path: Path | None = None
-
-    # ....................... #
-
     log_path: Path | None = None
-
-    # ....................... #
-
     log_text: str | None = None
-
-    # ....................... #
-
     bypasses: list[BypassRecord] = field(default_factory=list)
-
-    # ....................... #
 
     # Where shell gates execute. None means the host (the CI runner is the
     # sandbox in that context); `torve run` injects a fresh-sandbox executor
@@ -139,6 +101,7 @@ def resolve_base(root: Path, base: str | None) -> str | None:
     for candidate in candidates:
         try:
             git(root, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}")
+
         except GitError:
             continue
 
@@ -236,6 +199,7 @@ def _discover_task(root: Path, explicit: Path | None) -> Path | None:
 
     try:
         branch = git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+
     except GitError:
         return None
 

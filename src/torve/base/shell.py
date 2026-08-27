@@ -65,6 +65,7 @@ def host_executor(cwd: Path) -> ExecuteOnce:
                 text=True,
                 check=False,
             )
+
         except subprocess.TimeoutExpired:
             return None, f"timed out after {timeout:.0f}s"
 

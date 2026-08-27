@@ -77,6 +77,7 @@ class GitWorkspace:
 
     def _remove_locked(self, task_id: str) -> None:
         path = naming.worktree(self.root, task_id)
+
         proc = subprocess.run(
             ["git", "-C", str(self.root), "worktree", "remove", "--force", str(path)],
             capture_output=True,
@@ -144,6 +145,7 @@ class ShadowWorkspace:
                 raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
 
         run("init", "-q")
+
         run(
             "fetch",
             "-q",
@@ -153,6 +155,7 @@ class ShadowWorkspace:
             str(self.root),
             parent_sha,
         )
+
         run("checkout", "-q", "-b", "shadow", "FETCH_HEAD")
 
         return path
@@ -191,6 +194,7 @@ def shipped_commit(root: Path, task_id: str) -> str | None:
         text=True,
         check=False,
     )
+
     sha = proc.stdout.strip()
 
     if proc.returncode == 0 and sha:
@@ -289,6 +293,7 @@ def diff_worktree(workspace: Path, base: str) -> dict[str, object]:
     everything first — the workspace is a throwaway measurement artefact."""
 
     subprocess.run(["git", "-C", str(workspace), "add", "-A"], capture_output=True, check=False)
+
     proc = subprocess.run(
         ["git", "-C", str(workspace), "diff", "--cached", base, "--numstat"],
         capture_output=True,

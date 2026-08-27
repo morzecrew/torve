@@ -79,6 +79,7 @@ def _untracked_lines(ctx: GateContext) -> list[tuple[str, int, str]]:
                 continue
 
             text = target.read_text(encoding="utf-8")
+
         except (OSError, UnicodeDecodeError):
             continue  # unreadable or binary; nothing line-scannable
 

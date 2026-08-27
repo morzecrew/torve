@@ -60,6 +60,7 @@ def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
 
     try:
         return load_runner_config(root, config_path)
+
     except (ValueError, yaml.YAMLError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -79,6 +80,7 @@ def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:
     if adapter == "opensandbox":
         try:
             return OpenSandboxRuntime(config.runtime.opensandbox, docker_mode=config.runtime.docker)
+
         except ValueError as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 

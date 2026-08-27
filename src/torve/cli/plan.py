@@ -83,6 +83,7 @@ def plan_cmd(
     try:
         report = plan_document(root, rfc_dir, identifier)
         written = [] if dry_run else write_contracts(root, report)
+
     except PlanError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -106,6 +107,7 @@ def plan_cmd(
 
         for planned in report.tasks:
             task = planned.task
+
             table.add_row(
                 Text(task.id, STYLE_ID),
                 str(task.phase),

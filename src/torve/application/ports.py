@@ -89,13 +89,7 @@ class SandboxInfo:
 @dataclass(frozen=True)
 class ExecResult:
     exit_code: int | None  # None when the command timed out
-
-    # ....................... #
-
     output: str
-
-    # ....................... #
-
     duration_s: float
 
     # ....................... #
@@ -172,25 +166,14 @@ class AgentContext:
 @dataclass(frozen=True)
 class AgentResult:
     exit_code: int | None
-
-    # ....................... #
-
     output: str
-
-    # ....................... #
 
     # None of these can be reconstructed after the fact (RFC 0004 §6):
     # model_version is whatever version string the provider returned — None
     # marks an uncontrolled regime (D-4.6); trace_ref turns escalation triage
     # from archaeology into replay (§4). A trace is never gate evidence.
     cost_usd: float | None = None
-
-    # ....................... #
-
     model_version: str | None = None
-
-    # ....................... #
-
     trace_ref: str | None = None
 
     # ....................... #

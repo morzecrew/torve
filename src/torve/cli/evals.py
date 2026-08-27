@@ -95,6 +95,7 @@ def eval_cmd(
         for name in tiers:
             tier = tier_for(config, name)
             route_provider(config.providers, repository_name(root), tier.provider)
+
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -106,7 +107,9 @@ def eval_cmd(
         scm=NullScm(),
         store=open_store,
     )
+
     shadow_ws = ShadowWorkspace(root, depth=depth)
+
     source = ShadowSource(
         create_workspace=shadow_ws.create,
         shipped_commit=partial(shipped_commit, root),
@@ -118,8 +121,10 @@ def eval_cmd(
     try:
         with live_status(f"eval of {skill} over {len(tasks)} task(s), two arms", fmt):
             record = run_skill_eval(root, skill, tasks, config, deps, source)
+
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
@@ -133,6 +138,7 @@ def eval_cmd(
 
     for arm in ("with", "without"):
         row = record["summary"][arm]
+
         table.add_row(
             arm,
             f"{row['green']}/{len(record['tasks'])}",

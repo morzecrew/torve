@@ -75,6 +75,7 @@ def _shipped_ids(root: Path) -> set[str]:
 def _load_yaml_dict(path: Path) -> dict[str, Any] | None:
     try:
         raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
+
     except (OSError, yaml.YAMLError):
         return None
 
@@ -103,6 +104,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             continue
 
         task_id = str(record.get("id", contract.parent.name))
+
         entry: dict[str, Any] = {
             "id": task_id,
             "rfc": record.get("rfc"),
@@ -115,6 +117,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             "escalation": None,
             "escalated_at": None,
         }
+
         state_path = naming.state_file(root, task_id)
 
         if state_path.exists():
@@ -124,6 +127,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
 
             if state.escalation is not None:
                 entry["escalation"] = state.escalation.reason
+
                 entry["escalated_at"] = next(
                     (
                         event["at"]
@@ -184,6 +188,7 @@ def _proposals(root: Path, rfc_dir: Path) -> list[dict[str, Any]]:
                 continue
 
             task_id = str(document.get("task", log.parent.name))
+
             found.append(
                 {
                     "task": task_id,
@@ -220,6 +225,7 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
     for line in telemetry.read_text(encoding="utf-8").splitlines():
         try:
             record: Any = json.loads(line)
+
         except json.JSONDecodeError:
             continue
 
@@ -237,6 +243,7 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
 
             row = cast("dict[str, Any]", result)
             name = str(row.get("name", "?"))
+
             gate = stats.setdefault(
                 name,
                 {
@@ -248,6 +255,7 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
                     "max_duration_s": 0.0,
                 },
             )
+
             gate["runs"] += 1
             outcome = str(row.get("outcome", ""))
 
@@ -286,6 +294,7 @@ def _costs(root: Path) -> list[dict[str, Any]]:
     for line in telemetry.read_text(encoding="utf-8").splitlines():
         try:
             record: Any = json.loads(line)
+
         except json.JSONDecodeError:
             continue
 
@@ -305,12 +314,14 @@ def _costs(root: Path) -> list[dict[str, Any]]:
                     "state": row.get("state"),
                 }
             )
+
             continue
 
         agent: Any = row.get("agent")
 
         if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("cost_usd") is not None:
             block = cast("dict[str, Any]", agent)
+
             found.append(
                 {
                     "kind": "attempt",
@@ -380,6 +391,7 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
 
         try:
             phasing = rfc_parse.parse_phasing(text)
+
         except ValueError:
             phasing = None
 
@@ -394,9 +406,11 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
 
         status = statuses[number]
         implementation = str(fm.get("implementation") or "none")
+
         unsatisfied = [
             dep for dep in _list_field(fm, "depends_on") if statuses.get(dep, "") != "accepted"
         ]
+
         declared_phases: set[int] = {entry.phase for entry in phasing or []}
         unminted = sorted(declared_phases - set(phases))
         plannable = status == "accepted" and not unsatisfied and bool(unminted)
@@ -475,6 +489,7 @@ def _age_seconds(stamp: object) -> float | None:
     for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
         try:
             parsed = datetime.strptime(stamp, fmt).replace(tzinfo=UTC)
+
         except ValueError:
             continue
 
@@ -542,6 +557,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             marks.append(f"waits on {', '.join(doc['unsatisfied_depends_on'])}")
 
         progress = ", ".join(f"P{k}: {v}" for k, v in doc["progress"].items()) or "no tasks"
+
         lines.append(
             f"- **{doc['rfc']}** {doc['title']} — {doc['status']}, "
             f"impl {doc['implementation']} · {progress}"
@@ -612,11 +628,13 @@ def render_markdown(report: dict[str, Any]) -> str:
         for row in report["costs"]:
             cost = row.get("cost_usd")
             shown = f"${cost:.4f}" if isinstance(cost, (int, float)) else "unrecorded"
+
             extra = (
                 f", attempts {row['attempts']}, {row['state']}"
                 if row["kind"] == "shadow"
                 else f", {row.get('adapter')}"
             )
+
             lines.append(
                 f"- {row['kind']} {row['task']} @ {row.get('config_hash')}: {shown}{extra}"
             )

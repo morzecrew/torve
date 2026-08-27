@@ -143,6 +143,7 @@ def check(
 
         verdict = "FAIL " if problems else "OK   "
         tail = f", {len(warnings)} warning(s)" if warnings else ""
+
         closing(
             console,
             f"{verdict} {report.count} RFC(s), {len(problems)} problem(s){tail}",
@@ -229,6 +230,7 @@ def new(
 
     allocated = next_number(rfc_dir)
     path = rfc_dir / f"{allocated:04d}-{slug}.md"
+
     body = (
         body.replace(TEMPLATE_TITLE, f"RFC {allocated:04d} — {title}")
         .replace('id: "NNNN"', f'id: "{allocated:04d}"')
@@ -241,6 +243,7 @@ def new(
     try:
         with path.open("x", encoding="utf-8") as handle:
             handle.write(body + "\n")
+
     except FileExistsError:
         raise fail(
             f"configuration error: {path.name} was created by another "
@@ -276,11 +279,14 @@ def graph(
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
+
     frontmatter = {
         number: parse_frontmatter(path.read_text(encoding="utf-8")) or {}
         for number, path in files.items()
     }
+
     depends = {number: fm_list(frontmatter[number], "depends_on") for number in frontmatter}
+
     edges = [
         {
             "from": number,
@@ -291,6 +297,7 @@ def graph(
         for number in sorted(depends)
         for target in depends[number]
     ]
+
     problems, warnings = check_graph(files, frontmatter)
 
     if fmt is Format.JSON:
@@ -311,6 +318,7 @@ def graph(
 
     def done(number: str) -> bool:
         front = frontmatter.get(number, {})
+
         return (
             str(front.get("status")) == "accepted"
             and str(front.get("implementation")) == "complete"
@@ -370,6 +378,7 @@ def graph(
 
     if omitted:
         console.print()
+
         footer(
             console, f"… {len(omitted)} accepted and complete, omitted: {id_list(sorted(omitted))}"
         )

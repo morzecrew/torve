@@ -100,6 +100,7 @@ def merge_cmd(
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
         )
+
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
 
@@ -132,6 +133,7 @@ def merge_cmd(
 
             console.print(table)
             landed = sum(1 for r in results if r.landed)
+
             closing(
                 console,
                 f"{landed} landed of {len(results)} candidate(s)"

@@ -71,11 +71,13 @@ def _case_outcome(
 
     expectations: list[dict[str, str]] = list(document.get("expect", []))
     name = case_dir.name
+
     target = Task(
         id=f"corpus-{name}",
         intent=str(document.get("intent", "")),
         decisions=document.get("decisions", []),
     )
+
     review = Task(
         id=f"corpus-{name}-review",
         role="review",
@@ -84,6 +86,7 @@ def _case_outcome(
         budget=Budget(iterations=1),
         tier="reviewer",
     )
+
     outcome = run_review(
         root,
         case_dir / "tree",
@@ -145,6 +148,7 @@ def corpus(
     root = root.resolve()
     config = load_config(root, config_path)
     corpus_root = root / ".torve" / CORPUS_DIR
+
     cases = (
         sorted(d for d in corpus_root.iterdir() if d.is_dir() and (d / "case.yaml").is_file())
         if corpus_root.is_dir()
@@ -162,6 +166,7 @@ def corpus(
 
     try:
         agent = build_reviewer_agent(config, root)
+
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
@@ -171,6 +176,7 @@ def corpus(
         _case_outcome(case_dir, _load_case(case_dir), config, runtime, agent, root)
         for case_dir in cases
     ]
+
     passed = all(r["ok"] for r in results)
 
     if fmt is Format.JSON:
@@ -204,6 +210,7 @@ def corpus(
         )
 
     console.print(table)
+
     closing(
         console,
         "corpus green" if passed else "regression: the reviewer dropped a catch",
@@ -248,10 +255,12 @@ def pr(
 
     try:
         agent = build_reviewer_agent(config, root)
+
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
+
     outcome = review_pull_request(
         root,
         config,

@@ -53,6 +53,7 @@ _IMPORT_HINT = (
 def _sdk() -> Any:
     try:
         return import_module("opensandbox")
+
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
         raise RuntimeError(_IMPORT_HINT) from exc
 
@@ -147,6 +148,7 @@ class OpenSandboxRuntime:
         passthrough = {
             name: os.environ[name] for name in spec.env_passthrough if name in os.environ
         }
+
         # The proxy convention rides along like it does for Docker under a
         # network opt-in — but whether the address is *reachable* from a
         # server-side sandbox is the server's networking, not ours: this
@@ -157,6 +159,7 @@ class OpenSandboxRuntime:
             for variant in (name, name.upper())
             if variant in os.environ
         }
+
         sandbox = self._sdk.SandboxSync.create(
             spec.image,
             connection_config=self._connection,
@@ -164,11 +167,13 @@ class OpenSandboxRuntime:
             env={**proxies, **passthrough, **spec.env},
             metadata={**spec.labels, "torve.name": spec.name},
         )
+
         payload = base64.b64encode(_workspace_tar(workspace)).decode()
         # A path inside the freshly created sandbox container, not on this
         # host — there is no local tempdir race to have.
         staging = f"/tmp/torve-ws-{spec.name}.b64"  # nosec B108
         sandbox.files.write_files([self._sdk.WriteEntry(path=staging, data=payload)])
+
         seed = sandbox.commands.run(
             f"mkdir -p {spec.workdir} && base64 -d {staging} "
             f"| tar xzf - -C {spec.workdir} && rm {staging}"
@@ -188,6 +193,7 @@ class OpenSandboxRuntime:
     def _sandbox(self, handle: SandboxHandle) -> tuple[Any, str]:
         try:
             return self._live[handle.id]
+
         except KeyError:
             raise RuntimeError(f"sandbox {handle.id} is not held by this runtime process") from None
 
@@ -196,6 +202,7 @@ class OpenSandboxRuntime:
     def exec(self, handle: SandboxHandle, command: str, timeout_s: float) -> ExecResult:
         sandbox, workdir = self._sandbox(handle)
         started = time.monotonic()
+
         execution = sandbox.commands.run(
             f"cd {workdir} && ({command})", timeout=timedelta(seconds=timeout_s)
         )

@@ -91,6 +91,7 @@ def parse_drafts(output: str) -> DraftsDocument | None:
     for brace in re.finditer(r"\{", text):
         try:
             document, _ = decoder.raw_decode(text, brace.start())
+
         except json.JSONDecodeError:
             continue
 
@@ -102,6 +103,7 @@ def parse_drafts(output: str) -> DraftsDocument | None:
 
     try:
         return DraftsDocument.model_validate(last)
+
     except ValidationError:
         return None
 
@@ -191,6 +193,7 @@ def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[s
             try:
                 if not shlex.split(command):
                     raise ValueError
+
             except ValueError:
                 errors.append(f"{ref}: acceptance command {command!r} does not shell-parse")
 
@@ -246,6 +249,7 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
 
     try:
         raw = yaml.safe_load(contract.read_text(encoding="utf-8"))
+
     except yaml.YAMLError as exc:
         return [f"{contract.name}: not YAML ({exc})"]
 
@@ -256,6 +260,7 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
 
     try:
         task = Task.model_validate({**data, "decisions": data.get("decisions", [])})
+
     except ValidationError as exc:
         return [f"{contract.name}: {exc.errors()[0]['msg']}"]
 
@@ -294,11 +299,13 @@ def mint_intake_task(
         budget=Budget(iterations=config.intake.iterations),
         tier="planner",
     )
+
     contract_dir = root / layout.TORVE_DIR / "tasks" / task.id
     contract_dir.mkdir(parents=True, exist_ok=True)
     document = task.model_dump(exclude_defaults=True)
     document["schema_version"] = SCHEMA_VERSION
     document["decisions"] = []
+
     (contract_dir / "contract.yaml").write_text(
         "# Minted by the engine at intake — drafting follows the request.\n"
         + yaml.safe_dump(document, sort_keys=False),
@@ -317,6 +324,7 @@ def execution_facts(root: Path) -> str:
     reads (telemetry tail), empty string when there is nothing to say."""
 
     lines: list[str] = []
+
     escalated = [
         (s.task_id, s.escalation.reason)
         for s in RunState.load_all(root / naming.WORKTREE_DIR)
@@ -335,6 +343,7 @@ def execution_facts(root: Path) -> str:
         for line in telemetry.read_text(encoding="utf-8").splitlines()[-500:]:
             try:
                 record = cast("dict[str, Any]", json.loads(line))
+
             except json.JSONDecodeError:
                 continue
 
@@ -348,6 +357,7 @@ def execution_facts(root: Path) -> str:
 
         if contended:
             top = sorted(contended.items(), key=lambda kv: -kv[1])[:4]
+
             lines.append(
                 "contended paths (avoid scoping over these): "
                 + "; ".join(f"{p} ({n}x)" for p, n in top)
@@ -380,6 +390,7 @@ def build_intake_prompt(
 
     if lint_errors:
         joined = "\n".join(f"- {e}" for e in lint_errors)
+
         retry_block = (
             f"\n## Your previous batch was refused by the lint\n\n"
             f"{joined}\n\nFix exactly these; do not reshuffle what passed.\n"
@@ -505,6 +516,7 @@ def run_intake(
     for _ in range(budget):
         state.transition(TaskState.RUNNING, f"drafting attempt {state.attempts + 1}")
         state.save()
+
         spec = SandboxSpec(
             name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
             image=image_for(config, tier),
@@ -513,6 +525,7 @@ def run_intake(
             env_passthrough=tuple(tier.api_key_env),
             workspace_read_only=True,
         )
+
         prompt = build_intake_prompt(
             task.intent,
             worktree,
@@ -521,6 +534,7 @@ def run_intake(
             feedback,
             facts=execution_facts(root),
         )
+
         handle = runtime.create(spec, worktree)
         state.sandbox_id = handle.id
         state.save()
@@ -538,6 +552,7 @@ def run_intake(
                     prompt=prompt,
                 )
             )
+
         finally:
             runtime.destroy(handle)
             state.sandbox_id = None
@@ -562,6 +577,7 @@ def run_intake(
         fact = f"{len(document.drafts)} draft(s) lint-green"
         state.transition(TaskState.GATED, "drafts produced; lint green")
         state.transition(TaskState.REVIEWED, fact)
+
         drafts_file(root, task.id).write_text(
             json.dumps(
                 {
@@ -576,8 +592,10 @@ def run_intake(
             + "\n",
             encoding="utf-8",
         )
+
         state.transition(TaskState.READY, fact + " — awaiting adoption")
         state.save()
+
         _append_intake_record(
             root,
             task,
@@ -590,6 +608,7 @@ def run_intake(
             attempts=state.attempts,
             unparseable=False,
         )
+
         engine_event(
             root,
             "intake_drafted",
@@ -605,7 +624,9 @@ def run_intake(
         if unparseable
         else f"lint red after {state.attempts} attempt(s): " + "; ".join(lint_errors[:3])
     )
+
     state.escalate(EscalationReason.BUDGET_EXHAUSTED, detail[:300])
+
     _append_intake_record(
         root,
         task,
@@ -703,6 +724,7 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
 
     try:
         rows = inherit_decisions(text, doc_path.name)
+
     except PlanError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -768,6 +790,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             new_id = ids[draft.ref]
             contract_dir = root / layout.TORVE_DIR / "tasks" / new_id
             contract_dir.mkdir(parents=True, exist_ok=True)
+
             document: dict[str, Any] = {
                 "schema_version": SCHEMA_VERSION,
                 "id": new_id,
@@ -784,11 +807,13 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                 document["rfc"] = rfc
 
             path = contract_dir / "contract.yaml"
+
             path.write_text(
                 f"# Adopted from {task_id}'s drafts (RFC 0020) — "
                 "ids minted at adoption, D-20.4.\n" + yaml.safe_dump(document, sort_keys=False),
                 encoding="utf-8",
             )
+
             written.append(path)
 
         proc = subprocess.run(
@@ -817,6 +842,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             raise RuntimeError(
                 "adoption commit failed: " + (proc.stderr.strip() or proc.stdout.strip())
             )
+
     finally:
         if not assume_lock:  # a borrowed lock is the tick's to release
             release_lock(root)
@@ -836,6 +862,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
         + "\n",
         encoding="utf-8",
     )
+
     state_path.unlink(missing_ok=True)
     source.unlink()
     engine_event(root, "intake_adopted", {"task": task_id, "adopted": list(ids.values())})
@@ -912,12 +939,14 @@ def _drafts_comment(record: dict[str, Any], task_id: str) -> str:
 
     for draft in cast("list[dict[str, Any]]", record["drafts"]):
         scope = cast("dict[str, Any]", draft.get("scope", {}))
+
         lines += [
             f"**{draft['ref']}** — {draft['intent']}",
             "",
             f"- allow: `{'`, `'.join(cast('list[str]', scope.get('allow', [])))}`",
             f"- acceptance: `{'`; `'.join(cast('list[str]', draft.get('acceptance', [])))}`",
         ]
+
         deps = cast("list[str]", draft.get("depends_on", []))
 
         if deps:
@@ -974,6 +1003,7 @@ def intake_leg(
             "intake_claimed",
             {"issue": request.number, "task": task.id, "actor": request.author},
         )
+
         claimed += 1
 
     for row in _ledger_rows(root):
@@ -1030,6 +1060,7 @@ def intake_leg(
                     deps.agent_factory(),
                     deps.config_digest,
                 )
+
             finally:
                 deps.remove_worktree(root, workdir)
 

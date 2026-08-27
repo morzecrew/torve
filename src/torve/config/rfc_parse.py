@@ -77,13 +77,7 @@ class CheckReport:
     """Everything `check` found: problems redden, warnings surface."""
 
     count: int = 0
-
-    # ....................... #
-
     problems: list[str] = field(default_factory=list)
-
-    # ....................... #
-
     warnings: list[str] = field(default_factory=list)
 
     # ....................... #
@@ -121,6 +115,7 @@ def parse_frontmatter(text: str) -> dict[str, Any] | None:
 
     try:
         loaded = yaml.safe_load(match.group(1))
+
     except yaml.YAMLError:
         return None
 
@@ -394,6 +389,7 @@ def check_phasing(path: Path, text: str) -> list[str]:
 
     try:
         parse_phasing(text)
+
     except ValueError as exc:
         first = str(exc).splitlines()[0]
         return [f"{path.name}: Phasing section does not mint — {first}"]
@@ -537,6 +533,7 @@ def check_decisions(
                 for pattern in globs:
                     try:
                         matched = next(root.glob(pattern), None)
+
                     except (ValueError, NotImplementedError):
                         matched = None
 
@@ -594,6 +591,7 @@ def check_links(path: Path, text: str, rfc_dir: Path, root: Path) -> list[str]:
         for start in (rfc_dir, root):
             try:
                 resolved = (start / target).resolve()
+
             except OSError:
                 continue
 
@@ -689,6 +687,7 @@ def check_citations(path: Path, text: str, resolvable: set[str]) -> list[str]:
 
         if cited not in resolvable and cited not in reported:
             reported.add(cited)
+
             problems.append(
                 f"{path.name}: cites {cited}, which no decision table in the "
                 "corpus defines and no `retired:` list records"
@@ -745,6 +744,7 @@ def check_graph(
         number: [d for d in fm_list(fm, "depends_on") if d in files]
         for number, fm in frontmatter.items()
     }
+
     problems: list[str] = []
     warnings: list[str] = []
 
@@ -761,6 +761,7 @@ def check_graph(
 
                 if key not in seen_cycles:
                     seen_cycles.add(key)
+
                     problems.append(
                         "depends_on cycle: "
                         + " -> ".join(cycle)
@@ -843,6 +844,7 @@ def build_index(files: dict[str, Path]) -> str:
             design.append(row)
 
     next_free = f"{max((int(n) for n in files), default=0) + 1:04d}"
+
     lines = [
         "# RFCs",
         "",

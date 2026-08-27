@@ -36,21 +36,9 @@ from torve.domain.states import EscalationReason, TaskState
 @dataclass
 class LaneResult:
     task: str
-
-    # ....................... #
-
     branch: str
-
-    # ....................... #
-
     action: str  # landed | conflict | gates red | already landed | no branch | would *
-
-    # ....................... #
-
     detail: str = ""
-
-    # ....................... #
-
     sha: str = ""
 
     # ....................... #
@@ -65,6 +53,7 @@ class LaneResult:
 
 def ready_candidates(root: Path) -> list[RunState]:
     states = RunState.load_all(root / naming.WORKTREE_DIR)
+
     return sorted(
         (s for s in states if s.state is TaskState.READY and not _awaits_adoption(root, s.task_id)),
         key=lambda s: s.task_id,
@@ -89,6 +78,7 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
         from torve.gates.context import load_task
 
         return load_task(contract).role == "draft"
+
     except ValueError:
         return False
 
@@ -112,6 +102,7 @@ def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
 
     manifest = load_manifest(manifest_path)
     task_path = layout.task_file(workdir, task_id)
+
     ctx = build_context(
         workdir,
         manifest,
@@ -149,6 +140,7 @@ def _engine_record(root: Path, rel: str) -> bool:
         return True
 
     manifest_path = layout.gates_file(root)
+
     telemetry_rel = (
         load_manifest(manifest_path).telemetry
         if manifest_path.is_file()
@@ -192,6 +184,7 @@ def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     state.approvals.append(
         {"actor": actor, "sha": sha, "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
     )
+
     state.save()
 
     return True
@@ -224,6 +217,7 @@ def _dispose_conflict(
 
     try:
         cleanup = on_conflict(task_id)
+
     except RuntimeError as exc:
         results.append(
             LaneResult(
@@ -233,16 +227,19 @@ def _dispose_conflict(
                 f"merge_conflict ({found_by}): re-queue cleanup refused ({exc}) — run escalated",
             )
         )
+
         return
 
     state.transition(TaskState.QUEUED, f"conflict auto-requeue ({cleanup})")
     state.conflict_base = base_tip
     state.save()
+
     engine_event(
         root,
         "lane_conflict_requeued",
         {"task": task_id, "base_tip": base_tip, "found_by": found_by},
     )
+
     results.append(
         LaneResult(
             task_id,
@@ -295,6 +292,7 @@ def process_lane(
                     task_id, branch, "no branch", "ran outside the engine or already cleaned up"
                 )
             )
+
             continue
 
         if vcs.is_ancestor(root, branch_tip, base):
@@ -308,6 +306,7 @@ def process_lane(
             # candidate the policy cannot land is never offered for
             # approval.
             engine_event(root, "lane_review_missing", {"task": task_id, "sha": branch_tip})
+
             results.append(
                 LaneResult(
                     task_id,
@@ -317,6 +316,7 @@ def process_lane(
                     sha=branch_tip,
                 )
             )
+
             continue
 
         if ci is not None and not dry_run:
@@ -331,11 +331,13 @@ def process_lane(
                     "lane_ci_not_green",
                     {"task": task_id, "sha": branch_tip, "verdict": verdict},
                 )
+
                 results.append(
                     LaneResult(
                         task_id, branch, "ci not green", f"remote ci {verdict} on {branch_tip[:10]}"
                     )
                 )
+
                 continue
 
         if approvals_required and not dry_run:
@@ -359,6 +361,7 @@ def process_lane(
                     engine_event(
                         root, "lane_conflict", {"task": task_id, "base": base, "probe": True}
                     )
+
                     _dispose_conflict(
                         root,
                         state,
@@ -370,6 +373,7 @@ def process_lane(
                         results,
                         found_by="probe",
                     )
+
                     continue
 
                 engine_event(
@@ -382,6 +386,7 @@ def process_lane(
                         "need": approvals_required,
                     },
                 )
+
                 results.append(
                     LaneResult(
                         task_id,
@@ -391,6 +396,7 @@ def process_lane(
                         sha=branch_tip,
                     )
                 )
+
                 continue
 
         if quiet_window_s and not dry_run:
@@ -403,6 +409,7 @@ def process_lane(
                     "lane_quiet_window",
                     {"task": task_id, "sha": branch_tip, "age_s": age, "window_s": quiet_window_s},
                 )
+
                 results.append(
                     LaneResult(
                         task_id,
@@ -411,6 +418,7 @@ def process_lane(
                         f"tip is {age:.0f}s old; the window is {quiet_window_s}s",
                     )
                 )
+
                 continue
 
         base_tip = vcs.tip(root, base) or base
@@ -424,6 +432,7 @@ def process_lane(
                         task_id, branch, "would land", "fast-forward, gates already measured"
                     )
                 )
+
                 continue
 
             # D-19.11 (A-28): the landing may carry the task's own records
@@ -431,11 +440,13 @@ def process_lane(
             # reason for git to refuse the fast-forward.
             vcs.adopt_identical(root, branch_tip)
             sha = vcs.merge_ff(root, branch_tip)
+
             engine_event(
                 root,
                 "lane_landed",
                 {"task": task_id, "mode": "fast-forward", "sha": sha, "approver": approver},
             )
+
             results.append(LaneResult(task_id, branch, "landed", "fast-forward", sha))
             continue
 
@@ -445,6 +456,7 @@ def process_lane(
                     task_id, branch, "would rebase", "base moved; gates re-run before landing"
                 )
             )
+
             continue
 
         engine_wt = root / naming.WORKTREE_DIR / task_id
@@ -478,12 +490,14 @@ def process_lane(
                     results,
                     found_by="rebase",
                 )
+
                 continue
 
             state.escalate(
                 EscalationReason.MERGE_CONFLICT,
                 f"rebase onto {base!r} conflicts; branch untouched — re-queue or abandon",
             )
+
             results.append(
                 LaneResult(
                     task_id,
@@ -492,10 +506,12 @@ def process_lane(
                     "merge_conflict: rebase aborted, branch untouched — run escalated",
                 )
             )
+
             continue
 
         try:
             exit_code, summary = _regate(workdir, base, task_id)
+
         finally:
             vcs.remove_worktree(root, workdir)
 
@@ -506,11 +522,13 @@ def process_lane(
 
         vcs.adopt_identical(root, branch)
         sha = vcs.merge_ff(root, branch)
+
         engine_event(
             root,
             "lane_landed",
             {"task": task_id, "mode": "rebased", "sha": sha, "approver": approver},
         )
+
         results.append(LaneResult(task_id, branch, "landed", "rebased, gates green", sha))
 
     return results
