@@ -32,14 +32,39 @@ class Gate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # ....................... #
+
     name: str
+
+    # ....................... #
+
     run: str
+
+    # ....................... #
+
     state: GateState
+
+    # ....................... #
+
     origin: str  # structural | leak/<task> | rfc/<id> — why this gate exists
+
+    # ....................... #
+
     added: date | None = None
+
+    # ....................... #
+
     input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
+
+    # ....................... #
+
     timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
+
+    # ....................... #
+
     commands: list[str] = Field(default_factory=list)
+
+    # ....................... #
 
     @field_validator("origin")
     @classmethod
@@ -50,6 +75,8 @@ class Gate(BaseModel):
             f"origin {value!r} must be 'structural', 'leak/<task>' or 'rfc/<id>' (D-2.19)"
         )
 
+    # ....................... #
+
     @property
     def builtin(self) -> str | None:
         if self.run == "@task.acceptance":
@@ -58,12 +85,16 @@ class Gate(BaseModel):
             return self.run[1:]
         return None
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _commands_only_for_acceptance(self) -> Gate:
         if self.commands and self.builtin != "acceptance":
             raise ValueError(f"gate {self.name!r}: 'commands' only applies to @acceptance")
         return self
 
+
+# ....................... #
 
 # Builtins: expected input and a cost proxy used for cheapest-first ordering.
 # Diff-, task- and log-input builtins are near-free; only acceptance shells out.
@@ -99,10 +130,16 @@ DEFAULT_TEST_PATTERNS = [
 ]
 
 
+# ....................... #
+
+
 class TestsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     patterns: list[str] = Field(default_factory=lambda: list(DEFAULT_TEST_PATTERNS))
+
+
+# ....................... #
 
 
 class SecretsConfig(BaseModel):
@@ -116,19 +153,44 @@ class SecretsConfig(BaseModel):
     allow_patterns: list[str] = Field(default_factory=list)
 
 
+# ....................... #
+
+
 class Manifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # ....................... #
+
     schema_version: int = SCHEMA_VERSION
+
+    # ....................... #
+
     scope: Scope = Field(default_factory=Scope)
+
+    # ....................... #
+
     tests: TestsConfig = Field(default_factory=TestsConfig)
+
+    # ....................... #
+
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
+
+    # ....................... #
+
     # Acceptance commands that flake; their failures are recorded but stop
     # blocking until fixed (RFC 0002 §6a). Maintained by humans from the flake
     # counters in telemetry until a store exists (RFC 0003).
     quarantine: list[str] = Field(default_factory=list)
+
+    # ....................... #
+
     telemetry: str = ".torve/telemetry.jsonl"
+
+    # ....................... #
+
     gates: list[Gate] = Field(default_factory=list)
+
+    # ....................... #
 
     def resolved_gates(self) -> list[Gate]:
         """Gates with input and timeout filled in from builtin defaults."""
@@ -147,6 +209,9 @@ class Manifest(BaseModel):
         if len(names) != len(set(names)):
             raise ValueError("gate names must be unique")
         return resolved
+
+
+# ....................... #
 
 
 def load_manifest(path: Path) -> Manifest:

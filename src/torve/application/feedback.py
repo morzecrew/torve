@@ -26,14 +26,23 @@ FEEDBACK_THREADS = "feedback-threads.json"
 FEEDBACK_CAP = 24_000
 
 
+# ....................... #
+
+
 def feedback_file(root: Path, task_id: str) -> Path:
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_FILE
+
+
+# ....................... #
 
 
 def threads_file(root: Path, task_id: str) -> Path:
     """The captured threads' reply addresses (D-5.14, A-41): pending
     until the landing that consumed the record answers them."""
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_THREADS
+
+
+# ....................... #
 
 
 def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> str:
@@ -70,6 +79,9 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
         clipped = text.encode("utf-8")[:FEEDBACK_CAP].decode("utf-8", "ignore")
         text = clipped + "\n\n> truncated at the size cap — the pull request holds the rest\n"
     return text
+
+
+# ....................... #
 
 
 def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str, Any]]) -> bool:

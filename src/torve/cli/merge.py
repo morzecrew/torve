@@ -52,6 +52,9 @@ _MARKS = {
 }
 
 
+# ....................... #
+
+
 def merge_cmd(
     task: Annotated[
         str | None, typer.Argument(help="One candidate to land; omit to process the whole queue.")

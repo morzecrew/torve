@@ -32,6 +32,9 @@ from torve.domain.states import TRANSITIONS, TaskState
 COMMANDS = ("retry", "abandon", "unblock", "approve", "revise", "adopt")
 
 
+# ....................... #
+
+
 def _title(root: Path, task_id: str) -> str:
     task_file = layout.task_file(root, task_id)
     if task_file.is_file():
@@ -47,6 +50,9 @@ def _title(root: Path, task_id: str) -> str:
         except ValueError:
             pass
     return f"{task_id}: task"
+
+
+# ....................... #
 
 
 def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
@@ -82,6 +88,9 @@ def _attempt_bodies(root: Path, task_id: str) -> dict[int, str]:
     return bodies
 
 
+# ....................... #
+
+
 def _task(root: Path, task_id: str) -> Any | None:
     contract = layout.task_file(root, task_id)
     if not contract.is_file():
@@ -94,9 +103,15 @@ def _task(root: Path, task_id: str) -> Any | None:
         return None
 
 
+# ....................... #
+
+
 def _role(root: Path, task_id: str) -> str:
     task = _task(root, task_id)
     return task.role if task is not None else ""
+
+
+# ....................... #
 
 
 def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
@@ -111,6 +126,9 @@ def project_approval_gap(root: Path, task_id: str, sha: str, need: int) -> bool:
             payload={"task": task_id, "title": _title(root, task_id), "sha": sha, "need": need},
         ),
     )
+
+
+# ....................... #
 
 
 def _review_effects(
@@ -161,6 +179,9 @@ def _review_effects(
             )
         )
     return effects
+
+
+# ....................... #
 
 
 def project(root: Path, notify_login: str = "") -> int:
@@ -257,6 +278,9 @@ def project(root: Path, notify_login: str = "") -> int:
     return staged
 
 
+# ....................... #
+
+
 def _discharged(contract: Path, task_id: str, landed: Callable[[str], bool]) -> bool:
     """Repo-recorded doneness (D-8.11): an executable task's own landing
     trailer — or, for a review, its every target's (T-0066): a review
@@ -270,6 +294,9 @@ def _discharged(contract: Path, task_id: str, landed: Callable[[str], bool]) -> 
     if task.role == "review":
         return bool(task.targets) and all(landed(t) for t in task.targets)
     return landed(task_id)
+
+
+# ....................... #
 
 
 def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
@@ -318,6 +345,9 @@ def project_landings(root: Path, landed: Callable[[str], bool]) -> int:
             staged += 1
         staged += _clear_prompt(task_id)
     return staged
+
+
+# ....................... #
 
 
 def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
@@ -374,6 +404,9 @@ def relay_to_tracker(root: Path, tracker: Tracker) -> RelayReport:
     return relay(root, deliver)
 
 
+# ....................... #
+
+
 @dataclass
 class CommandOutcome:
     verb: str
@@ -383,9 +416,15 @@ class CommandOutcome:
     detail: str = ""
 
 
+# ....................... #
+
+
 @dataclass
 class PollReport:
     outcomes: list[CommandOutcome] = field(default_factory=list)
+
+
+# ....................... #
 
 
 def _apply(
@@ -616,6 +655,9 @@ def _apply(
     return CommandOutcome(
         verb, task_id, command.actor, True, "no active hold — dispatch re-checks at run time"
     )
+
+
+# ....................... #
 
 
 def poll_and_apply(

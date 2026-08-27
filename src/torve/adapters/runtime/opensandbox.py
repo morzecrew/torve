@@ -47,11 +47,17 @@ _IMPORT_HINT = (
 )
 
 
+# ....................... #
+
+
 def _sdk() -> Any:
     try:
         return import_module("opensandbox")
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
         raise RuntimeError(_IMPORT_HINT) from exc
+
+
+# ....................... #
 
 
 def _workspace_tar(workspace: Path) -> bytes:
@@ -65,6 +71,9 @@ def _workspace_tar(workspace: Path) -> bytes:
     return buffer.getvalue()
 
 
+# ....................... #
+
+
 def _extract_tar(data: bytes, workspace: Path) -> None:
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
         for member in tar.getmembers():
@@ -73,6 +82,9 @@ def _extract_tar(data: bytes, workspace: Path) -> None:
             if not parts or parts[0] == ".git" or ".." in parts or member.name.startswith("/"):
                 continue  # never let the sandbox rewrite git metadata or escape
             tar.extract(member, workspace, filter="data")
+
+
+# ....................... #
 
 
 def _exec_result(execution: Any, started: float) -> ExecResult:
@@ -88,6 +100,9 @@ def _exec_result(execution: Any, started: float) -> ExecResult:
         output=truncate("".join(parts)),
         duration_s=time.monotonic() - started,
     )
+
+
+# ....................... #
 
 
 class OpenSandboxRuntime:
@@ -106,6 +121,8 @@ class OpenSandboxRuntime:
         api_key = os.environ.get(config.api_key_env, "")
         self._connection = self._sdk.ConnectionConfigSync(domain=config.domain, api_key=api_key)
         self._live: dict[str, tuple[Any, str]] = {}  # handle id -> (sdk sandbox, workdir)
+
+    # ....................... #
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
         if spec.volumes:
@@ -150,11 +167,15 @@ class OpenSandboxRuntime:
         self._live[handle.id] = (sandbox, spec.workdir)
         return handle
 
+    # ....................... #
+
     def _sandbox(self, handle: SandboxHandle) -> tuple[Any, str]:
         try:
             return self._live[handle.id]
         except KeyError:
             raise RuntimeError(f"sandbox {handle.id} is not held by this runtime process") from None
+
+    # ....................... #
 
     def exec(self, handle: SandboxHandle, command: str, timeout_s: float) -> ExecResult:
         sandbox, workdir = self._sandbox(handle)
@@ -164,6 +185,8 @@ class OpenSandboxRuntime:
         )
         return _exec_result(execution, started)
 
+    # ....................... #
+
     def sync_out(self, handle: SandboxHandle, workspace: Path) -> None:
         sandbox, workdir = self._sandbox(handle)
         execution = sandbox.commands.run(f"tar czf - -C {workdir} . | base64 -w0")
@@ -172,6 +195,8 @@ class OpenSandboxRuntime:
             raise RuntimeError(f"workspace sync_out failed: {result.output}")
         _extract_tar(base64.b64decode(result.output.strip()), workspace)
 
+    # ....................... #
+
     def destroy(self, handle: SandboxHandle) -> None:
         entry = self._live.pop(handle.id, None)
         if entry is not None:
@@ -179,9 +204,13 @@ class OpenSandboxRuntime:
         else:
             self.destroy_by_id(handle.id)
 
+    # ....................... #
+
     def destroy_by_id(self, sandbox_id: str) -> None:
         with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:
             manager.kill_sandbox(sandbox_id)
+
+    # ....................... #
 
     def resolve_image(self, image: str) -> str | None:
         # The server pulls from a registry; a digest-pinned reference carries
@@ -192,11 +221,15 @@ class OpenSandboxRuntime:
             return "sha256:" + image.rsplit("@sha256:", 1)[1]
         return None
 
+    # ....................... #
+
     def build_image(self, context: Path, tag: str) -> str:
         raise RuntimeError(
             "the opensandbox runtime cannot build images — build with the docker "
             "runtime and push to a registry the server can pull from"
         )
+
+    # ....................... #
 
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:

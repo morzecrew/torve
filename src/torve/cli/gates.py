@@ -137,6 +137,9 @@ def gates_run(
     raise typer.Exit(report.exit_code)
 
 
+# ....................... #
+
+
 def gates_check(fmt: FormatOption = Format.TEXT) -> None:
     """Sabotage suite: a gate that cannot be shown to fail is not a
     check. Applies one deliberately bad diff per gate and asserts red, plus a
@@ -155,6 +158,9 @@ def gates_check(fmt: FormatOption = Format.TEXT) -> None:
                     console.print(f"      {line}")
         console.print(f"{len(outcomes) - len(failed)}/{len(outcomes)} sabotage cases behaved")
     raise typer.Exit(EXIT_GATES_RED if failed else EXIT_OK)
+
+
+# ....................... #
 
 
 def size(

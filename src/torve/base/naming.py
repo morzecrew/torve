@@ -22,8 +22,14 @@ LABEL_ROOT = "torve.root"
 WORKTREE_DIR = ".wt"
 
 
+# ....................... #
+
+
 def worktree(root: Path, task_id: str) -> Path:
     return root / WORKTREE_DIR / task_id
+
+
+# ....................... #
 
 
 def state_file(root: Path, task_id: str) -> Path:
@@ -32,14 +38,23 @@ def state_file(root: Path, task_id: str) -> Path:
     return root / WORKTREE_DIR / f"{task_id}.state.json"
 
 
+# ....................... #
+
+
 def trace_file(worktree: Path, attempt: int) -> Path:
     """Session trace, one per attempt (RFC 0004 §4) — beside the worktree for
     the same reason as the state file: triage outlives the workspace."""
     return worktree.parent / f"{worktree.name}.a{attempt}.trace.log"
 
 
+# ....................... #
+
+
 def sandbox_name(task_id: str, run_id: str) -> str:
     return f"torve-{task_id.lower()}-{run_id[:8]}"
+
+
+# ....................... #
 
 
 def root_key(root: Path) -> str:
@@ -50,12 +65,21 @@ def root_key(root: Path) -> str:
     return hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:12]
 
 
+# ....................... #
+
+
 def labels(task_id: str, run_id: str, root: Path) -> dict[str, str]:
     return {LABEL_TASK: task_id, LABEL_RUN: run_id, LABEL_ROOT: root_key(root)}
 
 
+# ....................... #
+
+
 def branch(task_id: str) -> str:
     return f"torve/{task_id}"
+
+
+# ....................... #
 
 
 def shadow_id(task_id: str) -> str:

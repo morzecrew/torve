@@ -38,6 +38,8 @@ class Format(StrEnum):
     JSON = "json"
 
 
+# ....................... #
+
 # The fixed colour semantics (RFC 0018 §4) — one vocabulary, applied via
 # style parameters only.
 STYLE_PASS = "green"
@@ -69,9 +71,15 @@ OUTCOME_STYLES = {
 _plain_flag = False
 
 
+# ....................... #
+
+
 def set_plain(value: bool) -> None:
     global _plain_flag
     _plain_flag = value
+
+
+# ....................... #
 
 
 def is_plain(fmt: Format | None = None) -> bool:
@@ -80,9 +88,15 @@ def is_plain(fmt: Format | None = None) -> bool:
     )
 
 
+# ....................... #
+
+
 def out(fmt: Format | None = None) -> Console:
     """Human results, stdout."""
     return Console(no_color=is_plain(fmt) or None, highlight=False, markup=False, soft_wrap=True)
+
+
+# ....................... #
 
 
 def err() -> Console:
@@ -92,10 +106,16 @@ def err() -> Console:
     )
 
 
+# ....................... #
+
+
 def emit_json(document: dict[str, object]) -> None:
     """Exactly one JSON document on stdout and nothing else — written raw
     so no console width ever wraps it."""
     sys.stdout.write(json.dumps(document, ensure_ascii=False, indent=2) + "\n")
+
+
+# ....................... #
 
 
 def fail(message: str, code: int) -> typer.Exit:
@@ -116,6 +136,9 @@ def header(console: Console, verb: str, subject: str, regime: str | None = None)
         line.append(" · config ", style=STYLE_DIM)
         line.append(regime, style=STYLE_ID)
     console.print(line)
+
+
+# ....................... #
 
 
 def make_table(
@@ -141,6 +164,9 @@ def make_table(
     return table
 
 
+# ....................... #
+
+
 def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]], limit: int = 50) -> int:
     """At most `limit` rows; returns how many were withheld. The
     caller prints the `… N more` line *after* the table with `footer` — a
@@ -148,6 +174,9 @@ def add_rows_truncated(table: Table, rows: list[tuple[Text | str, ...]], limit: 
     for row in rows[:limit]:
         table.add_row(*row)
     return max(0, len(rows) - limit)
+
+
+# ....................... #
 
 
 def footer(console: Console, text: str) -> None:
@@ -159,6 +188,9 @@ def footer(console: Console, text: str) -> None:
     console.print()
 
 
+# ....................... #
+
+
 def id_list(ids: list[str], shown: int = 8) -> str:
     """A bounded comma list: the first few identifiers, then `(+N more)` —
     27 task ids in one cell is noise wearing data."""
@@ -167,10 +199,16 @@ def id_list(ids: list[str], shown: int = 8) -> str:
     return ", ".join(ids[:shown]) + f" (+{len(ids) - shown} more)"
 
 
+# ....................... #
+
+
 def mark(outcome: str) -> Text:
     """The verdict mark with its style — mark and word both carry the
     distinction, colour never alone."""
     return Text(OUTCOME_MARKS.get(outcome, "?"), style=OUTCOME_STYLES.get(outcome, ""))
+
+
+# ....................... #
 
 
 def failure_detail(console: Console, text: str, limit: int = 40) -> None:
@@ -183,9 +221,15 @@ def failure_detail(console: Console, text: str, limit: int = 40) -> None:
         console.print(Text(f"      … {len(lines) - limit} more line(s)", style=STYLE_DIM))
 
 
+# ....................... #
+
+
 def closing(console: Console, text: str, style: str = "") -> None:
     """Outcome and what happens now — the last line of every verb."""
     console.print(Text(text, style=style))
+
+
+# ....................... #
 
 
 @contextmanager

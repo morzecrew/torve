@@ -48,6 +48,9 @@ from torve.config.runconfig import StoreConfig
 TASK_FUNCTION = "torve.task"
 
 
+# ....................... #
+
+
 def context_for(store: object) -> ExecutionContext:
     """The store registered under both the data plane and the control plane —
     forze's mock and Postgres stores each implement both. Lives here rather
@@ -67,6 +70,9 @@ def context_for(store: object) -> ExecutionContext:
     )
 
 
+# ....................... #
+
+
 class TaskStore:
     def __init__(self, store: DurableRunStorePort, config: StoreConfig) -> None:
         self.store = store
@@ -79,8 +85,12 @@ class TaskStore:
             max_run_duration=timedelta(seconds=config.max_run_duration),
         )
 
+    # ....................... #
+
     def register(self, handler: DurableFunctionHandler, name: str = TASK_FUNCTION) -> None:
         self.registry.register(name, handler)
+
+    # ....................... #
 
     async def run_now(
         self,
@@ -93,14 +103,22 @@ class TaskStore:
             self.ctx, name, input_json, idempotency_key=idempotency_key
         )
 
+    # ....................... #
+
     async def enqueue(self, input_json: JsonDict, *, name: str = TASK_FUNCTION) -> DurableRunRecord:
         return await self.runner.enqueue(self.ctx, name, input_json)
+
+    # ....................... #
 
     async def recover(self, *, limit: int = 10) -> int:
         return await self.runner.recover(self.ctx, limit=limit)
 
+    # ....................... #
+
     async def request_cancel(self, run_id: str) -> bool:
         return await self.runner.request_cancel(self.ctx, run_id)
+
+    # ....................... #
 
     async def expire_abandoned(self, *, limit: int = 50) -> list[DurableRunRecord]:
         """Reclaim runs whose lease expired and land them `lease_expired`.
@@ -114,10 +132,14 @@ class TaskStore:
             )
         return list(claimed)
 
+    # ....................... #
+
     async def live_records(self) -> list[DurableRunRecord]:
         admin = resolve_durable_run_admin(self.ctx)
         page = await admin.list_runs(status=DurableRunStatus.RUNNING, limit=200)
         return list(page.records)
+
+    # ....................... #
 
     async def force_fail_running(self) -> list[DurableRunRecord]:
         """Operator override for `torve reap --force`: unfenced terminal

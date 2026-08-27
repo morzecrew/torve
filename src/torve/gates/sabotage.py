@@ -65,6 +65,9 @@ BASE_MANIFEST: dict[str, Any] = {
 }
 
 
+# ....................... #
+
+
 def base_task(allow: list[str], decisions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -76,9 +79,14 @@ def base_task(allow: list[str], decisions: list[dict[str, Any]] | None = None) -
     }
 
 
+# ....................... #
+
 LOCKED_D1 = [
     {"id": "D-1", "grade": "LOCKED", "text": "app module layout is settled", "paths": ["src/**"]}
 ]
+
+
+# ....................... #
 
 
 def entry(**overrides: Any) -> dict[str, Any]:
@@ -97,6 +105,9 @@ def entry(**overrides: Any) -> dict[str, Any]:
     return {key: value for key, value in fields.items() if value is not None}
 
 
+# ....................... #
+
+
 def log_document(*entries: dict[str, Any], drift_count: int | None = 0) -> str:
     document: dict[str, Any] = {"schema_version": 1, "task": TASK_ID}
     if drift_count is not None:
@@ -105,23 +116,34 @@ def log_document(*entries: dict[str, Any], drift_count: int | None = 0) -> str:
     return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
 
+# ....................... #
+
+
 class Repo:
     def __init__(self, root: Path) -> None:
         self.root = root
+
+    # ....................... #
 
     def git(self, *args: str) -> None:
         subprocess.run(
             ["git", "-C", str(self.root), *args], check=True, capture_output=True, text=True
         )
 
+    # ....................... #
+
     def write(self, rel: str, content: str) -> None:
         target = self.root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
 
+    # ....................... #
+
     def commit(self, message: str) -> None:
         self.git("add", "-A")
         self.git("commit", "-q", "--no-gpg-sign", "-m", message)
+
+    # ....................... #
 
     def seed(self, manifest: dict[str, Any] | None = None) -> None:
         self.git("init", "-q", "-b", "main")
@@ -136,11 +158,16 @@ class Repo:
         self.commit("init")
         self.git("checkout", "-q", "-b", f"torve/{TASK_ID}")
 
+    # ....................... #
+
     def task(self, task: dict[str, Any], log: str | None) -> None:
         # One directory per task (A-12); the log only exists if written (A-13).
         self.write(f".torve/tasks/{TASK_ID}/contract.yaml", yaml.safe_dump(task, sort_keys=False))
         if log is not None:
             self.write(f".torve/tasks/{TASK_ID}/log.yaml", log)
+
+
+# ....................... #
 
 
 @dataclass
@@ -151,6 +178,9 @@ class CaseOutcome:
     got: str
     ok: bool
     detail: str = ""
+
+
+# ....................... #
 
 
 @dataclass
@@ -172,11 +202,17 @@ def _scope_bad(repo: Repo) -> None:
     repo.commit("rogue file")
 
 
+# ....................... #
+
+
 def _scope_clean(repo: Repo) -> None:
     manifest = dict(BASE_MANIFEST, scope={"allow": ["src/**"], "deny": []})
     repo.seed(manifest)
     repo.write("src/app.py", "print('changed')\n")
     repo.commit("in-scope change")
+
+
+# ....................... #
 
 
 def _acceptance_bad(repo: Repo) -> None:
@@ -196,10 +232,16 @@ def _acceptance_bad(repo: Repo) -> None:
     repo.commit("change")
 
 
+# ....................... #
+
+
 def _acceptance_clean(repo: Repo) -> None:
     repo.seed()
     repo.write("src/app.py", "print('green build')\n")
     repo.commit("change")
+
+
+# ....................... #
 
 
 def _acceptance_flaky(repo: Repo) -> None:
@@ -220,11 +262,17 @@ def _acceptance_flaky(repo: Repo) -> None:
     repo.commit("change")
 
 
+# ....................... #
+
+
 def _tampering_bad(repo: Repo) -> None:
     repo.seed()
     repo.task(base_task(allow=["src/**"]), log_document())
     repo.write("tests/test_app.py", "def test_app():\n    assert 1 == 1  # weakened\n")
     repo.commit("edit tests without licence")
+
+
+# ....................... #
 
 
 def _tampering_clean(repo: Repo) -> None:
@@ -234,11 +282,17 @@ def _tampering_clean(repo: Repo) -> None:
     repo.commit("licensed test edit")
 
 
+# ....................... #
+
+
 def _decisions_silence(repo: Repo) -> None:
     repo.seed()
     repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), log_document())
     repo.write("src/app.py", "print('touched governed area')\n")
     repo.commit("silent touch of a LOCKED area")
+
+
+# ....................... #
 
 
 def _decisions_silence_no_log(repo: Repo) -> None:
@@ -247,6 +301,9 @@ def _decisions_silence_no_log(repo: Repo) -> None:
     repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), None)
     repo.write("src/app.py", "print('touched governed area, wrote nothing')\n")
     repo.commit("silent touch with no log at all")
+
+
+# ....................... #
 
 
 def _decisions_no_log_untouched(repo: Repo) -> None:
@@ -258,6 +315,9 @@ def _decisions_no_log_untouched(repo: Repo) -> None:
     repo.task(base_task(allow=["src/**"], decisions=decisions), None)
     repo.write("src/app.py", "print('outside the governed area')\n")
     repo.commit("clean change, no log written")
+
+
+# ....................... #
 
 
 def _decisions_illegal(repo: Repo) -> None:
@@ -272,6 +332,9 @@ def _decisions_illegal(repo: Repo) -> None:
     repo.commit("illegal action for the grade")
 
 
+# ....................... #
+
+
 def _decisions_unlocatable(repo: Repo) -> None:
     repo.seed()
     repo.task(
@@ -282,6 +345,9 @@ def _decisions_unlocatable(repo: Repo) -> None:
     repo.commit("unlocatable evidence")
 
 
+# ....................... #
+
+
 def _decisions_valid(repo: Repo) -> None:
     repo.seed()
     repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), log_document(entry()))
@@ -289,11 +355,17 @@ def _decisions_valid(repo: Repo) -> None:
     repo.commit("valid log")
 
 
+# ....................... #
+
+
 def _self_audit_bad(repo: Repo) -> None:
     repo.seed()
     repo.task(base_task(allow=["src/**"]), log_document(drift_count=None))
     repo.write("src/app.py", "print('unexamined')\n")
     repo.commit("log without drift count")
+
+
+# ....................... #
 
 
 def _self_audit_absent(repo: Repo) -> None:
@@ -304,6 +376,9 @@ def _self_audit_absent(repo: Repo) -> None:
     repo.commit("clean change without a log")
 
 
+# ....................... #
+
+
 def _self_audit_clean(repo: Repo) -> None:
     repo.seed()
     repo.task(base_task(allow=["src/**"]), log_document())
@@ -311,7 +386,12 @@ def _self_audit_clean(repo: Repo) -> None:
     repo.commit("log with drift count")
 
 
+# ....................... #
+
 FAKE_AWS_KEY = "AKIA" + "IOSFODNN7EXAMPLE"  # AWS's documented example key id
+
+
+# ....................... #
 
 
 def _secrets_bad(repo: Repo) -> None:
@@ -320,10 +400,16 @@ def _secrets_bad(repo: Repo) -> None:
     repo.commit("leak a credential")
 
 
+# ....................... #
+
+
 def _secrets_clean(repo: Repo) -> None:
     repo.seed()
     repo.write("src/config.py", "aws_key = load_from_vault()\n")
     repo.commit("no credential")
+
+
+# ....................... #
 
 
 def _bypass_honored(repo: Repo) -> None:
@@ -339,6 +425,9 @@ def _bypass_honored(repo: Repo) -> None:
     )
 
 
+# ....................... #
+
+
 def _bypass_refused_for_secrets(repo: Repo) -> None:
     _secrets_bad(repo)
     repo.write("src/other.py", "x = 1\n")
@@ -352,11 +441,17 @@ def _bypass_refused_for_secrets(repo: Repo) -> None:
     )
 
 
+# ....................... #
+
+
 def _layout_forbidden_name(repo: Repo) -> None:
     # D-15.5: only the module name is wrong; nothing else is checked here.
     repo.seed()
     repo.write("src/pkg/utils.py", '"""Anything goes here, which is the problem."""\n')
     repo.commit("catch-all module")
+
+
+# ....................... #
 
 
 def _layout_clean(repo: Repo) -> None:
@@ -365,10 +460,16 @@ def _layout_clean(repo: Repo) -> None:
     repo.commit("named module")
 
 
+# ....................... #
+
+
 def _text_help_rfc(repo: Repo) -> None:
     repo.seed()
     repo.write("src/torve/cli/thing.py", 'HELP = "Mint contracts per RFC 0007."\n')
     repo.commit("help text citing an RFC number")
+
+
+# ....................... #
 
 
 def _text_docstring_decision(repo: Repo) -> None:
@@ -377,10 +478,16 @@ def _text_docstring_decision(repo: Repo) -> None:
     repo.commit("command docstring citing a decision")
 
 
+# ....................... #
+
+
 def _text_corpus_path(repo: Repo) -> None:
     repo.seed()
     repo.write("src/torve/cli/thing.py", 'ERROR = "see rfcs/0012-migrations.md"\n')
     repo.commit("string citing a corpus path")
+
+
+# ....................... #
 
 
 def _text_module_docstring_passes(repo: Repo) -> None:
@@ -394,6 +501,8 @@ def _text_module_docstring_passes(repo: Repo) -> None:
     )
     repo.commit("module and private docstrings citing decisions")
 
+
+# ....................... #
 
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
@@ -455,6 +564,9 @@ CASES: list[Case] = [
 ]
 
 
+# ....................... #
+
+
 def run_case(case: Case) -> CaseOutcome:
     with tempfile.TemporaryDirectory(prefix="torve-sabotage-") as tmp:
         repo = Repo(Path(tmp))
@@ -472,6 +584,9 @@ def run_case(case: Case) -> CaseOutcome:
             ok=ok,
             detail="" if ok else result.output,
         )
+
+
+# ....................... #
 
 
 def run_all() -> list[CaseOutcome]:

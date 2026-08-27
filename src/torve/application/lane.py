@@ -36,14 +36,31 @@ from torve.domain.states import EscalationReason, TaskState
 @dataclass
 class LaneResult:
     task: str
+
+    # ....................... #
+
     branch: str
+
+    # ....................... #
+
     action: str  # landed | conflict | gates red | already landed | no branch | would *
+
+    # ....................... #
+
     detail: str = ""
+
+    # ....................... #
+
     sha: str = ""
+
+    # ....................... #
 
     @property
     def landed(self) -> bool:
         return self.action == "landed"
+
+
+# ....................... #
 
 
 def ready_candidates(root: Path) -> list[RunState]:
@@ -52,6 +69,9 @@ def ready_candidates(root: Path) -> list[RunState]:
         (s for s in states if s.state is TaskState.READY and not _awaits_adoption(root, s.task_id)),
         key=lambda s: s.task_id,
     )
+
+
+# ....................... #
 
 
 def _awaits_adoption(root: Path, task_id: str) -> bool:
@@ -68,6 +88,9 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
         return load_task(contract).role == "draft"
     except ValueError:
         return False
+
+
+# ....................... #
 
 
 def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
@@ -94,6 +117,9 @@ def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
     report = run_gates(ctx)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
     return report.exit_code, summary
+
+
+# ....................... #
 
 
 def _engine_record(root: Path, rel: str) -> bool:
@@ -135,6 +161,9 @@ def _engine_record(root: Path, rel: str) -> bool:
     }
 
 
+# ....................... #
+
+
 def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     """One sha-bound approval (RFC 0006 §3, T-0060): recorded on the run
     state, deduped by (actor, sha) — approving the same tip twice is one
@@ -150,6 +179,9 @@ def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     )
     state.save()
     return True
+
+
+# ....................... #
 
 
 def _dispose_conflict(
@@ -200,6 +232,9 @@ def _dispose_conflict(
             f"merge_conflict ({found_by}): captured for the revision loop and re-queued",
         )
     )
+
+
+# ....................... #
 
 
 def process_lane(

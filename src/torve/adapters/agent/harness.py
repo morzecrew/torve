@@ -32,6 +32,9 @@ if TYPE_CHECKING:
 PROMPT_RELPATH = ".torve/tmp/prompt.md"
 
 
+# ....................... #
+
+
 def build_prompt(task: Task, revision: bool = False) -> str:
     lines: list[str] = [f"# Torve task {task.id}", ""]
     if revision:
@@ -122,12 +125,19 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
     return None, None
 
 
+# ....................... #
+
+
 class HarnessAgent:
     kind: str
+
+    # ....................... #
 
     def __init__(self, tier: TierConfig) -> None:
         self.tier = tier
         self.kind = tier.adapter  # api | harness | subscription
+
+    # ....................... #
 
     def run(self, ctx: AgentContext) -> AgentResult:
         stage = ctx.workspace / ".torve" / "tmp"

@@ -120,6 +120,9 @@ def plan_cmd(
     raise typer.Exit(EXIT_OK)
 
 
+# ....................... #
+
+
 def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
     from torve.application.planner import reconcile
 

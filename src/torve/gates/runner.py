@@ -27,11 +27,18 @@ from torve.gates.contract import BuiltinOutcome
 @dataclass
 class RunReport:
     results: list[GateResult] = field(default_factory=list)
+
+    # ....................... #
+
     exit_code: int = 0
+
+    # ....................... #
 
     @property
     def bypass_count_by_gate(self) -> dict[str, int]:
         return {r.name: 1 for r in self.results if r.outcome == "bypassed"}
+
+    # ....................... #
 
     @property
     def flaky_count_by_command(self) -> dict[str, int]:
@@ -40,6 +47,9 @@ class RunReport:
             for command in result.flaky_commands:
                 counts[command] = counts.get(command, 0) + 1
         return counts
+
+
+# ....................... #
 
 
 def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
@@ -54,6 +64,9 @@ def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     return BuiltinOutcome("fail", result.output, exit_code=result.exit_code)
 
 
+# ....................... #
+
+
 def _find_bypass(gate: Gate, ctx: GateContext) -> BypassRecord | None:
     if gate.builtin == "secrets":
         return None  # D-2.8: no bypass, ever
@@ -61,6 +74,9 @@ def _find_bypass(gate: Gate, ctx: GateContext) -> BypassRecord | None:
         if record.gate == gate.name:
             return record
     return None
+
+
+# ....................... #
 
 
 def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
@@ -95,6 +111,9 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
     ctx.log_path.write_text(
         yaml.safe_dump(document, sort_keys=False, allow_unicode=True), encoding="utf-8"
     )
+
+
+# ....................... #
 
 
 def run_gates(

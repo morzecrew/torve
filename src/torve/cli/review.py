@@ -48,11 +48,17 @@ review_app = typer.Typer(no_args_is_help=True, help="The reviewer and its regres
 CORPUS_DIR = "review-corpus"
 
 
+# ....................... #
+
+
 def _load_case(case_dir: Path) -> dict[str, Any]:
     document = yaml.safe_load((case_dir / "case.yaml").read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise ValueError(f"{case_dir.name}: case.yaml is not a mapping")
     return cast("dict[str, Any]", document)
+
+
+# ....................... #
 
 
 def _case_outcome(
@@ -109,6 +115,9 @@ def _case_outcome(
         "unparseable": outcome.unparseable,
         "ok": not missed and not false_blockers and not outcome.unparseable,
     }
+
+
+# ....................... #
 
 
 @review_app.command("corpus")
@@ -182,6 +191,9 @@ def corpus(
         STYLE_PASS if passed else STYLE_FAIL,
     )
     raise typer.Exit(EXIT_OK if passed else EXIT_GATES_RED)
+
+
+# ....................... #
 
 
 @review_app.command("pr")

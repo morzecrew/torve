@@ -23,6 +23,9 @@ from torve.gates.contract import BuiltinOutcome
 FORBIDDEN_MODULE_NAMES = frozenset({"models.py", "utils.py", "helpers.py", "common.py", "base.py"})
 
 
+# ....................... #
+
+
 def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     candidates = sorted(
         {

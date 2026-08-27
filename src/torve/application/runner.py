@@ -82,6 +82,9 @@ class RunDeps:
     review_agent: Agent | None = None
 
 
+# ....................... #
+
+
 @dataclass
 class AttemptHooks:
     """What one attempt does, one gate pass does, and one landing does. The
@@ -95,6 +98,9 @@ class AttemptHooks:
     # for the reviewed transition, or None when the review escalated the
     # target. Absent -> the review-not-configured bridge.
     review: Callable[[RunState], Awaitable[str | None]] | None = None
+
+
+# ....................... #
 
 
 async def drive_attempts(
@@ -173,6 +179,9 @@ async def drive_attempts(
         return state
 
 
+# ....................... #
+
+
 def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
     log = layout.log_file(worktree, task_id)
     if not log.is_file():
@@ -190,6 +199,9 @@ def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
         isinstance(e, dict) and str(cast(dict[str, Any], e).get("action", "")) == "halted"
         for e in cast(list[object], entries)
     )
+
+
+# ....................... #
 
 
 def _withhold_never_send(worktree: Path, globs: list[str]) -> dict[Path, bytes]:
@@ -213,10 +225,16 @@ def _withhold_never_send(worktree: Path, globs: list[str]) -> dict[Path, bytes]:
     return withheld
 
 
+# ....................... #
+
+
 def _restore_never_send(withheld: dict[Path, bytes]) -> None:
     for path, content in withheld.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
+
+
+# ....................... #
 
 
 def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
@@ -230,6 +248,9 @@ def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], 
     return (), {}
 
 
+# ....................... #
+
+
 class _SandboxExecutor:
     """ExecuteOnce over a fresh sandbox, created lazily so gate passes with no
     shell gates cost nothing, destroyed by the caller when the pass ends."""
@@ -238,17 +259,24 @@ class _SandboxExecutor:
         self.runtime, self.spec, self.workspace = runtime, spec, workspace
         self.handle: SandboxHandle | None = None
 
+    # ....................... #
+
     def __call__(self, command: str, timeout: float) -> tuple[int | None, str]:
         if self.handle is None:
             self.handle = self.runtime.create(self.spec, self.workspace)
         result = self.runtime.exec(self.handle, command, timeout)
         return result.exit_code, result.output
 
+    # ....................... #
+
     def close(self) -> None:
         if self.handle is not None:
             self.runtime.sync_out(self.handle, self.workspace)
             self.runtime.destroy(self.handle)
             self.handle = None
+
+
+# ....................... #
 
 
 def _run_gates_in_worktree(
@@ -311,6 +339,9 @@ def _run_gates_in_worktree(
     return report.exit_code, summary, digest, report.results, ctx.patch
 
 
+# ....................... #
+
+
 def _agent_identity(meta: dict[str, Any]) -> str:
     """The commit author and Torve-Agent trailer value (RFC 0010 §3):
     adapter/model@model_version, degrading gracefully — a fake or mechanical
@@ -320,6 +351,9 @@ def _agent_identity(meta: dict[str, Any]) -> str:
     ident = f"{adapter}/{model}" if model else adapter
     version = meta.get("model_version")
     return f"{ident}@{version}" if version else ident
+
+
+# ....................... #
 
 
 def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, Any]) -> str:
@@ -345,12 +379,20 @@ def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, 
     return "\n".join(lines)
 
 
+# ....................... #
+
+
 class RevertConflict(RuntimeError):
     """A dependent-commit conflict while reverting: escalates as
     merge_conflict (RFC 0010 §7) — Torve does not resolve it."""
 
 
+# ....................... #
+
 _SHA = re.compile(r"[0-9a-f]{7,40}")
+
+
+# ....................... #
 
 
 def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
@@ -371,6 +413,9 @@ def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
             )
         shas.extend(landed)
     return shas
+
+
+# ....................... #
 
 
 def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str]) -> None:
@@ -404,6 +449,9 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
         ),
         encoding="utf-8",
     )
+
+
+# ....................... #
 
 
 def real_hooks(
@@ -655,6 +703,9 @@ def real_hooks(
     )
 
 
+# ....................... #
+
+
 async def _run_task_async(
     root: Path, task: Task, config: RunnerConfig, deps: RunDeps, state: RunState
 ) -> RunState:
@@ -709,10 +760,16 @@ async def _run_task_async(
     return state
 
 
+# ....................... #
+
+
 class BlockedDispatch(RuntimeError):
     """Dispatch refused: another active run's scope intersects this task's
     (RFC 0006 §2 — prevention beats ordering). Never a silent wait: the
     cause is in the message and counted in telemetry (D-6.6)."""
+
+
+# ....................... #
 
 
 def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
@@ -737,6 +794,9 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
                 if globs_intersect([mine], [theirs]):
                     return state.task_id, theirs
     return None
+
+
+# ....................... #
 
 
 def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> RunState:

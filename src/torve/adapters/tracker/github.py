@@ -46,6 +46,9 @@ TRANSIENT = (
 )
 
 
+# ....................... #
+
+
 class GithubIssues:
     def __init__(
         self, repo: str, token_env: str | None = None, sleeper: Callable[[float], None] = time.sleep
@@ -54,6 +57,8 @@ class GithubIssues:
         self.token_env = token_env
         self.sleeper = sleeper
         self._issues: dict[str, int] = {}  # projection cache, never authority
+
+    # ....................... #
 
     def _run(self, command: list[str]) -> str:
         env = None
@@ -78,8 +83,12 @@ class GithubIssues:
             raise RuntimeError(error)
         raise RuntimeError("unreachable")  # for the type checker
 
+    # ....................... #
+
     def _gh(self, *args: str) -> str:
         return self._run(["gh", *args, "--repo", self.repo])
+
+    # ....................... #
 
     def _issue_for(self, task_id: str, title: str, create: bool = True) -> int | None:
         if task_id in self._issues:
@@ -118,6 +127,8 @@ class GithubIssues:
         self._issues[task_id] = number
         return number
 
+    # ....................... #
+
     def _set_label(self, number: int, label: str) -> None:
         # Labels are created idempotently, then applied — and the board
         # wears one state label at a time (D-8.12): stale state siblings
@@ -133,6 +144,8 @@ class GithubIssues:
         self._gh("label", "create", label, "--force", "--color", "5319e7")
         self._gh("issue", "edit", str(number), "--add-label", label)
 
+    # ....................... #
+
     def label(self, task_id: str, name: str) -> ReflectResult:
         # A plain label (D-8.13/D-8.14): applied to an existing issue —
         # never creating one — and never touching the state:* family.
@@ -142,6 +155,8 @@ class GithubIssues:
         self._gh("label", "create", name, "--force", "--color", "0e8a16")
         self._gh("issue", "edit", str(number), "--add-label", name)
         return ReflectResult("applied", f"issue #{number} labelled {name}")
+
+    # ....................... #
 
     def unlabel(self, task_id: str, name: str) -> ReflectResult:
         # The label retires when its claim stops being true (D-8.17,
@@ -157,6 +172,8 @@ class GithubIssues:
                 return ReflectResult("applied", f"label {name} already absent")
             raise
         return ReflectResult("applied", f"issue #{number} unlabelled {name}")
+
+    # ....................... #
 
     def reflect(self, task_id: str, state: str, title: str) -> ReflectResult:
         if state == "adopted":
@@ -186,6 +203,8 @@ class GithubIssues:
             self._gh("issue", "close", str(number))
         return ReflectResult("applied", f"issue #{number} labelled state:{state}")
 
+    # ....................... #
+
     def comment(self, task_id: str, body: str, key: str) -> ReflectResult:
         number = self._issue_for(task_id, f"{task_id}: task")
         assert number is not None
@@ -196,6 +215,8 @@ class GithubIssues:
             return ReflectResult("applied", "already commented")
         self._gh("issue", "comment", str(number), "--body", f"{body}\n\n{marker}")
         return ReflectResult("applied", f"comment on #{number}")
+
+    # ....................... #
 
     def notify(self, task_id: str, login: str, body: str, key: str) -> ReflectResult:
         # The @mention comment is the notification; assignment is
@@ -213,11 +234,15 @@ class GithubIssues:
             return result
         return ReflectResult("applied", f"notified @{login} on #{number} ({assigned})")
 
+    # ....................... #
+
     def annotate(self, task_id: str, location: str, body: str, key: str) -> ReflectResult:
         # Issues have no inline file annotations: the D-8.6 unsupported
         # path, honestly — the finding still reaches the issue as a comment
         # through the caller's divergence handling if it chooses to.
         return ReflectResult("unsupported", "github issues carry no inline annotations")
+
+    # ....................... #
 
     def poll_commands(self) -> list[TrackerCommand]:
         commands: list[TrackerCommand] = []
@@ -274,12 +299,15 @@ class GithubIssues:
                 )
         return commands
 
+    # ....................... #
+
     # The intake surface (RFC 0020 §5.4): torve.intake-labeled issues
     # whose titles carry no task row yet are unclaimed requests; claiming
     # retitles the issue to the drafting task's row, so every existing
     # projection and command path applies from that moment on.
-
     INTAKE_LABEL = "torve.intake"
+
+    # ....................... #
 
     def intake_requests(self) -> list[IntakeRequest]:
         listed = cast(
@@ -313,6 +341,8 @@ class GithubIssues:
                 )
             )
         return requests
+
+    # ....................... #
 
     def retitle(self, number: int, title: str) -> ReflectResult:
         self._gh("issue", "edit", str(number), "--title", title)

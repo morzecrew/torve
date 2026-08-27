@@ -28,38 +28,88 @@ def _now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
+# ....................... #
+
+
 @dataclass
 class Escalation:
     reason: str
     detail: str
 
 
+# ....................... #
+
+
 @dataclass
 class RunState:
     task_id: str
+
+    # ....................... #
+
     path: Path
+
+    # ....................... #
+
     schema_version: int = SCHEMA_VERSION
+
+    # ....................... #
+
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+
+    # ....................... #
+
     state: TaskState = TaskState.QUEUED
+
+    # ....................... #
+
     attempts: int = 0
+
+    # ....................... #
+
     heartbeat: str = field(default_factory=_now)
+
+    # ....................... #
+
     sandbox_id: str | None = None
+
+    # ....................... #
+
     durable_run_id: str | None = None  # the store's run this engine run executes under
+
+    # ....................... #
+
     worktree: str | None = None
+
+    # ....................... #
+
     escalation: Escalation | None = None
+
+    # ....................... #
+
     history: list[dict[str, str]] = field(default_factory=list)
+
+    # ....................... #
+
     # Sha-bound promotion approvals (RFC 0006 §3): {actor, sha, at} — an
     # approval that predates the last push approves nothing, so the lane
     # counts only entries matching the current branch tip.
     approvals: list[dict[str, str]] = field(default_factory=list)
+
+    # ....................... #
+
     # The base tip this run last conflicted against (D-6.12, A-35): the
     # lane's automatic conflict disposal re-queues only against a base
     # that has moved since — a repeat against this tip is a human's turn.
     conflict_base: str | None = None
+
+    # ....................... #
+
     # The review task that concluded over this candidate without a
     # surviving blocker (D-6.14, A-43) — the lane's require_review
     # predicate. The unconfigured-review bridge never sets it.
     reviewed_by: str | None = None
+
+    # ....................... #
 
     def transition(self, to: TaskState, fact: str) -> None:
         """Transitions are executed from facts; the fact is recorded with the
@@ -74,17 +124,25 @@ class RunState:
         self.state = to
         self.touch()
 
+    # ....................... #
+
     def escalate(self, reason: EscalationReason, detail: str) -> None:
         self.transition(TaskState.ESCALATED, f"{reason}: {detail}")
         self.escalation = Escalation(reason=str(reason), detail=detail)
         self.save()
 
+    # ....................... #
+
     def touch(self) -> None:
         self.heartbeat = _now()
+
+    # ....................... #
 
     def heartbeat_age_s(self, now: datetime | None = None) -> float:
         stamp = datetime.strptime(self.heartbeat, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
         return ((now or datetime.now(UTC)) - stamp).total_seconds()
+
+    # ....................... #
 
     def to_record(self) -> dict[str, object]:
         """The persisted shape — also what `--format json` emits (D-11.3):
@@ -94,11 +152,15 @@ class RunState:
         data["state"] = str(self.state)
         return data
 
+    # ....................... #
+
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self.to_record(), indent=2) + "\n", encoding="utf-8")
         os.replace(tmp, self.path)
+
+    # ....................... #
 
     @classmethod
     def load(cls, path: Path) -> RunState:
@@ -121,6 +183,8 @@ class RunState:
             conflict_base=data.get("conflict_base"),
             reviewed_by=data.get("reviewed_by"),
         )
+
+    # ....................... #
 
     @classmethod
     def load_all(cls, wt_dir: Path) -> list[RunState]:

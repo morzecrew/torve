@@ -24,6 +24,9 @@ from torve.domain.task import SCHEMA_VERSION
 ADAPTERS = ("fake", "api", "harness", "subscription")
 
 
+# ....................... #
+
+
 class TierConfig(BaseModel):
     """One tier's adapter (RFC 0004 §1): `tier` on the task maps to an entry
     here, and the concern leaks no further into the design. The command runs
@@ -38,16 +41,41 @@ class TierConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # ....................... #
+
     adapter: str = "fake"  # fake | api | harness | subscription
+
+    # ....................... #
+
     command: str = ""  # in-sandbox command line; {prompt} and {model} substituted
+
+    # ....................... #
+
     model: str = ""  # recorded in telemetry, substituted into the command
+
+    # ....................... #
+
     provider: str = ""  # routing identity (§6b); empty only for fake
+
+    # ....................... #
+
     # The tier's sandbox image — harness identity is the image (RFC 0017 §3,
     # D-17.4). Empty falls back to runtime.image.
     image: str = ""
+
+    # ....................... #
+
     api_key_env: list[str] = Field(default_factory=list)
+
+    # ....................... #
+
     auth_volume: str = "torve-auth"
+
+    # ....................... #
+
     auth_mount: str = "/auth"
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _real_adapters_are_fully_named(self) -> TierConfig:
@@ -63,8 +91,14 @@ class TierConfig(BaseModel):
         return self
 
 
+# ....................... #
+
+
 def _default_tiers() -> dict[str, TierConfig]:
     return {name: TierConfig() for name in ("planner", "executor", "reviewer")}
+
+
+# ....................... #
 
 
 class RepositoryProviders(BaseModel):
@@ -72,6 +106,9 @@ class RepositoryProviders(BaseModel):
 
     allow: list[str] = Field(default_factory=list)
     deny_reason: str = ""
+
+
+# ....................... #
 
 
 class ProvidersConfig(BaseModel):
@@ -87,9 +124,15 @@ class ProvidersConfig(BaseModel):
     never_send: list[str] = Field(default_factory=list)  # gitwildmatch globs
 
 
+# ....................... #
+
+
 class ProviderDenied(ValueError):
     """No permitted provider for this repository and tier — a configuration
     error at dispatch (exit 3), never a quiet fallback (D-4.8)."""
+
+
+# ....................... #
 
 
 def route_provider(providers: ProvidersConfig, repository: str, provider: str) -> None:
@@ -109,6 +152,9 @@ def route_provider(providers: ProvidersConfig, repository: str, provider: str) -
     )
 
 
+# ....................... #
+
+
 def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
     """The task's tier resolved against the mapping — a missing entry is a
     configuration error, never a quiet default."""
@@ -121,10 +167,16 @@ def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
         ) from None
 
 
+# ....................... #
+
+
 def image_for(config: RunnerConfig, tier: TierConfig) -> str:
     """The tier's image when it names one, else the runtime default — the
     harness's identity is the image it runs in (RFC 0017 §3)."""
     return tier.image or config.runtime.image
+
+
+# ....................... #
 
 
 def configured_images(config: RunnerConfig) -> list[str]:
@@ -135,11 +187,17 @@ def configured_images(config: RunnerConfig) -> list[str]:
     return sorted(images)
 
 
+# ....................... #
+
+
 class OpenSandboxConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     domain: str = "localhost:5266"
     api_key_env: str = "OPENSANDBOX_API_KEY"
+
+
+# ....................... #
 
 
 class RuntimeConfig(BaseModel):
@@ -166,6 +224,9 @@ class RuntimeConfig(BaseModel):
     opensandbox: OpenSandboxConfig = Field(default_factory=OpenSandboxConfig)
 
 
+# ....................... #
+
+
 class StoreConfig(BaseModel):
     """The durable run store (D-5, D-5a): mock for tests and simulation,
     Postgres for real runs (D-3.6). The mock is in-process, so cross-process
@@ -185,6 +246,9 @@ class StoreConfig(BaseModel):
     max_run_duration: float = 7200.0  # hard cap on one durable body
 
 
+# ....................... #
+
+
 def _default_skill_sets() -> dict[str, list[str]]:
     return {
         "implement": ["flag-dont-flip", "ratchet-what-you-build"],
@@ -194,6 +258,9 @@ def _default_skill_sets() -> dict[str, list[str]]:
     }
 
 
+# ....................... #
+
+
 class SkillsConfig(BaseModel):
     """Role-scoped skill sets (RFC 0009 §3, D-9.1) materialized into the
     sandbox from package data at dispatch (A-3, D-9.7)."""
@@ -201,6 +268,9 @@ class SkillsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sets: dict[str, list[str]] = Field(default_factory=_default_skill_sets)
+
+
+# ....................... #
 
 
 class RfcsConfig(BaseModel):
@@ -215,10 +285,16 @@ class RfcsConfig(BaseModel):
     path: str = "rfcs"
 
 
+# ....................... #
+
+
 class ReapConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     stale_after: float = 600  # non-terminal state with a heartbeat older than this is orphaned
+
+
+# ....................... #
 
 
 class VcsConfig(BaseModel):
@@ -232,6 +308,9 @@ class VcsConfig(BaseModel):
     signing_key: str | None = None
 
 
+# ....................... #
+
+
 class ScmConfig(BaseModel):
     """The remote forge (RFC 0010 §2). The credential is named, never held:
     `token_env` is the NAME of the environment variable the runner reads at
@@ -243,6 +322,9 @@ class ScmConfig(BaseModel):
     open_pr: bool = False  # flip per repository once a remote exists
     repo: str | None = None
     token_env: str | None = None
+
+
+# ....................... #
 
 
 class TrackerConfig(BaseModel):
@@ -266,6 +348,9 @@ class TrackerConfig(BaseModel):
     commanders: list[str] = Field(default_factory=list)
 
 
+# ....................... #
+
+
 class ReviewConfig(BaseModel):
     """Review triggers (RFC 0005 §4). Off by default — a blocker stopping
     the run is configuration deciding a consequence (D-2), and configuring
@@ -276,12 +361,22 @@ class ReviewConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # ....................... #
+
     on: list[str] = Field(default_factory=list)
+
+    # ....................... #
+
     skip_authors: list[str] = Field(default_factory=list)
+
+    # ....................... #
+
     # The revision loop's allow-list (RFC 0005 §4a, A-52): forge logins
     # whose review threads become revision context at retry. Empty = off;
     # a stranger's comment never reaches an agent.
     feedback_from: list[str] = Field(default_factory=list)
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _known_triggers(self) -> ReviewConfig:
@@ -293,6 +388,9 @@ class ReviewConfig(BaseModel):
                 f"the vocabulary is {', '.join(sorted(supported))}"
             )
         return self
+
+
+# ....................... #
 
 
 class PromotionConfig(BaseModel):
@@ -326,6 +424,9 @@ class PromotionConfig(BaseModel):
     quiet_window: int = 0
 
 
+# ....................... #
+
+
 class LoopConfig(BaseModel):
     """The standing loop's knobs (RFC 0019 §7). There is no enabled
     flag — scheduling `torve tick` is the enablement."""
@@ -343,6 +444,9 @@ class LoopConfig(BaseModel):
     tick_budget: int = 3600
 
 
+# ....................... #
+
+
 class IntakeConfig(BaseModel):
     """The drafting run's knobs (RFC 0020). `max_drafts` is D-20.8's
     decomposition ceiling — how many contracts one request may yield;
@@ -352,6 +456,9 @@ class IntakeConfig(BaseModel):
 
     max_drafts: int = 4
     iterations: int = 3
+
+
+# ....................... #
 
 
 class RunnerConfig(BaseModel):
@@ -375,6 +482,9 @@ class RunnerConfig(BaseModel):
     loop: LoopConfig = Field(default_factory=LoopConfig)
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
     worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not
+
+
+# ....................... #
 
 
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:

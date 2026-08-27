@@ -68,6 +68,9 @@ sys.exit(step.get("exit", 0))
 """
 
 
+# ....................... #
+
+
 def load_scenario(path: Path) -> list[dict[str, Any]]:
     raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
     steps: Any = cast(dict[str, Any], raw).get("attempts") if isinstance(raw, dict) else raw
@@ -76,16 +79,25 @@ def load_scenario(path: Path) -> list[dict[str, Any]]:
     return cast(list[dict[str, Any]], steps)
 
 
+# ....................... #
+
 DEFAULT_SCENARIO: list[dict[str, Any]] = [
     {"writes": {"TORVE_FAKE.md": "written by the fake agent\n"}, "exit": 0}
 ]
 
 
+# ....................... #
+
+
 class FakeAgent:
     kind: str = "fake"
 
+    # ....................... #
+
     def __init__(self, steps: list[dict[str, Any]] | None = None) -> None:
         self.steps = steps or DEFAULT_SCENARIO
+
+    # ....................... #
 
     def run(self, ctx: AgentContext) -> AgentResult:
         step = dict(self.steps[min(ctx.attempt - 1, len(self.steps) - 1)])

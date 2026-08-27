@@ -30,6 +30,8 @@ class RuntimeName(StrEnum):
     OPENSANDBOX = "opensandbox"
 
 
+# ....................... #
+
 ConfigOption = Annotated[
     Path | None,
     typer.Option(
@@ -47,6 +49,9 @@ FormatOption = Annotated[
 ]
 
 
+# ....................... #
+
+
 def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
     """Configuration errors exit 3: a bad file is the operator's to
     fix, distinct from red gates (1) and infrastructure failure (4)."""
@@ -56,6 +61,9 @@ def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
         return load_runner_config(root, config_path)
     except (ValueError, yaml.YAMLError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+
+# ....................... #
 
 
 def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:

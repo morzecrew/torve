@@ -28,6 +28,9 @@ from torve.gates.runner import RunReport
 _APPEND_LOCK = threading.Lock()
 
 
+# ....................... #
+
+
 def config_hash(
     manifest_path: Path,
     root: Path,
@@ -79,6 +82,9 @@ def config_hash(
     return digest.hexdigest()[:12]
 
 
+# ....................... #
+
+
 def build_record(
     ctx: GateContext,
     report: RunReport,
@@ -107,12 +113,18 @@ def build_record(
     }
 
 
+# ....................... #
+
+
 def append_record(path: Path, record: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # One line per write, whole, under a dispatch batch (D-19.14, A-39):
     # concurrent attempts share this stream in one process.
     with _APPEND_LOCK, path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+# ....................... #
 
 
 def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:

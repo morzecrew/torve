@@ -32,11 +32,12 @@ class DockerError(RuntimeError):
     pass
 
 
+# ....................... #
+
+
 # The PROXY_ENV convention is forwarded only when a network mode was chosen —
 # a host-loopback proxy address is reachable under "host" and poison under
 # the default bridge.
-
-
 class DockerRuntime:
     def __init__(
         self, docker_bin: str = "docker", network: str = "", docker_mode: str = ""
@@ -48,10 +49,14 @@ class DockerRuntime:
         # per-repository opt-in. The image supplies the docker CLI.
         self.docker_mode = docker_mode
 
+    # ....................... #
+
     def _run(self, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [self.docker, *args], capture_output=True, text=True, timeout=timeout, check=False
         )
+
+    # ....................... #
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
         mount_mode = ":ro" if spec.workspace_read_only else ""
@@ -103,6 +108,8 @@ class DockerRuntime:
             raise DockerError(proc.stderr.strip() or "docker run failed")
         return SandboxHandle(id=proc.stdout.strip(), name=spec.name)
 
+    # ....................... #
+
     def exec(self, handle: SandboxHandle, command: str, timeout_s: float) -> ExecResult:
         import time
 
@@ -122,14 +129,22 @@ class DockerRuntime:
             duration_s=time.monotonic() - started,
         )
 
+    # ....................... #
+
     def sync_out(self, handle: SandboxHandle, workspace: Path) -> None:
         """Bind mount: the workspace already holds what the sandbox wrote."""
+
+    # ....................... #
 
     def destroy(self, handle: SandboxHandle) -> None:
         self._run("rm", "-f", "-v", handle.id)
 
+    # ....................... #
+
     def destroy_by_id(self, sandbox_id: str) -> None:
         self._run("rm", "-f", "-v", sandbox_id)
+
+    # ....................... #
 
     def resolve_image(self, image: str) -> str | None:
         # `.Id` is the content identity of the local image — it covers
@@ -139,6 +154,8 @@ class DockerRuntime:
             return None
         return proc.stdout.strip() or None
 
+    # ....................... #
+
     def build_image(self, context: Path, tag: str) -> str:
         proc = self._run("build", "-t", tag, str(context), timeout=1800)
         if proc.returncode != 0:
@@ -147,6 +164,8 @@ class DockerRuntime:
         if digest is None:
             raise DockerError(f"built {tag} but could not resolve its digest")
         return digest
+
+    # ....................... #
 
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         proc = self._run(

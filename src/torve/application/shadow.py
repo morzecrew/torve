@@ -51,10 +51,16 @@ class ShadowSource:
     diff_worktree: Callable[[Path, str], dict[str, Any]]
 
 
+# ....................... #
+
+
 async def _drive(
     state: RunState, task: Task, config: RunnerConfig, hooks: AttemptHooks
 ) -> RunState:
     return await drive_attempts(state, task, config, hooks)
+
+
+# ....................... #
 
 
 def run_shadow(

@@ -18,13 +18,21 @@ from torve.base import naming
 _WORKTREE_LOCK = threading.Lock()
 
 
+# ....................... #
+
+
 class WorkspaceError(RuntimeError):
     pass
+
+
+# ....................... #
 
 
 class GitWorkspace:
     def __init__(self, root: Path) -> None:
         self.root = root
+
+    # ....................... #
 
     def _git(self, *args: str) -> str:
         proc = subprocess.run(
@@ -33,6 +41,8 @@ class GitWorkspace:
         if proc.returncode != 0:
             raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
         return proc.stdout
+
+    # ....................... #
 
     def create(self, task_id: str, base_ref: str | None) -> Path:
         with _WORKTREE_LOCK:
@@ -51,9 +61,13 @@ class GitWorkspace:
                 self._git("worktree", "add", "-B", branch, str(path), base)
             return path
 
+    # ....................... #
+
     def remove(self, task_id: str) -> None:
         with _WORKTREE_LOCK:
             self._remove_locked(task_id)
+
+    # ....................... #
 
     def _remove_locked(self, task_id: str) -> None:
         path = naming.worktree(self.root, task_id)
@@ -70,6 +84,8 @@ class GitWorkspace:
             capture_output=True,
             check=False,
         )
+
+    # ....................... #
 
     def list_worktrees(self) -> list[tuple[str, Path]]:
         wt_root = self.root / naming.WORKTREE_DIR
@@ -94,8 +110,12 @@ class ShadowWorkspace:
         self.root = root
         self.depth = depth
 
+    # ....................... #
+
     def path_for(self, task_id: str) -> Path:
         return self.root / naming.WORKTREE_DIR / naming.shadow_id(task_id)
+
+    # ....................... #
 
     def create(self, task_id: str, parent_sha: str) -> Path:
         path = self.path_for(task_id)
@@ -123,8 +143,13 @@ class ShadowWorkspace:
         run("checkout", "-q", "-b", "shadow", "FETCH_HEAD")
         return path
 
+    # ....................... #
+
     def remove(self, task_id: str) -> None:
         shutil.rmtree(self.path_for(task_id), ignore_errors=True)
+
+
+# ....................... #
 
 
 def shipped_commit(root: Path, task_id: str) -> str | None:
@@ -169,6 +194,9 @@ def shipped_commit(root: Path, task_id: str) -> str | None:
     return None
 
 
+# ....................... #
+
+
 def parent_of(root: Path, sha: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", f"{sha}^"],
@@ -179,6 +207,9 @@ def parent_of(root: Path, sha: str) -> str:
     if proc.returncode != 0:
         raise WorkspaceError(f"no parent commit for {sha!r}")
     return proc.stdout.strip()
+
+
+# ....................... #
 
 
 def _parse_numstat(output: str) -> dict[str, object]:
@@ -201,6 +232,9 @@ def _parse_numstat(output: str) -> dict[str, object]:
     }
 
 
+# ....................... #
+
+
 def diff_range(root: Path, sha: str) -> dict[str, object]:
     """What actually shipped: the commit against its first parent."""
     proc = subprocess.run(
@@ -212,6 +246,9 @@ def diff_range(root: Path, sha: str) -> dict[str, object]:
     if proc.returncode != 0:
         raise WorkspaceError(proc.stderr.strip() or f"git diff for {sha!r} failed")
     return _parse_numstat(proc.stdout)
+
+
+# ....................... #
 
 
 def diff_worktree(workspace: Path, base: str) -> dict[str, object]:

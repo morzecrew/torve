@@ -32,6 +32,9 @@ OUTBOX = "outbox.jsonl"
 LEDGER = "outbox-ledger.jsonl"
 
 
+# ....................... #
+
+
 @dataclass
 class Effect:
     key: str  # (task_id, state, attempt) by D-8.2 for tracker effects
@@ -40,11 +43,17 @@ class Effect:
     at: str = ""
 
 
+# ....................... #
+
+
 @dataclass
 class RelayReport:
     delivered: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)  # already in the ledger
     failed: dict[str, str] = field(default_factory=dict)  # key -> reason
+
+
+# ....................... #
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:
@@ -57,18 +66,30 @@ def _rows(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+# ....................... #
+
+
 def _append(path: Path, record: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+# ....................... #
+
+
 def staged_keys(root: Path) -> set[str]:
     return {str(row["key"]) for row in _rows(root / layout.TORVE_DIR / OUTBOX)}
 
 
+# ....................... #
+
+
 def delivered_keys(root: Path) -> set[str]:
     return {str(row["key"]) for row in _rows(root / layout.TORVE_DIR / LEDGER)}
+
+
+# ....................... #
 
 
 def stage(root: Path, effect: Effect) -> bool:
@@ -87,6 +108,9 @@ def stage(root: Path, effect: Effect) -> bool:
     return True
 
 
+# ....................... #
+
+
 def pending(root: Path) -> list[Effect]:
     done = delivered_keys(root)
     return [
@@ -99,6 +123,9 @@ def pending(root: Path) -> list[Effect]:
         for row in _rows(root / layout.TORVE_DIR / OUTBOX)
         if str(row["key"]) not in done
     ]
+
+
+# ....................... #
 
 
 def relay(root: Path, deliver: Callable[[Effect], None]) -> RelayReport:

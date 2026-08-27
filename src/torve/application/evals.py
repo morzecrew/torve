@@ -31,6 +31,9 @@ from torve.domain.task import SCHEMA_VERSION, Task
 EVAL_LEDGER = "evals.jsonl"
 
 
+# ....................... #
+
+
 def without_skill(config: RunnerConfig, skill: str) -> RunnerConfig:
     """The baseline arm's configuration: the skill removed from every role
     set. A skill in no set is a configuration error — there is nothing to
@@ -44,6 +47,9 @@ def without_skill(config: RunnerConfig, skill: str) -> RunnerConfig:
     return config.model_copy(update={"skills": SkillsConfig(sets=sets)})
 
 
+# ....................... #
+
+
 def _arm_row(record: dict[str, Any]) -> dict[str, Any]:
     return {
         "task": record["task_id"],
@@ -53,6 +59,9 @@ def _arm_row(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ....................... #
+
+
 def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     costs = [r["cost_usd"] for r in rows if r["cost_usd"] is not None]
     return {
@@ -60,6 +69,9 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "attempts": sum(int(r["attempts"]) for r in rows),
         "cost_usd": round(sum(costs), 6) if costs else None,
     }
+
+
+# ....................... #
 
 
 def run_skill_eval(

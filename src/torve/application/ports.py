@@ -40,6 +40,9 @@ StoreFactory = Callable[["StoreConfig"], Awaitable["DurableRunStorePort"]]
 PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy", "socks_proxy", "no_proxy")
 
 
+# ....................... #
+
+
 @dataclass(frozen=True)
 class SandboxSpec:
     name: str
@@ -61,10 +64,16 @@ class SandboxSpec:
     workspace_read_only: bool = False
 
 
+# ....................... #
+
+
 @dataclass(frozen=True)
 class SandboxHandle:
     id: str
     name: str
+
+
+# ....................... #
 
 
 @dataclass(frozen=True)
@@ -74,15 +83,29 @@ class SandboxInfo:
     labels: dict[str, str]
 
 
+# ....................... #
+
+
 @dataclass(frozen=True)
 class ExecResult:
     exit_code: int | None  # None when the command timed out
+
+    # ....................... #
+
     output: str
+
+    # ....................... #
+
     duration_s: float
+
+    # ....................... #
 
     @property
     def timed_out(self) -> bool:
         return self.exit_code is None
+
+
+# ....................... #
 
 
 class Runtime(Protocol):
@@ -112,12 +135,18 @@ class Runtime(Protocol):
         ...
 
 
+# ....................... #
+
+
 class WorkspacePort(Protocol):
     def create(self, task_id: str, base_ref: str | None) -> Path: ...
 
     def remove(self, task_id: str) -> None: ...
 
     def list_worktrees(self) -> list[tuple[str, Path]]: ...
+
+
+# ....................... #
 
 
 @dataclass
@@ -135,21 +164,41 @@ class AgentContext:
     prompt: str | None = None
 
 
+# ....................... #
+
+
 @dataclass(frozen=True)
 class AgentResult:
     exit_code: int | None
+
+    # ....................... #
+
     output: str
+
+    # ....................... #
+
     # None of these can be reconstructed after the fact (RFC 0004 §6):
     # model_version is whatever version string the provider returned — None
     # marks an uncontrolled regime (D-4.6); trace_ref turns escalation triage
     # from archaeology into replay (§4). A trace is never gate evidence.
     cost_usd: float | None = None
+
+    # ....................... #
+
     model_version: str | None = None
+
+    # ....................... #
+
     trace_ref: str | None = None
+
+    # ....................... #
 
     @property
     def timed_out(self) -> bool:
         return self.exit_code is None
+
+
+# ....................... #
 
 
 class Agent(Protocol):
@@ -159,6 +208,9 @@ class Agent(Protocol):
     kind: str
 
     def run(self, ctx: AgentContext) -> AgentResult: ...
+
+
+# ....................... #
 
 
 class Vcs(Protocol):
@@ -182,6 +234,9 @@ class Vcs(Protocol):
     def landed_shas(self, worktree: Path, task_id: str) -> list[str]: ...
 
     def revert(self, worktree: Path, shas: list[str]) -> bool: ...
+
+
+# ....................... #
 
 
 class LaneVcs(Protocol):
@@ -212,8 +267,14 @@ class LaneVcs(Protocol):
     def approver(self, root: Path) -> str: ...
 
 
+# ....................... #
+
+
 class Scm(Protocol):
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str: ...
+
+
+# ....................... #
 
 
 @dataclass
@@ -231,6 +292,9 @@ class PrInfo:
     state: str  # open | closed | merged, forge-cased
 
 
+# ....................... #
+
+
 class PrScm(Protocol):
     """The PR-review trigger's forge surface (RFC 0005 §4, D-5.2): the
     runner reads the pull request and posts the findings comment; the
@@ -239,6 +303,9 @@ class PrScm(Protocol):
     def pr_info(self, number: int) -> PrInfo: ...
 
     def comment(self, number: int, body: str, key: str) -> str: ...
+
+
+# ....................... #
 
 
 class PrVcs(Protocol):
@@ -259,6 +326,9 @@ class PrVcs(Protocol):
     def task_trailers(self, root: Path, base: str, head: str) -> list[str]: ...
 
 
+# ....................... #
+
+
 @dataclass
 class ReflectResult:
     """applied | refused | unsupported (RFC 0008 §5, D-8.6). A refusal is a
@@ -267,6 +337,9 @@ class ReflectResult:
 
     outcome: str
     detail: str = ""
+
+
+# ....................... #
 
 
 @dataclass
@@ -285,6 +358,9 @@ class TrackerCommand:
     text: str = ""
 
 
+# ....................... #
+
+
 @dataclass
 class IntakeRequest:
     """One unclaimed intake issue (RFC 0020 §5.4): a torve.intake-labeled
@@ -294,6 +370,9 @@ class IntakeRequest:
     title: str
     body: str
     author: str
+
+
+# ....................... #
 
 
 class Tracker(Protocol):
@@ -317,6 +396,9 @@ class Tracker(Protocol):
     def intake_requests(self) -> list[IntakeRequest]: ...
 
     def retitle(self, number: int, title: str) -> ReflectResult: ...
+
+
+# ....................... #
 
 
 class CiStatus(Protocol):

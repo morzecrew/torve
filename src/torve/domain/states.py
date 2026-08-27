@@ -28,6 +28,9 @@ class TaskState(StrEnum):
     ABANDONED = "abandoned"
 
 
+# ....................... #
+
+
 class EscalationReason(StrEnum):
     BUDGET_EXHAUSTED = "budget_exhausted"
     POISON_CEILING = "poison_ceiling"
@@ -47,6 +50,8 @@ class EscalationReason(StrEnum):
     # Re-mint from the superseding document or abandon — never retry.
     STALE_INHERITANCE = "stale_inheritance"
 
+
+# ....................... #
 
 # The escalation vocabulary projected onto exit codes (RFC 0011 §3, D-11.4).
 # One taxonomy, two views: a new exit code requires a new escalation reason
@@ -104,12 +109,18 @@ TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
 TERMINAL = frozenset({TaskState.READY, TaskState.ABANDONED})
 
 
+# ....................... #
+
+
 class IllegalTransition(Exception):
     def __init__(self, current: TaskState, to: TaskState) -> None:
         super().__init__(
             f"illegal transition {current} -> {to}; legal: {sorted(TRANSITIONS[current])}"
         )
         self.current, self.to = current, to
+
+
+# ....................... #
 
 
 def check_transition(current: TaskState, to: TaskState) -> None:

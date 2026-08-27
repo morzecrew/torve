@@ -24,6 +24,9 @@ CITATION = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?$
 BACKTICKED = re.compile(r"^`(?P<command>[^`]+)`(?P<rest>.*)$", re.S)
 
 
+# ....................... #
+
+
 def locate(evidence: str, root: Path) -> str | None:
     """The problem with *evidence*, or None when it locates: a leading
     path:line citation resolving to real lines under *root*, or a backticked
@@ -57,6 +60,9 @@ def locate(evidence: str, root: Path) -> str | None:
     if end > total:
         return f"evidence {citation!r} points past end of file ({total} lines)"
     return None
+
+
+# ....................... #
 
 
 def filter_findings(

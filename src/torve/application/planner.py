@@ -40,6 +40,9 @@ from torve.domain.task import InheritedDecision, Scope, Task
 TASK_DIR_NAME = re.compile(r"^T-(\d{4,})$")
 
 
+# ....................... #
+
+
 class PlanError(ValueError):
     """A refusal at admission or minting — a configuration error (exit 3),
     naming the offending document, edge or entry."""
@@ -52,6 +55,9 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(root), *args], capture_output=True, text=True, check=False
     )
+
+
+# ....................... #
 
 
 def _require_committed(root: Path, doc: Path) -> None:
@@ -70,6 +76,9 @@ def _require_committed(root: Path, doc: Path) -> None:
             f"{doc.name} has uncommitted changes — `torve plan` accepts only the "
             "committed, reviewed text (D-7.2)"
         )
+
+
+# ....................... #
 
 
 def _admit(files: dict[str, Path], number: str) -> None:
@@ -121,6 +130,9 @@ def _admit(files: dict[str, Path], number: str) -> None:
     visit(number, [])
 
 
+# ....................... #
+
+
 def _depends(frontmatter: dict[str, dict[str, object]], number: str) -> list[str]:
     raw = frontmatter.get(number, {}).get("depends_on")
     if not isinstance(raw, list):
@@ -138,11 +150,17 @@ class PlannedTask:
     size: SizeVerdict
 
 
+# ....................... #
+
+
 @dataclass(frozen=True)
 class PlanReport:
     number: str
     document: str  # repo-relative path, what the contract's `rfc` field cites
     tasks: list[PlannedTask]
+
+
+# ....................... #
 
 
 def globs_intersect(left: list[str], right: list[str]) -> bool:
@@ -168,6 +186,9 @@ def globs_intersect(left: list[str], right: list[str]) -> bool:
     )
 
 
+# ....................... #
+
+
 def next_task_number(root: Path) -> int:
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     numbers = [0]
@@ -177,6 +198,9 @@ def next_task_number(root: Path) -> int:
             if found:
                 numbers.append(int(found.group(1)))
     return max(numbers) + 1
+
+
+# ....................... #
 
 
 def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
@@ -198,6 +222,9 @@ def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
         if str(record.get("rfc", "")) == document and record.get("phase") in phases:
             clashes.append(str(record.get("id", contract.parent.name)))
     return clashes
+
+
+# ....................... #
 
 
 def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
@@ -222,6 +249,9 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
             )
         )
     return decisions
+
+
+# ....................... #
 
 
 def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
@@ -298,6 +328,9 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     return PlanReport(number=number, document=document, tasks=planned)
 
 
+# ....................... #
+
+
 def write_contracts(root: Path, report: PlanReport) -> list[Path]:
     written: list[Path] = []
     for planned in report.tasks:
@@ -333,6 +366,9 @@ class StaleTask:
     superseded_by: str | None
     state: str
     action: str  # escalated | would escalate | skipped (terminal) | already escalated (...)
+
+
+# ....................... #
 
 
 def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask]:

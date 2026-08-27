@@ -26,8 +26,14 @@ TASK_BRANCH = re.compile(r"^torve/(T-\d+)")
 BYPASS_TRAILER = re.compile(r"^Torve-Bypass:\s*([A-Za-z0-9_-]+)\s*:\s*(.+?)\s*$", re.M)
 
 
+# ....................... #
+
+
 class GitError(RuntimeError):
     pass
+
+
+# ....................... #
 
 
 def git(root: Path, *args: str) -> str:
@@ -39,6 +45,9 @@ def git(root: Path, *args: str) -> str:
     return proc.stdout
 
 
+# ....................... #
+
+
 @dataclass(frozen=True)
 class DiffEntry:
     status: str  # A M D R C T — first letter of git's name-status
@@ -46,29 +55,76 @@ class DiffEntry:
     old_path: str | None = None
 
 
+# ....................... #
+
+
 @dataclass
 class GateContext:
     root: Path
+
+    # ....................... #
+
     manifest: Manifest
+
+    # ....................... #
+
     head_sha: str
+
+    # ....................... #
+
     base: str | None
+
+    # ....................... #
+
     merge_base: str | None
+
+    # ....................... #
+
     diff: list[DiffEntry] = field(default_factory=list)
+
+    # ....................... #
+
     patch: str = ""
+
+    # ....................... #
+
     untracked: list[str] = field(default_factory=list)
+
+    # ....................... #
+
     task: Task | None = None
+
+    # ....................... #
+
     task_path: Path | None = None
+
+    # ....................... #
+
     log_path: Path | None = None
+
+    # ....................... #
+
     log_text: str | None = None
+
+    # ....................... #
+
     bypasses: list[BypassRecord] = field(default_factory=list)
+
+    # ....................... #
+
     # Where shell gates execute. None means the host (the CI runner is the
     # sandbox in that context); `torve run` injects a fresh-sandbox executor
     # so no gate command ever runs where the agent could have staged a shim.
     execute: ExecuteOnce | None = None
 
+    # ....................... #
+
     @property
     def changed_paths(self) -> list[str]:
         return [e.path for e in self.diff]
+
+
+# ....................... #
 
 
 def resolve_base(root: Path, base: str | None) -> str | None:
@@ -85,6 +141,9 @@ def resolve_base(root: Path, base: str | None) -> str | None:
     if base:
         raise GitError(f"base ref {base!r} does not exist")
     return None
+
+
+# ....................... #
 
 
 def _diff_entries(root: Path, merge_base: str) -> list[DiffEntry]:
@@ -104,9 +163,15 @@ def _diff_entries(root: Path, merge_base: str) -> list[DiffEntry]:
     return entries
 
 
+# ....................... #
+
+
 def _untracked(root: Path) -> list[str]:
     out = git(root, "ls-files", "--others", "--exclude-standard")
     return [line for line in out.splitlines() if line.strip()]
+
+
+# ....................... #
 
 
 def parse_bypasses(root: Path, merge_base: str, head: str) -> list[BypassRecord]:
@@ -132,11 +197,17 @@ def parse_bypasses(root: Path, merge_base: str, head: str) -> list[BypassRecord]
     return records
 
 
+# ....................... #
+
+
 def load_task(path: Path) -> Task:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: task file must be a mapping")
     return Task.model_validate(raw)
+
+
+# ....................... #
 
 
 def _discover_task(root: Path, explicit: Path | None) -> Path | None:
@@ -151,6 +222,9 @@ def _discover_task(root: Path, explicit: Path | None) -> Path | None:
         return None
     candidate = layout.task_file(root, match.group(1))
     return candidate if candidate.is_file() else None
+
+
+# ....................... #
 
 
 def build_context(

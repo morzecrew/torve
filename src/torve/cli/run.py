@@ -57,8 +57,14 @@ def build_tier_agent(config: RunnerConfig, root: Path, tier_name: str) -> Agent:
     return HarnessAgent(tier)
 
 
+# ....................... #
+
+
 def build_reviewer_agent(config: RunnerConfig, root: Path) -> Agent:
     return build_tier_agent(config, root, "reviewer")
+
+
+# ....................... #
 
 
 def run_cmd(
@@ -167,6 +173,9 @@ def run_cmd(
     raise typer.Exit(EXIT_GATES_RED)
 
 
+# ....................... #
+
+
 def kill(
     task_id: Annotated[str, typer.Argument()],
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
@@ -218,6 +227,9 @@ def kill(
     console.print(f"{task_id}: killed — escalated for triage")
     if destroyed:
         console.print(f"  sandbox: {destroyed}")
+
+
+# ....................... #
 
 
 def cancel(

@@ -122,6 +122,9 @@ def intake_cmd(
     raise typer.Exit(EXIT_ESCALATED)
 
 
+# ....................... #
+
+
 def adopt_cmd(
     task_id: Annotated[str, typer.Argument(help="The drafting run whose drafts to adopt.")],
     config_path: ConfigOption = None,
@@ -148,6 +151,9 @@ def adopt_cmd(
         header(console, "adopt", task_id)
         closing(console, f"adopted: {', '.join(adopted)}")
     raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
 
 
 def lint_contract_cmd(

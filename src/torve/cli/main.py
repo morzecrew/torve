@@ -54,10 +54,16 @@ app.add_typer(review.review_app, name="review")
 app.add_typer(tracker.tracker_app, name="tracker")
 
 
+# ....................... #
+
+
 def _version(value: bool) -> None:
     if value:
         sys.stdout.write(torve.__version__ + "\n")
         raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
 
 
 @app.callback()
@@ -79,6 +85,8 @@ def root_options(
 ) -> None:
     console.set_plain(plain)
 
+
+# ....................... #
 
 gates_app.command("run")(gates.gates_run)
 gates_app.command("check")(gates.gates_check)
@@ -102,9 +110,14 @@ app.command("reap")(status.reap_cmd)
 app.command("tick")(tick.tick_cmd)
 
 
+# ....................... #
+
+
 def main() -> None:
     app()
 
+
+# ....................... #
 
 if __name__ == "__main__":
     main()

@@ -22,6 +22,9 @@ GateState = Literal["shadow", "blocking", "quarantined"]
 GateOutcome = Literal["pass", "fail", "flaky", "skipped", "bypassed", "error"]
 
 
+# ....................... #
+
+
 class BypassRecord(BaseModel):
     """A human's Torve-Bypass commit trailer (D-2.7): the signature is the
     commit's authorship, the reason is mandatory, and the record is counted."""
@@ -32,6 +35,9 @@ class BypassRecord(BaseModel):
     reason: str
     author: str
     commit: str
+
+
+# ....................... #
 
 
 class GateResult(BaseModel):
@@ -54,9 +60,14 @@ class GateResult(BaseModel):
     quarantined_failures: list[str] = Field(default_factory=list)
 
 
+# ....................... #
+
 # Severity discipline (RFC 0005 §5): blocker stops the run by configuration;
 # major a reviewer would insist on; minor/nit are preferences, rate-limited.
 FindingSeverity = Literal["blocker", "major", "minor", "nit"]
+
+
+# ....................... #
 
 
 class Finding(BaseModel):
@@ -71,6 +82,9 @@ class Finding(BaseModel):
     severity: FindingSeverity
     claim: str
     evidence: str
+
+
+# ....................... #
 
 
 class SizeVerdict(BaseModel):

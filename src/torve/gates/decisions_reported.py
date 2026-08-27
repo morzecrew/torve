@@ -43,12 +43,18 @@ LEGAL = {"LOCKED": "halted", "ASSUMED": "departed", "OPEN": "decided", "UNLISTED
 BYPASS_FIELDS = {"gate", "reason", "author", "commit", "at"}
 
 
+# ....................... #
+
+
 def _norm(value: object) -> str:
     """YAML types scalars (timestamps, ints); the checks read strings."""
     if isinstance(value, datetime):
         text = value.isoformat().replace("+00:00", "Z")
         return text if text.endswith("Z") else text + "Z"
     return "" if value is None else str(value)
+
+
+# ....................... #
 
 
 def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -70,6 +76,9 @@ def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
     ):
         return None, "'entries' must be a list of mappings"
     return document, None
+
+
+# ....................... #
 
 
 def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
@@ -108,6 +117,9 @@ def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
     return problems
 
 
+# ....................... #
+
+
 def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
     grade, action = _norm(entry.get("grade")), _norm(entry.get("action"))
     kind = _norm(entry.get("kind"))
@@ -128,6 +140,9 @@ def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
     ]
 
 
+# ....................... #
+
+
 def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list[str]:
     evidence = _norm(entry.get("evidence")).strip()
     if not evidence:
@@ -140,6 +155,9 @@ def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list
     return [f"entry {index + 1}: {problem}"]
 
 
+# ....................... #
+
+
 def _check_drift(document: dict[str, Any]) -> list[str]:
     declared = document.get("drift_count")
     if declared is None:
@@ -150,6 +168,9 @@ def _check_drift(document: dict[str, Any]) -> list[str]:
     if declared != actual:
         return [f"declared drift count {declared} != {actual} entries classed drift"]
     return []
+
+
+# ....................... #
 
 
 def _check_bypasses(document: dict[str, Any]) -> list[str]:
@@ -166,6 +187,9 @@ def _check_bypasses(document: dict[str, Any]) -> list[str]:
         if missing:
             problems.append(f"bypass {index + 1}: missing {', '.join(sorted(missing))}")
     return problems
+
+
+# ....................... #
 
 
 def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str], list[str]]:
@@ -188,6 +212,9 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
                 f"file(s) it governs ({shown}), with no entry in the log"
             )
     return problems, skipped
+
+
+# ....................... #
 
 
 def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:

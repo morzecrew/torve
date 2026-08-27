@@ -40,6 +40,9 @@ class ContextFormat(StrEnum):
     MARKDOWN = "markdown"
 
 
+# ....................... #
+
+
 def context_cmd(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -81,6 +84,9 @@ def _age(seconds: float) -> str:
     if seconds >= 3600:
         return f"{seconds / 3600:.0f}h"
     return f"{max(1, seconds // 60):.0f}m"
+
+
+# ....................... #
 
 
 def _render_rich(report: dict[str, Any]) -> None:

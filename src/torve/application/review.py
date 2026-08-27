@@ -74,6 +74,9 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
     return review
 
 
+# ....................... #
+
+
 def build_review_prompt(
     target: Task,
     diff_text: str,
@@ -135,13 +138,21 @@ An empty list is a valid, complete review: {{"findings": []}}
 """
 
 
+# ....................... #
+
+
 class _FindingsDocument(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     findings: list[Finding]
 
 
+# ....................... #
+
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+# ....................... #
 
 
 def parse_findings(output: str) -> list[Finding] | None:
@@ -168,6 +179,9 @@ def parse_findings(output: str) -> list[Finding] | None:
         return None
 
 
+# ....................... #
+
+
 @dataclass
 class ReviewOutcome:
     review_id: str
@@ -176,6 +190,9 @@ class ReviewOutcome:
     kept: list[Finding] = field(default_factory=list)
     discarded: list[str] = field(default_factory=list)
     unparseable: bool = False
+
+
+# ....................... #
 
 
 def run_review(
@@ -298,6 +315,9 @@ def run_review(
 PR_LEDGER = "pr-reviews.jsonl"
 
 
+# ....................... #
+
+
 @dataclass
 class PrReviewOutcome:
     action: str  # reviewed | skipped | already reviewed
@@ -306,6 +326,9 @@ class PrReviewOutcome:
     findings: int = 0
     blockers: int = 0
     comment: str = ""
+
+
+# ....................... #
 
 
 def _reviewed_heads(root: Path) -> set[tuple[int, str]]:
@@ -318,6 +341,9 @@ def _reviewed_heads(root: Path) -> set[tuple[int, str]]:
             row = cast("dict[str, Any]", json.loads(line))
             heads.add((int(row["pr"]), str(row["head"])))
     return heads
+
+
+# ....................... #
 
 
 def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome, degraded: bool) -> str:
@@ -335,6 +361,9 @@ def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome, degraded:
     lines.extend(f"- [{f.severity}] {f.claim} ({f.evidence})" for f in ordered)
     lines += ["", "authority: the run store; this comment is a projection"]
     return "\n".join(lines)
+
+
+# ....................... #
 
 
 def review_pull_request(

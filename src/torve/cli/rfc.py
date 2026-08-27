@@ -59,6 +59,9 @@ PathsArgument = Annotated[
 ]
 
 
+# ....................... #
+
+
 def corpus_dir(root: Path, config_path: Path | None) -> Path:
     config = load_config(root, config_path)
     resolved = root / config.rfcs.path
@@ -69,6 +72,9 @@ def corpus_dir(root: Path, config_path: Path | None) -> Path:
             EXIT_CONFIG,
         )
     return resolved
+
+
+# ....................... #
 
 
 def _selected(lines: list[str], names: set[str]) -> list[str]:
@@ -133,6 +139,9 @@ def check(
     raise typer.Exit(EXIT_OK if not problems else EXIT_CONFIG)
 
 
+# ....................... #
+
+
 @rfc_app.command("index")
 def index(
     check_only: Annotated[
@@ -162,6 +171,9 @@ def index(
         )
     index_path.write_text(rendered, encoding="utf-8")
     out().print(f"generated {index_path} ({len(files)} RFC(s))")
+
+
+# ....................... #
 
 
 @rfc_app.command("new")
@@ -215,6 +227,9 @@ def new(
     console = out()
     console.print(f"created {path}")
     console.print("next: fill the frontmatter description and the Scope paragraph")
+
+
+# ....................... #
 
 
 @rfc_app.command("graph")

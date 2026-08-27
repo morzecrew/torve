@@ -21,10 +21,16 @@ from pathlib import Path
 TORVE_DIR = ".torve"
 
 
+# ....................... #
+
+
 def gates_file(root: Path) -> Path:
     """The gate manifest — always local to the repository being checked,
     never inherited or merged from a parent (RFC 0013 §3)."""
     return root / TORVE_DIR / "gates.yaml"
+
+
+# ....................... #
 
 
 def config_file(root: Path) -> Path:
@@ -34,10 +40,16 @@ def config_file(root: Path) -> Path:
     return root / TORVE_DIR / "config.yaml"
 
 
+# ....................... #
+
+
 def skills_vendor_dir(root: Path) -> Path:
     """Vendored skills (RFC 0009 §4a, D-9.11): committed, reviewed
     directories resolving beside shipped skills at materialization."""
     return root / TORVE_DIR / "skills-vendor"
+
+
+# ....................... #
 
 
 def task_dir(root: Path, task_id: str) -> Path:
@@ -45,14 +57,23 @@ def task_dir(root: Path, task_id: str) -> Path:
     return root / TORVE_DIR / "tasks" / task_id
 
 
+# ....................... #
+
+
 def task_file(root: Path, task_id: str) -> Path:
     return task_dir(root, task_id) / "contract.yaml"
+
+
+# ....................... #
 
 
 def feedback_file(root: Path) -> Path:
     """ReviewFeedback records (RFC 0004 §6) — generated data, gitignored like
     the telemetry stream it sits beside."""
     return root / TORVE_DIR / "feedback.jsonl"
+
+
+# ....................... #
 
 
 def log_file(root: Path, task_id: str) -> Path:

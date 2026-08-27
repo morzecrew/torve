@@ -21,10 +21,16 @@ TARGETS = ("torve", "substrate", "telemetry")
 MISSING_EXTRA_EXIT = 3
 
 
+# ....................... #
+
+
 class MigrateError(RuntimeError):
     def __init__(self, message: str, exit_code: int = 1) -> None:
         super().__init__(message)
         self.exit_code = exit_code
+
+
+# ....................... #
 
 
 def migrations_root() -> Path:
@@ -37,6 +43,9 @@ def migrations_root() -> Path:
     raise MigrateError("torve ships no migrations data — broken installation")
 
 
+# ....................... #
+
+
 def steps_for(target: str, engine: str = "postgres") -> list[Path]:
     if target not in TARGETS:
         raise MigrateError(f"unknown target {target!r}; one of {', '.join(TARGETS)}")
@@ -46,8 +55,14 @@ def steps_for(target: str, engine: str = "postgres") -> list[Path]:
     return sorted(directory.glob("*.sql"))
 
 
+# ....................... #
+
+
 def forze_pin() -> str:
     return (migrations_root() / "substrate" / "FORZE_VERSION").read_text(encoding="utf-8").strip()
+
+
+# ....................... #
 
 
 def check_forze_pin() -> tuple[bool, str]:
@@ -67,6 +82,9 @@ def check_forze_pin() -> tuple[bool, str]:
     )
 
 
+# ....................... #
+
+
 def _yoyo() -> tuple[Any, Any]:
     try:
         yoyo = import_module("yoyo")
@@ -78,12 +96,18 @@ def _yoyo() -> tuple[Any, Any]:
     return yoyo.get_backend, yoyo.read_migrations
 
 
+# ....................... #
+
+
 def _yoyo_dsn(dsn: str) -> str:
     """yoyo routes bare postgresql:// through psycopg2; torve ships psycopg 3
     (via forze[postgres]), which yoyo addresses as postgresql+psycopg://."""
     if dsn.startswith("postgresql://"):
         return "postgresql+psycopg://" + dsn.removeprefix("postgresql://")
     return dsn
+
+
+# ....................... #
 
 
 def apply(target: str, dsn: str) -> int:
@@ -101,6 +125,9 @@ def apply(target: str, dsn: str) -> int:
         return len(pending)
 
 
+# ....................... #
+
+
 def pending_count(target: str, dsn: str) -> int:
     """How many of the target's steps a reachable database still lacks —
     the currency question `torve doctor` and `migrate --status` share
@@ -112,6 +139,9 @@ def pending_count(target: str, dsn: str) -> int:
     backend = get_backend(_yoyo_dsn(dsn), migration_table=f"_torve_migrations_{target}")
     migrations = read_migrations(str(steps[0].parent))
     return len(backend.to_apply(migrations))
+
+
+# ....................... #
 
 
 def status(dsn: str | None) -> list[str]:

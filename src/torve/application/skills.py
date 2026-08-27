@@ -27,10 +27,16 @@ def skills_root() -> Path:
     raise RuntimeError("torve ships no skills data — broken installation")
 
 
+# ....................... #
+
+
 def available() -> list[str]:
     return sorted(
         p.name for p in skills_root().iterdir() if p.is_dir() and (p / "SKILL.md").is_file()
     )
+
+
+# ....................... #
 
 
 def materialize(

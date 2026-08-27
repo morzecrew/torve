@@ -46,12 +46,18 @@ IDENTIFIERS = re.compile(
 )
 
 
+# ....................... #
+
+
 def _first_string(body: list[ast.stmt]) -> ast.Constant | None:
     if body and isinstance(body[0], ast.Expr):
         value = body[0].value
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
             return value
     return None
+
+
+# ....................... #
 
 
 def _exempt_nodes(tree: ast.Module, cli: bool) -> set[int]:
@@ -77,6 +83,9 @@ def _exempt_nodes(tree: ast.Module, cli: bool) -> set[int]:
     return exempt
 
 
+# ....................... #
+
+
 def _check_file(rel: str, text: str) -> list[str]:
     try:
         tree = ast.parse(text)
@@ -98,6 +107,9 @@ def _check_file(rel: str, text: str) -> list[str]:
                     "command does here, and move the reference into the module docstring"
                 )
     return problems
+
+
+# ....................... #
 
 
 def check_user_facing_text(gate: Gate, ctx: GateContext) -> BuiltinOutcome:

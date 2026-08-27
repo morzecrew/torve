@@ -73,6 +73,9 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     return checks
 
 
+# ....................... #
+
+
 def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     from torve.adapters.store.durable import resolve_dsn
     from torve.application.migrate import MigrateError, pending_count
@@ -120,6 +123,9 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
             )
         ]
     return [("store", True, "store: postgres reachable, substrate schema current")]
+
+
+# ....................... #
 
 
 def doctor(

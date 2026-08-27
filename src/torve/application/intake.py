@@ -48,6 +48,9 @@ ADOPTED_FILE = "adopted.json"
 RFC_LINE = re.compile(r"^rfc:\s*(\S+)\s*$", re.MULTILINE)
 
 
+# ....................... #
+
+
 class Draft(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -58,6 +61,9 @@ class Draft(BaseModel):
     depends_on: list[str] = Field(default_factory=list)
 
 
+# ....................... #
+
+
 class DraftsDocument(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -65,7 +71,12 @@ class DraftsDocument(BaseModel):
     rationale: str = ""
 
 
+# ....................... #
+
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+# ....................... #
 
 
 def parse_drafts(output: str) -> DraftsDocument | None:
@@ -90,10 +101,11 @@ def parse_drafts(output: str) -> DraftsDocument | None:
         return None
 
 
+# ....................... #
+
+
 # The contract lint (D-20.3): deterministic, engine-side, no model. A red
 # lint is a red attempt; every error names the draft and the field.
-
-
 def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) -> list[str]:
     errors: list[str] = []
     for pattern in globs:
@@ -110,8 +122,14 @@ def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) 
     return errors
 
 
+# ....................... #
+
+
 def _tree_paths(tree: Path) -> list[Path]:
     return [p.relative_to(tree) for p in tree.rglob("*") if p.is_file() and ".git" not in p.parts]
+
+
+# ....................... #
 
 
 def _matched(path: Path, globs: list[str]) -> bool:
@@ -119,6 +137,9 @@ def _matched(path: Path, globs: list[str]) -> bool:
     # covers depth the right-anchored Path.match cannot; both run because
     # each catches shapes the other misses.
     return any(path.match(g) or fnmatch(str(path), g) for g in globs)
+
+
+# ....................... #
 
 
 def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[str]:
@@ -190,6 +211,9 @@ def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[s
     return errors
 
 
+# ....................... #
+
+
 def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
     """The standalone face: the same protection for a hand-minted contract
     (RFC 0020 §5.2) — the operator path stays legal and gets safer."""
@@ -216,9 +240,10 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
     return [e.replace("DRAFT-1", task.id) for e in lint_drafts(tree, document, max_drafts)]
 
 
+# ....................... #
+
+
 # The drafting run.
-
-
 def mint_intake_task(
     root: Path, request: str, config: RunnerConfig, rfc: str | None = None
 ) -> Task:
@@ -246,6 +271,9 @@ def mint_intake_task(
         encoding="utf-8",
     )
     return task
+
+
+# ....................... #
 
 
 def execution_facts(root: Path) -> str:
@@ -284,6 +312,9 @@ def execution_facts(root: Path) -> str:
         if landed:
             lines.append("recently landed: " + ", ".join(landed[-8:]))
     return "\n".join(f"- {entry}" for entry in lines)
+
+
+# ....................... #
 
 
 def build_intake_prompt(
@@ -354,6 +385,9 @@ Your final output must be exactly one JSON document, nothing after it:
 """
 
 
+# ....................... #
+
+
 @dataclass
 class IntakeOutcome:
     task_id: str
@@ -365,8 +399,14 @@ class IntakeOutcome:
     unparseable: bool = False
 
 
+# ....................... #
+
+
 def drafts_file(root: Path, task_id: str) -> Path:
     return root / layout.TORVE_DIR / "tasks" / task_id / DRAFTS_FILE
+
+
+# ....................... #
 
 
 def run_intake(
@@ -520,6 +560,9 @@ def run_intake(
     )
 
 
+# ....................... #
+
+
 def _append_intake_record(
     root: Path,
     task: Task,
@@ -593,8 +636,14 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
     return [row.model_dump() for row in rows]
 
 
+# ....................... #
+
+
 def adopted_file(root: Path, task_id: str) -> Path:
     return root / layout.TORVE_DIR / "tasks" / task_id / ADOPTED_FILE
+
+
+# ....................... #
 
 
 def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = False) -> list[str]:
@@ -706,12 +755,13 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     return list(ids.values())
 
 
+# ....................... #
+
+
 # The board's intake leg (RFC 0020 §5.4): claim commander-filed requests,
 # run the drafting they ask for, and project the lint-green drafts back
 # onto the thread the request lives on. Ledger-scoped: a run this leg did
 # not claim is the operator's, and the leg never touches it.
-
-
 @dataclass
 class IntakeDeps:
     """The leg's wiring, built by the tick: the tracker is the surface,
@@ -727,14 +777,23 @@ class IntakeDeps:
     config_digest: str
 
 
+# ....................... #
+
+
 def ledger_file(root: Path) -> Path:
     return root / layout.TORVE_DIR / INTAKE_LEDGER
+
+
+# ....................... #
 
 
 def _title_for(root: Path, task_id: str) -> str:
     from torve.application.tracker import _title
 
     return _title(root, task_id)
+
+
+# ....................... #
 
 
 def _ledger_rows(root: Path) -> list[dict[str, Any]]:
@@ -746,6 +805,9 @@ def _ledger_rows(root: Path) -> list[dict[str, Any]]:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+
+
+# ....................... #
 
 
 def _drafts_comment(record: dict[str, Any], task_id: str) -> str:
@@ -773,6 +835,9 @@ def _drafts_comment(record: dict[str, Any], task_id: str) -> str:
         lines += [str(record["rationale"]), ""]
     lines.append("authority: the run store; this comment is a projection")
     return "\n".join(lines)
+
+
+# ....................... #
 
 
 def intake_leg(

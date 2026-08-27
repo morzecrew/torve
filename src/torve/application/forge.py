@@ -23,6 +23,9 @@ from torve.domain.task import Task
 DIVERGENT_KINDS = ("contradicted", "departed", "blocked")
 
 
+# ....................... #
+
+
 def _divergences(worktree: Path, task_id: str) -> list[str]:
     log_path = layout.log_file(worktree, task_id)
     if not log_path.is_file():
@@ -47,6 +50,9 @@ def _divergences(worktree: Path, task_id: str) -> list[str]:
                 f"{str(entry.get('claim', '')).strip()}"
             )
     return found
+
+
+# ....................... #
 
 
 def compose_pr(

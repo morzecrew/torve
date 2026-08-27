@@ -77,12 +77,23 @@ class CheckReport:
     """Everything `check` found: problems redden, warnings surface."""
 
     count: int = 0
+
+    # ....................... #
+
     problems: list[str] = field(default_factory=list)
+
+    # ....................... #
+
     warnings: list[str] = field(default_factory=list)
+
+    # ....................... #
 
     @property
     def ok(self) -> bool:
         return not self.problems
+
+
+# ....................... #
 
 
 def rfc_files(rfc_dir: Path) -> dict[str, Path]:
@@ -93,6 +104,9 @@ def rfc_files(rfc_dir: Path) -> dict[str, Path]:
         if match:
             found.setdefault(match.group(1), path)
     return found
+
+
+# ....................... #
 
 
 def parse_frontmatter(text: str) -> dict[str, Any] | None:
@@ -108,6 +122,9 @@ def parse_frontmatter(text: str) -> dict[str, Any] | None:
     return {str(k): v for k, v in cast("dict[str, Any]", loaded).items()}
 
 
+# ....................... #
+
+
 def fm_list(fm: dict[str, Any], fname: str) -> list[str]:
     """A frontmatter list field as strings; anything malformed reads as empty
     (check_frontmatter reports the malformation itself)."""
@@ -117,11 +134,17 @@ def fm_list(fm: dict[str, Any], fname: str) -> list[str]:
     return [str(item) for item in cast("list[object]", value)]
 
 
+# ....................... #
+
+
 def next_number(rfc_dir: Path) -> int:
     """The maximum that exists, plus one (D-A.17): derived, never stored.
     Holes below the maximum stay holes — a number that once existed may be
     cited, and reuse silently redirects every citation (D-A.19)."""
     return max((int(n) for n in rfc_files(rfc_dir)), default=0) + 1
+
+
+# ....................... #
 
 
 def slugify(title: str) -> str:
@@ -159,6 +182,9 @@ def check_directory(rfc_dir: Path) -> list[str]:
     return problems
 
 
+# ....................... #
+
+
 def check_frontmatter(path: Path, fm: dict[str, Any] | None, number: str) -> list[str]:
     if fm is None:
         return [f"{path.name}: no parseable YAML frontmatter (D-A.2)"]
@@ -191,6 +217,9 @@ def check_frontmatter(path: Path, fm: dict[str, Any] | None, number: str) -> lis
     return problems
 
 
+# ....................... #
+
+
 def check_slug(path: Path, fm: dict[str, Any]) -> list[str]:
     """Loose filename-vs-title correspondence (A-15): catches a file whose
     slug belongs to a different document without demanding one exact
@@ -211,6 +240,9 @@ def check_slug(path: Path, fm: dict[str, Any]) -> list[str]:
     return []
 
 
+# ....................... #
+
+
 def paths_globs(cell: str) -> list[str]:
     cleaned = cell.replace("`", " ").strip()
     if not cleaned or set(cleaned) <= set("—- "):
@@ -229,6 +261,9 @@ class DecisionRow:
     paths: list[str]
 
 
+# ....................... #
+
+
 @dataclass(frozen=True)
 class DecisionSection:
     """The Decisions section as the validator sees it. `rows is None` means
@@ -237,6 +272,9 @@ class DecisionSection:
 
     rows: list[DecisionRow] | None
     header_ok: bool
+
+
+# ....................... #
 
 
 def decision_section(text: str) -> DecisionSection:
@@ -282,10 +320,16 @@ def decision_section(text: str) -> DecisionSection:
     return DecisionSection(rows=rows, header_ok=header_ok)
 
 
+# ....................... #
+
+
 def decision_table(text: str) -> list[DecisionRow]:
     """Every row of the document's decision table — what a minted contract
     inherits (grade and paths copied at write time)."""
     return decision_section(text).rows or []
+
+
+# ....................... #
 
 
 def check_phasing(path: Path, text: str) -> list[str]:
@@ -300,8 +344,13 @@ def check_phasing(path: Path, text: str) -> list[str]:
     return []
 
 
+# ....................... #
+
 PHASING_HEADING = re.compile(r"^#{2,3}\s*(?:\d+[a-z]?\.\s*)?Phasing\b.*$", re.M | re.I)
 YAML_FENCE = re.compile(r"^```ya?ml[ \t]*\n(.*?)^```[ \t]*$", re.M | re.S)
+
+
+# ....................... #
 
 
 class PhasingEntry(BaseModel):
@@ -320,6 +369,9 @@ class PhasingEntry(BaseModel):
     scope: list[str] = Field(min_length=1)
     acceptance: list[str] = Field(default_factory=list)
     depends_on: list[int] = Field(default_factory=list)  # phase numbers
+
+
+# ....................... #
 
 
 def parse_phasing(text: str) -> list[PhasingEntry] | None:
@@ -353,6 +405,9 @@ def parse_phasing(text: str) -> list[PhasingEntry] | None:
         if entry.phase in entry.depends_on:
             raise ValueError(f"phase {entry.phase} ({entry.title}) depends on itself")
     return entries
+
+
+# ....................... #
 
 
 def check_decisions(
@@ -422,6 +477,9 @@ def check_decisions(
     return problems, warnings
 
 
+# ....................... #
+
+
 def check_amendments(path: Path, text: str, fm: dict[str, Any]) -> list[str]:
     declared = fm_list(fm, "amended_by")
     section = AMENDMENTS_SECTION.search(text)
@@ -434,6 +492,9 @@ def check_amendments(path: Path, text: str, fm: dict[str, Any]) -> list[str]:
         if a not in declared:
             problems.append(f"{path.name}: amendment section {a} is not listed in amended_by")
     return problems
+
+
+# ....................... #
 
 
 def check_links(path: Path, text: str, rfc_dir: Path, root: Path) -> list[str]:
@@ -457,6 +518,9 @@ def check_links(path: Path, text: str, rfc_dir: Path, root: Path) -> list[str]:
     return missing
 
 
+# ....................... #
+
+
 def check_line_cites(path: Path, text: str, root: Path) -> list[str]:
     """0007 §3a rot: a source path cited with a line number is stale at the
     first refactor above it. Only paths that exist in the repository count —
@@ -473,10 +537,16 @@ def check_line_cites(path: Path, text: str, root: Path) -> list[str]:
     return problems
 
 
+# ....................... #
+
+
 def strip_fences(text: str) -> str:
     """Fenced code blocks host examples, not structure: a `#` line or a
     decision id inside one is illustration, never a heading or a citation."""
     return FENCED_BLOCK.sub("", text)
+
+
+# ....................... #
 
 
 def check_headings(path: Path, text: str) -> list[str]:
@@ -501,6 +571,9 @@ def check_headings(path: Path, text: str) -> list[str]:
     return problems
 
 
+# ....................... #
+
+
 def check_citations(path: Path, text: str, resolvable: set[str]) -> list[str]:
     """Every dotted `D-*` citation resolves to a definition somewhere in the
     corpus — what keeps a decision family split across documents (A-17) a
@@ -520,6 +593,9 @@ def check_citations(path: Path, text: str, resolvable: set[str]) -> list[str]:
     return problems
 
 
+# ....................... #
+
+
 def defined_identifiers(files: dict[str, Path]) -> set[str]:
     """Every decision identifier defined anywhere in the corpus."""
     defined: set[str] = set()
@@ -527,6 +603,9 @@ def defined_identifiers(files: dict[str, Path]) -> set[str]:
         for row in decision_table(path.read_text(encoding="utf-8")):
             defined.add(row.identifier)
     return defined
+
+
+# ....................... #
 
 
 def retired_identifiers(files: dict[str, Path]) -> dict[str, str]:
@@ -538,6 +617,9 @@ def retired_identifiers(files: dict[str, Path]) -> dict[str, str]:
         for ident in fm_list(fm, "retired"):
             retired.setdefault(ident, path.name)
     return retired
+
+
+# ....................... #
 
 
 def check_graph(
@@ -599,6 +681,9 @@ INDEX_TABLE_HEADER = (
 INDEX_TABLE_SEPARATOR = "| --- | --- | --- | --- | --- | --- | --- |"
 
 
+# ....................... #
+
+
 def index_row(number: str, path: Path, fm: dict[str, Any]) -> str:
     deps = ", ".join(fm_list(fm, "depends_on")) or "—"
     # A list of identifiers, never a summary (A-14): the moment the index
@@ -611,6 +696,9 @@ def index_row(number: str, path: Path, fm: dict[str, Any]) -> str:
         f"| [{number}]({path.name}) | {fm.get('title', '?')} | {fm.get('status', '?')} "
         f"| {implementation} | {deps} | {amends} | {description} |"
     )
+
+
+# ....................... #
 
 
 def build_index(files: dict[str, Path]) -> str:

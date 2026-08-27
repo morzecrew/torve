@@ -46,6 +46,9 @@ LOCK = "tick.lock"
 Leg = Callable[[], tuple[str, bool]]
 
 
+# ....................... #
+
+
 @dataclass
 class TickDeps:
     """The tick's legs, wired by the caller. None marks a leg the
@@ -62,11 +65,17 @@ class TickDeps:
     intake: Leg | None = None
 
 
+# ....................... #
+
+
 @dataclass
 class TickReport:
     legs: list[tuple[str, str]]
     noop: bool
     locked_out: bool = False
+
+
+# ....................... #
 
 
 def _run_record_exists(root: Path, task_id: str) -> bool:
@@ -91,6 +100,9 @@ def _run_record_exists(root: Path, task_id: str) -> bool:
     return False
 
 
+# ....................... #
+
+
 def _dependency_satisfied(dep: str, landed: Callable[[str], bool]) -> bool:
     # A-31: only a landing satisfies — a ready-but-unlanded dependency is
     # not on the base the dependent's worktree is cut from, and under the
@@ -98,9 +110,14 @@ def _dependency_satisfied(dep: str, landed: Callable[[str], bool]) -> bool:
     return landed(dep)
 
 
+# ....................... #
+
 # The states whose scopes fence the dispatch batch (D-19.14): a run the
 # loop must not touch is also a run whose files nothing else may claim.
 INFLIGHT = frozenset({TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED})
+
+
+# ....................... #
 
 
 def _scopes_clash(left: list[str], right: list[str]) -> bool:
@@ -111,6 +128,9 @@ def _scopes_clash(left: list[str], right: list[str]) -> bool:
     from torve.application.planner import globs_intersect
 
     return globs_intersect(left, right)
+
+
+# ....................... #
 
 
 def _inflight_scopes(root: Path) -> list[list[str]]:
@@ -128,6 +148,9 @@ def _inflight_scopes(root: Path) -> list[list[str]]:
         except ValueError:
             continue
     return scopes
+
+
+# ....................... #
 
 
 def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> list[str]:
@@ -175,13 +198,22 @@ def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> l
     return admitted
 
 
+# ....................... #
+
+
 def next_queued(root: Path, landed: Callable[[str], bool]) -> str | None:
     found = queued_batch(root, landed, limit=1)
     return found[0] if found else None
 
 
+# ....................... #
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+# ....................... #
 
 
 def acquire_lock(root: Path, budget_s: int) -> bool:
@@ -206,8 +238,14 @@ def acquire_lock(root: Path, budget_s: int) -> bool:
     return True
 
 
+# ....................... #
+
+
 def release_lock(root: Path) -> None:
     (root / layout.TORVE_DIR / LOCK).unlink(missing_ok=True)
+
+
+# ....................... #
 
 
 def _escalated_count(root: Path) -> int:
@@ -216,6 +254,9 @@ def _escalated_count(root: Path) -> int:
         for state in RunState.load_all(root / naming.WORKTREE_DIR)
         if state.state is TaskState.ESCALATED
     )
+
+
+# ....................... #
 
 
 def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:

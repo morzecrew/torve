@@ -44,10 +44,16 @@ sandbox_app = typer.Typer(
 DEFINITIONS_DIR = "sandbox"
 
 
+# ....................... #
+
+
 def definitions_root(root: Path) -> Path:
     from torve.config import layout
 
     return root / layout.TORVE_DIR / DEFINITIONS_DIR
+
+
+# ....................... #
 
 
 def definition_names(root: Path) -> list[str]:
@@ -61,8 +67,14 @@ def definition_names(root: Path) -> list[str]:
     )
 
 
+# ....................... #
+
+
 def image_tag(name: str) -> str:
     return f"torve-agent:{name}"
+
+
+# ....................... #
 
 
 @sandbox_app.command("build")

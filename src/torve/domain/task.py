@@ -18,6 +18,9 @@ from torve.domain.rfc import Grade
 SCHEMA_VERSION = 1
 
 
+# ....................... #
+
+
 class Scope(BaseModel):
     """allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty
     allow means unconstrained (RFC 0002 §6)."""
@@ -26,6 +29,9 @@ class Scope(BaseModel):
 
     allow: list[str] = Field(default_factory=list)
     deny: list[str] = Field(default_factory=list)
+
+
+# ....................... #
 
 
 class InheritedDecision(BaseModel):
@@ -37,12 +43,18 @@ class InheritedDecision(BaseModel):
     paths: list[str] = Field(default_factory=list)  # declared area; enables the silence check
 
 
+# ....................... #
+
+
 class Budget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     iterations: int | None = None
     wallclock_minutes: int | None = None
     tokens: int | None = None
+
+
+# ....................... #
 
 
 class Task(BaseModel):
@@ -55,25 +67,65 @@ class Task(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # ....................... #
+
     schema_version: int = SCHEMA_VERSION
+
+    # ....................... #
+
     id: str
+
+    # ....................... #
+
     rfc: str | None = None
+
+    # ....................... #
+
     phase: int = 0
+
+    # ....................... #
+
     role: Literal["implement", "review", "revert", "draft"] = "implement"
+
+    # ....................... #
+
     # One paragraph: what changes and why — never steps (D-1.7, A-11).
     # Optional until the A-11 execution makes minting enforce it; contracts
     # minted before the amendment carry none.
     intent: str = ""
+
+    # ....................... #
+
     depends_on: list[str] = Field(default_factory=list)
+
+    # ....................... #
+
     # The tasks a review examines (RFC 0005 §1.1, D-5.9) or the tasks/shas a
     # revert undoes (RFC 0010 §7): the contract shape is parameterised by
     # role, no new mechanism. Only those two roles may carry targets.
     targets: list[str] = Field(default_factory=list)
+
+    # ....................... #
+
     scope: Scope = Field(default_factory=Scope)
+
+    # ....................... #
+
     acceptance: list[str] = Field(default_factory=list)  # shell commands; exit 0 == satisfied
+
+    # ....................... #
+
     decisions: list[InheritedDecision]
+
+    # ....................... #
+
     budget: Budget = Field(default_factory=Budget)
+
+    # ....................... #
+
     tier: Literal["planner", "executor", "reviewer"] = "executor"
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _review_role_shape(self) -> Task:

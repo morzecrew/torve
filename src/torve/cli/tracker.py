@@ -37,6 +37,9 @@ from torve.domain.states import EXIT_CONFIG, EXIT_OK
 tracker_app = typer.Typer(no_args_is_help=True)
 
 
+# ....................... #
+
+
 def _adapter(root: Path, config_path: Path | None) -> tuple[GithubIssues, TrackerConfig]:
     from torve.adapters.tracker.github import GithubIssues
 
@@ -48,6 +51,9 @@ def _adapter(root: Path, config_path: Path | None) -> tuple[GithubIssues, Tracke
     if not config.tracker.repo:
         raise fail("configuration error: tracker.repo names the board's repository", EXIT_CONFIG)
     return (GithubIssues(config.tracker.repo, config.tracker.token_env), config.tracker)
+
+
+# ....................... #
 
 
 @tracker_app.command()
@@ -88,6 +94,9 @@ def sync(
             f"failed {len(report.failed)}",
         )
     raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
 
 
 @tracker_app.command()

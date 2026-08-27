@@ -30,8 +30,14 @@ def resolve_dsn(config: StoreConfig) -> str:
     return dsn
 
 
+# ....................... #
+
+
 def open_mock_store() -> DurableRunStorePort:
     return MockDurableRunStore(state=MockState())
+
+
+# ....................... #
 
 
 async def open_postgres_store(config: StoreConfig) -> DurableRunStorePort:
@@ -46,6 +52,9 @@ async def open_postgres_store(config: StoreConfig) -> DurableRunStorePort:
         config=PostgresDurableRunConfig(relation=(config.schema_name, config.run_relation)),
     )
     return store
+
+
+# ....................... #
 
 
 async def open_store(config: StoreConfig) -> DurableRunStorePort:

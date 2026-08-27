@@ -48,12 +48,18 @@ ACTIVE = frozenset({TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskS
 TERMINAL = frozenset({TaskState.READY, TaskState.ABANDONED})
 
 
+# ....................... #
+
+
 @dataclass
 class ReapReport:
     sandboxes_destroyed: list[str] = field(default_factory=list)
     worktrees_removed: list[str] = field(default_factory=list)
     runs_expired: list[str] = field(default_factory=list)
     states_removed: list[str] = field(default_factory=list)
+
+
+# ....................... #
 
 
 def _sweep_worktrees(
@@ -70,6 +76,9 @@ def _sweep_worktrees(
             if not dry_run:
                 workspace.remove(task_id)
             report.worktrees_removed.append(task_id)
+
+
+# ....................... #
 
 
 def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> bool:
@@ -100,6 +109,9 @@ def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> boo
     return landed is None or not landed(state.task_id)
 
 
+# ....................... #
+
+
 def _sweep_states(
     root: Path,
     states: list[RunState],
@@ -123,11 +135,17 @@ def _sweep_states(
         report.states_removed.append(state.task_id)
 
 
+# ....................... #
+
+
 def _escalate_if_active(state: RunState, reason: EscalationReason, detail: str) -> bool:
     if state.state in ACTIVE:
         state.escalate(reason, detail)
         return True
     return False
+
+
+# ....................... #
 
 
 def _heartbeat_reap(
@@ -173,6 +191,9 @@ def _heartbeat_reap(
     _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run)
     _sweep_states(root, states, report, dry_run, landed)
     return report
+
+
+# ....................... #
 
 
 async def _durable_reap(
@@ -225,6 +246,9 @@ async def _durable_reap(
     _sweep_worktrees(workspace, by_task, report, dry_run)
     _sweep_states(root, states, report, dry_run, landed)
     return report
+
+
+# ....................... #
 
 
 def reap(

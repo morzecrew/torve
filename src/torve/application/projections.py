@@ -41,6 +41,9 @@ SUBJECT_ID = re.compile(r"(T-\d{4,})\b")
 TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
 
 
+# ....................... #
+
+
 def _shipped_ids(root: Path) -> set[str]:
     """Task ids the history records as shipped, in one batched log pass —
     a task with no run state is not necessarily unstarted: the engine did
@@ -61,6 +64,9 @@ def _shipped_ids(root: Path) -> set[str]:
     return found
 
 
+# ....................... #
+
+
 def _load_yaml_dict(path: Path) -> dict[str, Any] | None:
     try:
         raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -69,6 +75,9 @@ def _load_yaml_dict(path: Path) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
     return cast("dict[str, Any]", raw)
+
+
+# ....................... #
 
 
 def _tasks(root: Path) -> list[dict[str, Any]]:
@@ -111,6 +120,9 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
                 )
         found.append(entry)
     return found
+
+
+# ....................... #
 
 
 def _proposals(root: Path, rfc_dir: Path) -> list[dict[str, Any]]:
@@ -161,6 +173,9 @@ def _proposals(root: Path, rfc_dir: Path) -> list[dict[str, Any]]:
                 }
             )
     return found
+
+
+# ....................... #
 
 
 def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
@@ -214,6 +229,9 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
     return stats
 
 
+# ....................... #
+
+
 def _costs(root: Path) -> list[dict[str, Any]]:
     """Cost and iterations by task against config_hash (§4) — from records
     whose agent block carries a cost, and from shadow summaries."""
@@ -257,6 +275,9 @@ def _costs(root: Path) -> list[dict[str, Any]]:
     return found
 
 
+# ....................... #
+
+
 def _phase_progress(states: list[str]) -> str:
     """planned | in_flight | blocked | shipped, derived per phase (D-7.15) —
     phase-level because that is the granularity at which decisions get made."""
@@ -267,6 +288,9 @@ def _phase_progress(states: list[str]) -> str:
     if any(state in {str(s) for s in ACTIVE} for state in states):
         return "in_flight"
     return "planned"
+
+
+# ....................... #
 
 
 def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -341,12 +365,17 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
     return view
 
 
+# ....................... #
+
+
 def _list_field(fm: dict[str, Any], name: str) -> list[str]:
     value = fm.get(name)
     if not isinstance(value, list):
         return []
     return [str(item) for item in cast("list[object]", value)]
 
+
+# ....................... #
 
 # Attention routing (RFC 0006 §4, D-6.4): blockers and locked conflicts
 # interrupt, infrastructure pages the harness owner, the rest batches into
@@ -355,12 +384,18 @@ ROUTE_NOTIFY = {"blocker_finding", "locked_conflict"}
 ROUTE_HARNESS = {"gate_infrastructure_failure"}
 
 
+# ....................... #
+
+
 def escalation_route(reason: str) -> str:
     if reason in ROUTE_NOTIFY:
         return "notify"
     if reason in ROUTE_HARNESS:
         return "harness owner"
     return "batch"
+
+
+# ....................... #
 
 
 def _age_seconds(stamp: object) -> float | None:
@@ -373,6 +408,9 @@ def _age_seconds(stamp: object) -> float | None:
             continue
         return max(0.0, (datetime.now(UTC) - parsed).total_seconds())
     return None
+
+
+# ....................... #
 
 
 def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:

@@ -34,6 +34,9 @@ HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 MAX_UNTRACKED_BYTES = 1_000_000
 
 
+# ....................... #
+
+
 def _added_lines(patch: str) -> list[tuple[str, int, str]]:
     """(path, new-file line number, line text) for every added line."""
     added: list[tuple[str, int, str]] = []
@@ -56,6 +59,9 @@ def _added_lines(patch: str) -> list[tuple[str, int, str]]:
     return added
 
 
+# ....................... #
+
+
 def _untracked_lines(ctx: GateContext) -> list[tuple[str, int, str]]:
     lines: list[tuple[str, int, str]] = []
     for rel in ctx.untracked:
@@ -68,6 +74,9 @@ def _untracked_lines(ctx: GateContext) -> list[tuple[str, int, str]]:
             continue  # unreadable or binary; nothing line-scannable
         lines += [(rel, i, line) for i, line in enumerate(text.splitlines(), start=1)]
     return lines
+
+
+# ....................... #
 
 
 def check_secrets(gate: Gate, ctx: GateContext) -> BuiltinOutcome:

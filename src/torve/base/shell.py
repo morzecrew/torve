@@ -23,11 +23,17 @@ OUTPUT_LIMIT = 8000
 ExecuteOnce = Callable[[str, float], tuple[int | None, str]]
 
 
+# ....................... #
+
+
 def truncate(text: str) -> str:
     if len(text) <= OUTPUT_LIMIT:
         return text
     head, tail = text[:2000], text[-(OUTPUT_LIMIT - 2000) :]
     return f"{head}\n… truncated …\n{tail}"
+
+
+# ....................... #
 
 
 @dataclass
@@ -37,6 +43,9 @@ class CommandResult:
     output: str
     duration_s: float
     flaky: bool = False
+
+
+# ....................... #
 
 
 def host_executor(cwd: Path) -> ExecuteOnce:
@@ -56,6 +65,9 @@ def host_executor(cwd: Path) -> ExecuteOnce:
         return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
     return execute
+
+
+# ....................... #
 
 
 def run_command(

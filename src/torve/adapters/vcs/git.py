@@ -30,6 +30,9 @@ def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+# ....................... #
+
+
 def repository_name(root: Path) -> str:
     """The name provider routing keys on (RFC 0004 §6b): `org/repo` from the
     origin remote when one exists, the directory name otherwise — stable
@@ -40,6 +43,9 @@ def repository_name(root: Path) -> str:
         if found:
             return found.group(1)
     return root.resolve().name
+
+
+# ....................... #
 
 
 class GitVcs:
@@ -64,6 +70,8 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git commit failed")
         return _git(worktree, "rev-parse", "HEAD").stdout.strip()
 
+    # ....................... #
+
     def landed_shas(self, worktree: Path, task_id: str) -> list[str]:
         """The commits a task landed, newest first — reconstructed from the
         Torve-Task trailer alone (D-10.4: git log is the surviving record)."""
@@ -71,6 +79,8 @@ class GitVcs:
             worktree, "log", "--format=%H", "--fixed-strings", f"--grep=Torve-Task: {task_id}"
         )
         return [line for line in proc.stdout.split() if line]
+
+    # ....................... #
 
     def revert(self, worktree: Path, shas: list[str]) -> bool:
         """Stage the inverse of the given commits without committing — the
@@ -92,11 +102,15 @@ class GitVcs:
         _git(worktree, "reset", "--hard")
         return False
 
+    # ....................... #
+
     def changed_names(self, worktree: Path) -> list[str]:
         """The head commit's touched paths — the pull-request body's
         `Changed` section is composed from this record (D-10.6)."""
         out = _git(worktree, "show", "--pretty=format:", "--name-only", "HEAD")
         return [line for line in out.stdout.splitlines() if line.strip()]
+
+    # ....................... #
 
     def push(
         self, worktree: Path, branch: str, token: str | None = None, supersede: bool = False
@@ -140,6 +154,8 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git push failed")
         return True
 
+    # ....................... #
+
     def delete_remote_branch(self, root: Path, branch: str, token: str | None = None) -> bool:
         """The retry command's re-queue cleanup (T-0059): delete the task's
         own remote branch — a ref deletion under the commander's explicit
@@ -169,6 +185,8 @@ class GitVcs:
                 return True  # already gone — the postcondition holds
             raise RuntimeError(proc.stderr.strip() or "git push --delete failed")
         return True
+
+    # ....................... #
 
     def republish_branch(self, root: Path, branch: str, token: str | None = None) -> bool:
         """The landed form returns to its branch (D-19.12, A-34): a rebased
@@ -207,6 +225,8 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git push --force-with-lease failed")
         return True
 
+    # ....................... #
+
     def fetch_pr(
         self, root: Path, number: int, base_ref: str, token: str | None = None
     ) -> tuple[str, str]:
@@ -244,18 +264,26 @@ class GitVcs:
             _git(root, "rev-parse", head_ref).stdout.strip(),
         )
 
+    # ....................... #
+
     def worktree_at(self, root: Path, sha: str, workdir: Path) -> None:
         added = _git(root, "worktree", "add", "--detach", str(workdir), sha)
         if added.returncode != 0:
             raise RuntimeError(added.stderr.strip() or f"worktree add failed at {sha}")
 
+    # ....................... #
+
     def remove_worktree(self, root: Path, workdir: Path) -> None:
         _git(root, "worktree", "remove", "--force", str(workdir))
+
+    # ....................... #
 
     def diff(self, root: Path, base: str, head: str) -> str:
         # Three-dot: the pull request's own changes since the merge base,
         # not the base branch's drift.
         return _git(root, "diff", f"{base}...{head}").stdout
+
+    # ....................... #
 
     def task_trailers(self, root: Path, base: str, head: str) -> list[str]:
         log = _git(root, "log", "--format=%B", f"{base}..{head}").stdout
@@ -264,6 +292,9 @@ class GitVcs:
             if found not in seen:
                 seen.append(found)
         return seen
+
+
+# ....................... #
 
 
 class GitLane:
@@ -275,11 +306,17 @@ class GitLane:
         proc = _git(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
         return proc.stdout.strip() or None if proc.returncode == 0 else None
 
+    # ....................... #
+
     def is_ancestor(self, root: Path, ancestor: str, descendant: str) -> bool:
         return _git(root, "merge-base", "--is-ancestor", ancestor, descendant).returncode == 0
 
+    # ....................... #
+
     def current_branch(self, root: Path) -> str:
         return _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+
+    # ....................... #
 
     def dirty_paths(self, root: Path) -> list[str]:
         paths: list[str] = []
@@ -292,11 +329,15 @@ class GitLane:
             paths.append(entry)
         return paths
 
+    # ....................... #
+
     def tip_age_s(self, root: Path, ref: str) -> float:
         """Seconds since the ref's tip commit — the quiet window's clock
         (RFC 0006 §3): a push resets it, because the new tip is young."""
         out = _git(root, "log", "-1", "--format=%ct", ref).stdout.strip()
         return max(0.0, time.time() - float(out)) if out else 0.0
+
+    # ....................... #
 
     def adopt_identical(self, root: Path, ref: str) -> list[str]:
         """D-19.11 (A-28): remove untracked root files the incoming landing
@@ -322,6 +363,8 @@ class GitLane:
                 adopted.append(rel)
         return adopted
 
+    # ....................... #
+
     def rebase_conflicts(self, root: Path, branch: str, onto: str) -> bool:
         """A read-only conflict probe (D-6.13, A-42): would rebasing
         *branch* onto *onto* conflict? `git merge-tree --write-tree`
@@ -332,6 +375,8 @@ class GitLane:
         if proc.returncode in (0, 1):
             return proc.returncode == 1
         raise RuntimeError(proc.stderr.strip() or "git merge-tree failed")
+
+    # ....................... #
 
     def rebase_in_worktree(self, root: Path, branch: str, onto: str, workdir: Path) -> bool:
         added = _git(root, "worktree", "add", str(workdir), branch)
@@ -344,8 +389,12 @@ class GitLane:
             return False
         return True
 
+    # ....................... #
+
     def remove_worktree(self, root: Path, workdir: Path) -> None:
         _git(root, "worktree", "remove", "--force", str(workdir))
+
+    # ....................... #
 
     def merge_ff(self, root: Path, ref: str) -> str:
         proc = _git(root, "merge", "--ff-only", ref)
@@ -353,9 +402,13 @@ class GitLane:
             raise RuntimeError(proc.stderr.strip() or f"fast-forward to {ref} refused")
         return _git(root, "rev-parse", "HEAD").stdout.strip()
 
+    # ....................... #
+
     def approver(self, root: Path) -> str:
         return _git(root, "config", "user.name").stdout.strip() or "unknown"
 
+
+# ....................... #
 
 # Network-shaped failures worth one retry (T-0058). Kept in each GitHub
 # adapter separately — adapters are independent and may not share code.
@@ -373,6 +426,9 @@ TRANSIENT = (
 )
 
 
+# ....................... #
+
+
 class GhScm:
     """Pull requests through the gh CLI — the runner speaks to the forge,
     the agent never does (D-10.1). The credential is resolved from the
@@ -388,6 +444,8 @@ class GhScm:
         self.repo = repo
         self.token_env = token_env
         self.sleeper = sleeper
+
+    # ....................... #
 
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
         env = None
@@ -431,6 +489,8 @@ class GhScm:
                 return str(listed[0].get("url", ""))
         raise RuntimeError(error or "gh pr create failed")
 
+    # ....................... #
+
     def _gh(self, *args: str) -> str:
         command = ["gh", *args]
         if self.repo:
@@ -457,6 +517,8 @@ class GhScm:
             raise RuntimeError(error)
         raise RuntimeError("unreachable")  # for the type checker
 
+    # ....................... #
+
     def pr_info(self, number: int) -> PrInfo:
         document = cast(
             "dict[str, Any]",
@@ -482,6 +544,8 @@ class GhScm:
             state=str(document.get("state", "")).lower(),
         )
 
+    # ....................... #
+
     def comment(self, number: int, body: str, key: str) -> str:
         # The same marker dedupe as the tracker's comments: the destination
         # absorbs an at-least-once duplicate.
@@ -490,6 +554,8 @@ class GhScm:
         if marker in existing:
             return ""
         return self._gh("pr", "comment", str(number), "--body", f"{body}\n\n{marker}").strip()
+
+    # ....................... #
 
     def _api(self, *args: str) -> str:
         # `gh api` takes the repo in the endpoint, never as a flag.
@@ -514,6 +580,8 @@ class GhScm:
                 continue
             raise RuntimeError(error)
         raise RuntimeError("unreachable")  # for the type checker
+
+    # ....................... #
 
     def review_threads(self, branch: str, allowed: tuple[str, ...]) -> list[dict[str, Any]]:
         """The branch's pull-request review threads whose root author is
@@ -564,6 +632,8 @@ class GhScm:
                 )
         return list(roots.values())
 
+    # ....................... #
+
     def answer_captured_threads(self, records: list[dict[str, Any]], body: str) -> tuple[int, int]:
         """Answer the review threads a landed revision consumed (D-5.14,
         A-41): one reply per captured root, composed from records — it
@@ -592,6 +662,8 @@ class GhScm:
                 posted += 1
         return (posted, skipped)
 
+    # ....................... #
+
     def close_pr(self, branch: str, comment: str) -> bool:
         """Close the branch's open pull request after its content landed by
         fast-forward (T-0072): the forge cannot always tell an ff landing
@@ -610,6 +682,8 @@ class GhScm:
         number = int(listed[0]["number"])
         self._gh("pr", "close", str(number), "--comment", comment, "--delete-branch")
         return True
+
+    # ....................... #
 
     def retire_pr(self, branch: str, comment: str) -> str:
         """Retire the landed reading surface (D-19.13, A-34): the forge is
@@ -643,12 +717,18 @@ class GhScm:
         return "closed"
 
 
+# ....................... #
+
+
 class NullScm:
     """The --no-pr mode: no remote exists yet, so the PR leg is recorded as
     deferred rather than silently skipped."""
 
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
         return ""
+
+
+# ....................... #
 
 
 class GhCi:
@@ -670,6 +750,8 @@ class GhCi:
         self.attempts = attempts
         self.delay_s = delay_s
         self.sleeper = sleeper
+
+    # ....................... #
 
     def _runs(self, sha: str) -> list[dict[str, Any]]:
         env = None
@@ -707,6 +789,8 @@ class GhCi:
                 continue
             raise RuntimeError(error)
         raise RuntimeError("unreachable")  # for the type checker
+
+    # ....................... #
 
     def conclusion(self, sha: str) -> str:
         verdict = "absent"
