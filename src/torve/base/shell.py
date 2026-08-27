@@ -55,7 +55,10 @@ def host_executor(cwd: Path) -> ExecuteOnce:
         try:
             proc = subprocess.run(
                 command,
-                shell=True,
+                # Acceptance commands are shell lines by contract (pipes and
+                # redirects included); they come from the task contract the
+                # gates themselves vet, not from untrusted input.
+                shell=True,  # nosec B602
                 cwd=cwd,
                 timeout=timeout,
                 capture_output=True,

@@ -1,0 +1,28 @@
+exclude: ^(\.agents/)?skills/
+repos:
+- repo: https://github.com/gitleaks/gitleaks
+  rev: v8.30.0
+  hooks:
+  - id: gitleaks
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Keep in sync with the ruff version pinned in uv.lock
+  rev: v0.16.1
+  hooks:
+  - id: ruff-check
+    files: ^src/.*\.py$
+  - id: ruff-format
+    files: ^src/.*\.py$
+- repo: local
+  hooks:
+  - id: quality
+    name: Run quality checks
+    entry: just quality
+    pass_filenames: false
+    language: system
+    stages: [pre-commit]
+    args: [-s]

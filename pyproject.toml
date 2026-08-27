@@ -36,6 +36,11 @@ dev = [
     "ruff>=0.6",
     "types-pyyaml>=6.0.12",
     "yoyo-migrations>=9",
+    "vulture>=2.16",
+    "deptry>=0.25.1",
+    "bandit>=1.9.4",
+    "zizmor>=1.29.0",
+    "pre-commit>=4.6.2",
 ]
 
 [build-system]
@@ -135,6 +140,44 @@ ignore = [
     "RUF002", # see RUF001
     "RUF003", # see RUF001
 ]
+
+# ....................... #
+# Dead code
+
+[tool.vulture]
+paths = ["src/torve", "scripts/vulture_whitelist.py"]
+sort_by_size = true
+# bloomery's floor: 60 drowns in pydantic model_config/field false positives
+min_confidence = 80
+
+# ....................... #
+# Security
+
+[tool.bandit]
+# Torve's job is driving git/gh/docker as subprocesses with list arguments and
+# PATH-resolved executables; flagging every such call is flagging the design.
+# Anything sharper (shell=True, hardcoded tmp) stays on and is exempted per
+# line with a justified `# nosec`.
+# B101: the handful of asserts in src are type-narrowing invariants mypy
+# already relies on, not input validation.
+skips = ["B101", "B404", "B603", "B607"]
+
+# ....................... #
+# Dependency analysis
+
+[tool.deptry]
+known_first_party = ["torve"]
+ignore_notebooks = true
+
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    # Imported lazily behind their extras (`torve[opensandbox]`,
+    # `torve[migrate]`), so no static import ties them to the codebase.
+    "opensandbox",
+    "yoyo-migrations",
+]
+
+# ....................... #
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

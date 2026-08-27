@@ -42,7 +42,7 @@ class Format(StrEnum):
 
 # The fixed colour semantics (RFC 0018 §4) — one vocabulary, applied via
 # style parameters only.
-STYLE_PASS = "green"
+STYLE_PASS = "green"  # nosec B105 — a rich style name, not a credential
 STYLE_FAIL = "red"
 STYLE_WARN = "yellow"
 STYLE_DIM = "dim"
@@ -51,7 +51,7 @@ STYLE_ID = "cyan"
 # The published verdict vocabulary (D-18.5): stable across releases for the
 # same reason exit codes are — people learn it.
 OUTCOME_MARKS = {
-    "pass": "✓",
+    "pass": "✓",  # nosec B105 — a verdict glyph, not a credential
     "flaky": "≈",
     "skipped": "∅",
     "bypassed": "⤳",

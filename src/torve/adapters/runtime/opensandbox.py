@@ -165,7 +165,9 @@ class OpenSandboxRuntime:
             metadata={**spec.labels, "torve.name": spec.name},
         )
         payload = base64.b64encode(_workspace_tar(workspace)).decode()
-        staging = f"/tmp/torve-ws-{spec.name}.b64"
+        # A path inside the freshly created sandbox container, not on this
+        # host — there is no local tempdir race to have.
+        staging = f"/tmp/torve-ws-{spec.name}.b64"  # nosec B108
         sandbox.files.write_files([self._sdk.WriteEntry(path=staging, data=payload)])
         seed = sandbox.commands.run(
             f"mkdir -p {spec.workdir} && base64 -d {staging} "
