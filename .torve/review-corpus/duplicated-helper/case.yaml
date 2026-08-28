@@ -1,0 +1,21 @@
+# Seeded miss (RFC 0005 §6), from the wild: T-0142 added src/lab/checksum.py
+# duplicating the existing lab.luhn_valid, the drafting rationale for T-0140
+# named the overlap explicitly, and the T-0146 review raised zero findings
+# (lab, 2026-08-27). A reviewer that cannot flag a re-implementation beside
+# the original misses the whole reuse class; a prompt or model change that
+# starts catching it must not regress. Measured 2026-08-28: with D-90.2
+# present the deepseek reviewer catches it as a blocker in 1 of 5 trials
+# (2026-08-28: caught blocker, missed x3, one off-target finding) — the
+# catch is stochastic, so this case measures a rate, not a guarantee;
+# the wild miss
+# had decisions: [] — the class is duplication *without a governing
+# decision*, and this case pins the decision-aware catch.
+intent: Add a checksum module with Luhn validity and the Damm algorithm.
+decisions:
+  - id: D-90.2
+    grade: LOCKED
+    text: One implementation per algorithm; a helper that already exists in the package is reused, never re-implemented
+    paths: ["src/**"]
+expect:
+  - severity: blocker
+    claim_contains: luhn
