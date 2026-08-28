@@ -1,0 +1,29 @@
+# Minted by hand — RFC 0004 A-57: the reaper consults host truth for
+# shadow sandboxes (D-4.18).
+schema_version: 1
+id: T-0107
+rfc: rfcs/0004-agents-tiering.md
+phase: 4
+role: implement
+intent: |
+  The durable-regime reap stops destroying shadow sandboxes mid-attempt:
+  a torve-labelled sandbox counts as live when a host run state names its
+  run with a heartbeat younger than reap.stale_after, alongside the
+  store's records — shadow runs register no durable record by design, so
+  their liveness is the host state file. A crashed shadow still reaps
+  once its heartbeat goes stale, and an orphaned sandbox with no state
+  file reaps immediately, exactly as before.
+depends_on: []
+targets: []
+scope:
+  allow:
+    - "src/torve/application/reaper.py"
+    - "tests/**"
+  deny: []
+acceptance:
+  - "uv run ruff check src tests"
+  - "uv run mypy src"
+  - "uv run basedpyright src"
+  - "uv run pytest -q"
+decisions: []
+tier: executor

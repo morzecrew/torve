@@ -1,0 +1,20 @@
+schema_version: 1
+task: T-0107
+repo: morzecrew/torve
+base_sha: 0d0bda28ad769e10ce9a75aa3a64367bfded7791
+drift_count: 0
+entries:
+  - decision: D-4.18
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: "2026-08-28T17:33:39Z"
+    attempt: 1
+    claim: the durable-regime sweep counts a run live when a host state file
+      names it with a heartbeat younger than reap.stale_after, unioned with
+      the store's records; shadows stay unregistered in the store
+    evidence: "src/torve/application/reaper.py — the liveness union in
+      _durable_reap; tests/test_reaper.py::
+      test_durable_reap_keeps_a_fresh_shadow_sandbox pins kept-fresh,
+      reaped-stale and reaped-orphan in one case"
+    action: decided

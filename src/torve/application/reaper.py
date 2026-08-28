@@ -260,6 +260,17 @@ async def _durable_reap(
 
     live = await taskstore.live_records()
     live_engine_runs = {str((r.input_json or {}).get("engine_run_id", "")) for r in live}
+
+    # Shadow liveness is host truth (D-4.18, A-57): replays register no
+    # durable record by design, so a run named by a host state file with a
+    # fresh heartbeat is live too — a crashed shadow's heartbeat goes stale
+    # and it reaps; an orphan with no state file reaps immediately.
+    live_engine_runs |= {
+        s.run_id
+        for s in states
+        if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after
+    }
+
     own = naming.root_key(root)
 
     for sandbox in runtime.list_torve_sandboxes():

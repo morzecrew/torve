@@ -257,3 +257,48 @@ def test_a_ready_draft_state_survives_unconditionally(tmp_path):
     )
     assert report.states_removed == []
     assert (tmp_path / ".wt" / "T-9114.state.json").exists()
+
+
+def test_durable_reap_keeps_a_fresh_shadow_sandbox(tmp_path, monkeypatch):
+    """D-4.18 (A-57): a shadow run registers no durable record by design, so
+    its liveness is the host state file — the durable-regime sweep must not
+    destroy a sandbox whose run a fresh-heartbeat state names, and must
+    still destroy one no state file knows."""
+    import asyncio
+
+    import torve.application.taskstore as taskstore_module
+    from torve.application.reaper import _durable_reap
+
+    shadow = state_at(tmp_path, "shadow-T-0001", TaskState.RUNNING)
+    stale = state_at(tmp_path, "shadow-T-0002", TaskState.RUNNING, age_s=3600)
+    orphan = SandboxInfo(
+        id="sbx-orphan", name="torve-orphan", labels={"torve.run": "nobody-knows-this-run"}
+    )
+    runtime = MockRuntime()
+    runtime.registry = [sandbox_for(shadow), sandbox_for(stale), orphan]
+
+    class StubTaskStore:
+        def __init__(self, store, config):
+            pass
+
+        async def expire_abandoned(self):
+            return []
+
+        async def live_records(self):
+            return []
+
+    monkeypatch.setattr(taskstore_module, "TaskStore", StubTaskStore)
+
+    async def factory(config):
+        return object()
+
+    report = asyncio.run(
+        _durable_reap(
+            tmp_path, RunnerConfig(), runtime, ListingWorkspace([]), False, False, factory
+        )
+    )
+
+    destroyed = set(report.sandboxes_destroyed)
+    assert f"torve-{shadow.task_id}" not in destroyed
+    assert f"torve-{stale.task_id}" in destroyed
+    assert "torve-orphan" in destroyed
