@@ -17,3 +17,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 # new digest, a visible regime change. Permission mode stays an operator
 # knob in the tier command (DSH_PERMISSION_MODE), never baked here.
 COPY deepseek-chat.yml /opt/dsh/deepseek-chat.yml
+# qwen3.8-flash over OpenRouter: newer than the bundled pi-ai catalog, so
+# the overlay declares the model as well as pinning it. NODE_USE_ENV_PROXY
+# stays an operator knob in the tier command — node's fetch ignores the
+# proxy environment without it, and whether a proxy exists is the host's
+# business, never the image's.
+COPY qwen3.8-flash.yml /opt/dsh/qwen3.8-flash.yml
