@@ -10,3 +10,10 @@ RUN apt-get update \
 
 # uv for replaying tasks whose acceptance battery is uv-driven
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# Harness identity (RFC 0017 §3, D-17.4): the headless profile's default
+# model is deepseek-v4-flash; the department runs deepseek-chat. The pin is
+# identity, so it rides the image — a different model is a new overlay, a
+# new digest, a visible regime change. Permission mode stays an operator
+# knob in the tier command (DSH_PERMISSION_MODE), never baked here.
+COPY deepseek-chat.yml /opt/dsh/deepseek-chat.yml
