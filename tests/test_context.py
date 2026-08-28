@@ -221,8 +221,9 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
 
 
 def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
-    """D-7.26: only the landing subject shape (torve(T-nnnn): …) or the
-    Torve-Task trailer ships a task — a mint chore whose subject says
+    """D-7.26: only a landing citation — a parenthesized (T-nnnn), the
+    merge-branch shape torve/T-nnnn, or the Torve-Task trailer — ships a
+    task. A bare prose mention must not: a mint chore whose subject says
     'T-0097–T-0104' shipped a whole phase in the programme view once."""
     import subprocess
 
@@ -243,9 +244,18 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
     subprocess.run(
         [
             "git", "-C", str(root), "commit", "-q",
-            "-m", "torve(T-0105): the broker — attempt 2 green\n\nTorve-Task: T-0105",
+            "-m", "feat: the broker meters the wire (T-0105, A-56)",
+        ],
+        check=True,
+    )
+    (root / "c").write_text("x")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(root), "commit", "-q",
+            "-m", "merge torve/T-0106 into main\n\nTorve-Task: T-0107",
         ],
         check=True,
     )
 
-    assert _shipped_ids(root) == {"T-0105"}
+    assert _shipped_ids(root) == {"T-0105", "T-0106", "T-0107"}

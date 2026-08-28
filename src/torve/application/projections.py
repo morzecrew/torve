@@ -33,13 +33,12 @@ from torve.domain.task import SCHEMA_VERSION
 ACTIVE = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED}
 
 # The shipping spellings the repository's history carries: the Torve-Task
-# trailer the runner writes, and any subject mentioning the id — real
-# subjects read `(T-0019)`, `(A-19, T-0019)`, `merge torve/T-0006 (…)` and
-# `accept T-0005 and T-0006 proposals` alike. A subject mention is evidence
-# of record, not proof of merge — the pseudo-state claims exactly that much.
-# Only the landing subject shape ships a task — a chore or docs subject
-# that mentions ids ("mint T-0097–T-0104") must not count (D-7.26).
-SUBJECT_ID = re.compile(r"^torve\((T-\d{4,})\)")
+# trailer the runner writes, a parenthesized citation — `(T-0019)`,
+# `(T-0087, A-43)`, `(A-19, T-0019)` — and the merge-branch shape
+# `merge torve/T-0006`. A bare prose mention ("mint T-0097–T-0104",
+# "accept T-0002 proposals", "from the T-0146 wild miss") records the id
+# without shipping it and must not count (D-7.26).
+SUBJECT_ID = re.compile(r"\([^)]*?(T-\d{4,})[^)]*\)|torve/(T-\d{4,})")
 TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
 
 
@@ -65,7 +64,7 @@ def _shipped_ids(root: Path) -> set[str]:
 
     for record in proc.stdout.split("\x1e"):
         subject, _, body = record.partition("\x1f")
-        found.update(SUBJECT_ID.findall(subject))
+        found.update(g for pair in SUBJECT_ID.findall(subject) for g in pair if g)
         found.update(TRAILER_ID.findall(body))
 
     return found
