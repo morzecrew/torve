@@ -793,3 +793,12 @@ def test_approve_refuses_off_ready_and_branchless_candidates(root):
         0
     ]
     assert not outcome.applied and "no branch to approve" in outcome.detail
+
+
+def test_shadow_runs_never_project(root):
+    """Shadow runs are measurement, never work: a replay's state file must
+    not become a board issue — eight 'shadow-T-nnnn: task' issues on the
+    live board taught this."""
+    run_state(root, "shadow-T-6002", TaskState.RUNNING)
+
+    assert project(root) == 0

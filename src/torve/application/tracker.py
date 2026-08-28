@@ -222,6 +222,13 @@ def project(root: Path, notify_login: str = "") -> int:
 
     for state in RunState.load_all(root / naming.WORKTREE_DIR):
         task_id = state.task_id
+
+        # Shadow runs are measurement, never work (RFC 0004 §5, the A-57
+        # visibility family): a replay's state file must not become a board
+        # issue — eight "shadow-T-nnnn: task" issues taught this.
+        if task_id.startswith("shadow-"):
+            continue
+
         task = _task(root, task_id)
 
         if task is not None and task.role == "review":
