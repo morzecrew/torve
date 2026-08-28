@@ -1,6 +1,8 @@
 schema_version: 1
 task: T-0106
 repo: morzecrew/torve
+base_sha: 37f6d7750225a55c0a107100fb88dc50eea2daa6
+created_at: 2026-08-28T19:08:02Z
 drift_count: 0
 entries:
   - decision: D-21.1
