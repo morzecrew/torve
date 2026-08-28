@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Document-level specification-quality signals (T-0100, RFC 0022 phase 2):
+  per-document attempts-to-green, spec-drift findings and drift count,
+  escalation reasons with `underspecified` and `stale_inheritance` always on
+  their own line, human minutes and rework rate — one section of `torve
+  context`, carried to planning sessions by the existing MCP surface, the
+  quasi-experiment caveat printed with it.
+
 - `torve rfc health` (T-0099, RFC 0022 phase 1): per-decision populations
   over every task that inherited a row — touched its declared paths, cited
   it in an execution log, action counts and escalation outcomes — with

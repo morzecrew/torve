@@ -3,7 +3,7 @@ id: "0022"
 title: Specification quality as a measured quantity
 kind: design
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
