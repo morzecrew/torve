@@ -225,3 +225,4 @@ __marimo__/
 .torve/tmp/
 .wt/
 .torve/review-corpus/*/*.trace.log
+.repowise/

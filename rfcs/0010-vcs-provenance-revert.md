@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: ["0005", "0006"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-37"]
+amended_by: ["A-37", "A-58"]
 owner: Lev Litvinov
 description: >-
   How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role.
@@ -132,6 +132,7 @@ Behaviour:
 | D-10.8 | `ASSUMED` | One commit per attempt | `src/torve/adapters/vcs/git.py` | Depart if attempts routinely produce unrelated changes — which is itself a task-size finding |
 | D-10.9 | `OPEN` | Whether review-run artefacts get their own branch or live only as comments | — | Decided when 0005 ships |
 | D-10.10 | `ASSUMED` | One pull request per task lifetime: the candidate branch persists across re-queues (a requeue captures, it no longer deletes), each new attempt supersedes the branch with a leased force-push, `open_pr` reuses the branch's open pull request instead of minting another, and the branch dies only at the landing's retirement (D-19.13) — an abandoned task's branch is left for the operator. Added by amendment A-37 2026-08-25 | `src/torve/adapters/vcs/git.py` `src/torve/application/runner.py` `src/torve/cli/tick.py` | A pull request per attempt made a nine-task batch read as thirty-odd PRs; reviewers follow one thread per unit of work |
+| D-10.11 | `LOCKED` | Candidate publication follows the forge leg: with `open_pr` off the branch stays local — a push is publishing, and on a base never pushed it publishes the whole history. Added by amendment A-58 2026-08-28 | `src/torve/application/runner.py` | Two engine-repo landings each published 240+ unpushed commits as a side effect of a configuration that said the forge was not in play |
 
 ## Phasing
 
@@ -246,3 +247,22 @@ request always shows exactly the candidate, which is the squash
 discipline; capture-before-supersede (D-5.12); and the abandon command,
 which leaves the branch for the operator — rare, and a deletion there
 is a human's call.
+
+### A-58 — 2026-08-28 — candidate publication follows the forge leg (adds D-10.11)
+
+**Found twice in one day of engine-repo dogfood.** `scm.open_pr: false`
+deferred the pull request but the candidate branch still pushed — and on a
+repository whose base was never published, a candidate branch carries the
+entire local history to the remote. Two landings (T-0105, T-0106) each
+published 240+ commits of a public repository's unpushed history as a side
+effect of a run whose configuration said, as plainly as it could, that the
+forge was not in play.
+
+**Changed:** the push and the pull request are one leg. With `open_pr`
+off, the candidate is committed locally and the branch stays local; the
+lane lands it from the local branch exactly as it already does. With
+`open_pr` on, nothing changes: push, then the pull request.
+
+**Deliberately unchanged:** no separate `push_candidates` knob. A branch
+push with no pull request serves nobody the corpus knows about, and a knob
+whose only use is republishing the accident is not a feature.

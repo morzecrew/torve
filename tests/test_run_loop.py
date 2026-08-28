@@ -95,6 +95,7 @@ class MockVcs:
     def __init__(self):
         self.commits: list[str] = []
         self.authors: list[str | None] = []
+        self.pushed: list[str] = []
 
     def commit_all(self, worktree, message, author=None, sign_key=None):
         self.commits.append(message)
@@ -105,6 +106,7 @@ class MockVcs:
         return []
 
     def push(self, worktree, branch, token=None, supersede=False):
+        self.pushed.append(branch)
         return False
 
     def landed_shas(self, worktree, task_id):
@@ -257,3 +259,18 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
     assert seen["during_attempt"] is True
     assert seen["at_gates"] is False
     assert not (repo.root / ".wt" / task.id / ".torve" / "feedback.md").exists()
+
+
+def test_no_forge_leg_means_no_push(rig):
+    """D-10.11 (A-58): with open_pr off the candidate branch stays local —
+    a push is publishing, and on a base never pushed it publishes the
+    whole history. The run still commits and reaches ready."""
+    repo, deps, _runtime, vcs, _ = rig
+    config = RunnerConfig()
+    assert config.scm.open_pr is False  # the default regime under test
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.READY
+    assert vcs.commits, "the candidate still commits locally"
+    assert vcs.pushed == []

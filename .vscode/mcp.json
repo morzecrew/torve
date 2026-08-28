@@ -1,14 +1,7 @@
 {
-  "mcpServers": {
-    "torve": {
-      "command": "uv",
-      "args": [
-        "run",
-        "torve",
-        "mcp"
-      ]
-    },
+  "servers": {
     "repowise": {
+      "type": "stdio",
       "command": "repowise",
       "args": [
         "mcp",

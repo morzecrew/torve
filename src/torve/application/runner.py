@@ -813,7 +813,11 @@ def real_hooks(
                 token,
                 True,
             )
-            if sha
+            # Publication follows the forge leg (D-10.11, A-58): with
+            # open_pr off the candidate stays local — pushing a branch is
+            # publishing, and on a repository whose base was never pushed
+            # it publishes the entire history.
+            if sha and config.scm.open_pr
             else False
         )
 
