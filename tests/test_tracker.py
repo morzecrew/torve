@@ -802,3 +802,20 @@ def test_shadow_runs_never_project(root):
     run_state(root, "shadow-T-6002", TaskState.RUNNING)
 
     assert project(root) == 0
+
+
+def test_retry_on_a_ready_run_routes_to_revise(root):
+    """A ready candidate whose tip cannot land is not a dead end — /torve
+    revise is its re-entry (D-8.18) — and the retry refusal must say so
+    (D-A.18: a refusal routes, it never merely refuses). Found when a
+    candidate with permanently-red tip CI sat ready with no visible exit."""
+    from torve.application.tracker import _apply
+
+    run_state(root, "T-6003", TaskState.READY)
+
+    outcome = _apply(
+        root, TrackerCommand(verb="retry", task_id="T-6003", actor="cmd", source="s1", text="")
+    )
+
+    assert not outcome.applied
+    assert "/torve revise" in outcome.detail

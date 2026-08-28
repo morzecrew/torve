@@ -559,7 +559,12 @@ def _apply(
                 task_id,
                 command.actor,
                 False,
-                f"retry needs an escalated run; this one is {state.state}",
+                f"retry needs an escalated run; this one is {state.state}"
+                + (
+                    " — a ready candidate re-enters with /torve revise"
+                    if state.state is TaskState.READY
+                    else ""
+                ),
             )
 
         # The mechanical re-queue (T-0059): the stale remote branch goes
