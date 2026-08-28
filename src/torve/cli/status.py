@@ -107,11 +107,13 @@ def reap_cmd(
     convention."""
 
     from torve.adapters.store.durable import open_store
+    from torve.adapters.vcs.git import GitVcs
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.reaper import reap
 
     root = root.resolve()
     config = load_config(root, config_path)
+    vcs = GitVcs()
 
     report = reap(
         root,
@@ -121,6 +123,10 @@ def reap_cmd(
         force=force,
         dry_run=dry_run,
         store=open_store,
+        # The landed oracle, exactly as the tick wires it (D-19.10): a READY
+        # implement state whose landing trailer is in history is collectable —
+        # without it the hand-run verb kept every landed candidate forever.
+        landed=lambda t: bool(vcs.landed_shas(root, t)),
     )
 
     if fmt is Format.JSON:

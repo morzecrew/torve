@@ -194,8 +194,10 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
 
     root, _, _git = plan_repo
     seed_facts(root)
-    # T-0003 never ran through the engine, but history records its shipping —
-    # both spellings: mid-parenthesis and trailer.
+    # T-0003 never ran through the engine, but history records its shipping
+    # by the provenance trailer (RFC 0010) — a mere id mention in a chore
+    # subject no longer counts, which is what keeps mint commits from
+    # shipping whole phases in the programme view.
     subprocess.run(
         [
             "git",
@@ -205,7 +207,7 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
             "-q",
             "--allow-empty",
             "-m",
-            "feat: wire together (A-1, T-0003, minted by torve plan)",
+            "feat: wire together by hand\n\nTorve-Task: T-0003",
         ],
         capture_output=True,
         check=True,
@@ -216,3 +218,34 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
     assert states["T-0001"] == "ready"  # a run state still outranks history
     doc = next(d for d in report["programme"] if d["rfc"] == "0090")
     assert doc["progress"]["2"] == "shipped"  # phase 2's only task shipped
+
+
+def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
+    """D-7.26: only the landing subject shape (torve(T-nnnn): …) or the
+    Torve-Task trailer ships a task — a mint chore whose subject says
+    'T-0097–T-0104' shipped a whole phase in the programme view once."""
+    import subprocess
+
+    from torve.application.projections import _shipped_ids
+
+    root = tmp_path
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / "a").write_text("x")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-q", "-m", "chore: mint T-0097 and T-0104"],
+        check=True,
+    )
+    (root / "b").write_text("x")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(root), "commit", "-q",
+            "-m", "torve(T-0105): the broker — attempt 2 green\n\nTorve-Task: T-0105",
+        ],
+        check=True,
+    )
+
+    assert _shipped_ids(root) == {"T-0105"}

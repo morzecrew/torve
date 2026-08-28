@@ -37,7 +37,9 @@ ACTIVE = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIE
 # subjects read `(T-0019)`, `(A-19, T-0019)`, `merge torve/T-0006 (…)` and
 # `accept T-0005 and T-0006 proposals` alike. A subject mention is evidence
 # of record, not proof of merge — the pseudo-state claims exactly that much.
-SUBJECT_ID = re.compile(r"(T-\d{4,})\b")
+# Only the landing subject shape ships a task — a chore or docs subject
+# that mentions ids ("mint T-0097–T-0104") must not count (D-7.26).
+SUBJECT_ID = re.compile(r"^torve\((T-\d{4,})\)")
 TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
 
 
