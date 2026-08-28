@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `torve rfc health` (T-0099, RFC 0022 phase 1): per-decision populations
+  over every task that inherited a row — touched its declared paths, cited
+  it in an execution log, action counts and escalation outcomes — with
+  denominators printed, readings suppressed below an observation floor, and
+  the quasi-experiment caveat printed with the report. Text and JSON; no
+  corpus score, no proposed text, no model call. Grades compare as copied
+  onto the contract at mint time, never as the table stands today.
+
 - The egress broker (T-0105, RFC 0021 phase 1): a `broker` configuration
   block whose `local` adapter runs a loopback reverse proxy for the life of
   the run — it holds every provider key, exposes one route per routed
