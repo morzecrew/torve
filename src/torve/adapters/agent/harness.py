@@ -193,11 +193,17 @@ class HarnessAgent:
             return command
 
         if not ctx.broker.base_urls:
-            raise ValueError(
-                "the tier command names broker placeholders "
-                f"({BROKER_URL_PLACEHOLDER}/{BROKER_TOKEN_PLACEHOLDER}) but the broker "
-                "adapter in force is 'none' — configure a broker or remove the placeholders"
-            )
+            # The none adapter's handle routes nothing (D-21.9): a command
+            # without placeholders runs unchanged; only a command that names
+            # them has been promised a broker that is not there.
+            if BROKER_URL_PLACEHOLDER in command or BROKER_TOKEN_PLACEHOLDER in command:
+                raise ValueError(
+                    "the tier command names broker placeholders "
+                    f"({BROKER_URL_PLACEHOLDER}/{BROKER_TOKEN_PLACEHOLDER}) but the broker "
+                    "adapter in force is 'none' — configure a broker or remove the placeholders"
+                )
+
+            return command
 
         url = ctx.broker.url_for(self.tier.provider)
 

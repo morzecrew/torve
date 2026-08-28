@@ -837,3 +837,15 @@ def test_none_broker_dispatches_a_real_tier_with_no_provider_table():
     )
     routing = run_routing(config, Task(id="T-0001", intent="x", decisions=[]), review_on=False)
     assert routing.routes == ()
+
+
+def test_none_handle_runs_a_placeholder_free_command_unchanged(tmp_path):
+    """The none adapter opens a routeless handle (D-21.9); a tier command
+    that names no broker placeholders must pass through it untouched — the
+    second half of the regression that broke every real-tier run when
+    phase 1 landed."""
+    tier = TierConfig(adapter="api", provider=PROVIDER, command='run "$(cat {prompt})"')
+    ctx, agent = harness_ctx(tmp_path, tier, BrokerHandle(token="", base_urls={}))
+
+    command = agent._command(ctx)
+    assert command == 'run "$(cat .torve/tmp/prompt.md)"'
