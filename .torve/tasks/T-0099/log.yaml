@@ -1,0 +1,138 @@
+schema_version: 1
+task: T-0099
+repo: morzecrew/torve
+base_sha: d404823240dd50b6d65661afd30bb9f728e24ef6
+created_at: '2026-08-28T21:30:00Z'
+drift_count: 0
+entries:
+- decision: D-22.6
+  grade: ASSUMED
+  kind: departed
+  class: spec-gap
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'D-22.6''s own paths list src/torve/application/projections.py alongside
+    cli/rfc.py, but this contract''s scope.allow (fixed at the same mint time,
+    in the same document) lists only specquality.py, cli/rfc.py and tests/** —
+    the contract contradicts itself before any code exists. The scope gate refuses
+    a diff outside scope.allow, so a projections.py edit cannot land under this
+    contract no matter what D-22.6 asks for. Read the row as licensing only its
+    first clause under T-0099: `torve rfc health` ships as a full subcommand,
+    text and JSON; the ''plus one section of the torve context projection'' clause
+    is out of this task''s reach and left for a task whose scope actually includes
+    projections.py.'
+  evidence: .torve/tasks/T-0099/contract.yaml:22-27 — scope.allow names no projections.py,
+    vs .torve/tasks/T-0099/contract.yaml:68-74 where D-22.6's paths include src/torve/application/projections.py
+  action: departed
+  proposal: 'D-22.6 — split at mint time into two rows: one scoped to cli/rfc.py
+    for the `torve rfc health` subcommand, one scoped to projections.py for the
+    `torve context` section, minted as separate phases/tasks so scope.allow never
+    contradicts a decision''s own paths again.'
+- decision: D-22.4
+  grade: ASSUMED
+  kind: departed
+  class: spec-gap
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: '''touched'' cannot be a literal git diff without shelling to git and
+    resolving each task''s historical merge_base/head shas from telemetry — fragile
+    against pruned or unreachable history, and telemetry.jsonl carries no file
+    list to check against. Read instead as the contract''s own declared scope.allow
+    intersecting the decision''s declared paths (globs_intersect, already used
+    for the same overlap question between sibling phase scopes): the scope gate
+    already refuses a passing or bypassed diff that leaves scope.allow, so the
+    declared area is a safe over-approximation of the true diff, and it keeps
+    the reader exactly what D-22.5 asks for — YAML in, no git subprocess, no new
+    dependency.'
+  evidence: src/torve/application/specquality.py:213-227 — _touched; src/torve/gates/scope.py:39-47
+    is the invariant the approximation relies on; src/torve/application/planner.py:184-209
+    globs_intersect, reused rather than reimplemented
+  action: departed
+  proposal: D-22.4/D-22.5 — define 'touched' as scope.allow intersecting a decision's
+    declared paths (both already denormalised at mint time), rather than a literal
+    post-hoc diff; the decoration-or-paths-defect reading stays sound because
+    the scope gate already bounds the true diff by scope.allow for any task whose
+    gate passed or was bypassed.
+- decision: D-22.4
+  grade: ASSUMED
+  kind: departed
+  class: spec-gap
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'the decoration-or-paths-defect reading (touched>0, cited==0) is emitted
+    only for grade LOCKED. §5.2''s own text ties the reading to ''the Paths column
+    and the silence check'' — machinery that exists only for LOCKED rows (torve.gates.decisions_reported._check_silence).
+    For ASSUMED/OPEN, touched-with-no-citation is unremarkable: only a contradiction
+    or a touched LOCKED area owes an entry, so an ASSUMED row a task simply complied
+    with owes nothing and a decoration reading there would be a false positive.'
+  evidence: rfcs/0022-specification-quality.md:189-190 — "needs the Paths column
+    and the silence check to exist at all"; src/torve/gates/decisions_reported.py:234-259
+    _check_silence, LOCKED-only
+  action: departed
+  proposal: D-22.4 — scope the decoration-or-paths-defect reading to grade LOCKED
+    explicitly in the decision text; ASSUMED/OPEN rows still print their raw touched/cited
+    counts, just no reading.
+- decision: D-22.10
+  grade: OPEN
+  class: spec-gap
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: deciding the abandoned-vs-landed weighting the row leaves open. 'landed'
+    is read as RunState.state == ready (the engine's own mergeable terminal-success
+    state); 'abandoned' as RunState.state == abandoned; everything else (in-flight,
+    unresolved escalation, or no run state at all) counts toward the all-tasks
+    population only. Both denominators are reported on every population (inherited
+    vs inherited_landed, touched vs touched_landed) rather than picking one weighting
+    — no telemetry.jsonl exists in this worktree (gitignored, generated data,
+    none accumulated here) to empirically compare which weighting the data supports,
+    so execution reports both, unweighted, exactly as the row licenses, and logs
+    that no live corpus was available to settle it further.
+  evidence: src/torve/application/specquality.py:69-77 — TaskFacts.landed/abandoned;
+    src/torve/domain/states.py:20-29 and :109 TaskState, TERMINAL; the worktree
+    carries no .torve/telemetry.jsonl (gitignored, generated data)
+  action: decided
+- decision: D-22.1
+  grade: LOCKED
+  kind: resolved
+  class: discovery
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'compliance close-out for the touched LOCKED area (specquality.py, cli/rfc.py):
+    the health report only reads .torve/tasks/*, the corpus and run state; it
+    writes nothing back to a decision table, emits no proposed table text, and
+    imports no model/agent adapter anywhere. The OPEN reading (''review-decided-claims'')
+    deliberately stops at surfacing the distinct claims verbatim rather than asserting
+    they were ''decided identically'', because auto-judging textual agreement
+    is the kind of judgement this row forbids the engine from making — the human
+    reads the claims, the engine does not rank them.'
+  evidence: src/torve/application/specquality.py:1-30 — module docstring, no write/model
+    import; src/torve/application/specquality.py:349-356 review-decided-claims,
+    claims listed with no identity assertion
+  action: decided
+- decision: D-22.2
+  grade: LOCKED
+  kind: resolved
+  class: discovery
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'compliance close-out: every population is built by folding over TaskFacts.decisions,
+    which is read verbatim from each contract''s own decisions list (the grade
+    and paths as copied at mint time). The corpus is parsed only for identifiers
+    cited in an Amendments section (the ''amended'' signal) and for identifiers_for_document''s
+    filter — never to re-derive or overwrite a task''s copied grade.'
+  evidence: src/torve/application/specquality.py:229-244 — _contract_decisions,
+    read from the contract only; src/torve/application/specquality.py:420-478
+    decision_report takes the grade from decision['grade'], never from rfc_parse.decision_table
+  action: decided
+- decision: D-22.7
+  grade: LOCKED
+  kind: resolved
+  class: discovery
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'compliance close-out: RFC 0004 §6a''s quasi-experiment caveat is a module
+    constant in cli/rfc.py, printed verbatim (not paraphrased) in both the text
+    and the JSON renderings of `torve rfc health`.'
+  evidence: src/torve/cli/rfc.py:44-51 — QUASI_EXPERIMENT_CAVEAT; health() prints
+    it in the text output and carries it as the JSON caveat key
+  action: decided

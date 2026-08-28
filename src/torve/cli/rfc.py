@@ -25,12 +25,14 @@ from torve.cli.console import (
     STYLE_PASS,
     STYLE_WARN,
     Format,
+    add_rows_truncated,
     closing,
     emit_json,
     fail,
     footer,
     header,
     id_list,
+    make_table,
     out,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
@@ -42,6 +44,17 @@ from torve.domain.states import EXIT_CONFIG, EXIT_OK
 rfc_app = typer.Typer(no_args_is_help=True, help="Validate and author the RFC corpus.")
 
 TEMPLATE_TITLE = "RFC NNNN — <Title>"
+
+# RFC 0004 §6a, printed with `health`'s output verbatim, never paraphrased
+# (D-22.7 LOCKED): the first attractive number otherwise becomes a promise to
+# someone before anyone wrote down its limits. The printed text carries the
+# caveat's substance without the corpus coordinate — the reader of a report
+# has no corpus to resolve it.
+QUASI_EXPERIMENT_CAVEAT = (
+    "Baseline is a quasi-experiment, not an A/B: tasks before "
+    "and after are different tasks, done under different conditions. This "
+    'supports direction ("iterations fell") and not magnitude ("40% faster").'
+)
 
 # Colour supplements the status word, never replaces it (D-18.4); an unknown
 # status ("?": a dangling depends_on target) reads as a failure.
@@ -205,15 +218,17 @@ def _show_lines(found: dict[str, Any]) -> list[tuple[str, str]]:
 def show(
     identifier: Annotated[
         str,
-        typer.Argument(help="A decision (D-6.8), an amendment (A-47) or a document (0021)."),
+        typer.Argument(help="A corpus identifier: a decision, an amendment or a document number."),
     ],
     root: RootOption = Path("."),
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Resolve one corpus identifier from the same parse `check` runs
-    (D-7.28): no cache, no store — an undefined identifier is a
-    configuration error naming the nearest family."""
+    """Resolve one corpus identifier from the same parse `check` runs:
+    no cache, no store — an undefined identifier is a configuration
+    error naming the nearest family."""
+    # The one-parse rule is D-7.28; the docstring is `show`'s help text
+    # and stays free of corpus coordinates.
 
     from torve.config.rfc_parse import lookup, next_amendment, rfc_files
 
@@ -482,3 +497,137 @@ def graph(
 
     for warning in warnings:
         console.print(Text(f"WARN    {warning}", STYLE_WARN))
+
+
+# ....................... #
+
+
+@rfc_app.command("health")
+def health(
+    document: Annotated[
+        str | None,
+        typer.Argument(
+            help="Report only this document's decisions (e.g. 0022); omitted reports the "
+            "whole corpus."
+        ),
+    ] = None,
+    floor: Annotated[
+        int,
+        typer.Option(
+            "--floor",
+            min=1,
+            help="Observations a reading needs before it is asserted; counts and "
+            "denominators print below it regardless.",
+        ),
+    ] = 5,  # torve.application.specquality.DEFAULT_FLOOR, repeated: kept lazily imported below
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Per-decision populations over every task that inherited the row: how
+    many touched its declared paths, how many cited it in their log, and —
+    only once there are enough observations to say anything — the one
+    reading that shape of evidence supports. The grade compared is always
+    the one copied onto the contract at mint time, never the row as the
+    corpus stands today. Never edits a decision table, proposes no text
+    and calls no model: this is evidence for a human writing an amendment,
+    not a verdict. No single corpus score is computed anywhere."""
+    # The docstring is help text and carries no corpus coordinates; the
+    # rules it states are D-22.2, D-22.1 and D-22.3 in that order.
+
+    from torve.application import specquality
+
+    rfc_dir = corpus_dir(root, config)
+    report = specquality.decision_report(root.resolve(), rfc_dir, floor=floor)
+    populations = report["populations"]
+
+    if document is not None:
+        number = document.strip().removesuffix(".md")
+        wanted = specquality.identifiers_for_document(rfc_dir, number)
+
+        if wanted is None:
+            raise fail(f"configuration error: no RFC {document!r} under {rfc_dir}", EXIT_CONFIG)
+
+        populations = [p for p in populations if p["identifier"] in wanted]
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": report["schema_version"],
+                "floor": report["floor"],
+                "document": document,
+                "caveat": QUASI_EXPERIMENT_CAVEAT,
+                "populations": populations,
+            }
+        )
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    subject = f"RFC {document}" if document else f"{len(populations)} decision(s), corpus-wide"
+    header(console, "rfc health", subject)
+    console.print()
+    console.print(Text(QUASI_EXPERIMENT_CAVEAT, STYLE_DIM))
+    console.print(
+        Text(
+            f"readings suppressed below {floor} observation(s) — counts and denominators "
+            "print regardless; no single corpus score is computed",
+            STYLE_DIM,
+        )
+    )
+    console.print()
+
+    if not populations:
+        closing(console, "no decisions inherited by any task yet", STYLE_DIM)
+        raise typer.Exit(EXIT_OK)
+
+    table = make_table(
+        "decision", "grade", "inherited", "touched", "cited", "reading", title="Decision health"
+    )
+
+    rows: list[tuple[Text | str, ...]] = [
+        (
+            Text(str(pop["identifier"]), STYLE_ID),
+            str(pop["grade"] or "mixed"),
+            f"{pop['inherited']} ({pop['inherited_landed']} landed)",
+            str(pop["touched"]),
+            str(pop["cited"]),
+            Text(str(pop["reading"] or "—"), STYLE_WARN if pop["reading"] else STYLE_DIM),
+        )
+        for pop in populations
+    ]
+
+    withheld = add_rows_truncated(table, rows, limit=50)
+    console.print(table)
+
+    if withheld:
+        footer(console, f"… {withheld} more decision(s) (see JSON)")
+
+    readings = [p for p in populations if p["reading"]]
+
+    if readings:
+        console.print()
+
+        for pop in readings:
+            console.print(Text(f"  {pop['identifier']}: {pop['reading_detail']}", STYLE_WARN))
+
+    with_claims = [p for p in populations if p["decided_claims"]]
+
+    if with_claims:
+        console.print()
+        console.print(Text("Decided claims, for a human to read for agreement:", STYLE_DIM))
+
+        for pop in with_claims:
+            for claim in pop["decided_claims"]:
+                console.print(
+                    Text(f"  {pop['identifier']} · {claim['task']}: {claim['claim']}", STYLE_DIM)
+                )
+
+    console.print()
+
+    closing(
+        console,
+        f"{len(populations)} decision(s) reported, {len(readings)} with a reading",
+        STYLE_WARN if readings else STYLE_PASS,
+    )
+
+    raise typer.Exit(EXIT_OK)
