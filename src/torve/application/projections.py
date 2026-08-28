@@ -282,8 +282,11 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
 
 
 def _costs(root: Path) -> list[dict[str, Any]]:
-    """Cost and iterations by task against config_hash (§4) — from records
-    whose agent block carries a cost, and from shadow summaries."""
+    """Cost and iterations by task against config_hash (§4) — every real
+    agent attempt and every shadow summary. An attempt whose harness reported
+    no usage still appears, costless: an uncontrolled regime is a fact worth
+    seeing (D-4.6), and a hidden run reads as a run that never happened.
+    Fake-agent attempts stay out — simulation is not spend."""
 
     found: list[dict[str, Any]] = []
     telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
@@ -319,7 +322,7 @@ def _costs(root: Path) -> list[dict[str, Any]]:
 
         agent: Any = row.get("agent")
 
-        if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("cost_usd") is not None:
+        if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("adapter") != "fake":
             block = cast("dict[str, Any]", agent)
 
             found.append(
