@@ -810,3 +810,30 @@ def test_brokered_docker_budget_refusal_escalates_cost_anomaly(repo, upstream, m
 
     assert run_state.state is TaskState.ESCALATED
     assert run_state.escalation.reason == "cost_anomaly"
+
+
+def test_none_broker_dispatches_a_real_tier_with_no_provider_table():
+    """The phase-1 default must not demand routing it will never enforce:
+    a real harness tier dispatches under `none` with an empty
+    broker.providers — the regression that broke every shadow run the day
+    phase 1 landed."""
+    from torve.application.runner import run_routing
+    from torve.config.runconfig import RunnerConfig
+    from torve.domain.task import Task
+
+    config = RunnerConfig.model_validate(
+        {
+            "schema_version": 1,
+            "tiers": {
+                "executor": {
+                    "adapter": "harness",
+                    "command": "x {prompt}",
+                    "model": "m",
+                    "provider": "deepseek",
+                    "api_key_env": ["DEEPSEEK_API_KEY"],
+                }
+            },
+        }
+    )
+    routing = run_routing(config, Task(id="T-0001", intent="x", decisions=[]), review_on=False)
+    assert routing.routes == ()

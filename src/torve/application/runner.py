@@ -586,6 +586,12 @@ def run_routing(config: RunnerConfig, task: Task, review_on: bool) -> BrokerRout
         provider = config.broker.providers.get(tier.provider)
 
         if provider is None:
+            if not broker_in_force(config):
+                # The none adapter routes nothing at the wire: keys keep
+                # their existing channel and an empty provider table is the
+                # named default, not a configuration error (D-21.9).
+                continue
+
             raise ValueError(
                 f"tier {tier_name!r} uses provider {tier.provider!r} but the broker "
                 "configuration routes no such provider — add it under broker.providers"
