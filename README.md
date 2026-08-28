@@ -1,107 +1,111 @@
 # Torve
 
-A specification-and-gate layer for a standing agent team.
+A specification-and-gate engine for a standing agent team.
 
-Torve turns a reviewed specification into machine-checkable work, runs agents
-against it under deterministic gates, and refuses to let anything land that
-cannot prove it did what it was told.
+Torve turns a reviewed specification into machine-checkable task contracts,
+runs coding agents against them in sandboxes under deterministic gates, and
+refuses to let anything land that cannot prove it did what it was told. It is
+not an orchestrator: dispatch, worktrees and merge trains are solved
+elsewhere. What Torve adds is the layer above — decisions with teeth, scope
+as a contract, and a closed loop from execution facts back into planning.
 
-## Contents
+Three ideas carry the design:
 
-```text
-rfcs/                      the design corpus; INDEX.md is generated (D-A.6),
-                           amendments live inside their target RFCs (D-A.5)
-                           `ops/` and `pages/` are conventions, not standing
-                           directories: they exist when they hold something
-                           (D-A.1, D-A.1b)
-src/torve/                 the gates library and runner (RFC 0002 + 0003),
-                           layered per RFC 0015: base/ domain/ application/
-                           adapters/ gates/ config/ cli/ — enforced by the
-                           layering gate (import-linter contracts)
-skills/                    specialised skills shipped with the package (A-3)
-.torve/                    every Torve file, root stays clean (RFC 0013):
-  gates.yaml               this repository's own gate manifest
-  config.yaml              runner configuration (runtime adapter, store, ceilings)
-  tasks/                   one directory per task: contract.yaml and log.yaml
-                           (A-1, A-12), logs pinned to a base_sha (D-A.7)
-```
+- **Graded decisions.** A task inherits its specification's decisions, each
+  graded `LOCKED`, `ASSUMED` or `OPEN`. The grade dictates what an executor
+  does when reality disagrees: halt, depart and log, or decide and log. A
+  gate reads the log, so a silent workaround is a red build.
+- **Scope as a contract.** Allow/deny globs make "touched something it
+  shouldn't have" a failing gate rather than a review comment, and make
+  overlapping tasks undispatchable in parallel rather than collidable at
+  merge.
+- **A closed loop.** Attempts, costs, escalations and review findings
+  project back into the planning session that writes the next contracts —
+  as a CLI report and as a read-only MCP server.
 
-## Gates (RFC 0002, shipped here)
+## Install
 
 ```bash
-pip install torve            # or: uv sync inside this repository
-torve gates run --base origin/main          # all gates; exit code is the outcome
-torve gates run --only scope,acceptance
-torve gates run --format json               # GateResult records for ingestion
-torve gates check                           # the sabotage suite
-torve size .torve/tasks/T-0002.yaml         # pre-dispatch size estimate
+pip install torve                # gates and runner
+pip install 'torve[postgres]'    # durable cross-process run store
+pip install 'torve[mcp]'         # the planning session's read surface
+pip install 'torve[opensandbox]' # the OpenSandbox runtime adapter
 ```
 
-One CI step per repository, `.torve/gates.yaml` (legacy root `gates.yaml`
-still resolves). Builtin gates:
-`scope`, `acceptance`, `no-test-tampering`, `decisions-reported`, `self-audit`,
-`secrets`; anything else is a shell command in the manifest. On a
-`torve/T-nnnn` branch the task contract in `.torve/tasks/` is discovered
-automatically; without one, task-input gates report `skipped`, never a silent
-green. Every run appends a JSONL telemetry record stamped with
-`config_hash`.
+Python 3.13+. Agents run in Docker sandboxes; the engine itself never
+executes agent code on the host.
 
-## Runner (RFC 0003 phase 1, shipped here)
+## Quickstart: gates in CI
+
+The smallest useful install is one CI step — no runner, no store, no agents:
 
 ```bash
-torve run T-0142                 # one task, synchronous, exit code is the outcome
-torve run T-0142 --agent fake --scenario demo.yaml
-torve reap --dry-run             # sweep orphaned sandboxes and worktrees
-torve status --format json       # persisted run records, one JSON document
-
+torve gates run --base origin/main   # all gates; the exit code is the outcome
+torve gates run --format json        # machine-readable results
+torve gates check                    # sabotage suite: prove each gate can fail
 ```
 
-The run loop: claim → git worktree → sandbox → agent → gates → `ready` or
-`escalated`, with an enumerated escalation vocabulary and a poison ceiling
-checked before dispatch. Everything runs in a sandbox — even the fake agent —
-and shell gates execute in a fresh sandbox the agent never touched. Two
-runtime adapters behind one contract: Docker, and OpenSandbox
-(`pip install 'torve[opensandbox]'`).
+Configuration lives in `.torve/gates.yaml`. Builtin gates: `scope`,
+`acceptance`, `no-test-tampering`, `decisions-reported`, `secrets`,
+`self-audit`; anything else is a shell command in the manifest. Gates that
+need a task contract report `skipped` without one — never a silent green.
 
-The attempt loop executes as one durable function over the forze run store:
-real leases, fenced terminal writes, `torve cancel` riding the lease
-heartbeat, recovery via `claim_abandoned`. Mock store in-process by default;
-`store.adapter: postgres` (`pip install 'torve[postgres]'`, then
-`torve migrate substrate`) for cross-process durability. A deterministic
-simulation drives the real loop and store concurrently under seeded
-interleavings — invariants, reachability targets, and deliberately broken
-twins the oracle must catch.
+## Running work
 
-## Reading order
+```bash
+torve plan 0021                  # mint task contracts from an accepted spec
+torve intake "add rate limiting to the fetch path"   # or draft from prose
+torve adopt T-0140               # accept the drafts; ids are minted here
+torve run T-0142                 # one task, synchronously, sandboxed
+torve merge                      # land ready candidates, serialized
+torve tick                       # one bounded pass of the standing loop
+```
 
-Start with the charter. Every other document inherits its decisions and none
-re-decides them; a child RFC that needs a charter decision changed writes an
-amendment against 0001 rather than contradicting it locally.
+`plan` is deterministic — no model call ever happens inside the engine.
+`intake` runs a drafting agent in a read-only sandbox whose gate is a
+contract lint; a human adopts or refuses. `tick` is the standing team: poll
+the board, land what is approved, reap, dispatch one task, sync — then exit.
+Cadence belongs to cron or a systemd timer, never to a resident daemon.
 
-| Document | Increment |
-| --- | --- |
-| `0001-torve-charter.md` | domain, state machine, ports, charter decisions, stopping rules |
-| `0002-gates-library.md` | gates as an installed package in CI — ships first, no runner needed |
-| `0003-runner-isolation.md` | `torve run` against a fake agent, sandboxed |
-| `0004-agents-tiering.md` | real adapters, tiering economics, shadow runs, telemetry |
-| `0005-review-as-a-run.md` | independent review as a second run role; replacing third-party reviewers |
-| `0006-merge-escalation.md` | serialized merge lane, promotion, human attention budget |
-| `0007-planner-context.md` | `torve plan`, `torve context`, read-only MCP, cold start |
-| `0008-tracker-projection.md` | any task tracker as a presentation surface |
-| `0009-skills-evals.md` | skill routing, distribution, and evals that retire skills |
-| `0010-vcs-provenance-revert.md` | how work lands, how history explains itself, how it is undone |
-| `0011-cli-contract.md` | output contract, exit codes, non-TTY behaviour — decided before anything parses them |
-| `0012-migrations.md` | owner-grouped SQL migrations; the forze pin; the conformance battery as the gate |
-| `0013-configuration-layout.md` | where Torve's files live in a consuming repository, and why two files |
+Review is a second run role: a reviewer agent, isolated from the executor,
+whose findings gate the merge lane. `torve review pr` reviews forge pull
+requests; `torve review corpus` replays a seeded-defect corpus so reviewer
+regressions are measurable.
 
-## Ship order
+## Observing
 
-0002 → 0003 → 0004 → 0005 → 0006 → 0007. Each is useful standing alone;
-0008, 0009 and 0010 slot in after 0003 as needed. 0010 must land before 0006
-puts anything on a branch.
+```bash
+torve status                     # run records
+torve context                    # the planning report: tasks, escalations,
+                                 # proposals, gate health, cost by regime
+torve mcp                        # the same projections as a read-only MCP server
+torve doctor                     # configuration and environment checks
+torve shadow T-0142              # replay landed work for harness comparison
+torve rfc check                  # validate the specification corpus
+torve rfc show D-6.8             # resolve any corpus identifier
+```
 
-## Status
+Every attempt appends one telemetry record stamped with a `config_hash` of
+the regime it ran under — gates, skills, model, image digests — so numbers
+from different regimes are never silently compared.
 
-Draft. Three open decisions across the corpus, all waiting on code rather than
-discussion: the output format of `torve context`, which tracker ships first,
-and whether review runs get their own branch.
+## Configuration
+
+Everything lives under `.torve/` in the consuming repository: `gates.yaml`
+(the gate manifest) and `config.yaml` (runtime adapter, agent tiers, store,
+budgets, promotion policy). Agent harnesses are configured per tier — the
+command line, the model, the sandbox image — and provider credentials reach
+the engine as environment variable *names*, never values. With the egress
+broker enabled, a sandbox holds no provider key at all: the broker injects
+credentials at its own boundary, enforces provider routing at the wire, and
+meters spend mid-run.
+
+## Design corpus
+
+The full design lives in `rfcs/` as a numbered, cross-checked RFC corpus —
+the same specifications Torve plans and builds itself from. Start with
+`rfcs/0001-torve-charter.md`; `rfcs/INDEX.md` routes the rest.
+
+## License
+
+See [LICENSE](LICENSE).

@@ -1,7 +1,7 @@
 [project]
 name = "torve"
 version = "0.1.0"
-description = "Deterministic gates for agent (and human) pull requests — RFC 0002 of the Torve corpus"
+description = "A specification-and-gate engine for a standing agent team: graded decisions, scope as a contract, deterministic gates, sandboxed runs"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.13,<3.15"
@@ -18,10 +18,9 @@ dependencies = [
 [project.optional-dependencies]
 opensandbox = ["opensandbox"]
 postgres = ["forze[postgres]>=0.6.0"]
-# Applied in production, absent from a gates-only CI install (rfcs/0012-migrations.md §2).
+# Applied in production, absent from a gates-only CI install.
 migrate = ["yoyo-migrations>=9"]
-# The planning read surface (rfcs/0007-planner-context.md §5) — a planning
-# session's install, never an executor image's.
+# The planning session's read surface — never installed into an executor image.
 mcp = ["mcp>=1.2"]
 
 [project.scripts]
