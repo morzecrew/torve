@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-57"]
 owner: Lev Litvinov
 description: >-
   Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable.
@@ -66,6 +66,9 @@ Traces are still worth capturing: `trace_ref` on the `Attempt` turns triage of a
 Before any live use: replay ten to fifteen already-completed tasks from their parent commit, never merging, and compare against what actually shipped.
 
 This produces the first honest cost and iteration numbers at zero risk, and it is where the gate set is tuned — not before.
+
+*Amendment A-57 2026-08-28:* a shadow run's liveness is host truth, and the
+reaper must consult it — see the amendment and D-4.18.
 
 ## 6. Telemetry, staged
 
@@ -132,6 +135,7 @@ Enforced at dispatch, before a sandbox exists — a task whose repository has no
 | D-4.14 | `ASSUMED` | Shipped-commit discovery: the Torve-Task trailer first, then a subject-only scan (bodies quote task ids and shadow the true commit); shadow infrastructure derives every name from `shadow-<task-id>`. Revisit the subject fallback when history is squashed. Added by execution 2026-08-22 — see .torve/tasks/T-0022 | `src/torve/adapters/workspace/git.py` `src/torve/base/naming.py` | — |
 | D-4.15 | `ASSUMED` | The shadow comparison diffs against the parent sha by construction; an agent committing inside its self-contained clone is legal behaviour, not escape. Added by execution 2026-08-22 — see .torve/tasks/T-0022 | `src/torve/adapters/workspace/git.py` | — |
 | D-4.16 | `ASSUMED` | Sandbox egress follows the host only under an explicit network opt-in, which also forwards the proxy vocabulary; where egress control matters the OpenSandbox vault remains the answer. Added by execution 2026-08-22 — see .torve/tasks/T-0023 | `src/torve/adapters/runtime/docker.py` `src/torve/config/runconfig.py` | — |
+| D-4.18 | `LOCKED` | A shadow run's liveness is its host state file, never the durable store: shadow runs register no durable record by design (they are replays, not work), so the reaper treats a torve-labelled sandbox as live when a host run state names it with a fresh heartbeat — in both the local and the durable regime. Added by amendment A-57 2026-08-28 | `src/torve/application/reaper.py` `src/torve/application/shadow.py` | Without it, every tick on a patrolled root destroys every shadow sandbox mid-attempt: three campaigns of exit-137 kills read as harness failures before the reaper was found holding the knife |
 | D-4.17 | `ASSUMED` | The proxy convention is one vocabulary across runtimes, owned by the ports module; per-host egress mode is repository configuration, never a code default. Added by execution 2026-08-22 — see .torve/tasks/T-0024 | `src/torve/application/ports.py` `src/torve/adapters/runtime/docker.py` | — |
 
 ## 8. Exit criteria
@@ -139,3 +143,34 @@ Enforced at dispatch, before a sandbox exists — a task whose repository has no
 - Fifteen shadow runs completed with cost and iterations recorded.
 - At least two adapters exercised against the same tasks, with a measured difference.
 - Gate set adjusted from shadow-run evidence rather than from expectation.
+
+## Amendments
+
+### A-57 — 2026-08-28 — the reaper consults host truth for shadow sandboxes (amends §5, adds D-4.18)
+
+**Found in the first two-adapter campaign this section calls for.** Every
+shadow attempt on the lab repository died with exit 137 in under a minute,
+across three separately-diagnosed campaigns — first read as a dsh defect,
+then as a permission defect, then caught red-handed by `docker events`: the
+standing loop's tick, firing every minute, reaps any torve-labelled sandbox
+whose run is not in the durable store. Shadow runs never register there, by
+design — a replay is not work, it lands nothing and holds no lease — so the
+convention-driven reap (RFC 0003 §4.2) read every shadow sandbox as an
+orphan. The campaign's numbers measured which harness's attempts fit
+between two ticks.
+
+**Changed:** shadow liveness is host truth. The reaper already reads host
+run state files for its worktree sweep; both reap regimes now count a
+sandbox live when a host state file names its run with a heartbeat younger
+than `reap.stale_after`, alongside the store's records. A crashed shadow
+still reaps — its heartbeat goes stale — and an orphaned sandbox with no
+state file reaps immediately, exactly as before.
+
+**Deliberately unchanged:** shadow runs still register nothing in the
+store. Giving replays durable records to appease the reaper would make the
+measurement infrastructure a tenant of the machinery it measures, and every
+store query about real work would need a shadow filter forever.
+
+**Interim operations note:** until the execution lands, a shadow campaign
+on a root with a scheduled tick pauses the schedule for the campaign's
+duration — the 2026-08-28 clean campaign ran that way.
