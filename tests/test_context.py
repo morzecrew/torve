@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 
+import yaml
 from test_plan import PHASING, TABLE, plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
@@ -259,3 +260,206 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
     )
 
     assert _shipped_ids(root) == {"T-0105", "T-0106", "T-0107"}
+
+
+# ----------------------- #
+# RFC 0022 §5.3: the document-level half of the specification-quality
+# report, joined into `torve context` as its own section (D-22.6). Tasks
+# written directly as `.torve/tasks/T-nnnn/{contract,log}.yaml` — the shape
+# `test_specquality.py` already uses — so each test seeds exactly the
+# population it means to exercise, with no dependency on an rfc document
+# actually existing on disk.
+
+
+def _write_task(root, task_id: str, *, rfc: str | None) -> None:
+    task_dir = root / ".torve" / "tasks" / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "contract.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": task_id,
+                "rfc": rfc,
+                "phase": 1,
+                "role": "implement",
+                "intent": "test",
+                "depends_on": [],
+                "targets": [],
+                "scope": {"allow": [], "deny": []},
+                "acceptance": [],
+                "decisions": [],
+                "budget": {"iterations": None, "wallclock_minutes": None, "tokens": None},
+                "tier": "executor",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_log(root, task_id: str, entries: list[dict]) -> None:
+    task_dir = root / ".torve" / "tasks" / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "log.yaml").write_text(
+        yaml.safe_dump({"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}),
+        encoding="utf-8",
+    )
+
+
+def _drift_entry(claim: str) -> dict:
+    return {
+        "decision": "D-1.1",
+        "grade": "ASSUMED",
+        "kind": "departed",
+        "class": "drift",
+        "at": "2026-08-22T10:00:00Z",
+        "attempt": 1,
+        "claim": claim,
+        "evidence": "a.py:1-2",
+        "action": "departed",
+    }
+
+
+def _write_feedback(root, task_id: str, human_minutes: int, rework: bool) -> None:
+    path = root / ".torve" / "feedback.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "schema_version": 1,
+        "at": "2026-08-22T10:00:00Z",
+        "task_id": task_id,
+        "human_minutes": human_minutes,
+        "rework_after_review": rework,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record) + "\n")
+
+
+def _ready_state(root, task_id: str, attempts: int = 1) -> None:
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    for to in (TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED):
+        state.transition(to, "t")
+    state.attempts = attempts
+    state.transition(TaskState.READY, "t")
+    state.save()
+
+
+def _spec_quality_doc(report, rfc):
+    return next(d for d in report["spec_quality"]["documents"] if d["rfc"] == rfc)
+
+
+def test_tasks_without_an_rfc_are_excluded_from_document_signals(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc=None)
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    assert report["spec_quality"]["documents"] == []
+
+
+def test_minted_counts_every_task_regardless_of_state(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    assert _spec_quality_doc(report, "rfcs/0090-a.md")["minted"] == 2
+
+
+def test_attempts_to_green_only_counts_tasks_that_landed(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _ready_state(tmp_path, "T-0001", attempts=3)
+    _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")  # never ran: no run state at all
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    doc = _spec_quality_doc(report, "rfcs/0090-a.md")
+    assert doc["attempts_to_green_median"] == 3
+    assert doc["attempts_to_green_n"] == 1  # T-0002 contributes nothing: it never went green
+
+
+def test_document_indicting_reasons_are_always_on_their_own_line(tmp_path):
+    """RFC 0022 §5.3: underspecified and stale_inheritance print even at
+    zero, because they are the two reasons that indict the document rather
+    than the code that executed it (charter A-21, A-22)."""
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    state = RunState(task_id="T-0001", path=naming.state_file(tmp_path, "T-0001"))
+    state.transition(TaskState.CLAIMED, "t")
+    state.transition(TaskState.RUNNING, "t")
+    state.escalate(EscalationReason.BLOCKER_FINDING, "d")
+    state.save()
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    doc = _spec_quality_doc(report, "rfcs/0090-a.md")
+    assert doc["escalations_by_reason"]["underspecified"] == 0
+    assert doc["escalations_by_reason"]["stale_inheritance"] == 0
+    assert doc["escalations_by_reason"]["blocker_finding"] == 1
+
+
+def test_spec_drift_findings_are_class_drift_log_entries(tmp_path):
+    """`class: drift` is the same field `decisions-reported` checks a
+    task's declared `drift_count` against (RFC 0022's own spec-drift
+    signal), reused here rather than a second reading of the word."""
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _write_log(
+        tmp_path,
+        "T-0001",
+        [_drift_entry("built otherwise than the row said"), {**_drift_entry("second"), "class": "spec-gap"}],
+    )
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    doc = _spec_quality_doc(report, "rfcs/0090-a.md")
+    assert doc["drift_count"] == 1
+    assert doc["spec_drift_findings"] == [
+        {"task": "T-0001", "claim": "built otherwise than the row said"}
+    ]
+
+
+def test_human_minutes_and_rework_rate_from_feedback(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
+    _write_feedback(tmp_path, "T-0001", 10, rework=False)
+    _write_feedback(tmp_path, "T-0002", 30, rework=True)
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    doc = _spec_quality_doc(report, "rfcs/0090-a.md")
+    assert doc["human_minutes_median"] == 20
+    assert doc["human_minutes_n"] == 2
+    assert doc["rework_rate"] == 0.5
+    assert doc["rework_n"] == 2
+
+
+def test_feedback_stream_is_append_only_latest_wins(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _write_feedback(tmp_path, "T-0001", 10, rework=False)
+    _write_feedback(tmp_path, "T-0001", 25, rework=True)  # a later, corrected entry
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    doc = _spec_quality_doc(report, "rfcs/0090-a.md")
+    assert doc["human_minutes_median"] == 25
+    assert doc["rework_rate"] == 1.0
+
+
+def test_no_feedback_reports_none_not_zero(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    doc = _spec_quality_doc(report, "rfcs/0090-a.md")
+    assert doc["human_minutes_median"] is None
+    assert doc["rework_rate"] is None
+    assert doc["rework_n"] == 0
+
+
+def test_spec_quality_caveat_is_the_quasi_experiment_warning(tmp_path):
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    assert "quasi-experiment" in report["spec_quality"]["caveat"]
+
+
+def test_context_cli_renders_specification_quality_in_all_three_formats(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _ready_state(tmp_path, "T-0001", attempts=2)
+    _write_log(tmp_path, "T-0001", [_drift_entry("a defect")])
+
+    markdown = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "markdown"])
+    assert markdown.exit_code == 0, markdown.output
+    assert "## Specification quality" in markdown.output
+    assert "quasi-experiment" in markdown.output
+    assert "rfcs/0090-a.md" in markdown.output
+
+    text = CliRunner().invoke(app, ["context", "--root", str(tmp_path)])
+    assert text.exit_code == 0, text.output
+    assert "Specification quality" in text.output
+    assert "quasi-experiment" in text.output
+
+    raw = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "json"])
+    assert raw.exit_code == 0
+    parsed = json.loads(raw.stdout)
+    doc = _spec_quality_doc(parsed, "rfcs/0090-a.md")
+    assert doc["drift_count"] == 1
+    assert doc["attempts_to_green_median"] == 2

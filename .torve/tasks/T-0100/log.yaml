@@ -1,0 +1,97 @@
+schema_version: 1
+task: T-0100
+repo: morzecrew/torve
+base_sha: 366d9ff5b1d5b888d85a1c974b58f3fb92cb7716
+created_at: 2026-08-29T00:45:00Z
+drift_count: 0
+entries:
+- decision: unlisted
+  grade: UNLISTED
+  class: spec-gap
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'RFC 0022 §5.3''s phrase "findings of kind: spec-drift" names a field
+    that does not exist on the implemented `Finding` model — `domain/attempt.py`''s
+    `Finding` carries only severity/claim/evidence (RFC 0005''s shape), not the
+    charter''s aspirational severity/kind/location/claim/evidence (RFC 0001 §3,
+    predates RFC 0005 and was superseded by it without a `kind` field ever landing).
+    Read instead as the log''s own `class: drift` entries — the field
+    `torve.gates.decisions_reported._check_drift` already checks a task''s declared
+    `drift_count` against, and the same vocabulary flag-dont-flip already defines
+    as "spec covered it and it was built otherwise (a defect — should be zero)",
+    which is exactly what "spec-drift" names. This reuses an existing, already-enforced
+    field rather than inventing a new one, and keeps D-22.3''s "no new recorded
+    fields" intact one level up from where it''s graded.'
+  evidence: src/torve/domain/attempt.py:73-84 — Finding has no kind field; rfcs/0001-torve-charter.md:110-116
+    — the superseded aspirational shape; src/torve/gates/decisions_reported.py:189-203
+    — _check_drift, the field this reading reuses; src/torve/application/projections.py:438-443
+    — drift_findings filters log entries on class == "drift"
+  action: decided
+  proposal: 'RFC 0022 §5.3 — replace "findings of kind: spec-drift" with "log
+    entries classed drift" so the text names the field the corpus actually carries,
+    and drop the dangling reference to RFC 0001''s superseded Finding.kind.'
+- decision: unlisted
+  grade: UNLISTED
+  class: spec-gap
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'D-22.7 (LOCKED) requires RFC 0004 §6a''s quasi-experiment caveat printed
+    verbatim, not paraphrased, but its own paths list only `src/torve/cli/rfc.py`
+    — this task''s scope never touches that file. The phase 2 intent still asks
+    for the caveat beside the document-level report, which now also renders from
+    `torve.application.projections` and `torve.cli.context`. The import-linter
+    layers contract (`torve.cli` sits above `torve.application`) forbids `projections.py`
+    from importing the constant `torve.cli.rfc.QUASI_EXPERIMENT_CAVEAT` back, so
+    the same string is reproduced as a second module constant in `projections.py`
+    (character-for-character identical, comment cites the reason) rather than derived.
+    This is a duplication, not a paraphrase, and D-22.7''s own paths were never
+    inherited by this task, so nothing here contradicts a row this task is bound
+    by — logged because a reader diffing the two constants later should find this
+    explanation rather than an unexplained fork.'
+  evidence: src/torve/application/projections.py:49-58 — QUASI_EXPERIMENT_CAVEAT,
+    comment citing the layering constraint; src/torve/cli/rfc.py:48-57 — the original;
+    pyproject.toml:71-80 — the Layers contract ordering torve.cli above torve.application
+  action: decided
+  proposal: 'D-22.7 — add a path for the constant''s canonical home (a small
+    shared module both `torve.cli` and `torve.application` may import, such as
+    `torve.domain` or `torve.base`) so a second report surface never has to choose
+    between duplicating the string and breaking the layer contract.'
+- decision: unlisted
+  grade: UNLISTED
+  class: spec-gap
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'RFC 0022 §5.3 asks for "attempts to green (median)" per document without
+    saying which tasks contribute. Read as tasks whose run state reached `ready`
+    only — a task that never went green has no attempt count to average in, and
+    including in-flight or escalated tasks'' current (non-final) attempt counts
+    would silently conflate "how many tries so far" with "how many tries it took".
+    Separately, and by the same reasoning D-22.9 already applies at the decision
+    level ("tasks without an rfc join at the decision level only and are reported
+    as their own population, never merged into a document''s numbers"), a task
+    with no `rfc` has no document to indict and is excluded from every document''s
+    signals rather than appearing as its own unlabelled row — D-22.9''s own paths
+    are `specquality.py` only, so this is the same principle carried one level
+    up, not a fresh invention.'
+  evidence: src/torve/application/projections.py:430 — attempts filtered to `task["state"]
+    == str(TaskState.READY)`; src/torve/application/projections.py:423-425 — by_document
+    built only from tasks carrying an rfc
+  action: decided
+  proposal: 'RFC 0022 §5.3 — state explicitly that attempts-to-green is computed
+    over landed tasks only, and that document population-building excludes rfc-less
+    tasks the same way D-22.9 already excludes them at the decision level.'
+- decision: D-22.6
+  grade: ASSUMED
+  kind: resolved
+  class: discovery
+  at: '2026-08-28T00:00:00Z'
+  attempt: 1
+  claim: 'compliance close-out for the touched area (`projections.py`): the document-level
+    specification-quality signals are a new `spec_quality` section of `context_report`,
+    rendered by the existing `torve context` command in all three of its formats
+    (text, markdown, JSON) — no new CLI command and no new MCP tool were added;
+    the existing `mcp__torve__context` surface exposes the section for free.'
+  evidence: src/torve/application/projections.py:675-678 — `spec_quality` key on
+    `context_report`''s return; src/torve/cli/context.py:277-320 — the rich-table
+    rendering added to the existing `context` command, no new typer command registered
+  action: decided

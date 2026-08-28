@@ -57,7 +57,10 @@ def context_cmd(
 ) -> None:
     """Project accumulated facts for a planning session: tasks
     by state, escalations by reason, proposals awaiting the author, gate
-    health, cost against config_hash, and the programme view."""
+    health, cost against config_hash, the programme view, and the
+    document-level specification-quality signals."""
+    # The document-signals section is RFC 0022 §5.3; the docstring is help
+    # text and carries no corpus coordinates.
 
     from torve.application.projections import context_report, render_markdown
 
@@ -272,3 +275,50 @@ def _render_rich(report: dict[str, Any]) -> None:
 
         if withheld:
             footer(console, f"… {withheld} more record(s) (see JSON)")
+
+    spec_quality = report["spec_quality"]["documents"]
+
+    if spec_quality:
+        table = make_table(
+            "rfc",
+            "minted",
+            "attempts→green",
+            "drift",
+            "human min",
+            "rework",
+            "escalations",
+            title="Specification quality",
+        )
+
+        for doc in spec_quality:
+            attempts = (
+                f"{doc['attempts_to_green_median']:.1f} (n={doc['attempts_to_green_n']})"
+                if doc["attempts_to_green_median"] is not None
+                else "—"
+            )
+            minutes = (
+                f"{doc['human_minutes_median']:.0f} (n={doc['human_minutes_n']})"
+                if doc["human_minutes_median"] is not None
+                else "—"
+            )
+            rework = (
+                f"{doc['rework_rate']:.0%} (n={doc['rework_n']})"
+                if doc["rework_rate"] is not None
+                else "—"
+            )
+            reasons = ", ".join(
+                f"{reason} ({count})" for reason, count in doc["escalations_by_reason"].items() if count
+            )
+
+            table.add_row(
+                Text(str(doc["rfc"]), STYLE_ID),
+                str(doc["minted"]),
+                attempts,
+                str(doc["drift_count"]),
+                minutes,
+                rework,
+                Text(reasons, STYLE_WARN) if reasons else "",
+            )
+
+        console.print(table)
+        footer(console, report["spec_quality"]["caveat"])

@@ -2,19 +2,23 @@
 planning session can consume (RFC 0007 §4). Not a plan: tasks by state,
 escalations by reason, execution-log divergences ready to become
 decision-table rows, per-gate health, cost against `config_hash`, the
-programme view of the RFC graph (D-7.11), and asserted `implementation`
-beside derived per-phase progress with disagreements flagged (D-7.15).
+programme view of the RFC graph (D-7.11), asserted `implementation` beside
+derived per-phase progress with disagreements flagged (D-7.15), and the
+document-level half of the specification-quality report (RFC 0022 §5.3,
+D-22.6): the same MCP surface that already exposes this projection carries
+it to a planning session with no new tool.
 
 Everything here is read from files the engine already writes — contracts,
-run states, execution logs, the telemetry stream, the corpus. Progress is
-computed on demand and stored nowhere (D-A.12). The projection emits data;
-judgement stays with the human reading it.
+run states, execution logs, the feedback and telemetry streams, the corpus.
+Progress is computed on demand and stored nowhere (D-A.12). The projection
+emits data; judgement stays with the human reading it.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import statistics
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,9 +27,10 @@ from typing import Any, cast
 import yaml
 
 from torve.application.runstate import RunState
+from torve.application.specquality import read_tasks
 from torve.base import naming
 from torve.config import layout, rfc_parse
-from torve.domain.states import TaskState
+from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import SCHEMA_VERSION
 
 # ----------------------- #
@@ -40,6 +45,25 @@ ACTIVE = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIE
 # without shipping it and must not count (D-7.26).
 SUBJECT_ID = re.compile(r"\([^)]*?(T-\d{4,})[^)]*\)|torve/(T-\d{4,})")
 TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
+
+# RFC 0004 §6a, reproduced verbatim (D-22.7, LOCKED: printed with the report,
+# never paraphrased). `torve.cli.rfc` owns and prints this same text for
+# `torve rfc health`; the layering contract puts `torve.cli` above
+# `torve.application`, so this module cannot import it back and the string
+# is copied rather than shared — a wording change updates both call sites.
+QUASI_EXPERIMENT_CAVEAT = (
+    "Baseline is a quasi-experiment, not an A/B: tasks before "
+    "and after are different tasks, done under different conditions. This "
+    'supports direction ("iterations fell") and not magnitude ("40% faster").'
+)
+
+# The two escalation reasons that indict a document rather than the code
+# that executed it (charter A-21, A-22) — RFC 0022 §5.3 asks for these on
+# their own line even when a document has never triggered either.
+DOCUMENT_INDICTING_REASONS = (str(EscalationReason.UNDERSPECIFIED), str(EscalationReason.STALE_INHERITANCE))
+
+# A table, not a dump — mirrors specquality's own bound on decided_claims.
+SPEC_DRIFT_FINDINGS_LIMIT = 10
 
 
 # ....................... #
@@ -343,6 +367,122 @@ def _costs(root: Path) -> list[dict[str, Any]]:
 # ....................... #
 
 
+def _feedback(root: Path) -> dict[str, dict[str, Any]]:
+    """The latest `torve feedback` record per task id — the stream is
+    append-only and keyed by task id, latest wins at analysis time
+    (RFC 0022 §3)."""
+
+    found: dict[str, dict[str, Any]] = {}
+    path = layout.feedback_file(root)
+
+    if not path.is_file():
+        return found
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        row = cast("dict[str, Any]", record)
+        task_id = row.get("task_id")
+
+        if task_id:
+            found[str(task_id)] = row  # later lines overwrite earlier ones
+
+    return found
+
+
+# ....................... #
+
+
+def _document_signals(root: Path, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """RFC 0022 §5.3, the document-level half of the specification-quality
+    report: tasks minted, attempts to green (median, over tasks that landed
+    — a task that never went green has none to count), escalations by
+    reason with the two document-indicting reasons always present, spec-drift
+    findings and their count (`class: drift` log entries — the same field
+    the `decisions-reported` gate checks its declared `drift_count` against),
+    human_minutes and rework rate from `torve feedback`. Tasks without an
+    `rfc` have no document to indict and are excluded (D-22.9's reading, one
+    level up from the decision join).
+
+    Reuses `specquality.read_tasks` for the log join rather than parsing
+    `log.yaml` a second way — one parser, one place the two reports could
+    disagree, same reasoning specquality gives for reusing the gate's own
+    `parse_log`."""
+
+    logs_by_task = {task.id: task.log_entries for task in read_tasks(root)}
+    feedback = _feedback(root)
+    by_document: dict[str, list[dict[str, Any]]] = {}
+
+    for task in tasks:
+        if task["rfc"]:
+            by_document.setdefault(str(task["rfc"]), []).append(task)
+
+    signals: list[dict[str, Any]] = []
+
+    for document, entries in sorted(by_document.items()):
+        attempts = [int(t["attempts"]) for t in entries if t["state"] == str(TaskState.READY)]
+        escalations = dict.fromkeys(DOCUMENT_INDICTING_REASONS, 0)
+
+        for task in entries:
+            if task["escalation"]:
+                reason = str(task["escalation"])
+                escalations[reason] = escalations.get(reason, 0) + 1
+
+        drift_findings = [
+            {"task": task["id"], "claim": str(log_entry.get("claim") or "")}
+            for task in entries
+            for log_entry in logs_by_task.get(task["id"], [])
+            if log_entry.get("class") == "drift"
+        ]
+
+        minutes: list[int] = []
+        reworked = 0
+        with_feedback = 0
+
+        for task in entries:
+            row = feedback.get(str(task["id"]))
+
+            if row is None:
+                continue
+
+            with_feedback += 1
+            human_minutes = row.get("human_minutes")
+
+            if isinstance(human_minutes, int):
+                minutes.append(human_minutes)
+
+            if row.get("rework_after_review"):
+                reworked += 1
+
+        signals.append(
+            {
+                "rfc": document,
+                "minted": len(entries),
+                "attempts_to_green_median": statistics.median(attempts) if attempts else None,
+                "attempts_to_green_n": len(attempts),
+                "escalations_by_reason": dict(sorted(escalations.items())),
+                "drift_count": len(drift_findings),
+                "spec_drift_findings": drift_findings[:SPEC_DRIFT_FINDINGS_LIMIT],
+                "human_minutes_median": statistics.median(minutes) if minutes else None,
+                "human_minutes_n": len(minutes),
+                "rework_rate": reworked / with_feedback if with_feedback else None,
+                "rework_n": with_feedback,
+            }
+        )
+
+    return signals
+
+
+# ....................... #
+
+
 def _phase_progress(states: list[str]) -> str:
     """planned | in_flight | blocked | shipped, derived per phase (D-7.15) —
     phase-level because that is the granularity at which decisions get made."""
@@ -532,6 +672,10 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
         "gates": _gate_health(root),
         "costs": _costs(root),
         "programme": _programme(root, rfc_dir, tasks),
+        "spec_quality": {
+            "caveat": QUASI_EXPERIMENT_CAVEAT,
+            "documents": _document_signals(root, tasks),
+        },
     }
 
 
@@ -641,6 +785,45 @@ def render_markdown(report: dict[str, Any]) -> str:
 
             lines.append(
                 f"- {row['kind']} {row['task']} @ {row.get('config_hash')}: {shown}{extra}"
+            )
+
+        lines.append("")
+
+    if report["spec_quality"]["documents"]:
+        lines.append("## Specification quality")
+        lines.append("")
+        lines.append(report["spec_quality"]["caveat"])
+        lines.append("")
+
+        for doc in report["spec_quality"]["documents"]:
+            attempts = (
+                f"{doc['attempts_to_green_median']:.1f} attempt(s) to green "
+                f"(n={doc['attempts_to_green_n']})"
+                if doc["attempts_to_green_median"] is not None
+                else "no landed tasks yet"
+            )
+            minutes = (
+                f"{doc['human_minutes_median']:.0f}m human effort (n={doc['human_minutes_n']})"
+                if doc["human_minutes_median"] is not None
+                else "no feedback recorded"
+            )
+            rework = (
+                f"{doc['rework_rate']:.0%} rework (n={doc['rework_n']})"
+                if doc["rework_rate"] is not None
+                else "no feedback recorded"
+            )
+            escalations = (
+                ", ".join(
+                    f"{reason} ({count})"
+                    for reason, count in doc["escalations_by_reason"].items()
+                    if count
+                )
+                or "none"
+            )
+
+            lines.append(
+                f"- **{doc['rfc']}** — {doc['minted']} minted, {attempts}, {minutes}, {rework}, "
+                f"{doc['drift_count']} spec-drift finding(s), escalations: {escalations}"
             )
 
         lines.append("")
