@@ -834,7 +834,12 @@ def test_sealed_docker_run_cannot_reach_an_undeclared_host(tmp_path, monkeypatch
                 "s=socket.create_connection((m.group(1),int(m.group(2))),timeout=5);"
                 "s.sendall(b'CONNECT undeclared.example.com:443 HTTP/1.1\\r\\n"
                 "Host: undeclared.example.com:443\\r\\n\\r\\n');"
-                "print(s.recv(4096).decode())\""
+                "chunks=[];\n"
+                "while True:\n"
+                "    data=s.recv(4096)\n"
+                "    if not data: break\n"
+                "    chunks.append(data)\n"
+                "print(b''.join(chunks).decode())\""
             )
             refused = runtime.exec(sandbox, probe, 30)
 
