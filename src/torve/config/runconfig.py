@@ -10,8 +10,11 @@ are not (D-4b in spirit at the operator level too).
 
 from __future__ import annotations
 
+import hashlib
+import re
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -201,6 +204,110 @@ class OpenSandboxConfig(BaseModel):
 # ....................... #
 
 
+def split_host_port(authority: str) -> tuple[str, int | None]:
+    """``'host'``, ``'host:port'``, ``'[v6]'`` or ``'[v6]:port'`` to
+    ``(host, port)``. Shared by the sealed broker (matching CONNECT
+    authorities) and the configuration validator (shaping pass-through
+    entries) so both read one format; pass-through entries themselves are
+    validated as hostnames or IPv4 addresses — a bracketed IPv6 parses
+    here but is refused by the entry validator, which is fine: a named
+    destination a machine can match is what matters (D-21.11's answer: the
+    declared destinations live in the broker block, and the broker is the
+    only reader)."""
+
+    if authority.startswith("["):
+        end = authority.find("]")
+
+        if end == -1:
+            return authority, None
+
+        host = authority[1:end]
+        rest = authority[end + 1 :]
+
+        if rest.startswith(":") and rest[1:].isdigit():
+            return host, int(rest[1:])
+
+        return host, None
+
+    if ":" in authority:
+        host, _, port = authority.rpartition(":")
+
+        if port.isdigit():
+            return host, int(port)
+
+    return authority, None
+
+
+# ....................... #
+
+
+def pass_through_allows(
+    pass_through: list[str] | tuple[str, ...], host: str, port: int
+) -> bool:
+    """Whether the sealed broker may CONNECT to ``host:port`` without
+    inspection (RFC 0021 §5.2): a declared entry matches its host on any
+    port, and a ``host:port`` entry narrows to exactly that port — the
+    declaration is of a *named host*, ports are the destination's business
+    (D-21.3)."""
+
+    for entry in pass_through:
+        entry_host, entry_port = split_host_port(entry)
+
+        if entry_host.lower() == host.lower() and (entry_port is None or entry_port == port):
+            return True
+
+    return False
+
+
+# ....................... #
+
+
+def sealed_broker_port(network: str) -> int:
+    """The sealed broker's port, derived from the internal network's name
+    (RFC 0003 §4's rule: when a service needs a port, it derives one). The
+    broker binds it and the runtime composes the sandbox's proxy env from
+    it — two adapters with no channel between them derive the same number
+    from the same configured name (the runtime's network and the broker's
+    network are validated equal)."""
+
+    digest = hashlib.sha256(network.encode("utf-8")).digest()
+
+    return 20000 + int.from_bytes(digest[:2], "big") % 40000
+
+
+# ....................... #
+
+
+def _validate_pass_through_entry(entry: str) -> None:
+    """A pass-through entry is a host, optionally :port — a named
+    destination, never a URL, a pattern or a wildcard (D-21.3: every other
+    destination is declared, and a declaration a machine cannot match is
+    not a declaration)."""
+
+    if not entry or entry != entry.strip():
+        raise ValueError(
+            f"broker pass_through entry {entry!r} must be a host, optionally :port — "
+            "no scheme, path, wildcard or surrounding whitespace"
+        )
+
+    if any(char in entry for char in ("/", "\\", "?", "#", "*", " ")):
+        raise ValueError(
+            f"broker pass_through entry {entry!r} must be a host, optionally :port — "
+            "no scheme, path, wildcard or surrounding whitespace"
+        )
+
+    host, port = split_host_port(entry)
+
+    if not host or not all(char.isalnum() or char in ".-_" for char in host):
+        raise ValueError(f"broker pass_through entry {entry!r} names no valid host")
+
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError(f"broker pass_through entry {entry!r}: port out of range")
+
+
+# ....................... #
+
+
 class BrokerProvider(BaseModel):
     """One routed provider's wire facts (RFC 0021 §5.2): where the broker
     forwards and which environment variable in the broker's own environment
@@ -236,15 +343,35 @@ class BrokerConfig(BaseModel):
     through, no metering, no wire routing — and stays the phase-1 default;
     `torve doctor` names it and says plainly that it leaves D-4b unmet
     (D-21.9). Under any other adapter a brokered tier names no credential
-    (D-21.1): the broker's provider table is the one channel."""
+    (D-21.1): the broker's provider table is the one channel.
+
+    The two modes are D-21.3's split: `endpoint` (the phase-1 default)
+    closes custody and metering on the daemon's default bridge; `sealed`
+    adds containment — the sandbox joins the user-defined internal Docker
+    network named here, whose only host-side address is the broker, and
+    every non-provider destination the run needs is declared under
+    `pass_through` and CONNECTed without inspection. The same network is
+    named in `runtime.network` — egress policy (this block) and sandbox
+    provisioning (`runtime`) are two views of one fact, and the runner
+    validator refuses them to disagree (D-21.11)."""
 
     model_config = ConfigDict(extra="forbid")
 
     adapter: Literal["none", "local", "opensandbox"] = "none"
     mode: Literal["endpoint", "sealed"] = "endpoint"
+    # The user-defined --internal Docker network sealed mode joins; the
+    # broker attaches to it at its gateway, the sandboxes join it, and
+    # nothing on it is reachable except the broker (D-21.3). Empty in
+    # endpoint mode; must equal runtime.network when sealed.
+    network: str = ""
     # provider -> wire facts; the run's routing is a dispatch-checked subset
     # (D-21.4: the broker exposes one loopback route per routed provider).
     providers: dict[str, BrokerProvider] = Field(default_factory=dict)
+    # Sealed mode only: named hosts the broker will CONNECT to without
+    # inspection — a package index, the forge. An undeclared destination is
+    # refused loudly, and the run fails rather than succeed through a path
+    # nobody meant to leave open (D-21.3).
+    pass_through: list[str] = Field(default_factory=list)
     # A broker-measured cost that diverges from the adapter's self-report by
     # more than this fraction is an engine event (D-21.5).
     cost_tolerance: float = 0.25
@@ -259,10 +386,59 @@ class BrokerConfig(BaseModel):
                 "on a live server and arrives as an adapter, never a prerequisite (D-21.2)"
             )
 
-        if self.mode != "endpoint":
-            raise ValueError(
-                "broker mode 'sealed' is phase 2; this build serves only 'endpoint' (D-21.3)"
+        if self.mode == "sealed":
+            if self.adapter == "none":
+                raise ValueError(
+                    "broker mode 'sealed' needs a broker on the wire — adapter 'none' "
+                    "has no wire presence to share the internal network with"
+                )
+
+            if not self.network:
+                raise ValueError(
+                    "broker mode 'sealed' names the internal Docker network the sandbox "
+                    "joins — set broker.network (and runtime.network to the same name)"
+                )
+
+            if self.network == "host" or not re.fullmatch(
+                r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.network
+            ):
+                raise ValueError(
+                    "broker mode 'sealed' needs a user-defined internal network, not a "
+                    f"network mode; {self.network!r} is not a valid Docker network name"
+                )
+
+            for entry in self.pass_through:
+                _validate_pass_through_entry(entry)
+
+            provider_hosts = {
+                urlsplit(provider.upstream).hostname for provider in self.providers.values()
+            }
+            overlap = sorted(
+                entry
+                for entry in self.pass_through
+                if split_host_port(entry)[0].lower() in provider_hosts
             )
+
+            if overlap:
+                raise ValueError(
+                    "broker pass_through names routed provider host(s) "
+                    f"{', '.join(overlap)} — a destination cannot be both a routed "
+                    "provider (key injected, metered) and an uninspected pass-through "
+                    "(D-21.4's wire enforcement would be bypassable)"
+                )
+
+        else:
+            if self.network:
+                raise ValueError(
+                    "broker.network names the sealed internal network; endpoint mode "
+                    "keeps the daemon's default bridge and names no network"
+                )
+
+            if self.pass_through:
+                raise ValueError(
+                    "broker.pass_through declares sealed-mode egress; endpoint mode "
+                    "keeps the default bridge and declares nothing"
+                )
 
         return self
 
@@ -567,6 +743,46 @@ class RunnerConfig(BaseModel):
                 f"broker adapter {self.broker.adapter!r} is in force but tier(s) "
                 f"{', '.join(offenders)} name api_key_env — a brokered tier names "
                 "no credential; the broker's provider table is the one channel"
+            )
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _sealed_runtime_holds_the_network(self) -> RunnerConfig:
+        """D-21.3's containment is a property of the run's wiring, so the
+        two halves must agree: the sandbox joins the internal network the
+        broker attaches to (D-21.11 — egress policy in the broker block,
+        sandbox provisioning in runtime, one fact). Sealed mode also needs
+        the one runtime that has user-defined internal networks, and
+        refuses the host daemon socket — a socket is host-equivalent
+        capability (D-17.10), which is exactly the trust sealed mode is
+        for removing."""
+
+        if self.broker.mode != "sealed":
+            return self
+
+        if self.runtime.adapter != "docker":
+            raise ValueError(
+                "broker mode 'sealed' needs the docker runtime — only Docker has "
+                "user-defined internal networks; the opensandbox runtime owns its "
+                "own egress model"
+            )
+
+        if self.runtime.docker:
+            raise ValueError(
+                "broker mode 'sealed' refuses runtime.docker: socket — mounting the "
+                "host daemon into the sandbox is host-equivalent capability "
+                "(D-17.10), the exact trust sealed containment exists to remove"
+            )
+
+        if self.runtime.network != self.broker.network:
+            raise ValueError(
+                "broker mode 'sealed' joins the sandbox to the internal network the "
+                "broker attaches to — runtime.network "
+                f"({self.runtime.network!r}) and broker.network "
+                f"({self.broker.network!r}) must name the same network"
             )
 
         return self

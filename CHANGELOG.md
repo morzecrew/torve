@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   doctor` names the broker adapter in force and states plainly that `none`
   leaves the credential-custody requirement unmet.
 
+- Sealed egress (T-0106, RFC 0021 phase 2): `broker.mode: sealed` puts the
+  sandbox on an internal Docker network whose only reachable address is the
+  broker — every non-provider host the run needs is declared under
+  `broker.pass_through` and CONNECTed without inspection, and an undeclared
+  destination is refused loudly with the destination named, so a repository
+  the operator does not trust as their own shell can be run at all. The
+  internal network is named in `broker.network` (and, by validation,
+  `runtime.network`); `torve doctor` names the mode in force.
+
 - The read-only planning surface (T-0095, RFC 0007 complete): `torve
   mcp` serves the context projections over stdio as an MCP server —
   one read-only `context` tool with a section selector, registered

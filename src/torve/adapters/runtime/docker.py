@@ -24,6 +24,7 @@ from torve.application.ports import (
 )
 from torve.base import naming
 from torve.base.shell import truncate
+from torve.config.runconfig import sealed_broker_port
 
 # ----------------------- #
 
@@ -37,7 +38,16 @@ class DockerError(RuntimeError):
 
 # The PROXY_ENV convention is forwarded only when a network mode was chosen —
 # a host-loopback proxy address is reachable under "host" and poison under
-# the default bridge.
+# the default bridge. Sealed mode (D-21.3) replaces it: the sandbox joins
+# the internal network the broker attaches to, so the only reachable
+# address is the broker, and the proxy env points at it — never at the
+# host's own proxy, which would be a path nobody meant to leave open.
+SEALED_PROXY_ENV = ("http_proxy", "https_proxy", "all_proxy")
+
+
+# ....................... #
+
+
 class DockerRuntime:
     def __init__(
         self, docker_bin: str = "docker", network: str = "", docker_mode: str = ""
@@ -55,6 +65,35 @@ class DockerRuntime:
         return subprocess.run(
             [self.docker, *args], capture_output=True, text=True, timeout=timeout, check=False
         )
+
+    # ....................... #
+
+    def _network_is_internal(self, network: str) -> bool:
+        """Sealed-mode detection: a network created with --internal has no
+        external connectivity, so the only host-side address on it is its
+        gateway — the broker's seat. `host` is a network mode, not a
+        network, and inspects as absent; the default bridge inspects as
+        not internal. A missing network is not sealed (docker run will
+        name it loudly)."""
+
+        proc = self._run("network", "inspect", "--format", "{{.Internal}}", network)
+
+        return proc.returncode == 0 and proc.stdout.strip().lower() == "true"
+
+    # ....................... #
+
+    def _network_gateway(self, network: str) -> str:
+        proc = self._run(
+            "network", "inspect", "--format", "{{(index .IPAM.Config 0).Gateway}}", network
+        )
+
+        if proc.returncode != 0 or not proc.stdout.strip():
+            raise DockerError(
+                f"sealed network {network}: cannot resolve its gateway — "
+                f"{proc.stderr.strip() or 'no gateway reported'}"
+            )
+
+        return proc.stdout.strip()
 
     # ....................... #
 
@@ -94,10 +133,28 @@ class DockerRuntime:
         if self.network:
             args += ["--network", self.network]
 
-            for name in PROXY_ENV:
-                for variant in (name, name.upper()):
-                    if variant in os.environ:
-                        args += ["-e", variant]
+            if self._network_is_internal(self.network):
+                # Sealed containment (D-21.3): the sandbox's only reachable
+                # address is the broker at the internal network's gateway,
+                # and its egress is the broker's declared pass-through — the
+                # proxy env points there, and the broker's own address is
+                # excluded so the agent's direct provider traffic is not
+                # proxied through the broker itself.
+                gateway = self._network_gateway(self.network)
+                proxy = f"http://{gateway}:{sealed_broker_port(self.network)}"
+
+                for name in SEALED_PROXY_ENV:
+                    for variant in (name, name.upper()):
+                        args += ["-e", f"{variant}={proxy}"]
+
+                for variant in ("no_proxy", "NO_PROXY"):
+                    args += ["-e", f"{variant}=127.0.0.1,localhost,{gateway}"]
+
+            else:
+                for name in PROXY_ENV:
+                    for variant in (name, name.upper()):
+                        if variant in os.environ:
+                            args += ["-e", variant]
 
         for key, value in spec.labels.items():
             args += ["--label", f"{key}={value}"]

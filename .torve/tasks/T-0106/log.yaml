@@ -1,0 +1,185 @@
+schema_version: 1
+task: T-0106
+repo: morzecrew/torve
+drift_count: 0
+entries:
+  - decision: D-21.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      Close-out: a brokered tier still names no credential. The phase-1
+      refusal is untouched and still enforced both ways — the RunnerConfig
+      validator refuses any non-empty api_key_env under a non-none broker,
+      and the runner refuses again at dispatch. Sealed mode adds no second
+      channel: the broker's provider table remains the one channel, and the
+      sandbox's proxy env under sealed points at the broker itself, never
+      at a key.
+    evidence: |-
+      src/torve/config/runconfig.py:727-748 — the D-21.1 validator,
+      unchanged by this task; the sealed fields sit beside it at
+      src/torve/config/runconfig.py:355-380
+    action: decided
+  - decision: D-21.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      Close-out: the broker remains a port with adapters. Sealed mode
+      extends the `local` adapter (the internal-network lifecycle, the
+      gateway bind, the pass-through relay); `none` is unchanged and still
+      legal; `opensandbox` is still refused at configuration load. Nothing
+      made the OpenSandbox vault a prerequisite.
+    evidence: |-
+      src/torve/adapters/broker/local.py:583-628 — the sealed network
+      lifecycle on the local adapter; the roster is unchanged at
+      src/torve/adapters/broker/__init__.py
+    action: decided
+  - decision: D-21.3
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      Sealed mode is built end to end: broker.mode: sealed accepts
+      broker.network (the user-defined internal Docker network) and
+      broker.pass_through (the declared non-provider destinations). The
+      broker creates the network --internal at open (an existing network
+      that is not internal is a refused configuration), binds its gateway
+      — the host's only address on an internal network — at a port derived
+      from the network's name, and relays CONNECT and plain-http requests
+      to declared hosts without inspection; anything else is refused with
+      cause `containment`, the destination named in the response and
+      counted. The runtime joins every sandbox to the network and points
+      the proxy env at the broker, excluding the broker's own address from
+      proxying. Execution decided two mechanics the contract leaves open:
+      the sealed trigger is the network itself — the runtime treats a
+      configured network that inspects {{.Internal}} == true as sealed
+      (fail-closed: an operator network not created --internal is refused
+      by the broker before any sandbox exists), and the broker's port is
+      derived from the network's name so the runtime can compose the proxy
+      env without a channel between the adapters. The runner validator
+      refuses sealed under the opensandbox runtime, under runtime.network
+      "host", and under runtime.docker: socket — a socket is
+      host-equivalent capability (D-17.10), the exact trust sealed
+      containment exists to remove. An undeclared destination fails loudly
+      (the agent's request is refused with the destination named, the run
+      escalates) and passes once the host is declared — the RFC's exit
+      criterion, asserted by the docker-gated integration test. The new
+      broker fields join config_hash automatically (D-21.8), and torve
+      doctor names the mode in force without change (D-21.9).
+    evidence: |-
+      src/torve/config/runconfig.py:355-453 — mode/network/pass_through and
+      their validators; src/torve/config/runconfig.py:750-790 — the runner
+      validator; src/torve/adapters/broker/local.py:583-626 — the network
+      lifecycle; src/torve/adapters/runtime/docker.py:66-89 and 131-147 —
+      the sealed trigger and the proxy env; tests/test_broker_sealed.py:776 —
+      the docker-gated undeclared-destination test
+    action: decided
+  - decision: D-21.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      Close-out: provider routing is enforced twice in sealed mode too.
+      route_provider stays at dispatch, untouched; at the wire the broker
+      refuses a CONNECT or absolute-URI request whose host is a routed
+      provider's upstream host with cause `routing` — provider traffic must
+      travel the route, key injected and metered — and the pass-through
+      declaration is validated not to shadow a provider host at
+      configuration load, so the wire enforcement cannot be bypassed by
+      declaring a provider as an uninspected destination. A wire refusal
+      for a dispatch-allowed provider remains the configuration-reader
+      defect the runner reports at close.
+    evidence: |-
+      src/torve/adapters/broker/local.py:429-451 — provider hosts are never
+      pass-through; src/torve/config/runconfig.py:414-427 — the overlap is
+      refused at load
+    action: decided
+  - decision: D-21.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      Close-out: the sealed broker keeps counts and metadata only. The
+      CONNECT relay splices sockets — bytes pass through and are never
+      retained (the request count is all that is recorded); the plain-http
+      forward relays the response and discards it. The broker's state after
+      close is counts and refusals, as in endpoint mode; the phase-1 test
+      asserting a request-body marker never appears in the serialized usage
+      still holds for the sealed paths.
+    evidence: |-
+      src/torve/adapters/broker/local.py:341-381 — the tunnel relays,
+      counting only the request; src/torve/adapters/broker/local.py:385-412
+      — the plain-http forward, response discarded
+    action: decided
+  - decision: D-21.10
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      Decided — sealed mode keeps the local adapter as an in-process thread
+      of the runner (the T-0105 choice) and changes where it listens: the
+      internal network's gateway, at a port derived from the network's
+      name. An internal network's only host-side address is its gateway, so
+      the broker — a host process — is reachable from the sandboxes without
+      a broker container or a new image; and because the port derives from
+      the configured network name, the runtime composes the sandbox's proxy
+      env from the same two facts (the name, the derivation) with no channel
+      between the adapters. A concurrent second run on the same configured
+      network collides loudly at the derived port — accepted, the failure
+      is loud and never a fallback to a less isolated path.
+    evidence: |-
+      src/torve/adapters/broker/local.py:583-626 — the gateway bind;
+      src/torve/config/runconfig.py:262-273 — the port derivation;
+      src/torve/adapters/runtime/docker.py:131-147 — the runtime's half of
+      the same derivation
+    action: decided
+  - decision: D-21.11
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      Decided — sealed mode's declared pass-through hosts live in the
+      broker block (broker.pass_through), as T-0105 decided. The internal
+      network's name is declared in the same block (broker.network) and
+      mirrored in runtime.network, with the runner validator refusing a
+      mismatch — egress policy and sandbox provisioning are two views of
+      one fact, and a mismatch would silently put the sandbox on a
+      different network than the broker.
+    evidence: |-
+      src/torve/config/runconfig.py:363-371 — the fields in the broker
+      block; src/torve/config/runconfig.py:765-782 — the equality
+      validator
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: 2026-08-28T19:08:02Z
+    attempt: 1
+    claim: |-
+      How the sealed pass-through leg authenticates is not settled by the
+      contract. The run token has no in-scope channel into the sandbox's
+      proxy env (the runtime composes it from the network name alone), so
+      requiring the token on CONNECT would break every declared pass-through
+      host. Decided: the pass-through leg authenticates by topology — the
+      internal network is the run's private envelope, containing only its
+      sandboxes and the broker, and the broker refuses anything undeclared —
+      while the provider routes keep the run token exactly as in endpoint
+      mode.
+    evidence: |-
+      src/torve/adapters/broker/local.py:454-520 — CONNECT and absolute-URI
+      are served without the token; the provider-route token check below
+      them is unchanged; tests/test_broker_sealed.py:533-553 — the tunnel
+      works with no credential
+    action: decided
+    proposal: When a channel exists to carry the run token in the sandbox's
+      proxy env (an explicit sealed flag on SandboxSpec, or the runner
+      composing the proxy env), require the token on the pass-through leg
+      too and drop the topology-only exemption.

@@ -171,12 +171,18 @@ def test_opensandbox_adapter_is_refused_until_a_server_exists():
         BrokerConfig(adapter="opensandbox")
 
 
-def test_sealed_mode_is_phase_two():
-    # D-21.3's phasing: endpoint closes custody now; sealed is containment,
-    # and configuring it before it exists must be a refusal, not a silent
-    # endpoint run.
-    with pytest.raises(ValidationError, match="phase 2"):
+def test_sealed_mode_requires_a_named_internal_network():
+    # D-21.3's phasing: endpoint closes custody now; sealed adds
+    # containment — and configuring it must name the internal network the
+    # sandbox joins, not silently run as an endpoint.
+    with pytest.raises(ValidationError, match="internal Docker network"):
         BrokerConfig(adapter="local", mode="sealed")
+
+    sealed = BrokerConfig(
+        adapter="local", mode="sealed", network="torve-sealed", pass_through=["pypi.org"]
+    )
+    assert sealed.mode == "sealed"
+    assert sealed.network == "torve-sealed"
 
 
 def test_broker_provider_requires_wire_facts():
