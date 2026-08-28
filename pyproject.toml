@@ -33,6 +33,7 @@ dev = [
     # (D-15.10): a check on Torve's internals never ships to consumers.
     "import-linter>=2",
     "forze[dst,postgres]>=0.6.0",
+    "basedpyright>=1.31",
     "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
     "pytest-timeout>=2.3",
