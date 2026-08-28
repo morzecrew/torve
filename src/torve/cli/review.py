@@ -261,6 +261,8 @@ def pr(
 
     token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
 
+    from torve.adapters.broker import build_broker
+
     outcome = review_pull_request(
         root,
         config,
@@ -270,6 +272,7 @@ def pr(
         GitVcs(),
         number,
         token,
+        broker=build_broker(config.broker),
     )
 
     if fmt is Format.JSON:

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import torve
+from torve.application.ports import BrokerUsage
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.task import SCHEMA_VERSION
@@ -67,6 +68,11 @@ def config_hash(
 
         parts["providers"] = json.dumps(config.providers.model_dump(), sort_keys=True)
 
+        # The egress regime (RFC 0021 §5.5, D-21.8): the broker adapter and
+        # the run's routing are part of what a number was measured under —
+        # two runs under different egress regimes are two regimes.
+        parts["broker"] = json.dumps(config.broker.model_dump(), sort_keys=True)
+
     if image_digest is not None:
         parts["image"] = image_digest
 
@@ -92,6 +98,24 @@ def config_hash(
     digest = hashlib.sha256(json.dumps(parts, sort_keys=True).encode("utf-8"))
 
     return digest.hexdigest()[:12]
+
+
+# ....................... #
+
+
+def broker_block(name: str, usage: BrokerUsage) -> dict[str, Any]:
+    """The broker's counts as a JSON block beside the adapter's own report
+    (D-21.5): both are recorded, the broker's is authoritative. Counts and
+    metadata only — the broker never keeps bodies (D-21.7)."""
+
+    return {
+        "adapter": name,
+        "requests": usage.requests,
+        "tokens_per_provider": usage.tokens_per_provider,
+        "cost_usd": usage.cost_usd,
+        "wall_time_s": round(usage.wall_time_s, 3),
+        "refusals": usage.refusals,
+    }
 
 
 # ....................... #

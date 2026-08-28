@@ -120,7 +120,13 @@ def run_shadow(
         # nothing is pushed — a shadow run never merges (D-4.4).
         return "shadow measurement recorded; nothing merged"
 
-    hooks = AttemptHooks(attempt=attempt, halted=inner.halted, gates=inner.gates, land=land)
+    hooks = AttemptHooks(
+        attempt=attempt,
+        halted=inner.halted,
+        gates=inner.gates,
+        land=land,
+        close=inner.close,
+    )
     final = asyncio.run(_drive(state, task, config, hooks))
     final.save()
 

@@ -1,0 +1,102 @@
+schema_version: 1
+task: T-0105
+repo: morzecrew/torve
+drift_count: 0
+entries:
+  - decision: D-21.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T12:30:00Z
+    attempt: 1
+    claim: |-
+      A brokered tier names no credential: the RunnerConfig validator
+      refuses any non-empty api_key_env under a non-none broker, and the
+      runner refuses again at dispatch — the sandbox spec under a broker
+      carries no key name (tests/test_broker.py asserts env_passthrough is
+      empty and the key env name appears nowhere in the spec)
+    evidence: |-
+      src/torve/config/runconfig.py:554-571 — the validator refuses
+      brokered api_key_env; the runner refuses again at
+      src/torve/application/runner.py:621-625
+    action: decided
+  - decision: D-21.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T12:30:00Z
+    attempt: 1
+    claim: |-
+      The broker is a port with adapters: `local` (built — a loopback
+      reverse proxy the runner starts for the life of the run), `none`
+      (built — today's behaviour named explicitly, the phase-1 default),
+      and `opensandbox` (named, refused at configuration load until a live
+      server exists, per RFC 0021 §8 — an adapter of the port, never a
+      prerequisite)
+    evidence: |-
+      src/torve/application/ports.py:283-302 — the Broker protocol; the
+      adapter roster at src/torve/adapters/broker/__init__.py:23-33
+    action: decided
+  - decision: D-21.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T12:30:00Z
+    attempt: 1
+    claim: |-
+      Provider routing is enforced twice: route_provider at dispatch (the
+      CLI, unchanged) and at the wire — the local broker refuses a request
+      for any provider outside the run's routing with a counted refusal,
+      and the runner records a wire_routing_refusal engine event at close;
+      a refusal for a provider the run's routing carried would be reported
+      as a configuration-reader defect (the event's routed flag)
+    evidence: |-
+      src/torve/adapters/broker/local.py:286-299 — the wire refusal path;
+      the recorded event at src/torve/application/runner.py:955-963
+    action: decided
+  - decision: D-21.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-28T12:30:00Z
+    attempt: 1
+    claim: |-
+      The broker's state is counts and metadata only — requests, tokens
+      per provider, cost, refusals and wall time. Bodies are read to
+      forward and meter, then discarded; the test asserts a request-body
+      marker never appears in the broker's serialized usage
+    evidence: |-
+      src/torve/adapters/broker/local.py:143-170 — _BrokerState keeps
+      counts only; the meter discards bodies at
+      src/torve/adapters/broker/local.py:71-104
+    action: decided
+  - decision: D-21.10
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-28T12:30:00Z
+    attempt: 1
+    claim: |-
+      Decided — the local adapter is an in-process thread of the runner (a
+      daemon HTTP server thread per run): the runner already holds the keys
+      in its environment, a thread shares that environment with no
+      serialization or lifecycle machinery, and the broker dies with the
+      run it serves — there is nothing to reap. A subprocess would add
+      reaping and environment plumbing for no conformance-battery
+      difference
+    evidence: |-
+      src/torve/adapters/broker/local.py:8-11 — the choice recorded in the
+      module docstring; the serving thread at
+      src/torve/adapters/broker/local.py:355-360
+    action: decided
+  - decision: D-21.11
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-28T12:30:00Z
+    attempt: 1
+    claim: |-
+      Decided — sealed mode's declared pass-through hosts will live in the
+      broker block, not runtime: the item is egress policy (which
+      destinations a sealed run may reach is the routing table's sibling),
+      and runtime's network knobs stay about how the sandbox is wired, not
+      what it may reach. The phase-2 field lands beside the mode here
+    evidence: |-
+      src/torve/config/runconfig.py:233-266 — BrokerConfig carries the
+      egress regime (adapter, mode, providers); the pass-through host field
+      lands in this block in phase 2
+    action: decided

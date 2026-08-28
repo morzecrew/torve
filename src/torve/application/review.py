@@ -27,6 +27,9 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from torve.application.ports import (
     Agent,
     AgentContext,
+    Broker,
+    BrokerBudget,
+    BrokerHandle,
     PrScm,
     PrVcs,
     Runtime,
@@ -222,10 +225,14 @@ def run_review(
     gate_results: list[GateResult],
     config_digest: str,
     degraded: bool = False,
+    broker: Broker | None = None,
+    broker_handle: BrokerHandle | None = None,
 ) -> ReviewOutcome:
     """One review attempt over the target's worktree, mounted read-only.
     Produces the review's run state and telemetry record; the caller applies
     the consequence to the target."""
+
+    from torve.application.telemetry import append_record, broker_block
 
     tier = tier_for(config, review.tier)
     state = RunState(task_id=review.id, path=naming.state_file(root, review.id))
@@ -260,6 +267,7 @@ def run_review(
                 workdir=spec.workdir,
                 timeout_s=config.runtime.agent_timeout,
                 prompt=prompt,
+                broker=broker_handle,
             )
         )
 
@@ -267,6 +275,10 @@ def run_review(
         runtime.destroy(handle)
         state.sandbox_id = None
         state.save()
+
+    broker_usage = (
+        broker.usage(broker_handle) if broker is not None and broker_handle is not None else None
+    )
 
     findings = parse_findings(result.output)
     unparseable = findings is None
@@ -306,10 +318,15 @@ def run_review(
             "cost_usd": result.cost_usd,
             "trace_ref": result.trace_ref,
             "shadow": False,
+            # The reviewer spends the run's budget on the same handle; its
+            # counts ride the record beside the adapter's report (D-21.5).
+            **(
+                {"broker": broker_block(broker.name, broker_usage)}
+                if broker is not None and broker_usage is not None
+                else {}
+            ),
         },
     }
-
-    from torve.application.telemetry import append_record
 
     manifest = layout.gates_file(worktree)
 
@@ -408,6 +425,7 @@ def review_pull_request(
     vcs: PrVcs,
     number: int,
     token: str | None = None,
+    broker: Broker | None = None,
 ) -> PrReviewOutcome:
     """RFC 0005 §4: skip rules first (draft, zero changed files, configured
     authors, not open); one review per head — the pull regime's debounce,
@@ -467,6 +485,20 @@ def review_pull_request(
     workdir = root / naming.WORKTREE_DIR / f"{review.id}.pr"
     vcs.worktree_at(root, head_sha, workdir)
 
+    # The reviewer's provider rides the same broker as any run (RFC 0021):
+    # the review sandbox sees the broker's URL and the run-scoped token,
+    # never a key.
+    broker_handle: BrokerHandle | None = None
+
+    if broker is not None:
+        from torve.application.runner import run_routing
+
+        broker_handle = broker.open(
+            review.id,
+            run_routing(config, review, review_on=False),
+            BrokerBudget(tokens=review.budget.tokens),
+        )
+
     try:
         diff_text = vcs.diff(root, base_sha, head_sha)
         from torve.application.telemetry import config_hash, engine_event
@@ -485,9 +517,14 @@ def review_pull_request(
             [],
             digest,
             degraded=degraded,
+            broker=broker,
+            broker_handle=broker_handle,
         )
 
     finally:
+        if broker is not None and broker_handle is not None:
+            broker.close(broker_handle)
+
         vcs.remove_worktree(root, workdir)
 
     url = scm.comment(

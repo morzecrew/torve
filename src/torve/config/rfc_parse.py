@@ -735,6 +735,7 @@ def retired_identifiers(files: dict[str, Path]) -> dict[str, str]:
 
 # ....................... #
 
+
 # One corpus identifier, as a word: not inside a longer identifier, not a
 # dotted child (D-2 must not match inside D-2.10), not a digit-extended
 # sibling (A-4 must not match inside A-44).

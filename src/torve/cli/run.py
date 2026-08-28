@@ -97,6 +97,7 @@ def run_cmd(
     """Run one task synchronously; the exit code carries the outcome."""
 
     from torve.adapters.agent.fake import FakeAgent, load_scenario
+    from torve.adapters.broker import build_broker
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GhScm, GitVcs, NullScm, repository_name
     from torve.adapters.workspace.git import GitWorkspace
@@ -157,6 +158,9 @@ def run_cmd(
         scm=(GhScm(config.scm.repo, config.scm.token_env) if config.scm.open_pr else NullScm()),
         store=open_store,
         review_agent=review_agent,
+        # The egress broker in force (RFC 0021): `none` by default, `local`
+        # when configured — the run's keys never enter the sandbox either way.
+        broker=build_broker(config.broker),
     )
 
     from torve.application.runner import BlockedDispatch
@@ -167,6 +171,11 @@ def run_cmd(
     except BlockedDispatch as exc:
         # Never a silent wait: the cause prints, the refusal is counted.
         raise fail(str(exc), EXIT_GATES_RED) from exc
+
+    except ValueError as exc:
+        # A broker misconfiguration (an unrouted provider, a brokered tier
+        # naming a credential) is a configuration error, never a traceback.
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc

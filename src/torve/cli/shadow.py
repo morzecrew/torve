@@ -77,6 +77,7 @@ def shadow_cmd(
     from functools import partial
 
     from torve.adapters.agent.fake import FakeAgent, load_scenario
+    from torve.adapters.broker import build_broker
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GitVcs, NullScm, repository_name
     from torve.adapters.workspace.git import (
@@ -134,6 +135,7 @@ def shadow_cmd(
         vcs=GitVcs(),
         scm=NullScm(),
         store=open_store,
+        broker=build_broker(config.broker),
     )
 
     shadow_ws = ShadowWorkspace(root, depth=depth)

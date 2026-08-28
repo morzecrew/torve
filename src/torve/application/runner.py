@@ -39,6 +39,11 @@ from torve.application.ports import (
     Agent,
     AgentContext,
     AgentResult,
+    Broker,
+    BrokerBudget,
+    BrokerHandle,
+    BrokerRoute,
+    BrokerRouting,
     Runtime,
     SandboxHandle,
     SandboxSpec,
@@ -50,11 +55,17 @@ from torve.application.ports import (
 from torve.application.runstate import RunState
 from torve.application.skills import materialize
 from torve.application.taskstore import TaskStore
-from torve.application.telemetry import append_record, build_record, config_hash, engine_event
+from torve.application.telemetry import (
+    append_record,
+    broker_block,
+    build_record,
+    config_hash,
+    engine_event,
+)
 from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import load_manifest
-from torve.config.runconfig import RunnerConfig, TierConfig, image_for, tier_for
+from torve.config.runconfig import RunnerConfig, TierConfig, broker_in_force, image_for, tier_for
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
@@ -80,6 +91,11 @@ class RunDeps:
     # tier when review is configured — cross-model by pointing the tier at
     # a different vendor (D-5.1). None means review cannot run.
     review_agent: Agent | None = None
+    # The egress broker adapter in force (RFC 0021): built by the CLI from
+    # the configuration; None means the port was never wired (tests,
+    # simulation). Under a configured broker the run opens it around the
+    # attempts and closes it when the loop ends.
+    broker: Broker | None = None
 
 
 # ....................... #
@@ -98,6 +114,9 @@ class AttemptHooks:
     # for the reviewed transition, or None when the review escalated the
     # target. Absent -> the review-not-configured bridge.
     review: Callable[[RunState], Awaitable[str | None]] | None = None
+    # One close per run, whatever path the loop exits by: the broker's
+    # revocation and final usage land here (RFC 0021 §5.1).
+    close: Callable[[], None] | None = None
 
 
 # ....................... #
@@ -109,6 +128,23 @@ async def drive_attempts(
     ceiling = config.poison_ceiling
     iterations = task.budget.iterations
 
+    try:
+        return await _attempt_loop(state, task, hooks, ceiling, iterations)
+
+    finally:
+        # One close per run, whatever path the loop exits by — a green
+        # landing, an escalation, a cancellation. The broker's token is
+        # revoked and its final usage recorded here (RFC 0021 §5.1).
+        if hooks.close is not None:
+            hooks.close()
+
+
+# ....................... #
+
+
+async def _attempt_loop(
+    state: RunState, task: Task, hooks: AttemptHooks, ceiling: int, iterations: int | None
+) -> RunState:
     while True:
         # Poison ceiling is checked before dispatch, never after (RFC 0001 §4).
         if state.attempts >= ceiling:
@@ -128,6 +164,12 @@ async def drive_attempts(
         state.transition(TaskState.RUNNING, f"attempt {state.attempts + 1} dispatched")
         state.save()
         result = await hooks.attempt(state)
+
+        # An attempt hook that escalated (the broker refusing the run's
+        # budget, D-21.6) stops the loop: continuing would burn attempts
+        # against a refusal that will not lift.
+        if state.escalation is not None:
+            return state
 
         if hooks.halted():
             # Terminal by design, not an error: the one case where a task
@@ -512,6 +554,55 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
 # ....................... #
 
 
+def _review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
+    """Review follows execution (D-5.11) only for live implement runs with
+    the task-gated trigger configured — one predicate, shared by the review
+    hook and the broker's routing derivation so they cannot disagree."""
+
+    return not shadow and task.role == "implement" and "task_gated" in config.review.on
+
+
+# ....................... #
+
+
+def run_routing(config: RunnerConfig, task: Task, review_on: bool) -> BrokerRouting:
+    """The run's routing (D-21.4): every provider the run's agents will use,
+    resolved once and handed to the broker. Dispatch allowed them at the CLI;
+    the broker enforces them at the wire. A provider the broker configuration
+    does not route is a configuration error, never a quiet fallback."""
+
+    routes: list[BrokerRoute] = []
+    tier_names = [task.tier]
+
+    if review_on:
+        tier_names.append("reviewer")
+
+    for tier_name in tier_names:
+        tier = tier_for(config, tier_name)
+
+        if tier.adapter == "fake" or not tier.provider:
+            continue
+
+        provider = config.broker.providers.get(tier.provider)
+
+        if provider is None:
+            raise ValueError(
+                f"tier {tier_name!r} uses provider {tier.provider!r} but the broker "
+                "configuration routes no such provider — add it under broker.providers"
+            )
+
+        routes.append(
+            BrokerRoute(
+                provider=tier.provider, upstream=provider.upstream, key_env=provider.key_env
+            )
+        )
+
+    return BrokerRouting(routes=tuple(routes))
+
+
+# ....................... #
+
+
 def real_hooks(
     root: Path,
     task: Task,
@@ -522,6 +613,17 @@ def real_hooks(
     gates_base: str | None = None,
 ) -> AttemptHooks:
     tier = tier_for(config, task.tier)
+
+    # D-21.1's second line: the configuration validator already refuses a
+    # brokered tier that names a credential; the runner refuses again so a
+    # programmatically-built configuration cannot slip a key name past the
+    # validator into the sandbox's env.
+    if broker_in_force(config) and tier.api_key_env:
+        raise ValueError(
+            f"tier {task.tier!r} names api_key_env {tier.api_key_env} under broker "
+            f"{config.broker.adapter!r} — a brokered tier names no credential"
+        )
+
     # What actually runs, not what the tier configured — an --agent fake
     # override must not masquerade as a model in the telemetry.
     kind = getattr(deps.agent, "kind", tier.adapter)
@@ -607,6 +709,7 @@ def real_hooks(
                     runtime=deps.runtime,
                     workdir=spec.workdir,
                     timeout_s=config.runtime.agent_timeout,
+                    broker=broker_handle,
                 ),
             )
 
@@ -617,6 +720,21 @@ def real_hooks(
                 cost_usd=result.cost_usd,
                 trace_ref=result.trace_ref,
             )
+
+            # The broker's live counts ride the attempt record beside the
+            # adapter's self-report (D-21.5). A budget refusal escalates in
+            # progress, on the run that overspent (D-21.6): the next request
+            # would be refused too, so the loop stops here.
+            if broker is not None and broker_handle is not None:
+                usage = broker.usage(broker_handle)
+                agent_meta["broker"] = broker_block(broker.name, usage)
+
+                if usage.refusals.get("budget"):
+                    state.escalate(
+                        EscalationReason.COST_ANOMALY,
+                        f"broker refused {usage.refusals['budget']} request(s) "
+                        "past the run's token budget",
+                    )
 
             return result
 
@@ -743,7 +861,7 @@ def real_hooks(
 
     review_hook = None
 
-    if not shadow and task.role == "implement" and "task_gated" in config.review.on:
+    if _review_gated(config, task, shadow):
         # Review follows execution (D-5.11): minted here, never by the
         # planner. A shadow replay measures the harness, not the reviewer.
         if deps.review_agent is None:
@@ -770,7 +888,23 @@ def real_hooks(
                 str(last_pass["patch"]),
                 list(last_pass["results"]),
                 str(last_pass["digest"]),
+                broker=broker,
+                broker_handle=broker_handle,
             )
+
+            # The reviewer spends the same run budget: a refusal there is the
+            # same cost_anomaly, stopped on the run that overspent (D-21.6).
+            if broker is not None and broker_handle is not None:
+                usage = broker.usage(broker_handle)
+
+                if usage.refusals.get("budget"):
+                    state.escalate(
+                        EscalationReason.COST_ANOMALY,
+                        f"broker refused {usage.refusals['budget']} request(s) "
+                        "past the run's token budget during review",
+                    )
+
+                    return None
 
             if outcome.blockers:
                 detail = "; ".join(f.claim for f in outcome.blockers)
@@ -789,8 +923,70 @@ def real_hooks(
 
         review_hook = review_hook_fn
 
+    # The broker's life spans the run (RFC 0021 §5.1): one loopback route
+    # per routed provider, a run-scoped token, and the task's token budget
+    # held at the wire. `none` opens trivially and the record carries the
+    # adapter in force either way (D-21.9: opting out is explicit). Opened
+    # last — after every fallible step above — so a setup failure cannot
+    # leak a live broker; the close hook revokes it when the loop ends.
+    review_on = _review_gated(config, task, shadow)
+    broker = deps.broker
+    broker_handle: BrokerHandle | None = None
+    routing: BrokerRouting = BrokerRouting()
+
+    if broker is not None:
+        routing = run_routing(config, task, review_on)
+        broker_handle = broker.open(task.id, routing, BrokerBudget(tokens=task.budget.tokens))
+
+    def close() -> None:
+        # The run's one close: the broker revokes the run-scoped token and
+        # reports the authoritative usage (D-21.5). Wire refusals become
+        # engine events — a refusal for a provider the run's routing carried
+        # is a defect report about the configuration reader (D-21.4).
+        if broker is None or broker_handle is None:
+            return
+
+        usage = broker.close(broker_handle)
+        agent_meta["broker"] = broker_block(broker.name, usage)
+
+        for provider, count in sorted(usage.refused_providers.items()):
+            engine_event(
+                root,
+                "wire_routing_refusal",
+                {
+                    "task": task.id,
+                    "broker": broker.name,
+                    "provider": provider,
+                    "count": count,
+                    "routed": routing.route_for(provider) is not None,
+                },
+            )
+
+        adapter_cost = agent_meta.get("cost_usd")
+
+        if usage.cost_usd is not None and isinstance(adapter_cost, (int, float)):
+            scale = max(abs(usage.cost_usd), abs(adapter_cost)) or 1.0
+
+            if abs(usage.cost_usd - adapter_cost) / scale > config.broker.cost_tolerance:
+                engine_event(
+                    root,
+                    "cost_divergence",
+                    {
+                        "task": task.id,
+                        "broker": broker.name,
+                        "broker_cost_usd": usage.cost_usd,
+                        "adapter_cost_usd": adapter_cost,
+                        "tolerance": config.broker.cost_tolerance,
+                    },
+                )
+
     return AttemptHooks(
-        attempt=attempt_hook, halted=halted, gates=gates, land=land, review=review_hook
+        attempt=attempt_hook,
+        halted=halted,
+        gates=gates,
+        land=land,
+        review=review_hook,
+        close=close,
     )
 
 

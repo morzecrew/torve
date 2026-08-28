@@ -158,6 +158,16 @@ def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
 # ....................... #
 
 
+def broker_in_force(config: RunnerConfig) -> bool:
+    """A broker adapter other than `none` is configured — the run's keys are
+    the broker's business, not the tier's (D-21.1)."""
+
+    return config.broker.adapter != "none"
+
+
+# ....................... #
+
+
 def image_for(config: RunnerConfig, tier: TierConfig) -> str:
     """The tier's image when it names one, else the runtime default — the
     harness's identity is the image it runs in (RFC 0017 §3)."""
@@ -186,6 +196,75 @@ class OpenSandboxConfig(BaseModel):
 
     domain: str = "localhost:5266"
     api_key_env: str = "OPENSANDBOX_API_KEY"
+
+
+# ....................... #
+
+
+class BrokerProvider(BaseModel):
+    """One routed provider's wire facts (RFC 0021 §5.2): where the broker
+    forwards and which environment variable in the broker's own environment
+    holds the key — a name, never a value. The configuration names the
+    credential once; a brokered tier names none (D-21.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    upstream: str = ""  # the provider's real base URL (http:// or https://)
+    key_env: str = ""  # the env var name the broker reads the key from
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _wire_facts_are_fully_named(self) -> BrokerProvider:
+        if not self.upstream.startswith(("http://", "https://")):
+            raise ValueError(
+                f"broker provider upstream {self.upstream!r} must be an http(s) base URL"
+            )
+
+        if not self.key_env:
+            raise ValueError("broker provider key_env must name the environment variable")
+
+        return self
+
+
+# ....................... #
+
+
+class BrokerConfig(BaseModel):
+    """The egress broker (RFC 0021 §5.1): which adapter is in force and what
+    it is fed. `none` is today's behaviour named explicitly — keys pass
+    through, no metering, no wire routing — and stays the phase-1 default;
+    `torve doctor` names it and says plainly that it leaves D-4b unmet
+    (D-21.9). Under any other adapter a brokered tier names no credential
+    (D-21.1): the broker's provider table is the one channel."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    adapter: Literal["none", "local", "opensandbox"] = "none"
+    mode: Literal["endpoint", "sealed"] = "endpoint"
+    # provider -> wire facts; the run's routing is a dispatch-checked subset
+    # (D-21.4: the broker exposes one loopback route per routed provider).
+    providers: dict[str, BrokerProvider] = Field(default_factory=dict)
+    # A broker-measured cost that diverges from the adapter's self-report by
+    # more than this fraction is an engine event (D-21.5).
+    cost_tolerance: float = 0.25
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _this_phase_supports_only_what_is_built(self) -> BrokerConfig:
+        if self.adapter == "opensandbox":
+            raise ValueError(
+                "broker adapter 'opensandbox' is not built — it is condition-gated "
+                "on a live server and arrives as an adapter, never a prerequisite (D-21.2)"
+            )
+
+        if self.mode != "endpoint":
+            raise ValueError(
+                "broker mode 'sealed' is phase 2; this build serves only 'endpoint' (D-21.3)"
+            )
+
+        return self
 
 
 # ....................... #
@@ -464,9 +543,33 @@ class RunnerConfig(BaseModel):
     rfcs: RfcsConfig = Field(default_factory=RfcsConfig)
     tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
+    broker: BrokerConfig = Field(default_factory=BrokerConfig)
     loop: LoopConfig = Field(default_factory=LoopConfig)
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
     worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _brokered_tiers_name_no_credential(self) -> RunnerConfig:
+        """D-21.1: a brokered tier names no credential. `api_key_env` must be
+        empty and a non-empty one is a refused configuration, not a warning —
+        a second channel for a secret is the leak the broker exists to
+        remove (D-17.4)."""
+
+        if self.broker.adapter == "none":
+            return self
+
+        offenders = sorted(name for name, tier in self.tiers.items() if tier.api_key_env)
+
+        if offenders:
+            raise ValueError(
+                f"broker adapter {self.broker.adapter!r} is in force but tier(s) "
+                f"{', '.join(offenders)} name api_key_env — a brokered tier names "
+                "no credential; the broker's provider table is the one channel"
+            )
+
+        return self
 
 
 # ....................... #

@@ -31,6 +31,12 @@ if TYPE_CHECKING:
 
 PROMPT_RELPATH = ".torve/tmp/prompt.md"
 
+# The broker handle's fields reach the sandbox inline in the tier command
+# (RFC 0021 §5.1): a broker URL and a run-scoped token are operator
+# non-secret knobs, exactly the channel RFC 0017 §3 already assigns them.
+BROKER_URL_PLACEHOLDER = "{broker_url}"
+BROKER_TOKEN_PLACEHOLDER = "{broker_token}"
+
 
 # ....................... #
 
@@ -161,6 +167,52 @@ class HarnessAgent:
 
     # ....................... #
 
+    def _command(self, ctx: AgentContext) -> str:
+        """The tier command with its placeholders substituted: {prompt} and
+        {model} as always, plus the broker's per-provider URL and the
+        run-scoped token when a broker handle reached the agent (RFC 0021
+        §5.1). A command that names broker placeholders with no broker in
+        force is a refused configuration, not a literal string sent into the
+        sandbox."""
+
+        command = self.tier.command.replace("{prompt}", PROMPT_RELPATH).replace(
+            "{model}", self.tier.model
+        )
+        # str.replace, not str.format: the command template is shell and may
+        # legitimately contain braces of its own.
+
+        if ctx.broker is None:
+            if BROKER_URL_PLACEHOLDER in command or BROKER_TOKEN_PLACEHOLDER in command:
+                raise ValueError(
+                    "the tier command names broker placeholders "
+                    f"({BROKER_URL_PLACEHOLDER}/{BROKER_TOKEN_PLACEHOLDER}) but no broker "
+                    "handle reached the agent — configure broker.adapter or remove the "
+                    "placeholders"
+                )
+
+            return command
+
+        if not ctx.broker.base_urls:
+            raise ValueError(
+                "the tier command names broker placeholders "
+                f"({BROKER_URL_PLACEHOLDER}/{BROKER_TOKEN_PLACEHOLDER}) but the broker "
+                "adapter in force is 'none' — configure a broker or remove the placeholders"
+            )
+
+        url = ctx.broker.url_for(self.tier.provider)
+
+        if url is None:
+            raise ValueError(
+                f"the broker routes {sorted(ctx.broker.base_urls)} but not the tier's "
+                f"provider {self.tier.provider!r} — the run's routing is missing it"
+            )
+
+        return command.replace(BROKER_URL_PLACEHOLDER, url).replace(
+            BROKER_TOKEN_PLACEHOLDER, ctx.broker.token
+        )
+
+    # ....................... #
+
     def run(self, ctx: AgentContext) -> AgentResult:
         stage = ctx.workspace / ".torve" / "tmp"
         stage.mkdir(parents=True, exist_ok=True)
@@ -168,12 +220,7 @@ class HarnessAgent:
         prompt = ctx.prompt if ctx.prompt is not None else build_prompt(ctx.task, revision=revision)
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")
 
-        # str.replace, not str.format: the command template is shell and may
-        # legitimately contain braces of its own.
-        command = self.tier.command.replace("{prompt}", PROMPT_RELPATH).replace(
-            "{model}", self.tier.model
-        )
-
+        command = self._command(ctx)
         result = ctx.runtime.exec(ctx.handle, command, ctx.timeout_s)
 
         trace = naming.trace_file(ctx.workspace, ctx.attempt)

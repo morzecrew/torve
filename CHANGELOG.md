@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The egress broker (T-0105, RFC 0021 phase 1): a `broker` configuration
+  block whose `local` adapter runs a loopback reverse proxy for the life of
+  the run — it holds every provider key, exposes one route per routed
+  provider, and substitutes the tier command's `{broker_url}` /
+  `{broker_token}` placeholders.
+
+- A brokered run's usage is metered by the broker from the provider's own
+  responses, and requests past the task's token budget are refused mid-run,
+  escalating `cost_anomaly`. A brokered tier naming `api_key_env` is a
+  refused configuration, and the broker adapter and routing join the regime
+  hash.
+
+- The `none` broker adapter stays the default and names today's behaviour
+  explicitly: keys pass through, no metering, no wire routing. `torve
+  doctor` names the broker adapter in force and states plainly that `none`
+  leaves the credential-custody requirement unmet.
+
 - The read-only planning surface (T-0095, RFC 0007 complete): `torve
   mcp` serves the context projections over stdio as an MCP server —
   one read-only `context` tool with a section selector, registered

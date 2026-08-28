@@ -59,6 +59,7 @@ def intake_cmd(
     worktree at base whose gate is the contract lint. Green persists drafts
     awaiting `torve adopt`; a spent budget escalates."""
 
+    from torve.adapters.broker import build_broker
     from torve.adapters.vcs.git import GitLane, GitVcs
     from torve.application.intake import mint_intake_task, run_intake
     from torve.application.telemetry import config_hash
@@ -90,7 +91,9 @@ def intake_cmd(
 
     try:
         digest = config_hash(layout.gates_file(root), root, config)
-        outcome = run_intake(root, workdir, task, config, runtime, agent, digest)
+        outcome = run_intake(
+            root, workdir, task, config, runtime, agent, digest, broker=build_broker(config.broker)
+        )
 
     finally:
         vcs.remove_worktree(root, workdir)

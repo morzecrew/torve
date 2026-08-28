@@ -25,9 +25,19 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from torve.application.ports import Agent, AgentContext, Runtime, SandboxSpec
+from torve.application.ports import (
+    Agent,
+    AgentContext,
+    Broker,
+    BrokerBudget,
+    BrokerHandle,
+    BrokerRoute,
+    BrokerRouting,
+    Runtime,
+    SandboxSpec,
+)
 from torve.application.runstate import RunState
-from torve.application.telemetry import engine_event
+from torve.application.telemetry import broker_block, engine_event
 from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, image_for, tier_for
@@ -480,11 +490,13 @@ def run_intake(
     runtime: Runtime,
     agent: Agent,
     config_digest: str,
+    broker: Broker | None = None,
 ) -> IntakeOutcome:
     """The draft-lint loop: attempt, parse, lint; red iterates within the
     budget with the lint's refusals in the next prompt; green persists the
     drafts and the run goes ready — drafts awaiting adoption, dispatching
-    nothing (D-20.1)."""
+    nothing (D-20.1). The drafting run's provider credential rides the same
+    broker as any run (RFC 0021): the sandbox never holds the key."""
 
     tier = tier_for(config, task.tier)
     state_path = naming.state_file(root, task.id)
@@ -503,6 +515,43 @@ def run_intake(
 
     state.transition(TaskState.CLAIMED, "engine-minted at intake")
     state.save()
+
+    # The drafting run's provider credential rides the same broker as any
+    # run (RFC 0021): the sandbox sees the broker's URL and the run-scoped
+    # token, never a key (D-21.4 — the planner tier's provider is the
+    # drafting run's routing).
+    broker_handle: BrokerHandle | None = None
+
+    if broker is not None:
+        routing: list[BrokerRoute] = []
+
+        if tier.adapter != "fake" and tier.provider:
+            provider = config.broker.providers.get(tier.provider)
+
+            if provider is None:
+                raise ValueError(
+                    f"tier {task.tier!r} uses provider {tier.provider!r} but the broker "
+                    "configuration routes no such provider — add it under broker.providers"
+                )
+
+            routing.append(
+                BrokerRoute(
+                    provider=tier.provider,
+                    upstream=provider.upstream,
+                    key_env=provider.key_env,
+                )
+            )
+
+        broker_handle = broker.open(
+            task.id, BrokerRouting(routes=tuple(routing)), BrokerBudget(tokens=task.budget.tokens)
+        )
+
+    def broker_block_now() -> dict[str, Any] | None:
+        if broker is None or broker_handle is None:
+            return None
+
+        return broker_block(broker.name, broker.usage(broker_handle))
+
     from torve.application.feedback import feedback_file
 
     feedback_path = feedback_file(root, task.id)
@@ -513,136 +562,150 @@ def run_intake(
     unparseable = False
     document: DraftsDocument | None = None
 
-    for _ in range(budget):
-        state.transition(TaskState.RUNNING, f"drafting attempt {state.attempts + 1}")
-        state.save()
+    try:
+        for _ in range(budget):
+            state.transition(TaskState.RUNNING, f"drafting attempt {state.attempts + 1}")
+            state.save()
 
-        spec = SandboxSpec(
-            name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
-            image=image_for(config, tier),
-            labels=naming.labels(task.id, state.run_id, root),
-            timeout_s=config.runtime.sandbox_timeout,
-            env_passthrough=tuple(tier.api_key_env),
-            workspace_read_only=True,
-        )
+            spec = SandboxSpec(
+                name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
+                image=image_for(config, tier),
+                labels=naming.labels(task.id, state.run_id, root),
+                timeout_s=config.runtime.sandbox_timeout,
+                env_passthrough=tuple(tier.api_key_env),
+                workspace_read_only=True,
+            )
 
-        prompt = build_intake_prompt(
-            task.intent,
-            worktree,
-            config.intake.max_drafts,
-            lint_errors or None,
-            feedback,
-            facts=execution_facts(root),
-        )
+            prompt = build_intake_prompt(
+                task.intent,
+                worktree,
+                config.intake.max_drafts,
+                lint_errors or None,
+                feedback,
+                facts=execution_facts(root),
+            )
 
-        handle = runtime.create(spec, worktree)
-        state.sandbox_id = handle.id
-        state.save()
+            handle = runtime.create(spec, worktree)
+            state.sandbox_id = handle.id
+            state.save()
 
-        try:
-            result = agent.run(
-                AgentContext(
-                    task=task,
-                    attempt=state.attempts,
-                    workspace=worktree,
-                    handle=handle,
-                    runtime=runtime,
-                    workdir=spec.workdir,
-                    timeout_s=config.runtime.agent_timeout,
-                    prompt=prompt,
+            try:
+                result = agent.run(
+                    AgentContext(
+                        task=task,
+                        attempt=state.attempts,
+                        workspace=worktree,
+                        handle=handle,
+                        runtime=runtime,
+                        workdir=spec.workdir,
+                        timeout_s=config.runtime.agent_timeout,
+                        prompt=prompt,
+                        broker=broker_handle,
+                    )
                 )
+
+            finally:
+                runtime.destroy(handle)
+                state.sandbox_id = None
+                state.save()
+
+            document = parse_drafts(result.output)
+
+            if document is None:
+                unparseable = True
+                state.transition(
+                    TaskState.GATED, "drafter output unparseable — recorded, not empty"
+                )
+                state.save()
+                continue
+
+            unparseable = False
+            lint_errors = lint_drafts(worktree, document, config.intake.max_drafts)
+
+            if lint_errors:
+                state.transition(TaskState.GATED, f"lint red: {len(lint_errors)} refusal(s)")
+                state.save()
+                continue
+
+            fact = f"{len(document.drafts)} draft(s) lint-green"
+            state.transition(TaskState.GATED, "drafts produced; lint green")
+            state.transition(TaskState.REVIEWED, fact)
+
+            drafts_file(root, task.id).write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "request": task.intent,
+                        "rfc": task.rfc,
+                        "rationale": document.rationale,
+                        "drafts": [d.model_dump() for d in document.drafts],
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
             )
 
-        finally:
-            runtime.destroy(handle)
-            state.sandbox_id = None
+            state.transition(TaskState.READY, fact + " — awaiting adoption")
             state.save()
 
-        document = parse_drafts(result.output)
-
-        if document is None:
-            unparseable = True
-            state.transition(TaskState.GATED, "drafter output unparseable — recorded, not empty")
-            state.save()
-            continue
-
-        unparseable = False
-        lint_errors = lint_drafts(worktree, document, config.intake.max_drafts)
-
-        if lint_errors:
-            state.transition(TaskState.GATED, f"lint red: {len(lint_errors)} refusal(s)")
-            state.save()
-            continue
-
-        fact = f"{len(document.drafts)} draft(s) lint-green"
-        state.transition(TaskState.GATED, "drafts produced; lint green")
-        state.transition(TaskState.REVIEWED, fact)
-
-        drafts_file(root, task.id).write_text(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "request": task.intent,
-                    "rfc": task.rfc,
-                    "rationale": document.rationale,
-                    "drafts": [d.model_dump() for d in document.drafts],
-                },
-                indent=2,
+            _append_intake_record(
+                root,
+                task,
+                config_digest,
+                tier.adapter,
+                result_model=result.model_version,
+                cost=result.cost_usd,
+                trace=result.trace_ref,
+                drafts=len(document.drafts),
+                attempts=state.attempts,
+                unparseable=False,
+                broker=broker_block_now(),
             )
-            + "\n",
-            encoding="utf-8",
+
+            engine_event(
+                root,
+                "intake_drafted",
+                {"task": task.id, "drafts": len(document.drafts), "attempts": state.attempts},
+            )
+
+            return IntakeOutcome(
+                task.id, fact, list(document.drafts), document.rationale, state.attempts
+            )
+
+        detail = (
+            "drafter output unparseable"
+            if unparseable
+            else f"lint red after {state.attempts} attempt(s): " + "; ".join(lint_errors[:3])
         )
 
-        state.transition(TaskState.READY, fact + " — awaiting adoption")
-        state.save()
+        state.escalate(EscalationReason.BUDGET_EXHAUSTED, detail[:300])
 
         _append_intake_record(
             root,
             task,
             config_digest,
             tier.adapter,
-            result_model=result.model_version,
-            cost=result.cost_usd,
-            trace=result.trace_ref,
-            drafts=len(document.drafts),
+            result_model=None,
+            cost=None,
+            trace=None,
+            drafts=0,
             attempts=state.attempts,
-            unparseable=False,
-        )
-
-        engine_event(
-            root,
-            "intake_drafted",
-            {"task": task.id, "drafts": len(document.drafts), "attempts": state.attempts},
+            unparseable=unparseable,
+            broker=broker_block_now(),
         )
 
         return IntakeOutcome(
-            task.id, fact, list(document.drafts), document.rationale, state.attempts
+            task.id,
+            detail,
+            attempts=state.attempts,
+            lint_errors=lint_errors,
+            unparseable=unparseable,
         )
 
-    detail = (
-        "drafter output unparseable"
-        if unparseable
-        else f"lint red after {state.attempts} attempt(s): " + "; ".join(lint_errors[:3])
-    )
-
-    state.escalate(EscalationReason.BUDGET_EXHAUSTED, detail[:300])
-
-    _append_intake_record(
-        root,
-        task,
-        config_digest,
-        tier.adapter,
-        result_model=None,
-        cost=None,
-        trace=None,
-        drafts=0,
-        attempts=state.attempts,
-        unparseable=unparseable,
-    )
-
-    return IntakeOutcome(
-        task.id, detail, attempts=state.attempts, lint_errors=lint_errors, unparseable=unparseable
-    )
+    finally:
+        if broker is not None and broker_handle is not None:
+            broker.close(broker_handle)
 
 
 # ....................... #
@@ -660,6 +723,7 @@ def _append_intake_record(
     drafts: int,
     attempts: int,
     unparseable: bool,
+    broker: dict[str, Any] | None = None,
 ) -> None:
     """The drafting run's telemetry — same stream, its own kind, so
     drafting quality is a query (D-20.8's settling evidence)."""
@@ -690,6 +754,9 @@ def _append_intake_record(
                 "model_version": result_model,
                 "cost_usd": cost,
                 "trace_ref": trace,
+                # The drafting run's broker counts, beside the adapter's
+                # report (D-21.5) — present when a broker was in force.
+                **({"broker": broker} if broker is not None else {}),
             },
         },
     )
@@ -890,6 +957,9 @@ class IntakeDeps:
     remove_worktree: Callable[[Path, Path], None]
     base_tip: Callable[[], str | None]
     config_digest: str
+    # The egress broker adapter in force, shared with live runs (RFC 0021):
+    # the drafting run's sandbox never holds a provider key either.
+    broker: Broker | None = None
 
 
 # ....................... #
@@ -1059,6 +1129,7 @@ def intake_leg(
                     deps.runtime,
                     deps.agent_factory(),
                     deps.config_digest,
+                    broker=deps.broker,
                 )
 
             finally:

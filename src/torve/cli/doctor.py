@@ -8,6 +8,11 @@ operational: a postgres store must name a DSN, answer a connection, and
 carry every substrate step (D-12.7's sibling question) before a run
 depends on it — and a mock store states plainly that it is the
 in-process, test-only regime.
+
+The broker check is RFC 0021 D-21.9: the adapter in force is named, and the
+`none` adapter — legal and the phase-1 default — is stated plainly to leave
+the credential-custody requirement (D-4b) unmet, so that opting out is a
+decision someone can be shown making, never a silent default.
 """
 
 from __future__ import annotations
@@ -38,50 +43,50 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     try:
         runtime = runtime_for(config, None)
 
-    except Exception as error:  # an unusable runtime is the finding
-        return [("images", False, f"runtime unavailable: {error}")]
+        for image in configured_images(config):
+            digest = runtime.resolve_image(image)
 
-    for image in configured_images(config):
-        digest = runtime.resolve_image(image)
-
-        if digest is None:
-            checks.append(
-                (
-                    f"image {image}",
-                    False,
-                    (
-                        f"{image}: not present in the runtime — build it "
-                        "(torve sandbox build) or pull it"
-                    ),
-                )
-            )
-
-            continue
-
-        detail = f"{image} = {digest[:19]}"
-        prefix = "torve-agent:"
-
-        if image.startswith(prefix):
-            name = image.removeprefix(prefix)
-
-            if not (definitions_root(root) / name / "Dockerfile").is_file():
+            if digest is None:
                 checks.append(
                     (
                         f"image {image}",
                         False,
                         (
-                            f"{image}: exists but has no definition under "
-                            f"{definitions_root(root) / name} — an image without "
-                            "a reviewed definition is an ambient regime"
+                            f"{image}: not present in the runtime — build it "
+                            "(torve sandbox build) or pull it"
                         ),
                     )
                 )
 
                 continue
 
-            detail += " (definition present)"
+            detail = f"{image} = {digest[:19]}"
+            prefix = "torve-agent:"
 
-        checks.append((f"image {image}", True, detail))
+            if image.startswith(prefix):
+                name = image.removeprefix(prefix)
+
+                if not (definitions_root(root) / name / "Dockerfile").is_file():
+                    checks.append(
+                        (
+                            f"image {image}",
+                            False,
+                            (
+                                f"{image}: exists but has no definition under "
+                                f"{definitions_root(root) / name} — an image without "
+                                "a reviewed definition is an ambient regime"
+                            ),
+                        )
+                    )
+
+                    continue
+
+                detail += " (definition present)"
+
+            checks.append((f"image {image}", True, detail))
+
+    except Exception as error:  # an unusable runtime is the finding
+        return [("images", False, f"runtime unavailable: {error}")]
 
     return checks
 
@@ -149,6 +154,45 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 # ....................... #
 
 
+def _broker_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """D-21.9: the broker adapter in force is named, and `none` — legal and
+    the phase-1 default — is stated plainly to leave the credential-custody
+    requirement unmet. What is not legal is `none` by accident."""
+
+    config = load_config(root, config_path)
+
+    if config.broker.adapter == "none":
+        return [
+            (
+                "broker",
+                True,
+                (
+                    "broker: none — provider keys pass through to the sandbox, with "
+                    "no metering and no wire routing; this is the default and it "
+                    "leaves the credential-custody requirement unmet. Configure "
+                    "broker.adapter: local to close it."
+                ),
+            )
+        ]
+
+    routed = ", ".join(sorted(config.broker.providers)) or "none routed"
+
+    return [
+        (
+            "broker",
+            True,
+            (
+                f"broker: {config.broker.adapter} ({config.broker.mode}) — the runner "
+                f"holds the keys and serves one loopback route per routed provider "
+                f"({routed}); the sandbox holds none"
+            ),
+        )
+    ]
+
+
+# ....................... #
+
+
 def doctor(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -166,6 +210,7 @@ def doctor(
     ok, message = check_forze_pin()
     checks: list[tuple[str, bool, str]] = [("forze-pin", ok, message)]
     checks += _store_checks(root, config_path)
+    checks += _broker_check(root, config_path)
     checks += _image_checks(root, config_path)
     healthy = all(passed for _, passed, _ in checks)
 

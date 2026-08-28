@@ -158,6 +158,10 @@ class AgentContext:
     # composed prompt — the review input, assembled without the author's
     # trace (D-5.3) — the adapter stages it verbatim instead of building one.
     prompt: str | None = None
+    # The run's broker handle (RFC 0021 §5.1): a base URL per routed
+    # provider and the run-scoped token, substituted into the tier command.
+    # None when no broker adapter is in force.
+    broker: BrokerHandle | None = None
 
 
 # ....................... #
@@ -193,6 +197,112 @@ class Agent(Protocol):
     kind: str
 
     def run(self, ctx: AgentContext) -> AgentResult: ...
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class BrokerRoute:
+    """One routed provider (RFC 0021 §5): the wire destination and the name
+    of the environment variable holding the key in the broker's own
+    environment — names, never values (D-4b)."""
+
+    provider: str
+    upstream: str  # the provider's real base URL
+    key_env: str  # env var name; the value lives only in the broker's process
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class BrokerRouting:
+    """The run's routing (RFC 0021 §5.4, D-21.4): every provider this run's
+    agents may use, dispatch-checked before the broker opens. The broker
+    exposes one loopback route per routed provider and refuses anything
+    else at the wire."""
+
+    routes: tuple[BrokerRoute, ...] = ()
+
+    def route_for(self, provider: str) -> BrokerRoute | None:
+        return next((route for route in self.routes if route.provider == provider), None)
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class BrokerBudget:
+    """The run's token bound (RFC 0021 §5.4): the task contract's
+    `budget.tokens`, held by the broker and enforced mid-run — requests past
+    it are refused and the run escalates `cost_anomaly`. None is unbounded."""
+
+    tokens: int | None = None
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class BrokerHandle:
+    """What the sandbox needs and nothing else (RFC 0021 §5.1): a base URL
+    per routed provider and a per-run bearer token the broker issued and
+    revokes at close. Both are operator non-secret knobs — they ride the
+    tier command inline (RFC 0017 §3), never a spec env."""
+
+    token: str
+    base_urls: dict[str, str] = field(default_factory=dict)
+
+    def url_for(self, provider: str) -> str | None:
+        return self.base_urls.get(provider)
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class BrokerUsage:
+    """Counts and metadata only (D-21.7): request count, token counts per
+    provider where the provider reports them, wall time, refusals by cause,
+    the broker's measured cost where the provider reports one, and which
+    providers were refused for routing. The broker never keeps request or
+    response bodies."""
+
+    requests: int = 0
+    tokens_per_provider: dict[str, int] = field(default_factory=dict)
+    wall_time_s: float = 0.0
+    refusals: dict[str, int] = field(default_factory=dict)
+    cost_usd: float | None = None
+    refused_providers: dict[str, int] = field(default_factory=dict)
+
+
+# ....................... #
+
+
+class Broker(Protocol):
+    """The egress broker port (RFC 0021 §5.1): holds every provider
+    credential the run needs, exposes one loopback route per routed
+    provider, injects the key and meters at the wire, and refuses requests
+    past the run's budget. Adapters: `local` (a reverse proxy the runner
+    starts on loopback for the life of the run), `opensandbox` (the server's
+    vault and egress control behind the same port, when a server exists),
+    `none` (today's behaviour, named explicitly).
+
+    The handle's fields reach the sandbox through the tier command — the
+    channel RFC 0017 §3 assigns to operator non-secret knobs."""
+
+    name: str  # "local" | "opensandbox" | "none"
+
+    def open(self, run: str, routing: BrokerRouting, budget: BrokerBudget) -> BrokerHandle: ...
+
+    def usage(self, handle: BrokerHandle) -> BrokerUsage:
+        """Live counters, mid-run: the runner reads them to escalate
+        `cost_anomaly` while the run is still in progress (D-21.6)."""
+
+        ...
+
+    def close(self, handle: BrokerHandle) -> BrokerUsage: ...
 
 
 # ....................... #

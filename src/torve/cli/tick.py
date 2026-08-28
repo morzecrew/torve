@@ -164,6 +164,7 @@ def tick_cmd(
             return "no feedback text — the drafter re-runs on the request"
 
         def _intake() -> tuple[str, bool]:
+            from torve.adapters.broker import build_broker
             from torve.application.intake import IntakeDeps, intake_leg
             from torve.application.telemetry import config_hash
             from torve.cli.options import runtime_for
@@ -179,6 +180,7 @@ def tick_cmd(
                 remove_worktree=vcs.remove_worktree,
                 base_tip=lambda: GitLane().tip(root, resolve_base(root, config.base) or "HEAD"),
                 config_digest=config_hash(layout.gates_file(root), root, config),
+                broker=build_broker(config.broker),
             )
 
             return intake_leg(root, config, deps, tuple(config.tracker.commanders))
@@ -217,6 +219,7 @@ def tick_cmd(
     def _dispatch_one(task_id: str, slot_offset: int) -> str:
         from torve.adapters.agent.fake import FakeAgent
         from torve.adapters.agent.harness import HarnessAgent
+        from torve.adapters.broker import build_broker
         from torve.adapters.store.durable import open_store
         from torve.adapters.vcs.git import repository_name
         from torve.application.ports import Agent
@@ -243,6 +246,7 @@ def tick_cmd(
             scm=(GhScm(config.scm.repo, config.scm.token_env) if config.scm.open_pr else NullScm()),
             store=open_store,
             review_agent=review_agent,
+            broker=build_broker(config.broker),
         )
 
         # A batch member runs under its own worker slot (D-19.14): auth
