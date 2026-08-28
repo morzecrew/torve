@@ -262,6 +262,9 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             if parsed.query:
                 target += f"?{parsed.query}"
 
+            # ponytail: whole-response buffering — streamed (SSE) completions
+            # arrive at once; switch to chunked relay when a harness needs
+            # incremental delivery.
             conn.request(self.command, target, body=body, headers=headers)
             resp = conn.getresponse()
             data = resp.read()

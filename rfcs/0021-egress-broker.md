@@ -3,7 +3,7 @@ id: "0021"
 title: The egress broker
 kind: design
 status: accepted
-implementation: none
+implementation: partial
 depends_on: ["0003", "0004"]
 informed_by: ["0001", "0013", "0017"]
 supersedes: []
@@ -21,6 +21,7 @@ schema_version: 1
 
 # RFC 0021 — The egress broker
 
+- **Implementation state:** phase 1 executed 2026-08-28 (T-0105 — the Broker port, the local reverse-proxy adapter and the explicit `none` adapter; wire routing, run-token custody, mid-run budget refusal escalating `cost_anomaly`, the broker block in `config_hash`, doctor naming the adapter in force; landed by the lane, built by a dsh/deepseek-chat executor under the A-56 scopes). Known ceiling, deliberate: upstream responses are buffered, so streamed completions arrive whole — revisit when a harness measurably needs incremental delivery. Phase 2 (sealed mode) unstarted (T-0106).
 - **Scope:** How provider credentials reach a model and how a sandbox's
   outbound traffic is constrained. Introduces a `Broker` port between the
   sandbox and every model or remote-MCP provider: the sandbox holds no
