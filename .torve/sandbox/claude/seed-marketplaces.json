@@ -1,0 +1,12 @@
+{
+  "caveman": {
+    "source": { "source": "github", "repo": "JuliusBrussee/caveman" },
+    "installLocation": "/tmp/.claude/plugins/marketplaces/caveman",
+    "lastUpdated": "2026-08-28T00:00:00.000Z"
+  },
+  "ponytail": {
+    "source": { "source": "github", "repo": "DietrichGebert/ponytail" },
+    "installLocation": "/tmp/.claude/plugins/marketplaces/ponytail",
+    "lastUpdated": "2026-08-28T00:00:00.000Z"
+  }
+}

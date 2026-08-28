@@ -85,7 +85,10 @@ HOP_BY_HOP = frozenset(
 # The upstream answer is metered, so the request must not ask for a body the
 # broker cannot read: compression is negotiated per request, and the sandbox
 # survives plain JSON just fine.
-FORWARD_DROP = frozenset({"accept-encoding"})
+# The sandbox's own Authorization (the run token, any case node sends it
+# in) must never reach the provider beside the injected key — two auth
+# headers and the upstream reads whichever it likes.
+FORWARD_DROP = frozenset({"accept-encoding", "authorization"})
 
 UPSTREAM_TIMEOUT_S = 300.0
 

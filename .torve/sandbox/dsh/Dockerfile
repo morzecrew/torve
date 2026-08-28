@@ -23,3 +23,4 @@ COPY deepseek-chat.yml /opt/dsh/deepseek-chat.yml
 # proxy environment without it, and whether a proxy exists is the host's
 # business, never the image's.
 COPY qwen3.8-flash.yml /opt/dsh/qwen3.8-flash.yml
+COPY brokered-deepseek.yml /opt/dsh/brokered-deepseek.yml

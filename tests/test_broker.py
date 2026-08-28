@@ -855,3 +855,35 @@ def test_none_handle_runs_a_placeholder_free_command_unchanged(tmp_path):
 
     command = agent._command(ctx)
     assert command == 'run "$(cat .torve/tmp/prompt.md)"'
+
+
+
+def test_forward_strips_a_lowercase_authorization_header(upstream, monkeypatch):
+    """Node harnesses send `authorization` lowercase; the copy loop kept it
+    beside the injected `Authorization`, and the upstream read the run token
+    — the 401 that surfaced the first time a real harness went through the
+    broker. The incoming credential must never forward, whatever its case."""
+    import http.client
+
+    state, base = upstream
+    monkeypatch.setenv(KEY_ENV, "real-provider-key")
+    broker = LocalBroker(broker_config(base))
+    handle = broker.open("T-0001", routing_for(base), BrokerBudget(tokens=None))
+
+    try:
+        from urllib.parse import urlsplit
+
+        route = urlsplit(handle.base_urls[PROVIDER])
+        conn = http.client.HTTPConnection(route.hostname, route.port, timeout=10)
+        # skip_host/putheader keeps the lowercase spelling on the wire.
+        conn.putrequest("POST", f"{route.path}/chat/completions")
+        conn.putheader("authorization", f"Bearer {handle.token}")
+        conn.putheader("Content-Length", "2")
+        conn.endheaders()
+        conn.send(b"{}")
+        answer = conn.getresponse()
+        assert answer.status == 200, answer.read()
+
+        assert state["auth"][-1] == "Bearer real-provider-key", state["auth"]
+    finally:
+        broker.close(handle)

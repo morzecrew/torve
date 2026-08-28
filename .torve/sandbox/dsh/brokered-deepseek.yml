@@ -1,0 +1,25 @@
+# The brokered seat (RFC 0021 D-21.1): deepseek-chat reached only through
+# the run's egress broker. The overlay is static — the per-run route and
+# token arrive as environment set by the tier command's {broker_url} /
+# {broker_token} substitution, so no credential and no per-run value is
+# ever baked.
+- id: llm-pi-ai
+  config:
+    providers:
+      torve-broker:
+        api: openai-completions
+        baseURL: !!js process.env.TORVE_BROKER_URL
+        apiKeyEnv: TORVE_BROKER_TOKEN
+        # A baseURL override detaches the installed catalog, so the route
+        # declares its own model.
+        models:
+          - id: deepseek-chat
+            name: DeepSeek Chat
+            contextWindow: 128000
+            maxTokens: 8192
+            input: [text]
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: torve-broker
+    model: deepseek-chat
