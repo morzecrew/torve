@@ -8,7 +8,7 @@ depends_on: ["0003", "0004"]
 informed_by: ["0001", "0013", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-56"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -354,10 +354,14 @@ introduces it.
     today's behaviour explicit and stays the default for this phase.
   scope:
     - "src/torve/adapters/broker/**"
+    - "src/torve/adapters/agent/**"
     - "src/torve/application/**"
     - "src/torve/config/**"
     - "src/torve/cli/**"
     - "tests/**"
+    - "pyproject.toml"
+    - "uv.lock"
+    - "CHANGELOG.md"
   acceptance:
     - "uv run ruff check src tests"
     - "uv run mypy src"
@@ -380,7 +384,9 @@ introduces it.
   scope:
     - "src/torve/adapters/runtime/**"
     - "src/torve/adapters/broker/**"
+    - "src/torve/config/**"
     - "tests/**"
+    - "CHANGELOG.md"
   acceptance:
     - "uv run ruff check src tests"
     - "uv run mypy src"
@@ -405,3 +411,23 @@ introduces it.
   loudly, and passes once the host is declared.
 
 ## Amendments
+
+### A-56 — 2026-08-28 — phase scopes widened to the measured touch surface (amends §Phasing)
+
+**Found in the first dispatch.** T-0097's first execution went red on the
+scope gate three times running, identically: `outside allow: CHANGELOG.md,
+pyproject.toml, src/torve/adapters/agent/harness.py`. All three are the
+work, not drift — the broker URL is substituted where the tier command is
+built (the agent adapter), a new module wants its packaging line, and the
+repository keeps a changelog. The contract's fence was drawn from the
+module list in §5, not from tracing what the change actually touches.
+
+**Changed:** phase 1's scope gains `src/torve/adapters/agent/**`,
+`pyproject.toml`, `uv.lock` and `CHANGELOG.md`; phase 2 gains
+`src/torve/config/**` (the pass-through host field, wherever D-21.11 lands
+it) and `CHANGELOG.md`. The minted contracts are re-minted — a changed
+contract is a new task.
+
+**Deliberately unchanged:** the scope gate itself did exactly its job;
+three identical reds and a poison ceiling on working code is the designed
+outcome for a mis-drawn fence, and the fix is the fence, never the gate.
