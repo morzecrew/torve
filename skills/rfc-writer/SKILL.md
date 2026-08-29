@@ -62,6 +62,13 @@ arrives first, invisibly.
    `allow` globs — overlapping tasks cannot run in parallel and the plan
    silently serialises. Say it while writing, when it is free to fix.
 
+3a. **A decision's Paths must fit inside one phase's scope.** A row whose
+   paths span two phases mints a contract that contradicts itself: the
+   executor inherits a decision it cannot satisfy without leaving
+   scope.allow. Split the row into per-surface decisions at authoring
+   (A-59: T-0099 hit exactly this and had to read D-22.6 down to its
+   first clause).
+
 4. **Decision identifiers are permanent.** Divergence logs cite `D-3` forever;
    renumbering orphans every entry that cites it. Append new rows; never
    renumber, never reuse an identifier.

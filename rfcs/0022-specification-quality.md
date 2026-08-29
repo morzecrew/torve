@@ -8,7 +8,7 @@ depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-59"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -191,9 +191,13 @@ the Paths column (D-32) and the silence check to exist at all.
 
 ### 5.3 Document-level report
 
-Per document: tasks minted, attempts to green (median), escalations by
-reason, findings of `kind: spec-drift` raised against its tasks, `drift_count`
-sum, `human_minutes` median, rework rate. Plus the two reasons that exist
+Per document: tasks minted, attempts to green (median, over landed tasks
+only — an abandoned attempt's count indicts nothing yet, per D-22.10),
+escalations by reason, log entries classed `drift` raised against its tasks
+(A-59: the field the corpus actually carries), `drift_count`
+sum, `human_minutes` median, rework rate. Tasks without an `rfc` are
+excluded from document populations exactly as D-22.9 excludes them at the
+decision level. Plus the two reasons that exist
 specifically to indict a document rather than code — `underspecified` and
 `stale_inheritance` — reported as their own line, since RFC 0001's amendments
 A-21 and A-22 separated them precisely so this line could be read.
@@ -316,10 +320,10 @@ and telling the executor it is being measured would change what it writes.
 | D-22.1 | `LOCKED` | The report never edits a decision table, proposes no text, and invokes no model; its output is evidence for a human writing an amendment | `src/torve/application/specquality.py` `src/torve/cli/rfc.py` | An engine that regrades its own decisions is an engine deciding what work exists (D-2) |
 | D-22.2 | `LOCKED` | Grades are compared as copied onto the contract at mint time, never as they stand in the table today | `src/torve/application/specquality.py` | A reader that resolves grades at read time rewrites the past, which is the defect the log format exists to prevent |
 | D-22.3 | `ASSUMED` | No single corpus score is computed or displayed; the output is populations with a named reading and a printed denominator | `src/torve/application/specquality.py` `src/torve/cli/rfc.py` | Charter §8a refuses thresholds for an internal tool, and a scalar becomes one by being watched |
-| D-22.4 | `ASSUMED` | A decision inherited by tasks that touched its declared paths but cited by no log entry is reported as decoration-or-paths-defect, naming both causes | `src/torve/application/specquality.py` | The reading is only possible because Paths (D-32) and the silence check exist; conflating the two causes would delete correct rows |
+| D-22.4 | `ASSUMED` | A decision inherited by tasks that touched its declared paths but cited by no log entry is reported as decoration-or-paths-defect, naming both causes. Amended by A-59 2026-08-29: "touched" is scope.allow intersecting the row's declared paths, both as denormalised at mint time; the reading applies to LOCKED rows only — ASSUMED and OPEN rows print raw counts with no reading | `src/torve/application/specquality.py` | The reading is only possible because Paths (D-32) and the silence check exist; conflating the two causes would delete correct rows |
 | D-22.5 | `ASSUMED` | Storage stays at RFC 0004 §6 stage 1: a plain reader over JSONL and YAML, no new dependency, written so that moving to stage 2 is a change of reader | `src/torve/application/specquality.py` | §6's own move-on condition — window functions or joins — is not met at this volume, and an unused extra is a dependency with no evidence behind it |
-| D-22.6 | `ASSUMED` | The surface is `torve rfc health`, a subcommand of the existing corpus verb, plus one section of the `torve context` projection | `src/torve/cli/rfc.py` `src/torve/application/projections.py` | One subject, one front door; the context section is the consumer that justifies computing the report |
-| D-22.7 | `LOCKED` | RFC 0004 §6a's quasi-experiment caveat is printed with the report, not paraphrased in documentation | `src/torve/cli/rfc.py` | The first attractive number becomes a promise to someone unless its limits arrive attached to it |
+| D-22.6 | `ASSUMED` | The surface is `torve rfc health`, a subcommand of the existing corpus verb, plus one section of the `torve context` projection. Amended by A-59 2026-08-29: a decision whose paths span more than one phase's scope splits into per-surface rows at authoring — this row's paths contradicted T-0099's minted scope | `src/torve/cli/rfc.py` `src/torve/application/projections.py` | One subject, one front door; the context section is the consumer that justifies computing the report |
+| D-22.7 | `LOCKED` | RFC 0004 §6a's quasi-experiment caveat is printed with the report, not paraphrased in documentation. Amended by A-59 2026-08-29: printed without its corpus coordinate (a report reader has no corpus to resolve); when a third surface needs the string its canonical home is `torve.base`, importable from both layers | `src/torve/cli/rfc.py` `src/torve/application/projections.py` | The first attractive number becomes a promise to someone unless its limits arrive attached to it |
 | D-22.8 | `ASSUMED` | Readings are suppressed below a printed floor of observations; ratios always print their denominator | `src/torve/application/specquality.py` | A majority over three tasks is noise wearing a percentage |
 | D-22.9 | `ASSUMED` | Tasks without an `rfc` join at the decision level and are reported as their own population, never merged into a document's numbers | `src/torve/application/specquality.py` | Adopted intake work and hand-minted contracts have no document to indict, and mixing them would indict one anyway |
 | D-22.10 | `OPEN` | Whether an abandoned task's entries weigh the same as a landed task's; execution reports both and logs which the data supports | `src/torve/application/specquality.py` | Departures on work that never landed are evidence of a different kind, and guessing the answer here would bake it in before anyone has seen the distribution |
@@ -384,3 +388,38 @@ and telling the executor it is being measured would change what it writes.
   tasks never touched its declared paths — silence about nothing stays quiet.
 
 ## Amendments
+
+### A-59 — 2026-08-29 — execution's proposals from T-0099/T-0100 approved (amends §5.3, D-22.4, D-22.6, D-22.7)
+
+**Found in the first execution.** Both phases landed with divergence logs
+proposing corpus corrections; every one is approved here.
+
+**Changed:**
+
+- `touched` is defined as scope.allow intersecting the row's declared
+  paths, both denormalised at mint time — never a literal post-hoc diff.
+  The decoration-or-paths-defect reading stays sound because the scope
+  gate already bounds the true diff by scope.allow for any task whose
+  gates passed (D-22.4).
+- The decoration reading is scoped to `LOCKED` rows explicitly; `ASSUMED`
+  and `OPEN` rows print their raw touched/cited counts with no reading
+  (D-22.4).
+- §5.3 names the field the corpus carries — log entries classed `drift` —
+  dropping the reference to a `Finding.kind` that never shipped; it states
+  that attempts-to-green is computed over landed tasks only and that
+  rfc-less tasks are excluded from document populations as D-22.9 already
+  excludes them at the decision level.
+- The printed caveat carries its substance without the corpus coordinate,
+  and `torve.base` is named as the canonical home for the string when a
+  third surface would otherwise have to choose between duplication and
+  breaking the layer contract (D-22.7; today the two surfaces duplicate
+  it knowingly, a wording change updates both).
+- Authoring doctrine from the mint-time contradiction: a decision whose
+  paths span more than one phase's scope splits into per-surface rows at
+  authoring, so scope.allow can never contradict a decision's own paths
+  again (D-22.6). The general rule belongs to the rfc-writer skill and is
+  recorded there.
+
+**Deliberately unchanged:** D-22.10 stays `OPEN` — §5.3's landed-only rule
+is the reporting default T-0100 shipped, not the weighting answer; the
+distribution still decides.

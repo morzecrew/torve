@@ -81,7 +81,9 @@ as it stands now, never re-read from the current spec.
 schema_version: 1
 task: T-0142
 repo: morzecrew/torve
-base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7)
+base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7):
+                                 # `git rev-parse HEAD` at start of work — your
+                                 # worktree's, never copied from another task's log
 drift_count: 0            # the declared claim; the gate checks it against entries classed drift
 entries:
   - decision: D-3         # the spec's identifier, or `unlisted`
@@ -102,6 +104,11 @@ entries:
   or a backticked command with its output. A sentence is a claim, and `claim`
   is where claims go; unlocatable evidence is discarded, and a discarded entry
   counts as none.
+- **The citation LEADS, prose follows after ` — `.** The gate reads everything
+  before the first ` — ` as the citation and nothing else. Extra citations go
+  in the prose. Parentheses after the path break the parse:
+  - wrong: `src/a.py:10-20 (the guard); src/b.py:5 (its caller)`
+  - right: `src/a.py:10-20 — the guard; src/b.py:5 is its caller`
 - **`class` answers: could this have been known before code existed?**
   `discovery` no (healthy) · `spec-gap` yes, spec was silent · `drift` yes, spec
   covered it and it was built otherwise (**a defect** — should be zero) ·
