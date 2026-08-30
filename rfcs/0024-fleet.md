@@ -8,7 +8,7 @@ depends_on: ["0008", "0013", "0019"]
 informed_by: ["0001", "0004", "0006", "0017", "0021", "0022"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-60"]
+amended_by: ["A-60", "A-61"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -323,6 +323,7 @@ will read the first fleet-wide pause as a bug.
     - "src/torve/config/fleet.py"
     - "src/torve/cli/fleet.py"
     - "src/torve/cli/main.py"
+    - "src/torve/application/loop.py"
     - "tests/**"
   acceptance:
     - "uv run ruff check src tests"
@@ -368,6 +369,23 @@ will read the first fleet-wide pause as a bug.
   no per-root command reports.
 
 ## Amendments
+
+### A-61 — 2026-08-30 — phase 1's scope admits the tick it passes the decision to (amends §Phasing)
+
+**Found in the re-minted dispatch, three identical reds.** T-0108 went red
+on `outside allow: src/torve/application/loop.py` — the phase's own intent
+says "tick each root … with the decision passed down", and a decision
+cannot be passed down to a tick whose signature does not take it:
+`run_tick` gains a keyword-only `fleet_pause`, and the survey leg reuses
+the escalation count the tick already computes. Both touches were
+derivable from the intent's own words at authoring; the fence was traced
+from the module list instead. Third exhibit for rfc-writer's rule.
+
+**Changed:** phase 1's scope gains `src/torve/application/loop.py`. The
+minted contracts are re-minted — a changed contract is a new task.
+
+**Deliberately unchanged:** the scope gate; and phase 2's scope, which
+consumes the fleet modules only.
 
 ### A-60 — 2026-08-30 — phase 1's scope admits the subcommand registration (amends §Phasing)
 
