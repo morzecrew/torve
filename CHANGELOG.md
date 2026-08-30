@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Decomposition and continuation (T-0110/T-0111, RFC 0026): a `too_large`
+  size verdict now routes — dispatch skips the contract until `torve
+  decompose` drafts children (adopted like any drafts, the parent becoming
+  the integration task) or the operator passes a recorded `--oversize`.
+  Children must fit the parent's scope, stay pairwise disjoint or
+  dependency-ordered, and keep every acceptance command. Budget-exhausted
+  attempts resume from their own candidate tip instead of restarting.
+
+- The dispatch envelope (T-0112, RFC 0022 phase 3): `torve run` and the
+  tick's dispatch leg print expected attempts, cost and wall minutes for
+  the task's size class beside the size verdict — denominator printed,
+  reading suppressed below the observation floor, the quasi-experiment
+  caveat attached. The engine never acts on it; the operator does.
+
 - Fleet (T-0108/T-0109, RFC 0024): `torve fleet tick` runs the standing
   loop over every repository in an operator-side manifest — survey each
   root's escalation queue, decide the pause once for the fleet, tick each

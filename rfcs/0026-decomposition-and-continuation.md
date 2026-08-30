@@ -3,7 +3,7 @@ id: "0026"
 title: Decomposition and continuation
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0002", "0003", "0007", "0020"]
 informed_by: ["0001", "0005", "0006", "0022"]
 supersedes: []
