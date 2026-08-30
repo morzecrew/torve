@@ -286,7 +286,11 @@ def release_lock(root: Path) -> None:
 # ....................... #
 
 
-def _escalated_count(root: Path) -> int:
+def escalated_count(root: Path) -> int:
+    """This root's escalation queue — the same count `torve status` shows,
+    and (RFC 0024 §5.2) the count a fleet's survey leg reads before any
+    root ticks, so the two never drift by computing it two different ways."""
+
     return sum(
         1
         for state in RunState.load_all(root / naming.WORKTREE_DIR)
@@ -297,10 +301,25 @@ def _escalated_count(root: Path) -> int:
 # ....................... #
 
 
-def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
+def run_tick(
+    root: Path,
+    config: RunnerConfig,
+    deps: TickDeps,
+    *,
+    fleet_pause: bool | None = None,
+) -> TickReport:
     """One pass, fixed order, every leg's failure recorded rather than
     fatal — a bounded tick must reach its sync leg so the board reflects
-    whatever did happen."""
+    whatever did happen.
+
+    `fleet_pause`, set only by a fleet pass (RFC 0024 D-24.2), is the
+    fleet-wide decision and *replaces* this root's own
+    `loop.pause_escalations` check rather than adding to it (D-24.10):
+    both applying would pause a root beneath its own threshold for a
+    reason its own configuration cannot explain, and the fleet threshold
+    is what the operator now carries instead. `None` is a solo tick —
+    this root's own threshold applies exactly as before.
+    """
 
     if not acquire_lock(root, config.loop.tick_budget):
         engine_event(root, "tick", {"noop": True, "locked": True})
@@ -340,14 +359,20 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
         leg("lane", deps.lane, "auto_merge off")
         leg("reap", deps.reap, "")
 
-        escalated = _escalated_count(root)
+        escalated = escalated_count(root)
+        paused = escalated >= config.loop.pause_escalations if fleet_pause is None else fleet_pause
 
-        if escalated >= config.loop.pause_escalations:
+        if paused:
             # D-19.5: the queue may drain during a pause; it may not grow.
             # RFC 0023 D-23.6's first bound places the standing leg inside
             # this same conditional: a paused tick evaluates no predicate.
-            legs.append(("dispatch", f"paused: escalation queue at {escalated}"))
-            legs.append(("standing", f"paused: escalation queue at {escalated}"))
+            reason = (
+                f"escalation queue at {escalated}"
+                if fleet_pause is None
+                else f"fleet-wide pause in force (this root's queue at {escalated})"
+            )
+            legs.append(("dispatch", f"paused: {reason}"))
+            legs.append(("standing", f"paused: {reason}"))
         else:
             # Standing before dispatch (RFC 0023 §5.4, the intake
             # precedent): whatever it mints this pass is a queued

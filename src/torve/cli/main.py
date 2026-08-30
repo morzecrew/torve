@@ -23,6 +23,7 @@ from torve.cli import (
     doctor,
     evals,
     feedback,
+    fleet,
     gates,
     intake,
     mcp,
@@ -53,6 +54,7 @@ app.add_typer(rfc.rfc_app, name="rfc")
 app.add_typer(sandbox.sandbox_app, name="sandbox")
 app.add_typer(review.review_app, name="review")
 app.add_typer(tracker.tracker_app, name="tracker")
+app.add_typer(fleet.fleet_app, name="fleet")
 
 
 # ....................... #

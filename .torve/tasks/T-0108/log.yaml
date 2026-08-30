@@ -1,0 +1,150 @@
+schema_version: 1
+task: T-0108
+repo: morzecrew/torve
+base_sha: 0e244cf4b27d45f73517481aaaf2a4956aeeac49
+drift_count: 0
+entries:
+  - decision: D-24.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T13:29:51Z
+    attempt: 1
+    claim: the fleet manifest schema lives only in src/torve/config/fleet.py, is
+      never resolved under a root's own .torve/, and requires trust explicitly
+      per repository (no default) — compliant, no contradiction.
+    evidence: src/torve/config/fleet.py:21-28 — FleetRepository.trust has no
+      default; src/torve/config/fleet.py:72-79 — default_manifest_path()
+      resolves under the operator's XDG config dir / home, never under a
+      ticked root.
+    action: decided
+    proposal: no change
+    notes: |
+      Compliance close-out for a touched LOCKED decision, per flag-dont-flip's
+      silence rule.
+
+  - decision: D-24.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T13:29:51Z
+    attempt: 1
+    claim: the pause is computed once over the fleet total and passed down as
+      one value; every other leg (reap, lane, poll, intake, sync, standing)
+      still runs per root regardless of that value — compliant, no
+      contradiction.
+    evidence: src/torve/application/fleet.py:72-78 — decide_pause sums every
+      root's count once and returns one bool; src/torve/application/loop.py:360-378
+      — run_tick only ever short-circuits the dispatch and standing legs on
+      that one value, every other leg call is unconditional.
+    action: decided
+    proposal: no change
+
+  - decision: D-24.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T13:29:51Z
+    attempt: 1
+    claim: no fleet-side store exists; fleet_tick and fleet_escalations only
+      read roots and the one write fleet_tick performs (the fleet event) lands
+      inside each ticked root's own telemetry stream, never a shared file —
+      compliant, no contradiction.
+    evidence: src/torve/application/fleet.py:84-126 — fleet_tick's only write is
+      `engine_event(repo.path, "fleet_tick", event)` inside the per-root loop,
+      landing under repo.path/.torve/telemetry.jsonl; src/torve/application/fleet.py:144-166
+      — fleet_escalations only calls RunState.load_all per root, no write.
+    action: decided
+    proposal: no change
+
+  - decision: D-24.9
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T13:29:51Z
+    attempt: 1
+    claim: nothing in the fleet mechanism resolves a task id, a dependency or a
+      scope across two roots — RootOutcome and EscalationRow are each scoped to
+      one root's own read, and fleet_tick never compares task ids between
+      roots — compliant, no contradiction.
+    evidence: src/torve/application/fleet.py:38-44 — RootOutcome carries one
+      root's aggregate count, not task ids; src/torve/application/fleet.py:132-138
+      — EscalationRow pairs one task_id with the one root it was read from,
+      and fleet_escalations never merges rows across roots beyond sorting.
+    action: decided
+    proposal: no change
+
+  - decision: D-24.6
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: 2026-08-30T13:29:51Z
+    attempt: 1
+    claim: D-24.6 (capability refusal, checked before a root is ticked) is
+      listed against this task because its paths (src/torve/config/fleet.py,
+      src/torve/application/fleet.py) intersect phase 1's scope — but RFC
+      0024's own Phasing section gives capability enforcement a dedicated
+      phase 2 titled exactly for it, and phase 1's own intent paragraph names
+      survey/pause/order/lock/event/status and never mentions a refusal.
+      Building enforcement now would finish phase 2's stated job inside phase
+      1 and leave phase 2 nothing of its own to scope. Departed to a
+      schema-only reading — `trust` is required on every manifest entry
+      (§5.1's "written statement" goal) and threaded into RootOutcome for
+      visibility, but no root is refused before ticking on account of its
+      trust class in this task.
+    evidence: rfcs/0024-fleet.md:311-321 — phase 1's intent (survey, decide,
+      tick in order, record, status; no mention of trust or refusal);
+      rfcs/0024-fleet.md:336-345 — phase 2, title "trust-classes-bind-capability",
+      intent "Trust classes enforced against each root's own configuration
+      before the root is ticked ... refused when a repository asks for more
+      than its class allows"; src/torve/config/fleet.py:21-28 — trust is
+      required, unread by any refusal check; src/torve/application/fleet.py:38-44,109
+      — trust carried into RootOutcome, never branched on.
+    action: departed
+    proposal: ASSUMED stands as departed — phase 2's own contract is where
+      D-24.6's refusal belongs; this task ships the schema field it needs.
+    notes: |
+      Reality here is the RFC's own phasing, not an external contradiction:
+      A-60 and A-61 already show this RFC's scope-by-touched-paths minting
+      pulling in more than a phase's intent covers, and both were resolved by
+      widening scope to match intent rather than building past it. Building
+      D-24.6's enforcement inside T-0108 would be the same shape of error the
+      other direction — implementing content phase 2 exists to hold, leaving
+      phase 2 no non-overlapping work of its own.
+
+  - decision: D-24.10
+    grade: OPEN
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T13:29:51Z
+    attempt: 1
+    claim: a fleet-governed tick's own `loop.pause_escalations` is fully
+      replaced by the fleet's decision, not additionally applied — the fleet
+      threshold is the one number an operator running a fleet now carries, and
+      a root pausing beneath its own threshold for a reason its own
+      configuration cannot explain is confusing under the RFC's own framing of
+      the alternative as "simple".
+    evidence: rfcs/0024-fleet.md:285-287 — "the fleet overriding is simple and
+      silently changes a root's behaviour when it joins" named as the simpler
+      of the two readings; src/torve/application/loop.py:309-320,360-364 —
+      `fleet_pause`, when not None, is used as `paused` directly, root's own
+      config.loop.pause_escalations is not additionally consulted.
+    action: decided
+    proposal: OPEN decided as above; a future task may add an explicit
+      opt-in for "both apply" if an operator asks for it.
+
+  - decision: D-24.11
+    grade: OPEN
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T13:29:51Z
+    attempt: 1
+    claim: the fleet event is appended to every ticked root's own telemetry,
+      not an operator-side stream beside the manifest — an operator-side
+      stream would be the first artefact holding fleet truth no single root
+      holds, which is what D-24.3 (LOCKED, this same task) forbids; per-root
+      telemetry keeps that rule unambiguous at no extra cost, since every
+      root's telemetry already exists and is already read by `torve status`.
+    evidence: rfcs/0024-fleet.md:281-284 — the unresolved question framed as
+      "per-root telemetry (keeping the no-fleet-store rule intact)" vs. "an
+      operator-side stream, which would be the first host-level record";
+      src/torve/application/fleet.py:113-124 — fleet_tick writes the one event
+      to `repo.path`'s own telemetry for every ticked root, no other sink.
+    action: decided
+    proposal: OPEN decided as above.
