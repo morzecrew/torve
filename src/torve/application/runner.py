@@ -993,10 +993,20 @@ def real_hooks(
                 # every projection (four ~$4 first attempts were missing
                 # from cost-and-iterations when this was found).
                 import torve as _torve
+                from torve.config.manifest import Manifest as _Manifest
                 from torve.domain.task import SCHEMA_VERSION as _TELEMETRY_SCHEMA
 
+                # The record must never depend on the manifest existing —
+                # a worktree with no gates.yaml still burned the money.
+                manifest_file = layout.gates_file(worktree)
+                telemetry_rel = (
+                    load_manifest(manifest_file).telemetry
+                    if manifest_file.is_file()
+                    else _Manifest().telemetry
+                )
+
                 append_record(
-                    root / load_manifest(layout.gates_file(worktree)).telemetry,
+                    root / telemetry_rel,
                     {
                         "schema_version": _TELEMETRY_SCHEMA,
                         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
