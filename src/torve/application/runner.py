@@ -986,6 +986,32 @@ def real_hooks(
                         "past the run's token budget",
                     )
 
+            if result.timed_out or result.exit_code != 0:
+                # RFC 0004 §6: the spend happened even though the gates will
+                # never run for this attempt — without a record here, a
+                # budget-killed or timed-out attempt's cost vanishes from
+                # every projection (four ~$4 first attempts were missing
+                # from cost-and-iterations when this was found).
+                import torve as _torve
+                from torve.domain.task import SCHEMA_VERSION as _TELEMETRY_SCHEMA
+
+                append_record(
+                    root / load_manifest(layout.gates_file(worktree)).telemetry,
+                    {
+                        "schema_version": _TELEMETRY_SCHEMA,
+                        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "config_hash": None,  # gates never ran; no manifest pass
+                        "torve_version": _torve.__version__,
+                        "task_id": task.id,
+                        "agent": dict(agent_meta),
+                        "decisions": [d.model_dump() for d in task.decisions],
+                        "results": [],
+                        "exit_code": result.exit_code,
+                        "gates_run": False,
+                        "timed_out": result.timed_out,
+                    },
+                )
+
             return result
 
         finally:

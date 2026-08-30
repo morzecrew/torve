@@ -304,3 +304,78 @@ def test_shadow_dispatch_never_trips_the_guard(tmp_path):
         tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt", shadow=True
     )
     assert hooks.attempt is not None
+
+
+def test_a_failed_attempt_still_appends_its_cost(tmp_path):
+    """RFC 0004 §6: a budget-killed or nonzero-exit attempt never reaches the
+    gates leg, and its record used to vanish with it — four ~$4 first
+    attempts were missing from cost-and-iterations when this was found. The
+    attempt hook appends a gates_run:false record with the spend."""
+    import asyncio
+    import subprocess
+
+    from torve.application.ports import AgentResult, SandboxHandle
+    from torve.application.runner import RunDeps, drive_attempts, real_hooks
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RunnerConfig, TierConfig
+    from torve.domain.states import TaskState
+    from torve.domain.task import Task
+
+    class DyingAgent:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(
+                exit_code=1, output="", cost_usd=4.05, model_version="m-x", trace_ref=None
+            )
+
+    class InertRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def resolve_image(self, image):
+            return None
+
+        def sync_out(self, handle, worktree):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+    worktree = tmp_path / "wt"
+    (worktree / ".torve" / "skills").mkdir(parents=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q"], cwd=worktree, check=True)
+
+    config = RunnerConfig(
+        poison_ceiling=1,
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="harness", command="run", provider="p", model="m", api_key_env=[]
+            ),
+        },
+    )
+    task = Task(id="T-9020", decisions=[])
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]
+        runtime=InertRuntime(),
+        agent=DyingAgent(),
+        vcs=None,  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+    )
+    state = RunState(task_id=task.id, path=tmp_path / "T-9020.state.json")
+    state.transition(TaskState.CLAIMED, "test claim")
+    hooks = real_hooks(tmp_path, task, config, deps, worktree)
+    asyncio.run(drive_attempts(state, task, config, hooks))
+
+    telemetry = tmp_path / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    failed = [r for r in records if r.get("gates_run") is False]
+    assert failed and failed[0]["agent"]["cost_usd"] == 4.05
+    assert failed[0]["task_id"] == "T-9020"
+    assert failed[0]["exit_code"] == 1
