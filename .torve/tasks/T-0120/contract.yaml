@@ -1,29 +1,21 @@
-# Minted by `torve plan 0027` — phase 3: displacement-and-the-paired-replay
-# T-0115 becomes the integration task at adoption — depends_on grown with T-0119, T-0120, T-0121, T-0122.
+# Adopted from T-0118's drafts (RFC 0020) — ids minted at adoption, D-20.4.
 schema_version: 1
-id: T-0115
-rfc: rfcs/0027-harness-configuration-evolution.md
-phase: 3
+id: T-0120
 role: implement
-intent: "The measurement obligation: paired replays of the same tasks under\nincumbent\
-  \ and candidate digests through the shadow machinery, verdicts\nin the eval ledger\
-  \ citing both digests, and displacement of the\ndefault refused without one \u2014\
-  \ while landing and running a candidate as\na named variant stays free. Doctor learns\
-  \ to name the default's\nverdict where recorded."
+intent: "At the real (non-shadow) dispatch path where a live run resolves its tier's\
+  \ image digest, refuse to proceed when the task carries no explicit tier_variant\
+  \ and the resolved digest has displaced what the eval ledger's most recent citing\
+  \ verdict measured as the default \u2014 a regime change nobody measured must not\
+  \ ship silently. A task naming an explicit tier_variant keeps dispatching exactly\
+  \ as today: naming and running a candidate stays free, only silent displacement\
+  \ of the default is refused."
 depends_on:
-- T-0114
 - T-0119
-- T-0120
-- T-0121
-- T-0122
-parent: null
-targets: []
 scope:
   allow:
-  - src/torve/application/**
-  - src/torve/cli/**
-  - .torve/sandbox/**
-  - tests/**
+  - src/torve/application/runner.py
+  - tests/test_runner.py
+  - tests/test_run_integration.py
   deny: []
 acceptance:
 - uv run ruff check src tests
@@ -113,8 +105,6 @@ decisions:
   paths:
   - .torve/sandbox/**
   - src/torve/cli/doctor.py
-budget:
-  iterations: null
-  wallclock_minutes: null
-  tokens: null
 tier: executor
+rfc: rfcs/0027-harness-configuration-evolution.md
+parent: T-0115

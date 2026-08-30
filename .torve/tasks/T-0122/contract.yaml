@@ -1,29 +1,17 @@
-# Minted by `torve plan 0027` — phase 3: displacement-and-the-paired-replay
-# T-0115 becomes the integration task at adoption — depends_on grown with T-0119, T-0120, T-0121, T-0122.
+# Adopted from T-0118's drafts (RFC 0020) — ids minted at adoption, D-20.4.
 schema_version: 1
-id: T-0115
-rfc: rfcs/0027-harness-configuration-evolution.md
-phase: 3
+id: T-0122
 role: implement
-intent: "The measurement obligation: paired replays of the same tasks under\nincumbent\
-  \ and candidate digests through the shadow machinery, verdicts\nin the eval ledger\
-  \ citing both digests, and displacement of the\ndefault refused without one \u2014\
-  \ while landing and running a candidate as\na named variant stays free. Doctor learns\
-  \ to name the default's\nverdict where recorded."
+intent: "Extend doctor's existing image check so that when the eval ledger holds a\
+  \ verdict citing the currently configured default digest, doctor names it alongside\
+  \ the digest it already prints \u2014 read-only surfacing of a fact the ledger already\
+  \ recorded, no new gate."
 depends_on:
-- T-0114
 - T-0119
-- T-0120
-- T-0121
-- T-0122
-parent: null
-targets: []
 scope:
   allow:
-  - src/torve/application/**
-  - src/torve/cli/**
-  - .torve/sandbox/**
-  - tests/**
+  - src/torve/cli/doctor.py
+  - tests/test_cli.py
   deny: []
 acceptance:
 - uv run ruff check src tests
@@ -113,8 +101,6 @@ decisions:
   paths:
   - .torve/sandbox/**
   - src/torve/cli/doctor.py
-budget:
-  iterations: null
-  wallclock_minutes: null
-  tokens: null
 tier: executor
+rfc: rfcs/0027-harness-configuration-evolution.md
+parent: T-0115
