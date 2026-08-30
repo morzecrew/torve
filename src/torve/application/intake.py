@@ -41,7 +41,7 @@ from torve.application.runstate import RunState
 from torve.application.telemetry import broker_block, engine_event
 from torve.base import naming
 from torve.config import layout
-from torve.config.runconfig import RunnerConfig, image_for, tier_for
+from torve.config.runconfig import RunnerConfig, configured_images, image_for, tier_for
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import SCHEMA_VERSION, Budget, Scope, Task
 
@@ -348,6 +348,103 @@ def lint_decomposition(
 
 # ....................... #
 
+# RFC 0027 §5.1/§5.3: the committed configuration tree a configuration
+# drafting run proposes changes to — sandbox definitions and the tier
+# blocks live in `.torve/config.yaml`, nowhere else (D-13.3).
+CONFIGURATION_SURFACES = [".torve/sandbox/**", ".torve/config.yaml"]
+
+
+def _configuration_paths(allow: list[str]) -> list[str]:
+    return [p for p in allow if _matched(Path(p), CONFIGURATION_SURFACES)]
+
+
+def lint_configuration_change(
+    tree: Path, document: DraftsDocument, config: RunnerConfig, runtime: Runtime
+) -> list[str]:
+    """RFC 0027 D-27.6: the drafting gate for a configuration drafting run —
+    deterministic, no model, fires only when a draft's scope names a
+    configuration surface, so an ordinary intake batch pays nothing extra
+    and no new task field distinguishes the two (D-27.4's "no config-specific
+    verb"). Confines the diff to `CONFIGURATION_SURFACES` (never mixed with
+    application code in one draft), then grounds the proposal in a *working*
+    baseline: the committed configuration parses under its schema, every
+    sandbox definition a draft names still builds clean, and every
+    configured image still resolves (`torve doctor`'s image check, D-17.2).
+    Building here is the drafting gate's own deterministic check — the same
+    act as an operator running `torve sandbox build` before adopting, never
+    a mid-run build on the dispatch path (D-17.3 untouched)."""
+
+    errors: list[str] = []
+    touched_names: set[str] = set()
+    any_configuration = False
+
+    for draft in document.drafts:
+        config_paths = _configuration_paths(draft.scope.allow)
+
+        if not config_paths:
+            continue
+
+        any_configuration = True
+
+        if len(config_paths) != len(draft.scope.allow):
+            errors.append(
+                f"{draft.ref}: mixes configuration surface(s) "
+                f"({', '.join(config_paths)}) with other path(s) — a configuration "
+                "change is confined to CONFIGURATION_SURFACES, never bundled with "
+                "application code (D-27.6)"
+            )
+            continue
+
+        for path in config_paths:
+            parts = Path(path).parts
+
+            if len(parts) >= 3 and parts[0] == ".torve" and parts[1] == "sandbox":
+                touched_names.add(parts[2])
+
+    if not any_configuration:
+        return errors  # no draft names a configuration surface — an ordinary batch
+
+    config_path = tree / ".torve" / "config.yaml"
+
+    if config_path.is_file():
+        try:
+            raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            RunnerConfig.model_validate(raw or {})
+
+        except (yaml.YAMLError, ValidationError) as exc:
+            errors.append(f"configuration-change lint: {config_path} does not parse: {exc}")
+
+    for name in sorted(touched_names):
+        definition = tree / ".torve" / "sandbox" / name
+
+        if not definition.is_dir():
+            continue  # a newly proposed definition does not exist yet to build
+
+        try:
+            runtime.build_image(definition, f"torve-agent:{name}")
+
+        except Exception as exc:  # the build tool's own failure is the message
+            errors.append(f"configuration-change lint: image {name!r} failed to build: {exc}")
+
+    from torve.application.migrate import check_forze_pin
+
+    pin_ok, pin_message = check_forze_pin()
+
+    if not pin_ok:
+        errors.append(f"configuration-change lint: torve doctor is red — {pin_message}")
+
+    for image in configured_images(config):
+        if runtime.resolve_image(image) is None:
+            errors.append(
+                f"configuration-change lint: torve doctor is red — image {image!r} "
+                "is configured but not present in the runtime"
+            )
+
+    return errors
+
+
+# ....................... #
+
 
 def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
     """The standalone face: the same protection for a hand-minted contract
@@ -509,10 +606,59 @@ def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) ->
 # ....................... #
 
 
-def execution_facts(root: Path) -> str:
+def _harness_facts(root: Path, config: RunnerConfig) -> list[str]:
+    """RFC 0027 D-27.5: one line per configured tier — including a variant
+    nothing uses, denominator zero and visible — plus the quasi-experiment
+    caveat printed verbatim beside them (RFC 0004 §6a, D-22.7's rule applied
+    a fourth time: never paraphrased, never carrying a corpus coordinate a
+    prompt reader has no corpus to resolve)."""
+
+    from torve.application.projections import QUASI_EXPERIMENT_CAVEAT, harness_populations
+
+    populations = harness_populations(root, config)
+    lines: list[str] = []
+
+    for pop in populations:
+        cost_parts: list[str] = []
+
+        if pop["cost_usd_broker_n"]:
+            cost_parts.append(
+                f"${pop['cost_usd_broker']:.2f} broker-measured (n={pop['cost_usd_broker_n']})"
+            )
+
+        if pop["cost_usd_self_reported_n"]:
+            cost_parts.append(
+                f"${pop['cost_usd_self_reported']:.2f} self-reported "
+                f"(n={pop['cost_usd_self_reported_n']})"
+            )
+
+        escalations = (
+            ", ".join(f"{reason} ({n})" for reason, n in sorted(pop["escalations_by_reason"].items()))
+            or "none"
+        )
+
+        lines.append(
+            f"harness tier {pop['tier']}: {pop['attempts']} run(s), "
+            f"cost {' + '.join(cost_parts) or 'none recorded'}, escalations: {escalations}, "
+            f"unparseable reviews: {pop['unparseable_reviews']}, "
+            f"digest {pop['current_digest'] or 'unresolved'}"
+        )
+
+    if lines:
+        lines.append(QUASI_EXPERIMENT_CAVEAT)
+
+    return lines
+
+
+# ....................... #
+
+
+def execution_facts(root: Path, config: RunnerConfig) -> str:
     """RFC 0020 phase 3: what the loop knows that a fresh drafter cannot —
-    the live escalation queue, contended paths, recent landings. Bounded
-    reads (telemetry tail), empty string when there is nothing to say."""
+    the live escalation queue, contended paths, recent landings, and (RFC
+    0027 D-27.5) the harness populations every configured tier has produced.
+    Bounded reads (telemetry tail), empty string when there is nothing to
+    say."""
 
     lines: list[str] = []
 
@@ -556,6 +702,8 @@ def execution_facts(root: Path) -> str:
 
         if landed:
             lines.append("recently landed: " + ", ".join(landed[-8:]))
+
+        lines.extend(_harness_facts(root, config))
 
     return "\n".join(f"- {entry}" for entry in lines)
 
@@ -817,7 +965,7 @@ def run_intake(
                 config.intake.max_drafts,
                 lint_errors or None,
                 feedback,
-                facts=execution_facts(root),
+                facts=execution_facts(root, config),
                 parent=parent,
             )
 
@@ -861,6 +1009,13 @@ def run_intake(
                 if parent is not None
                 else lint_drafts(worktree, document, config.intake.max_drafts)
             )
+
+            if not lint_errors:
+                # D-27.6: the configuration-change lint layers onto the
+                # ordinary contract lint — a no-op for any batch that names
+                # no configuration surface, so this costs an ordinary
+                # drafting run nothing.
+                lint_errors = lint_configuration_change(worktree, document, config, runtime)
 
             if lint_errors:
                 state.transition(TaskState.GATED, f"lint red: {len(lint_errors)} refusal(s)")

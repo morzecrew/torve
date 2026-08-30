@@ -15,6 +15,8 @@ from torve.application.intake import (
     DraftsDocument,
     adopt,
     drafts_file,
+    execution_facts,
+    lint_configuration_change,
     lint_contract,
     lint_decomposition,
     lint_drafts,
@@ -44,9 +46,12 @@ class ScriptedAgent:
 
 
 class StubRuntime:
-    def __init__(self) -> None:
+    def __init__(self, *, image_digest: str | None = "sha256:stub", build_error: str | None = None) -> None:
         self.created = 0
         self.destroyed = 0
+        self.built: list[tuple[Path, str]] = []
+        self._image_digest = image_digest
+        self._build_error = build_error
 
     def create(self, spec, workspace):
         self.created += 1
@@ -55,6 +60,16 @@ class StubRuntime:
 
     def destroy(self, handle):
         self.destroyed += 1
+
+    def resolve_image(self, image):
+        return self._image_digest
+
+    def build_image(self, context, tag):
+        if self._build_error is not None:
+            raise RuntimeError(self._build_error)
+
+        self.built.append((context, tag))
+        return "sha256:built"
 
 
 def draft_dict(
@@ -853,9 +868,8 @@ def test_intake_leg_closes_an_adopted_thread(seeded):
 
 
 def test_execution_facts_reads_queue_and_telemetry(seeded):
-    from torve.application.intake import execution_facts
-
-    assert execution_facts(seeded.root) == ""  # nothing to say, no block
+    config = RunnerConfig()
+    assert execution_facts(seeded.root, config) == ""  # nothing to say, no block
     state = RunState(task_id="T-0300", path=naming.state_file(seeded.root, "T-0300"))
     state.transition(TaskState.CLAIMED, "x")
     state.transition(TaskState.RUNNING, "x")
@@ -893,7 +907,7 @@ def test_execution_facts_reads_queue_and_telemetry(seeded):
         encoding="utf-8",
     )
 
-    facts = execution_facts(seeded.root)
+    facts = execution_facts(seeded.root, config)
     assert "T-0300 (poison_ceiling)" in facts
     assert "src/hot.py (2x)" in facts
     assert "T-0299" in facts
@@ -912,3 +926,127 @@ def test_facts_reach_the_drafter_prompt(seeded):
     run_intake(seeded.root, seeded.root, task, config, StubRuntime(), agent, "digest")
     assert "Recent execution facts" in agent.prompts[0]
     assert "T-0299" in agent.prompts[0]
+
+
+# ----------------------- #
+# RFC 0027 D-27.5: harness populations widen the fact feed.
+
+
+def test_execution_facts_reports_harness_populations_per_tier(seeded):
+    config = RunnerConfig()
+    telemetry = seeded.root / ".torve" / "telemetry.jsonl"
+    telemetry.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {"kind": "engine", "event": "lane_landed", "task": "T-0299", "sha": "a" * 40}
+                ),
+                json.dumps(
+                    {
+                        "task_id": "T-0100",
+                        "agent": {
+                            "tier": "executor",
+                            "adapter": "api",
+                            "cost_usd": 0.40,
+                            "image_digest": "sha256:abc",
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "task_id": "T-0100",
+                        "agent": {
+                            "tier": "executor",
+                            "adapter": "api",
+                            "cost_usd": 0.10,
+                            "image_digest": "sha256:def",
+                            "broker": {"cost_usd": 0.55},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "kind": "review",
+                        "task_id": "T-0101",
+                        "unparseable": True,
+                        "agent": {"tier": "reviewer", "adapter": "api"},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    facts = execution_facts(seeded.root, config)
+    assert "harness tier executor: 2 run(s)" in facts
+    assert "$0.55 broker-measured (n=1)" in facts
+    assert "$0.40 self-reported (n=1)" in facts
+    assert "digest sha256:def" in facts
+    assert "harness tier reviewer: 1 run(s)" in facts
+    assert "unparseable reviews: 1" in facts
+    assert "harness tier planner: 0 run(s)" in facts  # an unused tier stays visible
+    assert "quasi-experiment" in facts
+
+
+# ----------------------- #
+# RFC 0027 D-27.6: the configuration-change lint.
+
+
+def test_configuration_lint_is_a_noop_for_an_ordinary_batch(tree):
+    doc = document(draft_dict())
+    assert lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime()) == []
+
+
+def test_configuration_lint_refuses_a_mixed_scope(tree):
+    doc = document(draft_dict(allow=[".torve/config.yaml", "src/app.py"]))
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime())
+    assert any("mixes configuration surface" in e for e in errors)
+
+
+def test_configuration_lint_parses_the_committed_schema(tree):
+    (tree / ".torve").mkdir()
+    (tree / ".torve" / "config.yaml").write_text("tiers: not-a-mapping\n", encoding="utf-8")
+    doc = document(draft_dict(allow=[".torve/config.yaml"]))
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime())
+    assert any("does not parse" in e for e in errors)
+
+
+def test_configuration_lint_builds_every_touched_image(tree):
+    definition = tree / ".torve" / "sandbox" / "dsh"
+    definition.mkdir(parents=True)
+    (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    doc = document(draft_dict(allow=[".torve/sandbox/dsh/Dockerfile"]))
+    runtime = StubRuntime()
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), runtime)
+    assert errors == []
+    assert runtime.built == [(definition, "torve-agent:dsh")]
+
+
+def test_configuration_lint_refuses_a_broken_image_build(tree):
+    definition = tree / ".torve" / "sandbox" / "dsh"
+    definition.mkdir(parents=True)
+    (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    doc = document(draft_dict(allow=[".torve/sandbox/dsh/Dockerfile"]))
+    runtime = StubRuntime(build_error="no such tool")
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), runtime)
+    assert any("failed to build" in e for e in errors)
+
+
+def test_configuration_lint_refuses_when_a_configured_image_is_missing(tree):
+    doc = document(draft_dict(allow=[".torve/config.yaml"]))
+    runtime = StubRuntime(image_digest=None)
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), runtime)
+    assert any("not present in the runtime" in e for e in errors)
+
+
+def test_run_intake_runs_the_configuration_lint_for_a_config_scoped_batch(seeded):
+    config = RunnerConfig()
+    task = mint_intake_task(seeded.root, "widen a tier variant", config)
+    draft = draft_dict(allow=[".torve/config.yaml"], acceptance=["true"])
+    agent = ScriptedAgent([output_for(draft)] * config.intake.iterations)
+    runtime = StubRuntime(image_digest=None)  # a configured image is missing -> doctor red
+    outcome = run_intake(seeded.root, seeded.root, task, config, runtime, agent, "digest")
+
+    assert not outcome.drafts
+    assert any("not present in the runtime" in e for e in outcome.lint_errors)

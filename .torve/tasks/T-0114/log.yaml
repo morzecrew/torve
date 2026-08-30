@@ -1,0 +1,83 @@
+schema_version: 1
+task: T-0114
+repo: morzecrew/torve
+base_sha: ad9aa9ec0aecc5d4471523e609ebcacff8070db8
+drift_count: 0
+entries:
+  - decision: D-27.5
+    grade: ASSUMED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: >-
+      the RFC names the populations ("attempts, escalations by reason, cost
+      ..., unparseable-review counts, current digests") but not their exact
+      telemetry join. Built as: "attempts" counts every non-shadow,
+      non-skill-eval, non-engine record carrying an agent block with a
+      real (non-fake) adapter, bucketed by agent.tier — so planner (intake)
+      and reviewer (review) runs populate their own tier alongside executor
+      attempts, not just gate-checked implement dispatches. Cost sums the
+      same population, broker-measured preferred per record (D-21.5) and
+      self-reported summed separately when no broker block is present, each
+      with its own denominator. Escalations by reason join on the task
+      contract's own declared tier (tier + tier_variant, dotted per D-27.3),
+      not the last attempt's resolved tier, since a task can escalate before
+      any attempt telemetry exists. "current digest" is the last-seen
+      agent.image_digest per tier walking telemetry in file order — a read
+      of an existing record, never a live runtime resolution, keeping the
+      fact feed inside "all from existing records".
+    evidence: src/torve/application/projections.py:371 — harness_populations;
+      src/torve/application/intake.py:512 — _harness_facts
+    action: decided
+    proposal: >-
+      D-27.5 — the fact feed's per-tier "attempts" counts every real-adapter
+      run under that tier (attempt + review + intake telemetry, shadow and
+      skill-eval excluded), cost is the same population split
+      broker-measured/self-reported, escalations join on the contract's own
+      declared tier, and "current digest" reads the last recorded
+      agent.image_digest for that tier rather than resolving the runtime
+      live.
+  - decision: D-27.6
+    grade: ASSUMED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T00:01:00Z
+    attempt: 1
+    claim: >-
+      the RFC's "the proposed diff is confined to configuration surfaces;
+      the resulting configuration parses; every image whose definition
+      changed builds clean; torve doctor passes" presumes an actual file
+      diff at drafting-lint time, but a drafting run's workspace is
+      read-only (D-20.2) and a DraftsDocument carries only contract
+      metadata (scope/acceptance/intent), never file content — there is no
+      diff to apply at lint time. Built as a baseline-grounding check
+      instead: it auto-fires (no new task/draft field, keeping D-27.4's "no
+      config-specific verb") whenever any draft's scope.allow is entirely
+      confined to CONFIGURATION_SURFACES (.torve/sandbox/**,
+      .torve/config.yaml — mixing a config path with an app-code path in
+      one draft is refused outright); it then parses the tree's currently
+      committed .torve/config.yaml under the RunnerConfig schema, builds
+      every sandbox definition a draft names that already exists on disk
+      (runtime.build_image — "a drafting run building a candidate image ...
+      is the same act as an operator running torve sandbox build before
+      adopting"), and checks torve doctor's forze-pin and configured-image
+      checks (not its store/broker checks, which are unrelated to sandbox
+      or tier surfaces). The actual proposed edit still happens later, in
+      the ordinary executor-role implement task adoption produces — this
+      lint only proves the baseline the proposal is about to touch is
+      itself sound.
+    evidence: src/torve/application/intake.py:349 — lint_configuration_change;
+      src/torve/application/intake.py:1013 — wired after the ordinary
+      contract lint in run_intake
+    action: decided
+    proposal: >-
+      D-27.6 — the configuration-change lint auto-detects a configuration
+      drafting run by scope confinement alone (no new field), and checks a
+      *baseline* rather than a diff: schema-parses the tree's current
+      .torve/config.yaml, builds any named sandbox definition that already
+      exists, and re-runs doctor's forze-pin and image-resolution checks
+      (not its full store/broker suite). A future phase that wants the
+      drafter to propose actual file content (so the lint can validate the
+      *changed* configuration, not just the baseline) needs a documented
+      output-format extension to DraftsDocument.

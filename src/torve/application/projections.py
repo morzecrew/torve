@@ -30,6 +30,7 @@ from torve.application.runstate import RunState
 from torve.application.specquality import read_tasks
 from torve.base import naming
 from torve.config import layout, rfc_parse
+from torve.config.runconfig import RunnerConfig
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import SCHEMA_VERSION
 
@@ -365,6 +366,129 @@ def _costs(root: Path) -> list[dict[str, Any]]:
             )
 
     return found
+
+
+# ....................... #
+
+# Kinds a harness population does not count as "a run under this tier":
+# shadow replays are the measurement machinery comparing two regimes, not
+# spend under either one, skill evals are RFC 0009's own population, and
+# engine events carry no agent block at all (RFC 0027 D-27.5).
+_HARNESS_EXCLUDED_KINDS = {"shadow", "skill-eval", "engine"}
+
+
+def _task_tier_name(record: dict[str, Any]) -> str:
+    """The contract's own declared tier, dotted (D-27.3) — read straight off
+    the committed YAML, no `Task` validation needed for a population join."""
+
+    tier = str(record.get("tier") or "")
+    variant = record.get("tier_variant")
+
+    return f"{tier}.{variant}" if variant else tier
+
+
+def harness_populations(root: Path, config: RunnerConfig) -> list[dict[str, Any]]:
+    """RFC 0027 D-27.5's fact-feed widening: per-tier runs, cost (D-21.5's
+    broker-measured-preferred, self-reported-labelled split), escalations by
+    reason, unparseable-review counts, and the most recently recorded image
+    digest — every *configured* tier present with its denominator even at
+    zero, so a variant nothing uses is visible (RFC 0027 §9's variant-sprawl
+    mitigation). All from existing records: telemetry for runs, cost, digest
+    and unparseable reviews; contracts and run state for escalations."""
+
+    buckets: dict[str, dict[str, Any]] = {
+        name: {
+            "tier": name,
+            "attempts": 0,
+            "cost_usd_broker": 0.0,
+            "cost_usd_broker_n": 0,
+            "cost_usd_self_reported": 0.0,
+            "cost_usd_self_reported_n": 0,
+            "escalations_by_reason": {},
+            "unparseable_reviews": 0,
+            "current_digest": None,
+        }
+        for name in sorted(config.tiers)
+    }
+
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
+    if telemetry.is_file():
+        for line in telemetry.read_text(encoding="utf-8").splitlines():
+            try:
+                record: Any = json.loads(line)
+
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(record, dict):
+                continue
+
+            row = cast("dict[str, Any]", record)
+
+            if str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
+                continue
+
+            agent = row.get("agent")
+
+            if not isinstance(agent, dict) or cast("dict[str, Any]", agent).get("adapter") == "fake":
+                continue
+
+            block = cast("dict[str, Any]", agent)
+            bucket = buckets.get(str(block.get("tier") or ""))
+
+            if bucket is None:
+                continue
+
+            bucket["attempts"] += 1
+            broker = block.get("broker")
+
+            if isinstance(broker, dict) and isinstance(
+                cast("dict[str, Any]", broker).get("cost_usd"), int | float
+            ):
+                bucket["cost_usd_broker"] += float(cast("dict[str, Any]", broker)["cost_usd"])
+                bucket["cost_usd_broker_n"] += 1
+            elif isinstance(block.get("cost_usd"), int | float):
+                bucket["cost_usd_self_reported"] += float(block["cost_usd"])
+                bucket["cost_usd_self_reported_n"] += 1
+
+            digest = block.get("image_digest")
+
+            if digest:
+                bucket["current_digest"] = digest
+
+            if row.get("kind") == "review" and row.get("unparseable"):
+                bucket["unparseable_reviews"] += 1
+
+    tasks_dir = root / layout.TORVE_DIR / "tasks"
+
+    if tasks_dir.is_dir():
+        for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
+            contract_record = _load_yaml_dict(contract)
+
+            if contract_record is None:
+                continue
+
+            bucket = buckets.get(_task_tier_name(contract_record))
+
+            if bucket is None:
+                continue
+
+            task_id = str(contract_record.get("id", contract.parent.name))
+            state_path = naming.state_file(root, task_id)
+
+            if not state_path.exists():
+                continue
+
+            state = RunState.load(state_path)
+
+            if state.state is TaskState.ESCALATED and state.escalation:
+                reason = str(state.escalation.reason)
+                bucket["escalations_by_reason"][reason] = (
+                    bucket["escalations_by_reason"].get(reason, 0) + 1
+                )
+
+    return [buckets[name] for name in sorted(buckets)]
 
 
 # ....................... #
