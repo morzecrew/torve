@@ -142,6 +142,32 @@ not intersect.>
   acceptance: ["make test"]
   depends_on: [1]
 ```
+
+## 13. Contract example
+
+<Optional — delete unless this RFC wants a runnable demonstration of the
+task contract its Decisions and Phasing mint into (RFC 0025 §5.4). A fence
+tagged `yaml contract-example` validates against the live task schema, so
+`torve rfc check` reddens the example the moment the schema moves instead of
+letting it rot silently.>
+
+```yaml contract-example
+id: "T-0142"
+rfc: rfcs/0009-example-subsystem.md
+role: implement
+intent: >-
+  One paragraph: what changes and why.
+scope:
+  allow: ["src/example/**", "tests/**"]
+acceptance:
+  - "pytest"
+decisions:
+  - id: D-9.3
+    grade: LOCKED
+    text: Sessions live in Postgres, not Redis
+    paths: ["src/example/session.py"]
+tier: executor
+```
 ```
 
 ---

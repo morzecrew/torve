@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from torve.application.skills import available, materialize, skills_root
+from torve.config.rfc_parse import check_contract_example, parse_contract_example
 from torve.config.runconfig import RunnerConfig
 
 
@@ -34,6 +35,17 @@ def test_no_shipped_skill_is_byte_identical_to_upstream():
         theirs_path = upstream / name / "SKILL.md"
         if theirs_path.is_file():
             assert ours != theirs_path.read_bytes(), f"{name}: unspecialised copy"
+
+
+def test_the_rfc_templates_contract_example_validates_against_the_task_schema():
+    """The template's own demonstration (D-25.10) must track the schema it
+    demonstrates — this catches a schema change breaking it in CI, not only
+    the moment an author copies it into a real RFC."""
+    text = (skills_root() / "rfc-writer" / "references" / "rfc-template.md").read_text(
+        encoding="utf-8"
+    )
+    assert check_contract_example(Path("rfc-template.md"), text) == []
+    assert parse_contract_example(text) is not None
 
 
 def test_materialize_writes_the_role_set_and_nothing_else(tmp_path):
