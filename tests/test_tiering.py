@@ -281,6 +281,14 @@ def test_prompt_states_explicit_emptiness():
     assert "unconstrained" in prompt
 
 
+def test_prompt_carries_the_engine_base_sha_pin():
+    """D-A.7: the sandbox cannot resolve the host .git pointer, so the pin
+    travels in the prompt — and only when the engine actually has it."""
+    sha = "83ceeaeaf29d7aa189f7e7d308cce698079af624"
+    assert f"`base_sha` is `{sha}`" in build_prompt(Task(id="T-1", decisions=[]), base_sha=sha)
+    assert "base_sha" not in build_prompt(Task(id="T-1", decisions=[]))
+
+
 # ....................... #
 # Dispatch (CLI): routing enforced before anything exists
 

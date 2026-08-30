@@ -82,8 +82,9 @@ schema_version: 1
 task: T-0142
 repo: morzecrew/torve
 base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7):
-                                 # `git rev-parse HEAD` at start of work — your
-                                 # worktree's, never copied from another task's log
+                                 # copy it from the prompt's "engine's pin" line —
+                                 # git cannot resolve it inside the sandbox, and
+                                 # another task's log is never the source
 drift_count: 0            # the declared claim; the gate checks it against entries classed drift
 entries:
   - decision: D-3         # the spec's identifier, or `unlisted`

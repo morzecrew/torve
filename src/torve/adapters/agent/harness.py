@@ -18,6 +18,8 @@ what the model saw, not what the code did.
 from __future__ import annotations
 
 import json
+import subprocess
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from torve.application.ports import AgentContext, AgentResult
@@ -41,7 +43,25 @@ BROKER_TOKEN_PLACEHOLDER = "{broker_token}"
 # ....................... #
 
 
-def build_prompt(task: Task, revision: bool = False) -> str:
+def _workspace_head(workspace: Path) -> str | None:
+    """The worktree's base commit, resolved host-side: the sandbox sees a
+    `.git` pointer into the host tree it cannot follow, so the agent can
+    only receive this pin, never derive it (D-A.7)."""
+
+    proc = subprocess.run(
+        ["git", "-C", str(workspace), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return proc.stdout.strip() or None if proc.returncode == 0 else None
+
+
+# ....................... #
+
+
+def build_prompt(task: Task, revision: bool = False, base_sha: str | None = None) -> str:
     lines: list[str] = [f"# Torve task {task.id}", ""]
 
     if revision:
@@ -95,6 +115,17 @@ def build_prompt(task: Task, revision: bool = False) -> str:
             f"- Divergences from the decisions above go to"
             f" `.torve/tasks/{task.id}/log.yaml` as the `flag-dont-flip` skill"
             f" specifies; the `decisions-reported` gate reads that file."
+        ),
+        *(
+            [
+                (
+                    f"- The log's `base_sha` is `{base_sha}` — the engine's pin"
+                    " (D-A.7). Copy it verbatim; `git` cannot resolve it inside"
+                    " this sandbox."
+                )
+            ]
+            if base_sha
+            else []
         ),
         (
             "- Gates run outside this session, against the working tree you leave"
@@ -223,7 +254,11 @@ class HarnessAgent:
         stage = ctx.workspace / ".torve" / "tmp"
         stage.mkdir(parents=True, exist_ok=True)
         revision = (ctx.workspace / ".torve" / "feedback.md").is_file()
-        prompt = ctx.prompt if ctx.prompt is not None else build_prompt(ctx.task, revision=revision)
+        prompt = (
+            ctx.prompt
+            if ctx.prompt is not None
+            else build_prompt(ctx.task, revision=revision, base_sha=_workspace_head(ctx.workspace))
+        )
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")
 
         command = self._command(ctx)
