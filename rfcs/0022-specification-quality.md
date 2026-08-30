@@ -3,7 +3,7 @@ id: "0022"
 title: Specification quality as a measured quantity
 kind: design
 status: accepted
-implementation: complete
+implementation: partial
 depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
@@ -375,6 +375,27 @@ and telling the executor it is being measured would change what it writes.
     - "uv run pytest"
     - "uv run lint-imports"
   depends_on: [1]
+- phase: 3
+  title: dispatch-envelope
+  intent: |
+    The envelope at dispatch (D-22.11, A-62): torve run and the tick's
+    dispatch leg print expected attempts, cost and wall minutes for the
+    task's size class beside the size verdict, computed from the same
+    join this document already reads, denominator printed, reading
+    suppressed below the floor, the quasi-experiment caveat printed with
+    it. Nothing in the engine acts on the envelope; the operator does.
+  scope:
+    - "src/torve/application/specquality.py"
+    - "src/torve/cli/run.py"
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+  depends_on: [2]
 ```
 
 ## 12. Exit criteria
@@ -406,7 +427,8 @@ minutes for the task's size class, from the same join, with the
 denominator printed and the reading suppressed below the observation
 floor. The quasi-experiment caveat prints with it (D-22.7); an envelope
 is a base rate, never a bound, and nothing in the engine acts on it —
-the operator does.
+the operator does. §Phasing gains phase 3 (dispatch-envelope) carrying
+exactly this.
 
 ### A-59 — 2026-08-29 — execution's proposals from T-0099/T-0100 approved (amends §5.3, D-22.4, D-22.6, D-22.7)
 
