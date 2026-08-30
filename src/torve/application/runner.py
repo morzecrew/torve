@@ -65,7 +65,14 @@ from torve.application.telemetry import (
 from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import load_manifest
-from torve.config.runconfig import RunnerConfig, TierConfig, broker_in_force, image_for, tier_for
+from torve.config.runconfig import (
+    RunnerConfig,
+    TierConfig,
+    broker_in_force,
+    image_for,
+    tier_for,
+    tier_name_for,
+)
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
@@ -96,6 +103,14 @@ class RunDeps:
     # simulation). Under a configured broker the run opens it around the
     # attempts and closes it when the loop ends.
     broker: Broker | None = None
+    # D-27.11: builds the Agent for a tier resolved mid-run — the attempt
+    # after a gate-red, when the tier that just ran names a retry_variant.
+    # Building an Agent is a CLI-layer act (it reaches into adapters), so
+    # the runner is handed a factory rather than importing one; None means
+    # retry_variant never fires for this dispatch — `agent` above keeps
+    # running every attempt, and telemetry never stamps a tier that did not
+    # actually produce the work.
+    retry_agent: Callable[[TierConfig], Agent] | None = None
 
 
 # ....................... #
@@ -330,6 +345,18 @@ def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
         isinstance(e, dict) and str(cast(dict[str, Any], e).get("action", "")) == "halted"
         for e in cast(list[object], entries)
     )
+
+
+# ....................... #
+
+
+def _previous_attempt_gate_red(state: RunState) -> bool:
+    """D-27.11: whether the attempt about to dispatch follows a gate-red.
+    `_attempt_loop` appends a "gates red: ..." fact without a transition
+    (the state stays GATED, retried), so it sits one slot behind this
+    attempt's own "attempt N dispatched" entry — never the last one."""
+
+    return len(state.history) >= 2 and state.history[-2]["fact"].startswith("gates red:")
 
 
 # ....................... #
@@ -633,14 +660,26 @@ def _review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
 # ....................... #
 
 
-def run_routing(config: RunnerConfig, task: Task, review_on: bool) -> BrokerRouting:
+def run_routing(
+    config: RunnerConfig, task: Task, review_on: bool, include_retry: bool = False
+) -> BrokerRouting:
     """The run's routing (D-21.4): every provider the run's agents will use,
     resolved once and handed to the broker. Dispatch allowed them at the CLI;
     the broker enforces them at the wire. A provider the broker configuration
-    does not route is a configuration error, never a quiet fallback."""
+    does not route is a configuration error, never a quiet fallback.
+
+    `include_retry` (D-27.11) also routes the task's tier's `retry_variant`
+    when one is named: the broker opens once, before the first attempt, so a
+    provider only a later retry reaches must already be on the route table.
+    """
 
     routes: list[BrokerRoute] = []
-    tier_names = [task.tier]
+    base_name = tier_name_for(task)
+    base_tier = tier_for(config, base_name)
+    tier_names = [base_name]
+
+    if include_retry and base_tier.retry_variant:
+        tier_names.append(base_tier.retry_variant)
 
     if review_on:
         tier_names.append("reviewer")
@@ -687,17 +726,26 @@ def real_hooks(
     gates_base: str | None = None,
     resume: bool = False,
 ) -> AttemptHooks:
-    tier = tier_for(config, task.tier)
+    tier_name = tier_name_for(task)
+    tier = tier_for(config, tier_name)
 
-    # D-21.1's second line: the configuration validator already refuses a
-    # brokered tier that names a credential; the runner refuses again so a
-    # programmatically-built configuration cannot slip a key name past the
-    # validator into the sandbox's env.
-    if broker_in_force(config) and tier.api_key_env:
-        raise ValueError(
-            f"tier {task.tier!r} names api_key_env {tier.api_key_env} under broker "
-            f"{config.broker.adapter!r} — a brokered tier names no credential"
-        )
+    def _refuse_credentialed_brokered_tier(name: str, candidate: TierConfig) -> None:
+        # D-21.1's second line: the configuration validator already refuses a
+        # brokered tier that names a credential; the runner refuses again so
+        # a programmatically-built configuration cannot slip a key name past
+        # the validator into the sandbox's env. Checked for the retry_variant
+        # too (D-27.11) — a run never dispatches under a regime it hasn't
+        # already validated (D-27.1's spirit, applied ahead of time).
+        if broker_in_force(config) and candidate.api_key_env:
+            raise ValueError(
+                f"tier {name!r} names api_key_env {candidate.api_key_env} under broker "
+                f"{config.broker.adapter!r} — a brokered tier names no credential"
+            )
+
+    _refuse_credentialed_brokered_tier(tier_name, tier)
+
+    if deps.retry_agent is not None and tier.retry_variant:
+        _refuse_credentialed_brokered_tier(tier.retry_variant, tier_for(config, tier.retry_variant))
 
     # What actually runs, not what the tier configured — an --agent fake
     # override must not masquerade as a model in the telemetry.
@@ -708,12 +756,24 @@ def real_hooks(
     image = image_for(config, tier)
     image_digest = deps.runtime.resolve_image(image)
 
+    # What this run is actually under right now (D-27.11): seeded from the
+    # task's own tier, advanced by `attempt()` only when a gate-red hands off
+    # to a retry_variant. `gates()` reads it too — a gate pass judges the
+    # same image the agent just ran under (D-3.8).
+    current: dict[str, Any] = {
+        "name": tier_name,
+        "tier": tier,
+        "image": image,
+        "image_digest": image_digest,
+    }
+
     # Denormalised into every record this run appends (RFC 0004 §6): which
     # adapter and model did the work cannot be reconstructed later. Shadow
     # gate passes are marked so the measurement population stays separable
-    # from live attempts in one stream.
+    # from live attempts in one stream. `attempt()` restamps tier/adapter/
+    # provider/model/image_digest every call — this is only the shape.
     agent_meta: dict[str, Any] = {
-        "tier": task.tier,
+        "tier": tier_name,
         "adapter": kind,
         "provider": (tier.provider or None) if real else None,
         "model": (tier.model or None) if real else None,
@@ -729,6 +789,45 @@ def real_hooks(
     }
 
     async def attempt(state: RunState) -> AgentResult:
+        # D-27.11: one rung. The attempt after a gate-red resolves the tier
+        # that just ran's retry_variant instead of continuing under it; any
+        # other attempt resolves the task's own tier. Never fabricated —
+        # this only fires when the CLI wired an agent factory to actually
+        # build the resolved tier's Agent, so telemetry never stamps a
+        # tier that did not produce the work (D-27.1).
+        resolved_name, resolved_tier = tier_name, tier
+        retry_agent = deps.retry_agent
+        running_tier: TierConfig = current["tier"]
+
+        if retry_agent is not None and _previous_attempt_gate_red(state) and running_tier.retry_variant:
+            resolved_name = running_tier.retry_variant
+            resolved_tier = tier_for(config, resolved_name)
+
+        if resolved_name != current["name"]:
+            resolved_image = image_for(config, resolved_tier)
+            current.update(
+                name=resolved_name,
+                tier=resolved_tier,
+                image=resolved_image,
+                image_digest=deps.runtime.resolve_image(resolved_image),
+            )
+
+        if resolved_name != tier_name and retry_agent is not None:
+            run_agent = retry_agent(resolved_tier)
+        else:
+            run_agent = deps.agent
+
+        run_kind = getattr(run_agent, "kind", resolved_tier.adapter)
+        run_real = run_kind != "fake"
+
+        agent_meta.update(
+            tier=resolved_name,
+            adapter=run_kind,
+            provider=(resolved_tier.provider or None) if run_real else None,
+            model=(resolved_tier.model or None) if run_real else None,
+            image_digest=current["image_digest"],
+        )
+
         # The runner composes the sandbox's context: the role's skill set is
         # written from package data at dispatch (A-3) — the agent does not
         # "have skills installed", and nothing is checked into the repository.
@@ -756,12 +855,14 @@ def real_hooks(
             planted.parent.mkdir(parents=True, exist_ok=True)
             _shutil.copyfile(captured, planted)
 
-        env_passthrough, volumes = _sandbox_auth(tier, config.worker_slot) if real else ((), {})
+        env_passthrough, volumes = (
+            _sandbox_auth(resolved_tier, config.worker_slot) if run_real else ((), {})
+        )
         infra_id = naming.shadow_id(task.id) if shadow else task.id
 
         spec = SandboxSpec(
             name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
-            image=image,
+            image=current["image"],
             labels=naming.labels(infra_id, state.run_id, root),
             timeout_s=config.runtime.sandbox_timeout,
             env_passthrough=env_passthrough,
@@ -775,7 +876,7 @@ def real_hooks(
 
         try:
             result = await asyncio.to_thread(
-                deps.agent.run,
+                run_agent.run,
                 AgentContext(
                     task=task,
                     attempt=state.attempts,
@@ -860,8 +961,8 @@ def real_hooks(
             root,
             agent_meta,
             gates_base,
-            image,
-            image_digest,
+            current["image"],
+            current["image_digest"],
         )
 
         last_pass.update(results=results, patch=patch, digest=digest)
@@ -1029,7 +1130,7 @@ def real_hooks(
     routing: BrokerRouting = BrokerRouting()
 
     if broker is not None:
-        routing = run_routing(config, task, review_on)
+        routing = run_routing(config, task, review_on, include_retry=deps.retry_agent is not None)
         broker_handle = broker.open(task.id, routing, BrokerBudget(tokens=task.budget.tokens))
 
     def close() -> None:

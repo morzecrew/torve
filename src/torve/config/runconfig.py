@@ -20,7 +20,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from torve.config import layout
-from torve.domain.task import SCHEMA_VERSION
+from torve.domain.task import SCHEMA_VERSION, Task
 
 # ----------------------- #
 
@@ -54,6 +54,11 @@ class TierConfig(BaseModel):
     api_key_env: list[str] = Field(default_factory=list)
     auth_volume: str = "torve-auth"
     auth_mount: str = "/auth"
+
+    # D-27.11: the dotted tier this seat's attempt resolves to after a
+    # gate-red — one rung, not a chain. Empty means an attempt that gates
+    # red is retried under the same tier, today's behaviour.
+    retry_variant: str = ""
 
     # ....................... #
 
@@ -156,6 +161,18 @@ def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
         raise ValueError(
             f"no tier {tier_name!r} in the runner configuration; configured: {configured}"
         ) from None
+
+
+# ....................... #
+
+
+def tier_name_for(task: Task) -> str:
+    """D-27.3's dotted lookup key: `seat.variant` when the contract names a
+    `tier_variant`, the seat literal otherwise — naming a variant that does
+    not exist is a configuration error `tier_for` raises loudly, never a
+    fallback to the seat."""
+
+    return f"{task.tier}.{task.tier_variant}" if task.tier_variant else task.tier
 
 
 # ....................... #
@@ -748,6 +765,26 @@ class RunnerConfig(BaseModel):
                 f"{', '.join(offenders)} name api_key_env — a brokered tier names "
                 "no credential; the broker's provider table is the one channel"
             )
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _retry_variant_names_a_configured_tier(self) -> RunnerConfig:
+        """D-27.11: a rung to nowhere is a configuration error at load time,
+        not a dispatch-time surprise after the first gate-red."""
+
+        offenders = {
+            (name, tier.retry_variant)
+            for name, tier in self.tiers.items()
+            if tier.retry_variant and tier.retry_variant not in self.tiers
+        }
+
+        if offenders:
+            named = ", ".join(f"{name!r} -> {target!r}" for name, target in sorted(offenders))
+
+            raise ValueError(f"retry_variant names no configured tier: {named}")
 
         return self
 

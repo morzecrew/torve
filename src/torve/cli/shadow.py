@@ -91,7 +91,7 @@ def shadow_cmd(
     from torve.application.ports import Agent
     from torve.application.runner import RunDeps
     from torve.application.shadow import ShadowSource, run_shadow
-    from torve.config.runconfig import ProviderDenied, route_provider, tier_for
+    from torve.config.runconfig import ProviderDenied, route_provider, tier_for, tier_name_for
 
     if agent_name not in (None, "fake"):
         raise fail(f"configuration error: unknown agent {agent_name!r}", EXIT_CONFIG)
@@ -106,7 +106,7 @@ def shadow_cmd(
     config = load_config(root, config_path)
 
     try:
-        tier = tier_for(config, task.tier)
+        tier = tier_for(config, tier_name_for(task))
 
         # Same dispatch-time routing as a live run (D-4.8): a shadow replay
         # sends the repository to the provider exactly like a live one.

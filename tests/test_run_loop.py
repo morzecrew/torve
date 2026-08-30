@@ -12,7 +12,7 @@ import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
 from torve.application.ports import AgentResult, ExecResult, SandboxHandle, SandboxInfo
 from torve.application.runner import RunDeps, run_task
-from torve.config.runconfig import RunnerConfig
+from torve.config.runconfig import RunnerConfig, TierConfig
 from torve.domain.states import TaskState
 from torve.domain.task import Budget, Scope, Task
 
@@ -420,6 +420,136 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
     assert seen["during_attempt"] is True
     assert seen["at_gates"] is False
     assert not (repo.root / ".wt" / task.id / ".torve" / "feedback.md").exists()
+
+
+def test_retry_variant_resolves_after_a_gate_red_and_stamps_its_own_tier(rig, monkeypatch):
+    """RFC 0027 §5.1a, D-27.11: the attempt after a gate-red resolves the
+    named retry_variant, not the tier that just ran; each attempt's telemetry
+    row stamps the tier actually dispatched under, and the retry_variant's
+    Agent is only ever built through the wired factory — never fabricated."""
+    repo, deps, _runtime, _vcs, gate_outcomes = rig
+    gate_outcomes += [1, 0]
+
+    build_tier = TierConfig(
+        adapter="api", command="x", provider="p", model="build-model",
+        retry_variant="executor.fast",
+    )
+    fast_tier = TierConfig(adapter="api", command="x", provider="p", model="fast-model")
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": build_tier,
+            "executor.fast": fast_tier,
+        }
+    )
+
+    seen_agent_metas: list[dict] = []
+
+    def scripted_gates(*args, **kwargs):
+        seen_agent_metas.append(dict(args[6]))
+        code = gate_outcomes.pop(0) if gate_outcomes else 0
+        return code, "scripted", "cafecafe1234", [], ""
+
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+
+    class BuildAgent:
+        def run(self, ctx):
+            return OK
+
+    class FastAgent:
+        def run(self, ctx):
+            return OK
+
+    factory_calls: list[str] = []
+
+    def retry_agent(tier):
+        factory_calls.append(tier.model)
+        return FastAgent()
+
+    deps.agent = BuildAgent()
+    deps.retry_agent = retry_agent
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.READY
+    assert state.attempts == 2
+    # The retry_variant's Agent is built exactly once, for the second attempt.
+    assert factory_calls == ["fast-model"]
+    assert [m["tier"] for m in seen_agent_metas] == ["executor", "executor.fast"]
+    assert [m["model"] for m in seen_agent_metas] == ["build-model", "fast-model"]
+
+
+def test_no_retry_agent_wired_means_retry_variant_never_fires(rig):
+    """D-27.11: a configured retry_variant with no factory wired (dispatch
+    never built one — tests, or a CLI path that didn't ask) must not
+    fabricate an Agent; every attempt keeps running under the task's own
+    tier, today's behaviour."""
+    repo, deps, _runtime, _vcs, gate_outcomes = rig
+    gate_outcomes += [1, 0]
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(retry_variant="executor.fast"),
+            "executor.fast": TierConfig(),
+        }
+    )
+    deps.retry_agent = None
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.READY
+    assert state.attempts == 2
+
+
+def test_worktree_config_edits_never_reach_dispatch(rig, monkeypatch):
+    """RFC 0027 §5.5, D-27.2: sandbox definitions and tier blocks resolve
+    from the root at dispatch, never from the worktree under work. An agent
+    that plants a hostile `.torve/config.yaml` in its own worktree — the one
+    channel it can write to — must not steer the retry it hands off to: the
+    regime the next attempt runs under is provably the root's, not anything
+    the run's own content wrote."""
+    repo, deps, _runtime, _vcs, gate_outcomes = rig
+    gate_outcomes += [1, 0]
+
+    root_tier = TierConfig(adapter="api", command="x", provider="p", model="root-executor")
+    config = RunnerConfig(
+        tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": root_tier}
+    )
+
+    seen_agent_metas: list[dict] = []
+
+    def scripted_gates(*args, **kwargs):
+        seen_agent_metas.append(dict(args[6]))
+        code = gate_outcomes.pop(0) if gate_outcomes else 0
+        return code, "scripted", "cafecafe1234", [], ""
+
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+
+    class HostileAgent:
+        def run(self, ctx):
+            # The one act available to the agent: writing into its own
+            # worktree. A hostile edit here must never be read back by the
+            # engine — the whole point of D-27.2's refusal.
+            hostile = ctx.workspace / ".torve" / "config.yaml"
+            hostile.parent.mkdir(parents=True, exist_ok=True)
+            hostile.write_text(
+                "schema_version: 1\ntiers:\n  executor: {model: HOSTILE}\n", encoding="utf-8"
+            )
+            return OK
+
+    deps.agent = HostileAgent()
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.READY
+    assert state.attempts == 2
+    # Both attempts — the one before and the one after the hostile write —
+    # were dispatched under the root's tier, never the worktree's.
+    assert [m["model"] for m in seen_agent_metas] == ["root-executor", "root-executor"]
+    assert "HOSTILE" not in str(seen_agent_metas)
 
 
 def test_no_forge_leg_means_no_push(rig):

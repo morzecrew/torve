@@ -1,0 +1,44 @@
+schema_version: 1
+task: T-0113
+repo: morzecrew/torve
+base_sha: 54a4985f28817ebe8fa948d9e960f76e33fd65d3
+drift_count: 0
+entries:
+  - decision: D-27.1
+    grade: LOCKED
+    kind: resolved
+    at: '2026-08-30T00:00:00Z'
+    attempt: 1
+    claim: 'compliant: harness configuration is loaded once from root at CLI
+      dispatch and handed down as a value; no code path in the run loop
+      re-reads or regenerates it, and config_hash digests the in-memory
+      RunnerConfig object rather than any file a run could have written'
+    evidence: 'src/torve/cli/run.py:131 — `config = load_config(root, config_path)`
+      runs before `run_task` creates the task worktree (src/torve/cli/run.py:213);
+      src/torve/application/telemetry.py:35-100 `config_hash` hashes
+      `config.tiers`/`providers`/`broker` from the passed-in object, never
+      re-parsing a config file; `rg -n "load_runner_config" src` shows the only
+      callers are src/torve/cli/options.py:62, src/torve/cli/fleet.py:417 and
+      src/torve/application/fleet.py:104, all against a repository root, never
+      a task worktree'
+    action: decided
+  - decision: D-27.2
+    grade: LOCKED
+    kind: resolved
+    at: '2026-08-30T00:00:00Z'
+    attempt: 1
+    claim: 'compliant: tier blocks resolve from the root-loaded RunnerConfig
+      at dispatch and are never re-read from the worktree a run''s own agent
+      can write to, including on the retry_variant hand-off after a gate-red'
+    evidence: 'src/torve/application/runner.py:729-730 — `tier_name =
+      tier_name_for(task); tier = tier_for(config, tier_name)` resolves
+      against the `config` parameter threaded in from CLI dispatch, and every
+      later re-resolution in `attempt()` (src/torve/application/runner.py:798-804,
+      the retry_variant hand-off) calls `tier_for(config, ...)` on the same
+      object; no read of `worktree / ".torve" / "config.yaml"` exists anywhere
+      in src/torve/application/runner.py; pinned by
+      tests/test_run_loop.py:507 `test_worktree_config_edits_never_reach_dispatch`,
+      which has an agent plant a hostile `.torve/config.yaml` in its own
+      worktree mid-run and asserts both attempts telemetry-stamp the root
+      tier''s model, never the worktree''s'
+    action: decided

@@ -26,6 +26,7 @@ from torve.config.runconfig import (
     TierConfig,
     route_provider,
     tier_for,
+    tier_name_for,
 )
 from torve.domain.task import InheritedDecision, Scope, Task
 
@@ -391,6 +392,73 @@ def test_feedback_appends_a_keyed_record(tmp_path):
     assert emitted["rework_after_review"] is True
     lines = (root / ".torve" / "feedback.jsonl").read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[0])["task_id"] == "T-0042"
+
+
+# ....................... #
+# Tier variants (RFC 0027 §5.1, D-27.3): dotted entries in `tiers`, an
+# optional contract field selecting one, loud refusal on an unknown variant,
+# the seat literal untouched, and the variant riding the tiers digest into
+# config_hash.
+
+
+def test_tier_name_for_is_the_seat_alone_with_no_variant_named():
+    task = Task(id="T-1", decisions=[])
+    assert task.tier == "executor"
+    assert tier_name_for(task) == "executor"
+
+
+def test_tier_name_for_dots_the_variant_onto_the_seat():
+    task = Task(id="T-1", decisions=[], tier="executor", tier_variant="long-context")
+    assert tier_name_for(task) == "executor.long-context"
+    # The seat literal is unchanged — a variant refines it, never replaces it.
+    assert task.tier == "executor"
+
+
+def test_unknown_variant_is_refused_loudly_not_a_fallback_to_the_seat():
+    config = RunnerConfig(tiers={"executor": TierConfig()})
+    task = Task(id="T-1", decisions=[], tier="executor", tier_variant="ghost")
+    with pytest.raises(ValueError, match=r"no tier 'executor\.ghost'"):
+        tier_for(config, tier_name_for(task))
+
+
+def test_a_variant_resolves_once_configured_as_a_dotted_entry():
+    fast = TierConfig(adapter="api", command="run", provider="p", model="fast")
+    config = RunnerConfig(tiers={"executor": TierConfig(), "executor.fast": fast})
+    task = Task(id="T-1", decisions=[], tier="executor", tier_variant="fast")
+    assert tier_for(config, tier_name_for(task)) is fast
+
+
+def test_two_variants_are_provably_two_regimes_in_the_config_hash(tmp_path):
+    from torve.application.telemetry import config_hash
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    base = {"planner": TierConfig(), "reviewer": TierConfig(), "executor": TierConfig()}
+    variant_a = RunnerConfig(tiers={**base, "executor.long-context": TierConfig(model="a")})
+    variant_b = RunnerConfig(tiers={**base, "executor.long-context": TierConfig(model="b")})
+    assert config_hash(manifest, tmp_path, variant_a) != config_hash(manifest, tmp_path, variant_b)
+
+
+# ....................... #
+# retry_variant (RFC 0027 §5.1a, D-27.11): a rung to nowhere is a
+# configuration error at load time, not a dispatch-time surprise.
+
+
+def test_retry_variant_must_name_a_configured_tier():
+    with pytest.raises(ValidationError, match="retry_variant names no configured tier"):
+        RunnerConfig(
+            tiers={"executor": TierConfig(retry_variant="executor.ghost")}
+        )
+
+
+def test_retry_variant_naming_a_real_configured_tier_is_accepted():
+    config = RunnerConfig(
+        tiers={
+            "executor": TierConfig(retry_variant="executor.fast"),
+            "executor.fast": TierConfig(),
+        }
+    )
+    assert config.tiers["executor"].retry_variant == "executor.fast"
 
 
 def test_parse_metadata_reads_claude_model_usage_keys():

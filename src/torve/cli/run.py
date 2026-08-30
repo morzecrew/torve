@@ -110,7 +110,13 @@ def run_cmd(
     from torve.adapters.vcs.git import GhScm, GitVcs, NullScm, repository_name
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.runner import RunDeps, run_task
-    from torve.config.runconfig import ProviderDenied, route_provider, tier_for
+    from torve.config.runconfig import (
+        ProviderDenied,
+        TierConfig,
+        route_provider,
+        tier_for,
+        tier_name_for,
+    )
 
     if agent_name not in (None, "fake"):
         raise fail(f"configuration error: unknown agent {agent_name!r}", EXIT_CONFIG)
@@ -143,30 +149,38 @@ def run_cmd(
     if blocked and oversize:
         engine_event(root, "oversize_dispatch", {"task": task.id, "reasons": verdict.reasons})
 
+    def _tier_agent(tier: TierConfig) -> Agent:
+        if agent_name == "fake" or tier.adapter == "fake":
+            return FakeAgent(load_scenario(scenario) if scenario else None)
+
+        from torve.adapters.agent.harness import HarnessAgent
+
+        if scenario is not None:
+            raise ValueError("--scenario is FakeAgent-only")
+
+        return HarnessAgent(tier)
+
     try:
-        tier = tier_for(config, task.tier)
+        tier = tier_for(config, tier_name_for(task))
 
         # Provider routing is enforced here — at dispatch, before a sandbox
         # exists (D-4.8). A repository with no permitted provider for its
         # tier is a configuration error, never a quiet fallback. The --agent
         # fake override sends nothing anywhere, so it routes as fake does.
+        # A configured retry_variant (D-27.11) routes too — the run may
+        # reach it after the first gate-red, and D-27.1 refuses to dispatch
+        # under a regime it has not already validated.
         if agent_name is None:
             route_provider(config.providers, repository_name(root), tier.provider)
 
+            if tier.retry_variant:
+                retry_tier = tier_for(config, tier.retry_variant)
+                route_provider(config.providers, repository_name(root), retry_tier.provider)
+
+        agent = _tier_agent(tier)
+
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
-
-    agent: Agent
-
-    if agent_name == "fake" or tier.adapter == "fake":
-        agent = FakeAgent(load_scenario(scenario) if scenario else None)
-    else:
-        from torve.adapters.agent.harness import HarnessAgent
-
-        if scenario is not None:
-            raise fail("configuration error: --scenario is FakeAgent-only", EXIT_CONFIG)
-
-        agent = HarnessAgent(tier)
 
     review_agent: Agent | None = None
 
@@ -188,6 +202,9 @@ def run_cmd(
         # The egress broker in force (RFC 0021): `none` by default, `local`
         # when configured — the run's keys never enter the sandbox either way.
         broker=build_broker(config.broker),
+        # D-27.11: builds the tier a retry_variant names, mid-run — the same
+        # rule `_tier_agent` already applies to the tier that dispatched.
+        retry_agent=_tier_agent,
     )
 
     from torve.application.runner import BlockedDispatch

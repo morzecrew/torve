@@ -227,13 +227,24 @@ def tick_cmd(
         from torve.application.runner import RunDeps, run_task
         from torve.cli.options import runtime_for
         from torve.cli.run import build_reviewer_agent
-        from torve.config.runconfig import route_provider, tier_for
+        from torve.config.runconfig import TierConfig, route_provider, tier_for, tier_name_for
         from torve.gates.context import load_task
 
+        def _tier_agent(tier: TierConfig) -> Agent:
+            return FakeAgent(None) if tier.adapter == "fake" else HarnessAgent(tier)
+
         task = load_task(root / ".torve" / "tasks" / task_id / "contract.yaml")
-        tier = tier_for(config, task.tier)
+        tier = tier_for(config, tier_name_for(task))
         route_provider(config.providers, repository_name(root), tier.provider)
-        agent: Agent = FakeAgent(None) if tier.adapter == "fake" else HarnessAgent(tier)
+
+        # D-27.11: the retry_variant's provider routes too — the broker
+        # opens once, before the first attempt, so a provider only a later
+        # retry reaches must already be on the route table.
+        if tier.retry_variant:
+            retry_tier = tier_for(config, tier.retry_variant)
+            route_provider(config.providers, repository_name(root), retry_tier.provider)
+
+        agent = _tier_agent(tier)
 
         review_agent = (
             build_reviewer_agent(config, root) if "task_gated" in config.review.on else None
@@ -247,6 +258,7 @@ def tick_cmd(
             scm=(GhScm(config.scm.repo, config.scm.token_env) if config.scm.open_pr else NullScm()),
             store=open_store,
             review_agent=review_agent,
+            retry_agent=_tier_agent,
             broker=build_broker(config.broker),
         )
 

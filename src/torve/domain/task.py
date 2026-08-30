@@ -93,6 +93,12 @@ class Task(BaseModel):
     budget: Budget = Field(default_factory=Budget)
     tier: Literal["planner", "executor", "reviewer"] = "executor"
 
+    # D-27.3: an optional dotted variant under the seat above, resolved as
+    # `tier.variant` in the tiers mapping — a variant refines a seat, never
+    # invents one, and role semantics still key on `tier` alone. Naming a
+    # variant that is not configured is a refused dispatch, not a fallback.
+    tier_variant: str | None = None
+
     # ....................... #
 
     @model_validator(mode="after")
