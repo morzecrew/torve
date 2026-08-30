@@ -403,6 +403,32 @@ def seeded(repo):
     return repo
 
 
+def test_a_real_tier_under_no_broker_drafts_without_a_provider_table(seeded):
+    """The none adapter demands no broker.providers entry — the second copy
+    of the landing-day regression, this one on the intake path (the runner's
+    twin guard is broker_in_force at dispatch)."""
+    from torve.adapters.broker import NoneBroker
+    from torve.config.runconfig import TierConfig
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(
+                adapter="harness", command="run", provider="anthropic",
+                api_key_env=["X"],
+            ),
+            "executor": TierConfig(),
+            "reviewer": TierConfig(),
+        },
+    )
+    task = mint_intake_task(seeded.root, "add a widget module", config)
+    agent = ScriptedAgent([output_for(draft_dict())])
+    outcome = run_intake(
+        seeded.root, seeded.root, task, config, StubRuntime(), agent, "digest",
+        broker=NoneBroker(),
+    )
+    assert outcome.attempts == 1
+
+
 def test_run_intake_green_first_try(seeded):
     config = RunnerConfig()
     task = mint_intake_task(seeded.root, "add a widget module", config)

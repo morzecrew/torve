@@ -41,7 +41,13 @@ from torve.application.runstate import RunState
 from torve.application.telemetry import broker_block, engine_event
 from torve.base import naming
 from torve.config import layout
-from torve.config.runconfig import RunnerConfig, configured_images, image_for, tier_for
+from torve.config.runconfig import (
+    RunnerConfig,
+    broker_in_force,
+    configured_images,
+    image_for,
+    tier_for,
+)
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import SCHEMA_VERSION, Budget, Scope, Task
 
@@ -905,7 +911,7 @@ def run_intake(
     # drafting run's routing).
     broker_handle: BrokerHandle | None = None
 
-    if broker is not None:
+    if broker is not None and broker_in_force(config):
         routing: list[BrokerRoute] = []
 
         if tier.adapter != "fake" and tier.provider:
