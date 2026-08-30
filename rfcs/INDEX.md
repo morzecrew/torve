@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0025**.
+number is **0028**.
 
 ## Design
 
@@ -33,6 +33,9 @@ number is **0025**.
 | [0022](0022-specification-quality.md) | Specification quality as a measured quantity | accepted | complete | 0004, 0007 | A-59 | Reading the records the engine already writes to measure the corpus that produced them: per-decision and per-document attribution, grade calibration, and the decoration check — reported to a human who then writes an amendment, never applied by the engine. |
 | [0023](0023-standing-maintenance.md) | Standing maintenance | accepted | none | 0007, 0019, 0020 | — | Work that recurs on a condition rather than on a plan: a committed contract template plus a deterministic trigger the tick evaluates and instantiates — the machine recognising a condition a human already decided to answer, never inventing a backlog. |
 | [0024](0024-fleet.md) | Fleet — one department, many repositories | accepted | none | 0008, 0013, 0019 | — | Running the standing loop over several repositories from one operator's attention: an operator-side manifest, a fleet-wide escalation pause, trust classes that bind per-repository capability, and aggregation that keeps every root authoritative for itself. |
+| [0025](0025-corpus-authoring-surface.md) | The corpus authoring surface | draft | none | 0007, 0016 | — | Mechanical writers over the corpus parser — a canonical emitter, torve rfc fmt, and transactional verbs for amendments, decisions, retirement and path relocation — so the structure-bearing edits stop being hand-typed. |
+| [0026](0026-decomposition-and-continuation.md) | Decomposition and continuation | draft | none | 0002, 0003, 0007, 0020 | — | What happens when a task is too big for one agent: the size verdict routes to a decomposition drafting run whose sub-contracts a human adopts, the parent becomes the integration task, and budget-exhausted attempts may continue from their own candidate instead of restarting. |
+| [0027](0027-harness-configuration-evolution.md) | Harness configuration as measured evolution | draft | none | 0004, 0017, 0020, 0021 | — | Capturing the performance a well-configured harness offers without a runtime configurator: contract-selected tier variants, a configuration drafting run fed harness telemetry, and adoption gated on paired replay measurement — configuration stays committed, hashed and human-signed. |
 
 ## Conventions
 
