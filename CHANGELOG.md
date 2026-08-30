@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Fleet (T-0108/T-0109, RFC 0024): `torve fleet tick` runs the standing
+  loop over every repository in an operator-side manifest — survey each
+  root's escalation queue, decide the pause once for the fleet, tick each
+  root in deterministic order under its own lock with the decision passed
+  down, one fleet event recorded; `torve fleet status` reads every root
+  into one table ordered by escalation age. Trust classes bind capability:
+  a root whose configuration asks for more than its class allows — socket
+  mode, host networking, routing breadth, broker mode — is refused before
+  its tick, naming the class and the setting. No fleet store, no writes
+  across roots.
+
 - Standing maintenance (T-0101/T-0102, RFC 0023): standing contracts under
   `.torve/standing/` — recurring jobs whose command or path-digest predicate
   decides, in an agentless sandbox, whether a maintenance task is minted
