@@ -144,6 +144,104 @@ def intake_cmd(
 # ....................... #
 
 
+def decompose_cmd(
+    task_id: Annotated[str, typer.Argument(help="The oversized contract to decompose.")],
+    runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
+    config_path: ConfigOption = None,
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Run the drafter against an existing contract instead of a request:
+    a sandboxed run over a read-only worktree at base
+    whose gate adds the four decomposition rules to the contract lint.
+    Green persists drafts awaiting `torve adopt`, which mints the children
+    and grows the parent into the integration task."""
+
+    from torve.adapters.broker import build_broker
+    from torve.adapters.vcs.git import GitLane, GitVcs
+    from torve.application.intake import mint_decomposition_task, run_intake
+    from torve.application.telemetry import config_hash
+    from torve.base import naming
+    from torve.cli.run import build_tier_agent
+    from torve.config import layout
+    from torve.gates.context import resolve_base
+
+    root = root.resolve()
+    config = load_config(root, config_path)
+
+    try:
+        agent = build_tier_agent(config, root, "planner")
+        task = mint_decomposition_task(root, task_id, config)
+
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    runtime = runtime_for(config, runtime_name)
+    vcs = GitVcs()
+    base_sha = GitLane().tip(root, resolve_base(root, config.base) or "HEAD")
+
+    if base_sha is None:
+        raise fail("configuration error: no base tip to draft against", EXIT_CONFIG)
+
+    workdir = root / naming.WORKTREE_DIR / f"{task.id}.intake"
+    vcs.worktree_at(root, base_sha, workdir)
+
+    try:
+        digest = config_hash(layout.gates_file(root), root, config)
+        outcome = run_intake(
+            root, workdir, task, config, runtime, agent, digest, broker=build_broker(config.broker)
+        )
+
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "task": outcome.task_id,
+                "parent": task_id,
+                "fact": outcome.fact,
+                "attempts": outcome.attempts,
+                "rationale": outcome.rationale,
+                "drafts": [d.model_dump() for d in outcome.drafts],
+                "lint_errors": outcome.lint_errors,
+                "unparseable": outcome.unparseable,
+            }
+        )
+
+        raise typer.Exit(EXIT_OK if outcome.drafts else EXIT_ESCALATED)
+
+    console = out(fmt)
+    header(console, "decompose", f"{task.id} ({task_id})")
+    console.print(outcome.fact)
+
+    for draft in outcome.drafts:
+        console.print(f"\n{Text(draft.ref, ID)}: {draft.intent}")
+        console.print(Text(f"  allow: {', '.join(draft.scope.allow)}", DIM))
+        console.print(Text(f"  acceptance: {'; '.join(draft.acceptance)}", DIM))
+
+        if draft.depends_on:
+            console.print(Text(f"  depends_on: {', '.join(draft.depends_on)}", DIM))
+
+    if outcome.rationale:
+        console.print(f"\n{outcome.rationale}")
+
+    if outcome.drafts:
+        closing(console, f"adopt with: torve adopt {outcome.task_id}")
+        raise typer.Exit(EXIT_OK)
+
+    for error in outcome.lint_errors:
+        console.print(Text(f"  {error}", DIM))
+
+    closing(console, "escalated — retry after amending the parent contract")
+
+    raise typer.Exit(EXIT_ESCALATED)
+
+
+# ....................... #
+
+
 def adopt_cmd(
     task_id: Annotated[str, typer.Argument(help="The drafting run whose drafts to adopt.")],
     config_path: ConfigOption = None,

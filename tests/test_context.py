@@ -271,29 +271,27 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
 # actually existing on disk.
 
 
-def _write_task(root, task_id: str, *, rfc: str | None) -> None:
+def _write_task(root, task_id: str, *, rfc: str | None, parent: str | None = None) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "contract.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": 1,
-                "id": task_id,
-                "rfc": rfc,
-                "phase": 1,
-                "role": "implement",
-                "intent": "test",
-                "depends_on": [],
-                "targets": [],
-                "scope": {"allow": [], "deny": []},
-                "acceptance": [],
-                "decisions": [],
-                "budget": {"iterations": None, "wallclock_minutes": None, "tokens": None},
-                "tier": "executor",
-            }
-        ),
-        encoding="utf-8",
-    )
+    document: dict = {
+        "schema_version": 1,
+        "id": task_id,
+        "rfc": rfc,
+        "phase": 1,
+        "role": "implement",
+        "intent": "test",
+        "depends_on": [],
+        "targets": [],
+        "scope": {"allow": [], "deny": []},
+        "acceptance": [],
+        "decisions": [],
+        "budget": {"iterations": None, "wallclock_minutes": None, "tokens": None},
+        "tier": "executor",
+    }
+    if parent:
+        document["parent"] = parent
+    (task_dir / "contract.yaml").write_text(yaml.safe_dump(document), encoding="utf-8")
 
 
 def _write_log(root, task_id: str, entries: list[dict]) -> None:
@@ -357,6 +355,22 @@ def test_minted_counts_every_task_regardless_of_state(tmp_path):
     _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
     report = context_report(tmp_path, tmp_path / "rfcs")
     assert _spec_quality_doc(report, "rfcs/0090-a.md")["minted"] == 2
+
+
+def test_children_are_grouped_under_their_parent(tmp_path):
+    # RFC 0026 D-26.5/D-26.6: the parent field is projection-only — this is
+    # the one place it is read.
+    _write_task(tmp_path, "T-0100", rfc=None)
+    _write_task(tmp_path, "T-0101", rfc=None, parent="T-0100")
+    _write_task(tmp_path, "T-0102", rfc=None, parent="T-0100")
+    _write_task(tmp_path, "T-0200", rfc=None)  # no parent: not grouped
+
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    assert report["decompositions"] == {"T-0100": ["T-0101", "T-0102"]}
+
+    markdown = render_markdown(report)
+    assert "## Decompositions" in markdown
+    assert "T-0100 (integration task) -> T-0101, T-0102" in markdown
 
 
 def test_attempts_to_green_only_counts_tasks_that_landed(tmp_path):

@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 
 from torve.application import sizing
 from torve.cli import app
-from torve.gates.sabotage import base_task, log_document
+from torve.gates.sabotage import TASK_ID, base_task, log_document
 
 
 def test_gates_run_end_to_end(repo):
@@ -145,6 +145,33 @@ def test_run_missing_contract_is_a_config_error(tmp_path):
 def test_size_estimate():
     verdict = sizing.estimate(base_task_model())
     assert verdict.size == "ok"
+
+
+def test_run_blocked_awaiting_decomposition_without_override(repo):
+    # RFC 0026 D-26.7: a too_large contract awaits decomposition — dispatch
+    # refuses it by name unless the operator overrides explicitly.
+    repo.seed()
+    repo.task(base_task(allow=["src/a/**", "tests/a/**"]), None)
+    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
+    assert result.exit_code == 3
+    assert "awaiting decomposition" in result.stderr
+    assert "--oversize" in result.stderr
+
+
+def test_run_oversize_override_dispatches_and_is_recorded(repo):
+    # The override bypasses the block and is recorded on the run (D-26.7) —
+    # asserted from telemetry alone, independent of whatever the dispatched
+    # attempt itself goes on to do.
+    repo.seed()
+    repo.task(base_task(allow=["src/a/**", "tests/a/**"]), None)
+    CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root), "--oversize"])
+    events = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    recorded = [e for e in events if e.get("event") == "oversize_dispatch"]
+    assert recorded and recorded[0]["task"] == TASK_ID
 
 
 def base_task_model():

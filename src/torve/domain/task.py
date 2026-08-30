@@ -78,6 +78,11 @@ class Task(BaseModel):
     intent: str = ""
     depends_on: list[str] = Field(default_factory=list)
 
+    # Set only at adoption of a decomposition's children (RFC 0026 D-26.5):
+    # projections group by it; dispatch, lane and store never read it —
+    # ordering stays depends_on alone.
+    parent: str | None = None
+
     # The tasks a review examines (RFC 0005 §1.1, D-5.9) or the tasks/shas a
     # revert undoes (RFC 0010 §7): the contract shape is parameterised by
     # role, no new mechanism. Only those two roles may carry targets.
@@ -119,8 +124,15 @@ class Task(BaseModel):
                     "is the contract lint over its drafts"
                 )
 
-            if self.targets:
-                raise ValueError("targets is not meaningful for role 'draft'")
+            # A request-driven draft names no target; a decomposition run
+            # (RFC 0026 §5.2) names exactly one — the oversized contract it
+            # decomposes, the same targets-name-what-it-acts-on shape review
+            # and revert already carry.
+            if len(self.targets) > 1:
+                raise ValueError(
+                    "a draft task names at most one target — the contract "
+                    "it decomposes, when it is a decomposition run"
+                )
         elif self.targets:
             raise ValueError(f"targets is not meaningful for role {self.role!r}")
 

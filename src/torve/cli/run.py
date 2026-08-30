@@ -86,6 +86,14 @@ def run_cmd(
             exists=True, help="FakeAgent scenario YAML; default writes one marker file and exits 0."
         ),
     ] = None,
+    oversize: Annotated[
+        bool,
+        typer.Option(
+            "--oversize",
+            help="Dispatch a too_large contract anyway, bypassing the "
+            "await-decomposition route. Recorded on the run.",
+        ),
+    ] = False,
     runtime_name: Annotated[
         RuntimeName | None,
         typer.Option("--runtime", help="Override the configured runtime adapter."),
@@ -115,6 +123,25 @@ def run_cmd(
 
     task = load_task(task_file)
     config = load_config(root, config_path)
+
+    # RFC 0026 D-26.7: a too_large verdict routes to decomposition; a
+    # manual dispatch needs the explicit, recorded override to bypass it.
+    from torve.application import sizing
+    from torve.application.telemetry import engine_event
+
+    verdict = sizing.estimate(task)
+    blocked = verdict.size == "too_large" and not sizing.has_children(root, task.id)
+
+    if blocked and not oversize:
+        raise fail(
+            "awaiting decomposition: " + "; ".join(verdict.reasons) + " — "
+            "run `torve decompose` against this contract, or pass "
+            "--oversize to dispatch it as-is",
+            EXIT_CONFIG,
+        )
+
+    if blocked and oversize:
+        engine_event(root, "oversize_dispatch", {"task": task.id, "reasons": verdict.reasons})
 
     try:
         tier = tier_for(config, task.tier)

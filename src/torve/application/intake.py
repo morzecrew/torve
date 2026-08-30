@@ -25,6 +25,7 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from torve.application import sizing
 from torve.application.ports import (
     Agent,
     AgentContext,
@@ -162,11 +163,23 @@ def _matched(path: Path, globs: list[str]) -> bool:
 # ....................... #
 
 
-def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[str]:
+def lint_drafts(
+    tree: Path,
+    document: DraftsDocument,
+    max_drafts: int,
+    *,
+    allow_dependency_order: bool = False,
+) -> list[str]:
     """Every mechanical check a human should never have to make (D-20.3).
     The T-0113 rule is the first learned rule: a draft touching an existing
     module must allow that module's existing test file — the escalation
-    that produced it burned a full poison ceiling on exactly this."""
+    that produced it burned a full poison ceiling on exactly this.
+
+    `allow_dependency_order` relaxes the pairwise-scope check for a
+    decomposition batch (RFC 0026 D-26.3): two drafts may overlap when an
+    explicit `depends_on` edge orders them, instead of requiring every pair
+    disjoint the way an ordinary intake batch — dispatched in parallel —
+    must."""
 
     from torve.application.planner import globs_intersect
 
@@ -241,11 +254,94 @@ def lint_drafts(tree: Path, document: DraftsDocument, max_drafts: int) -> list[s
 
     for i, one in enumerate(drafts):
         for other in drafts[i + 1 :]:
-            if globs_intersect(one.scope.allow, other.scope.allow):
-                errors.append(
-                    f"{one.ref} and {other.ref}: scopes intersect — a batch "
-                    "must be dispatchable in parallel"
-                )
+            if not globs_intersect(one.scope.allow, other.scope.allow):
+                continue
+
+            if allow_dependency_order and (
+                other.ref in one.depends_on or one.ref in other.depends_on
+            ):
+                continue
+
+            errors.append(
+                f"{one.ref} and {other.ref}: scopes intersect — a batch "
+                "must be dispatchable in parallel"
+                if not allow_dependency_order
+                else f"{one.ref} and {other.ref}: scopes intersect with "
+                "neither depending on the other"
+            )
+
+    return errors
+
+
+# ....................... #
+
+
+def _escapes_parent_scope(
+    child_allow: list[str], parent_allow: list[str], tree_paths: list[Path]
+) -> str | None:
+    """The first path a child's allow-set reaches that the parent's does
+    not — checked over every file the tree already holds plus every literal
+    (non-wildcard) path the child names, since a decomposition may allow a
+    file the drafter's read-only tree does not have yet."""
+
+    literals = [Path(p) for p in child_allow if not any(ch in p for ch in "*?[")]
+
+    for path in [*tree_paths, *literals]:
+        if _matched(path, child_allow) and not _matched(path, parent_allow):
+            return str(path)
+
+    return None
+
+
+# ....................... #
+
+
+def lint_decomposition(
+    tree: Path, document: DraftsDocument, parent: Task, max_drafts: int
+) -> list[str]:
+    """The decomposition batch's own four rules (RFC 0026 §5.2), layered on
+    the ordinary contract lint: D-26.2 (a child never escapes the parent's
+    allow-set), D-26.3 (`lint_drafts`' own relaxed pairwise check —
+    overlap only where a `depends_on` edge orders it), D-26.4 (the parent's
+    acceptance battery is distributed across the children, never dropped),
+    and D-26.12's sibling rule — every child is itself right-sized; a
+    decomposition that yields an oversized child has not decomposed. The
+    depth bound (D-26.12) is enforced earlier, at the drafting run's mint."""
+
+    errors = lint_drafts(tree, document, max_drafts, allow_dependency_order=True)
+    drafts = document.drafts
+
+    if not drafts:
+        return errors  # lint_drafts already refused the empty batch
+
+    tree_paths = _tree_paths(tree)
+
+    for draft in drafts:
+        escaped = _escapes_parent_scope(draft.scope.allow, parent.scope.allow, tree_paths)
+
+        if escaped is not None:
+            errors.append(
+                f"{draft.ref}: {escaped!r} is outside {parent.id}'s scope.allow "
+                "— a child scope is a grant the parent's scope did not sign"
+            )
+
+    carried = {command for draft in drafts for command in draft.acceptance}
+
+    for command in parent.acceptance:
+        if command not in carried:
+            errors.append(
+                f"{parent.id}: acceptance command {command!r} is dropped — no "
+                "child carries it (the battery may be distributed, never dropped)"
+            )
+
+    for draft in drafts:
+        verdict = sizing.estimate_scope(draft.scope, draft.acceptance)
+
+        if verdict.size == "too_large":
+            errors.append(
+                f"{draft.ref}: too large ({'; '.join(verdict.reasons)}) — a "
+                "decomposition that yields an oversized child has not decomposed"
+            )
 
     return errors
 
@@ -328,6 +424,91 @@ def mint_intake_task(
 # ....................... #
 
 
+def _decomposition_depth(root: Path, task_id: str) -> int:
+    """Hops up a task's `parent` chain (RFC 0026 D-26.12): 0 for an
+    undecomposed contract, 1 for a first-round child, 2 for a
+    second-round grandchild — the point past which a third round refuses."""
+
+    from torve.gates.context import load_task
+
+    depth = 0
+    seen = {task_id}
+    current = task_id
+
+    while True:
+        contract = layout.task_file(root, current)
+
+        if not contract.is_file():
+            return depth
+
+        parent = load_task(contract).parent
+
+        if not parent or parent in seen:
+            return depth
+
+        depth += 1
+        seen.add(parent)
+        current = parent
+
+
+# ....................... #
+
+
+# The decomposition run (RFC 0026 §5.2): a draft-role run exactly RFC
+# 0020's shape, pointed at a contract instead of a commander's prose.
+def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) -> Task:
+    """Refuses a third decomposition round by name (D-26.12) before any
+    drafting compute is spent; otherwise mints the drafting run the same
+    way `mint_intake_task` does, its single target naming what it
+    decomposes."""
+
+    from torve.application.planner import next_task_number
+    from torve.gates.context import load_task
+
+    parent_contract = layout.task_file(root, parent_id)
+
+    if not parent_contract.is_file():
+        raise ValueError(f"no contract at {parent_contract} to decompose")
+
+    parent = load_task(parent_contract)
+    depth = _decomposition_depth(root, parent_id)
+
+    if depth >= 2:
+        raise ValueError(
+            f"{parent_id} is already {depth} decomposition round(s) deep — a "
+            "third round is refused; the source document's phasing needs an "
+            "amendment instead"
+        )
+
+    task = Task(
+        id=f"T-{next_task_number(root):04d}",
+        rfc=parent.rfc,
+        role="draft",
+        intent=f"Decompose {parent_id}: {parent.intent}",
+        targets=[parent_id],
+        decisions=[],
+        budget=Budget(iterations=config.intake.iterations),
+        tier="planner",
+    )
+
+    contract_dir = root / layout.TORVE_DIR / "tasks" / task.id
+    contract_dir.mkdir(parents=True, exist_ok=True)
+    document = task.model_dump(exclude_defaults=True)
+    document["schema_version"] = SCHEMA_VERSION
+    document["decisions"] = []
+
+    (contract_dir / "contract.yaml").write_text(
+        "# Minted by the engine — a decomposition drafting run.\n"
+        + yaml.safe_dump(document, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    return task
+
+
+# ....................... #
+
+
 def execution_facts(root: Path) -> str:
     """RFC 0020 phase 3: what the loop knows that a fresh drafter cannot —
     the live escalation queue, contended paths, recent landings. Bounded
@@ -389,13 +570,27 @@ def build_intake_prompt(
     lint_errors: list[str] | None = None,
     feedback: str | None = None,
     facts: str = "",
+    parent: Task | None = None,
 ) -> str:
     """The drafter's whole input: the request, the tree, the ceiling, and —
     on a retry — the lint's exact refusals. The calibration paragraph
     matters as much as review's: one honest draft beats a decomposition
-    performed to look thorough."""
+    performed to look thorough.
 
-    listing = "\n".join(sorted(str(p) for p in _tree_paths(tree))[:400])
+    `parent` turns this into a decomposition run's prompt (RFC 0026
+    D-26.10): the tree listing narrows to the parent's own scope.allow, and
+    the parent's contract — scope, acceptance, the rules a decomposition
+    must satisfy — rides beside the request. The parent's inherited
+    decision rows do not: children re-inherit them from the governing
+    document at adoption (D-20.9's existing rule, unchanged), so carrying
+    a second copy into the prompt would buy nothing but tokens."""
+
+    paths = _tree_paths(tree)
+
+    if parent is not None:
+        paths = [p for p in paths if _matched(p, parent.scope.allow)]
+
+    listing = "\n".join(sorted(str(p) for p in paths)[:400])
     retry_block = ""
 
     if lint_errors:
@@ -421,7 +616,33 @@ def build_intake_prompt(
     if facts:
         facts_block = f"\n## Recent execution facts (read-only context)\n\n{facts}\n"
 
-    return f"""# Draft task contracts
+    parent_block = ""
+    rules_block = (
+        "Decompose the request into at most {max_drafts} draft contract(s) — one is\n"
+        "the normal, frequent answer; split only where the pieces are genuinely\n"
+        "independent and their file scopes are disjoint."
+    )
+
+    if parent is not None:
+        parent_block = (
+            f"\n## The contract you are decomposing ({parent.id})\n\n"
+            f"- scope.allow: {', '.join(parent.scope.allow)}\n"
+            "- acceptance:\n"
+            + "\n".join(f"  - {command}" for command in parent.acceptance)
+            + "\n"
+        )
+        rules_block = (
+            f"Split {parent.id} into at most {{max_drafts}} draft contract(s). Every\n"
+            "child's scope.allow must fit inside the parent's scope.allow above —\n"
+            "a child may narrow it, never widen it. Children must be pairwise\n"
+            "scope-disjoint, or may overlap only where an explicit depends_on edge\n"
+            "orders them. Every acceptance command listed above must be carried by\n"
+            "at least one child — the battery may be distributed, never dropped.\n"
+            "Each child must be right-sized on its own; do not draft an oversized\n"
+            "child."
+        )
+
+    return f"""# {"Decompose a contract" if parent is not None else "Draft task contracts"}
 
 You are drafting contracts for work, not doing the work. The workspace is
 read-only; read it to write honest file scopes and acceptance commands.
@@ -429,7 +650,7 @@ read-only; read it to write honest file scopes and acceptance commands.
 ## The request
 
 {request}
-{feedback_block}{facts_block}
+{parent_block}{feedback_block}{facts_block}
 ## The repository tree
 
 ```text
@@ -438,9 +659,7 @@ read-only; read it to write honest file scopes and acceptance commands.
 {retry_block}
 ## What to produce
 
-Decompose the request into at most {max_drafts} draft contract(s) — one is
-the normal, frequent answer; split only where the pieces are genuinely
-independent and their file scopes are disjoint. Each draft carries: `ref`
+{rules_block.format(max_drafts=max_drafts)} Each draft carries: `ref`
 ("DRAFT-1", "DRAFT-2", …), `intent` (one paragraph: what changes and why —
 never steps), `scope` with `allow`/`deny` file globs (every file the work
 may touch, including test files — a draft touching an existing module must
@@ -496,7 +715,23 @@ def run_intake(
     budget with the lint's refusals in the next prompt; green persists the
     drafts and the run goes ready — drafts awaiting adoption, dispatching
     nothing (D-20.1). The drafting run's provider credential rides the same
-    broker as any run (RFC 0021): the sandbox never holds the key."""
+    broker as any run (RFC 0021): the sandbox never holds the key.
+
+    A drafting run whose contract names a single target (RFC 0026 §5.2) is
+    a decomposition: the prompt and the lint both route on the parent
+    contract that target names, in place of the free-text request path."""
+
+    parent: Task | None = None
+
+    if task.targets:
+        from torve.gates.context import load_task
+
+        parent_contract = layout.task_file(root, task.targets[0])
+
+        if not parent_contract.is_file():
+            raise ValueError(f"no contract at {parent_contract} to decompose")
+
+        parent = load_task(parent_contract)
 
     tier = tier_for(config, task.tier)
     state_path = naming.state_file(root, task.id)
@@ -583,6 +818,7 @@ def run_intake(
                 lint_errors or None,
                 feedback,
                 facts=execution_facts(root),
+                parent=parent,
             )
 
             handle = runtime.create(spec, worktree)
@@ -620,7 +856,11 @@ def run_intake(
                 continue
 
             unparseable = False
-            lint_errors = lint_drafts(worktree, document, config.intake.max_drafts)
+            lint_errors = (
+                lint_decomposition(worktree, document, parent, config.intake.max_drafts)
+                if parent is not None
+                else lint_drafts(worktree, document, config.intake.max_drafts)
+            )
 
             if lint_errors:
                 state.transition(TaskState.GATED, f"lint red: {len(lint_errors)} refusal(s)")
@@ -843,6 +1083,14 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     rfc = record.get("rfc")
     decisions = _inherit_decisions(root, str(rfc)) if rfc else []
 
+    # A decomposition run names the contract it decomposes as its single
+    # target (RFC 0026 §5.2); an ordinary intake names none.
+    from torve.gates.context import load_task
+
+    source_contract = layout.task_file(root, task_id)
+    source_targets = load_task(source_contract).targets if source_contract.is_file() else []
+    parent_id = source_targets[0] if source_targets else None
+
     if not assume_lock and not acquire_lock(root, config.loop.tick_budget):
         raise RuntimeError(
             "the engine lock is held — a tick is running; adoption retries when it releases"
@@ -873,6 +1121,9 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             if rfc:
                 document["rfc"] = rfc
 
+            if parent_id:
+                document["parent"] = parent_id
+
             path = contract_dir / "contract.yaml"
 
             path.write_text(
@@ -882,6 +1133,30 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             )
 
             written.append(path)
+
+        if parent_id:
+            # The parent becomes the integration task (RFC 0026 D-26.6):
+            # depends_on gains every child; scope and the full battery
+            # stay exactly as authored. Header comments precede the YAML
+            # by convention here, so they are preserved rather than lost
+            # to a wholesale rewrite.
+            parent_contract = layout.task_file(root, parent_id)
+            original = parent_contract.read_text(encoding="utf-8")
+            header = "\n".join(line for line in original.splitlines() if line.startswith("#"))
+            parent_record = cast("dict[str, Any]", yaml.safe_load(original))
+            existing_deps = list(parent_record.get("depends_on", []))
+            grown = existing_deps + [i for i in ids.values() if i not in existing_deps]
+            parent_record["depends_on"] = grown
+
+            parent_contract.write_text(
+                (header + "\n" if header else "")
+                + f"# {parent_id} becomes the integration task at adoption — "
+                f"depends_on grown with {', '.join(ids.values())}.\n"
+                + yaml.safe_dump(parent_record, sort_keys=False),
+                encoding="utf-8",
+            )
+
+            written.append(parent_contract)
 
         proc = subprocess.run(
             ["git", "-C", str(root), "add", "--"] + [str(p.relative_to(root)) for p in written],

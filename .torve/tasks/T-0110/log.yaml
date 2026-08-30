@@ -1,0 +1,57 @@
+schema_version: 1
+task: T-0110
+repo: morzecrew/torve
+base_sha: e3e7077b1ed4737dd6e758bc79059da7dd00c8cc
+drift_count: 0
+entries:
+  - decision: D-26.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T15:30:00Z
+    attempt: 1
+    claim: minting stays confined to adoption under the tick lock; the
+      decomposition drafting run only proposes and lint only refuses by name
+    evidence: src/torve/application/intake.py:1094-1136 — adopt() acquires
+      the engine lock, mints child ids from next_task_number, and writes
+      contract.yaml only inside this function; mint_decomposition_task
+      (intake.py:459-506) mints only the draft-role run itself, never a
+      child; lint_drafts (intake.py:166-273) and lint_decomposition
+      (intake.py:299-346) return refusal strings, no side effects
+    action: decided
+    proposal: 'LOCKED — compliant as built, no divergence'
+  - decision: D-26.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T15:30:00Z
+    attempt: 1
+    claim: a child scope escaping the parent's scope.allow is refused at
+      lint, checked with the planner's glob machinery
+    evidence: src/torve/application/intake.py:279-293 — _escapes_parent_scope
+      matches every tree path and every literal child path against
+      parent.scope.allow; intake.py:319-326 calls it per draft inside
+      lint_decomposition and appends the refusal; src/torve/application/planner.py:184
+      is the globs_intersect primitive lint_drafts reuses for the sibling
+      disjointness check
+    action: decided
+    proposal: 'LOCKED — compliant as built, no divergence'
+  - decision: D-26.10
+    grade: OPEN
+    class: spec-gap
+    at: 2026-08-30T15:30:00Z
+    attempt: 1
+    claim: the RFC leaves open what the decomposition prompt carries beyond
+      the parent contract and the tree under scope; built as - the parent's
+      scope.allow and acceptance list only (not the full contract body), and
+      a tree listing narrowed to paths matching the parent's scope.allow -
+      the parent's inherited decision rows are deliberately not re-embedded,
+      since children re-inherit them from the governing RFC document at
+      adoption (D-20.9's existing rule), so carrying a second copy would
+      cost tokens for no gain
+    evidence: src/torve/application/intake.py:619-643 — parent_block and
+      rules_block build the parent-scoped prompt section; intake.py:590-591
+      narrows the tree listing to parent.scope.allow; intake.py:583-586
+      documents the inherited-decisions-not-recarried choice
+    action: decided
+    proposal: 'OPEN — decomposition prompt carries parent scope.allow +
+      acceptance + a scope-filtered tree listing; inherited decisions are
+      re-derived at adoption, not carried in the prompt'

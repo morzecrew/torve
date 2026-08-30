@@ -179,6 +179,7 @@ def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> l
     intersection test is the planner's conservative one: what is provably
     shared serializes; only the provably disjoint runs together."""
 
+    from torve.application import sizing
     from torve.gates.context import load_task
 
     admitted: list[str] = []
@@ -193,6 +194,13 @@ def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> l
             continue  # an unreadable contract is not this leg's problem
 
         if task.role not in ("implement", "revert"):
+            continue
+
+        # RFC 0026 D-26.7: a too_large verdict routes to decomposition —
+        # the contract awaits it and the tick's own dispatch skips it. The
+        # only way past this is the explicit, recorded operator override
+        # (`torve run <id> --oversize`), a different dispatch path entirely.
+        if sizing.awaiting_decomposition(root, task):
             continue
 
         state_path = naming.state_file(root, task.id)

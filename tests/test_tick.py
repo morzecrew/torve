@@ -40,14 +40,16 @@ def contract(
     role: str = "implement",
     depends_on: list[str] | None = None,
     allow: list[str] | None = None,
+    parent: str | None = None,
 ) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True)
     deps = f"depends_on: {depends_on}\n" if depends_on else ""
     scope = f"scope: {{allow: {allow}}}\n" if allow else ""
+    parent_line = f"parent: {parent}\n" if parent else ""
     (task_dir / "contract.yaml").write_text(
         f"schema_version: 1\nid: {task_id}\nrole: {role}\n"
-        f"intent: work\n{deps}{scope}"
+        f"intent: work\n{deps}{scope}{parent_line}"
         + ("targets: ['T-0001']\n" if role == "review" else "")
         + "decisions: []\n",
         encoding="utf-8",
@@ -432,3 +434,22 @@ def test_a_requeued_task_still_waits_for_its_dependencies(root):
     run_state(root, "T-9002", TaskState.QUEUED)
     assert next_queued(root, lambda _t: False) is None
     assert next_queued(root, lambda t: t == "T-9001") == "T-9002"
+
+
+def test_too_large_contract_awaits_decomposition_and_is_skipped(root):
+    # RFC 0026 D-26.7: two top-level modules trips sizing's too_large rule
+    # (MAX_MODULES=1) — the tick's own dispatch leg skips it, exactly the
+    # way it skips a draft, until a decomposition adopts children or the
+    # operator overrides with `torve run --oversize` (a different path).
+    contract(root, "T-9001", allow=["src/a/**", "tests/a/**"])
+    contract(root, "T-9002")
+    assert queued_batch(root, lambda _t: False, limit=2) == ["T-9002"]
+
+
+def test_a_decomposed_parent_is_no_longer_awaiting_and_dispatches(root):
+    # D-26.6: once a decomposition is adopted, the parent has children (a
+    # sibling contract names it via `parent`) and is the integration task —
+    # its own too_large verdict does not route a second time.
+    contract(root, "T-9001", allow=["src/a/**", "tests/a/**"])
+    contract(root, "T-9002", parent="T-9001", allow=["docs/**"])
+    assert queued_batch(root, lambda _t: False, limit=2) == ["T-9001", "T-9002"]

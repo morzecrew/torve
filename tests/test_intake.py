@@ -16,7 +16,9 @@ from torve.application.intake import (
     adopt,
     drafts_file,
     lint_contract,
+    lint_decomposition,
     lint_drafts,
+    mint_decomposition_task,
     mint_intake_task,
     parse_drafts,
     run_intake,
@@ -26,7 +28,7 @@ from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig
 from torve.domain.states import TaskState
-from torve.domain.task import Task
+from torve.domain.task import Scope, Task
 
 # ----------------------- #
 
@@ -198,6 +200,131 @@ def test_lint_refuses_intersecting_scopes(tree: Path):
     assert any("scopes intersect" in e for e in errors)
 
 
+# ----------------------- #
+# The decomposition batch's own four rules (RFC 0026 §5.2), each with a red
+# twin, layered on the ordinary contract lint above.
+
+
+def _parent(allow: list[str], acceptance: list[str] | None = None) -> Task:
+    return Task(
+        id="T-0100",
+        scope=Scope(allow=allow),
+        acceptance=acceptance if acceptance is not None else ["true"],
+        decisions=[],
+    )
+
+
+def test_lint_decomposition_green_on_a_proper_split(tree: Path):
+    # A new, single-module file: touching both src/ and tests/ at once trips
+    # sizing's own too-large rule (MAX_MODULES=1) — the per-child sizing
+    # check below has its own dedicated test.
+    parent = _parent(["src/**"], acceptance=["true"])
+    errors = lint_decomposition(
+        tree,
+        document(draft_dict("DRAFT-1", allow=["src/widget.py"], acceptance=["true"])),
+        parent,
+        4,
+    )
+    assert errors == []
+
+
+def test_lint_decomposition_refuses_a_child_escaping_parent_scope(tree: Path):
+    parent = _parent(["src/**"])
+    errors = lint_decomposition(
+        tree,
+        document(draft_dict("DRAFT-1", allow=["docs/x.py"], acceptance=["true"])),
+        parent,
+        4,
+    )
+    assert any("outside T-0100's scope.allow" in e for e in errors)
+
+
+def test_lint_decomposition_refuses_overlap_without_a_depends_on_edge(tree: Path):
+    parent = _parent(["src/**"])
+    green_edge = lint_decomposition(
+        tree,
+        document(
+            draft_dict("DRAFT-1", allow=["src/shared.py"], acceptance=["true"]),
+            draft_dict(
+                "DRAFT-2",
+                allow=["src/shared.py"],
+                acceptance=["true"],
+                depends_on=["DRAFT-1"],
+            ),
+        ),
+        parent,
+        4,
+    )
+    assert green_edge == []
+
+    red = lint_decomposition(
+        tree,
+        document(
+            draft_dict("DRAFT-1", allow=["src/shared.py"], acceptance=["true"]),
+            draft_dict("DRAFT-2", allow=["src/shared.py"], acceptance=["true"]),
+        ),
+        parent,
+        4,
+    )
+    assert any("scopes intersect" in e for e in red)
+
+
+def test_lint_decomposition_refuses_a_dropped_acceptance_command(tree: Path):
+    parent = _parent(["src/**", "tests/**"], acceptance=["true", "false"])
+    errors = lint_decomposition(
+        tree,
+        document(
+            draft_dict("DRAFT-1", allow=["src/app.py", "tests/test_app.py"], acceptance=["true"]),
+        ),
+        parent,
+        4,
+    )
+    assert any("acceptance command 'false' is dropped" in e for e in errors)
+
+
+def test_lint_decomposition_refuses_an_oversized_child(tree: Path):
+    parent = _parent(["src/**", "tests/**", "docs/**"])
+    errors = lint_decomposition(
+        tree,
+        document(
+            draft_dict(
+                "DRAFT-1",
+                allow=["src/app.py", "tests/test_app.py", "docs/x.py"],
+                acceptance=["true"],
+            ),
+        ),
+        parent,
+        4,
+    )
+    assert any("too large" in e for e in errors)
+
+
+# ----------------------- #
+# Depth bound (D-26.12): a third decomposition round is refused by name.
+
+
+def test_mint_decomposition_task_refuses_a_third_round(seeded):
+    config = RunnerConfig()
+    root = seeded.root
+
+    def write(task_id: str, parent: str | None) -> None:
+        task_dir = root / ".torve" / "tasks" / task_id
+        task_dir.mkdir(parents=True)
+        data: dict = {"schema_version": 1, "id": task_id, "role": "implement", "decisions": []}
+        if parent:
+            data["parent"] = parent
+        (task_dir / "contract.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+
+    write("T-0100", None)  # the original, undecomposed contract
+    write("T-0101", "T-0100")  # round 1 child
+    write("T-0102", "T-0101")  # round 2 grandchild
+
+    mint_decomposition_task(root, "T-0101", config)  # round 1 -> round 2: fine
+
+    with pytest.raises(ValueError, match="already 2 decomposition round"):
+        mint_decomposition_task(root, "T-0102", config)
+
+
 def test_lint_contract_standalone_and_role_guard(tree: Path):
     contract = tree / "contract.yaml"
     contract.write_text(
@@ -236,11 +363,16 @@ def test_lint_contract_standalone_and_role_guard(tree: Path):
 # The role's contract shape.
 
 
-def test_draft_role_carries_no_acceptance_and_no_targets():
+def test_draft_role_carries_no_acceptance_and_at_most_one_target():
     with pytest.raises(ValueError, match="contract lint"):
         Task(id="T-1", role="draft", acceptance=["true"], decisions=[])
-    with pytest.raises(ValueError, match="targets"):
-        Task(id="T-1", role="draft", targets=["T-0"], decisions=[])
+    # RFC 0026 §5.2: a decomposition run is a draft naming the one contract
+    # it decomposes — the same targets-name-what-it-acts-on shape review and
+    # revert already carry.
+    with pytest.raises(ValueError, match="at most one target"):
+        Task(id="T-1", role="draft", targets=["T-0", "T-2"], decisions=[])
+    decompose = Task(id="T-1", role="draft", targets=["T-0"], decisions=[])
+    assert decompose.targets == ["T-0"]
     task = Task(id="T-1", role="draft", intent="req", decisions=[])
     assert task.tier == "executor"  # the mint sets planner; the model does not care
 
@@ -384,6 +516,54 @@ def test_adopt_copies_decisions_from_an_accepted_document(seeded):
     assert contract["decisions"] == [
         {"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
     ]
+
+
+def test_adopt_of_a_decomposition_sets_parent_and_grows_the_integration_task(seeded):
+    # RFC 0026 D-26.6: children mint with `parent` set, and the parent's own
+    # `depends_on` grows with every child — it becomes the integration task.
+    seeded.write(
+        ".torve/tasks/T-0100/contract.yaml",
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": "T-0100",
+                "role": "implement",
+                "intent": "an oversized contract",
+                "scope": {"allow": ["src/**"], "deny": []},
+                "acceptance": ["true"],
+                "decisions": [],
+            }
+        ),
+    )
+    seeded.commit("mint T-0100")
+
+    config = RunnerConfig()
+    task = mint_decomposition_task(seeded.root, "T-0100", config)
+    agent = ScriptedAgent(
+        [output_for(draft_dict("DRAFT-1", allow=["src/widget.py"], acceptance=["true"]))]
+    )
+    run_intake(seeded.root, seeded.root, task, config, StubRuntime(), agent, "digest")
+    seeded.commit("intake bookkeeping")
+
+    adopted = adopt(seeded.root, task.id, config)
+    assert len(adopted) == 1
+    child_id = adopted[0]
+
+    child = yaml.safe_load(
+        (seeded.root / ".torve" / "tasks" / child_id / "contract.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert child["parent"] == "T-0100"
+
+    parent = yaml.safe_load(
+        (seeded.root / ".torve" / "tasks" / "T-0100" / "contract.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert parent["depends_on"] == [child_id]
+    assert parent["scope"]["allow"] == ["src/**"]  # scope stays exactly as authored
+    assert parent["acceptance"] == ["true"]  # the full battery stays
 
 
 def test_adopt_refuses_a_draft_status_document(seeded):

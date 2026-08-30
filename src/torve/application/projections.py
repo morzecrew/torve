@@ -141,6 +141,9 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             "attempts": 0,
             "escalation": None,
             "escalated_at": None,
+            # RFC 0026 D-26.5: read by this projection only — dispatch, lane
+            # and store never consult it.
+            "parent": record.get("parent"),
         }
 
         state_path = naming.state_file(root, task_id)
@@ -645,6 +648,25 @@ def _age_seconds(stamp: object) -> float | None:
 # ....................... #
 
 
+def _decompositions(tasks: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Children grouped under their parent (RFC 0026 D-26.5, D-26.6): a
+    projection convenience over the `parent` field — dispatch, the lane and
+    the store never read it, so this grouping exists nowhere else."""
+
+    groups: dict[str, list[str]] = {}
+
+    for task in tasks:
+        parent = task.get("parent")
+
+        if parent:
+            groups.setdefault(str(parent), []).append(str(task["id"]))
+
+    return dict(sorted(groups.items()))
+
+
+# ....................... #
+
+
 def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
     tasks = _tasks(root)
     escalations: dict[str, list[dict[str, Any]]] = {}
@@ -667,6 +689,7 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "tasks": tasks,
+        "decompositions": _decompositions(tasks),
         "escalations": escalations,
         "proposals": _proposals(root, rfc_dir),
         "gates": _gate_health(root),
@@ -725,6 +748,15 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append(f"- {state}: {', '.join(ids)}")
 
     lines.append("")
+
+    if report["decompositions"]:
+        lines.append("## Decompositions")
+        lines.append("")
+
+        for parent, children in report["decompositions"].items():
+            lines.append(f"- {parent} (integration task) -> {', '.join(children)}")
+
+        lines.append("")
 
     if report["escalations"]:
         lines.append("## Escalations by reason")
