@@ -9,6 +9,7 @@ import subprocess
 from functools import partial
 
 import pytest
+from typer.testing import CliRunner
 
 from torve.adapters.agent.fake import FakeAgent
 from torve.adapters.store.durable import open_store
@@ -24,6 +25,7 @@ from torve.adapters.workspace.git import (
 from torve.application.evals import candidate_config, run_config_eval, run_skill_eval, without_skill
 from torve.application.runner import RunDeps
 from torve.application.shadow import ShadowSource
+from torve.cli import app
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, RuntimeConfig, TierConfig
 from torve.gates.context import load_task
@@ -202,9 +204,7 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
-    record = run_config_eval(
-        repo.root, "executor", candidate_image, [task], config, deps, source
-    )
+    record = run_config_eval(repo.root, "executor", candidate_image, [task], config, deps, source)
 
     assert record["kind"] == "config-eval" and record["tier"] == "executor"
     assert [r["task"] for r in record["arms"]["incumbent"]] == [TASK_ID]
@@ -233,3 +233,90 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
         check=True,
     ).stdout
     assert head_file == "FEATURE = 'shipped'\n"
+
+
+# ....................... #
+# CLI: parsing only — the run_skill_eval/run_config_eval split above stays
+# unexercised here (needs a real agent); this is the argument-shape contract.
+
+
+def _bare_task_repo(root, tier: str = "executor"):
+    (root / ".torve" / "tasks" / "T-0042").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / ".torve" / "tasks" / "T-0042" / "contract.yaml").write_text(
+        f"schema_version: 1\nid: T-0042\ntier: {tier}\ndecisions: []\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-qm", "task minted"], check=True, capture_output=True
+    )
+
+
+def test_eval_cli_refuses_neither_skill_nor_tier_and_image(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+
+    result = CliRunner().invoke(app, ["eval", "--task", "T-0042", "--root", str(root)])
+
+    assert result.exit_code == 3
+    assert "give a skill argument, or both --tier and --image" in result.stderr
+
+
+def test_eval_cli_refuses_a_skill_together_with_tier_or_image(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "flag-dont-flip",
+            "--task",
+            "T-0042",
+            "--tier",
+            "executor",
+            "--root",
+            str(root),
+        ],
+    )
+
+    assert result.exit_code == 3
+    assert "not both" in result.stderr
+
+
+def test_eval_cli_refuses_tier_without_image(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+
+    result = CliRunner().invoke(
+        app, ["eval", "--task", "T-0042", "--tier", "executor", "--root", str(root)]
+    )
+
+    assert result.exit_code == 3
+    assert "give a skill argument, or both --tier and --image" in result.stderr
+
+
+def test_eval_cli_config_mode_refuses_an_already_resolved_image(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+    default_image = RunnerConfig().runtime.image
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "--task",
+            "T-0042",
+            "--tier",
+            "executor",
+            "--image",
+            default_image,
+            "--root",
+            str(root),
+        ],
+    )
+
+    assert result.exit_code == 3
+    assert "nothing to measure" in result.stderr

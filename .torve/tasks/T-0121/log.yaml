@@ -1,0 +1,44 @@
+schema_version: 1
+task: T-0121
+repo: morzecrew/torve
+base_sha: 181080ff08dbf5246361d49bcfce024651d27748
+drift_count: 0
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: 2026-08-30T12:00:00Z
+    attempt: 1
+    claim: the contract's intent asks for a CLI surface "beside the existing
+      `torve shadow` and `torve eval` commands" for the paired
+      incumbent/candidate measurement, which reads as a new sibling
+      top-level command; but scope.allow omits src/torve/cli/main.py, the
+      only file where torve's Typer app registers a top-level command, and
+      the scope gate hard-fails any diff touching a path outside
+      scope.allow — a genuinely separate `torve <new-command>` cannot be
+      registered from inside this task's scope.
+    evidence: ".torve/tasks/T-0121/contract.yaml:5-8 — states the intent;
+      .torve/tasks/T-0121/contract.yaml:12-16 is scope.allow, which omits
+      src/torve/cli/main.py; src/torve/cli/main.py:94-115 registers every
+      command there via app.command()/app.add_typer(), with no other
+      registration point in the package; src/torve/gates/scope.py:46-47
+      fails the diff on any path outside scope.allow."
+    action: decided
+    proposal: "UNLISTED — inside a scope that excludes src/torve/cli/main.py,
+      \"give X a CLI surface beside command Y\" is satisfied by widening Y's
+      own argument surface (new options dispatching to the new behaviour)
+      rather than by registering a new sibling top-level command. Implemented
+      `torve eval --tier T --image I` (the skill argument omitted) as the
+      paired incumbent/candidate surface inside the existing eval_cmd in
+      src/torve/cli/evals.py, reusing its task loading, provider routing and
+      rendering plumbing. A future task that genuinely needs a separate
+      top-level command must carry src/torve/cli/main.py in its scope.allow;
+      until then this is the shape a CLI-surface task in a restricted scope
+      can build."
+    notes: |
+      No graded decision in the contract (D-27.1 through D-27.11) speaks to
+      CLI command registration mechanics — this is a tension between the
+      contract's own intent prose and its own scope list, not a violation of
+      an RFC row. Fewer than three load-bearing unlisted decisions were
+      needed to execute the task, so this stayed a decide-and-log rather than
+      a halt per flag-dont-flip's threshold.
