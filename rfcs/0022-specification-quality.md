@@ -8,7 +8,7 @@ depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-59"]
+amended_by: ["A-59", "A-62"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -326,6 +326,7 @@ and telling the executor it is being measured would change what it writes.
 | D-22.7 | `LOCKED` | RFC 0004 §6a's quasi-experiment caveat is printed with the report, not paraphrased in documentation. Amended by A-59 2026-08-29: printed without its corpus coordinate (a report reader has no corpus to resolve); when a third surface needs the string its canonical home is `torve.base`, importable from both layers | `src/torve/cli/rfc.py` `src/torve/application/projections.py` | The first attractive number becomes a promise to someone unless its limits arrive attached to it |
 | D-22.8 | `ASSUMED` | Readings are suppressed below a printed floor of observations; ratios always print their denominator | `src/torve/application/specquality.py` | A majority over three tasks is noise wearing a percentage |
 | D-22.9 | `ASSUMED` | Tasks without an `rfc` join at the decision level and are reported as their own population, never merged into a document's numbers | `src/torve/application/specquality.py` | Adopted intake work and hand-minted contracts have no document to indict, and mixing them would indict one anyway |
+| D-22.11 | `ASSUMED` | Dispatch prints the envelope: expected attempts, cost and wall minutes for the task's size class, computed from this document's join over telemetry, denominator and caveat printed, silent below the floor | `src/torve/application/specquality.py` `src/torve/cli/run.py` | The operator's real question at dispatch is "how long and how much before I should worry"; the data answering it already exists here and an envelope with a printed denominator cannot become a promise |
 | D-22.10 | `OPEN` | Whether an abandoned task's entries weigh the same as a landed task's; execution reports both and logs which the data supports | `src/torve/application/specquality.py` | Departures on work that never landed are evidence of a different kind, and guessing the answer here would bake it in before anyone has seen the distribution |
 
 ## Phasing
@@ -388,6 +389,24 @@ and telling the executor it is being measured would change what it writes.
   tasks never touched its declared paths — silence about nothing stays quiet.
 
 ## Amendments
+
+### A-62 — 2026-08-30 — the dispatch envelope (adds D-22.11)
+
+**Found watching the 0022–0024 campaign.** Six tasks ran 13–19 minutes on
+their first attempt with the operator holding no expectation to judge them
+against — "is this run overrunning?" was unanswerable except by feel,
+though every input to the answer was already in the telemetry this
+document reads. The report surfaces answered "how did the corpus do"
+retrospectively and nothing answered "what should this dispatch cost"
+prospectively.
+
+**Changed:** D-22.11 — `torve run` (and the tick's dispatch leg) prints an
+envelope beside the size verdict: expected attempts, cost and wall
+minutes for the task's size class, from the same join, with the
+denominator printed and the reading suppressed below the observation
+floor. The quasi-experiment caveat prints with it (D-22.7); an envelope
+is a base rate, never a bound, and nothing in the engine acts on it —
+the operator does.
 
 ### A-59 — 2026-08-29 — execution's proposals from T-0099/T-0100 approved (amends §5.3, D-22.4, D-22.6, D-22.7)
 

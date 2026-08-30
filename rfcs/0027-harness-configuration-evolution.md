@@ -2,7 +2,7 @@
 id: "0027"
 title: Harness configuration as measured evolution
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0004", "0017", "0020", "0021"]
 informed_by: ["0009", "0022", "0023"]
@@ -154,6 +154,24 @@ Because variants are ordinary tier entries in committed configuration, they
 join `config_hash` through the existing tiers digest with no new mechanism:
 two tasks on different variants are two regimes, visibly, which is the whole
 point.
+
+### 5.1a The attempt ladder
+
+The 0022–0024 campaign measured where an executor's time goes: the first
+attempt is the build — 13–19 minutes, two-thirds of generated tokens
+thinking under `--effort xhigh` — while retries inherit the worktree and
+answer gate feedback in 2–8 minutes. Paying maximum deliberation on every
+attempt is paying for the retry's certainty at the build's price.
+
+A tier entry (variant or seat) may name `retry_variant: <seat.variant>`:
+the attempt after a gate-red dispatch resolves that variant instead of the
+one the previous attempt ran under. One rung, not a list — a ladder taller
+than two settings is a measurement question (D-27.7), not a configuration
+shape. The record already carries the truth: each attempt's telemetry row
+stamps the tier actually resolved, and the two variants are two digests.
+Escalating *effort* (`high` building, `xhigh` retrying) is the first
+intended use; escalating *model* (sonnet building, opus retrying) is the
+same mechanism the day a measurement justifies it.
 
 ### 5.2 The configuration drafting run
 
@@ -318,6 +336,7 @@ is identity — is promoted from folklore to the page.
 | D-27.7 | `LOCKED` | A candidate configuration displaces the incumbent default only through a paired replay verdict recorded in the eval ledger citing both digests; landing a change never silently changes the department's regime | `src/torve/application/evals.py` `.torve/sandbox/**` | The obligation sits at displacement so urgent fixes land freely — what is forbidden is the unmeasured default, not the unmeasured variant |
 | D-27.8 | `OPEN` | The replay battery's composition and refresh cadence; execution proposes from the first live campaign | `src/torve/application/evals.py` | A battery too small proves nothing and too large never runs; the first campaign's cost is the only honest sizing input |
 | D-27.9 | `ASSUMED` | Prompt-side channels remain the per-task degree of freedom: skills and task context evolve under RFC 0009, and this document adds no per-task harness variation beyond variant selection | `src/torve/application/skills.py` | Most of a "configured harness" gain is prompt-side and already instrumented; duplicating that freedom on the harness side would split one question across two measurement systems |
+| D-27.11 | `ASSUMED` | A tier may name `retry_variant`, one rung: the attempt after a gate-red resolves the named variant; every attempt's telemetry row stamps the tier it actually ran under | `src/torve/config/runconfig.py` `src/torve/application/runner.py` | The build attempt and the feedback attempt are measurably different work; one committed rung keeps the regime enumerable where a free ladder would explode the hash space |
 | D-27.10 | `OPEN` | Whether a sandbox definition records a pointer to the verdict that installed it as default, letting `torve doctor` name an unmeasured default | `.torve/sandbox/**` `src/torve/cli/doctor.py` | The displacement rule is only as visible as its records; execution decides whether the pointer earns its file |
 
 ## Phasing
@@ -331,7 +350,9 @@ is identity — is promoted from folklore to the page.
     semantics untouched, and the variant riding the existing tiers digest
     into config_hash — two variants provably two regimes. The refusal rows
     land here too: configuration resolves from the root at dispatch, never
-    from the worktree, pinned by test.
+    from the worktree, pinned by test. retry_variant, one rung: the
+    attempt after a gate-red resolves the named variant, each attempt's
+    telemetry stamping the tier it actually ran under.
   scope:
     - "src/torve/config/**"
     - "src/torve/domain/**"
