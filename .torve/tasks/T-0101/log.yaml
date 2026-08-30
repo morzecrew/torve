@@ -1,0 +1,127 @@
+schema_version: 1
+task: T-0101
+repo: morzecrew/torve
+base_sha: unknown — git is unavailable in this sandboxed worktree (.git points
+  to a host path this container cannot see; `git rev-parse HEAD` fails with
+  "not a git repository"); recorded here rather than fabricated.
+drift_count: 0
+entries:
+  - decision: D-23.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: touched src/torve/config/layout.py (a declared path) by adding
+      standing_dir() beside the other one-lookup-no-fallback helpers; no
+      .torve/standing/** files are written in this phase (that scope belongs
+      to RFC 0023 phase 2). Compliant close-out for the touched LOCKED area.
+    evidence: src/torve/config/layout.py:58-63 — standing_dir() added after
+      skills_vendor_dir()
+    action: decided
+  - decision: D-23.2
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: evaluate_predicate() runs the command in a Runtime-created
+      sandbox (workspace_read_only=True) via runtime.exec, with no Agent
+      port touched anywhere in the call path; exit code alone decides due.
+    evidence: src/torve/application/standing.py:176-207 — evaluate_predicate()
+    action: decided
+  - decision: D-23.3
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: a timed-out exec or a path-digest kind raises PredicateError;
+      standing_leg() catches it, mints nothing, and calls engine_event with
+      "standing_predicate_error" naming the job — never invented as "not
+      due".
+    evidence: src/torve/application/standing.py:402-408 — evaluate_predicate() and
+      standing_leg()'s except PredicateError branch
+    action: decided
+  - decision: D-23.4
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: instantiate() writes a scratch drafts.json and calls the
+      existing torve.application.intake.adopt() unmodified (assume_lock=True,
+      since the calling tick already holds the lock) — the same id-under-
+      lock, commit-as-engine-record path RFC 0020 §5.3 already closed;
+      inherit_decisions is reached only through that call, via
+      decisions_from resolved to a path first.
+    evidence: src/torve/application/standing.py:233-272 — instantiate() imports and
+      calls torve.application.intake.adopt without editing intake.py
+      (intake.py is outside this task's scope.allow)
+    action: decided
+  - decision: D-23.5
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: StandingContract.intent is a plain string set once at authoring
+      time; standing_leg passes job.intent verbatim into every firing's
+      drafts.json with no per-firing templating or substitution.
+    evidence: 'src/torve/application/standing.py:254-262 — instantiate() writes
+      "intent": job.intent unchanged; tests/test_standing.py::test_instantiate_two_firings_differ_only_in_id'
+    action: decided
+  - decision: D-23.6
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: D-23.6 names four bounds, but RFC 0023's own Phasing block scopes
+      phase 1 to three (escalation pause, cooldown_hours/max_open,
+      loop.standing_max_per_tick) and assigns the fourth — self-disable via
+      standing.strike_limit — to phase 2, titled
+      "path-digest-predicate-and-self-disable". This task's own minted
+      intent (contract.yaml) names only the three. Built the three; no
+      strike_limit field or self-disable logic exists yet.
+    evidence: rfcs/0023-standing-maintenance.md:385-395 — phase 2's scope
+      and title; .torve/tasks/T-0101/contract.yaml:7-19 — minted intent
+      names three bounds only
+    action: departed
+  - decision: D-23.8
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: D-23.8 says two predicate kinds ship (command, path-digest); this
+      phase's own intent says only "the command predicate evaluated in a
+      sandbox", and RFC 0023's Phasing block puts path-digest in phase 2.
+      Trigger.kind's schema accepts both names (so an author following the
+      RFC's example does not hit a bare pydantic literal-mismatch), but
+      evaluate_predicate() raises PredicateError for path-digest rather than
+      evaluating it — not implemented until phase 2.
+    evidence: rfcs/0023-standing-maintenance.md:385-395 — phase 2 title
+      "path-digest-predicate..."; src/torve/application/standing.py —
+      evaluate_predicate()'s path-digest branch
+    action: departed
+  - decision: D-23.11
+    grade: OPEN
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: 'Ledger location: a `standing.json` sidecar written into the
+      minted instance''s own `.torve/tasks/<id>/` directory, not the
+      telemetry stream and not a separate top-level ledger file. It lives
+      under `.torve/tasks/`, which lane.py''s `_engine_record` already
+      exempts wholesale from the clean-tree check, so it needs no new
+      exemption and survives a fresh clone (unlike telemetry, which is
+      gitignored and host-local) — this also directly satisfies D-23.10
+      (each instance records its originating job) with one artefact instead
+      of two. Second question: max_open counts escalated instances (an
+      escalated instance is unresolved work, the RFC''s own "argues yes"
+      reading) — only landed or abandoned instances free a slot.'
+    evidence: src/torve/application/lane.py:139-140 — `_engine_record`
+      returns True for any path under `.torve/tasks/`; src/torve/application/standing.py
+      — `_job_instances`, `_open_count`, `instantiate`'s sidecar write
+    action: decided

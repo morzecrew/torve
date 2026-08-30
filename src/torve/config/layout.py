@@ -55,6 +55,17 @@ def skills_vendor_dir(root: Path) -> Path:
 # ....................... #
 
 
+def standing_dir(root: Path) -> Path:
+    """Standing contracts (RFC 0023 D-23.1): one committed, reviewed file
+    per recurring job. No enabled flag — an empty directory is off and
+    deleting a file is the disable (D-23.7)."""
+
+    return root / TORVE_DIR / "standing"
+
+
+# ....................... #
+
+
 def task_dir(root: Path, task_id: str) -> Path:
     """One directory per task (A-12, D-A.13) — the unit retention removes."""
 

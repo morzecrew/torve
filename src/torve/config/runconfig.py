@@ -682,6 +682,10 @@ class LoopConfig(BaseModel):
     dispatch_workers: int = 1
     # Seconds; a tick lock older than this is stale and broken loudly.
     tick_budget: int = 3600
+    # RFC 0023 D-23.6: instantiations across every standing job, bounded
+    # like dispatch's one-per-tick doctrine — spend per unit time stays
+    # cadence times a known bound.
+    standing_max_per_tick: int = 1
 
 
 # ....................... #

@@ -238,6 +238,48 @@ def test_an_escalation_pauses_intake_but_drains_everything_else(root):
     )
 
 
+def test_standing_leg_is_paused_with_dispatch_during_escalation(root):
+    # RFC 0023 D-23.6's first bound: the standing leg sits inside the same
+    # conditional as dispatch, so a paused tick evaluates no predicate.
+    state = run_state(root, "T-9001", TaskState.RUNNING)
+    state.escalate(EscalationReason.BLOCKER_FINDING, "unresolved")
+    rec = Recorder()
+    deps = TickDeps(
+        reap=rec.leg("reap"),
+        poll=rec.leg("poll"),
+        dispatch=rec.dispatch(),
+        lane=rec.leg("lane"),
+        sync=rec.leg("sync"),
+        landed=lambda _t: False,
+        standing=rec.leg("standing"),
+    )
+    report = run_tick(root, config(), deps)
+    assert "standing" not in rec.calls  # the callable itself never runs
+    assert ("standing", "paused: escalation queue at 1") in report.legs
+
+
+def test_standing_leg_runs_before_dispatch_when_not_paused(root):
+    rec = Recorder()
+    deps = TickDeps(
+        reap=rec.leg("reap"),
+        poll=rec.leg("poll"),
+        dispatch=rec.dispatch(),
+        lane=rec.leg("lane"),
+        sync=rec.leg("sync"),
+        landed=lambda _t: False,
+        standing=rec.leg("standing"),
+    )
+    run_tick(root, config(), deps)
+    assert "standing" in rec.calls
+    assert rec.calls.index("standing") < rec.calls.index("sync")
+
+
+def test_standing_leg_defaults_to_none_and_is_skipped(root):
+    rec = Recorder()
+    report = run_tick(root, config(), deps_for(rec))
+    assert ("standing", "skipped: no standing leg wired") in report.legs
+
+
 def test_auto_merge_off_skips_the_lane_with_its_reason(root):
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec, lane=False))
@@ -277,6 +319,7 @@ def test_loop_config_defaults():
     cfg = RunnerConfig()
     assert cfg.loop.pause_escalations == 1
     assert cfg.loop.tick_budget == 3600
+    assert cfg.loop.standing_max_per_tick == 1
 
 
 def test_the_tick_pushes_what_the_lane_lands(tmp_path: Path) -> None:

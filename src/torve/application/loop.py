@@ -63,6 +63,10 @@ class TickDeps:
     # RFC 0020 phase 2: claim intake requests, run pending drafting
     # tasks, project drafts. None: no tracker configured.
     intake: Leg | None = None
+    # RFC 0023: evaluate every committed standing job's predicate and mint
+    # what is due, bounded by cooldown, max_open and
+    # loop.standing_max_per_tick. None: no standing leg wired.
+    standing: Leg | None = None
 
 
 # ....................... #
@@ -340,8 +344,15 @@ def run_tick(root: Path, config: RunnerConfig, deps: TickDeps) -> TickReport:
 
         if escalated >= config.loop.pause_escalations:
             # D-19.5: the queue may drain during a pause; it may not grow.
+            # RFC 0023 D-23.6's first bound places the standing leg inside
+            # this same conditional: a paused tick evaluates no predicate.
             legs.append(("dispatch", f"paused: escalation queue at {escalated}"))
+            legs.append(("standing", f"paused: escalation queue at {escalated}"))
         else:
+            # Standing before dispatch (RFC 0023 §5.4, the intake
+            # precedent): whatever it mints this pass is a queued
+            # contract the batch below can already consider.
+            leg("standing", deps.standing, "no standing leg wired")
             batch = queued_batch(root, deps.landed, max(1, config.loop.dispatch_workers))
 
             if not batch:
