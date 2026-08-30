@@ -8,7 +8,7 @@ depends_on: ["0008", "0013", "0019"]
 informed_by: ["0001", "0004", "0006", "0017", "0021", "0022"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-60"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -322,6 +322,7 @@ will read the first fleet-wide pause as a bug.
     - "src/torve/application/fleet.py"
     - "src/torve/config/fleet.py"
     - "src/torve/cli/fleet.py"
+    - "src/torve/cli/main.py"
     - "tests/**"
   acceptance:
     - "uv run ruff check src tests"
@@ -367,3 +368,20 @@ will read the first fleet-wide pause as a bug.
   no per-root command reports.
 
 ## Amendments
+
+### A-60 — 2026-08-30 — phase 1's scope admits the subcommand registration (amends §Phasing)
+
+**Found in the first dispatch, three identical reds.** T-0103 went red on
+the scope gate three times running on `outside allow: src/torve/cli/main.py`
+— four lines registering `torve fleet` on the CLI app, which is the work,
+not drift: a new verb does not exist until `main.py` mounts it. The same
+mis-drawn-fence shape as A-56, caught the same way, and rfc-writer's rule
+that a phase's scope is traced from what the change touches now has its
+second exhibit: a phase that ships a new CLI verb always touches `main.py`.
+
+**Changed:** phase 1's scope gains `src/torve/cli/main.py`. The minted
+contracts are re-minted — a changed contract is a new task.
+
+**Deliberately unchanged:** phase 2's scope — trust-class refusal lives in
+the fleet modules and registers nothing new; and the scope gate itself,
+which did exactly its job.
