@@ -1,0 +1,50 @@
+# RFC 0023 §5.6.2 — the second standing contract. RFC 0002 §7.6 already
+# derives per-command flake counts into telemetry's
+# `flaky_count_by_command`; the predicate is a threshold read over that,
+# skipping any command already in .torve/gates.yaml's quarantine list so a
+# landed response stops the job from refiring on the same command.
+name: flake-quarantine
+trigger:
+  kind: command
+  run: |
+    python3 - <<'PY'
+    import json, pathlib, re, sys
+
+    THRESHOLD = 3
+
+    gates_path = pathlib.Path(".torve/gates.yaml")
+    text = gates_path.read_text(encoding="utf-8") if gates_path.is_file() else ""
+    block = re.search(r"(?m)^quarantine:(.*?)(?=^[A-Za-z_]|\Z)", text, re.S)
+    quarantined = set(re.findall(r"-\s*[\"']?([^\"'\n]+)", block.group(1))) if block else set()
+
+    counts: dict[str, int] = {}
+    telemetry_path = pathlib.Path(".torve/telemetry.jsonl")
+    if telemetry_path.is_file():
+        for line in telemetry_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            for command, n in record.get("flaky_count_by_command", {}).items():
+                counts[command] = counts.get(command, 0) + n
+
+    due = any(n >= THRESHOLD and command not in quarantined for command, n in counts.items())
+    sys.exit(1 if due else 0)
+    PY
+intent: >-
+  A gate command's flake count in telemetry has crossed the quarantine
+  threshold without the command being quarantined yet. Add it to
+  .torve/gates.yaml's quarantine list (RFC 0002 §6a, D-2.15) — or fix the
+  underlying flake — so it stops consuming poison-ceiling attempts while
+  still being run and reported.
+scope:
+  allow: [".torve/gates.yaml"]
+  deny: []
+acceptance:
+  - "uv run pytest tests/test_manifest.py"
+cooldown_hours: 24
+max_open: 1
+strike_limit: 3

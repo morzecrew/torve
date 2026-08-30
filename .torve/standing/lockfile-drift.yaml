@@ -1,0 +1,20 @@
+# RFC 0023 §5.6.1 — the first standing contract, verbatim off the RFC's
+# own example: `uv lock --check` exits non-zero exactly when uv.lock has
+# drifted from pyproject.toml's constraints.
+name: lockfile-drift
+trigger:
+  kind: command
+  run: "uv lock --check"
+intent: >-
+  Refresh the dependency lockfile against the constraints in pyproject.toml
+  and confirm the suite passes under the refreshed pins, so that a drifted
+  lock is corrected while the change is one commit wide.
+scope:
+  allow: ["uv.lock"]
+  deny: []
+acceptance:
+  - "uv sync --locked"
+  - "uv run pytest"
+cooldown_hours: 168
+max_open: 1
+strike_limit: 3

@@ -15,6 +15,7 @@ import yaml
 from pydantic import ValidationError
 
 from torve.application.ports import ExecResult, SandboxHandle
+from torve.application.runstate import RunState
 from torve.application.standing import (
     STANDING_RECORD,
     PredicateError,
@@ -26,8 +27,10 @@ from torve.application.standing import (
     load_standing_contracts,
     standing_leg,
 )
+from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
+from torve.domain.states import TaskState
 
 # ----------------------- #
 
@@ -76,6 +79,7 @@ def job_dict(
     decisions_from: str | None = None,
     cooldown_hours: float = 0.0,
     max_open: int = 1,
+    strike_limit: int = 3,
 ) -> dict:
     return {
         "name": name,
@@ -86,7 +90,50 @@ def job_dict(
         "decisions_from": decisions_from,
         "cooldown_hours": cooldown_hours,
         "max_open": max_open,
+        "strike_limit": strike_limit,
     }
+
+
+# ....................... #
+
+
+def path_digest_job_dict(
+    name: str = "pin-drift",
+    *,
+    paths: list[str] | None = None,
+    allow: list[str] | None = None,
+    acceptance: list[str] | None = None,
+    cooldown_hours: float = 0.0,
+    max_open: int = 1,
+    strike_limit: int = 3,
+) -> dict:
+    return {
+        "name": name,
+        "trigger": {"kind": "path-digest", "paths": paths if paths is not None else ["src/app.py"]},
+        "intent": "the pinned reference moved; re-pin it",
+        "scope": {"allow": allow if allow is not None else ["src/app.py", "tests/test_app.py"]},
+        "acceptance": acceptance if acceptance is not None else ["true"],
+        "decisions_from": None,
+        "cooldown_hours": cooldown_hours,
+        "max_open": max_open,
+        "strike_limit": strike_limit,
+    }
+
+
+# ....................... #
+
+
+def abandon(root: Path, task_id: str) -> None:
+    """Drives a fresh run state through to ABANDONED (QUEUED -> CLAIMED ->
+    ESCALATED -> ABANDONED, all legal per domain.states.TRANSITIONS) so
+    strike-limit tests can simulate a job whose instances kept failing to
+    land."""
+
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.transition(TaskState.CLAIMED, "test")
+    state.transition(TaskState.ESCALATED, "test")
+    state.transition(TaskState.ABANDONED, "test")
+    state.save()
 
 
 def write_job(root: Path, job: dict, filename: str | None = None) -> Path:
@@ -105,6 +152,12 @@ def test_trigger_requires_a_command_line_for_command_kind():
     with pytest.raises(ValidationError, match="empty"):
         Trigger(kind="command", run="  ")
     Trigger(kind="command", run="uv lock --check")  # does not raise
+
+
+def test_trigger_requires_paths_for_path_digest_kind():
+    with pytest.raises(ValidationError, match="paths"):
+        Trigger(kind="path-digest", paths=[])
+    Trigger(kind="path-digest", paths=["src/app.py"])  # does not raise
 
 
 def test_standing_contract_rejects_bad_bounds():
@@ -213,12 +266,31 @@ def test_evaluate_predicate_timeout_is_an_error_not_a_verdict(tmp_path: Path):
     assert runtime.destroyed == 1  # the sandbox is still cleaned up
 
 
-def test_evaluate_predicate_path_digest_is_not_implemented_yet(tmp_path: Path):
-    job = StandingContract.model_validate(
-        {**job_dict(), "trigger": {"kind": "path-digest", "run": ""}}
-    )
-    with pytest.raises(PredicateError, match="phase 2"):
-        evaluate_predicate(job, tmp_path, RunnerConfig(), ScriptedRuntime([1]))
+def test_evaluate_predicate_path_digest_with_no_prior_firing_is_due(seeded):
+    # Nothing to compare against yet reads as 'differs': the first
+    # evaluation fires to record a baseline.
+    job = StandingContract.model_validate(path_digest_job_dict())
+    assert evaluate_predicate(job, seeded.root, RunnerConfig(), ScriptedRuntime([])) is True
+
+
+def test_evaluate_predicate_path_digest_unchanged_content_is_not_due(seeded):
+    job = StandingContract.model_validate(path_digest_job_dict())
+    instantiate(seeded.root, job, RunnerConfig())  # records the baseline digest
+    assert evaluate_predicate(job, seeded.root, RunnerConfig(), ScriptedRuntime([])) is False
+
+
+def test_evaluate_predicate_path_digest_changed_content_is_due(seeded):
+    job = StandingContract.model_validate(path_digest_job_dict())
+    instantiate(seeded.root, job, RunnerConfig())
+    seeded.write("src/app.py", "print('moved')\n")
+    assert evaluate_predicate(job, seeded.root, RunnerConfig(), ScriptedRuntime([])) is True
+
+
+def test_evaluate_predicate_path_digest_never_touches_the_sandbox(seeded):
+    job = StandingContract.model_validate(path_digest_job_dict())
+    runtime = ScriptedRuntime([])
+    evaluate_predicate(job, seeded.root, RunnerConfig(), runtime)
+    assert runtime.created == 0
 
 
 # ----------------------- #
@@ -287,6 +359,19 @@ def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
     assert contract["decisions"] == [
         {"id": "D-12.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
     ]
+
+
+def test_instantiate_records_the_path_digest_baseline(seeded):
+    job = StandingContract.model_validate(path_digest_job_dict())
+    task_id = instantiate(seeded.root, job, RunnerConfig())
+
+    sidecar = json.loads(
+        (seeded.root / ".torve" / "tasks" / task_id / STANDING_RECORD).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert sidecar["digest"]
+    assert isinstance(sidecar["digest"], str)
 
 
 def test_instantiate_two_firings_differ_only_in_id(seeded):
@@ -438,3 +523,101 @@ def test_standing_leg_with_no_committed_jobs_is_a_quiet_noop(seeded):
     detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False)
     assert not moved
     assert detail == "no standing jobs due"
+
+
+# ----------------------- #
+# path-digest through the leg (D-23.8).
+
+
+def test_standing_leg_path_digest_fires_once_then_waits_for_a_change(seeded):
+    write_job(seeded.root, path_digest_job_dict(max_open=2))
+
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False
+    )
+    assert moved
+    assert "fired 1" in detail
+    assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 1
+
+    # Unchanged content: not due, mints nothing.
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False
+    )
+    assert not moved
+    assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 1
+
+    # The declared path's content changes: due again.
+    seeded.write("src/app.py", "print('moved')\n")
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False
+    )
+    assert moved
+    assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 2
+
+
+# ----------------------- #
+# Self-disable, the fourth bound (D-23.6, RFC 0023 §5.4).
+
+
+def test_standing_leg_self_disables_after_strike_limit_consecutive_non_landings(seeded):
+    write_job(seeded.root, job_dict(max_open=1, strike_limit=2))
+    landed: dict[str, bool] = {}
+
+    def is_landed(task_id: str) -> bool:
+        return landed.get(task_id, False)
+
+    # Fire, then abandon without landing: strike one.
+    _detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
+    assert moved
+    first = next((seeded.root / ".torve" / "tasks").glob("T-*")).name
+    abandon(seeded.root, first)
+
+    # Fire again, abandon again: strike two, at the limit.
+    _detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
+    assert moved
+    second = next(
+        p.name for p in (seeded.root / ".torve" / "tasks").glob("T-*") if p.name != first
+    )
+    abandon(seeded.root, second)
+
+    # Third tick: two consecutive non-landings at strike_limit=2 — self-disabled,
+    # the predicate is never even consulted.
+    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
+    assert not moved
+    assert "self-disabled" in detail
+    assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 2
+
+    events = [
+        json.loads(line)
+        for line in (seeded.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    assert any(
+        e.get("event") == "standing_self_disabled" and e.get("job") == "lockfile-drift"
+        for e in events
+    )
+
+
+def test_standing_leg_a_landing_resets_the_strike_streak(seeded):
+    write_job(seeded.root, job_dict(max_open=1, strike_limit=2))
+    landed: dict[str, bool] = {}
+
+    def is_landed(task_id: str) -> bool:
+        return landed.get(task_id, False)
+
+    # One abandoned firing (strike one)...
+    standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
+    first = next((seeded.root / ".torve" / "tasks").glob("T-*")).name
+    abandon(seeded.root, first)
+
+    # ...then one that lands: the streak resets to zero.
+    _detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
+    assert moved
+    second = next(
+        p.name for p in (seeded.root / ".torve" / "tasks").glob("T-*") if p.name != first
+    )
+    landed[second] = True
+
+    # Due again: not self-disabled, because the last instance landed.
+    _detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
+    assert moved
+    assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 3

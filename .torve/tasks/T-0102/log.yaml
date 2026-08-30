@@ -1,0 +1,140 @@
+schema_version: 1
+task: T-0102
+repo: morzecrew/torve
+base_sha: unknown — git is unavailable in this sandboxed worktree (.git points
+  to a host path this container cannot see; `git rev-parse HEAD` fails with
+  "not a git repository"); recorded here rather than fabricated.
+drift_count: 0
+entries:
+  - decision: D-23.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: two new files landed under .torve/standing/ (lockfile-drift.yaml,
+      flake-quarantine.yaml), each committed and reviewable as a diff; no
+      per-firing approval anywhere in standing_leg() or instantiate() —
+      the file being in git is still the only signature.
+    evidence: .torve/standing/lockfile-drift.yaml:1-20 — the first standing
+      contract; .torve/standing/flake-quarantine.yaml:1-50 — the second
+    action: decided
+  - decision: D-23.2
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: the new path-digest branch of evaluate_predicate() touches no
+      Agent port and consults no model — it hashes committed file bytes
+      under root and compares to a value read from a committed sidecar.
+      The command branch is unchanged from T-0101 (sandbox, exit code).
+    evidence: src/torve/application/standing.py:227-234 — the path-digest
+      branch of evaluate_predicate(), no runtime/agent call in it
+    action: decided
+  - decision: D-23.3
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: a command predicate that times out still raises PredicateError
+      and mints nothing, unchanged from T-0101. path-digest has no error
+      path of its own (a digest over zero matched files is still a valid,
+      deterministic verdict, not an error) — it never mints on anything
+      but a computed comparison.
+    evidence: src/torve/application/standing.py:246-259 — the command
+      branch's PredicateError paths, unchanged; tests/test_standing.py::test_evaluate_predicate_timeout_is_an_error_not_a_verdict
+      still passes
+    action: decided
+  - decision: D-23.4
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: instantiate() still calls torve.application.intake.adopt()
+      unmodified under assume_lock=True; the only addition is writing a
+      digest into the sidecar record for path-digest jobs, after adopt()
+      has already run. The id-under-lock, commit-as-engine-record path is
+      untouched.
+    evidence: src/torve/application/standing.py:290-336 — instantiate(),
+      the adopt() call unchanged from T-0101, sidecar write extended
+      after it
+    action: decided
+  - decision: D-23.5
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: both new standing files (lockfile-drift, flake-quarantine)
+      carry a fixed intent string with no template variables; instantiate()
+      still writes job.intent verbatim into every firing.
+    evidence: .torve/standing/lockfile-drift.yaml:1-20 — intent is a static
+      paragraph; .torve/standing/flake-quarantine.yaml:1-50 — same;
+      tests/test_standing.py::test_instantiate_two_firings_differ_only_in_id
+      still passes unmodified
+    action: decided
+  - decision: D-23.6
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: D-23.6's Paths column places the `standing.strike_limit` config
+      knob in src/torve/config/runconfig.py alongside loop.py. This task's
+      own minted contract.yaml restricts scope.allow to
+      src/torve/application/standing.py, .torve/standing/** and tests/**
+      only — identical to RFC 0023's own phase-2 scope block, which also
+      excludes config/** and loop.py (phase 1's scope, by contrast,
+      included src/torve/config/**). Editing runconfig.py would violate
+      this task's own scope and fail the blocking `scope` gate — departed,
+      and implemented the fourth bound as a per-job `strike_limit` field on
+      StandingContract (default 3, validated >= 1) instead of a global
+      RunnerConfig.standing.strike_limit — self-disable still fires after
+      `strike_limit` consecutive non-landings, computed fresh each tick
+      from the sidecar ledger — no separate disabled-state flag needed,
+      since a later landing naturally resets the streak — entirely within
+      this phase's actual scope.
+    evidence: .torve/tasks/T-0102/contract.yaml:25-29 — scope.allow names
+      only standing.py, .torve/standing/** and tests/**;
+      rfcs/0023-standing-maintenance.md:396-399 — phase 2's own scope
+      block names the same three, excluding config/** and loop.py;
+      src/torve/application/standing.py:98-102 — StandingContract.strike_limit
+    action: departed
+  - decision: D-23.8
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: T-0101 departed on D-23.8, shipping the `path-digest` name in
+      Trigger.kind's schema but refusing it at evaluation. This task
+      closes that departure — path-digest now evaluates for real (content
+      digest over declared paths, compared to the last firing's recorded
+      digest) — and no third kind was added, per the decision's own
+      "not before" clause.
+    evidence: src/torve/application/standing.py:198-234 — _path_digest()
+      and evaluate_predicate()'s path-digest branch;
+      tests/test_standing.py::test_evaluate_predicate_path_digest_changed_content_is_due
+    action: decided
+  - decision: D-23.11
+    grade: OPEN
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: the firing ledger is the sidecar `standing.json` written under
+      each instance's own `.torve/tasks/<id>/` directory, not a host-local
+      telemetry stream — an engine record exempt from the lane's dirty-tree
+      check exactly like a minted contract.yaml, so cooldown, max_open and
+      the path-digest baseline are all reproducible from a fresh clone
+      rather than depending on a host that happened to run the tick.
+      `max_open` counts an escalated instance as open — unresolved work,
+      not a closed one, until it lands or is abandoned.
+    evidence: src/torve/application/standing.py:347-353 — _job_instances()'s
+      docstring states the sidecar-under-.torve/tasks/ choice and why;
+      src/torve/application/standing.py:430-452 — _open_count() counts
+      everything neither landed nor abandoned, escalated instances included
+    action: decided
