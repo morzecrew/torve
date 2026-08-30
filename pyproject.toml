@@ -97,7 +97,11 @@ forbidden_modules = ["torve.application", "torve.adapters", "torve.cli"]
 [[tool.importlinter.contracts]]
 name = "The RFC format stays at the planner"
 type = "forbidden"
-source_modules = ["torve.gates", "torve.adapters.runtime", "torve.adapters.agent"]
+source_modules = [
+    "torve.gates",
+    "torve.adapters.runtime",
+    "torve.adapters.agent",
+]
 forbidden_modules = ["torve.config.rfc_parse"]
 
 [[tool.importlinter.contracts]]
@@ -204,7 +208,7 @@ timeout_method = "thread"
 # the acceptance battery runs it: `mypy` is the one type checker of record
 # (A-51) — two strict checkers over one tree bought disagreement, not depth.
 include = ["src"]
-ignore = ["tests", "scripts", "skills", ".venv"]
+ignore = ["tests", "scripts", "skills", ".venv", ".wt"]
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false
 
