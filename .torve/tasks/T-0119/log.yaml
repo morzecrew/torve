@@ -1,0 +1,34 @@
+schema_version: 1
+task: T-0119
+repo: morzecrew/torve
+base_sha: cd69f072f6e687681324f23a7fa6d8140e90bb00
+drift_count: 0
+entries:
+  - decision: D-27.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: run_config_eval only measures and records — it computes both
+      arms' outcomes and appends one ledger entry citing each arm's
+      image_digest, and nothing in the path writes runconfig.py or
+      .torve/sandbox/** or flips which image a tier resolves; displacing
+      the incumbent default stays outside this primitive, exactly the
+      human act the row requires
+    evidence: src/torve/application/evals.py:158-211 — run_config_eval
+    action: decided
+  - decision: D-27.8
+    grade: OPEN
+    kind: resolved
+    at: 2026-08-30T00:05:00Z
+    attempt: 1
+    claim: the replay battery's composition and refresh cadence stay
+      outside this primitive — run_config_eval takes `tasks:list[Task]`
+      as a caller-supplied argument, the same shape run_skill_eval
+      already established, so evals.py decides no curation or cadence;
+      that composition is left to the first live campaign the row itself
+      defers to
+    evidence: src/torve/application/evals.py:158-166 — run_config_eval's
+      signature takes tasks as a parameter, deciding nothing about which
+      tasks compose a battery
+    action: decided
