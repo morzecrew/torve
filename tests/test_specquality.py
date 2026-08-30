@@ -494,8 +494,10 @@ def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
         end_at="2026-08-20T10:05:00.000000Z",
     )
     # Two top-level modules in scope.allow reads as too_large (sizing.py's
-    # MAX_MODULES=1), so this task must never join the "ok" population.
-    write_contract(tmp_path, "T-0002", scope_allow=["src/a.py", "tests/a.py"])
+    # MAX_MODULES=1; "tests" is excluded from the count so it must be a
+    # second non-test module here), so this task must never join the "ok"
+    # population.
+    write_contract(tmp_path, "T-0002", scope_allow=["src/a.py", "lib/a.py"])
     landed_state_with(
         tmp_path, "T-0002", attempts=1, start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",

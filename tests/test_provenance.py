@@ -109,6 +109,52 @@ def test_a_signed_commit_with_the_key_outside_the_worktree(vcs_repo, tmp_path):
     assert not list(vcs_repo.rglob("signing*"))  # the key never entered the tree
 
 
+def test_workspace_resume_cuts_from_the_branch_tip_not_base(vcs_repo):
+    # D-26.9: a continuation checks out whatever the branch already carries
+    # — its own candidate tip — instead of resetting it back to base.
+    task_id = "T-8199"
+    ws = GitWorkspace(vcs_repo)
+
+    path = ws.create(task_id, "main")
+    (path / "wip.txt").write_text("checkpoint\n", encoding="utf-8")
+    git(path, "add", "-A")
+    git(
+        path,
+        "-c",
+        "user.name=Torve",
+        "-c",
+        "user.email=torve@local",
+        "commit",
+        "-q",
+        "--no-gpg-sign",
+        "-m",
+        "wip",
+    )
+    checkpoint_sha = git(path, "rev-parse", "HEAD")
+
+    # The base moves on independently of the task's own branch.
+    (vcs_repo / "app.py").write_text("value = 2\n", encoding="utf-8")
+    git(vcs_repo, "add", "-A")
+    git(vcs_repo, "commit", "-q", "--no-gpg-sign", "-m", "later base work")
+
+    resumed = ws.create(task_id, "main", resume=True)
+    assert git(resumed, "rev-parse", "HEAD") == checkpoint_sha
+    assert (resumed / "wip.txt").read_text() == "checkpoint\n"
+
+    restarted = ws.create(task_id, "main", resume=False)
+    assert git(restarted, "rev-parse", "HEAD") == git(vcs_repo, "rev-parse", "main")
+    assert not (restarted / "wip.txt").exists()
+
+
+def test_workspace_resume_with_no_prior_branch_falls_back_to_base(vcs_repo):
+    # A budget-exhausted first attempt that never wrote anything leaves the
+    # branch never created (D-A.7 base HEAD); resume then has nothing to
+    # cut from and behaves exactly like a fresh dispatch.
+    ws = GitWorkspace(vcs_repo)
+    path = ws.create("T-8198", "main", resume=True)
+    assert git(path, "rev-parse", "HEAD") == git(vcs_repo, "rev-parse", "main")
+
+
 def test_revert_stages_the_inverse_and_a_conflict_aborts_clean(vcs_repo):
     vcs = GitVcs()
     (vcs_repo / "app.py").write_text("value = 2\n", encoding="utf-8")

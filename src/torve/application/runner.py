@@ -52,7 +52,7 @@ from torve.application.ports import (
     Vcs,
     WorkspacePort,
 )
-from torve.application.runstate import RunState
+from torve.application.runstate import Escalation, RunState
 from torve.application.skills import materialize
 from torve.application.taskstore import TaskStore
 from torve.application.telemetry import (
@@ -117,6 +117,45 @@ class AttemptHooks:
     # One close per run, whatever path the loop exits by: the broker's
     # revocation and final usage land here (RFC 0021 §5.1).
     close: Callable[[], None] | None = None
+    # Called once, only when the run ends on budget exhaustion — wallclock or
+    # tokens (RFC 0026 D-26.8/9): commits whatever the worktree holds so the
+    # next dispatch has a candidate tip to continue from. Never called on a
+    # convicted escalation — that restarts from base unchanged.
+    checkpoint: Callable[[RunState], None] | None = None
+
+
+# ....................... #
+
+
+# Continuation eligibility's shared marker (RFC 0026 D-26.8): every detail
+# string this module writes for a wallclock-caused budget_exhausted
+# escalation starts with it, and `_continuable` is the only reader — so
+# generation and detection can never drift apart.
+_WALLCLOCK_MARKER = "wallclock budget exhausted"
+
+
+def _continuable(escalation: Escalation) -> bool:
+    """D-26.8 (LOCKED): continuation fires only on budget exhaustion —
+    wallclock or tokens — never on a gate conviction, review blocker or any
+    judged escalation. `iterations` exhaustion (like `poison_ceiling`) is
+    excluded on purpose: repeated red gates is a judgement on the work, not
+    a clock running out, so it restarts from base like any conviction."""
+
+    if escalation.reason == str(EscalationReason.COST_ANOMALY):
+        return True
+
+    return escalation.reason == str(
+        EscalationReason.BUDGET_EXHAUSTED
+    ) and escalation.detail.startswith(_WALLCLOCK_MARKER)
+
+
+# ....................... #
+
+
+def _elapsed_minutes(state: RunState) -> float:
+    started = datetime.strptime(state.history[0]["at"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+
+    return (datetime.now(UTC) - started).total_seconds() / 60
 
 
 # ....................... #
@@ -127,9 +166,22 @@ async def drive_attempts(
 ) -> RunState:
     ceiling = config.poison_ceiling
     iterations = task.budget.iterations
+    wallclock_minutes = task.budget.wallclock_minutes
 
     try:
-        return await _attempt_loop(state, task, hooks, ceiling, iterations)
+        result = await _attempt_loop(state, task, hooks, ceiling, iterations, wallclock_minutes)
+
+        # D-26.9: the checkpoint is what gives the next dispatch a candidate
+        # tip to cut from — taken once, right where the loop actually ended,
+        # never for a convicted escalation.
+        if (
+            hooks.checkpoint is not None
+            and result.escalation is not None
+            and _continuable(result.escalation)
+        ):
+            hooks.checkpoint(result)
+
+        return result
 
     finally:
         # One close per run, whatever path the loop exits by — a green
@@ -143,7 +195,12 @@ async def drive_attempts(
 
 
 async def _attempt_loop(
-    state: RunState, task: Task, hooks: AttemptHooks, ceiling: int, iterations: int | None
+    state: RunState,
+    task: Task,
+    hooks: AttemptHooks,
+    ceiling: int,
+    iterations: int | None,
+    wallclock_minutes: int | None = None,
 ) -> RunState:
     while True:
         # Poison ceiling is checked before dispatch, never after (RFC 0001 §4).
@@ -160,6 +217,17 @@ async def _attempt_loop(
             )
 
             return state
+
+        if wallclock_minutes is not None:
+            elapsed = _elapsed_minutes(state)
+
+            if elapsed >= wallclock_minutes:
+                state.escalate(
+                    EscalationReason.BUDGET_EXHAUSTED,
+                    f"{_WALLCLOCK_MARKER}: {elapsed:.1f}m elapsed, budget {wallclock_minutes}m",
+                )
+
+                return state
 
         state.transition(TaskState.RUNNING, f"attempt {state.attempts + 1} dispatched")
         state.save()
@@ -617,6 +685,7 @@ def real_hooks(
     worktree: Path,
     shadow: bool = False,
     gates_base: str | None = None,
+    resume: bool = False,
 ) -> AttemptHooks:
     tier = tier_for(config, task.tier)
 
@@ -716,6 +785,7 @@ def real_hooks(
                     workdir=spec.workdir,
                     timeout_s=config.runtime.agent_timeout,
                     broker=broker_handle,
+                    resume=resume,
                 ),
             )
 
@@ -760,6 +830,20 @@ def real_hooks(
 
     def halted() -> bool:
         return _log_has_halted_entry(worktree, task.id)
+
+    def checkpoint(final: RunState) -> None:
+        # D-26.9: local only — the branch already lives in this repository,
+        # so a worktree cut on the next dispatch resolves it without a push;
+        # publishing a WIP tip is the eventual `land()`'s job, unchanged.
+        # A trailer of its own (never Torve-Task) keeps this commit from
+        # ever being mistaken for a landed candidate (D-10.4's grep, the
+        # revert leg's `landed_shas`).
+        message = (
+            f"torve checkpoint {task.id}: attempt {final.attempts} exhausted its budget"
+            f"\n\nTorve-Checkpoint: {task.id}\nTorve-Attempt: {final.attempts}"
+        )
+        author = f"{_agent_identity(agent_meta)} <agents@torve.local>"
+        deps.vcs.commit_all(worktree, message, author, config.vcs.signing_key)
 
     # The last gate pass's results and patch, kept for the review's input —
     # the reviewer judges exactly what the gates judged.
@@ -997,6 +1081,7 @@ def real_hooks(
         land=land,
         review=review_hook,
         close=close,
+        checkpoint=checkpoint,
     )
 
 
@@ -1004,12 +1089,17 @@ def real_hooks(
 
 
 async def _run_task_async(
-    root: Path, task: Task, config: RunnerConfig, deps: RunDeps, state: RunState
+    root: Path,
+    task: Task,
+    config: RunnerConfig,
+    deps: RunDeps,
+    state: RunState,
+    resume: bool = False,
 ) -> RunState:
-    worktree = deps.workspace.create(task.id, resolve_base(root, config.base))
+    worktree = deps.workspace.create(task.id, resolve_base(root, config.base), resume=resume)
     state.worktree = str(worktree)
     state.save()
-    hooks = real_hooks(root, task, config, deps, worktree)
+    hooks = real_hooks(root, task, config, deps, worktree, resume=resume)
 
     async def body(_fctx: ExecutionContext, _input_json: JsonDict | None) -> JsonDict:
         bound = current_durable_run()
@@ -1057,7 +1147,8 @@ async def _run_task_async(
         and state.state not in (TaskState.READY, TaskState.ABANDONED)
     ):
         state.escalate(
-            EscalationReason.BUDGET_EXHAUSTED, "max run duration reached (store watchdog)"
+            EscalationReason.BUDGET_EXHAUSTED,
+            f"{_WALLCLOCK_MARKER}: max run duration reached (store watchdog)",
         )
 
     if record.status is DurableRunStatus.FAILED:
@@ -1113,8 +1204,29 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
 # ....................... #
 
 
+def _should_resume(previous: RunState) -> bool:
+    """A continuation is legible only immediately off its own escalation
+    (D-26.9): `escalation` is never cleared by design (RFC 0001 §4's history
+    is append-only), so without this the field would resurrect a long-dead
+    budget exhaustion on an unrelated re-queue — a lane conflict auto-requeue
+    or a review `revise` both land on QUEUED too. Requiring the immediately
+    preceding transition to be `escalated` pins the field to the same event."""
+
+    if previous.state is not TaskState.QUEUED or previous.escalation is None:
+        return False
+
+    if len(previous.history) < 2 or previous.history[-2].get("to") != str(TaskState.ESCALATED):
+        return False
+
+    return _continuable(previous.escalation)
+
+
+# ....................... #
+
+
 def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> RunState:
     state_path = naming.state_file(root, task.id)
+    resume = False
 
     if state_path.exists():
         previous = RunState.load(state_path)
@@ -1126,6 +1238,8 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
                 f"{task.id} has an existing run in state {previous.state} "
                 f"(run {previous.run_id[:8]}); triage it or `torve reap` first"
             )
+
+        resume = _should_resume(previous)
 
     blocked = _blocking_overlap(root, task)
 
@@ -1139,10 +1253,11 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
         raise BlockedDispatch(f"blocked_by_overlap: {blocker} on {path}")
 
     state = RunState(task_id=task.id, path=state_path)
-    state.transition(TaskState.CLAIMED, "torve run: single synchronous claim")
+    fact = "torve run: single synchronous claim"
+    state.transition(TaskState.CLAIMED, f"{fact} (continuation)" if resume else fact)
 
     try:
-        return asyncio.run(_run_task_async(root, task, config, deps, state))
+        return asyncio.run(_run_task_async(root, task, config, deps, state, resume=resume))
 
     except KeyboardInterrupt:
         if state.state not in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):

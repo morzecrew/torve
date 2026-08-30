@@ -58,8 +58,12 @@ class MockRuntime:
 class MockWorkspace:
     def __init__(self, root):
         self.root = root
+        self.resumed: list[str] = []
 
-    def create(self, task_id, base_ref):
+    def create(self, task_id, base_ref, *, resume=False):
+        if resume:
+            self.resumed.append(task_id)
+
         path = self.root / ".wt" / task_id
         path.mkdir(parents=True, exist_ok=True)
         return path
@@ -184,11 +188,168 @@ def test_poison_ceiling_never_retries_past_the_ceiling(rig):
 
 
 def test_iteration_budget_escalates_as_budget_exhausted(rig):
-    repo, deps, _, _, _ = rig
+    repo, deps, _, vcs, _ = rig
     deps.agent = ScriptedAgent([CRASH])
     state = run_task(repo.root, task_for(repo, iterations=1), RunnerConfig(), deps)
     assert state.escalation.reason == "budget_exhausted"
     assert state.attempts == 1
+    # D-26.8: attempt-count exhaustion is judgement on the work (repeated
+    # crashes), not a clock running out — no continuation checkpoint.
+    assert not vcs.commits
+
+
+def test_wallclock_budget_escalates_and_checkpoints(rig):
+    repo, deps, _runtime, vcs, _ = rig
+    task = Task(id="T-9001", scope=Scope(), decisions=[], budget=Budget(wallclock_minutes=0))
+
+    state = run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert state.escalation.reason == "budget_exhausted"
+    assert state.escalation.detail.startswith("wallclock budget exhausted")
+    assert state.attempts == 0  # exhausted before the first dispatch
+    # D-26.9: the checkpoint is what gives a continuation a candidate tip.
+    assert len(vcs.commits) == 1
+    assert vcs.commits[0].startswith(f"torve checkpoint {task.id}:")
+    assert f"Torve-Checkpoint: {task.id}" in vcs.commits[0]
+    assert "Torve-Task:" not in vcs.commits[0]  # never mistaken for a landing
+
+
+def test_cost_anomaly_is_continuable_iterations_budget_is_not():
+    # Pure unit coverage of the eligibility rule itself (D-26.8): tokens
+    # continue, attempt-count exhaustion never does.
+    from torve.application.runstate import Escalation
+
+    assert run_module._continuable(Escalation(reason="cost_anomaly", detail="broker refused"))
+    assert not run_module._continuable(
+        Escalation(reason="budget_exhausted", detail="3 attempts, budget 3")
+    )
+    assert run_module._continuable(
+        Escalation(reason="budget_exhausted", detail="wallclock budget exhausted: 5.0m elapsed")
+    )
+
+
+def test_should_resume_ignores_a_stale_escalation_after_a_non_escalation_requeue():
+    # D-26.9: `escalation` is never cleared, so a run that escalated on
+    # budget exhaustion long ago, landed READY, and was later auto-requeued
+    # by the lane over a conflict (READY -> QUEUED, never touching
+    # ESCALATED again) must not resume from that dead episode.
+    from pathlib import Path
+
+    from torve.application.runstate import Escalation, RunState
+
+    state = RunState(task_id="T-1", path=Path("/tmp/unused"))
+    state.state = TaskState.QUEUED
+    state.history = [
+        {"at": "t0", "from": "queued", "to": "claimed"},
+        {"at": "t1", "from": "claimed", "to": "escalated"},
+        {"at": "t2", "from": "escalated", "to": "queued"},
+        {"at": "t3", "from": "queued", "to": "claimed"},
+        {"at": "t4", "from": "claimed", "to": "running"},
+        {"at": "t5", "from": "running", "to": "ready"},
+        {"at": "t6", "from": "ready", "to": "queued"},  # lane conflict auto-requeue
+    ]
+    state.escalation = Escalation(
+        reason="budget_exhausted", detail="wallclock budget exhausted: 5.0m elapsed"
+    )
+
+    assert not run_module._should_resume(state)
+
+
+def test_should_resume_true_straight_off_a_continuable_escalation():
+    from pathlib import Path
+
+    from torve.application.runstate import Escalation, RunState
+
+    state = RunState(task_id="T-1", path=Path("/tmp/unused"))
+    state.state = TaskState.QUEUED
+    state.history = [
+        {"at": "t0", "from": "queued", "to": "claimed"},
+        {"at": "t1", "from": "claimed", "to": "escalated"},
+        {"at": "t2", "from": "escalated", "to": "queued"},
+    ]
+    state.escalation = Escalation(
+        reason="budget_exhausted", detail="wallclock budget exhausted: 5.0m elapsed"
+    )
+
+    assert run_module._should_resume(state)
+
+    state.escalation = Escalation(reason="locked_conflict", detail="halted divergence entry")
+
+    assert not run_module._should_resume(state)
+
+
+def test_continuation_resumes_the_worktree_and_tells_the_agent(rig, monkeypatch):
+    repo, deps, _runtime, _vcs, _ = rig
+    task = Task(id="T-9001", scope=Scope(), decisions=[], budget=Budget(wallclock_minutes=5))
+    # The budget check is exhausted on the first run only — a second,
+    # independent dispatch (the retry) must not trip it again from its own
+    # fresh clock.
+    monkeypatch.setattr(run_module, "_elapsed_minutes", lambda _state: 999.0)
+
+    first = run_task(repo.root, task, RunnerConfig(), deps)
+    assert first.state is TaskState.ESCALATED
+    monkeypatch.setattr(run_module, "_elapsed_minutes", lambda _state: 0.0)
+
+    from torve.application.runstate import RunState
+
+    state_path = repo.root / ".wt" / f"{task.id}.state.json"
+    requeued = RunState.load(state_path)
+    requeued.transition(TaskState.QUEUED, "tracker command retry from operator")
+    requeued.save()
+
+    seen = {}
+
+    class PeekingAgent:
+        kind = "fake"
+
+        def run(self, ctx):
+            seen["resume"] = ctx.resume
+            return OK
+
+    deps.agent = PeekingAgent()
+
+    second = run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert second.state is TaskState.READY
+    assert seen["resume"] is True
+    assert task.id in deps.workspace.resumed
+
+
+def test_a_convicted_retry_does_not_resume(rig):
+    repo, deps, _runtime, _vcs, _ = rig
+    task = task_for(repo)
+    deps.agent = ScriptedAgent([OK], halted_on_attempt=1)
+
+    first = run_task(repo.root, task, RunnerConfig(), deps)
+    assert first.escalation.reason == "locked_conflict"
+
+    from torve.application.runstate import RunState
+
+    state_path = repo.root / ".wt" / f"{task.id}.state.json"
+    requeued = RunState.load(state_path)
+    requeued.transition(TaskState.QUEUED, "tracker command retry from operator")
+    requeued.save()
+    # A real worktree recreation would clear the halted entry the first
+    # attempt wrote; the mock never wipes the directory, so clear it by
+    # hand — this test's only concern is whether `resume` was computed
+    # false and threaded through, not the halted-detection path.
+    (repo.root / ".wt" / task.id / ".torve" / "tasks" / task.id / "log.yaml").unlink()
+
+    seen = {}
+
+    class PeekingAgent:
+        kind = "fake"
+
+        def run(self, ctx):
+            seen["resume"] = ctx.resume
+            return OK
+
+    deps.agent = PeekingAgent()
+
+    run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert seen["resume"] is False
+    assert task.id not in deps.workspace.resumed
 
 
 def test_agent_timeout_is_a_failed_attempt_not_a_crash(rig):

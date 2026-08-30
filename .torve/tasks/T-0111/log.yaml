@@ -1,0 +1,37 @@
+schema_version: 1
+task: T-0111
+repo: morzecrew/torve
+base_sha: 6b1748ee340ffa3feac79e4207fca807fc2ae568
+drift_count: 0
+entries:
+- decision: D-26.8
+  grade: LOCKED
+  kind: resolved
+  at: '2026-08-30T16:40:00Z'
+  attempt: 1
+  claim: Continuation fires only on budget exhaustion (wallclock, or token budget via the broker's cost_anomaly)
+    and never on a gate conviction, review blocker or any judged escalation; convicted work restarts from
+    base through the ordinary revision loop unchanged — compliant as built, no divergence.
+  evidence: src/torve/application/runner.py:137-149 — _continuable() returns True only for cost_anomaly
+    or a budget_exhausted escalation whose detail carries the wallclock marker; iterations exhaustion
+    and every judged escalation (gate-red iterations exhaustion, review blocker, locked_conflict, merge_conflict,
+    poison_ceiling) fall through False; runner.py:174-183 calls hooks.checkpoint only when result.escalation
+    is not None and _continuable(result.escalation) holds.
+  action: decided
+  proposal: LOCKED — compliant as built, no divergence
+- decision: D-26.11
+  grade: OPEN
+  class: spec-gap
+  at: '2026-08-30T16:40:00Z'
+  attempt: 1
+  claim: Continuation feeds the next attempt only the previous attempt's commits (already in the resumed
+    worktree) and a plain statement that it is resuming its own unfinished work — never the previous attempt's
+    trace tail — taking the conservative shape RFC 0026 §5.5 named as the starting point.
+  evidence: src/torve/adapters/agent/harness.py:69-82 — build_prompt's continuation branch states plainly
+    that a previous attempt ran out of budget and that its commits are already in the worktree to keep
+    building on; no trace_ref or trace content is read anywhere in this module, and src/torve/application/runner.py:834-846
+    (checkpoint()) writes only a mechanical `torve checkpoint` commit, no prose for a later prompt to
+    consume.
+  action: decided
+  proposal: 'OPEN decided: commits-and-record only, no trace tail. Widen only if live continuations show
+    commits-only prompts under-informing the next attempt.'

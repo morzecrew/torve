@@ -61,8 +61,25 @@ def _workspace_head(workspace: Path) -> str | None:
 # ....................... #
 
 
-def build_prompt(task: Task, revision: bool = False, base_sha: str | None = None) -> str:
+def build_prompt(
+    task: Task, revision: bool = False, base_sha: str | None = None, continuation: bool = False
+) -> str:
     lines: list[str] = [f"# Torve task {task.id}", ""]
+
+    if continuation:
+        # RFC 0026 §5.5 (D-26.8/9): this worktree was cut from the previous
+        # attempt's own candidate tip, not from base — it ran out of budget,
+        # not out of correctness. Stated plainly and distinctly from the
+        # review `revision` note below: nothing here was judged.
+        lines += [
+            (
+                "A previous attempt of this task ran out of its wallclock or"
+                " token budget before finishing — not because the work was"
+                " rejected. The commits already in this worktree are yours:"
+                " keep building on them, do not restart from scratch."
+            ),
+            "",
+        ]
 
     if revision:
         # The revision loop (RFC 0005 §4a): a previous attempt was
@@ -263,7 +280,12 @@ class HarnessAgent:
         prompt = (
             ctx.prompt
             if ctx.prompt is not None
-            else build_prompt(ctx.task, revision=revision, base_sha=_workspace_head(ctx.workspace))
+            else build_prompt(
+                ctx.task,
+                revision=revision,
+                base_sha=_workspace_head(ctx.workspace),
+                continuation=ctx.resume,
+            )
         )
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")
 

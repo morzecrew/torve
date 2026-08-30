@@ -46,7 +46,7 @@ class GitWorkspace:
 
     # ....................... #
 
-    def create(self, task_id: str, base_ref: str | None) -> Path:
+    def create(self, task_id: str, base_ref: str | None, *, resume: bool = False) -> Path:
         with _WORKTREE_LOCK:
             path = naming.worktree(self.root, task_id)
 
@@ -57,6 +57,19 @@ class GitWorkspace:
             branch = naming.branch(task_id)
             current = self._git("rev-parse", "--abbrev-ref", "HEAD").strip()
 
+            # Continuation (RFC 0026 D-26.9): cut from the previous attempt's
+            # own candidate tip — whatever it checkpointed on its branch —
+            # instead of resetting the branch back to base. A branch that
+            # never diverged (nothing was ever checkpointed) has nothing to
+            # resume from, so the normal base cut is the correct fallback.
+            if resume and self._ref_exists(branch):
+                if branch == current:
+                    self._git("worktree", "add", "--detach", str(path), branch)
+                else:
+                    self._git("worktree", "add", str(path), branch)
+
+                return path
+
             if branch == current:
                 # The task's branch is checked out here (dogfooding the
                 # engine on its own repository); a worktree cannot share
@@ -66,6 +79,18 @@ class GitWorkspace:
                 self._git("worktree", "add", "-B", branch, str(path), base)
 
             return path
+
+    # ....................... #
+
+    def _ref_exists(self, ref: str) -> bool:
+        proc = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "--verify", "--quiet", ref],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        return proc.returncode == 0
 
     # ....................... #
 

@@ -135,7 +135,7 @@ class Runtime(Protocol):
 
 
 class WorkspacePort(Protocol):
-    def create(self, task_id: str, base_ref: str | None) -> Path: ...
+    def create(self, task_id: str, base_ref: str | None, *, resume: bool = False) -> Path: ...
 
     def remove(self, task_id: str) -> None: ...
 
@@ -162,6 +162,11 @@ class AgentContext:
     # provider and the run-scoped token, substituted into the tier command.
     # None when no broker adapter is in force.
     broker: BrokerHandle | None = None
+    # Continuation (RFC 0026 D-26.8/9): the previous attempt ended on budget
+    # exhaustion and this worktree was cut from its own candidate tip rather
+    # than base. The agent-facing prompt names this plainly; nothing else in
+    # the loop branches on it.
+    resume: bool = False
 
 
 # ....................... #
