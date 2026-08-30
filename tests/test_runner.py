@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from conftest import context_for
 
 from torve.application.telemetry import append_record, build_record, config_hash
@@ -164,3 +165,142 @@ def test_telemetry_record_shape(repo, tmp_path):
     lines = target.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert json.loads(lines[0])["config_hash"] == record["config_hash"]
+
+
+# ....................... #
+
+# T-0120 (RFC 0027 D-27.7): a live run's dispatch resolves its tier's image
+# digest and refuses to proceed when the task names no explicit tier_variant
+# and that digest is neither arm the eval ledger's most recent citing verdict
+# measured — a regime change nobody measured must not ship silently.
+
+
+class _StubRuntime:
+    def __init__(self, digest: str | None) -> None:
+        self.digest = digest
+
+    def resolve_image(self, image: str) -> str | None:
+        return self.digest
+
+
+def _dispatch_deps(runtime: _StubRuntime):
+    from torve.application.runner import RunDeps
+
+    return RunDeps(
+        workspace=None,  # type: ignore[arg-type]  # unreached: the guard fires at real_hooks() construction
+        runtime=runtime,
+        agent=object(),  # type: ignore[arg-type]
+        vcs=object(),  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+    )
+
+
+def _executor_task(**overrides):
+    from torve.domain.task import Task
+
+    fields: dict = {"id": TASK_ID, "decisions": []}
+    fields.update(overrides)
+    return Task(**fields)
+
+
+def _write_config_eval(root, tier: str, incumbent: str, candidate: str) -> None:
+    ledger = root / ".torve" / "evals.jsonl"
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+
+    with ledger.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {"kind": "config-eval", "tier": tier, "digests": {"incumbent": incumbent, "candidate": candidate}}
+            )
+            + "\n"
+        )
+
+
+def test_real_dispatch_refuses_a_digest_no_citing_verdict_ever_measured(tmp_path):
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    _write_config_eval(tmp_path, "executor", "sha256:old", "sha256:new")
+    deps = _dispatch_deps(_StubRuntime("sha256:drifted"))
+
+    with pytest.raises(ValueError, match="never measured"):
+        real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt")
+
+
+def test_real_dispatch_allows_the_unchanged_measured_default(tmp_path):
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    _write_config_eval(tmp_path, "executor", "sha256:old", "sha256:new")
+    deps = _dispatch_deps(_StubRuntime("sha256:old"))
+
+    hooks = real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt")
+    assert hooks.attempt is not None
+
+
+def test_real_dispatch_allows_the_digest_the_verdict_measured_as_the_candidate(tmp_path):
+    """A human reading a green verdict and flipping the committed config to
+    the measured candidate (D-27.7) is the sanctioned path to a new regime —
+    the guard must not refuse the very digest the ledger already names."""
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    _write_config_eval(tmp_path, "executor", "sha256:old", "sha256:new")
+    deps = _dispatch_deps(_StubRuntime("sha256:new"))
+
+    hooks = real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt")
+    assert hooks.attempt is not None
+
+
+def test_real_dispatch_allows_anything_before_any_verdict_cites_the_tier(tmp_path):
+    """No citing verdict means nothing has been measured yet, so nothing can
+    have been displaced — the bootstrap case for a tier RFC 0027 has not
+    reached (an empty ledger)."""
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    deps = _dispatch_deps(_StubRuntime("sha256:whatever"))
+
+    hooks = real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt")
+    assert hooks.attempt is not None
+
+
+def test_an_explicit_tier_variant_dispatches_freely_even_against_an_unmeasured_digest(tmp_path):
+    """D-27.3: naming a variant is naming and running a candidate on
+    purpose — the displacement refusal is scoped to the base seat's silent
+    resolution alone."""
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig, TierConfig
+
+    _write_config_eval(tmp_path, "executor", "sha256:old", "sha256:new")
+    deps = _dispatch_deps(_StubRuntime("sha256:nobody-measured-this-one"))
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(),
+            "executor.candidate": TierConfig(),
+        }
+    )
+
+    hooks = real_hooks(
+        tmp_path, _executor_task(tier_variant="candidate"), config, deps, tmp_path / "wt"
+    )
+    assert hooks.attempt is not None
+
+
+def test_shadow_dispatch_never_trips_the_guard(tmp_path):
+    """The eval loop's own shadow replays (run_config_eval) resolve an
+    unmeasured candidate digest through this same real_hooks() call — the
+    guard must not refuse the very measurement it exists to require."""
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    _write_config_eval(tmp_path, "executor", "sha256:old", "sha256:new")
+    deps = _dispatch_deps(_StubRuntime("sha256:an-untested-candidate"))
+
+    hooks = real_hooks(
+        tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt", shadow=True
+    )
+    assert hooks.attempt is not None

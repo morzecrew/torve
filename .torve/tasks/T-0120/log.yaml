@@ -1,0 +1,69 @@
+schema_version: 1
+task: T-0120
+repo: morzecrew/torve
+base_sha: 181080ff08dbf5246361d49bcfce024651d27748
+drift_count: 0
+entries:
+  - decision: D-27.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: >-
+      the new dispatch-time guard reads only already-committed data — the
+      eval ledger under `root` (never the worktree, never anything the run
+      itself produces) — to decide whether to refuse; it generates no
+      configuration and consumes none that this or any other run wrote, so
+      the guarantee that harness configuration is committed, adopted and
+      hashed before any run consumes it is untouched by this addition
+    evidence: src/torve/application/runner.py:727-729 — `_measured_config_eval_digests`
+      opens `root / layout.TORVE_DIR / EVAL_LEDGER`, a path under the
+      committed root, never under the run's own worktree
+    action: decided
+  - decision: D-27.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T00:01:00Z
+    attempt: 1
+    claim: >-
+      the guard resolves both the tier block and the eval ledger from
+      `root`, the same parameter `real_hooks` already reads every other
+      committed surface from — the worktree under work is never consulted,
+      so an agent's own run cannot steer whether its next dispatch is
+      refused any more than it can steer the tier block itself
+    evidence: src/torve/application/runner.py:817 — `_measured_config_eval_digests(root,
+      tier_name)` passes the root path, not `worktree`
+    action: decided
+  - decision: D-27.7
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T00:02:00Z
+    attempt: 1
+    claim: >-
+      the RFC states the displacement rule ("only through a paired replay
+      verdict... citing both digests") but not the two mechanical questions
+      a dispatch-time refusal needs answered: (1) what counts as
+      "displaced" — read as membership: the resolved digest must equal
+      either arm (incumbent or candidate) the most recent citing verdict
+      recorded, not merely differ from the incumbent alone. The narrower
+      reading (refuse whenever resolved != incumbent) would permanently
+      block the very displacement D-27.7 exists to license — a human
+      reading a green verdict and flipping the committed tier's image to
+      the measured candidate would find every subsequent dispatch refused
+      forever, since the ledger's incumbent digest never changes after the
+      fact. (2) what happens before any verdict ever cites a tier — read as
+      "nothing measured, nothing displaced": the guard permits dispatch, on
+      the reasoning that "a regime change nobody measured must not ship
+      silently" presupposes a prior measurement to diverge from; refusing
+      by default would stop every tier's first-ever dispatch under RFC
+      0027, before the eval mechanism has produced a single record
+    evidence: src/torve/application/runner.py:816-830 — the guard; src/torve/application/runner.py:720-762
+      — `_measured_config_eval_digests`, returning `None` (never refused)
+      when the ledger is absent or names no citing config-eval record
+    action: decided
+    proposal: >-
+      D-27.7 — fold in the mechanical reading this task used: "displaced"
+      means the resolved digest is outside the set {incumbent, candidate}
+      of the eval ledger's most recent config-eval record citing the tier,
+      and a tier with no citing record yet is never refused on this ground.
