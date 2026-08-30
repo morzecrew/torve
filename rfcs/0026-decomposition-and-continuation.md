@@ -8,7 +8,7 @@ depends_on: ["0002", "0003", "0007", "0020"]
 informed_by: ["0001", "0005", "0006", "0022"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-64"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -324,8 +324,8 @@ exactly as any task's.
 | D-26.7 | `ASSUMED` | A `too_large` verdict routes: the contract awaits decomposition and dispatch skips it; the operator override is explicit and recorded on the run | `src/torve/application/loop.py` `src/torve/application/sizing.py` | An advisory verdict that changes nothing has been the state since D-2.9 shipped; a heuristic that blocks silently would be worse, so the override is a first-class verb |
 | D-26.8 | `LOCKED` | Continuation fires only on budget exhaustion — wallclock or tokens — never on a gate conviction, review blocker or any judged escalation; convicted work restarts from base through the revision loop | `src/torve/application/runner.py` | The conviction/exhaustion line is what separates resuming sound work from doubling down on a wrong turn |
 | D-26.9 | `ASSUMED` | A continued attempt cuts its worktree from the previous candidate tip; diffs, gates and the attempt ceiling are measured exactly as for any attempt, against the original base | `src/torve/application/runner.py` `src/torve/adapters/workspace/git.py` | Continuation changes what an attempt starts from, never what is measured or how many attempts the run gets |
-| D-26.10 | `OPEN` | What the decomposition prompt carries beyond the parent contract and the tree under scope; execution decides and logs it | `src/torve/application/intake.py` | The drafts' quality against prompt size is an empirical trade the first live decompositions should settle |
-| D-26.11 | `OPEN` | Whether continuation feeds the previous trace tail into the prompt or only the record and commits; execution starts commits-only and logs the evidence | `src/torve/application/runner.py` | Traces are large and unvetted; the conservative shape first, widened only on evidence |
+| D-26.10 | `OPEN` | What the decomposition prompt carries beyond the parent contract and the tree under scope; execution decides and logs it. Amended by A-64 2026-08-31: decided — the prompt carries the parent's scope.allow, its acceptance and a scope-filtered tree listing; inherited decisions are re-derived at adoption, never carried in the prompt | `src/torve/application/intake.py` | The drafts' quality against prompt size is an empirical trade the first live decompositions should settle |
+| D-26.11 | `OPEN` | Whether continuation feeds the previous trace tail into the prompt or only the record and commits; execution starts commits-only and logs the evidence. Amended by A-64 2026-08-31: decided — commits-and-record only, no trace tail; widened only if live continuations show commits-only prompts under-informing the next attempt | `src/torve/application/runner.py` | Traces are large and unvetted; the conservative shape first, widened only on evidence |
 | D-26.12 | `ASSUMED` | Decomposition depth is bounded at two levels; a third is refused with the bound named | `src/torve/application/intake.py` | Two adoption rounds is the budget for misjudging size; past that the source document's phasing was wrong, which is an amendment |
 | D-26.13 | `ASSUMED` | Sizing thresholds are regraded from `torve rfc health` populations, and the `HistoricalPercentile` arm enters only on that evidence | `src/torve/application/sizing.py` | A-49 deferred the arm until calibration data existed; RFC 0022 is that data, and guessing new constants would waste it |
 
@@ -391,3 +391,13 @@ exactly as any task's.
   `torve rfc health` population rather than a remembered incident.
 
 ## Amendments
+
+### A-64 — 2026-08-31 — execution's resolutions of the two open rows approved (amends D-26.10, D-26.11)
+
+**From T-0110's and T-0111's execution logs, approved.** The decomposition
+prompt carries the parent's scope.allow, acceptance and a scope-filtered
+tree listing — inherited decisions are re-derived at adoption rather than
+trusted from a prompt (D-26.10). Continuation feeds the next attempt
+commits-and-record only, no trace tail — the worktree is the truth the
+next attempt needs, and the tail is widened only if live continuations
+show commits-only prompts under-informing it (D-26.11).

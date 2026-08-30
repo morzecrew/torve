@@ -8,7 +8,7 @@ depends_on: ["0004", "0017", "0020", "0021"]
 informed_by: ["0009", "0022", "0023"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-65"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -337,7 +337,7 @@ is identity — is promoted from folklore to the page.
 | D-27.8 | `OPEN` | The replay battery's composition and refresh cadence; execution proposes from the first live campaign | `src/torve/application/evals.py` | A battery too small proves nothing and too large never runs; the first campaign's cost is the only honest sizing input |
 | D-27.9 | `ASSUMED` | Prompt-side channels remain the per-task degree of freedom: skills and task context evolve under RFC 0009, and this document adds no per-task harness variation beyond variant selection | `src/torve/application/skills.py` | Most of a "configured harness" gain is prompt-side and already instrumented; duplicating that freedom on the harness side would split one question across two measurement systems |
 | D-27.11 | `ASSUMED` | A tier may name `retry_variant`, one rung: the attempt after a gate-red resolves the named variant; every attempt's telemetry row stamps the tier it actually ran under | `src/torve/config/runconfig.py` `src/torve/application/runner.py` | The build attempt and the feedback attempt are measurably different work; one committed rung keeps the regime enumerable where a free ladder would explode the hash space |
-| D-27.10 | `OPEN` | Whether a sandbox definition records a pointer to the verdict that installed it as default, letting `torve doctor` name an unmeasured default | `.torve/sandbox/**` `src/torve/cli/doctor.py` | The displacement rule is only as visible as its records; execution decides whether the pointer earns its file |
+| D-27.10 | `OPEN` | Whether a sandbox definition records a pointer to the verdict that installed it as default, letting `torve doctor` name an unmeasured default. Amended by A-65 2026-08-31: decided against the pointer — doctor matches the resolved digest against the ledger's config-eval records directly; the pointer field earns its file only when "the verdict that installed this default" must be told apart from "any verdict that measured this digest" | `.torve/sandbox/**` `src/torve/cli/doctor.py` | The displacement rule is only as visible as its records; execution decides whether the pointer earns its file |
 
 ## Phasing
 
@@ -423,3 +423,31 @@ is identity — is promoted from folklore to the page.
   edit while the run's spec provably resolves from root state.
 
 ## Amendments
+
+### A-65 — 2026-08-31 — execution's readings fold into the rows (amends D-27.5, D-27.6, D-27.7, D-27.10; records the restricted-scope CLI doctrine)
+
+**From T-0114, T-0120, T-0121 and T-0122's execution logs, approved.**
+
+- D-27.5's populations, as built: per-tier "attempts" counts every
+  real-adapter run under the tier — attempt, review and intake telemetry;
+  shadow and skill-eval excluded. Cost is the same population split
+  broker-measured / self-reported; escalations join on the contract's own
+  declared tier; "current digest" reads the last recorded
+  `agent.image_digest`, never a live runtime resolution.
+- D-27.6's lint, as built: a configuration drafting run is detected by
+  scope confinement alone, and the lint validates the *baseline* — the
+  tree's current config parses, named existing sandbox definitions build,
+  doctor's forze-pin and image-resolution checks pass. A drafter that
+  proposes actual file content, so the lint can validate the changed
+  configuration, needs a documented DraftsDocument output-format
+  extension first.
+- D-27.7's mechanical reading: "displaced" means the resolved digest
+  falls outside {incumbent, candidate} of the most recent config-eval
+  record citing the tier; a tier no record cites is never refused on
+  this ground.
+- D-27.10: resolved against the pointer field (see the row).
+- From T-0121, the restricted-scope CLI doctrine, recorded for future
+  contracts: inside a scope that excludes `src/torve/cli/main.py`,
+  "give X a CLI surface" is satisfied by widening an existing command's
+  argument surface; a genuinely new top-level command must carry
+  `main.py` in its scope.allow.

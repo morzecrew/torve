@@ -8,7 +8,7 @@ depends_on: ["0008", "0013", "0019"]
 informed_by: ["0001", "0004", "0006", "0017", "0021", "0022"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-60", "A-61"]
+amended_by: ["A-60", "A-61", "A-63"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -369,6 +369,16 @@ will read the first fleet-wide pause as a bug.
   no per-root command reports.
 
 ## Amendments
+
+### A-63 — 2026-08-31 — trust-class granularity is settled where it stands (amends §5.3)
+
+**From T-0109's execution log, approved.** The `reviewed` class refuses a
+non-empty `providers.default`; `untrusted` carries no such check because
+its required `broker.mode: sealed` already forces every provider route
+through the explicit per-provider table — there is no default-style
+fallback to refuse. A future repository needing different granularity
+(a non-empty `providers.repositories` entry keyed to the root's own name,
+say) amends §5.3; it is never a re-interpretation at the enforcement site.
 
 ### A-61 — 2026-08-30 — phase 1's scope admits the tick it passes the decision to (amends §Phasing)
 
