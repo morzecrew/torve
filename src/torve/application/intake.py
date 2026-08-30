@@ -104,6 +104,7 @@ def parse_drafts(output: str) -> DraftsDocument | None:
     text = ANSI.sub("", output)
     decoder = json.JSONDecoder()
     last: object | None = None
+    envelopes: list[str] = []
 
     for brace in re.finditer(r"\{", text):
         try:
@@ -114,6 +115,22 @@ def parse_drafts(output: str) -> DraftsDocument | None:
 
         if isinstance(document, dict) and "drafts" in document:
             last = cast("dict[str, Any]", document)
+
+        elif isinstance(document, dict):
+            # A harness result envelope (`claude -p --output-format json`)
+            # carries the agent's answer as the `result` string — the drafts
+            # document is inside it, escaped, invisible to this scan.
+            result: Any = cast("dict[str, Any]", document).get("result")
+
+            if isinstance(result, str) and "drafts" in result:
+                envelopes.append(result)
+
+    if last is None:
+        for enveloped in envelopes:
+            nested = parse_drafts(enveloped)
+
+            if nested is not None:
+                return nested
 
     if last is None:
         return None

@@ -133,6 +133,19 @@ def test_parse_strips_ansi_and_tolerates_chatter():
     assert parsed.rationale == "why"
 
 
+def test_parse_unwraps_a_harness_result_envelope():
+    """claude -p --output-format json returns one envelope whose `result`
+    string carries the agent's answer — the drafts document arrives escaped
+    inside it, found by the first live `torve decompose`."""
+    import json as _json
+
+    inner = _json.dumps({"drafts": [draft_dict()], "rationale": "the decomposition"})
+    envelope = _json.dumps({"is_error": False, "result": inner, "type": "result"})
+    document = parse_drafts(envelope)
+    assert document is not None
+    assert document.drafts[0].ref == "DRAFT-1"
+
+
 def test_parse_without_a_drafts_document_is_none():
     assert parse_drafts("no json here") is None
     assert parse_drafts(json.dumps({"findings": []})) is None
