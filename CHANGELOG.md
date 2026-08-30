@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Harness configuration as measured evolution (T-0113/T-0114 and the
+  T-0115 decomposition T-0119–T-0122, RFC 0027): tier variants under
+  dotted names selected per contract, `retry_variant` as the one-rung
+  attempt ladder, the configuration drafting run with per-tier fact
+  populations, and the displacement rule — a changed default image digest
+  is refused at real dispatch until a paired replay verdict in the eval
+  ledger cites it; `torve doctor` names the verdict backing the default.
+  Phase 3 shipped as the engine's first live decomposition: four children
+  drafted by `torve decompose`, adopted, run in parallel where their
+  fences were disjoint, integrated by the parent's own battery.
+
 - Decomposition and continuation (T-0110/T-0111, RFC 0026): a `too_large`
   size verdict now routes — dispatch skips the contract until `torve
   decompose` drafts children (adopted like any drafts, the parent becoming

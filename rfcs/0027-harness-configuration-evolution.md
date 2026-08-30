@@ -3,7 +3,7 @@ id: "0027"
 title: Harness configuration as measured evolution
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0004", "0017", "0020", "0021"]
 informed_by: ["0009", "0022", "0023"]
 supersedes: []
