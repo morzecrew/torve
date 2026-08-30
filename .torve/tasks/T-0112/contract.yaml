@@ -1,0 +1,71 @@
+# Hand-minted under A-62 — phase 3: dispatch-envelope. `torve plan` refuses
+# a partial re-plan of a document with minted phases; the human decision it
+# asks for is this file, validated by `torve lint-contract`.
+schema_version: 1
+id: T-0112
+rfc: rfcs/0022-specification-quality.md
+phase: 3
+role: implement
+intent: 'The envelope at dispatch: torve run and the tick''s dispatch leg print
+  expected attempts, cost and wall minutes for the task''s size class beside
+  the size verdict, computed from the same join this document already reads,
+  denominator printed, reading suppressed below the floor, the
+  quasi-experiment caveat printed with it. Nothing in the engine acts on the
+  envelope; the operator does.'
+depends_on: []
+targets: []
+scope:
+  allow:
+  - src/torve/application/specquality.py
+  - src/torve/cli/run.py
+  - src/torve/cli/tick.py
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+decisions:
+- id: D-22.11
+  grade: ASSUMED
+  text: 'Dispatch prints the envelope: expected attempts, cost and wall minutes for the
+    task''s size class, computed from this document''s join over telemetry, denominator
+    and caveat printed, silent below the floor'
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/cli/run.py
+- id: D-22.1
+  grade: LOCKED
+  text: The report never edits a decision table, proposes no text, and invokes no model; its
+    output is evidence for a human writing an amendment
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/cli/rfc.py
+- id: D-22.3
+  grade: ASSUMED
+  text: No single corpus score is computed or displayed; the output is populations with a
+    named reading and a printed denominator
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/cli/rfc.py
+- id: D-22.5
+  grade: ASSUMED
+  text: 'Storage stays at RFC 0004 §6 stage 1: a plain reader over JSONL and YAML, no new
+    dependency, written so that moving to stage 2 is a change of reader'
+  paths:
+  - src/torve/application/specquality.py
+- id: D-22.7
+  grade: LOCKED
+  text: RFC 0004 §6a's quasi-experiment caveat is printed with the report, not paraphrased
+    in documentation
+  paths:
+  - src/torve/cli/rfc.py
+  - src/torve/application/projections.py
+- id: D-22.8
+  grade: ASSUMED
+  text: Readings are suppressed below a printed floor of observations; ratios always print
+    their denominator
+  paths:
+  - src/torve/application/specquality.py
