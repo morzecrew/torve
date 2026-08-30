@@ -438,10 +438,11 @@ def test_a_requeued_task_still_waits_for_its_dependencies(root):
 
 def test_too_large_contract_awaits_decomposition_and_is_skipped(root):
     # RFC 0026 D-26.7: two top-level modules trips sizing's too_large rule
-    # (MAX_MODULES=1) — the tick's own dispatch leg skips it, exactly the
-    # way it skips a draft, until a decomposition adopts children or the
-    # operator overrides with `torve run --oversize` (a different path).
-    contract(root, "T-9001", allow=["src/a/**", "tests/a/**"])
+    # (MAX_MODULES=1; tests/** is exempt — it rides beside any change) — the
+    # tick's own dispatch leg skips it, exactly the way it skips a draft,
+    # until a decomposition adopts children or the operator overrides with
+    # `torve run --oversize` (a different path).
+    contract(root, "T-9001", allow=["src/a/**", "docs/a/**"])
     contract(root, "T-9002")
     assert queued_batch(root, lambda _t: False, limit=2) == ["T-9002"]
 

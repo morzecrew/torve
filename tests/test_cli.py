@@ -151,7 +151,7 @@ def test_run_blocked_awaiting_decomposition_without_override(repo):
     # RFC 0026 D-26.7: a too_large contract awaits decomposition — dispatch
     # refuses it by name unless the operator overrides explicitly.
     repo.seed()
-    repo.task(base_task(allow=["src/a/**", "tests/a/**"]), None)
+    repo.task(base_task(allow=["src/a/**", "docs/a/**"]), None)
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
     assert result.exit_code == 3
     assert "awaiting decomposition" in result.stderr
@@ -163,7 +163,7 @@ def test_run_oversize_override_dispatches_and_is_recorded(repo):
     # asserted from telemetry alone, independent of whatever the dispatched
     # attempt itself goes on to do.
     repo.seed()
-    repo.task(base_task(allow=["src/a/**", "tests/a/**"]), None)
+    repo.task(base_task(allow=["src/a/**", "docs/a/**"]), None)
     CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root), "--oversize"])
     events = [
         json.loads(line)

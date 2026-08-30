@@ -41,7 +41,13 @@ def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
     if len(acceptance) > MAX_ACCEPTANCE:
         reasons.append(f"{len(acceptance)} acceptance commands (threshold {MAX_ACCEPTANCE})")
 
-    modules = {glob.split("/", 1)[0] for glob in scope.allow if "/" in glob}
+    # tests accompany any change (every minted phase carries tests/**) — a
+    # module count that includes them calls every task in the repository
+    # too_large, which D-26.7's route turned from a wrong number into a
+    # blocked dispatch.
+    modules = {
+        glob.split("/", 1)[0] for glob in scope.allow if "/" in glob
+    } - {"tests"}
 
     if len(modules) > MAX_MODULES:
         listed = ", ".join(sorted(modules))

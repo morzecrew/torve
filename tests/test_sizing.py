@@ -35,9 +35,17 @@ def test_estimate_scope_too_large_on_acceptance_count():
 
 
 def test_estimate_scope_too_large_on_module_count():
-    verdict = sizing.estimate_scope(Scope(allow=["src/a.py", "tests/a.py"]), [])
+    verdict = sizing.estimate_scope(Scope(allow=["src/a.py", "docs/a.md", "tests/a.py"]), [])
     assert verdict.size == "too_large"
     assert "top-level modules" in verdict.reasons[0]
+
+
+def test_tests_are_not_a_module():
+    """Every minted phase carries tests/** beside its code — a count that
+    included them called every task in the repository too_large, which
+    D-26.7's route turned from a wrong number into a blocked dispatch."""
+    verdict = sizing.estimate_scope(Scope(allow=["src/a.py", "tests/a.py"]), [])
+    assert verdict.size == "ok"
 
 
 def test_estimate_scope_too_small_on_nothing_declared():
@@ -66,7 +74,7 @@ def test_awaiting_decomposition_only_for_too_large_and_childless(tmp_path: Path)
     ok_task = Task(id="T-1", scope=Scope(allow=["src/a.py"]), decisions=[])
     assert sizing.awaiting_decomposition(tmp_path, ok_task) is False
 
-    oversized = Task(id="T-0100", scope=Scope(allow=["src/a.py", "tests/a.py"]), decisions=[])
+    oversized = Task(id="T-0100", scope=Scope(allow=["src/a.py", "docs/a.md"]), decisions=[])
     assert sizing.awaiting_decomposition(tmp_path, oversized) is True
 
     _write_contract(tmp_path, "T-0100")
