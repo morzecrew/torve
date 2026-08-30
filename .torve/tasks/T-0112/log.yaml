@@ -1,0 +1,21 @@
+schema_version: 1
+task: T-0112
+repo: morzecrew/torve
+base_sha: ab996d1574b2675229feef2096d47831c6f862e6
+drift_count: 0
+entries:
+  - decision: D-22.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T16:00:00Z
+    attempt: 1
+    claim: the dispatch envelope reads telemetry, task logs and run state and
+      prints medians and a caveat; it edits no decision table, proposes no
+      text and calls no model
+    evidence: src/torve/application/specquality.py:609-639 — dispatch_envelope
+      only reads read_tasks()/telemetry.jsonl and returns a dict; no writer to
+      any rfcs/*.md or contract.yaml exists in this module; src/torve/cli/run.py:214-223
+      and src/torve/cli/tick.py:263-271 only print the returned dict via
+      render_envelope, no agent or model is constructed on this path
+    action: decided
+    proposal: 'LOCKED — compliant as built, no divergence'

@@ -222,6 +222,7 @@ def tick_cmd(
         from torve.adapters.broker import build_broker
         from torve.adapters.store.durable import open_store
         from torve.adapters.vcs.git import repository_name
+        from torve.application import sizing, specquality
         from torve.application.ports import Agent
         from torve.application.runner import RunDeps, run_task
         from torve.cli.options import runtime_for
@@ -259,7 +260,15 @@ def tick_cmd(
 
         state = run_task(root, task, run_config, deps)
 
-        return f"{task_id}: {state.state} after {state.attempts} attempt(s)"
+        # D-22.11, A-62: the dispatch leg prints the envelope beside the
+        # size verdict, same as `torve run` — a base rate the operator reads,
+        # never a bound the loop acts on.
+        envelope = specquality.dispatch_envelope(root, sizing.estimate(task).size)
+
+        return (
+            f"{task_id}: {state.state} after {state.attempts} attempt(s) · "
+            f"{specquality.render_envelope(envelope)}"
+        )
 
     def dispatch_leg(task_ids: list[str]) -> tuple[str, bool]:
         if len(task_ids) == 1:

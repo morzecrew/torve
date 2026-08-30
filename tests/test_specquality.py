@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import json
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
 from torve.application.runstate import RunState
-from torve.application.specquality import decision_report, identifiers_for_document
+from torve.application.specquality import (
+    QUASI_EXPERIMENT_CAVEAT,
+    decision_report,
+    dispatch_envelope,
+    identifiers_for_document,
+    render_envelope,
+)
 from torve.base import naming
 from torve.cli import app
 from torve.domain.states import EscalationReason, TaskState
@@ -21,7 +28,7 @@ from torve.domain.states import EscalationReason, TaskState
 # ----------------------- #
 
 
-def write_contract(root, task_id: str, *, rfc=None, decisions=(), scope_allow=()) -> None:
+def write_contract(root, task_id: str, *, rfc=None, decisions=(), scope_allow=(), acceptance=()) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "contract.yaml").write_text(
@@ -36,7 +43,7 @@ def write_contract(root, task_id: str, *, rfc=None, decisions=(), scope_allow=()
                 "depends_on": [],
                 "targets": [],
                 "scope": {"allow": list(scope_allow), "deny": []},
-                "acceptance": [],
+                "acceptance": list(acceptance),
                 "decisions": [
                     {"id": d[0], "grade": d[1], "text": "x", "paths": list(d[2])} for d in decisions
                 ],
@@ -85,6 +92,31 @@ def abandoned_state(root, task_id: str) -> None:
     state.escalate(EscalationReason.BLOCKER_FINDING, "d")
     state.transition(TaskState.ABANDONED, "t")
     state.save()
+
+
+def landed_state_with(root, task_id: str, *, attempts: int, start_at: str, end_at: str) -> None:
+    """A READY state with hand-set `attempts` and `history` bounds — the two
+    inputs `dispatch_envelope` reads for attempts and wall minutes, held
+    deterministic rather than timed through real transitions."""
+
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.state = TaskState.READY
+    state.attempts = attempts
+    state.history = [
+        {"at": start_at, "from": "queued", "to": "claimed", "fact": "t"},
+        {"at": end_at, "from": "reviewed", "to": "ready", "fact": "t"},
+    ]
+    state.save()
+
+
+def write_cost(root, task_id: str, cost_usd: float, *, adapter: str = "harness") -> None:
+    telemetry = root / ".torve" / "telemetry.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+
+    with telemetry.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps({"task_id": task_id, "agent": {"adapter": adapter, "cost_usd": cost_usd}}) + "\n"
+        )
 
 
 def requeued_state(root, task_id: str) -> None:
@@ -413,3 +445,153 @@ def test_health_cli_empty_corpus_reports_nothing_inherited(tmp_path):
     result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "no decisions inherited" in result.output
+
+
+# ....................... #
+# dispatch_envelope (D-22.11, A-62): the join read prospectively by size class
+
+
+def test_dispatch_envelope_is_silent_below_the_floor(tmp_path):
+    for i, task_id in enumerate(("T-0001", "T-0002"), start=1):
+        write_contract(tmp_path, task_id, scope_allow=["src/a.py"])
+        landed_state_with(
+            tmp_path, task_id, attempts=i, start_at="2026-08-20T10:00:00.000000Z",
+            end_at="2026-08-20T10:10:00.000000Z",
+        )
+
+    envelope = dispatch_envelope(tmp_path, "ok", floor=3)
+    assert envelope["n"] == 2  # the denominator prints regardless (D-22.8)
+    assert envelope["attempts_median"] is None
+    assert envelope["cost_usd_median"] is None
+    assert envelope["wall_minutes_median"] is None
+
+
+def test_dispatch_envelope_reports_medians_once_the_floor_is_met(tmp_path):
+    starts_ends = [
+        ("2026-08-20T10:00:00.000000Z", "2026-08-20T10:05:00.000000Z"),  # 5m
+        ("2026-08-20T10:00:00.000000Z", "2026-08-20T10:10:00.000000Z"),  # 10m
+        ("2026-08-20T10:00:00.000000Z", "2026-08-20T10:15:00.000000Z"),  # 15m
+    ]
+
+    for i, task_id in enumerate(("T-0001", "T-0002", "T-0003"), start=1):
+        write_contract(tmp_path, task_id, scope_allow=["src/a.py"])
+        start, end = starts_ends[i - 1]
+        landed_state_with(tmp_path, task_id, attempts=i, start_at=start, end_at=end)
+        write_cost(tmp_path, task_id, float(i))
+
+    envelope = dispatch_envelope(tmp_path, "ok", floor=3)
+    assert envelope["n"] == 3
+    assert envelope["attempts_median"] == 2
+    assert envelope["cost_usd_median"] == 2.0 and envelope["cost_usd_n"] == 3
+    assert envelope["wall_minutes_median"] == 10.0 and envelope["wall_minutes_n"] == 3
+    assert "quasi-experiment" in envelope["caveat"]
+
+
+def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
+    write_contract(tmp_path, "T-0001", scope_allow=["src/a.py"])
+    landed_state_with(
+        tmp_path, "T-0001", attempts=1, start_at="2026-08-20T10:00:00.000000Z",
+        end_at="2026-08-20T10:05:00.000000Z",
+    )
+    # Two top-level modules in scope.allow reads as too_large (sizing.py's
+    # MAX_MODULES=1), so this task must never join the "ok" population.
+    write_contract(tmp_path, "T-0002", scope_allow=["src/a.py", "tests/a.py"])
+    landed_state_with(
+        tmp_path, "T-0002", attempts=1, start_at="2026-08-20T10:00:00.000000Z",
+        end_at="2026-08-20T10:05:00.000000Z",
+    )
+
+    assert dispatch_envelope(tmp_path, "ok", floor=1)["n"] == 1
+    assert dispatch_envelope(tmp_path, "too_large", floor=1)["n"] == 1
+
+
+def test_dispatch_envelope_excludes_tasks_that_never_landed(tmp_path):
+    write_contract(tmp_path, "T-0001", scope_allow=["src/a.py"])
+    abandoned_state(tmp_path, "T-0001")
+    envelope = dispatch_envelope(tmp_path, "ok", floor=1)
+    assert envelope["n"] == 0
+
+
+# ....................... #
+# render_envelope
+
+
+def test_render_envelope_below_the_floor_names_the_floor_and_the_caveat():
+    envelope = {
+        "size": "ok",
+        "n": 2,
+        "floor": 5,
+        "attempts_median": None,
+        "attempts_n": 0,
+        "cost_usd_median": None,
+        "cost_usd_n": 0,
+        "wall_minutes_median": None,
+        "wall_minutes_n": 0,
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+    text = render_envelope(envelope)
+    assert "size ok envelope" in text
+    assert "n=2" in text and "below the observation floor of 5" in text
+    assert "quasi-experiment" in text
+
+
+def test_render_envelope_above_the_floor_carries_the_medians():
+    envelope = {
+        "size": "ok",
+        "n": 3,
+        "floor": 3,
+        "attempts_median": 2.0,
+        "attempts_n": 3,
+        "cost_usd_median": 2.0,
+        "cost_usd_n": 3,
+        "wall_minutes_median": 10.0,
+        "wall_minutes_n": 3,
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+    text = render_envelope(envelope)
+    assert "2.0 attempt(s)" in text
+    assert "$2.00" in text
+    assert "10m" in text
+    assert "quasi-experiment" in text
+
+
+# ....................... #
+# CLI surface: the envelope prints beside `torve run`'s size verdict
+
+
+def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
+    # A real dispatch needs a sandbox runtime (docker); this asserts the
+    # wiring for real rather than stubbing the leg, so it skips where the
+    # daemon this environment's CI provides is absent (test_runtime_
+    # conformance.py's own guard, repeated locally rather than imported
+    # across test modules).
+    import shutil
+    import subprocess
+
+    from torve.gates.sabotage import TASK_ID, Repo, base_task
+
+    if shutil.which("docker") is None or subprocess.run(
+        ["docker", "info"], capture_output=True, check=False
+    ).returncode != 0:
+        pytest.skip("docker daemon not available")
+
+    (tmp_path / "json_repo").mkdir()
+    json_repo = Repo(tmp_path / "json_repo")
+    json_repo.seed()
+    json_repo.task(base_task(allow=["src/**"]), None)
+
+    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(json_repo.root), "--format", "json"])
+    assert result.exit_code == 0, result.output
+    document = json.loads(result.stdout)
+    assert document["size"] == "ok"
+    assert document["envelope"]["size"] == "ok"
+    assert "quasi-experiment" in document["envelope"]["caveat"]
+
+    (tmp_path / "text_repo").mkdir()
+    text_repo = Repo(tmp_path / "text_repo")
+    text_repo.seed()
+    text_repo.task(base_task(allow=["src/**"]), None)
+
+    text_result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(text_repo.root)])
+    assert text_result.exit_code == 0, text_result.output
+    assert "size ok envelope" in text_result.output

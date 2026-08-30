@@ -28,11 +28,20 @@ sha still being resolvable.
 No score is computed anywhere in this module (D-22.3): a population's
 `reading` is `None` until its relevant count clears `floor`, and every ratio
 is printed beside the denominator it was taken over (D-22.8).
+
+`dispatch_envelope` (D-22.11, A-62) reads the same `TaskFacts` join
+prospectively: landed tasks sharing a size verdict's class, median attempts,
+cost and wall minutes, denominator always printed, reading suppressed below
+`floor`. It is a base rate over history, never a bound — nothing here blocks
+or resizes a dispatch.
 """
 
 from __future__ import annotations
 
+import json
+import statistics
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -40,15 +49,29 @@ import yaml
 
 from torve.application.planner import globs_intersect
 from torve.application.runstate import RunState
+from torve.application.sizing import estimate_scope
 from torve.base import naming
 from torve.config import layout, rfc_parse
 from torve.domain.states import TaskState
+from torve.domain.task import Scope
 from torve.gates.decisions_reported import ACTIONS as LOG_ACTIONS
 from torve.gates.decisions_reported import parse_log
 
 # ----------------------- #
 
 DEFAULT_FLOOR = 5
+
+# RFC 0004 §6a, reproduced verbatim (D-22.11: printed with the envelope,
+# never paraphrased — the same text D-22.7 requires beside `torve rfc
+# health`). `torve.cli.rfc` and `torve.application.projections` each carry
+# their own copy for the layering reason their own comments give; this is
+# a third copy rather than a move to `torve.base`, which is out of this
+# task's scope.
+QUASI_EXPERIMENT_CAVEAT = (
+    "Baseline is a quasi-experiment, not an A/B: tasks before "
+    "and after are different tasks, done under different conditions. This "
+    'supports direction ("iterations fell") and not magnitude ("40% faster").'
+)
 
 _LANDED_STATE = str(TaskState.READY)
 _ABANDONED_STATE = str(TaskState.ABANDONED)
@@ -69,10 +92,24 @@ class TaskFacts:
     id: str
     rfc: str | None  # D-22.9: carried through so a document-level reader can bucket None on its own
     scope_allow: list[str]
+    acceptance: list[str]  # D-22.11: the other half of the size verdict's own inputs
     decisions: list[dict[str, Any]]  # [{id, grade, paths}], mint-time copies
     log_entries: list[dict[str, Any]]
     state: str | None
+    attempts: int = 0
     history: list[dict[str, str]] = field(default_factory=list)
+
+    # ....................... #
+
+    @property
+    def size(self) -> str:
+        """The size verdict this task would receive today (RFC 0002 §6b),
+        recomputed from the same two contract fields `torve.application.
+        sizing.estimate` reads rather than stored — the rule may change, and
+        a historical population must read under today's rule the same way a
+        fresh dispatch does."""
+
+        return estimate_scope(Scope(allow=self.scope_allow), self.acceptance).size
 
     # ....................... #
 
@@ -172,6 +209,18 @@ def _contract_scope_allow(record: dict[str, Any]) -> list[str]:
 # ....................... #
 
 
+def _contract_acceptance(record: dict[str, Any]) -> list[str]:
+    acceptance = record.get("acceptance")
+
+    if not isinstance(acceptance, list):
+        return []
+
+    return [str(a) for a in cast("list[object]", acceptance)]
+
+
+# ....................... #
+
+
 def _log_entries(log_path: Path) -> list[dict[str, Any]]:
     """A missing log is an empty log (A-13, D-3.21) — reused from the same
     `decisions-reported` parser so the report and the gate never disagree
@@ -237,9 +286,11 @@ def read_tasks(root: Path) -> list[TaskFacts]:
                 id=task_id,
                 rfc=str(record["rfc"]) if record.get("rfc") else None,
                 scope_allow=_contract_scope_allow(record),
+                acceptance=_contract_acceptance(record),
                 decisions=_contract_decisions(record),
                 log_entries=_log_entries(contract_path.parent / "log.yaml"),
                 state=str(run_state.state) if run_state is not None else None,
+                attempts=run_state.attempts if run_state is not None else 0,
                 history=run_state.history if run_state is not None else [],
             )
         )
@@ -481,3 +532,140 @@ def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> di
     populations = [_finish(buckets[i], floor, amended_ids) for i in sorted(buckets)]
 
     return {"schema_version": 1, "floor": floor, "populations": populations}
+
+
+# ....................... #
+
+
+def _task_cost_usd(root: Path) -> dict[str, float]:
+    """Real-adapter spend per task, summed across its attempts, read the same
+    way `torve.application.projections._costs` reads one attempt at a time
+    (D-22.5: a plain JSONL reader, no new dependency). Fake-agent attempts are
+    simulation, not spend, and stay out."""
+
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+    totals: dict[str, float] = {}
+
+    if not telemetry.is_file():
+        return totals
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        row = cast("dict[str, Any]", record)
+        task_id = row.get("task_id")
+        agent = row.get("agent")
+
+        if not task_id or not isinstance(agent, dict):
+            continue
+
+        block = cast("dict[str, Any]", agent)
+
+        if block.get("adapter") == "fake":
+            continue
+
+        cost = block.get("cost_usd")
+
+        if isinstance(cost, (int, float)):
+            totals[str(task_id)] = totals.get(str(task_id), 0.0) + float(cost)
+
+    return totals
+
+
+# ....................... #
+
+_HEARTBEAT_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+
+def _wall_minutes(task: TaskFacts) -> float | None:
+    """First transition to last transition, in minutes — the same `history`
+    timestamps `RunState.transition` stamps at every phase boundary, read as
+    a wall-clock proxy rather than a new recorded field (D-22.5's non-goal:
+    everything needed is already recorded)."""
+
+    if len(task.history) < 2:
+        return None
+
+    try:
+        start = datetime.strptime(task.history[0]["at"], _HEARTBEAT_FORMAT)
+        end = datetime.strptime(task.history[-1]["at"], _HEARTBEAT_FORMAT)
+
+    except (KeyError, ValueError):
+        return None
+
+    return max(0.0, (end - start).total_seconds() / 60)
+
+
+# ....................... #
+
+
+def dispatch_envelope(root: Path, size: str, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
+    """RFC 0022 §5.2's join read prospectively (D-22.11, A-62): among landed
+    tasks sharing *size*'s size verdict — recomputed under today's sizing
+    rule (`TaskFacts.size`), never stored — the median attempts, cost and
+    wall minutes, with the population count printed regardless and every
+    median suppressed until it clears `floor` (D-22.8). Nothing here acts on
+    the number; the operator does."""
+
+    tasks = [t for t in read_tasks(root) if t.landed and t.size == size]
+    costs = _task_cost_usd(root)
+
+    attempts = [t.attempts for t in tasks]
+    cost_samples = [costs[t.id] for t in tasks if t.id in costs]
+    wall_samples = [m for t in tasks if (m := _wall_minutes(t)) is not None]
+
+    n = len(tasks)
+    ready = n >= floor
+
+    return {
+        "schema_version": 1,
+        "size": size,
+        "floor": floor,
+        "n": n,
+        "attempts_median": statistics.median(attempts) if ready and attempts else None,
+        "attempts_n": len(attempts),
+        "cost_usd_median": statistics.median(cost_samples) if ready and cost_samples else None,
+        "cost_usd_n": len(cost_samples),
+        "wall_minutes_median": statistics.median(wall_samples) if ready and wall_samples else None,
+        "wall_minutes_n": len(wall_samples),
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+
+
+# ....................... #
+
+
+def render_envelope(envelope: dict[str, Any]) -> str:
+    """One line for `torve run` and the tick's dispatch leg (D-22.11): the
+    size class, the population size always, the medians once they clear the
+    floor, the caveat printed with it every time — never paraphrased
+    (RFC 0004 §6a)."""
+
+    size = envelope["size"]
+    n = envelope["n"]
+    floor = envelope["floor"]
+
+    if n < floor:
+        body = f"n={n}, below the observation floor of {floor} — no reading yet"
+    else:
+        parts: list[str] = []
+
+        if envelope["attempts_median"] is not None:
+            parts.append(f"{envelope['attempts_median']:.1f} attempt(s) (n={envelope['attempts_n']})")
+
+        if envelope["cost_usd_median"] is not None:
+            parts.append(f"${envelope['cost_usd_median']:.2f} (n={envelope['cost_usd_n']})")
+
+        if envelope["wall_minutes_median"] is not None:
+            parts.append(f"{envelope['wall_minutes_median']:.0f}m (n={envelope['wall_minutes_n']})")
+
+        body = f"n={n} — " + (", ".join(parts) if parts else "no attempt/cost/wall observations recorded")
+
+    return f"size {size} envelope: {body} — {envelope['caveat']}"

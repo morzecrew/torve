@@ -373,6 +373,35 @@ def test_the_tick_pushes_what_the_lane_lands(tmp_path: Path) -> None:
     assert "landed.py" in git(origin, "ls-tree", "--name-only", "main")
 
 
+def test_tick_dispatch_leg_prints_the_envelope(tmp_path: Path) -> None:
+    # D-22.11, A-62: the dispatch leg carries the same envelope `torve run`
+    # prints, beside the size verdict — the loop dispatches T-9001 fresh
+    # (no run state), so this exercises `_dispatch_one` for real rather
+    # than stubbing the leg.
+    import shutil
+    import subprocess
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+    from torve.gates.sabotage import TASK_ID, Repo, base_task
+
+    if shutil.which("docker") is None or subprocess.run(
+        ["docker", "info"], capture_output=True, check=False
+    ).returncode != 0:
+        pytest.skip("docker daemon not available")
+
+    (tmp_path / "repo").mkdir()
+    repo = Repo(tmp_path / "repo")
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+
+    result = CliRunner().invoke(app, ["tick", "--root", str(repo.root)])
+    assert result.exit_code == 0, result.output
+    assert TASK_ID in result.output
+    assert "envelope" in result.output
+
+
 def test_the_reap_leg_carries_the_store_factory(tmp_path: Path, monkeypatch) -> None:
     # D-3.15 from the standing loop: under a postgres store the tick's reap
     # is the durable path. With no DSN in the environment the leg must fail

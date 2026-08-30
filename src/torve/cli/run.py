@@ -207,11 +207,20 @@ def run_cmd(
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
+    # D-22.11, A-62: the envelope prints beside the size verdict — expected
+    # attempts, cost and wall minutes for tasks that shared this dispatch's
+    # size class, a base rate the operator reads, never a bound the engine
+    # acts on.
+    from torve.application import specquality
+
+    envelope = specquality.dispatch_envelope(root, verdict.size)
+
     if fmt is Format.JSON:
-        emit_json(state.to_record())
+        emit_json({**state.to_record(), "size": verdict.size, "envelope": envelope})
     else:
         console = out(fmt)
         console.print(f"{task.id}: {state.state} after {state.attempts} attempt(s)")
+        console.print(specquality.render_envelope(envelope))
 
         if state.escalation is not None:
             console.print(f"  escalated: {state.escalation.reason} — {state.escalation.detail}")
