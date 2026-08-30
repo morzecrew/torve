@@ -138,6 +138,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             # the engine's state machine: no run state exists, but a shipping
             # commit cites the task.
             "phase": record.get("phase", 0),
+            "role": record.get("role", "implement"),
             "state": "shipped" if task_id in shipped else "unstarted",
             "attempts": 0,
             "escalation": None,
@@ -671,6 +672,13 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
         phases: dict[int, list[str]] = {}
 
         for task in minted:
+            # A drafting task (intake, decompose) cites the document that
+            # asked for it, but it is not a phase of the document's
+            # implementation — one consumed decompose contract otherwise
+            # holds a completed RFC at "P0: planned" forever.
+            if task.get("role") == "draft":
+                continue
+
             phases.setdefault(int(task["phase"]), []).append(str(task["state"]))
 
         progress = {phase: _phase_progress(states) for phase, states in sorted(phases.items())}
