@@ -107,8 +107,10 @@ entries:
   counts as none.
 - **The citation LEADS, prose follows after ` — `.** The gate reads everything
   before the first ` — ` as the citation and nothing else. Extra citations go
-  in the prose. Parentheses after the path break the parse:
+  in the prose. Parentheses after the path break the parse, and a path
+  without `:line` is not a citation:
   - wrong: `src/a.py:10-20 (the guard); src/b.py:5 (its caller)`
+  - wrong: `src/a.py — the guard` (no line number)
   - right: `src/a.py:10-20 — the guard; src/b.py:5 is its caller`
 - **`class` answers: could this have been known before code existed?**
   `discovery` no (healthy) · `spec-gap` yes, spec was silent · `drift` yes, spec
