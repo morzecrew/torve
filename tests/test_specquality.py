@@ -580,7 +580,12 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
     (tmp_path / "json_repo").mkdir()
     json_repo = Repo(tmp_path / "json_repo")
     json_repo.seed()
-    json_repo.task(base_task(allow=["src/**"]), None)
+    # The fake agent's default scenario writes TORVE_FAKE.md at the root —
+    # the fence must admit it or the run is red by construction. (The
+    # in-sandbox battery masked this: a nested socket-mode run's worktree
+    # mount resolves against the host daemon, so the write landed in a void
+    # and the diff came back empty.)
+    json_repo.task(base_task(allow=["src/**", "TORVE_FAKE.md"]), None)
 
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(json_repo.root), "--format", "json"])
     assert result.exit_code == 0, result.output
@@ -592,7 +597,7 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
     (tmp_path / "text_repo").mkdir()
     text_repo = Repo(tmp_path / "text_repo")
     text_repo.seed()
-    text_repo.task(base_task(allow=["src/**"]), None)
+    text_repo.task(base_task(allow=["src/**", "TORVE_FAKE.md"]), None)
 
     text_result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(text_repo.root)])
     assert text_result.exit_code == 0, text_result.output
