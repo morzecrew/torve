@@ -13,20 +13,64 @@ The broker check is RFC 0021 D-21.9: the adapter in force is named, and the
 `none` adapter — legal and the phase-1 default — is stated plainly to leave
 the credential-custody requirement (D-4b) unmet, so that opting out is a
 decision someone can be shown making, never a silent default.
+
+D-27.10 (OPEN, decided here): rather than have a sandbox definition carry a
+pointer to the verdict that installed it — a write to `.torve/sandbox/**`
+out of this task's scope — doctor reads the eval ledger directly and
+matches on the digest it already resolved. Read-only, no new record shape.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any, cast
 
 import typer
 from rich.text import Text
 
 from torve.cli.console import STYLE_FAIL, Format, emit_json, mark, out
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
+from torve.config import layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 # ----------------------- #
+
+
+def _config_eval_verdict(root: Path, digest: str) -> dict[str, Any] | None:
+    """The eval ledger's most recent config-eval record citing `digest` as
+    either arm — the same digest a paired replay (D-27.7) measured, whether
+    it won or lost. `None` when the ledger has no such record: an unmeasured
+    digest is not a finding, just a fact doctor cannot add to."""
+
+    from torve.application.evals import EVAL_LEDGER
+
+    path = root / layout.TORVE_DIR / EVAL_LEDGER
+
+    if not path.is_file():
+        return None
+
+    found: dict[str, Any] | None = None
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        row = cast("dict[str, Any]", record)
+
+        if row.get("kind") != "config-eval":
+            continue
+
+        if digest in row.get("digests", {}).values():
+            found = row  # append-only ledger — the latest citation wins
+
+    return found
 
 
 def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
@@ -61,6 +105,15 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                 continue
 
             detail = f"{image} = {digest[:19]}"
+            verdict = _config_eval_verdict(root, digest)
+
+            if verdict is not None:
+                role = "incumbent" if verdict["digests"].get("incumbent") == digest else "candidate"
+                detail += (
+                    f" — eval ledger holds a {role} verdict from {verdict['at']} "
+                    f"(candidate_matched={verdict['candidate_matched']})"
+                )
+
             prefix = "torve-agent:"
 
             if image.startswith(prefix):

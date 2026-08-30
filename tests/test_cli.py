@@ -136,6 +136,53 @@ def test_doctor_reds_on_a_postgres_store_that_does_not_answer(tmp_path, monkeypa
     assert "did not answer" in checks["store"]["detail"]
 
 
+def _fake_docker_runtime(digest):
+    class _FakeRuntime:
+        def resolve_image(self, image: str) -> str | None:
+            return digest
+
+    return lambda config, override: _FakeRuntime()
+
+
+def test_doctor_names_an_eval_ledger_verdict_for_the_configured_digest(tmp_path, monkeypatch):
+    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker"}})
+    digest = "sha256:" + "ab" * 32
+    monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(digest))
+
+    ledger = root / ".torve" / "evals.jsonl"
+    ledger.write_text(
+        json.dumps(
+            {
+                "kind": "config-eval",
+                "at": "2026-08-20T11:04:12Z",
+                "digests": {"incumbent": digest, "candidate": "sha256:" + "cd" * 32},
+                "candidate_matched": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    image_check = checks["image python:3.13-slim"]
+    assert image_check["ok"] is True
+    assert "incumbent verdict from 2026-08-20T11:04:12Z" in image_check["detail"]
+    assert "candidate_matched=True" in image_check["detail"]
+
+
+def test_doctor_image_check_is_unchanged_with_no_eval_ledger(tmp_path, monkeypatch):
+    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker"}})
+    digest = "sha256:" + "ab" * 32
+    monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(digest))
+
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    image_check = checks["image python:3.13-slim"]
+    assert image_check["ok"] is True
+    assert image_check["detail"] == f"python:3.13-slim = {digest[:19]}"
+
+
 def test_run_missing_contract_is_a_config_error(tmp_path):
     result = CliRunner().invoke(app, ["run", "T-0000", "--root", str(tmp_path)])
     assert result.exit_code == 3

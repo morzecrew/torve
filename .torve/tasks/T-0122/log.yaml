@@ -1,0 +1,35 @@
+schema_version: 1
+task: T-0122
+repo: morzecrew/torve
+base_sha: 181080ff08dbf5246361d49bcfce024651d27748
+drift_count: 0
+entries:
+  - decision: D-27.10
+    grade: OPEN
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: >-
+      the RFC's unresolved question offers a sandbox-definition pointer to
+      the installing verdict as the mechanism, but this task's scope is
+      confined to src/torve/cli/doctor.py and tests/test_cli.py — a pointer
+      field means writing .torve/sandbox/**, out of scope. Built as a direct
+      ledger read instead: doctor matches the digest it already resolves
+      against config-eval records in .torve/evals.jsonl and names the most
+      recent record citing that digest as either arm. No new record shape,
+      no sandbox-definition write, read-only per the task's own framing.
+    evidence: src/torve/cli/doctor.py:40-68 — _config_eval_verdict;
+      src/torve/cli/doctor.py:108-110 — the call site naming the verdict
+      beside the digest already printed
+    action: decided
+    proposal: >-
+      D-27.10 — decided against the pointer field: doctor resolves the
+      verdict by matching the currently resolved digest against the eval
+      ledger's config-eval records directly, rather than a
+      sandbox-definition field naming the installing verdict. Cheaper (no
+      write path, no migration of existing definitions) and sufficient for
+      "name it alongside the digest"; a pointer field would still earn its
+      file if a future need distinguishes "the verdict that installed this
+      as default" from "any verdict that ever measured this digest" — a
+      direct ledger match cannot tell the two apart.
