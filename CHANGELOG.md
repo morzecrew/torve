@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Standing maintenance (T-0101/T-0102, RFC 0023): standing contracts under
+  `.torve/standing/` — recurring jobs whose command or path-digest predicate
+  decides, in an agentless sandbox, whether a maintenance task is minted
+  through the adoption path. The tick gains a standing leg inside the
+  escalation pause, bounded by cooldown, `max_open` and
+  `loop.standing_max_per_tick`; a job self-disables after `strike_limit`
+  consecutive non-landings with an engine event naming it. The first two
+  standing contracts (lockfile drift, flake watch) ship in this repository.
+
 - Document-level specification-quality signals (T-0100, RFC 0022 phase 2):
   per-document attempts-to-green, spec-drift findings and drift count,
   escalation reasons with `underspecified` and `stale_inheritance` always on

@@ -3,7 +3,7 @@ id: "0023"
 title: Standing maintenance
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0007", "0019", "0020"]
 informed_by: ["0001", "0002", "0006", "0012"]
 supersedes: []
