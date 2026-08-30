@@ -1,0 +1,29 @@
+schema_version: 1
+task: T-0127
+repo: morzecrew/torve
+base_sha: bbfaeff46ad5c6253ed45741b578fac97c1ddf8a
+created_at: 2026-08-31T10:40:00Z
+drift_count: 0
+entries:
+  - decision: D-25.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T10:40:00Z
+    attempt: 3
+    claim: |-
+      Close-out, written by the operator at triage — the agent left no log
+      across three attempts and the silence check rightly refused the
+      landing. Verified mechanically: the diff is additive only (66 added,
+      0 removed in rfc_parse.py) and never touches amendment numbering —
+      next_amendment and its derivation are byte-identical to the base;
+      the new contract-example fence parsing sits in its own functions
+      wired into check_corpus.
+    evidence: |-
+      src/torve/config/rfc_parse.py:814-824 — next_amendment unchanged;
+      `git diff main --numstat -- src/torve/config/rfc_parse.py` — 66 added, 0 deleted
+    action: decided
+    notes: |-
+      Operator-authored attestation (not the agent's testimony), disclosed
+      in the landing commit. The agent's omission of the log entirely, on a
+      task whose diff touches a LOCKED path, is the failure mode the
+      silence check exists for — the refusal was correct.

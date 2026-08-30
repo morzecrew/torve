@@ -98,6 +98,27 @@ def test_body_prose_is_untouched() -> None:
 
 
 # ....................... #
+# the Contract example fence (RFC 0025 §5.4, D-25.10) is not one of the
+# structures D-25.1 lists — it stays body prose, byte-for-byte
+
+
+CONTRACT_EXAMPLE_FENCE = (
+    "## Contract example\n\n"
+    "```yaml contract-example\n"
+    "id: T-9999\n"
+    "decisions: []\n"
+    "```\n\n"
+)
+
+DOC_WITH_CONTRACT_EXAMPLE = DOC.replace("## Phasing", CONTRACT_EXAMPLE_FENCE + "## Phasing")
+
+
+def test_contract_example_fence_is_untouched_body_prose() -> None:
+    once = emit(DOC_WITH_CONTRACT_EXAMPLE)
+    assert CONTRACT_EXAMPLE_FENCE in once
+
+
+# ....................... #
 # the emitter refuses what the parser would refuse
 
 

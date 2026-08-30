@@ -148,6 +148,53 @@ def test_inheriting_from_a_draft_reddens(tmp_path: Path) -> None:
 
 
 # ....................... #
+# the Contract example fence (RFC 0025 §5.4, D-25.10): typed, so a schema
+# change reddens the example rather than letting it rot
+
+
+CONTRACT_EXAMPLE_OK = (
+    "\n## Contract example\n\n"
+    "```yaml contract-example\n"
+    "id: T-9999\n"
+    "decisions: []\n"
+    "```\n"
+)
+
+CONTRACT_EXAMPLE_BROKEN = (
+    "\n## Contract example\n\n"
+    "```yaml contract-example\n"
+    "id: T-9999\n"
+    "decisions: []\n"
+    "extra_unknown_field: true\n"
+    "```\n"
+)
+
+
+def test_a_valid_contract_example_passes(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", "D-T.1", body_extra=CONTRACT_EXAMPLE_OK)
+    seed(tmp_path, ("0001-widget.md", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+
+
+def test_an_invalid_contract_example_reddens(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", "D-T.1", body_extra=CONTRACT_EXAMPLE_BROKEN)
+    seed(tmp_path, ("0001-widget.md", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == EXIT_CONFIG
+    assert "Contract example does not validate" in result.output
+
+
+def test_a_prose_only_contract_example_passes(tmp_path: Path) -> None:
+    doc = rfc_text(
+        "0001", "Widget", "D-T.1", body_extra="\n## Contract example\n\nSee above.\n"
+    )
+    seed(tmp_path, ("0001-widget.md", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+
+
+# ....................... #
 # directory contents (charter A-15, D-A.18): refusals that route
 
 

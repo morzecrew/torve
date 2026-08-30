@@ -22,6 +22,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from torve.domain.rfc import GRADES, IMPLEMENTATIONS, KINDS, STATUSES
+from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -475,6 +476,70 @@ def parse_phasing(text: str) -> list[PhasingEntry] | None:
             raise ValueError(f"phase {entry.phase} ({entry.title}) depends on itself")
 
     return entries
+
+
+# ....................... #
+
+CONTRACT_EXAMPLE_HEADING = re.compile(
+    r"^#{2,3}\s*(?:\d+[a-z]?\.\s*)?Contract example\b.*$", re.M | re.I
+)
+CONTRACT_EXAMPLE_FENCE = re.compile(
+    r"^```ya?ml[ \t]+contract-example[ \t]*\n(.*?)^```[ \t]*$", re.M | re.S
+)
+
+
+# ....................... #
+
+
+def parse_contract_example(text: str) -> Task | None:
+    """The Contract example section's fenced `yaml contract-example` block,
+    validated against the live task contract (RFC 0025 §5.4, D-25.10); None
+    when the document has no such section or the section carries no such
+    fence (prose-only demonstration stays legal). Raises ValueError when a
+    fence exists but does not validate — a stale example is a defect, not a
+    style."""
+
+    heading = CONTRACT_EXAMPLE_HEADING.search(text)
+
+    if not heading:
+        return None
+
+    section = text[heading.end() :]
+    following = re.search(r"^##\s", section, re.M)
+
+    if following:
+        section = section[: following.start()]
+
+    fence = CONTRACT_EXAMPLE_FENCE.search(section)
+
+    if not fence:
+        return None
+
+    raw: Any = yaml.safe_load(fence.group(1))
+
+    if not isinstance(raw, dict):
+        raise ValueError("the Contract example YAML block must be a task contract mapping")
+
+    return Task.model_validate(raw)
+
+
+# ....................... #
+
+
+def check_contract_example(path: Path, text: str) -> list[str]:
+    """A Contract example fence must validate against the live task contract
+    schema (D-25.10): the one thing that makes the example redden the moment
+    the schema moves rather than rotting silently. Prose-only Contract
+    example sections stay legal."""
+
+    try:
+        parse_contract_example(text)
+
+    except ValueError as exc:
+        first = str(exc).splitlines()[0]
+        return [f"{path.name}: Contract example does not validate — {first}"]
+
+    return []
 
 
 # ....................... #
@@ -1151,6 +1216,7 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
         report.warnings += decision_warnings
         report.problems += check_amendments(path, text, fm)
         report.problems += check_phasing(path, text)
+        report.problems += check_contract_example(path, text)
         report.problems += check_line_cites(path, text, root)
         report.problems += check_headings(path, text)
         report.problems += check_citations(path, text, resolvable)
