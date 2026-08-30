@@ -278,6 +278,117 @@ def test_solo_ticks_are_unaffected_by_fleet_pause_being_none(tmp_path: Path):
 
 
 # ....................... #
+# trust classes — D-24.6
+
+
+def test_a_reviewed_root_configured_for_socket_mode_is_refused_before_its_tick(tmp_path: Path):
+    a, b = root(tmp_path, "a"), root(tmp_path, "b")
+    (a / ".torve" / "config.yaml").write_text("runtime:\n  docker: socket\n", encoding="utf-8")
+    m = manifest(
+        FleetRepository(root=str(a), trust="reviewed"),
+        FleetRepository(root=str(b), trust="own"),
+    )
+    called: list[str] = []
+
+    def tick(repo: FleetRepository, paused: bool):
+        called.append(repo.root)
+        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
+
+    report = fleet_tick(m, tick)
+    outcomes = {o.root: o.outcome for o in report.outcomes}
+
+    assert outcomes[str(a)].startswith("refused:")
+    assert "reviewed" in outcomes[str(a)]
+    assert "runtime.docker: socket" in outcomes[str(a)]
+    assert str(a) not in called  # the refusal happened before the tick, not inside it
+
+    assert outcomes[str(b)] == "ticked"
+    assert str(b) in called  # the pass continued past the refused root
+
+
+def test_a_reviewed_root_relying_on_the_default_provider_allowlist_is_refused(tmp_path: Path):
+    a = root(tmp_path, "a")
+    (a / ".torve" / "config.yaml").write_text(
+        "providers:\n  default: [deepseek]\n", encoding="utf-8"
+    )
+    m = manifest(FleetRepository(root=str(a), trust="reviewed"))
+    called: list[str] = []
+
+    def tick(repo: FleetRepository, paused: bool):
+        called.append(repo.root)
+        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
+
+    report = fleet_tick(m, tick)
+    outcome = report.outcomes[0].outcome
+
+    assert outcome.startswith("refused:")
+    assert "reviewed" in outcome
+    assert "providers.default" in outcome
+    assert not called
+
+
+def test_an_untrusted_root_without_a_sealed_broker_is_refused(tmp_path: Path):
+    a = root(tmp_path, "a")
+    m = manifest(FleetRepository(root=str(a), trust="untrusted"))
+    called: list[str] = []
+
+    def tick(repo: FleetRepository, paused: bool):
+        called.append(repo.root)
+        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
+
+    report = fleet_tick(m, tick)
+    outcome = report.outcomes[0].outcome
+
+    assert outcome.startswith("refused:")
+    assert "untrusted" in outcome
+    assert "broker.mode" in outcome
+    assert not called
+
+
+def test_an_untrusted_root_asking_for_host_networking_is_refused(tmp_path: Path):
+    a = root(tmp_path, "a")
+    (a / ".torve" / "config.yaml").write_text("runtime:\n  network: host\n", encoding="utf-8")
+    m = manifest(FleetRepository(root=str(a), trust="untrusted"))
+    called: list[str] = []
+
+    def tick(repo: FleetRepository, paused: bool):
+        called.append(repo.root)
+        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
+
+    report = fleet_tick(m, tick)
+    outcome = report.outcomes[0].outcome
+
+    assert outcome.startswith("refused:")
+    assert "untrusted" in outcome
+    assert "runtime.network: host" in outcome
+    assert not called
+
+
+def test_an_untrusted_root_configured_for_sealed_mode_ticks_normally(tmp_path: Path):
+    a = root(tmp_path, "a")
+    (a / ".torve" / "config.yaml").write_text(
+        "runtime:\n"
+        "  network: fleet-internal\n"
+        "broker:\n"
+        "  adapter: local\n"
+        "  mode: sealed\n"
+        "  network: fleet-internal\n",
+        encoding="utf-8",
+    )
+    m = manifest(FleetRepository(root=str(a), trust="untrusted"))
+    called: list[str] = []
+
+    def tick(repo: FleetRepository, paused: bool):
+        called.append(repo.root)
+        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
+
+    report = fleet_tick(m, tick)
+
+    assert report.outcomes[0].outcome == "ticked"
+    assert called == [str(a)]
+
+
+# ....................... #
 # fleet_escalations — D-24.8
 
 

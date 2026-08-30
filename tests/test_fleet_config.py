@@ -12,8 +12,16 @@ from pydantic import ValidationError
 from torve.config.fleet import (
     FleetManifest,
     FleetRepository,
+    TrustRefused,
     default_manifest_path,
+    enforce_trust,
     load_fleet_manifest,
+)
+from torve.config.runconfig import (
+    BrokerConfig,
+    ProvidersConfig,
+    RunnerConfig,
+    RuntimeConfig,
 )
 
 
@@ -97,3 +105,66 @@ def test_default_manifest_path_falls_back_to_the_home_config_dir(monkeypatch, tm
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     assert default_manifest_path() == tmp_path / ".config" / "torve" / "fleet.yaml"
+
+
+# ....................... #
+# enforce_trust — §5.3, D-24.6
+
+
+def test_own_permits_socket_and_host_networking():
+    repo = FleetRepository(root="/x", trust="own")
+    config = RunnerConfig(runtime=RuntimeConfig(docker="socket", network="host"))
+    enforce_trust(repo, config)  # no raise
+
+
+def test_reviewed_refuses_socket_mode():
+    repo = FleetRepository(root="/x", trust="reviewed")
+    config = RunnerConfig(runtime=RuntimeConfig(docker="socket"))
+
+    with pytest.raises(TrustRefused, match=r"reviewed.*runtime\.docker: socket"):
+        enforce_trust(repo, config)
+
+
+def test_reviewed_refuses_reliance_on_the_default_provider_allowlist():
+    repo = FleetRepository(root="/x", trust="reviewed")
+    config = RunnerConfig(providers=ProvidersConfig(default=["deepseek"]))
+
+    with pytest.raises(TrustRefused, match=r"reviewed.*providers\.default"):
+        enforce_trust(repo, config)
+
+
+def test_reviewed_permits_no_socket_and_no_default_allowlist():
+    repo = FleetRepository(root="/x", trust="reviewed")
+    enforce_trust(repo, RunnerConfig())  # no raise
+
+
+def test_untrusted_refuses_socket_mode():
+    repo = FleetRepository(root="/x", trust="untrusted")
+    config = RunnerConfig(runtime=RuntimeConfig(docker="socket"))
+
+    with pytest.raises(TrustRefused, match=r"untrusted.*runtime\.docker: socket"):
+        enforce_trust(repo, config)
+
+
+def test_untrusted_refuses_host_networking():
+    repo = FleetRepository(root="/x", trust="untrusted")
+    config = RunnerConfig(runtime=RuntimeConfig(network="host"))
+
+    with pytest.raises(TrustRefused, match=r"untrusted.*runtime\.network: host"):
+        enforce_trust(repo, config)
+
+
+def test_untrusted_refuses_a_broker_that_is_not_sealed():
+    repo = FleetRepository(root="/x", trust="untrusted")
+
+    with pytest.raises(TrustRefused, match=r"untrusted.*broker\.mode: sealed"):
+        enforce_trust(repo, RunnerConfig())  # broker.mode defaults to "endpoint"
+
+
+def test_untrusted_permits_a_sealed_broker():
+    repo = FleetRepository(root="/x", trust="untrusted")
+    config = RunnerConfig(
+        runtime=RuntimeConfig(network="fleet-internal"),
+        broker=BrokerConfig(adapter="local", mode="sealed", network="fleet-internal"),
+    )
+    enforce_trust(repo, config)  # no raise

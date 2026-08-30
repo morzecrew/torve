@@ -1,11 +1,12 @@
 """`torve fleet tick` and `torve fleet status`'s mechanism (RFC 0024 §5.2,
 §5.4): survey every root's escalation queue, decide the pause once for the
-fleet, tick each root in the manifest's deterministic order under its own
-lock with that decision passed down, and read every root's queue into one
-table ordered by age. No fleet lock (D-24.7) — the per-root lock inside
-`run_tick` is the only mutual exclusion. No fleet store (D-24.3): every
-function here reads roots and writes to roots, never to a shared artefact
-of its own.
+fleet, check each root's own configuration against its manifest trust class
+(§5.3, D-24.6) before ticking it in the manifest's deterministic order under
+its own lock with the pause decision passed down, and read every root's
+queue into one table ordered by age. No fleet lock (D-24.7) — the per-root
+lock inside `run_tick` is the only mutual exclusion. No fleet store (D-24.3):
+every function here reads roots and writes to roots, never to a shared
+artefact of its own.
 
 `tick` is injected (a `TickRunner`) rather than built here: wiring one
 root's `TickDeps` needs adapters, and `torve.application` may not import
@@ -22,7 +23,8 @@ from torve.application.loop import TickReport, escalated_count
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
-from torve.config.fleet import FleetManifest, FleetRepository
+from torve.config.fleet import FleetManifest, FleetRepository, TrustRefused, enforce_trust
+from torve.config.runconfig import load_runner_config
 from torve.domain.states import TaskState
 
 # ----------------------- #
@@ -82,12 +84,14 @@ def decide_pause(manifest: FleetManifest, counts: dict[str, int]) -> tuple[int, 
 
 
 def fleet_tick(manifest: FleetManifest, tick: TickRunner) -> FleetReport:
-    """Legs 3 and 4: tick every root in the manifest's order, the pause
-    decision passed down; a locked-out or failing root is recorded and the
-    pass continues (D-24.5) rather than stopping at the first bad root.
-    One fleet event — the queue total, the pause decision, and every
-    root's outcome — appended to each ticked root's own telemetry (D-24.11:
-    no fleet-side stream exists to hold it instead, per D-24.3)."""
+    """Legs 3 and 4: for each root in the manifest's order, its own runner
+    configuration is checked against its trust class (§5.3, D-24.6) before
+    the tick — a refusal is recorded and the pass continues, exactly like a
+    locked-out or failing root (D-24.5), and never reaches `tick`. The pause
+    decision is passed down to every root that is ticked. One fleet event —
+    the queue total, the pause decision, and every root's outcome — appended
+    to each ticked root's own telemetry (D-24.11: no fleet-side stream exists
+    to hold it instead, per D-24.3)."""
 
     counts = survey(manifest)
     total, paused = decide_pause(manifest, counts)
@@ -97,9 +101,13 @@ def fleet_tick(manifest: FleetManifest, tick: TickRunner) -> FleetReport:
         escalated = counts[repo.root]
 
         try:
+            enforce_trust(repo, load_runner_config(repo.path))
             report = tick(repo, paused)
             outcome = "locked out" if report.locked_out else "ticked"
             noop = report.noop
+
+        except TrustRefused as exc:  # D-24.6: refused before the root is ticked
+            outcome, noop = f"refused: {exc}", True
 
         except Exception as exc:  # D-24.5: recorded, the pass continues
             outcome, noop = f"error: {exc}", True

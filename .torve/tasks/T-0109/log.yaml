@@ -1,0 +1,104 @@
+schema_version: 1
+task: T-0109
+repo: morzecrew/torve
+base_sha: 0020af71e8b3b39d4fcd022ba7d9edc3074c7081
+drift_count: 0
+entries:
+  - decision: D-24.1
+    grade: LOCKED
+    kind: resolved
+    at: "2026-08-30T15:40:00Z"
+    attempt: 1
+    claim: the trust-enforcement addition does not touch manifest resolution —
+      the manifest still resolves only from the operator's own file, never
+      under a ticked root — compliant, no contradiction.
+    evidence: "src/torve/config/fleet.py:136-143 — default_manifest_path()
+      unchanged, still resolves under XDG_CONFIG_HOME / the operator's home;
+      the new enforce_trust (fleet.py:84-130) reads a root's own
+      .torve/config.yaml for its runner configuration, which is a different
+      artefact than the manifest and was already read from each root before
+      this task (RFC 0024 §3's current-state note)."
+    action: decided
+    proposal: no change
+
+  - decision: D-24.2
+    grade: LOCKED
+    kind: resolved
+    at: "2026-08-30T15:40:00Z"
+    attempt: 1
+    claim: trust enforcement is orthogonal to the fleet-wide pause — a
+      refusal is decided from the root's own configuration alone, never
+      consumes or alters the shared escalation budget, and the pause is
+      still computed once over the fleet total before any root is refused
+      or ticked — compliant, no contradiction.
+    evidence: "src/torve/application/fleet.py:96-97 — decide_pause runs once
+      before the per-root loop; fleet.py:104 — enforce_trust takes only
+      (repo, config), no paused argument, and cannot see or change the
+      pause decision."
+    action: decided
+    proposal: no change
+
+  - decision: D-24.3
+    grade: LOCKED
+    kind: resolved
+    at: "2026-08-30T15:40:00Z"
+    attempt: 1
+    claim: the new load_runner_config(repo.path) call added to fleet_tick's
+      per-root loop is a read of that root's own file, never a write, and
+      no aggregated fleet-side artefact is introduced — compliant, no
+      contradiction.
+    evidence: "src/torve/application/fleet.py:104 —
+      enforce_trust(repo, load_runner_config(repo.path)) reads repo.path's
+      own .torve/config.yaml (torve/config/runconfig.py:798-819,
+      load_runner_config) and writes nothing; the loop's only write remains
+      the per-root engine_event call at fleet.py:129, unchanged by this task."
+    action: decided
+    proposal: no change
+
+  - decision: D-24.9
+    grade: LOCKED
+    kind: resolved
+    at: "2026-08-30T15:40:00Z"
+    attempt: 1
+    claim: trust refusal is decided per root from that root's own
+      configuration alone; no task, dependency or comparison crosses a root
+      boundary — compliant, no contradiction.
+    evidence: "src/torve/config/fleet.py:84-130 — enforce_trust's only
+      inputs are one FleetRepository and one RunnerConfig, both belonging to
+      the same root; it names no other root and returns nothing that could
+      carry state between roots."
+    action: decided
+    proposal: no change
+
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: "2026-08-30T15:40:00Z"
+    attempt: 1
+    claim: RFC 0024 §5.3's table requires the reviewed class have an explicit
+      provider allowlist, not the default, but names no mechanical check.
+      Decided the check as providers.default being non-empty — the config
+      schema's own field is literally named default, which is the most
+      direct referent of the RFC's own wording, and its blanket fallback
+      (used for any repository name not otherwise listed) is what the
+      default names in RunnerConfig's own routing rule.
+    evidence: rfcs/0024-fleet.md:174 — the reviewed row's Requires column
+      reads an explicit provider allowlist, not the default; src/torve/config/runconfig.py:97-107
+      — ProvidersConfig.default is the named fallback route_provider falls
+      back to when no per-repository entry exists (runconfig.py:121-140,
+      route_provider).
+    action: decided
+    proposal: the reviewed trust class refuses when providers.default is
+      non-empty (src/torve/config/fleet.py::enforce_trust); untrusted does
+      not carry the same check since its own required broker.mode sealed
+      already forces every provider route through an explicit per-provider
+      table (BrokerConfig.providers has no default-style fallback at all —
+      runconfig.py:340-378) rather than route_provider's default. If a
+      future repository needs a different granularity (e.g. requiring a
+      non-empty providers.repositories entry keyed to the root's own name),
+      that is an RFC amendment to §5.3, not a re-interpretation here.
+    notes: |
+      Fewer than three load-bearing gaps were found while planning this
+      task (this is the only one), so per flag-dont-flip's underspecification
+      rule the task proceeds with this decision logged rather than halting.
