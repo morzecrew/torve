@@ -1,0 +1,16 @@
+# Minted by the engine — a decomposition drafting run.
+id: T-0118
+rfc: rfcs/0027-harness-configuration-evolution.md
+role: draft
+intent: "Decompose T-0115: The measurement obligation: paired replays of the same\
+  \ tasks under\nincumbent and candidate digests through the shadow machinery, verdicts\n\
+  in the eval ledger citing both digests, and displacement of the\ndefault refused\
+  \ without one \u2014 while landing and running a candidate as\na named variant stays\
+  \ free. Doctor learns to name the default's\nverdict where recorded."
+targets:
+- T-0115
+decisions: []
+budget:
+  iterations: 3
+tier: planner
+schema_version: 1
