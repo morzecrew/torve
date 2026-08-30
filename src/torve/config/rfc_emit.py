@@ -10,12 +10,25 @@ formatting an already-canonical document must write nothing.
 `emit` raises `ValueError` on anything the parser itself would reject —
 the same failure `torve rfc fmt` uses to refuse a document rather than
 laundering its breakage into a diff that looks deliberate.
+
+The transactional verbs (RFC 0025 §5.3, D-25.2) live here too: each mutate
+function takes a document's text and an identifier already derived by
+`rfc_parse`, and returns the emitted result of one structural edit —
+`append_amendment`, `append_decision`, `retire_decision`,
+`relocate_paths_text`. None of them write to disk; `write_transaction` is
+the one function that does, and only after the whole mutated corpus checks
+clean in a scratch copy (D-25.2's "abort the whole write on any problem,
+leaving the tree untouched").
 """
 
 from __future__ import annotations
 
 import json
 import re
+import shutil
+import tempfile
+from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -26,11 +39,16 @@ from torve.config.rfc_parse import (
     PHASING_HEADING,
     TABLE_HEADER,
     YAML_FENCE,
+    CheckReport,
     DecisionRow,
     PhasingEntry,
+    build_index,
+    check_corpus,
     decision_table,
+    fm_list,
     parse_frontmatter,
     parse_phasing,
+    rfc_files,
 )
 
 # ----------------------- #
@@ -135,9 +153,7 @@ def _render_decision_table(rows: list[DecisionRow]) -> str:
     for row in rows:
         paths = " ".join(f"`{p}`" for p in row.paths) if row.paths else "—"
         consequence = row.consequence or "—"
-        lines.append(
-            f"| {row.identifier} | `{row.grade}` | {row.text} | {paths} | {consequence} |"
-        )
+        lines.append(f"| {row.identifier} | `{row.grade}` | {row.text} | {paths} | {consequence} |")
 
     return "\n".join(lines) + "\n"
 
@@ -258,3 +274,185 @@ def emit(text: str) -> str:
     rest = _rewrite_phasing(rest)
     rest = _rewrite_amendment_headings(rest)
     return render_frontmatter(fm) + rest
+
+
+# ....................... #
+
+
+def _split(text: str) -> tuple[dict[str, Any], str]:
+    """One document's frontmatter and everything after it — the split every
+    mutate function starts from, matching what `emit` itself parses."""
+
+    match = FRONTMATTER.match(text)
+    fm = parse_frontmatter(text)
+
+    if match is None or fm is None:
+        raise ValueError("no parseable YAML frontmatter")
+
+    return fm, text[match.end() :]
+
+
+# ....................... #
+
+
+def _replace_table(rest: str, new_rows: list[DecisionRow]) -> str:
+    """*rest*'s decision table, replaced whole by *new_rows* rendered
+    canonically — the span-finding half of `_rewrite_table`, generalised to
+    a caller-supplied row list so a mutate function can add, drop or edit a
+    row before the table is re-rendered."""
+
+    original = decision_table(rest)
+    start = rest.find(TABLE_HEADER)
+
+    if start == -1:
+        raise ValueError("no Decisions table found")
+
+    pos = start
+
+    for _ in range(2 + len(original)):  # the header line, the separator, one line per row
+        newline = rest.find("\n", pos)
+        pos = newline + 1 if newline != -1 else len(rest)
+
+    return rest[:start] + _render_decision_table(new_rows) + rest[pos:]
+
+
+# ....................... #
+
+
+def append_amendment(text: str, amendment: str, title: str, today: str) -> str:
+    """`rfc amend` (D-25.4): appends the dated `### A-nn — date — title`
+    skeleton to the end of the document's `## Amendments` container — the
+    section runs to end of file by the same convention `check_amendments`
+    already assumes — and records *amendment* in `amended_by`. The entry's
+    own words are left for the author to write."""
+
+    fm, rest = _split(text)
+
+    if AMENDMENTS_SECTION.search(rest) is None:
+        raise ValueError("no '## Amendments' section to append to")
+
+    fm = {**fm, "amended_by": [*fm_list(fm, "amended_by"), amendment]}
+    rest = rest.rstrip("\n") + f"\n\n### {amendment} — {today} — {title}\n"
+    return emit(render_frontmatter(fm) + rest)
+
+
+# ....................... #
+
+
+def append_decision(text: str, identifier: str) -> str:
+    """`rfc add-decision` (D-25.4): appends a row skeleton under *identifier*
+    — the next free id in the document's own family, derived by
+    `rfc_parse.next_decision` before this is called. The grade is written as
+    `OPEN`, the vocabulary's own "not yet decided" value (D-25.3 LOCKED: no
+    verb chooses a grade) — Paths and the decision text are left blank for
+    the author."""
+
+    fm, rest = _split(text)
+    rows = decision_table(rest)
+
+    if not rows:
+        raise ValueError("no Decisions table to append to")
+
+    new_row = DecisionRow(identifier=identifier, grade="OPEN", text="<decision>", paths=[])
+    rest = _replace_table(rest, [*rows, new_row])
+    return emit(render_frontmatter(fm) + rest)
+
+
+# ....................... #
+
+
+def retire_decision(text: str, identifier: str, today: str) -> str:
+    """`rfc retire` (D-25.6): executes D-16.1 whole — removes *identifier*'s
+    row, records it in `retired:`, and leaves a tombstone stub immediately
+    after the table for the author to complete. Whether the result still
+    checks clean — in particular, whether every remaining citation of
+    *identifier* still resolves — is left to the transaction's check
+    (D-25.2); this function only rewrites the text."""
+
+    fm, rest = _split(text)
+    rows = decision_table(rest)
+    remaining = [row for row in rows if row.identifier != identifier]
+
+    if len(remaining) == len(rows):
+        raise ValueError(f"no decision {identifier!r} in this document's table")
+
+    start = rest.find(TABLE_HEADER)
+
+    if start == -1:
+        raise ValueError("no Decisions table found")
+
+    pos = start
+
+    for _ in range(2 + len(rows)):
+        newline = rest.find("\n", pos)
+        pos = newline + 1 if newline != -1 else len(rest)
+
+    # No citation of the "never reused" rule itself: which decision states it
+    # (D-A.4 in this repository's own corpus) is a fact about one corpus, not
+    # something this generic verb may assume of the corpus it is run against.
+    tombstone = f"\n{identifier} was retired {today}; <why>. The identifier is never reused.\n"
+    rest = rest[:start] + _render_decision_table(remaining) + tombstone + rest[pos:]
+    fm = {**fm, "retired": [*fm_list(fm, "retired"), identifier]}
+    return emit(render_frontmatter(fm) + rest)
+
+
+# ....................... #
+
+
+def relocate_paths_text(text: str, old: str, new: str) -> tuple[str, list[str]] | None:
+    """`rfc relocate-paths` (D-25.7): rewrites every Paths cell carrying the
+    exact glob *old* to *new* — an exact token match, never a substring,
+    since a partial match risks rewriting an unrelated glob that merely
+    shares a path segment. Returns `None` when nothing in this document
+    matched. Decision text is never touched, per D-25.7."""
+
+    fm, rest = _split(text)
+    rows = decision_table(rest)
+    touched: list[str] = []
+    updated: list[DecisionRow] = []
+
+    for row in rows:
+        if old in row.paths:
+            touched.append(row.identifier)
+            row = replace(row, paths=[new if p == old else p for p in row.paths])
+
+        updated.append(row)
+
+    if not touched:
+        return None
+
+    rest = _replace_table(rest, updated)
+    return emit(render_frontmatter(fm) + rest), touched
+
+
+# ....................... #
+
+
+def write_transaction(rfc_dir: Path, root: Path, mutations: dict[str, str]) -> CheckReport:
+    """One parse-mutate-emit-check cycle (D-25.2): *mutations* (filename ->
+    new text) is applied to a scratch copy of the corpus, the index is
+    regenerated there, and the scratch corpus is checked whole. Only a clean
+    check is copied back to *rfc_dir* — a red check leaves the real tree
+    untouched."""
+
+    with tempfile.TemporaryDirectory() as scratch_name:
+        scratch = Path(scratch_name)
+
+        for path in rfc_dir.glob("*.md"):
+            shutil.copy2(path, scratch / path.name)
+
+        for name, mutated in mutations.items():
+            (scratch / name).write_text(mutated, encoding="utf-8")
+
+        (scratch / "INDEX.md").write_text(build_index(rfc_files(scratch)), encoding="utf-8")
+        report = check_corpus(scratch, root)
+
+        if not report.ok:
+            return report
+
+        for name in (*mutations, "INDEX.md"):
+            (rfc_dir / name).write_text(
+                (scratch / name).read_text(encoding="utf-8"), encoding="utf-8"
+            )
+
+    return report

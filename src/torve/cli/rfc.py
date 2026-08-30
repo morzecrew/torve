@@ -13,12 +13,18 @@ INDEX.md is generated output, like a lockfile (D-A.6).
 canonical emitter in `torve.config.rfc_emit` renders a document's structural
 surfaces back to text and `fmt` writes the result when it differs, refusing
 a document its own check already reddens.
+
+`amend`, `add-decision`, `retire` and `relocate-paths` are the transactional
+verbs (RFC 0025 §5.3, D-25.2): each derives an identifier, mutates one
+document's model through `torve.config.rfc_emit`, and writes only when the
+mutated corpus checks clean — a red check leaves the tree untouched.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.text import Text
@@ -43,6 +49,9 @@ from torve.cli.console import (
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
 from torve.domain.rfc import KINDS
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
+
+if TYPE_CHECKING:
+    from torve.config.rfc_parse import CheckReport
 
 # ----------------------- #
 
@@ -189,9 +198,7 @@ def check(
 def fmt(
     number: Annotated[
         str | None,
-        typer.Argument(
-            help="One document's number (e.g. 0025); omitted formats the whole corpus."
-        ),
+        typer.Argument(help="One document's number (e.g. 0025); omitted formats the whole corpus."),
     ] = None,
     check_only: Annotated[
         bool, typer.Option("--check", help="Report drift without writing.")
@@ -277,6 +284,215 @@ def fmt(
     )
 
     raise typer.Exit(EXIT_OK if ok else EXIT_CONFIG)
+
+
+# ....................... #
+
+
+def _finish_transaction(report: CheckReport, success: str) -> None:
+    """The shared tail of every transactional verb (D-25.2): print the
+    problems and exit non-zero on a red check, or the success line and exit
+    clean. Either way the caller's `write_transaction` has already decided
+    whether the tree was touched."""
+
+    console = out()
+
+    if not report.ok:
+        for problem in report.problems:
+            console.print(Text(f"PROBLEM {problem}", STYLE_FAIL))
+
+        closing(
+            console,
+            f"FAIL  transaction aborted, {len(report.problems)} problem(s), tree unchanged",
+            STYLE_FAIL,
+        )
+        raise typer.Exit(EXIT_CONFIG)
+
+    closing(console, success, STYLE_PASS)
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+@rfc_app.command("amend")
+def amend(
+    number: Annotated[str, typer.Argument(help="The document being amended, e.g. 0016.")],
+    title: Annotated[str, typer.Option("--title", help="The new amendment heading's title.")],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Append the next amendment number as a dated heading skeleton to
+    NUMBER's Amendments section and record it in amended_by — one
+    parse-mutate-emit-check transaction; a red check leaves the tree
+    untouched. The entry's own words are left for the author to write."""
+    # D-25.4: the number is derived via next_amendment, never chosen.
+
+    from torve.config.rfc_emit import append_amendment, write_transaction
+    from torve.config.rfc_parse import next_amendment, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    files = rfc_files(rfc_dir)
+    key = number.strip().removesuffix(".md").zfill(4)
+
+    if key not in files:
+        raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
+
+    path = files[key]
+    amendment = next_amendment(files)
+
+    try:
+        mutated = append_amendment(
+            path.read_text(encoding="utf-8"), amendment, title, date.today().isoformat()
+        )
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
+
+    report = write_transaction(rfc_dir, root, {path.name: mutated})
+    _finish_transaction(
+        report, f"appended {amendment} to {path.name} — write the entry's own words"
+    )
+
+
+# ....................... #
+
+
+@rfc_app.command("add-decision")
+def add_decision(
+    number: Annotated[str, typer.Argument(help="The document gaining a decision, e.g. 0025.")],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Append a decision row skeleton to NUMBER's table under the next free
+    identifier in its own family, and print that identifier. The grade,
+    Paths and decision text are left for the author — one parse-mutate-
+    emit-check transaction; a red check leaves the tree untouched."""
+    # D-25.3 LOCKED: the row's grade is written as OPEN, the vocabulary's own
+    # "not yet decided" value — never a chosen judgement.
+
+    from torve.config.rfc_emit import append_decision, write_transaction
+    from torve.config.rfc_parse import next_decision, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    files = rfc_files(rfc_dir)
+    key = number.strip().removesuffix(".md").zfill(4)
+
+    if key not in files:
+        raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
+
+    path = files[key]
+    identifier = next_decision(files, key)
+
+    try:
+        mutated = append_decision(path.read_text(encoding="utf-8"), identifier)
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
+
+    report = write_transaction(rfc_dir, root, {path.name: mutated})
+    _finish_transaction(
+        report, f"added {identifier} to {path.name} — write its grade, Paths and text"
+    )
+
+
+# ....................... #
+
+
+@rfc_app.command("retire")
+def retire(
+    identifier: Annotated[
+        str, typer.Argument(help="The decision identifier to retire.")
+    ],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Retire IDENTIFIER: remove its row, record it in retired: frontmatter,
+    and leave a tombstone stub in its former place for the author to
+    complete — one parse-mutate-emit-check transaction; a red check leaves
+    the tree untouched."""
+    # D-25.6: executes D-16.1 whole. Whether every remaining citation still
+    # resolves is the transaction's own check, not a separate pre-check.
+
+    from torve.config.rfc_emit import retire_decision, write_transaction
+    from torve.config.rfc_parse import decision_table, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    files = rfc_files(rfc_dir)
+    defining = next(
+        (
+            path
+            for path in files.values()
+            if any(
+                row.identifier == identifier
+                for row in decision_table(path.read_text(encoding="utf-8"))
+            )
+        ),
+        None,
+    )
+
+    if defining is None:
+        raise fail(
+            f"configuration error: no decision {identifier!r} defined in the corpus", EXIT_CONFIG
+        )
+
+    try:
+        mutated = retire_decision(
+            defining.read_text(encoding="utf-8"), identifier, date.today().isoformat()
+        )
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
+
+    report = write_transaction(rfc_dir, root, {defining.name: mutated})
+    _finish_transaction(
+        report, f"retired {identifier} in {defining.name} — write why at the tombstone"
+    )
+
+
+# ....................... #
+
+
+@rfc_app.command("relocate-paths")
+def relocate_paths(
+    old: Annotated[str, typer.Argument(help="The exact Paths glob being relocated.")],
+    new: Annotated[str, typer.Argument(help="Its replacement.")],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Sweep every decision table in the corpus, replacing OLD with NEW
+    wherever a Paths cell carries it exactly, and print the touched rows —
+    one parse-mutate-emit-check transaction; a red check leaves the tree
+    untouched. Decision text is never touched."""
+    # D-25.7: the cell is mechanical; an in-row marker naming the
+    # superseded location stays hand-written where the text itself names it.
+
+    from torve.config.rfc_emit import relocate_paths_text, write_transaction
+    from torve.config.rfc_parse import rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    files = rfc_files(rfc_dir)
+    mutations: dict[str, str] = {}
+    touched: dict[str, list[str]] = {}
+
+    for path in files.values():
+        result = relocate_paths_text(path.read_text(encoding="utf-8"), old, new)
+
+        if result is not None:
+            mutations[path.name], touched[path.name] = result
+
+    if not mutations:
+        raise fail(f"configuration error: no Paths cell carries {old!r}", EXIT_CONFIG)
+
+    report = write_transaction(rfc_dir, root, mutations)
+
+    if report.ok:
+        console = out()
+
+        for name, ids in sorted(touched.items()):
+            console.print(f"{name}: {', '.join(sorted(ids))}")
+
+    rows = sum(len(ids) for ids in touched.values())
+    _finish_transaction(
+        report, f"relocated {old!r} to {new!r} in {rows} row(s) across {len(mutations)} file(s)"
+    )
 
 
 # ....................... #

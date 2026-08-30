@@ -1,0 +1,93 @@
+schema_version: 1
+task: T-0124
+base_sha: db302a89af8208d6b5cf32883b40df0d273b5191
+drift_count: 0
+entries:
+  - decision: D-25.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-08-30T16:00:00Z'
+    attempt: 1
+    claim: the four verbs' mutate functions (append_amendment, append_decision,
+      retire_decision, relocate_paths_text) touch only frontmatter, decision-table
+      rows and amendment headings — the structures the parser already models —
+      and finish every edit through emit(), so prose passes through exactly as
+      D-25.1 requires; no verb writes to a section body
+    evidence: src/torve/config/rfc_emit.py:322-451
+    action: decided
+    notes: |
+      Close-out for touching a D-25.1-governed path while building the
+      transactional verbs; no contradiction found.
+  - decision: D-25.2
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-08-30T16:01:00Z'
+    attempt: 1
+    claim: every verb runs write_transaction, which mutates a scratch copy of
+      the corpus, regenerates INDEX.md there, and runs check_corpus over the
+      scratch tree before copying anything back — a red check returns without
+      touching rfc_dir, so the real tree is left exactly as it was
+    evidence: src/torve/config/rfc_emit.py:431-458
+    action: decided
+    notes: |
+      Close-out for touching a D-25.2-governed path. "Run the check in
+      memory" (RFC 0025 §5.3) is read as the observable contract (abort
+      whole, tree untouched) rather than a literal no-disk-IO requirement;
+      a scratch-directory copy achieves the same guarantee and is what
+      src/torve/cli/rfc.py:319-496 calls for all four verbs.
+  - decision: D-25.3
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: '2026-08-30T16:02:00Z'
+    attempt: 1
+    claim: D-25.3 says no verb chooses a grade, but RFC 0025 §5.3 says
+      add-decision appends a row "with a placeholder grade" — the table
+      schema has no fourth, non-judgement token, so some member of
+      GRADES (LOCKED/ASSUMED/OPEN) has to be written for the row to parse
+      at all; OPEN is used because it is the vocabulary's own "not yet
+      decided" value, so the row commits to nothing LOCKED or ASSUMED would
+    evidence: src/torve/config/rfc_emit.py:342-360
+    action: decided
+    proposal: 'LOCKED stands unamended — add-decision writes grade: OPEN as
+      the schema-required non-judgement placeholder; this is not "choosing a
+      grade" in the sense D-25.3 forbids, since OPEN asserts no authority
+      over the decision the way LOCKED or ASSUMED would'
+    notes: |
+      Flagged rather than silently picked, since D-25.3 is LOCKED and the
+      two source sentences (the decision row and the §5.3 narrative) are in
+      tension for this one implementation detail.
+  - decision: D-25.4
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-08-30T16:03:00Z'
+    attempt: 1
+    claim: rfc amend derives its number by calling the parser's
+      next_amendment (unchanged); add-decision's identifier is derived by
+      the new, analogous next_decision, also in rfc_parse.py — neither verb
+      accepts a chosen number as an argument
+    evidence: src/torve/config/rfc_parse.py:749-761
+    action: decided
+    notes: |
+      Close-out for touching a D-25.4-governed path. next_decision
+      (src/torve/config/rfc_parse.py:766-783) applies the same
+      maximum-plus-one doctrine to decision identifiers; both derivations
+      are called from src/torve/cli/rfc.py:319-390.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-08-30T16:04:00Z'
+    attempt: 1
+    claim: D-25.7 says relocate-paths "sweeps Paths cells mechanically" but
+      does not say whether "a Paths cell carrying OLD" means an exact glob
+      token or a substring/prefix match inside a longer glob
+    evidence: src/torve/config/rfc_emit.py:402-407
+    action: decided
+    proposal: 'UNLISTED — exact match against one whole space-separated glob
+      token in the cell; a substring match risks rewriting an unrelated
+      glob that merely shares a path segment, and a mechanical sweep should
+      never guess a boundary the corpus did not draw'

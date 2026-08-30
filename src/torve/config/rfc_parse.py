@@ -763,6 +763,39 @@ def next_amendment(files: dict[str, Path]) -> str:
 # ....................... #
 
 
+def next_decision(files: dict[str, Path], number: str) -> str:
+    """The next free identifier in one document's own dotted family (D-25.4's
+    doctrine applied to decisions rather than amendments): scanned
+    corpus-wide, since identifiers are permanent and corpus-unique (D-A.4)
+    even though only *number*'s own document is expected to define them.
+    Retired identifiers count as taken too (D-16.1: never reused) — otherwise
+    retiring a family's highest-numbered row would make the next add-decision
+    regenerate it, a guaranteed collision the write transaction's check would
+    have to reject."""
+
+    family = str(int(number))
+    pattern = re.compile(rf"^D-{re.escape(family)}\.(\d+)[a-z]?$")
+    taken: list[int] = []
+
+    for path in files.values():
+        for row in decision_table(path.read_text(encoding="utf-8")):
+            match = pattern.match(row.identifier)
+
+            if match:
+                taken.append(int(match.group(1)))
+
+    for ident in retired_identifiers(files):
+        match = pattern.match(ident)
+
+        if match:
+            taken.append(int(match.group(1)))
+
+    return f"D-{family}.{max(taken, default=0) + 1}"
+
+
+# ....................... #
+
+
 def lookup(rfc_dir: Path, identifier: str) -> dict[str, Any] | None:
     """One corpus identifier resolved from the same parse `check` runs
     (D-7.28): a decision's row as it stands, an amendment's document and
