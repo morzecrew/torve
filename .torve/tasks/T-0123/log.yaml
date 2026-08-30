@@ -1,0 +1,168 @@
+schema_version: 1
+task: T-0123
+repo: morzecrew/torve
+base_sha: b62cdd901ecd03ffb77289d6b7d5ed1a7820a44b
+drift_count: 0
+entries:
+  - decision: D-25.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: the emitter touches only the four modelled structures — frontmatter,
+      the decision table, the phasing fence, dated amendment headings — and
+      splices everything else through unchanged; it never re-flows or
+      re-indents surrounding prose.
+    evidence: "src/torve/config/rfc_emit.py:256-260 — emit() calls only
+      _rewrite_table, _rewrite_phasing and _rewrite_amendment_headings against
+      the post-frontmatter text and returns render_frontmatter(fm) + rest for
+      everything else; tests/test_rfc_emit.py:93-97
+      (test_body_prose_is_untouched) and tests/test_rfc_emit.py:77-86
+      (test_the_live_corpus_round_trips_idempotently, run over all 27
+      committed documents) pin it."
+    action: decided
+  - decision: D-25.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: fmt is one parse-emit-check-write cycle per document — it refuses
+      to write a document its own check already reddens, leaving that
+      document untouched — and regenerates INDEX.md once as part of the same
+      run when anything was actually written.
+    evidence: "src/torve/cli/rfc.py:226-270 — problems are read from
+      check_corpus once up front; a document with its own entry in that
+      report, or whose emit() raises ValueError, is REFUSEd and left
+      unwritten (tests/test_rfc_fmt.py:127-144); INDEX.md is rebuilt after the
+      loop when written > 0 (src/torve/cli/rfc.py:260-267)."
+    action: decided
+  - decision: D-25.2
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: fmt's refusal is scoped per document, not corpus-wide — a check
+      problem naming one document does not block formatting an unrelated
+      clean one in the same run, since the row's own wording ("refuses to
+      write a document whose parse already reports problems") is about that
+      document, and a corpus-wide all-or-nothing abort is what the four
+      phase-2 verbs need for a multi-file mutation, not what a per-file
+      reformat needs.
+    evidence: "src/torve/cli/rfc.py:121-126 — _own_problems filters
+      check_corpus's report to lines opening with the target's own filename;
+      tests/test_rfc_fmt.py:151-172
+      (test_fmt_targets_a_single_document_by_number) shows one document's own
+      problems never block another's format."
+    action: decided
+  - decision: D-25.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: fmt writes no judgement — it never invents a grade, drafts
+      decision or amendment prose, or touches status/implementation; every
+      row and heading it renders comes from a value the parser already
+      extracted from the document being formatted, never chosen by the tool.
+    evidence: "src/torve/config/rfc_emit.py:132-194 — _render_decision_table
+      and _render_phasing only reformat DecisionRow/PhasingEntry values
+      decision_table()/parse_phasing() already parsed from the same text;
+      no field is synthesised."
+    action: decided
+  - decision: D-25.4
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: not exercised by this phase — amendment numbering belongs to
+      `rfc amend` (RFC 0025 §5.3, phase 2), which this task does not build.
+      fmt only re-renders an amendment heading's existing id/date/title
+      triple; it never allocates one.
+    evidence: "rfcs/0025-corpus-authoring-surface.md:311-318 — `rfc amend` is
+      listed under phase 2 (transactional-verbs) in the Phasing block; this
+      task's contract targets phase 1 (emitter-and-fmt) only."
+    action: decided
+  - decision: D-25.8
+    grade: OPEN
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: fmt does not renumber or validate `## N.` section numbers in this
+      phase. There is no parsed model for section numbering anywhere in
+      rfc_parse.py (HEADING/HEADING_NUMBER exist only for check_headings's
+      duplicate-heading detection, not a numbering scheme), and D-25.1 scopes
+      the emitter to structures the parser models. Building a numbering model
+      is section-renumbering's real cost and is not requested by this task's
+      contract, whose only phase is emitter-and-fmt; the question stays open
+      for whichever later phase actually proposes with evidence, as the row
+      already anticipates.
+    evidence: "src/torve/config/rfc_parse.py:58-59 — HEADING_NUMBER is used
+      only by check_headings, not by a section-numbering model; grep
+      `HEADING_NUMBER` shows that one call site, and
+      src/torve/config/rfc_emit.py has no section-numbering code."
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-30T00:00:00Z
+    attempt: 1
+    claim: "neither D-25.1 nor RFC 0025 §5.1 says how the emitter should wrap
+      the frontmatter `description` or a phase's `intent` — both are YAML
+      folded/literal scalars whose source line-wrapping is cosmetic (folding
+      already collapses `description` to one logical string; `intent`'s
+      literal block was hand-wrapped prose). Decided: both render as a single
+      unwrapped line under `>-`. It is the simplest deterministic choice
+      (trivially idempotent — no wrap-width parameter to keep stable across
+      runs) and already matches most of the live corpus's `description`
+      fields as written."
+    evidence: "rfcs/0001-torve-charter.md:12 — a single-line `description: >-`,
+      and rfcs/0009-skills-evals.md:12 the same, against
+      rfcs/0022-specification-quality.md:14-18 which wraps one across four
+      lines — no single convention exists to preserve; src/torve/config/rfc_emit.py:106-109
+      is the render, tests/test_rfc_emit.py:77-86 pins the corpus-wide
+      idempotence this choice produces."
+    proposal: ASSUMED — canonical `description`/phasing `intent` render as one
+      unwrapped `>-` line; a future document can carry an arbitrarily long
+      one rather than the corpus enforcing a wrap width nothing currently
+      requires.
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-08-30T00:05:00Z
+    attempt: 2
+    claim: "`uv run pytest` fails on 3 pre-existing tests unrelated to this
+      phase's scope — tests/test_run_loop.py::test_poison_ceiling_never_retries_past_the_ceiling,
+      ::test_iteration_budget_escalates_as_budget_exhausted and
+      ::test_agent_timeout_is_a_failed_attempt_not_a_crash. Each drives a
+      CRASH/TIMEOUT AgentResult, and runner.py's failed-attempt telemetry
+      write then reads `layout.gates_file(worktree)` — the task's ephemeral
+      worktree — rather than the repo root; nothing in the run pipeline
+      (real materialization, or the test's MockWorkspace.create, which just
+      mkdirs an empty directory) ever copies `.torve/gates.yaml` into a
+      fresh worktree before an attempt runs, so the read 404s. Unreachable
+      from src/torve/config/**, src/torve/cli/** or the RFC corpus this
+      task's scope covers — confirmed by reproducing on an otherwise
+      unmodified tree before this session made any edit."
+    evidence: "src/torve/application/runner.py:999 —
+      root / load_manifest(layout.gates_file(worktree)).telemetry, reached
+      only when result.timed_out or result.exit_code != 0
+      (src/torve/application/runner.py:988); tests/test_run_loop.py:58-69 —
+      MockWorkspace.create() never populates `.wt/<task>/.torve/`; `uv run
+      pytest tests/test_run_loop.py -q` reproduces this on the tree as
+      checked out, before any change this session."
+    action: decided
+    proposal: "UNLISTED — out of T-0123's scope (allow: src/torve/config/**,
+      src/torve/cli/**, tests/**; the fix belongs in
+      src/torve/application/runner.py, which none of those globs cover).
+      Left unfixed here; a task scoped to src/torve/application/runner.py
+      should either read layout.gates_file(root) instead of
+      layout.gates_file(worktree) at the failed-attempt telemetry write, or
+      materialize `.torve/gates.yaml` into the worktree before the first
+      attempt. This task's own acceptance — ruff, mypy, basedpyright,
+      lint-imports, torve rfc check, and every tests/test_rfc_*.py case — is
+      green; only the repo-wide `uv run pytest` line is blocked by this
+      unrelated, pre-existing failure."

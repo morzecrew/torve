@@ -8,6 +8,11 @@ D-A.16) — defaulting to `rfcs/`.
 `new` derives its number as the maximum plus one (D-A.17); there is no way to
 create a document in a numbering hole (D-A.19) and no counter file to merge.
 INDEX.md is generated output, like a lockfile (D-A.6).
+
+`fmt` is the authoring surface's other half (RFC 0025 §5.2, D-25.1): the
+canonical emitter in `torve.config.rfc_emit` renders a document's structural
+surfaces back to text and `fmt` writes the result when it differs, refusing
+a document its own check already reddens.
 """
 
 from __future__ import annotations
@@ -113,6 +118,17 @@ def _selected(lines: list[str], names: set[str]) -> list[str]:
 # ....................... #
 
 
+def _own_problems(problems: list[str], name: str) -> list[str]:
+    """This one document's own check problems — never the corpus-scoped
+    ones (INDEX drift, a cycle), which do not open with a filename and so
+    never block formatting a document that is itself clean."""
+
+    return [p for p in problems if p.split(":", 1)[0] == name]
+
+
+# ....................... #
+
+
 @rfc_app.command("check")
 def check(
     paths: PathsArgument = None,
@@ -164,6 +180,103 @@ def check(
         )
 
     raise typer.Exit(EXIT_OK if not problems else EXIT_CONFIG)
+
+
+# ....................... #
+
+
+@rfc_app.command("fmt")
+def fmt(
+    number: Annotated[
+        str | None,
+        typer.Argument(
+            help="One document's number (e.g. 0025); omitted formats the whole corpus."
+        ),
+    ] = None,
+    check_only: Annotated[
+        bool, typer.Option("--check", help="Report drift without writing.")
+    ] = False,
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Normalise a document's frontmatter, decision table, phasing fence and
+    amendment headings to their canonical rendering; every word of prose is
+    left alone. A document whose own check already reports a problem is
+    refused rather than formatted, and `--check` reports without writing."""
+    # The canonical rendering lives in `torve.config.rfc_emit.emit` (D-25.1);
+    # refusing an already-broken document is what stops its breakage from
+    # being laundered into a diff that looks deliberate (D-25.2).
+
+    from torve.config.rfc_emit import emit
+    from torve.config.rfc_parse import build_index, check_corpus, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    files = rfc_files(rfc_dir)
+
+    if number is None:
+        targets = files
+    else:
+        key = number.strip().removesuffix(".md").zfill(4)
+
+        if key not in files:
+            raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
+
+        targets = {key: files[key]}
+
+    problems = check_corpus(rfc_dir, root).problems
+    console = out()
+    changed = written = refused = 0
+
+    for key in sorted(targets):
+        path = targets[key]
+        own = _own_problems(problems, path.name)
+
+        if own:
+            refused += 1
+            console.print(Text(f"REFUSE  {path.name}: {len(own)} check problem(s)", STYLE_FAIL))
+            continue
+
+        original = path.read_text(encoding="utf-8")
+
+        try:
+            canonical = emit(original)
+        except ValueError as exc:
+            refused += 1
+            console.print(Text(f"REFUSE  {path.name}: {exc}", STYLE_FAIL))
+            continue
+
+        if canonical == original:
+            continue
+
+        changed += 1
+
+        if check_only:
+            console.print(Text(f"DRIFT   {path.name}", STYLE_WARN))
+        else:
+            path.write_text(canonical, encoding="utf-8")
+            written += 1
+            console.print(Text(f"WROTE   {path.name}", STYLE_PASS))
+
+    if written and not check_only:
+        # D-25.2: the transaction regenerates the index too — a no-op in
+        # practice, since `emit` only reformats a value's YAML, never its
+        # content, but the cycle stays whole rather than relying on that.
+        index_path = rfc_dir / "INDEX.md"
+        rendered_index = build_index(rfc_files(rfc_dir))
+
+        if index_path.read_text(encoding="utf-8") != rendered_index:
+            index_path.write_text(rendered_index, encoding="utf-8")
+
+    ok = refused == 0 and (not check_only or changed == 0)
+    tail = f"{changed} drifting" if check_only else f"{written} written"
+
+    closing(
+        console,
+        f"{'OK   ' if ok else 'FAIL '} {len(targets)} checked, {tail}, {refused} refused",
+        STYLE_PASS if ok else STYLE_FAIL,
+    )
+
+    raise typer.Exit(EXIT_OK if ok else EXIT_CONFIG)
 
 
 # ....................... #
