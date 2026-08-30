@@ -279,6 +279,9 @@ def test_prompt_states_explicit_emptiness():
     prompt = build_prompt(Task(id="T-1", decisions=[]))
     assert "none apply (explicitly)" in prompt
     assert "unconstrained" in prompt
+    # The recurring gate red of the 0022–0024 campaign: every task needed a
+    # hand triage moving corpus coordinates out of user-facing strings.
+    assert "no corpus coordinates" in prompt
 
 
 def test_prompt_carries_the_engine_base_sha_pin():

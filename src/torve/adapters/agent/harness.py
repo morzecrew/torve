@@ -128,6 +128,12 @@ def build_prompt(task: Task, revision: bool = False, base_sha: str | None = None
             else []
         ),
         (
+            "- User-facing strings — help text, docstrings typer renders, printed"
+            " output — carry no corpus coordinates (no RFC numbers, no D-x.y);"
+            " whoever runs the command has no corpus to resolve them. State the"
+            " rule in the string, cite the coordinate in a code comment."
+        ),
+        (
             "- Gates run outside this session, against the working tree you leave"
             " behind. Exit 0 when you consider the work complete."
         ),
