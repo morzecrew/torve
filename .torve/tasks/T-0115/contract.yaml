@@ -1,0 +1,118 @@
+# Minted by `torve plan 0027` — phase 3: displacement-and-the-paired-replay
+schema_version: 1
+id: T-0115
+rfc: rfcs/0027-harness-configuration-evolution.md
+phase: 3
+role: implement
+intent: 'The measurement obligation: paired replays of the same tasks under
+
+  incumbent and candidate digests through the shadow machinery, verdicts
+
+  in the eval ledger citing both digests, and displacement of the
+
+  default refused without one — while landing and running a candidate as
+
+  a named variant stays free. Doctor learns to name the default''s
+
+  verdict where recorded.'
+depends_on:
+- T-0114
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/**
+  - src/torve/cli/**
+  - .torve/sandbox/**
+  - tests/**
+  deny: []
+acceptance:
+- uv run ruff check src tests
+- uv run mypy src
+- uv run basedpyright src
+- uv run pytest
+- uv run lint-imports
+decisions:
+- id: D-27.1
+  grade: LOCKED
+  text: 'No run executes under configuration generated for that run: harness configuration
+    is committed, adopted and hashed before any run consumes it'
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/application/telemetry.py
+- id: D-27.2
+  grade: LOCKED
+  text: 'No agent writes harness configuration its own run consumes: sandbox definitions and
+    tier blocks resolve from the root at dispatch, never from the worktree under work'
+  paths:
+  - src/torve/application/runner.py
+  - src/torve/config/runconfig.py
+- id: D-27.3
+  grade: ASSUMED
+  text: Tier variants are dotted entries in the `tiers` mapping (`seat.variant`), selected
+    by an optional contract field, refused loudly when absent; the seat literal and role semantics
+    are unchanged
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/domain/task.py
+- id: D-27.4
+  grade: ASSUMED
+  text: The configurator is a drafting run producing an ordinary task through intake and adoption;
+    no configuration-specific adoption path exists
+  paths:
+  - src/torve/application/intake.py
+- id: D-27.5
+  grade: ASSUMED
+  text: The fact feed widens `execution_facts` with per-tier populations — attempts, escalations
+    by reason, cost with broker-measured spend preferred and self-reported labelled, unparseable-review
+    counts, current digests — with the quasi-experiment caveat printed
+  paths:
+  - src/torve/application/intake.py
+  - src/torve/application/projections.py
+- id: D-27.6
+  grade: ASSUMED
+  text: 'Configuration-change lint is deterministic: diff confined to configuration surfaces,
+    schema parse, changed images build clean, doctor green; building at lint is not a D-17.3
+    violation'
+  paths:
+  - src/torve/application/intake.py
+- id: D-27.7
+  grade: LOCKED
+  text: A candidate configuration displaces the incumbent default only through a paired replay
+    verdict recorded in the eval ledger citing both digests; landing a change never silently
+    changes the department's regime
+  paths:
+  - src/torve/application/evals.py
+  - .torve/sandbox/**
+- id: D-27.8
+  grade: OPEN
+  text: The replay battery's composition and refresh cadence; execution proposes from the
+    first live campaign
+  paths:
+  - src/torve/application/evals.py
+- id: D-27.9
+  grade: ASSUMED
+  text: 'Prompt-side channels remain the per-task degree of freedom: skills and task context
+    evolve under RFC 0009, and this document adds no per-task harness variation beyond variant
+    selection'
+  paths:
+  - src/torve/application/skills.py
+- id: D-27.11
+  grade: ASSUMED
+  text: 'A tier may name `retry_variant`, one rung: the attempt after a gate-red resolves
+    the named variant; every attempt''s telemetry row stamps the tier it actually ran under'
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/application/runner.py
+- id: D-27.10
+  grade: OPEN
+  text: Whether a sandbox definition records a pointer to the verdict that installed it as
+    default, letting `torve doctor` name an unmeasured default
+  paths:
+  - .torve/sandbox/**
+  - src/torve/cli/doctor.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
