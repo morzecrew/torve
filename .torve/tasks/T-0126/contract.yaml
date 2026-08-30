@@ -1,0 +1,21 @@
+# Minted by the engine — a decomposition drafting run.
+id: T-0126
+rfc: rfcs/0025-corpus-authoring-surface.md
+role: draft
+intent: 'Decompose T-0125: The contract-example fence validated against the task contract
+  schema
+
+  as part of torve rfc check, following the phasing-fence pattern, so a
+
+  corpus document can carry a runnable contract example that reddens
+
+  when the schema moves. The rfc-writer skill''s template gains the fence;
+
+  no other tags ship.'
+targets:
+- T-0125
+decisions: []
+budget:
+  iterations: 3
+tier: planner
+schema_version: 1

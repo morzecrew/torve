@@ -3,7 +3,7 @@ id: "0025"
 title: The corpus authoring surface
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0007", "0016"]
 informed_by: ["0011", "0020", "0022"]
 supersedes: []

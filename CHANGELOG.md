@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The corpus authoring surface (T-0123/T-0124 and the T-0125 decomposition
+  T-0127/T-0128, RFC 0025): a canonical emitter beside the parser with
+  `torve rfc fmt` to normalise a document, transactional corpus verbs
+  (retire and friends derive identifiers through the parser, never by
+  hand), and typed contract-example fences — an RFC's example YAML is
+  validated against the live task schema by `torve rfc check`, and the
+  rfc-writer template's own example is regression-tested, so a schema
+  move reddens every stale example instead of silently orphaning it.
+
 - Harness configuration as measured evolution (T-0113/T-0114 and the
   T-0115 decomposition T-0119–T-0122, RFC 0027): tier variants under
   dotted names selected per contract, `retry_variant` as the one-rung
