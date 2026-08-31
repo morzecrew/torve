@@ -1,0 +1,19 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0150
+rfc: rfcs/0028-agent-profiles.md
+role: review
+intent: Review T-0149's diff against its contract and inherited decisions.
+targets:
+- T-0149
+decisions:
+- id: D-28.3
+  grade: LOCKED
+  text: "Any resolution failure \u2014 missing file, non-mapping body, unknown key,\
+    \ invalid merged result \u2014 refuses the configuration load; there is no fallback\
+    \ to inline defaults"
+  paths:
+  - src/torve/config/runconfig.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
