@@ -8,14 +8,11 @@ depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-59", "A-62", "A-67"]
+amended_by: ["A-59", "A-62", "A-67", "A-71"]
 retired: []
 owner: Lev Litvinov
 description: >-
-  Reading the records the engine already writes to measure the corpus that
-  produced them: per-decision and per-document attribution, grade calibration,
-  and the decoration check — reported to a human who then writes an amendment,
-  never applied by the engine.
+  Reading the records the engine already writes to measure the corpus that produced them: per-decision and per-document attribution, grade calibration, and the decoration check — reported to a human who then writes an amendment, never applied by the engine.
 schema_version: 1
 ---
 
@@ -321,7 +318,7 @@ and telling the executor it is being measured would change what it writes.
 | D-22.2 | `LOCKED` | Grades are compared as copied onto the contract at mint time, never as they stand in the table today | `src/torve/application/specquality.py` | A reader that resolves grades at read time rewrites the past, which is the defect the log format exists to prevent |
 | D-22.3 | `ASSUMED` | No single corpus score is computed or displayed; the output is populations with a named reading and a printed denominator | `src/torve/application/specquality.py` `src/torve/cli/rfc.py` | Charter §8a refuses thresholds for an internal tool, and a scalar becomes one by being watched |
 | D-22.4 | `ASSUMED` | A decision inherited by tasks that touched its declared paths but cited by no log entry is reported as decoration-or-paths-defect, naming both causes. Amended by A-59 2026-08-29: "touched" is scope.allow intersecting the row's declared paths, both as denormalised at mint time; the reading applies to LOCKED rows only — ASSUMED and OPEN rows print raw counts with no reading | `src/torve/application/specquality.py` | The reading is only possible because Paths (D-32) and the silence check exist; conflating the two causes would delete correct rows |
-| D-22.5 | `ASSUMED` | Storage stays at RFC 0004 §6 stage 1: a plain reader over JSONL and YAML, no new dependency, written so that moving to stage 2 is a change of reader | `src/torve/application/specquality.py` | §6's own move-on condition — window functions or joins — is not met at this volume, and an unused extra is a dependency with no evidence behind it |
+| D-22.5 | `ASSUMED` | Storage stays at RFC 0004 §6 stage 1: a plain reader over JSONL and YAML, no new dependency, written so that moving to stage 2 is a change of reader. Amended by A-71 2026-08-31: one textual exception — `TaskFacts.landed` reads git's own landing trailer (D-10.4) via a single batched `git log` call, because landedness is the one fact that must survive a reap sweep of the run-state file; every other reader in this module stays YAML/JSONL-only | `src/torve/application/specquality.py` | §6's own move-on condition — window functions or joins — is not met at this volume, and an unused extra is a dependency with no evidence behind it |
 | D-22.6 | `ASSUMED` | The surface is `torve rfc health`, a subcommand of the existing corpus verb, plus one section of the `torve context` projection. Amended by A-59 2026-08-29: a decision whose paths span more than one phase's scope splits into per-surface rows at authoring — this row's paths contradicted T-0099's minted scope | `src/torve/cli/rfc.py` `src/torve/application/projections.py` | One subject, one front door; the context section is the consumer that justifies computing the report |
 | D-22.7 | `LOCKED` | RFC 0004 §6a's quasi-experiment caveat is printed with the report, not paraphrased in documentation. Amended by A-59 2026-08-29: printed without its corpus coordinate (a report reader has no corpus to resolve); when a third surface needs the string its canonical home is `torve.base`, importable from both layers | `src/torve/cli/rfc.py` `src/torve/application/projections.py` | The first attractive number becomes a promise to someone unless its limits arrive attached to it |
 | D-22.8 | `ASSUMED` | Readings are suppressed below a printed floor of observations; ratios always print their denominator | `src/torve/application/specquality.py` | A majority over three tasks is noise wearing a percentage |
@@ -334,14 +331,8 @@ and telling the executor it is being measured would change what it writes.
 ```yaml
 - phase: 1
   title: attribution-and-decision-report
-  intent: |
-    The reader and the join: telemetry, feedback and task logs indexed by
-    task id, joined to contracts for the grade as minted and to the corpus
-    parser for the row as it stands. Per-decision populations — inherited,
-    touched, cited, action counts, escalation outcomes — with denominators
-    printed and readings suppressed below the floor. torve rfc health as a
-    subcommand beside check and index, text and JSON. No corpus score, no
-    proposed text, no model.
+  intent: >-
+    The reader and the join: telemetry, feedback and task logs indexed by task id, joined to contracts for the grade as minted and to the corpus parser for the row as it stands. Per-decision populations — inherited, touched, cited, action counts, escalation outcomes — with denominators printed and readings suppressed below the floor. torve rfc health as a subcommand beside check and index, text and JSON. No corpus score, no proposed text, no model.
   scope:
     - "src/torve/application/specquality.py"
     - "src/torve/cli/rfc.py"
@@ -356,14 +347,8 @@ and telling the executor it is being measured would change what it writes.
   depends_on: []
 - phase: 2
   title: document-signals-and-context-section
-  intent: |
-    The document-level half and the planning-session consumer: per-document
-    attempts, escalation reasons with underspecified and stale_inheritance
-    on their own line, spec-drift findings, drift_count, human_minutes and
-    rework rate, each carrying RFC 0004 §6a's caveat printed with it. The
-    same data joins the torve context projection as one section, which the
-    existing MCP surface then exposes to a planning session without a new
-    tool.
+  intent: >-
+    The document-level half and the planning-session consumer: per-document attempts, escalation reasons with underspecified and stale_inheritance on their own line, spec-drift findings, drift_count, human_minutes and rework rate, each carrying RFC 0004 §6a's caveat printed with it. The same data joins the torve context projection as one section, which the existing MCP surface then exposes to a planning session without a new tool.
   scope:
     - "src/torve/application/projections.py"
     - "src/torve/cli/context.py"
@@ -377,13 +362,8 @@ and telling the executor it is being measured would change what it writes.
   depends_on: [1]
 - phase: 3
   title: dispatch-envelope
-  intent: |
-    The envelope at dispatch (D-22.11, A-62): torve run and the tick's
-    dispatch leg print expected attempts, cost and wall minutes for the
-    task's size class beside the size verdict, computed from the same
-    join this document already reads, denominator printed, reading
-    suppressed below the floor, the quasi-experiment caveat printed with
-    it. Nothing in the engine acts on the envelope; the operator does.
+  intent: >-
+    The envelope at dispatch (D-22.11, A-62): torve run and the tick's dispatch leg print expected attempts, cost and wall minutes for the task's size class beside the size verdict, computed from the same join this document already reads, denominator printed, reading suppressed below the floor, the quasi-experiment caveat printed with it. Nothing in the engine acts on the envelope; the operator does.
   scope:
     - "src/torve/application/specquality.py"
     - "src/torve/cli/run.py"
@@ -411,15 +391,29 @@ and telling the executor it is being measured would change what it writes.
 
 ## Amendments
 
-### A-67 — 2026-08-31 — the phase-3 close-out reviewed (cites T-0112)
+### A-71 — 2026-08-31 — the landedness exception to stage-1 storage (amends D-22.5, cites T-0133)
+**Found in T-0133's departure log.** The contract asked `read_tasks` to
+rederive landedness the way reap and the tracker already do — from the
+persistent record, not the run-state file the reaper deletes on every
+terminal run. The only persistent record is git's own `Torve-Task`
+landing trailer (D-10.4), and reading it takes a git subprocess call —
+which `_touched`'s docstring (T-0099) had glossed D-22.5 as forbidding
+for this module. Not knowable from the RFC text at authoring time; it
+surfaced only once reap's sweep and this report's later read were
+exercised against the same corpus.
 
+**Changed:** D-22.5 — the exception noted textually: `TaskFacts.landed`
+reads the landing trailer via a single batched `git log` call; every
+other reader in the module stays YAML/JSONL-only. The code already
+carries this scoping as of T-0133; only the row was unamended.
+
+### A-67 — 2026-08-31 — the phase-3 close-out reviewed (cites T-0112)
 T-0112's execution log closes out D-22.1 compliant as built, no
 divergence. Reviewed and accepted with no corpus change; this citation
 is the disposition — an uncited no-change close-out otherwise waits in
 the proposals queue forever.
 
 ### A-62 — 2026-08-30 — the dispatch envelope (adds D-22.11)
-
 **Found watching the 0022–0024 campaign.** Six tasks ran 13–19 minutes on
 their first attempt with the operator holding no expectation to judge them
 against — "is this run overrunning?" was unanswerable except by feel,
@@ -438,7 +432,6 @@ the operator does. §Phasing gains phase 3 (dispatch-envelope) carrying
 exactly this.
 
 ### A-59 — 2026-08-29 — execution's proposals from T-0099/T-0100 approved (amends §5.3, D-22.4, D-22.6, D-22.7)
-
 **Found in the first execution.** Both phases landed with divergence logs
 proposing corpus corrections; every one is approved here.
 
