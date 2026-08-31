@@ -234,16 +234,16 @@ async def _attempt_loop(
 
             return state
 
-        if wallclock_minutes is not None:
-            elapsed = _elapsed_minutes(state)
+        if (
+            wallclock_minutes is not None
+            and (elapsed := _elapsed_minutes(state)) >= wallclock_minutes
+        ):
+            state.escalate(
+                EscalationReason.BUDGET_EXHAUSTED,
+                f"{_WALLCLOCK_MARKER}: {elapsed:.1f}m elapsed, budget {wallclock_minutes}m",
+            )
 
-            if elapsed >= wallclock_minutes:
-                state.escalate(
-                    EscalationReason.BUDGET_EXHAUSTED,
-                    f"{_WALLCLOCK_MARKER}: {elapsed:.1f}m elapsed, budget {wallclock_minutes}m",
-                )
-
-                return state
+            return state
 
         state.transition(TaskState.RUNNING, f"attempt {state.attempts + 1} dispatched")
         state.save()
@@ -302,21 +302,36 @@ async def _attempt_loop(
             state.save()
             continue
 
-        if hooks.review is not None:
-            review_fact = await hooks.review(state)
-
-            if review_fact is None:
-                return state  # a surviving blocker escalated the target
-
-            state.transition(TaskState.REVIEWED, review_fact)
-        else:
-            state.transition(TaskState.REVIEWED, "gates green; review not configured")
+        if not await _apply_review(hooks, state):
+            return state  # a surviving blocker escalated the target
 
         fact = await hooks.land(state, digest)
         state.transition(TaskState.READY, fact)
         state.save()
 
         return state
+
+
+# ....................... #
+
+
+async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool:
+    """Runs the configured review hook and transitions to REVIEWED. False
+    means a surviving blocker escalated the target — the caller stops the
+    loop without landing; the review-not-configured bridge always returns
+    True."""
+
+    if hooks.review is None:
+        state.transition(TaskState.REVIEWED, "gates green; review not configured")
+        return True
+
+    review_fact = await hooks.review(state)
+
+    if review_fact is None:
+        return False
+
+    state.transition(TaskState.REVIEWED, review_fact)
+    return True
 
 
 # ....................... #
@@ -654,6 +669,27 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
 # ....................... #
 
 
+def _record_broker_usage(
+    state: RunState, broker: Broker, broker_handle: BrokerHandle, agent_meta: dict[str, Any]
+) -> None:
+    """Stamps the attempt's broker usage into `agent_meta` and escalates on a
+    budget refusal (D-21.6) — observed in progress, on the run that
+    overspent, since the next request would be refused too."""
+
+    usage = broker.usage(broker_handle)
+    agent_meta["broker"] = broker_block(broker.name, usage)
+    refused = usage.refusals.get("budget")
+
+    if refused:
+        state.escalate(
+            EscalationReason.COST_ANOMALY,
+            f"broker refused {refused} request(s) past the run's token budget",
+        )
+
+
+# ....................... #
+
+
 def _review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
     """Review follows execution (D-5.11) only for live implement runs with
     the task-gated trigger configured — one predicate, shared by the review
@@ -697,13 +733,13 @@ def run_routing(
 
         provider = config.broker.providers.get(tier.provider)
 
-        if provider is None:
-            if not broker_in_force(config):
-                # The none adapter routes nothing at the wire: keys keep
-                # their existing channel and an empty provider table is the
-                # named default, not a configuration error (D-21.9).
-                continue
+        if provider is None and not broker_in_force(config):
+            # The none adapter routes nothing at the wire: keys keep their
+            # existing channel and an empty provider table is the named
+            # default, not a configuration error (D-21.9).
+            continue
 
+        if provider is None:
             raise ValueError(
                 f"tier {tier_name!r} uses provider {tier.provider!r} but the broker "
                 "configuration routes no such provider — add it under broker.providers"
@@ -984,15 +1020,7 @@ def real_hooks(
             # progress, on the run that overspent (D-21.6): the next request
             # would be refused too, so the loop stops here.
             if broker is not None and broker_handle is not None:
-                usage = broker.usage(broker_handle)
-                agent_meta["broker"] = broker_block(broker.name, usage)
-
-                if usage.refusals.get("budget"):
-                    state.escalate(
-                        EscalationReason.COST_ANOMALY,
-                        f"broker refused {usage.refusals['budget']} request(s) "
-                        "past the run's token budget",
-                    )
+                _record_broker_usage(state, broker, broker_handle, agent_meta)
 
             if result.timed_out or result.exit_code != 0:
                 # RFC 0004 §6: the spend happened even though the gates will
@@ -1387,12 +1415,29 @@ class BlockedDispatch(RuntimeError):
 # ....................... #
 
 
+def _scope_overlap(mine: list[str], theirs: list[str]) -> str | None:
+    """The first of `theirs` that intersects `mine`, in the same scan order
+    the nested loop used — which contended path gets reported must not
+    change."""
+
+    from torve.application.planner import globs_intersect
+
+    for mine_glob in mine:
+        for their_glob in theirs:
+            if globs_intersect([mine_glob], [their_glob]):
+                return their_glob
+
+    return None
+
+
+# ....................... #
+
+
 def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
     """(blocking task id, contended path) when an active run's allow-set
     intersects this task's; an empty allow-set is unconstrained and
     contends with everything."""
 
-    from torve.application.planner import globs_intersect
     from torve.gates.context import load_task
 
     active = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED}
@@ -1411,10 +1456,10 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
         if not task.scope.allow or not other.scope.allow:
             return state.task_id, "unconstrained scope"
 
-        for mine in task.scope.allow:
-            for theirs in other.scope.allow:
-                if globs_intersect([mine], [theirs]):
-                    return state.task_id, theirs
+        overlap = _scope_overlap(task.scope.allow, other.scope.allow)
+
+        if overlap is not None:
+            return state.task_id, overlap
 
     return None
 
