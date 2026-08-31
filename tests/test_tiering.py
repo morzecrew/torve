@@ -471,3 +471,24 @@ def test_parse_metadata_reads_claude_model_usage_keys():
         }
     )
     assert parse_metadata(line) == (0.0999, "claude-haiku-4-5-20251001+claude-sonnet-5")
+
+
+def test_parse_metadata_reads_opencodes_nested_step_finish_part():
+    # opencode's `--format json` nests cost and per-model token counts one
+    # level down, under the last step_finish event's `part` — not at the
+    # flat keys the claude CLI uses (T-0132).
+    output = "\n".join(
+        [
+            json.dumps({"type": "step_start", "part": {"text": "working..."}}),
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "cost": 0.0431,
+                        "tokens": {"claude-sonnet-5-20260315": {}, "claude-haiku-4-5": {}},
+                    },
+                }
+            ),
+        ]
+    )
+    assert parse_metadata(output) == (0.0431, "claude-haiku-4-5+claude-sonnet-5-20260315")

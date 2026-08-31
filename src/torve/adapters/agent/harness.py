@@ -166,7 +166,11 @@ def build_prompt(
 def parse_metadata(output: str) -> tuple[float | None, str | None]:
     """(cost_usd, model_version) from a harness result, best effort: the last
     JSON object line wins (`claude -p --output-format json` and friends emit
-    one). Absence is not an error — it is an uncontrolled regime (D-4.6)."""
+    one). Absence is not an error — it is an uncontrolled regime (D-4.6).
+
+    opencode's `--format json` nests both under its last `step_finish`
+    event's `part` instead of at the top level — `part` is scanned as a
+    second, lower-priority source next to the record itself."""
 
     for line in reversed(output.strip().splitlines()):
         line = line.strip()
@@ -184,17 +188,32 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
             continue
 
         record = cast("dict[str, Any]", data)
+        part = record.get("part")
+        sources = (record, part) if isinstance(part, dict) else (record,)
 
         cost: Any = next(
-            (record[k] for k in ("total_cost_usd", "cost_usd", "cost") if k in record), None
+            (
+                source[k]
+                for source in sources
+                for k in ("total_cost_usd", "cost_usd", "cost")
+                if k in source
+            ),
+            None,
         )
 
-        model: Any = next((record[k] for k in ("model_version", "model") if k in record), None)
+        model: Any = next(
+            (source[k] for source in sources for k in ("model_version", "model") if k in source),
+            None,
+        )
 
         if not isinstance(model, str) or not model:
             # The claude CLI reports models as modelUsage keys — the dated
             # snapshot ids, which are exactly the drift-catcher D-4.6 wants.
-            usage: Any = record.get("modelUsage")
+            # opencode reports the same per-model shape as part.tokens.
+            usage: Any = next(
+                (source[k] for source in sources for k in ("modelUsage", "tokens") if k in source),
+                None,
+            )
 
             if isinstance(usage, dict) and usage:
                 model = "+".join(sorted(cast("dict[str, Any]", usage)))
