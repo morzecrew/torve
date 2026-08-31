@@ -280,3 +280,18 @@ def test_inherit_decisions_refuses_an_ungraded_row():
     ungraded = TABLE.replace("`ASSUMED`", "`MAYBE`")
     with pytest.raises(PlanError, match="not mintable"):
         inherit_decisions(ungraded, "0090-widgets.md")
+
+
+def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
+    """A-69: the phase title reaches the contract as its short name, and a
+    multiline intent dumps as a literal block — never the single-quoted
+    style whose newlines read as blank-line escapes."""
+    import yaml
+
+    root, _, _ = plan_repo
+    write_contracts(root, plan_document(root, root / "rfcs", "0090"))
+    contract = next((root / ".torve" / "tasks").glob("T-*/contract.yaml"))
+    text = contract.read_text(encoding="utf-8")
+    document = yaml.safe_load(text)
+    assert document["title"]
+    assert "\n\n  " not in text.split("intent:")[1].split("depends_on:")[0]

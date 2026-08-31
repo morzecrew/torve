@@ -7,7 +7,7 @@ depends_on: ["0003", "0016"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-47", "A-55"]
+amended_by: ["A-47", "A-55", "A-69"]
 owner: Lev Litvinov
 description: >-
   Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface.
@@ -269,6 +269,21 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 - `torve context` surfaces a gate candidate that had not been noticed by hand.
 
 ## Amendments
+
+### A-69 — 2026-08-31 — the contract carries a title; the intent dumps as a block
+
+**Found reading a minted contract.** Two defects wearing one symptom:
+the dumper's single-quoted style wrote every newline in `intent` as a
+blank-line escape (a double-spaced telegram), and the landing subject —
+having nothing shorter — truncated the intent's first line mid-word.
+The phase title existed all along and never reached the contract.
+
+**Changed:** the contract gains an optional `title` — the planner mints
+it from the phase title, a drafter may set it, and the landing subject
+prefers it over the intent's first line. Multiline strings dump as
+literal blocks. Contracts minted before this carry no title and land
+under the old fallback.
+
 
 ### A-55 — 2026-08-27 — the identifier lookup: `torve rfc show` and its MCP face (amends §3a, §5)
 

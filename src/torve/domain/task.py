@@ -72,6 +72,10 @@ class Task(BaseModel):
     phase: int = 0
     role: Literal["implement", "review", "revert", "draft"] = "implement"
 
+    # A short human name (A-69): the landing subject and every board row
+    # read it; empty falls back to the intent's first line. The planner
+    # mints it from the phase title; a drafter may set it.
+    title: str = ""
     # One paragraph: what changes and why — never steps (D-1.7, A-11).
     # Optional until the A-11 execution makes minting enforce it; contracts
     # minted before the amendment carry none.

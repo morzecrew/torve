@@ -542,7 +542,11 @@ def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, 
     carries the intent's head (D-10.6: composed from the contract, never
     the agent's prose) — a history readable without opening the task."""
 
-    head = task.intent.strip().splitlines()[0].strip() if task.intent.strip() else ""
+    # A-69: the contract's short title names the landing; the intent's
+    # first line is the fallback for contracts minted before it existed.
+    head = task.title.strip() or (
+        task.intent.strip().splitlines()[0].strip() if task.intent.strip() else ""
+    )
 
     if len(head) > 46:
         head = head[:45].rstrip() + "…"

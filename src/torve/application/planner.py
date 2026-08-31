@@ -384,6 +384,26 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
 # ....................... #
 
 
+class _ContractDumper(yaml.SafeDumper):
+    """Multiline strings as literal blocks (A-69): the default single-quoted
+    style writes every newline as a blank-line escape, and a contract's
+    intent read like a double-spaced telegram."""
+
+
+def _str_representer(dumper: yaml.SafeDumper, data: str):  # type: ignore[no-untyped-def]
+    style = "|" if "\n" in data else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+
+_ContractDumper.add_representer(str, _str_representer)
+
+
+def _dump_contract(document: dict[str, object]) -> str:
+    return yaml.dump(
+        document, Dumper=_ContractDumper, sort_keys=False, allow_unicode=True, width=88
+    )
+
+
 def write_contracts(root: Path, report: PlanReport) -> list[Path]:
     written: list[Path] = []
 
@@ -400,11 +420,11 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
             f"{planned.task.phase}: {planned.title}\n"
         )
 
+        document = planned.task.model_dump()
+        document["title"] = document.get("title") or planned.title.replace("-", " ")
+
         path.write_text(
-            header
-            + yaml.safe_dump(
-                planned.task.model_dump(), sort_keys=False, allow_unicode=True, width=88
-            ),
+            header + _dump_contract(document),
             encoding="utf-8",
         )
 
