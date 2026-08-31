@@ -225,3 +225,33 @@ def base_task_model():
     from torve.domain.task import Task
 
     return Task.model_validate(base_task(allow=["src/**"]) | {"acceptance": ["true"]})
+
+
+def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
+    """D-5.1's bias warning: legal, warned, never refused."""
+    from torve.cli.doctor import _review_bias_check
+
+    (tmp_path / ".torve").mkdir()
+    (tmp_path / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\n"
+        'review: {"on": [task_gated]}\n'
+        "tiers:\n"
+        "  planner: {adapter: fake}\n"
+        "  executor: {adapter: harness, command: c, provider: p, model: m-1}\n"
+        "  reviewer: {adapter: harness, command: c, provider: p, model: m-1}\n",
+        encoding="utf-8",
+    )
+    checks = _review_bias_check(tmp_path, None)
+    assert len(checks) == 1 and checks[0][1] is True
+    assert "own model" in checks[0][2]
+
+    (tmp_path / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\n"
+        'review: {"on": [task_gated]}\n'
+        "tiers:\n"
+        "  planner: {adapter: fake}\n"
+        "  executor: {adapter: harness, command: c, provider: p, model: m-1}\n"
+        "  reviewer: {adapter: harness, command: c, provider: q, model: m-2}\n",
+        encoding="utf-8",
+    )
+    assert _review_bias_check(tmp_path, None) == []

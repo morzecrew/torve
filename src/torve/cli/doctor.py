@@ -246,6 +246,46 @@ def _broker_check(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 # ....................... #
 
 
+def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """A reviewer sharing the executor's model reviews its own kind —
+    models are biased toward output that looks like theirs, and D-5.1's
+    cross-model recommendation exists for exactly this. A warning, never a
+    refusal: same-model review is legal and still better than none."""
+
+    config = load_config(root, config_path)
+
+    if not config.review.on:
+        return []
+
+    executor = config.tiers.get("executor")
+    reviewer = config.tiers.get("reviewer")
+
+    if executor is None or reviewer is None:
+        return []
+
+    if executor.adapter == "fake" or reviewer.adapter == "fake":
+        return []
+
+    if executor.model and executor.model == reviewer.model:
+        return [
+            (
+                "review",
+                True,
+                (
+                    f"reviewer runs the executor's own model ({executor.model}) — "
+                    "a model reviewing its own kind shares its blind spots; "
+                    "cross-model review (a different vendor or model on the "
+                    "reviewer tier) is the recommended regime"
+                ),
+            )
+        ]
+
+    return []
+
+
+# ....................... #
+
+
 def doctor(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -264,6 +304,7 @@ def doctor(
     checks: list[tuple[str, bool, str]] = [("forze-pin", ok, message)]
     checks += _store_checks(root, config_path)
     checks += _broker_check(root, config_path)
+    checks += _review_bias_check(root, config_path)
     checks += _image_checks(root, config_path)
     healthy = all(passed for _, passed, _ in checks)
 
