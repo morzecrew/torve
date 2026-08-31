@@ -1,7 +1,7 @@
 ---
 id: "0030"
 title: The document threshold
-status: draft
+status: accepted
 depends_on: ["0007", "0020"]
 informed_by: ["0016", "0022", "0026"]
 supersedes: []

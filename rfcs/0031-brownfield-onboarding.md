@@ -1,7 +1,7 @@
 ---
 id: "0031"
 title: Brownfield onboarding
-status: draft
+status: accepted
 depends_on: ["0004", "0030"]
 informed_by: ["0007", "0017", "0022"]
 supersedes: []
