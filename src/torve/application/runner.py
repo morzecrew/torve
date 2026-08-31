@@ -711,7 +711,7 @@ def run_routing(
 
         routes.append(
             BrokerRoute(
-                provider=tier.provider, upstream=provider.upstream, key_env=provider.key_env
+                provider=tier.provider, upstream=provider.upstream, key_env=provider.key_env, via_proxy=provider.via_proxy
             )
         )
 

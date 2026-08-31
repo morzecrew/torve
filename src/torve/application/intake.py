@@ -945,6 +945,7 @@ def run_intake(
                     provider=tier.provider,
                     upstream=provider.upstream,
                     key_env=provider.key_env,
+                    via_proxy=provider.via_proxy,
                 )
             )
 

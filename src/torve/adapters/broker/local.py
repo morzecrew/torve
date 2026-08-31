@@ -290,9 +290,21 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
         def _forward(self, route: BrokerRoute, body: bytes) -> None:
             upstream = urlsplit(route.upstream)
             host = upstream.hostname or "localhost"
+            proxy = os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY")
 
-            if upstream.scheme == "https":
+            if route.via_proxy and proxy and upstream.scheme == "https":
+                # A-70: this upstream is unreachable from the host directly
+                # (region gating) — tunnel the broker's own leg through the
+                # host's proxy. The sandbox still sees only the loopback.
+                proxied = urlsplit(proxy)
                 conn: http.client.HTTPConnection = http.client.HTTPSConnection(
+                    proxied.hostname or "localhost",
+                    proxied.port,
+                    timeout=UPSTREAM_TIMEOUT_S,
+                )
+                conn.set_tunnel(host, upstream.port or 443)
+            elif upstream.scheme == "https":
+                conn = http.client.HTTPSConnection(
                     host, upstream.port, timeout=UPSTREAM_TIMEOUT_S
                 )
             else:

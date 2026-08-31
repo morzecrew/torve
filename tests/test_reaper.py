@@ -409,3 +409,26 @@ def test_durable_reap_dry_run_predicts_no_live_run_escalation_without_mutating(
 
     assert report.runs_expired == ["T-9603"]
     assert RunState.load(tmp_path / ".wt" / "T-9603.state.json").state is TaskState.RUNNING
+
+
+def test_escalated_states_sweep_only_on_the_flag(tmp_path):
+    """A-70: an escalation exists to be looked at — the default sweep keeps
+    it; --escalated is the operator's explicit triage-discard."""
+    from torve.application.reaper import _sweep_states, ReapReport
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import EscalationReason, TaskState
+
+    (tmp_path / naming.WORKTREE_DIR).mkdir(parents=True, exist_ok=True)
+    state = RunState(task_id="T-9100", path=naming.state_file(tmp_path, "T-9100"))
+    state.transition(TaskState.CLAIMED, "t")
+    state.transition(TaskState.RUNNING, "t")
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts, ceiling 3")
+    state.save()
+
+    report = ReapReport()
+    _sweep_states(tmp_path, [state], report, dry_run=False, landed=None)
+    assert report.states_removed == [] and state.path.exists()
+
+    _sweep_states(tmp_path, [state], report, dry_run=False, landed=None, escalated=True)
+    assert report.states_removed == ["T-9100"] and not state.path.exists()

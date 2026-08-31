@@ -133,6 +133,7 @@ def _sweep_states(
     report: ReapReport,
     dry_run: bool,
     landed: LandedOracle | None = None,
+    escalated: bool = False,
 ) -> None:
     """A terminal run's remaining footprint: state file and trace logs, named
     by convention (D-3.4) beside the worktree. Driven by the state files, not
@@ -141,7 +142,15 @@ def _sweep_states(
     wt_dir = root / naming.WORKTREE_DIR
 
     for state in states:
-        if state.state not in TERMINAL:
+        collectable = state.state in TERMINAL or (
+            # --escalated (A-70): the operator's explicit triage-discard for
+            # an escalation already dealt with outside the state machine —
+            # an infra failure, a hand landing. Never swept by default: an
+            # escalation exists to be looked at.
+            escalated and str(state.state) == "escalated"
+        )
+
+        if not collectable:
             continue
 
         if _lane_input(root, state, landed):
@@ -178,6 +187,7 @@ def _heartbeat_reap(
     force: bool,
     dry_run: bool,
     landed: LandedOracle | None = None,
+    escalated: bool = False,
 ) -> ReapReport:
     report = ReapReport()
     states = RunState.load_all(root / naming.WORKTREE_DIR)
@@ -218,7 +228,7 @@ def _heartbeat_reap(
             report.sandboxes_destroyed.append(sandbox.name)
 
     _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run)
-    _sweep_states(root, states, report, dry_run, landed)
+    _sweep_states(root, states, report, dry_run, landed, escalated=escalated)
 
     return report
 
@@ -325,6 +335,7 @@ def reap(
     dry_run: bool = False,
     store: StoreFactory | None = None,
     landed: LandedOracle | None = None,
+    escalated: bool = False,
 ) -> ReapReport:
     if config.store.adapter == "postgres":
         if store is None:
@@ -334,4 +345,6 @@ def reap(
             _durable_reap(root, config, runtime, workspace, force, dry_run, store, landed)
         )
 
-    return _heartbeat_reap(root, config, runtime, workspace, force, dry_run, landed)
+    return _heartbeat_reap(
+        root, config, runtime, workspace, force, dry_run, landed, escalated=escalated
+    )

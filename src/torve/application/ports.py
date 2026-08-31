@@ -216,6 +216,7 @@ class BrokerRoute:
     provider: str
     upstream: str  # the provider's real base URL
     key_env: str  # env var name; the value lives only in the broker's process
+    via_proxy: bool = False  # A-70: the broker tunnels this upstream through https_proxy
 
 
 # ....................... #

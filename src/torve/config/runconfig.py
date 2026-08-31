@@ -334,6 +334,11 @@ class BrokerProvider(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     upstream: str = ""  # the provider's real base URL (http:// or https://)
+    # A-70: the broker's own upstream leg tunnels through the host's
+    # https_proxy for this provider — for upstreams unreachable from the
+    # host directly (region gating). The sandbox never sees a proxy either
+    # way; this is the broker's egress, not the run's.
+    via_proxy: bool = False
     key_env: str = ""  # the env var name the broker reads the key from
 
     # ....................... #

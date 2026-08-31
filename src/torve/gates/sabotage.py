@@ -112,7 +112,15 @@ def entry(**overrides: Any) -> dict[str, Any]:
 
 
 def log_document(*entries: dict[str, Any], drift_count: int | None = 0) -> str:
-    document: dict[str, Any] = {"schema_version": 1, "task": TASK_ID}
+    document: dict[str, Any] = {
+        "schema_version": 1,
+        "task": TASK_ID,
+        # The D-A.7 pin the gate requires since A-70; the sabotage tree's
+        # own base commit is unknowable here, so a well-formed placeholder
+        # stands in — the gate checks shape, evidence checks resolution.
+        "repo": "sabotage/repo",
+        "base_sha": "0" * 40,
+    }
 
     if drift_count is not None:
         document["drift_count"] = drift_count

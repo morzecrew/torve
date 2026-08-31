@@ -262,6 +262,36 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
 # ....................... #
 
 
+SHA_SHAPE = re.compile(r"^[0-9a-f]{7,64}$")
+
+
+def _check_pin(document: dict[str, Any]) -> list[str]:
+    """D-A.7 (A-70): the log opens with `repo` and `base_sha`, so its
+    path:line evidence resolves against the commit the work started from.
+    The pin has been part of the format since A-7 and voluntary in the
+    gate; agent-written logs omitted it until the gate demanded it."""
+
+    problems: list[str] = []
+
+    if not str(document.get("repo") or "").strip():
+        problems.append("log carries no repo — the D-A.7 pin names the repository")
+
+    base = str(document.get("base_sha") or "").strip()
+
+    if not base:
+        problems.append(
+            "log carries no base_sha — evidence resolves against the commit the "
+            "work started from (D-A.7); the prompt hands you the pin verbatim"
+        )
+    elif not SHA_SHAPE.match(base):
+        problems.append(f"base_sha {base!r} is not a commit sha")
+
+    return problems
+
+
+# ....................... #
+
+
 def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is None:
         return NO_TASK
@@ -302,6 +332,7 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         return BuiltinOutcome("fail", parse_error or "log did not parse")
 
     problems: list[str] = []
+    problems += _check_pin(document)
 
     for index, entry in enumerate(document["entries"]):
         problems += _check_schema(index, entry)

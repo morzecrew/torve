@@ -8,7 +8,7 @@ depends_on: ["0003", "0004"]
 informed_by: ["0001", "0013", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-56"]
+amended_by: ["A-56", "A-70"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -412,6 +412,26 @@ introduces it.
   loudly, and passes once the host is declared.
 
 ## Amendments
+
+### A-70 — 2026-08-31 — the broker's own leg may tunnel (adds via_proxy); the gate demands the pin; reap gains --escalated
+
+Three operator-ledger items in one pass:
+
+- A provider may declare `via_proxy: true`: the broker's upstream leg
+  tunnels through the host's `https_proxy` for that provider — the case
+  is an upstream the host cannot reach directly (region gating). The
+  sandbox's view is unchanged: loopback, run token, no proxy. This is
+  what lets a claude tier run brokered — the OAuth token becomes a
+  `key_env` like any other, `ANTHROPIC_BASE_URL` points at the route,
+  and D-21.1 holds: the sandbox carries no credential at all.
+- The `decisions-reported` gate now requires the D-A.7 pin (`repo`,
+  `base_sha`) the format has carried since A-7 — voluntary meant
+  agent-written logs omitted it until the operator repaired them by hand
+  every landing.
+- `torve reap --escalated` is the explicit triage-discard for an
+  escalation already dealt with outside the state machine — an infra
+  failure, a hand landing. The default sweep still keeps every
+  escalation: it exists to be looked at.
 
 ### A-56 — 2026-08-28 — phase scopes widened to the measured touch surface (amends §Phasing)
 

@@ -90,6 +90,14 @@ def reap_cmd(
             "--force", help="Treat every non-terminal run as orphaned regardless of heartbeat age."
         ),
     ] = False,
+    escalated: Annotated[
+        bool,
+        typer.Option(
+            "--escalated",
+            help="Also sweep escalated run states — the explicit triage-discard "
+            "for an escalation already dealt with outside the state machine.",
+        ),
+    ] = False,
     dry_run: Annotated[
         bool,
         typer.Option(
@@ -127,6 +135,7 @@ def reap_cmd(
         # implement state whose landing trailer is in history is collectable —
         # without it the hand-run verb kept every landed candidate forever.
         landed=lambda t: bool(vcs.landed_shas(root, t)),
+        escalated=escalated,
     )
 
     if fmt is Format.JSON:
