@@ -68,16 +68,21 @@ def _sweep_worktrees(
     report: ReapReport,
     dry_run: bool,
 ) -> None:
-    for task_id, _path in workspace.list_worktrees():
+    for name, _path in workspace.list_worktrees():
+        # An intake/decompose drafting run's worktree carries a distinct
+        # suffix (naming.INTAKE_SUFFIX) from the state file it is named
+        # after — unstripped, every live drafting run reads as convention
+        # debris and a concurrent tick destroys it mid-run.
+        task_id = name.removesuffix(naming.INTAKE_SUFFIX)
         state = by_task.get(task_id)
 
         if state is None or state.state in TERMINAL:
             # No state file at all is pure convention debris; terminal runs
             # left their commits on the task branch.
             if not dry_run:
-                workspace.remove(task_id)
+                workspace.remove(name)
 
-            report.worktrees_removed.append(task_id)
+            report.worktrees_removed.append(name)
 
 
 # ....................... #
@@ -270,6 +275,22 @@ async def _durable_reap(
         for s in states
         if s.state in ACTIVE and s.heartbeat_age_s() <= config.reap.stale_after
     }
+
+    # The same liveness set settles escalation, not only sandbox teardown
+    # (one shared check, no guard per caller): an ACTIVE state whose run
+    # never registered a durable record at all — a stale shadow replay, or
+    # a task the engine minted and claimed at intake/decompose whose
+    # drafting run then died before it wrote anything further — is
+    # invisible to `expire_abandoned` above and would otherwise sit in .wt
+    # forever, blocking dispatch through the overlap gate. Reported even on
+    # a dry run: unlike lease expiry, membership in `live_engine_runs` is
+    # read-only, nothing here needs claiming to predict.
+    for state in states:
+        if state.state in ACTIVE and state.run_id not in live_engine_runs:
+            if not dry_run:
+                state.escalate(reason, f"no live engine run for {state.run_id[:8]} at reap")
+
+            report.runs_expired.append(state.task_id)
 
     own = naming.root_key(root)
 

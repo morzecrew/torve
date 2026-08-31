@@ -20,6 +20,10 @@ LABEL_TASK = "torve.task"
 LABEL_RUN = "torve.run"
 LABEL_ROOT = "torve.root"
 WORKTREE_DIR = ".wt"
+# An intake or decompose drafting run's worktree (RFC 0020 §5.4) sits beside
+# the ordinary one under a distinct name, so a bare task id and its
+# drafting-run worktree never collide during adoption.
+INTAKE_SUFFIX = ".intake"
 
 
 # ....................... #
@@ -27,6 +31,13 @@ WORKTREE_DIR = ".wt"
 
 def worktree(root: Path, task_id: str) -> Path:
     return root / WORKTREE_DIR / task_id
+
+
+# ....................... #
+
+
+def intake_worktree(root: Path, task_id: str) -> Path:
+    return root / WORKTREE_DIR / f"{task_id}{INTAKE_SUFFIX}"
 
 
 # ....................... #

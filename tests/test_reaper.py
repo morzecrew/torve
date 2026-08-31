@@ -112,6 +112,24 @@ def test_labels_carry_the_root_identity(tmp_path):
     assert naming.root_key(tmp_path) != naming.root_key(tmp_path / "other")
 
 
+def test_intake_worktree_of_a_live_claim_survives_the_sweep(tmp_path):
+    # T-0131: `.intake` is the drafting run's worktree suffix (RFC 0020
+    # §5.4) over the same state file a bare task id names — unstripped, a
+    # concurrent tick reads it as convention debris and destroys it mid-run.
+    state_at(tmp_path, "T-9501", TaskState.CLAIMED)
+    workspace = ListingWorkspace([("T-9501.intake", tmp_path / ".wt" / "T-9501.intake")])
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), workspace)
+    assert report.worktrees_removed == []
+    assert workspace.removed == []
+
+
+def test_intake_worktree_with_no_state_is_swept_as_debris(tmp_path):
+    workspace = ListingWorkspace([("T-9502.intake", tmp_path / ".wt" / "T-9502.intake")])
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), workspace)
+    assert report.worktrees_removed == ["T-9502.intake"]
+    assert workspace.removed == ["T-9502.intake"]
+
+
 def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):
     state_at(tmp_path, "T-9201", TaskState.READY)
     escalated = state_at(tmp_path, "T-9202", TaskState.RUNNING, age_s=3600)
@@ -302,3 +320,92 @@ def test_durable_reap_keeps_a_fresh_shadow_sandbox(tmp_path, monkeypatch):
     assert f"torve-{shadow.task_id}" not in destroyed
     assert f"torve-{stale.task_id}" in destroyed
     assert "torve-orphan" in destroyed
+
+
+def test_durable_reap_escalates_active_states_with_no_live_engine_run(tmp_path, monkeypatch):
+    """T-0131: the durable-store escalation path only escalated states tied
+    to an expired taskstore record, so a state with no durable record at
+    all — a stale shadow replay, or a task minted and claimed at
+    intake/decompose whose drafting run then died before writing anything
+    further — sat in .wt forever, blocking dispatch through the overlap
+    gate. One liveness check now covers both: the same set that decides
+    which sandboxes survive also decides which states escalate."""
+    import asyncio
+
+    import torve.application.taskstore as taskstore_module
+    from torve.application.reaper import _durable_reap
+
+    state_at(tmp_path, "shadow-T-0001", TaskState.RUNNING, age_s=3600)
+    # A drafting run the engine minted and claimed at intake, whose run then
+    # died before it wrote anything further: a state file, no durable
+    # record, a stale heartbeat.
+    state_at(tmp_path, "T-9601", TaskState.CLAIMED, age_s=3600)
+    state_at(tmp_path, "T-9602", TaskState.CLAIMED)
+
+    class StubTaskStore:
+        def __init__(self, store, config):
+            pass
+
+        async def expire_abandoned(self):
+            return []
+
+        async def live_records(self):
+            return []
+
+    monkeypatch.setattr(taskstore_module, "TaskStore", StubTaskStore)
+
+    async def factory(config):
+        return object()
+
+    report = asyncio.run(
+        _durable_reap(
+            tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]), False, False, factory
+        )
+    )
+
+    assert sorted(report.runs_expired) == ["T-9601", "shadow-T-0001"]
+
+    reloaded_shadow = RunState.load(tmp_path / ".wt" / "shadow-T-0001.state.json")
+    assert reloaded_shadow.state is TaskState.ESCALATED
+    assert reloaded_shadow.escalation.reason == "lease_expired"
+
+    reloaded_claim = RunState.load(tmp_path / ".wt" / "T-9601.state.json")
+    assert reloaded_claim.state is TaskState.ESCALATED
+    assert reloaded_claim.escalation.reason == "lease_expired"
+
+    assert RunState.load(tmp_path / ".wt" / "T-9602.state.json").state is TaskState.CLAIMED
+
+
+def test_durable_reap_dry_run_predicts_no_live_run_escalation_without_mutating(
+    tmp_path, monkeypatch
+):
+    import asyncio
+
+    import torve.application.taskstore as taskstore_module
+    from torve.application.reaper import _durable_reap
+
+    state_at(tmp_path, "T-9603", TaskState.RUNNING, age_s=3600)
+
+    class StubTaskStore:
+        def __init__(self, store, config):
+            pass
+
+        async def expire_abandoned(self):
+            raise AssertionError("a dry run never claims a lease")
+
+        async def live_records(self):
+            return []
+
+    monkeypatch.setattr(taskstore_module, "TaskStore", StubTaskStore)
+
+    async def factory(config):
+        return object()
+
+    report = asyncio.run(
+        _durable_reap(
+            tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]), False, True, factory
+        )
+    )
+
+    assert report.runs_expired == ["T-9603"]
+    assert RunState.load(tmp_path / ".wt" / "T-9603.state.json").state is TaskState.RUNNING

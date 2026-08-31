@@ -1570,7 +1570,7 @@ def intake_leg(
             if tip is None:
                 continue
 
-            workdir = root / naming.WORKTREE_DIR / f"{task_id}.intake"
+            workdir = naming.intake_worktree(root, task_id)
             deps.worktree_at(root, tip, workdir)
 
             try:

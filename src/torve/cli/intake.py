@@ -86,7 +86,7 @@ def intake_cmd(
     from torve.base import naming
 
     task = mint_intake_task(root, request, config, rfc=rfc)
-    workdir = root / naming.WORKTREE_DIR / f"{task.id}.intake"
+    workdir = naming.intake_worktree(root, task.id)
     vcs.worktree_at(root, base_sha, workdir)
 
     try:
@@ -183,7 +183,7 @@ def decompose_cmd(
     if base_sha is None:
         raise fail("configuration error: no base tip to draft against", EXIT_CONFIG)
 
-    workdir = root / naming.WORKTREE_DIR / f"{task.id}.intake"
+    workdir = naming.intake_worktree(root, task.id)
     vcs.worktree_at(root, base_sha, workdir)
 
     try:
