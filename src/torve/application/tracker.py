@@ -35,26 +35,36 @@ COMMANDS = ("retry", "abandon", "unblock", "approve", "revise", "adopt")
 # ....................... #
 
 
+def _intent_head(task_file: Path) -> str | None:
+    """The task's first intent line, or None if there is none to show."""
+
+    if not task_file.is_file():
+        return None
+
+    try:
+        from torve.gates.context import load_task
+
+        intent = load_task(task_file).intent.strip()
+
+    except ValueError:
+        return None
+
+    if not intent:
+        return None
+
+    return intent.splitlines()[0]
+
+
 def _title(root: Path, task_id: str) -> str:
-    task_file = layout.task_file(root, task_id)
+    head = _intent_head(layout.task_file(root, task_id))
 
-    if task_file.is_file():
-        try:
-            from torve.gates.context import load_task
+    if head is None:
+        return f"{task_id}: task"
 
-            intent = load_task(task_file).intent.strip()
+    if len(head) > 72:
+        return f"{task_id}: {head[:71].rstrip()}…"
 
-            if intent:
-                head = intent.splitlines()[0]
-
-                return (
-                    f"{task_id}: {head[:71].rstrip()}…" if len(head) > 72 else f"{task_id}: {head}"
-                )
-
-        except ValueError:
-            pass
-
-    return f"{task_id}: task"
+    return f"{task_id}: {head}"
 
 
 # ....................... #
@@ -493,6 +503,300 @@ class PollReport:
 # ....................... #
 
 
+def _apply_adopt(
+    root: Path,
+    command: TrackerCommand,
+    adopt_drafts: Callable[[str], list[str]] | None,
+) -> CommandOutcome:
+    # Before the state guard (RFC 0020, D-20.1): a swept READY draft is
+    # legitimately stateless — the drafts file is the evidence of its
+    # green run, and the application refuses everything else.
+    verb, task_id = command.verb, command.task_id
+    role = _role(root, task_id)
+
+    if role != "draft":
+        return CommandOutcome(
+            verb,
+            task_id,
+            command.actor,
+            False,
+            f"adopt consumes a drafting run's output — this task's role is {role or 'unknown'!r}",
+        )
+
+    if adopt_drafts is None:
+        return CommandOutcome(
+            verb, task_id, command.actor, False, "no adoption wiring — the poller carries no config"
+        )
+
+    try:
+        adopted = adopt_drafts(task_id)
+
+    except (ValueError, RuntimeError) as exc:
+        return CommandOutcome(verb, task_id, command.actor, False, str(exc))
+
+    return CommandOutcome(verb, task_id, command.actor, True, f"adopted: {', '.join(adopted)}")
+
+
+# ....................... #
+
+
+def _apply_retry(
+    command: TrackerCommand,
+    state: RunState,
+    requeue: Callable[[str], str] | None,
+) -> CommandOutcome:
+    verb, task_id = command.verb, command.task_id
+
+    if state.state is not TaskState.ESCALATED:
+        hint = (
+            " — a ready candidate re-enters with /torve revise"
+            if state.state is TaskState.READY
+            else ""
+        )
+
+        return CommandOutcome(
+            verb,
+            task_id,
+            command.actor,
+            False,
+            f"retry needs an escalated run; this one is {state.state}{hint}",
+        )
+
+    # The mechanical re-queue (T-0059): the stale remote branch goes
+    # under the commander's explicit authority — a ref deletion, never
+    # a rewrite — BEFORE the state moves, so a failed cleanup leaves
+    # the escalation standing and the command retryable.
+    cleanup = "no re-queue cleanup wired"
+
+    if requeue is not None:
+        try:
+            cleanup = requeue(task_id)
+
+        except Exception as exc:  # refused, never half-applied
+            return CommandOutcome(
+                verb, task_id, command.actor, False, f"re-queue cleanup failed: {exc}"
+            )
+
+    state.transition(TaskState.QUEUED, f"tracker command retry from {command.actor}")
+    state.save()
+
+    return CommandOutcome(verb, task_id, command.actor, True, f"re-queued ({cleanup})")
+
+
+# ....................... #
+
+
+def _apply_abandon(root: Path, command: TrackerCommand, state: RunState) -> CommandOutcome:
+    verb, task_id = command.verb, command.task_id
+
+    if _role(root, task_id) == "draft" and state.state is TaskState.READY:
+        # RFC 0020 §5.4: refusing a request discards its drafts — the
+        # legal route to the terminal verdict runs through escalated,
+        # and the drafts must not outlive the refusal (a swept state
+        # would otherwise leave them adoptable, D-20.10).
+        from torve.application.intake import drafts_file
+
+        state.transition(TaskState.ESCALATED, f"tracker command abandon from {command.actor}")
+        state.transition(TaskState.ABANDONED, f"tracker command abandon from {command.actor}")
+        state.save()
+        drafts_file(root, task_id).unlink(missing_ok=True)
+
+        return CommandOutcome(
+            verb, task_id, command.actor, True, "request refused — drafts discarded"
+        )
+
+    if TaskState.ABANDONED not in TRANSITIONS[state.state]:
+        return CommandOutcome(
+            verb, task_id, command.actor, False, f"abandon is not a legal exit from {state.state}"
+        )
+
+    state.transition(TaskState.ABANDONED, f"tracker command abandon from {command.actor}")
+    state.save()
+
+    return CommandOutcome(verb, task_id, command.actor, True, "abandoned")
+
+
+# ....................... #
+
+
+def _apply_revise_draft(
+    command: TrackerCommand,
+    state: RunState,
+    draft_feedback: Callable[[str, str], str] | None,
+) -> CommandOutcome:
+    # RFC 0020 (D-20.6): the commander's comment IS the feedback — its
+    # text reaches the drafter, and the run re-queues for the intake
+    # leg. No branch, no capture: drafts have neither.
+    verb, task_id = command.verb, command.task_id
+
+    if draft_feedback is None:
+        return CommandOutcome(
+            verb,
+            task_id,
+            command.actor,
+            False,
+            "no drafting-feedback wiring — the poller carries no config",
+        )
+
+    note = draft_feedback(task_id, command.text)
+    state.transition(TaskState.QUEUED, f"tracker command revise from {command.actor}")
+    state.save()
+
+    return CommandOutcome(verb, task_id, command.actor, True, f"re-queued for re-drafting ({note})")
+
+
+# ....................... #
+
+
+def _apply_revise(
+    root: Path,
+    command: TrackerCommand,
+    state: RunState,
+    requeue: Callable[[str], str] | None,
+    draft_feedback: Callable[[str, str], str] | None,
+) -> CommandOutcome:
+    # A-40 (D-8.18): the commander's re-queue of a ready candidate — a
+    # review finding worth another attempt before it lands. Same
+    # capture-first cleanup as retry; the branch persists (D-10.10).
+    verb, task_id = command.verb, command.task_id
+
+    if _role(root, task_id) == "review":
+        return CommandOutcome(
+            verb, task_id, command.actor, False, "a review is never revised — it re-runs with its target"
+        )
+
+    if state.state is not TaskState.READY:
+        return CommandOutcome(
+            verb,
+            task_id,
+            command.actor,
+            False,
+            f"revise needs a ready candidate; this one is {state.state}",
+        )
+
+    if _role(root, task_id) == "draft":
+        return _apply_revise_draft(command, state, draft_feedback)
+
+    cleanup = "no re-queue cleanup wired"
+
+    if requeue is not None:
+        try:
+            cleanup = requeue(task_id)
+
+        except Exception as exc:  # refused, never half-applied
+            return CommandOutcome(
+                verb, task_id, command.actor, False, f"revision capture failed: {exc}"
+            )
+
+    state.transition(TaskState.QUEUED, f"tracker command revise from {command.actor}")
+    state.save()
+
+    return CommandOutcome(verb, task_id, command.actor, True, f"re-queued for revision ({cleanup})")
+
+
+# ....................... #
+
+
+def _apply_approve(
+    root: Path,
+    command: TrackerCommand,
+    state: RunState,
+    approve_tip: Callable[[str], str | None] | None,
+) -> CommandOutcome:
+    verb, task_id = command.verb, command.task_id
+
+    if _role(root, task_id) == "review":
+        # A review is never landed (D-8.14): approving one would bind
+        # a sha nothing will ever count.
+        return CommandOutcome(
+            verb,
+            task_id,
+            command.actor,
+            False,
+            "this is a review task — it is never landed, so there is nothing to approve",
+        )
+
+    if state.state is not TaskState.READY:
+        return CommandOutcome(
+            verb,
+            task_id,
+            command.actor,
+            False,
+            f"approve needs a ready candidate; this one is {state.state}",
+        )
+
+    if approve_tip is None:
+        return CommandOutcome(
+            verb, task_id, command.actor, False, "no approval wiring — the poller carries no vcs"
+        )
+
+    tip = approve_tip(task_id)
+
+    if tip is None:
+        return CommandOutcome(
+            verb, task_id, command.actor, False, "no branch to approve — nothing would land"
+        )
+
+    from torve.application.lane import record_approval
+
+    # Sha-bound at apply time (RFC 0006 §3): the approval covers the
+    # tip as it stands now; a later push supersedes it silently.
+    if not record_approval(root, task_id, command.actor, tip):
+        return CommandOutcome(verb, task_id, command.actor, True, f"already approved {tip[:10]}")
+
+    # The label follows the gap (D-8.17, A-36): the approval this
+    # prompt asked for arrived — its removal rides the same outbox.
+    stage(
+        root,
+        Effect(
+            key=f"{task_id}:na-clear:approved:{tip}",
+            kind="unlabel",
+            payload={"task": task_id, "name": "needs:approval"},
+        ),
+    )
+
+    return CommandOutcome(verb, task_id, command.actor, True, f"approved {tip[:10]}")
+
+
+# ....................... #
+
+
+def _unready_dependency(root: Path, task_file: Path) -> str | None:
+    from torve.gates.context import load_task
+
+    for dep in load_task(task_file).depends_on:
+        dep_path = naming.state_file(root, dep)
+        dep_state = RunState.load(dep_path).state if dep_path.exists() else None
+
+        if dep_state is not TaskState.READY:
+            return dep
+
+    return None
+
+
+# ....................... #
+
+
+def _apply_unblock(root: Path, command: TrackerCommand) -> CommandOutcome:
+    # unblock: dependency holds are checked at dispatch, so the command
+    # validates and informs — it never mutates state it does not hold.
+    verb, task_id = command.verb, command.task_id
+    task_file = layout.task_file(root, task_id)
+    blocker = _unready_dependency(root, task_file) if task_file.is_file() else None
+
+    if blocker is not None:
+        return CommandOutcome(
+            verb, task_id, command.actor, False, f"dependency {blocker} is not ready — still holds"
+        )
+
+    return CommandOutcome(
+        verb, task_id, command.actor, True, "no active hold — dispatch re-checks at run time"
+    )
+
+
+# ....................... #
+
+
 def _apply(
     root: Path,
     command: TrackerCommand,
@@ -513,35 +817,7 @@ def _apply(
         )
 
     if verb == "adopt":
-        # Before the state guard (RFC 0020, D-20.1): a swept READY draft
-        # is legitimately stateless — the drafts file is the evidence of
-        # its green run, and the application refuses everything else.
-        if _role(root, task_id) != "draft":
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                "adopt consumes a drafting run's output — "
-                f"this task's role is {_role(root, task_id) or 'unknown'!r}",
-            )
-
-        if adopt_drafts is None:
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                "no adoption wiring — the poller carries no config",
-            )
-
-        try:
-            adopted = adopt_drafts(task_id)
-
-        except (ValueError, RuntimeError) as exc:
-            return CommandOutcome(verb, task_id, command.actor, False, str(exc))
-
-        return CommandOutcome(verb, task_id, command.actor, True, f"adopted: {', '.join(adopted)}")
+        return _apply_adopt(root, command, adopt_drafts)
 
     state_path = naming.state_file(root, task_id)
 
@@ -553,214 +829,18 @@ def _apply(
     state = RunState.load(state_path)
 
     if verb == "retry":
-        if state.state is not TaskState.ESCALATED:
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                f"retry needs an escalated run; this one is {state.state}"
-                + (
-                    " — a ready candidate re-enters with /torve revise"
-                    if state.state is TaskState.READY
-                    else ""
-                ),
-            )
-
-        # The mechanical re-queue (T-0059): the stale remote branch goes
-        # under the commander's explicit authority — a ref deletion, never
-        # a rewrite — BEFORE the state moves, so a failed cleanup leaves
-        # the escalation standing and the command retryable.
-        cleanup = "no re-queue cleanup wired"
-
-        if requeue is not None:
-            try:
-                cleanup = requeue(task_id)
-
-            except Exception as exc:  # refused, never half-applied
-                return CommandOutcome(
-                    verb, task_id, command.actor, False, f"re-queue cleanup failed: {exc}"
-                )
-
-        state.transition(TaskState.QUEUED, f"tracker command retry from {command.actor}")
-        state.save()
-
-        return CommandOutcome(verb, task_id, command.actor, True, f"re-queued ({cleanup})")
+        return _apply_retry(command, state, requeue)
 
     if verb == "abandon":
-        if _role(root, task_id) == "draft" and state.state is TaskState.READY:
-            # RFC 0020 §5.4: refusing a request discards its drafts — the
-            # legal route to the terminal verdict runs through escalated,
-            # and the drafts must not outlive the refusal (a swept state
-            # would otherwise leave them adoptable, D-20.10).
-            from torve.application.intake import drafts_file
-
-            state.transition(TaskState.ESCALATED, f"tracker command abandon from {command.actor}")
-            state.transition(TaskState.ABANDONED, f"tracker command abandon from {command.actor}")
-            state.save()
-            drafts_file(root, task_id).unlink(missing_ok=True)
-
-            return CommandOutcome(
-                verb, task_id, command.actor, True, "request refused — drafts discarded"
-            )
-
-        if TaskState.ABANDONED not in TRANSITIONS[state.state]:
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                f"abandon is not a legal exit from {state.state}",
-            )
-
-        state.transition(TaskState.ABANDONED, f"tracker command abandon from {command.actor}")
-        state.save()
-
-        return CommandOutcome(verb, task_id, command.actor, True, "abandoned")
+        return _apply_abandon(root, command, state)
 
     if verb == "revise":
-        # A-40 (D-8.18): the commander's re-queue of a ready candidate —
-        # a review finding worth another attempt before it lands. Same
-        # capture-first cleanup as retry; the branch persists (D-10.10).
-        if _role(root, task_id) == "review":
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                "a review is never revised — it re-runs with its target",
-            )
-
-        if state.state is not TaskState.READY:
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                f"revise needs a ready candidate; this one is {state.state}",
-            )
-
-        if _role(root, task_id) == "draft":
-            # RFC 0020 (D-20.6): the commander's comment IS the feedback —
-            # its text reaches the drafter, and the run re-queues for the
-            # intake leg. No branch, no capture: drafts have neither.
-            if draft_feedback is None:
-                return CommandOutcome(
-                    verb,
-                    task_id,
-                    command.actor,
-                    False,
-                    "no drafting-feedback wiring — the poller carries no config",
-                )
-
-            note = draft_feedback(task_id, command.text)
-            state.transition(TaskState.QUEUED, f"tracker command revise from {command.actor}")
-            state.save()
-
-            return CommandOutcome(
-                verb, task_id, command.actor, True, f"re-queued for re-drafting ({note})"
-            )
-
-        cleanup = "no re-queue cleanup wired"
-
-        if requeue is not None:
-            try:
-                cleanup = requeue(task_id)
-
-            except Exception as exc:  # refused, never half-applied
-                return CommandOutcome(
-                    verb, task_id, command.actor, False, f"revision capture failed: {exc}"
-                )
-
-        state.transition(TaskState.QUEUED, f"tracker command revise from {command.actor}")
-        state.save()
-
-        return CommandOutcome(
-            verb, task_id, command.actor, True, f"re-queued for revision ({cleanup})"
-        )
+        return _apply_revise(root, command, state, requeue, draft_feedback)
 
     if verb == "approve":
-        if _role(root, task_id) == "review":
-            # A review is never landed (D-8.14): approving one would bind
-            # a sha nothing will ever count.
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                "this is a review task — it is never landed, so there is nothing to approve",
-            )
+        return _apply_approve(root, command, state, approve_tip)
 
-        if state.state is not TaskState.READY:
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                f"approve needs a ready candidate; this one is {state.state}",
-            )
-
-        if approve_tip is None:
-            return CommandOutcome(
-                verb,
-                task_id,
-                command.actor,
-                False,
-                "no approval wiring — the poller carries no vcs",
-            )
-
-        tip = approve_tip(task_id)
-
-        if tip is None:
-            return CommandOutcome(
-                verb, task_id, command.actor, False, "no branch to approve — nothing would land"
-            )
-
-        from torve.application.lane import record_approval
-
-        # Sha-bound at apply time (RFC 0006 §3): the approval covers the
-        # tip as it stands now; a later push supersedes it silently.
-        if not record_approval(root, task_id, command.actor, tip):
-            return CommandOutcome(
-                verb, task_id, command.actor, True, f"already approved {tip[:10]}"
-            )
-
-        # The label follows the gap (D-8.17, A-36): the approval this
-        # prompt asked for arrived — its removal rides the same outbox.
-        stage(
-            root,
-            Effect(
-                key=f"{task_id}:na-clear:approved:{tip}",
-                kind="unlabel",
-                payload={"task": task_id, "name": "needs:approval"},
-            ),
-        )
-
-        return CommandOutcome(verb, task_id, command.actor, True, f"approved {tip[:10]}")
-
-    # unblock: dependency holds are checked at dispatch, so the command
-    # validates and informs — it never mutates state it does not hold.
-    task_file = layout.task_file(root, task_id)
-
-    if task_file.is_file():
-        from torve.gates.context import load_task
-
-        for dep in load_task(task_file).depends_on:
-            dep_path = naming.state_file(root, dep)
-            dep_state = RunState.load(dep_path).state if dep_path.exists() else None
-
-            if dep_state is not TaskState.READY:
-                return CommandOutcome(
-                    verb,
-                    task_id,
-                    command.actor,
-                    False,
-                    f"dependency {dep} is not ready — still holds",
-                )
-
-    return CommandOutcome(
-        verb, task_id, command.actor, True, "no active hold — dispatch re-checks at run time"
-    )
+    return _apply_unblock(root, command)
 
 
 # ....................... #
