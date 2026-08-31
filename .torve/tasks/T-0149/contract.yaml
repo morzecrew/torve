@@ -1,0 +1,43 @@
+# Hand-minted — T-0146's review finding (T-0136 follow-up).
+schema_version: 1
+id: T-0149
+rfc: rfcs/0028-agent-profiles.md
+phase: 0
+role: implement
+title: profile validation errors name the file
+intent: >-
+  When a tier that resolved through a profile fails TierConfig validation
+  on the merged result, the pydantic error names neither the profile nor
+  its file — an operator cannot tell whether the defect came from the
+  profile body or the repository's own overrides. Wrap the validation
+  failure for profile-resolved tiers so the refusal names the tier, the
+  profile name and the profile path alongside the underlying error,
+  matching the other three refusal classes that already name the file.
+  Refusal semantics unchanged: the load still fails, nothing falls back.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/config/runconfig.py
+  - tests/test_runconfig.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_runconfig.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-28.3
+  grade: LOCKED
+  text: 'Any resolution failure — missing file, non-mapping body, unknown
+    key, invalid merged result — refuses the configuration load; there is
+    no fallback to inline defaults'
+  paths:
+  - src/torve/config/runconfig.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null

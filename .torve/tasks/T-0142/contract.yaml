@@ -1,0 +1,20 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0142
+rfc: rfcs/0004-agents-tiering.md
+role: review
+intent: Review T-0138's diff against its contract and inherited decisions.
+targets:
+- T-0138
+decisions:
+- id: D-4.19
+  grade: ASSUMED
+  text: "The regime preimage is recorded: at record time the exact parts mapping config_hash\
+    \ digested is written, once and only if absent, to .torve/regimes/<config_hash>.json\
+    \ \u2014 host-local, gitignored, content-addressed by the hash it produces; never\
+    \ a database, never committed. Added by amendment A-72 2026-08-31"
+  paths:
+  - src/torve/application/telemetry.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1

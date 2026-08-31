@@ -1,0 +1,48 @@
+# Hand-minted — T-0142's review finding plus the operator-verified root
+# mismatch, one edit site (T-0138 follow-up).
+schema_version: 1
+id: T-0148
+rfc: rfcs/0004-agents-tiering.md
+phase: 0
+role: implement
+title: regime preimage follows the telemetry root
+intent: >-
+  Two defects in T-0138's preimage write, same edit site. First, it lands
+  in the root config_hash was called with — a gate run in a worktree wrote
+  .wt/T-0137/.torve/regimes/7bb55f3d33a2.json, destroyed at reap, while
+  the telemetry row citing that hash lives in the host root's
+  telemetry.jsonl; the preimage must be written beside the telemetry
+  stream that carries the rows citing it, or it evaporates with the
+  worktree. Second, the write is unguarded: an unwritable .torve crashes
+  a run at telemetry time, a new failure mode for a previously pure
+  function — the write must be best-effort, never raising, a missing
+  preimage being strictly better than a dead run.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/telemetry.py
+  - tests/test_tiering.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_tiering.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-4.19
+  grade: ASSUMED
+  text: 'The regime preimage is recorded: at record time the exact parts
+    mapping config_hash digested is written, once and only if absent, to
+    .torve/regimes/<config_hash>.json — host-local, gitignored,
+    content-addressed by the hash it produces; never a database, never
+    committed. Added by amendment A-72 2026-08-31'
+  paths:
+  - src/torve/application/telemetry.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null

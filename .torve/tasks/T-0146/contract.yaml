@@ -1,0 +1,58 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0146
+rfc: rfcs/0028-agent-profiles.md
+role: review
+intent: Review T-0136's diff against its contract and inherited decisions.
+targets:
+- T-0136
+decisions:
+- id: D-28.1
+  grade: LOCKED
+  text: Profiles live in the operator's config directory beside the fleet manifest,
+    never in the repository under work; a repository references a profile by name
+    only
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-28.2
+  grade: LOCKED
+  text: Resolution is a raw-mapping merge inside `load_runner_config`, before validation,
+    locally-present keys winning; everything downstream, `config_hash` included, sees
+    only the resolved `TierConfig`
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-28.3
+  grade: LOCKED
+  text: "Any resolution failure \u2014 missing file, non-mapping body, unknown key,\
+    \ invalid merged result \u2014 refuses the configuration load; there is no fallback\
+    \ to inline defaults"
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-28.4
+  grade: ASSUMED
+  text: 'One merge level: profile plus local overrides; no profile-to-profile inheritance,
+    and list fields replace wholesale rather than concatenate'
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-28.5
+  grade: ASSUMED
+  text: A profile body may be partial and is checked only for key validity at merge
+    time; `TierConfig` validation runs once, on the merged result
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-28.7
+  grade: ASSUMED
+  text: Doctor prints per-tier profile provenance and attaches no check; unreferenced
+    profiles are not warned about
+  paths:
+  - src/torve/cli/doctor.py
+- id: D-28.6
+  grade: OPEN
+  text: Whether `reviewed` and `untrusted` trust classes must take tiers exclusively
+    from `profile:` references (no inline `command`/`image`); the first third-party
+    root settles it, and `enforce_trust` is where the rule would land
+  paths:
+  - src/torve/config/fleet.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
