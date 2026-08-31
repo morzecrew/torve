@@ -1,0 +1,66 @@
+# Hand-minted — 0022 phase 4 (A-73); torve plan refuses partial re-plan of a
+# document with minted phases, so the phase entry is transcribed by hand.
+schema_version: 1
+id: T-0162
+rfc: rfcs/0022-specification-quality.md
+phase: 4
+role: implement
+title: operator attention line
+intent: >-
+  The operator-attention line (D-22.12, A-73): landed changes per window
+  and the operator interventions behind them — feedback human_minutes,
+  command and approval events, escalations triaged — joined from the
+  records the engine already writes, printed in the corpus summary of
+  torve rfc health and the context section, denominators printed,
+  suppressed below the floor, the quasi-experiment caveat attached. No
+  new recorded fields.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/specquality.py
+  - src/torve/application/projections.py
+  - src/torve/cli/rfc.py
+  - tests/test_specquality.py
+  - tests/test_context.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_specquality.py tests/test_context.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-22.12
+  grade: ASSUMED
+  text: 'The corpus summary and the context section print the
+    operator-attention line: landed changes in the window and the operator
+    interventions behind them — feedback minutes, command and approval
+    events, escalations triaged — computed from records already written,
+    denominators printed, suppressed below the floor. Added by amendment
+    A-73 2026-08-31'
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/application/projections.py
+- id: D-22.7
+  grade: LOCKED
+  text: 'RFC 0004 §6a''s quasi-experiment caveat is printed with the
+    report, not paraphrased in documentation. Amended by A-59 2026-08-29:
+    printed without its corpus coordinate (a report reader has no corpus
+    to resolve); when a third surface needs the string its canonical home
+    is `torve.base`, importable from both layers'
+  paths:
+  - src/torve/cli/rfc.py
+  - src/torve/application/projections.py
+- id: D-22.8
+  grade: ASSUMED
+  text: Readings are suppressed below a printed floor of observations;
+    ratios always print their denominator
+  paths:
+  - src/torve/application/specquality.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null

@@ -1,0 +1,35 @@
+# Hand-minted — mechanic-routed maintenance: the tracker's deepest function.
+schema_version: 1
+id: T-0164
+rfc: null
+phase: 0
+role: implement
+title: tracker title logic flattened
+intent: >-
+  src/torve/application/tracker.py peaks at CCN 34 with _title nesting
+  four levels deep, and carries four bug fixes in its recent history.
+  Flatten _title and its worst neighbours into early returns and named
+  predicates — extraction and inversion only, public behavior and emitted
+  strings unchanged, no new module. The existing suite must pass
+  unmodified except for imports of any helper a test legitimately
+  exercises directly.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/tracker.py
+  - tests/test_tracker.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_tracker.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: mechanic

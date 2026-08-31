@@ -1,0 +1,40 @@
+# Hand-minted — scribe-routed docs: the README never learned about
+# profiles, personas, or composition (0028/0029/A-74 shipped without
+# their README leg).
+schema_version: 1
+id: T-0165
+rfc: null
+phase: 0
+role: implement
+title: readme documents agent configuration
+intent: >-
+  The README's configuration section predates RFCs 0028 and 0029: it
+  documents nothing of host-level agent profiles
+  (~/.config/torve/agents/<name>.yaml, referenced as profile: <name> or a
+  composed list merged left to right, local keys winning), per-tier
+  equipment (skills overriding the role set wholesale, prompt_extras
+  appended after the base working rules), or routing a contract or
+  phasing entry to a persona via tier_variant. Write the agent
+  configuration section: one wiring-profile example, one equipped-persona
+  example, one composed-profile example, the tier_variant routing line,
+  and the fail-closed behaviors (unknown profile or skill refuses the
+  load or dispatch). Match the README's existing voice and structure;
+  document only what shipped, no roadmap.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - README.md
+  deny: []
+acceptance:
+- grep -q "profile:" README.md
+- grep -qi "tier_variant" README.md
+- grep -qi "prompt_extras" README.md
+decisions: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: scribe

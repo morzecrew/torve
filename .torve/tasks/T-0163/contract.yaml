@@ -1,0 +1,39 @@
+# Hand-minted — mechanic-routed maintenance: the repository's worst health
+# file and its lane sibling (they share a test fence).
+schema_version: 1
+id: T-0163
+rfc: null
+phase: 0
+role: implement
+title: merge lane flattened
+intent: >-
+  src/torve/cli/merge.py is the repository's worst health score (1.02/10)
+  and src/torve/application/lane.py peaks at CCN 36 with change-entropy in
+  the top 3% — the two halves of the landing lane. Flatten the deepest
+  functions in both into early returns and named predicates — extraction
+  and inversion only, public behavior, signatures and emitted strings
+  unchanged, no new module. The existing suites must pass unmodified
+  except for imports of any helper a test legitimately exercises
+  directly.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/cli/merge.py
+  - src/torve/application/lane.py
+  - tests/test_lane.py
+  - tests/test_lane_prevention.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_lane.py tests/test_lane_prevention.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: mechanic
