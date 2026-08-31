@@ -139,13 +139,18 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             # commit cites the task.
             "phase": record.get("phase", 0),
             "role": record.get("role", "implement"),
-            # A drafting contract (intake, decompose) with no live run has
-            # been consumed by its adoption — "unstarted" would claim work
-            # is still owed. A run state below overrides either way.
+            # A drafting contract (intake, decompose) with no live run was
+            # consumed by its adoption; a review contract with no live run
+            # concluded with the landing its verdict gated — "unstarted"
+            # would claim work is still owed. A run state below overrides.
             "state": (
                 "shipped"
                 if task_id in shipped
-                else ("consumed" if record.get("role") == "draft" else "unstarted")
+                else (
+                    "consumed"
+                    if record.get("role") in ("draft", "review")
+                    else "unstarted"
+                )
             ),
             "attempts": 0,
             "escalation": None,
