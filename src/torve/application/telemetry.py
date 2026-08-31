@@ -18,6 +18,7 @@ from typing import Any
 
 import torve
 from torve.application.ports import BrokerUsage
+from torve.base.naming import WORKTREE_DIR
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.task import SCHEMA_VERSION
@@ -112,19 +113,38 @@ def _write_regime_preimage(root: Path, digest: str, parts: dict[str, str]) -> No
     once, only if absent, so `config_hash` names a regime someone can open
     rather than a bare hex string. Content-addressed by the hash it produced
     — a write racing an identical write lands the same bytes either way, so
-    the existence check is the only guard that matters."""
+    the existence check is the only guard that matters.
+
+    Lands beside the telemetry stream, not the tree that was hashed: a
+    worktree is always `<host>/.wt/<name>` (`naming.worktree`, D-3.4) and is
+    destroyed at reap, while the telemetry row citing this digest lives in
+    the host root's telemetry.jsonl. Detected structurally from `root`
+    itself so no caller needs to change.
+
+    Best-effort: an unwritable `.torve` must not fail a run over a record
+    that exists purely for human triage — a missing preimage is strictly
+    better than a dead run."""
+
+    for parent in root.parents:
+        if parent.name == WORKTREE_DIR:
+            root = parent.parent
+            break
 
     path = root / layout.TORVE_DIR / "regimes" / f"{digest}.json"
 
-    if path.exists():
-        return
-
-    with _REGIME_LOCK:
+    try:
         if path.exists():
             return
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(parts, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        with _REGIME_LOCK:
+            if path.exists():
+                return
+
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(parts, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+
+    except OSError:
+        return
 
 
 # ....................... #

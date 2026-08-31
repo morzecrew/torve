@@ -422,6 +422,35 @@ def test_regime_preimage_is_written_once_only_if_absent(tmp_path):
     assert json.loads(regime.read_text(encoding="utf-8")) == {"planted": True}
 
 
+def test_regime_preimage_lands_beside_the_host_telemetry_not_the_worktree(tmp_path):
+    from torve.application.telemetry import config_hash
+
+    host = tmp_path
+    worktree = host / ".wt" / "T-0137"
+    worktree.mkdir(parents=True)
+    manifest = worktree / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+
+    digest = config_hash(manifest, worktree, RunnerConfig())
+
+    assert (host / ".torve" / "regimes" / f"{digest}.json").exists()
+    assert not (worktree / ".torve" / "regimes" / f"{digest}.json").exists()
+
+
+def test_regime_preimage_write_is_best_effort_not_raising(tmp_path):
+    from torve.application.telemetry import config_hash
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+
+    # .torve exists as a file, so mkdir(parents=True) for regimes/ fails —
+    # config_hash must still return a digest, never raise.
+    (tmp_path / ".torve").write_text("not a directory", encoding="utf-8")
+
+    digest = config_hash(manifest, tmp_path, RunnerConfig())
+    assert digest
+
+
 def test_feedback_appends_a_keyed_record(tmp_path):
     root = tmp_path / "repo"
     (root / ".torve").mkdir(parents=True)
