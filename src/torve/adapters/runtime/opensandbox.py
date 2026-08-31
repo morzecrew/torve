@@ -223,7 +223,7 @@ class OpenSandboxRuntime:
 
         execution = sandbox.commands.run(
             command,
-            opts=self._sdk.models.RunCommandOpts(
+            opts=self._sdk.models.execd.RunCommandOpts(
                 timeout=timedelta(seconds=timeout_s), working_directory=workdir
             ),
         )
@@ -282,11 +282,15 @@ class OpenSandboxRuntime:
 
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         with self._sdk.SandboxManagerSync.create(connection_config=self._connection) as manager:
-            infos = manager.list_sandbox_infos(self._sdk.models.SandboxFilter(states=["RUNNING"]))
+            paged = manager.list_sandbox_infos(self._sdk.models.SandboxFilter(states=["RUNNING"]))
 
         found: list[SandboxInfo] = []
 
-        for info in infos:
+        # PagedSandboxInfos is a pydantic model: iterating it yields
+        # (field, value) tuples, not rows — the rows are .sandbox_infos.
+        # ponytail: first page only; follow pagination when a fleet outgrows
+        # one page of live sandboxes.
+        for info in paged.sandbox_infos:
             metadata = dict(getattr(info, "metadata", None) or {})
 
             if naming.LABEL_TASK not in metadata:

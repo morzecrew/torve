@@ -135,12 +135,19 @@ class SandboxManagerSync:
     def __exit__(self, *exc) -> None:
         return None
 
-    def list_sandbox_infos(self, sandbox_filter: SandboxFilter) -> list[_Info]:
-        return [
-            _Info(id=s.id, metadata=dict(s.metadata), state=s.state)
-            for s in list(REGISTRY.values())
-            if not sandbox_filter.states or s.state in sandbox_filter.states
-        ]
+    def list_sandbox_infos(self, sandbox_filter: SandboxFilter) -> SimpleNamespace:
+        # The real SDK returns PagedSandboxInfos — a pydantic model whose
+        # rows live under .sandbox_infos. Iterating the model itself yields
+        # (field, value) tuples, which is exactly the trap the live probe
+        # caught the adapter in; the stub returns the same envelope shape so
+        # the conformance battery keeps asserting the unwrap.
+        return SimpleNamespace(
+            sandbox_infos=[
+                _Info(id=s.id, metadata=dict(s.metadata), state=s.state)
+                for s in list(REGISTRY.values())
+                if not sandbox_filter.states or s.state in sandbox_filter.states
+            ]
+        )
 
     def kill_sandbox(self, sandbox_id: str) -> None:
         sandbox = REGISTRY.get(sandbox_id)
@@ -149,10 +156,14 @@ class SandboxManagerSync:
 
 
 # Mirrors the real SDK's nesting — ConnectionConfigSync under
-# opensandbox.config, WriteEntry/SandboxFilter/RunCommandOpts under
-# opensandbox.models — so the adapter's attribute lookups behave identically
-# against the stub and the real package.
+# opensandbox.config, WriteEntry/SandboxFilter under opensandbox.models,
+# RunCommandOpts one level deeper at opensandbox.models.execd (verified
+# against the live server: opensandbox 0.1.15 does not re-export it at
+# .models) — so the adapter's attribute lookups behave identically against
+# the stub and the real package.
 config = SimpleNamespace(ConnectionConfigSync=ConnectionConfigSync)
 models = SimpleNamespace(
-    WriteEntry=WriteEntry, SandboxFilter=SandboxFilter, RunCommandOpts=RunCommandOpts
+    WriteEntry=WriteEntry,
+    SandboxFilter=SandboxFilter,
+    execd=SimpleNamespace(RunCommandOpts=RunCommandOpts),
 )
