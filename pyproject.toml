@@ -149,6 +149,11 @@ ignore = [
     "RUF003", # see RUF001
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# vulture's whitelist convention is bare undefined names — the file exists to
+# be unused expressions, so the two rules that say so don't apply to it.
+"scripts/vulture_whitelist.py" = ["B018", "F821"]
+
 # ....................... #
 # Dead code
 
