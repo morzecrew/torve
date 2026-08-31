@@ -1,0 +1,50 @@
+# Hand-minted — executes A-74 on RFC 0028 (profile composition).
+schema_version: 1
+id: T-0160
+rfc: rfcs/0028-agent-profiles.md
+phase: 0
+role: implement
+title: profile composition
+intent: >-
+  The tier's profile field accepts a name or a list of names (A-74): a
+  list resolves left to right under the existing shallow raw-mapping
+  merge, local keys still winning last, every refusal class (missing
+  file, non-mapping body, unknown key) applying per named profile with
+  that profile's path in the message. No profile references a profile;
+  a single name behaves exactly as today. Doctor's provenance line lists
+  the chain in order for a composed tier. Tests pin left-to-right
+  precedence, local-wins-last, list fields replacing wholesale across
+  layers, per-layer refusal attribution, single-name compatibility, and
+  the doctor chain rendering.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/config/runconfig.py
+  - src/torve/cli/doctor.py
+  - tests/test_runconfig.py
+  - tests/test_doctor.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_runconfig.py tests/test_doctor.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-28.4
+  grade: ASSUMED
+  text: 'One merge level: profile plus local overrides; no
+    profile-to-profile inheritance, and list fields replace wholesale
+    rather than concatenate. Amended by A-74 2026-09-01: `profile` also
+    accepts a list of names, merged left to right under the same shallow
+    rule before local overrides — a tier composing flat layers (wiring
+    kit, equipment kit), never a profile referencing a profile'
+  paths:
+  - src/torve/config/runconfig.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
