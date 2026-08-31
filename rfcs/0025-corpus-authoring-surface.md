@@ -8,7 +8,7 @@ depends_on: ["0007", "0016"]
 informed_by: ["0011", "0020", "0022"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-66"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -275,7 +275,7 @@ reference per verb; no new page.
 | --- | --- | --- | --- | --- |
 | D-25.1 | `LOCKED` | The emitter and `fmt` normalise only the structures the parser models — frontmatter, decision tables, phasing fences, amendment headings; body prose passes through byte-for-byte | `src/torve/config/rfc_emit.py` `src/torve/cli/rfc.py` | A formatter that touches prose turns every corpus diff into noise and gets skipped, which is worse than no formatter |
 | D-25.2 | `LOCKED` | Every authoring verb is one transaction — parse, mutate, emit, regenerate the index, check — and a red check aborts the whole write, leaving the tree untouched | `src/torve/cli/rfc.py` `src/torve/config/rfc_emit.py` | A half-landed structural edit is exactly the defect class this document exists to end |
-| D-25.3 | `LOCKED` | Verbs write structure and identifiers, never judgement: no verb chooses a grade, drafts decision or amendment prose, or flips `status`/`implementation` | `src/torve/cli/rfc.py` | The corpus's value is that a human meant every graded row; a tool that fills skeletons is a planner nobody appointed |
+| D-25.3 | `LOCKED` | Verbs write structure and identifiers, never judgement: no verb chooses a grade, drafts decision or amendment prose, or flips `status`/`implementation`. Amended by A-66 2026-08-31: `add-decision` writing `grade: OPEN` is the schema-required non-judgement placeholder, not a chosen grade — OPEN asserts no authority the way LOCKED or ASSUMED would | `src/torve/cli/rfc.py` | The corpus's value is that a human meant every graded row; a tool that fills skeletons is a planner nobody appointed |
 | D-25.4 | `LOCKED` | Amendment numbers are derived at write time as maximum plus one corpus-wide, through the parser's `next_amendment`; the verb never accepts a chosen number | `src/torve/config/rfc_parse.py` `src/torve/cli/rfc.py` | D-A.17's doctrine applied to the identifier family that has collided three times by hand |
 | D-25.5 | `ASSUMED` | Storage stays one `NNNN-slug.md` per document; the authoring surface is the answer to structural fragility, and D-A.18 stands unamended | `rfcs/**` | The folder alternative trades every citation shape and the one-file diff for attachments nothing needs (§5.5) |
 | D-25.6 | `ASSUMED` | `rfc retire` executes D-16.1 whole — row removal, `retired:` frontmatter, tombstone stub — and refuses while any citation would stop resolving | `src/torve/cli/rfc.py` `src/torve/config/rfc_emit.py` | A partial retirement is the exact state A-20 was written to prevent |
@@ -362,3 +362,21 @@ reference per verb; no new page.
   hand-edited cells.
 
 ## Amendments
+
+### A-66 — 2026-08-31 — execution's readings approved (amends D-25.3; records the emitter and sweep readings)
+
+**From T-0123's and T-0124's execution logs, approved.**
+
+- The canonical emitter renders `description` and phasing `intent` as one
+  unwrapped `>-` line: a future document may carry an arbitrarily long
+  one, and the corpus enforces no wrap width nothing currently requires.
+- `add-decision` writes `grade: OPEN` as the schema-required
+  non-judgement placeholder (D-25.3's row carries the reading).
+- `retire`'s mechanical Paths sweep matches one whole space-separated
+  glob token exactly, never a substring — a sweep must not guess a
+  boundary the corpus did not draw.
+- T-0123 also reported, out of its own scope, the failed-attempt
+  telemetry write crashing where a worktree carries no gates manifest;
+  the engine fixed it during the same triage by falling back to the
+  default manifest rather than repointing at the root — the report is
+  recorded here as disposed, not adopted.
