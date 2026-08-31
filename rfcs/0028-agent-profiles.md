@@ -8,7 +8,7 @@ depends_on: ["0004"]
 informed_by: ["0013", "0021", "0024", "0027"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-74"]
 owner: Lev Litvinov
 description: >-
   A host-level library of named tier definitions under the operator's config directory, referenced by name from repository configuration and merged before validation — one authoritative copy of each agent incantation instead of a copy per root.
@@ -329,7 +329,7 @@ validation — the operator-visible proof is `.torve/config.yaml` shrinking.
 | D-28.1 | `LOCKED` | Profiles live in the operator's config directory beside the fleet manifest, never in the repository under work; a repository references a profile by name only | `src/torve/config/runconfig.py` | D-13.3 extended to agent definitions: the repo cannot ship or alter an engine-side incantation; moving profiles repo-side later means re-opening the fleet trust model |
 | D-28.2 | `LOCKED` | Resolution is a raw-mapping merge inside `load_runner_config`, before validation, locally-present keys winning; everything downstream, `config_hash` included, sees only the resolved `TierConfig` | `src/torve/config/runconfig.py` | Regime identity is content, never name — an edited profile is a new regime on every referencing root; changing to name-based hashing later silently merges regimes and breaks every cross-root comparison |
 | D-28.3 | `LOCKED` | Any resolution failure — missing file, non-mapping body, unknown key, invalid merged result — refuses the configuration load; there is no fallback to inline defaults | `src/torve/config/runconfig.py` | A tier that silently ran without its profile is a regime change nobody chose; fail-closed is what lets a profile edit be trusted as fleet-wide |
-| D-28.4 | `ASSUMED` | One merge level: profile plus local overrides; no profile-to-profile inheritance, and list fields replace wholesale rather than concatenate | `src/torve/config/runconfig.py` | Inheritance re-creates drift inside the library; concatenating `api_key_env` across files assembles a credential channel by accident |
+| D-28.4 | `ASSUMED` | One merge level: profile plus local overrides; no profile-to-profile inheritance, and list fields replace wholesale rather than concatenate. Amended by A-74 2026-09-01: `profile` also accepts a list of names, merged left to right under the same shallow rule before local overrides — a tier composing flat layers (wiring kit, equipment kit), never a profile referencing a profile | `src/torve/config/runconfig.py` | Inheritance re-creates drift inside the library; concatenating `api_key_env` across files assembles a credential channel by accident |
 | D-28.5 | `ASSUMED` | A profile body may be partial and is checked only for key validity at merge time; `TierConfig` validation runs once, on the merged result | `src/torve/config/runconfig.py` | Skeleton profiles (image+command, per-root model) stay expressible; validating profiles standalone would refuse them |
 | D-28.7 | `ASSUMED` | Doctor prints per-tier profile provenance and attaches no check; unreferenced profiles are not warned about | `src/torve/cli/doctor.py` | Resolution already fails loudly at load; a doctor warning would be a second, later copy of the same signal |
 | D-28.6 | `OPEN` | Whether `reviewed` and `untrusted` trust classes must take tiers exclusively from `profile:` references (no inline `command`/`image`); the first third-party root settles it, and `enforce_trust` is where the rule would land | `src/torve/config/fleet.py` | Written before a real untrusted root exists, the rule would be graded by imagination; left open, the capability question at least has a name |
@@ -365,3 +365,27 @@ validation — the operator-visible proof is `.torve/config.yaml` shrinking.
     - "uv run ruff check ."
   depends_on: [1]
 ```
+
+## Amendments
+
+### A-74 — 2026-09-01 — profile composition (amends D-28.4)
+**Found defining the first personas.** RFC 0029's equipment fields ride the
+profile merge, so a persona is wiring plus equipment — but `profile` takes
+one name, so running the same persona on a second harness means duplicating
+the equipment list into a second profile: the drift 0028 killed for wiring,
+reborn one level up, and squarely in the path of the RFC 0004 §5
+cross-harness comparison the variants exist to feed.
+
+**Changed:** D-28.4 — `profile` accepts a name or a list of names. A list
+merges left to right under the exact shallow raw-mapping rule already in
+force, local keys still winning last; every refusal class applies per named
+profile. Composition is a *tier* naming several flat layers — a wiring kit
+and an equipment kit — never a profile referencing a profile, so each layer
+stays independently readable and the inheritance refusal stands untouched.
+Doctor's provenance line lists the chain in order. The hash is untouched by
+construction: content, never names, was always what `config_hash` digests.
+
+**Deliberately unchanged:** no deep or keyed merges, no conditional layers
+("when the harness is X") — the first is where the effective configuration
+stops being readable in one place, the second is the cross-harness
+abstraction RFC 0027 refused. A single name keeps today's behavior exactly.
