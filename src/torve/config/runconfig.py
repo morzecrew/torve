@@ -633,6 +633,26 @@ class ReviewConfig(BaseModel):
 
     # ....................... #
 
+    @model_validator(mode="before")
+    @classmethod
+    def _unquoted_on_is_a_yaml_bool_not_a_key(cls, data: object) -> object:
+        # YAML 1.1 resolves an unquoted on/off/yes/no/true/false key (any
+        # case) to a boolean, not the string it looks like — `on:` under
+        # `review:` becomes key `True`, `on` keeps its empty default, and
+        # the trigger list never loads (T-0134). Caught here, before
+        # pydantic's own "keys should be strings" check, so the error names
+        # the actual fix instead of a generic key-type complaint.
+        if isinstance(data, dict) and any(isinstance(key, bool) for key in data):
+            raise ValueError(
+                "review config has a boolean key (True/False) instead of a string — "
+                "YAML parses an unquoted on/off/yes/no/true/false key as a boolean; "
+                'quote it, e.g. "on": [...] under review:'
+            )
+
+        return data
+
+    # ....................... #
+
     @model_validator(mode="after")
     def _known_triggers(self) -> ReviewConfig:
         supported = {"task_gated", "pr_opened", "pr_synchronized"}

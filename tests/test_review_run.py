@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 
 import pytest
+import yaml
 from test_run_loop import (
     OK,
     MockRuntime,
@@ -182,6 +183,21 @@ def test_unknown_review_triggers_are_refused():
     assert ReviewConfig(on=["pr_opened", "pr_synchronized"]).on
     with pytest.raises(ValueError, match="unsupported review trigger"):
         ReviewConfig(on=["pr_closed"])
+
+
+def test_unquoted_on_key_is_refused_not_silently_dropped():
+    # The classic YAML 1.1 landmine: an unquoted `on:` under `review:`
+    # parses as the boolean key True, not the string 'on' — without this
+    # guard the trigger list would never load.
+    raw = yaml.safe_load(
+        """
+        review:
+          on:
+            - task_gated
+        """
+    )
+    with pytest.raises(ValueError, match="quote"):
+        RunnerConfig.model_validate(raw)
 
 
 # ....................... #
