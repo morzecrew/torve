@@ -17,6 +17,7 @@ from torve.adapters.agent.harness import HarnessAgent, build_prompt, parse_metad
 from torve.adapters.vcs.git import repository_name
 from torve.application.ports import AgentContext, ExecResult, SandboxHandle
 from torve.application.runner import _restore_never_send, _sandbox_auth, _withhold_never_send
+from torve.application.skills import materialize
 from torve.cli import app
 from torve.config.runconfig import (
     ProviderDenied,
@@ -24,6 +25,7 @@ from torve.config.runconfig import (
     RepositoryProviders,
     RunnerConfig,
     TierConfig,
+    effective_skill_sets,
     route_provider,
     tier_for,
     tier_name_for,
@@ -60,6 +62,47 @@ def test_tier_for_missing_entry_is_a_configuration_error():
     config = RunnerConfig(tiers={"executor": TierConfig()})
     with pytest.raises(ValueError, match="no tier 'planner'"):
         tier_for(config, "planner")
+
+
+# ....................... #
+# RFC 0029: agent equipment — skills override and prompt extras
+
+
+def test_tier_config_equipment_defaults_to_no_override():
+    tier = TierConfig()
+    assert tier.skills is None
+    assert tier.prompt_extras == []
+
+
+def test_effective_skill_sets_none_inherits_the_role_set():
+    sets = RunnerConfig().skills.sets
+    assert effective_skill_sets(TierConfig(), "implement", sets) == sets
+
+
+def test_effective_skill_sets_override_replaces_the_role_set_wholesale():
+    sets = RunnerConfig().skills.sets
+    tier = TierConfig(skills=["prose-voice"])
+    resolved = effective_skill_sets(tier, "implement", sets)
+
+    assert resolved["implement"] == ["prose-voice"]  # replaced, not unioned
+    assert resolved["review"] == sets["review"]  # other roles untouched
+    assert sets["implement"] == ["flag-dont-flip", "ratchet-what-you-build"]  # source untouched
+
+
+def test_effective_skill_sets_empty_list_equips_nothing(tmp_path):
+    resolved = effective_skill_sets(TierConfig(skills=[]), "implement", RunnerConfig().skills.sets)
+    assert materialize("implement", tmp_path, resolved) == []
+
+
+def test_equipped_skill_resolution_keeps_the_materializers_refusals(tmp_path):
+    """D-29.2: an unknown equipped name refuses at the same place an unknown
+    configured name always has — the override only changes which names
+    `materialize` is asked to resolve, never how it resolves them."""
+    resolved = effective_skill_sets(
+        TierConfig(skills=["definitely-not-a-skill"]), "implement", RunnerConfig().skills.sets
+    )
+    with pytest.raises(RuntimeError, match=r"neither shipped .* nor vendored"):
+        materialize("implement", tmp_path, resolved)
 
 
 # ....................... #
@@ -293,6 +336,39 @@ def test_prompt_carries_the_engine_base_sha_pin():
     assert "base_sha" not in build_prompt(Task(id="T-1", decisions=[]))
 
 
+def test_prompt_extras_are_absent_by_default():
+    assert "house voice" not in build_prompt(Task(id="T-1", decisions=[]))
+
+
+def test_prompt_extras_follow_the_charters_base_working_rules():
+    """D-29.1: extras append after the base rules — never before, and the
+    base rules are present regardless."""
+    prompt = build_prompt(
+        Task(id="T-1", decisions=[]),
+        prompt_extras=["Docstrings and user-facing text follow the house voice."],
+    )
+    assert "- Docstrings and user-facing text follow the house voice." in prompt
+    assert prompt.index("Gates run outside this session") < prompt.index("house voice")
+    # The base rules stay unaddressable: still present, unaltered.
+    assert "Skills for your role are under `.torve/skills/`" in prompt
+
+
+def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path):
+    tier = TierConfig(
+        adapter="api",
+        provider="anthropic",
+        model="m",
+        command="cat {prompt}",
+        prompt_extras=["Docstrings and user-facing text follow the house voice."],
+    )
+    ctx, agent = harness_ctx(tmp_path, tier)
+    agent.run(ctx)
+    prompt = (ctx.workspace / ".torve" / "tmp" / "prompt.md").read_text(encoding="utf-8")
+
+    assert "- Docstrings and user-facing text follow the house voice." in prompt
+    assert prompt.index("Gates run outside this session") < prompt.index("house voice")
+
+
 # ....................... #
 # Dispatch (CLI): routing enforced before anything exists
 
@@ -366,6 +442,39 @@ def test_config_hash_moves_with_the_tier_mapping(tmp_path):
     )
     assert config_hash(manifest, tmp_path, plain) != config_hash(manifest, tmp_path, tiered)
     assert config_hash(manifest, tmp_path, plain) == config_hash(manifest, tmp_path, plain)
+
+
+def test_config_hash_separates_regimes_equipped_with_different_skills(tmp_path):
+    """RFC 0029 §5.4: no new code measures equipment — the tiers dump
+    `config_hash` already digests carries `skills` for free through
+    `TierConfig.model_dump()`."""
+    from torve.application.telemetry import config_hash
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+
+    def tiers(executor: TierConfig) -> dict[str, TierConfig]:
+        return {"planner": TierConfig(), "reviewer": TierConfig(), "executor": executor}
+
+    generalist = RunnerConfig(tiers=tiers(TierConfig()))
+    equipped = RunnerConfig(tiers=tiers(TierConfig(skills=["flag-dont-flip"])))
+
+    assert config_hash(manifest, tmp_path, generalist) != config_hash(manifest, tmp_path, equipped)
+
+
+def test_config_hash_separates_regimes_with_different_prompt_extras(tmp_path):
+    from torve.application.telemetry import config_hash
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+
+    def tiers(executor: TierConfig) -> dict[str, TierConfig]:
+        return {"planner": TierConfig(), "reviewer": TierConfig(), "executor": executor}
+
+    generalist = RunnerConfig(tiers=tiers(TierConfig()))
+    equipped = RunnerConfig(tiers=tiers(TierConfig(prompt_extras=["house voice"])))
+
+    assert config_hash(manifest, tmp_path, generalist) != config_hash(manifest, tmp_path, equipped)
 
 
 # ....................... #

@@ -1,0 +1,48 @@
+schema_version: 1
+task: T-0154
+repo: morzecrew/torve
+base_sha: 7fc80fc5f1e465795eafb9d5a01c020658961f09
+drift_count: 0
+entries:
+  - decision: D-29.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T00:00:00Z
+    attempt: 1
+    claim: >-
+      `TierConfig` carries `skills: list[str] | None = None` (inherits the
+      role set on `None`, overrides wholesale on a list) and
+      `prompt_extras: list[str] = []`; `build_prompt` appends each extra as
+      its own line strictly after the four charter working-rule lines, and
+      no config field parameterizes those four lines themselves — a persona
+      can add rules, never remove, reorder or replace the base set.
+    evidence: >-
+      src/torve/config/runconfig.py:78-83 — `skills: list[str] | None = None`
+      (line 78) and `prompt_extras: list[str] = Field(default_factory=list)`
+      (line 83); src/torve/adapters/agent/harness.py:127-164 appends each
+      `prompt_extras` line after the four base working-rule lines, never
+      interleaved
+    action: decided
+  - decision: D-29.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T00:01:00Z
+    attempt: 1
+    claim: >-
+      The only change on the equipped path is which `sets` mapping reaches
+      `materialize` — `effective_skill_sets` substitutes the resolved tier's
+      own role entry when `tier.skills` is not `None`, every other role's
+      set untouched — and the call site still runs the same
+      `torve.application.skills.materialize`, at dispatch time, before a
+      sandbox exists. Its unknown-name and shipped-and-vendored refusals are
+      unmodified: neither function nor call site catches or reinterprets
+      the `RuntimeError`s materialize raises.
+    evidence: >-
+      src/torve/config/runconfig.py:173-185 — `effective_skill_sets` returns
+      `sets` unchanged when `tier.skills is None`, else `{**sets, role:
+      tier.skills}`; src/torve/application/runner.py:959-964 calls
+      `materialize(task.role, ..., effective_skill_sets(resolved_tier,
+      task.role, config.skills.sets), ...)`; src/torve/application/skills.py:67-79
+      raises the unknown-name and shipped-and-vendored `RuntimeError`s,
+      reached unchanged through that call
+    action: decided

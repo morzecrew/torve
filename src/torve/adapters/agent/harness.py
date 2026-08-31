@@ -62,7 +62,11 @@ def _workspace_head(workspace: Path) -> str | None:
 
 
 def build_prompt(
-    task: Task, revision: bool = False, base_sha: str | None = None, continuation: bool = False
+    task: Task,
+    revision: bool = False,
+    base_sha: str | None = None,
+    continuation: bool = False,
+    prompt_extras: list[str] | None = None,
 ) -> str:
     lines: list[str] = [f"# Torve task {task.id}", ""]
 
@@ -154,6 +158,10 @@ def build_prompt(
             "- Gates run outside this session, against the working tree you leave"
             " behind. Exit 0 when you consider the work complete."
         ),
+        # RFC 0029 §5.1, D-29.1: a persona's extra working rules, appended
+        # after the charter's base rules above — never before, never
+        # replacing them.
+        *(f"- {extra}" for extra in (prompt_extras or [])),
         "",
     ]
 
@@ -306,6 +314,7 @@ class HarnessAgent:
                 revision=revision,
                 base_sha=_workspace_head(ctx.workspace),
                 continuation=ctx.resume,
+                prompt_extras=self.tier.prompt_extras,
             )
         )
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")

@@ -69,6 +69,19 @@ class TierConfig(BaseModel):
     # see which profile a tier came from.
     profile: str = ""
 
+    # RFC 0029 §5.1, D-29.1/D-29.3: `None` inherits the role-scoped skill set
+    # (`SkillsConfig.sets[role]`) exactly as today; a list overrides it
+    # wholesale — never additive, so the effective set is readable in one
+    # place. Rides the profile merge unchanged (D-28.4's replace-wholesale
+    # rule already covers list fields). Names resolve through the same
+    # `materialize` path with the same refusals (D-29.2).
+    skills: list[str] | None = None
+
+    # RFC 0029 §5.1, D-29.1: lines appended to the built prompt after the
+    # charter's base working rules, which stay unaddressable from
+    # configuration.
+    prompt_extras: list[str] = Field(default_factory=list)
+
     # ....................... #
 
     @model_validator(mode="after")
@@ -152,6 +165,24 @@ def route_provider(providers: ProvidersConfig, repository: str, provider: str) -
         f"provider {provider!r} is not permitted for repository {repository!r}{reason}; "
         f"allowed: {', '.join(allowed) if allowed else 'none configured'}"
     )
+
+
+# ....................... #
+
+
+def effective_skill_sets(
+    tier: TierConfig, role: str, sets: dict[str, list[str]]
+) -> dict[str, list[str]]:
+    """RFC 0029 D-29.1/D-29.3: `tier.skills`, when set, overrides the
+    role-scoped set wholesale for `role` alone — every other role's set is
+    untouched, and the materializer's own resolution and refusals (D-29.2)
+    are unaffected by this: it only changes which names `materialize` sees
+    for this role."""
+
+    if tier.skills is None:
+        return sets
+
+    return {**sets, role: tier.skills}
 
 
 # ....................... #

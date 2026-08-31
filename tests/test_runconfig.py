@@ -96,6 +96,29 @@ def test_api_key_env_replaces_wholesale_never_concatenates(agents_dir: Path, tmp
     assert config.tiers["executor"].api_key_env == ["BAZ"]
 
 
+def test_tier_skills_replace_a_profiles_skills_wholesale(agents_dir: Path, tmp_path: Path):
+    """D-29.3: `skills` rides the profile merge under D-28.4's rule — a
+    local list replaces the profile's list entirely, the same way
+    `api_key_env` does above; there is no per-field union logic to add."""
+
+    write(agents_dir / "prof.yaml", "skills: [prose-voice, keep-a-changelog]\n")
+    config = load(
+        tmp_path,
+        "tiers:\n  executor:\n    profile: prof\n    skills: [flag-dont-flip]\n",
+    )
+
+    assert config.tiers["executor"].skills == ["flag-dont-flip"]
+
+
+def test_tier_skills_carry_through_a_profile_when_not_locally_overridden(
+    agents_dir: Path, tmp_path: Path
+):
+    write(agents_dir / "prof.yaml", "skills: [prose-voice, keep-a-changelog]\n")
+    config = load(tmp_path, "tiers:\n  executor:\n    profile: prof\n")
+
+    assert config.tiers["executor"].skills == ["prose-voice", "keep-a-changelog"]
+
+
 def test_a_partial_profile_leaves_untouched_fields_at_their_default(
     agents_dir: Path, tmp_path: Path
 ):
