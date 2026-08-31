@@ -27,6 +27,7 @@ from torve.gates.runner import RunReport
 # ----------------------- #
 
 _APPEND_LOCK = threading.Lock()
+_REGIME_LOCK = threading.Lock()
 
 
 # ....................... #
@@ -96,8 +97,34 @@ def config_hash(
         parts["skills-vendor"] = tree.hexdigest()
 
     digest = hashlib.sha256(json.dumps(parts, sort_keys=True).encode("utf-8"))
+    hexdigest = digest.hexdigest()[:12]
 
-    return digest.hexdigest()[:12]
+    _write_regime_preimage(root, hexdigest, parts)
+
+    return hexdigest
+
+
+# ....................... #
+
+
+def _write_regime_preimage(root: Path, digest: str, parts: dict[str, str]) -> None:
+    """The `parts` a `config_hash` was computed over (D-4.19, A-72): written
+    once, only if absent, so `config_hash` names a regime someone can open
+    rather than a bare hex string. Content-addressed by the hash it produced
+    — a write racing an identical write lands the same bytes either way, so
+    the existence check is the only guard that matters."""
+
+    path = root / layout.TORVE_DIR / "regimes" / f"{digest}.json"
+
+    if path.exists():
+        return
+
+    with _REGIME_LOCK:
+        if path.exists():
+            return
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(parts, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
 # ....................... #

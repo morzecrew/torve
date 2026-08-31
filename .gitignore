@@ -221,6 +221,7 @@ __marimo__/
 # logs under .torve/ are reviewed artefacts and stay tracked (RFC 0013).
 .torve/telemetry.jsonl
 .torve/feedback.jsonl
+.torve/regimes/
 .torve/skills/
 .torve/tmp/
 .wt/

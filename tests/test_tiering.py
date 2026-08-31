@@ -368,6 +368,60 @@ def test_config_hash_moves_with_the_tier_mapping(tmp_path):
     assert config_hash(manifest, tmp_path, plain) == config_hash(manifest, tmp_path, plain)
 
 
+# ....................... #
+# The regime preimage (D-4.19, A-72): config_hash writes its own parts
+
+
+def test_config_hash_writes_the_regime_preimage(tmp_path):
+    from torve.application.telemetry import config_hash
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    digest = config_hash(manifest, tmp_path, RunnerConfig())
+
+    regime = tmp_path / ".torve" / "regimes" / f"{digest}.json"
+    parts = json.loads(regime.read_text(encoding="utf-8"))
+    assert parts["gates.yaml"] == manifest.read_text(encoding="utf-8")
+    assert "torve" in parts and "forze" in parts
+
+
+def test_two_regimes_diff_as_two_files(tmp_path):
+    from torve.application.telemetry import config_hash
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    plain = RunnerConfig()
+    tiered = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="api", command="c", provider="p"),
+        }
+    )
+    digest_plain = config_hash(manifest, tmp_path, plain)
+    digest_tiered = config_hash(manifest, tmp_path, tiered)
+
+    regimes = tmp_path / ".torve" / "regimes"
+    assert (regimes / f"{digest_plain}.json").exists()
+    assert (regimes / f"{digest_tiered}.json").exists()
+    assert regimes / f"{digest_plain}.json" != regimes / f"{digest_tiered}.json"
+
+
+def test_regime_preimage_is_written_once_only_if_absent(tmp_path):
+    from torve.application.telemetry import config_hash
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    digest = config_hash(manifest, tmp_path, RunnerConfig())
+
+    regime = tmp_path / ".torve" / "regimes" / f"{digest}.json"
+    regime.write_text('{"planted": true}', encoding="utf-8")
+
+    config_hash(manifest, tmp_path, RunnerConfig())
+
+    assert json.loads(regime.read_text(encoding="utf-8")) == {"planted": True}
+
+
 def test_feedback_appends_a_keyed_record(tmp_path):
     root = tmp_path / "repo"
     (root / ".torve").mkdir(parents=True)
