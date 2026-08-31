@@ -318,6 +318,20 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
 # ....................... #
 
 
+def _harness_label(agent: dict[str, Any]) -> str | None:
+    """Which harness did the work — identity is the image (D-17.4), so a
+    `torve-agent:<name>` tag labels by name; records from before the tag
+    was stamped fall back to the adapter kind."""
+
+    image = agent.get("image")
+
+    if isinstance(image, str) and image:
+        return image.rsplit(":", 1)[-1] if ":" in image else image
+
+    adapter = agent.get("adapter")
+    return str(adapter) if adapter else None
+
+
 def _costs(root: Path) -> list[dict[str, Any]]:
     """Cost and iterations by task against config_hash (§4) — every real
     agent attempt and every shadow summary. An attempt whose harness reported
@@ -371,9 +385,11 @@ def _costs(root: Path) -> list[dict[str, Any]]:
                     "config_hash": row.get("config_hash"),
                     "cost_usd": block.get("cost_usd"),
                     "adapter": block.get("adapter"),
-                    # Which harness did the work: the configured model beside
-                    # the reported snapshot — adapter alone says "harness"
-                    # for claude and dsh alike.
+                    # Which harness did the work: identity is the image
+                    # (D-17.4) — a torve-agent:<name> tag labels by name;
+                    # records from before the tag was stamped fall back to
+                    # the adapter kind.
+                    "harness": _harness_label(block),
                     "model": block.get("model"),
                     "provider": block.get("provider"),
                     "model_version": block.get("model_version"),
@@ -962,9 +978,9 @@ def render_markdown(report: dict[str, Any]) -> str:
             if row["kind"] == "shadow":
                 extra = f", attempts {row['attempts']}, {row['state']}"
             else:
-                agent_bits = " ".join(
+                agent_bits = " · ".join(
                     str(part)
-                    for part in (row.get("adapter"), row.get("model_version") or row.get("model"))
+                    for part in (row.get("harness"), row.get("model_version") or row.get("model"))
                     if part
                 )
                 extra = f", {agent_bits}" if agent_bits else ""

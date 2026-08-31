@@ -263,7 +263,7 @@ def test_costs_are_newest_first_and_carry_the_model(plan_repo):  # noqa: F811
     assert [c["task"] for c in report["costs"]] == ["T-0002", "T-0001"]
     assert report["costs"][0]["model"] == "deepseek-chat"
     rendered = render_markdown(report)
-    assert "2026-08-31T10:00:00Z · attempt T-0002 @ bbb: $2.0000, harness deepseek-chat" in rendered
+    assert "2026-08-31T10:00:00Z · attempt T-0002 @ bbb: $2.0000, harness · deepseek-chat" in rendered
 
 
 def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):

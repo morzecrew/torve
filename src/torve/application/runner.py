@@ -853,6 +853,9 @@ def real_hooks(
         "model_version": None,
         "cost_usd": None,
         "trace_ref": None,
+        # The image tag beside its digest: harness identity is the image
+        # (D-17.4), and a projection labeling "which harness" reads the tag.
+        "image": image,
         "image_digest": image_digest,
         "shadow": shadow,
         # Per-skill attribution (RFC 0009 §5): filled with what materialize
@@ -898,6 +901,7 @@ def real_hooks(
             adapter=run_kind,
             provider=(resolved_tier.provider or None) if run_real else None,
             model=(resolved_tier.model or None) if run_real else None,
+            image=current["image"],
             image_digest=current["image_digest"],
         )
 

@@ -248,7 +248,8 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     if report["costs"]:
         costs = make_table(
-            "at", "kind", "task", "regime", "cost", "detail", title="Cost and iterations"
+            "at", "kind", "task", "regime", "cost", "harness", "model",
+            title="Cost and iterations",
         )
         rows: list[tuple[Any, ...]] = []
 
@@ -257,13 +258,10 @@ def _render_rich(report: dict[str, Any]) -> None:
             shown = f"${cost:.4f}" if isinstance(cost, (int, float)) else "unrecorded"
 
             if row["kind"] == "shadow":
-                detail = f"attempts {row['attempts']}, {row['state']}"
+                harness, model = "", f"attempts {row['attempts']}, {row['state']}"
             else:
-                detail = " ".join(
-                    str(part)
-                    for part in (row.get("adapter"), row.get("model_version") or row.get("model"))
-                    if part
-                )
+                harness = str(row.get("harness") or "")
+                model = str(row.get("model_version") or row.get("model") or "")
 
             rows.append(
                 (
@@ -272,7 +270,8 @@ def _render_rich(report: dict[str, Any]) -> None:
                     Text(str(row["task"]), STYLE_ID),
                     Text(str(row.get("config_hash")), STYLE_ID),
                     shown,
-                    detail,
+                    harness,
+                    model,
                 )
             )
 
