@@ -712,11 +712,11 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
         phases: dict[int, list[str]] = {}
 
         for task in minted:
-            # A drafting task (intake, decompose) cites the document that
-            # asked for it, but it is not a phase of the document's
-            # implementation — one consumed decompose contract otherwise
+            # A drafting task (intake, decompose) or a runner-minted review
+            # cites the document that asked for it, but neither is a phase of
+            # the document's implementation — one consumed contract otherwise
             # holds a completed RFC at "P0: planned" forever.
-            if task.get("role") == "draft":
+            if task.get("role") in ("draft", "review"):
                 continue
 
             phases.setdefault(int(task["phase"]), []).append(str(task["state"]))

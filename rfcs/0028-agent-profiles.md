@@ -3,6 +3,7 @@ id: 0028
 title: Agent profiles
 kind: design
 status: accepted
+implementation: complete
 depends_on: ["0004"]
 informed_by: ["0013", "0021", "0024", "0027"]
 supersedes: []
@@ -16,6 +17,12 @@ schema_version: 1
 
 # RFC 0028 — Agent profiles
 
+- **Implementation state:** complete (judged 2026-08-31). Phase 1 executed
+  as T-0136 (profile resolution, landed 95f29a2) and phase 2 as T-0137
+  (doctor provenance, landed 7fe6932), both attempt-1 green through the
+  review lane; T-0149 hardened D-28.3's fourth refusal class to name the
+  profile file after the reviewer found the merged-result error
+  misattributing.
 - **Scope:** How a tier definition — adapter, command template, model, image,
   retry variant — is named once on the operator's machine and referenced from
   many repository configurations, instead of being pasted into each. Covers
