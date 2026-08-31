@@ -1,0 +1,18 @@
+# Adopted from T-0130's drafts (RFC 0020) — ids minted at adoption, D-20.4.
+schema_version: 1
+id: T-0132
+role: implement
+intent: 'Fix parse_metadata to find opencode''s cost and token counts when the agent
+  runs with --format json: the last step_finish event nests them under part.cost and
+  part.tokens rather than at the flat keys the current scan looks for, so opencode
+  runs currently read as unrecorded cost/usage.'
+depends_on: []
+scope:
+  allow:
+  - src/torve/adapters/agent/harness.py
+  - tests/test_tiering.py
+  deny: []
+acceptance:
+- pytest tests/test_tiering.py -q
+decisions: []
+tier: executor

@@ -1,0 +1,30 @@
+# Adopted from T-0130's drafts (RFC 0020) — ids minted at adoption, D-20.4.
+schema_version: 1
+id: T-0131
+role: implement
+intent: "Harden the durable reaper's escalation coverage so an ACTIVE task state with\
+  \ no corresponding live engine run \u2014 a stale shadow replay, or a task the engine\
+  \ minted and claimed at intake/decompose whose drafting run then died before it\
+  \ wrote anything further \u2014 gets escalated instead of sitting in .wt forever\
+  \ and blocking dispatch through the overlap gate; and teach the reaper's worktree\
+  \ sweep to recognize the '.intake' worktree naming convention used by intake and\
+  \ decompose runs so a concurrent tick no longer destroys a live drafting run's worktree\
+  \ mid-run. The durable-store escalation path currently only escalates states tied\
+  \ to an expired taskstore record, so anything with no durable record at all (shadows\
+  \ by design, and a mint-then-crash claim) is invisible to it; the fix is one shared\
+  \ liveness check, not a guard per caller."
+depends_on: []
+scope:
+  allow:
+  - src/torve/application/reaper.py
+  - src/torve/application/runner.py
+  - src/torve/application/intake.py
+  - src/torve/cli/intake.py
+  - tests/test_reaper.py
+  - tests/test_runner.py
+  - tests/test_intake.py
+  deny: []
+acceptance:
+- pytest tests/test_reaper.py tests/test_runner.py tests/test_intake.py -q
+decisions: []
+tier: executor

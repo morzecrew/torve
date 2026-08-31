@@ -1,0 +1,20 @@
+# Adopted from T-0130's drafts (RFC 0020) — ids minted at adoption, D-20.4.
+schema_version: 1
+id: T-0133
+role: implement
+intent: 'Fix the landed-oracle specquality.read_tasks uses for ''torve rfc health'':
+  it currently derives a task''s landed status only from the ephemeral run-state file,
+  which the reaper deletes for every terminal run, so once reap has swept, every population
+  reads ''(0 landed)'' regardless of what actually shipped. Rederive landedness the
+  same way reap and context already do, from the task''s persistent record rather
+  than a file the reaper is expected to remove.'
+depends_on: []
+scope:
+  allow:
+  - src/torve/application/specquality.py
+  - tests/test_specquality.py
+  deny: []
+acceptance:
+- pytest tests/test_specquality.py -q
+decisions: []
+tier: executor

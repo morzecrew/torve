@@ -1,0 +1,19 @@
+# Adopted from T-0130's drafts (RFC 0020) — ids minted at adoption, D-20.4.
+schema_version: 1
+id: T-0134
+role: implement
+intent: 'Guard ReviewConfig against the classic YAML 1.1 landmine: an unquoted ''on:''
+  key under review parses as the boolean key True, not the string ''on'', so the trigger
+  list silently vanishes instead of loading. Detect the boolean-key shape at validation
+  and raise a clear error naming the quoting fix, rather than accepting a config that
+  silently disables review triggers.'
+depends_on: []
+scope:
+  allow:
+  - src/torve/config/runconfig.py
+  - tests/test_review_run.py
+  deny: []
+acceptance:
+- pytest tests/test_review_run.py -q
+decisions: []
+tier: executor
