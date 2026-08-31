@@ -2,7 +2,7 @@
 id: 0028
 title: Agent profiles
 kind: design
-status: draft
+status: accepted
 depends_on: ["0004"]
 informed_by: ["0013", "0021", "0024", "0027"]
 supersedes: []
