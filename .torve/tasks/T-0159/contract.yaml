@@ -1,0 +1,20 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0159
+rfc: rfcs/0029-agent-equipment.md
+role: review
+intent: Review T-0158's diff against its contract and inherited decisions.
+targets:
+- T-0158
+decisions:
+- id: D-29.4
+  grade: ASSUMED
+  text: A Phasing entry may carry `tier_variant`, copied verbatim by the planner onto
+    the minted contract; drafters may set it on drafts, and adoption is where a human
+    sees the assignment
+  paths:
+  - src/torve/config/rfc_parse.py
+  - src/torve/application/planner.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
