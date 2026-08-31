@@ -3,6 +3,7 @@ id: 0029
 title: Agent equipment
 kind: design
 status: accepted
+implementation: complete
 depends_on: ["0009", "0027", "0028"]
 informed_by: ["0004", "0007", "0026"]
 supersedes: []
@@ -16,6 +17,11 @@ schema_version: 1
 
 # RFC 0029 — Agent equipment
 
+- **Implementation state:** complete (judged 2026-08-31). Phase 1 executed
+  as T-0154 (equipment on the tier, landed d8b8db5) and phase 2 as T-0155
+  (variant in the phasing plus doctor, landed 7ef8f85), both through the
+  review lane; T-0158 (landed 7e9a002) closed the lane's major finding —
+  emit now renders tier_variant, so routing survives every amendment flow.
 - **Scope:** What a configured tier carries into the sandbox beyond its
   wiring: which skills are materialized for it and which working rules ride
   its prompt. Covers two fields on `TierConfig` (`skills`, `prompt_extras`),
