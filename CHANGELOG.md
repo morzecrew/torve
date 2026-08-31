@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cross-model review is live: review triggers on gated tasks, the lane
+  refuses a candidate without a concluded review, and `torve doctor`
+  warns when the reviewer runs the executor's own model — a model
+  reviewing its own kind shares its blind spots.
+
+### Fixed
+
+- Maintenance batch (T-0131–T-0134, drafted by intake from the operator's
+  gap ledger): the reaper escalates stale shadow states, reaps a claimed
+  task with no live engine run, and recognizes `.intake` worktrees as a
+  live drafting run's; opencode's nested `part.cost` reaches the record;
+  `torve rfc health` derives landedness from history rather than a state
+  file the reaper deletes; an unquoted `on:` review trigger (YAML 1.1
+  boolean) is refused with the quoting fix named.
+
 - The corpus authoring surface (T-0123/T-0124 and the T-0125 decomposition
   T-0127/T-0128, RFC 0025): a canonical emitter beside the parser with
   `torve rfc fmt` to normalise a document, transactional corpus verbs
