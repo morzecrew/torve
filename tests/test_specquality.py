@@ -8,6 +8,7 @@ RFC 0005's review-corpus fixtures already use for calibration)."""
 from __future__ import annotations
 
 import json
+import subprocess
 
 import pytest
 import yaml
@@ -107,6 +108,25 @@ def landed_state_with(root, task_id: str, *, attempts: int, start_at: str, end_a
         {"at": end_at, "from": "reviewed", "to": "ready", "fact": "t"},
     ]
     state.save()
+
+
+def land_commit(root, task_id: str) -> None:
+    """The landing trailer git carries forever (D-10.4) — the persistent
+    record `read_tasks` now reads instead of the run-state file the reaper
+    deletes."""
+
+    if not (root / ".git").exists():
+        subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t.example"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.name", "torve-test"], check=True)
+
+    marker = root / f".landed-{task_id}"
+    marker.write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", str(marker)], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-q", "-m", f"land {task_id}\n\nTorve-Task: {task_id}"],
+        check=True,
+    )
 
 
 def write_cost(root, task_id: str, cost_usd: float, *, adapter: str = "harness") -> None:
@@ -334,12 +354,28 @@ def test_locked_halted_and_requeued_reads_as_healthy(tmp_path):
 def test_landed_and_abandoned_denominators_are_both_reported(tmp_path):
     write_contract(tmp_path, "T-0001", decisions=[("D-1.1", "ASSUMED", ["src/a.py"])])
     ready_state(tmp_path, "T-0001")
+    land_commit(tmp_path, "T-0001")
     write_contract(tmp_path, "T-0002", decisions=[("D-1.1", "ASSUMED", ["src/a.py"])])
     abandoned_state(tmp_path, "T-0002")
     report = decision_report(tmp_path, tmp_path / "rfcs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["inherited"] == 2
     assert pop["inherited_landed"] == 1  # only the ready task counts as landed
+
+
+def test_landed_survives_the_reap_sweep_of_the_run_state_file(tmp_path):
+    """T-0133: the reaper deletes a terminal run's state file (D-3.4) — a
+    population read afterwards must still see what actually shipped, from
+    git's own landing trailer rather than the file that is gone."""
+
+    write_contract(tmp_path, "T-0001", decisions=[("D-1.1", "ASSUMED", ["src/a.py"])])
+    ready_state(tmp_path, "T-0001")
+    land_commit(tmp_path, "T-0001")
+    naming.state_file(tmp_path, "T-0001").unlink()  # the reap sweep
+
+    report = decision_report(tmp_path, tmp_path / "rfcs")
+    pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
+    assert pop["inherited_landed"] == 1
 
 
 # ....................... #
@@ -458,6 +494,7 @@ def test_dispatch_envelope_is_silent_below_the_floor(tmp_path):
             tmp_path, task_id, attempts=i, start_at="2026-08-20T10:00:00.000000Z",
             end_at="2026-08-20T10:10:00.000000Z",
         )
+        land_commit(tmp_path, task_id)
 
     envelope = dispatch_envelope(tmp_path, "ok", floor=3)
     assert envelope["n"] == 2  # the denominator prints regardless (D-22.8)
@@ -477,6 +514,7 @@ def test_dispatch_envelope_reports_medians_once_the_floor_is_met(tmp_path):
         write_contract(tmp_path, task_id, scope_allow=["src/a.py"])
         start, end = starts_ends[i - 1]
         landed_state_with(tmp_path, task_id, attempts=i, start_at=start, end_at=end)
+        land_commit(tmp_path, task_id)
         write_cost(tmp_path, task_id, float(i))
 
     envelope = dispatch_envelope(tmp_path, "ok", floor=3)
@@ -493,6 +531,7 @@ def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
         tmp_path, "T-0001", attempts=1, start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",
     )
+    land_commit(tmp_path, "T-0001")
     # Two top-level modules in scope.allow reads as too_large (sizing.py's
     # MAX_MODULES=1; "tests" is excluded from the count so it must be a
     # second non-test module here), so this task must never join the "ok"
@@ -502,6 +541,7 @@ def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
         tmp_path, "T-0002", attempts=1, start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",
     )
+    land_commit(tmp_path, "T-0002")
 
     assert dispatch_envelope(tmp_path, "ok", floor=1)["n"] == 1
     assert dispatch_envelope(tmp_path, "too_large", floor=1)["n"] == 1

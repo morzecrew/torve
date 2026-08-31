@@ -1,0 +1,40 @@
+schema_version: 1
+task: T-0133
+repo: morzecrew/torve
+base_sha: 64c97fe45af4702aa39bb8205bbfd96ebd1d2cac
+drift_count: 0
+entries:
+  - decision: D-22.5
+    grade: ASSUMED
+    kind: departed
+    class: discovery
+    at: '2026-08-31T06:14:44Z'
+    attempt: 1
+    claim: 'the contract asks specquality.read_tasks to rederive landedness the
+      same way reap and the tracker already do: from the task''s persistent
+      record, not the ephemeral run-state file the reaper deletes on every
+      terminal run. The only persistent record specquality.py has of "did this
+      task actually land" is the same one those callers use — git''s own
+      `Torve-Task: <id>` landing trailer (D-10.4) — and reading it needs a git
+      subprocess call. D-22.5''s own text is about staying off DuckDB, but
+      _touched''s docstring (this same file, T-0099) already glossed D-22.5 as
+      "no git subprocess" for this module, and TaskFacts.landed''s prior
+      docstring made the same claim explicit ("never a git-history guess").
+      Discovered only once reap''s sweep and this report''s later read were
+      both exercised against the same corpus — not knowable from the RFC text
+      alone at authoring time.'
+    evidence: 'rfcs/0022-specification-quality.md:324 — D-22.5''s row; src/torve/application/specquality.py:272-293
+      — _landed_task_ids, the one subprocess call this module now makes;
+      src/torve/adapters/vcs/git.py:86-94 — landed_shas, the same trailer
+      convention mirrored here; .torve/tasks/T-0099/log.yaml:75-92 — the
+      original D-22.10 entry choosing RunState.state == ready specifically
+      because "no telemetry.jsonl exists in this worktree" to compare against,
+      not because git was ruled out on principle'
+    action: departed
+    proposal: 'D-22.5 — note the one exception textually: TaskFacts.landed reads
+      git''s own landing trailer via a single batched `git log` call (not once
+      per task), because it is the one fact in this report that must survive a
+      reap sweep of the run-state file; every other reader in this module stays
+      YAML/JSONL-only. `_touched`''s docstring and TaskFacts.landed''s own
+      comment already carry this scoping as of T-0133; only the RFC row itself
+      is unamended.'

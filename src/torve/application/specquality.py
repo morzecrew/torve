@@ -4,14 +4,14 @@ id, joined to the corpus for the row as it stands and to each contract for
 the row as it was minted.
 
 The report never edits a decision table, proposes no text and calls no model
-(D-22.1, LOCKED): everything here is a read over `.torve/tasks/*/contract.yaml`
-and `log.yaml`, run state and the RFC corpus — a plain reader over JSONL-shaped
-YAML, no new dependency, so moving to RFC 0004 §6 stage 2 is a change of
-reader, not a rewrite (D-22.5). The grade compared is always the one copied
-onto the contract at mint time, never the row as the corpus stands today
-(D-22.2) — that is why every population is built from `Task.decisions`, and
-the corpus itself is consulted only for whether an amendment later cited the
-identifier, never for its current grade or paths.
+(D-22.1, LOCKED): everything here is a read over `.torve/tasks/*/contract.yaml`,
+`log.yaml`, run state, git's own landing trailer and the RFC corpus — a plain
+reader over JSONL-shaped YAML, no new dependency, so moving to RFC 0004 §6
+stage 2 is a change of reader, not a rewrite (D-22.5). The grade compared is
+always the one copied onto the contract at mint time, never the row as the
+corpus stands today (D-22.2) — that is why every population is built from
+`Task.decisions`, and the corpus itself is consulted only for whether an
+amendment later cited the identifier, never for its current grade or paths.
 
 `touched` is read from the contract's own declared `scope.allow` intersecting
 the decision's declared paths (`torve.application.planner.globs_intersect`,
@@ -21,9 +21,11 @@ shas. Two considered reasons, logged as a departure from D-22.4/D-22.5's
 literal "diff intersected" wording under T-0099: the scope gate already
 refuses a landed diff that leaves `scope.allow` (`torve.gates.scope`), so the
 declared area is a safe over-approximation of the true diff for any task that
-ever passed or was explicitly bypassed; and it keeps this module exactly what
-D-22.5 asks for — YAML in, no git subprocess, no dependency on a historical
-sha still being resolvable.
+ever passed or was explicitly bypassed; and it keeps this specific reading
+what D-22.5 asks for — YAML in, no git subprocess, no dependency on a
+historical sha still being resolvable. `TaskFacts.landed` is the module's one
+exception (`_landed_task_ids`, T-0133, logged): the run-state file it used to
+read is exactly what the reaper deletes on every terminal run.
 
 No score is computed anywhere in this module (D-22.3): a population's
 `reading` is `None` until its relevant count clears `floor`, and every ratio
@@ -39,7 +41,9 @@ or resizes a dispatch.
 from __future__ import annotations
 
 import json
+import re
 import statistics
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -73,10 +77,17 @@ QUASI_EXPERIMENT_CAVEAT = (
     'supports direction ("iterations fell") and not magnitude ("40% faster").'
 )
 
-_LANDED_STATE = str(TaskState.READY)
 _ABANDONED_STATE = str(TaskState.ABANDONED)
 _ESCALATED_STATE = str(TaskState.ESCALATED)
 _QUEUED_STATE = str(TaskState.QUEUED)
+
+# The landing trailer the runner writes into the commit that lands a task
+# (D-10.4: git log is the surviving record) — the same trailer
+# `torve.adapters.vcs.git.GitVcs.landed_shas` greps for and
+# `torve.application.tracker._discharged` reads through its injected
+# oracle. `read_tasks` reads it directly (T-0133, departing D-22.5's "no
+# git subprocess" — logged) because it has no caller to inject one for it.
+_LANDING_TRAILER = re.compile(r"^Torve-Task: (T-\d{4,})$", re.M)
 
 
 # ....................... #
@@ -98,6 +109,12 @@ class TaskFacts:
     state: str | None
     attempts: int = 0
     history: list[dict[str, str]] = field(default_factory=list)
+    # D-22.10's landed reading, sourced from git's own landing trailer
+    # (T-0133, departing D-22.5 — see `_landed_task_ids`) rather than
+    # RunState.state == ready: the run-state file is exactly what the
+    # reaper deletes on every terminal run, so a population read after a
+    # reap sweep saw every task as unlanded regardless of what shipped.
+    landed: bool = False
 
     # ....................... #
 
@@ -110,15 +127,6 @@ class TaskFacts:
         fresh dispatch does."""
 
         return estimate_scope(Scope(allow=self.scope_allow), self.acceptance).size
-
-    # ....................... #
-
-    @property
-    def landed(self) -> bool:
-        """D-22.10: the mergeable-and-done reading of "landed" — the engine's
-        own terminal success state, never a git-history guess."""
-
-        return self.state == _LANDED_STATE
 
     # ....................... #
 
@@ -261,16 +269,46 @@ def _run_state(root: Path, task_id: str) -> RunState | None:
 # ....................... #
 
 
+def _landed_task_ids(root: Path) -> set[str]:
+    """Every task id git's own history records as landed, read in one
+    batched pass rather than once per task. A repository git cannot read
+    (no commits yet, no `.git`, the binary missing) lands no tasks rather
+    than erroring — the same convention `_load_yaml_dict` uses for a file
+    it cannot read."""
+
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "log", "--format=%B"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    except OSError:
+        return set()
+
+    if proc.returncode != 0:
+        return set()
+
+    return set(_LANDING_TRAILER.findall(proc.stdout))
+
+
+# ....................... #
+
+
 def read_tasks(root: Path) -> list[TaskFacts]:
-    """Every task the corpus knows, joined to its own log and run state
-    (RFC 0022 §5.1). A directory with no readable `contract.yaml` is not a
-    task the join can use and is skipped, not fabricated."""
+    """Every task the corpus knows, joined to its own log, run state and
+    landing trailer (RFC 0022 §5.1). A directory with no readable
+    `contract.yaml` is not a task the join can use and is skipped, not
+    fabricated."""
 
     found: list[TaskFacts] = []
     tasks_dir = root / layout.TORVE_DIR / "tasks"
 
     if not tasks_dir.is_dir():
         return found
+
+    landed_ids = _landed_task_ids(root)
 
     for contract_path in sorted(tasks_dir.glob("T-*/contract.yaml")):
         record = _load_yaml_dict(contract_path)
@@ -292,6 +330,7 @@ def read_tasks(root: Path) -> list[TaskFacts]:
                 state=str(run_state.state) if run_state is not None else None,
                 attempts=run_state.attempts if run_state is not None else 0,
                 history=run_state.history if run_state is not None else [],
+                landed=task_id in landed_ids,
             )
         )
 
