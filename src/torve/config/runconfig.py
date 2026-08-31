@@ -18,7 +18,7 @@ from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from torve.config import layout
 from torve.domain.task import SCHEMA_VERSION, Task
@@ -885,7 +885,7 @@ def profiles_dir() -> Path:
 # ....................... #
 
 
-def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> None:
+def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> dict[str, tuple[str, Path]]:
     """D-28.2: a raw-mapping merge, on `raw["tiers"]`, before
     `RunnerConfig.model_validate` ever runs — locally-present keys win, and
     the merged mapping is all `TierConfig` sees. One merge level, no
@@ -893,7 +893,13 @@ def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> None:
     key, if any, is never itself resolved.
 
     D-28.3: every failure below refuses the configuration load, naming the
-    file — there is no fallback to inline defaults."""
+    file — there is no fallback to inline defaults.
+
+    Returns the tier key -> (profile name, profile path) map for every tier
+    resolved through a profile, so a later TierConfig validation failure on
+    the merged result can be traced back to the profile that supplied it."""
+
+    sources: dict[str, tuple[str, Path]] = {}
 
     for key, raw_entry in tiers.items():
         if not isinstance(raw_entry, dict):
@@ -939,6 +945,9 @@ def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> None:
         merged = {**body, **{k: v for k, v in entry.items() if k != "profile"}}
         merged["profile"] = name
         tiers[key] = merged
+        sources[key] = (name, path)
+
+    return sources
 
 
 # ....................... #
@@ -967,8 +976,35 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     config = cast("dict[str, Any]", raw)
     tiers = config.get("tiers")
+    profile_sources: dict[str, tuple[str, Path]] = {}
 
     if isinstance(tiers, dict):
-        _resolve_profiles(cast("dict[str, Any]", tiers), profiles_dir())
+        profile_sources = _resolve_profiles(cast("dict[str, Any]", tiers), profiles_dir())
 
-    return RunnerConfig.model_validate(config)
+    try:
+        return RunnerConfig.model_validate(config)
+    except ValidationError as exc:
+        # D-28.3's fourth refusal class: a merged result invalid enough that
+        # TierConfig itself refuses it. Pydantic's error names the field, not
+        # the profile that supplied it — named here so the offending profile
+        # and its file are as locatable as the other three refusal classes.
+        offenders = sorted(
+            {
+                str(error["loc"][1])
+                for error in exc.errors()
+                if len(error["loc"]) >= 2
+                and error["loc"][0] == "tiers"
+                and error["loc"][1] in profile_sources
+            }
+        )
+
+        if not offenders:
+            raise
+
+        named = "; ".join(
+            f"tier {name!r} via profile {profile_sources[name][0]!r} "
+            f"({profile_sources[name][1]})"
+            for name in offenders
+        )
+
+        raise ValueError(f"{named}: invalid merged tier configuration — {exc}") from exc

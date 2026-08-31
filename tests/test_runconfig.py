@@ -164,14 +164,21 @@ def test_unknown_key_in_profile_body_refuses_naming_key_and_file(
 
 
 def test_invalid_merged_result_fails_tierconfig_validation(agents_dir: Path, tmp_path: Path):
-    """A real adapter with no command and no provider — the normal pydantic
-    error, now pointing at the repository's own file since local content had
-    the last word (there is none here, so the profile's own gap surfaces)."""
+    """A real adapter with no command and no provider — the underlying
+    pydantic error, now wrapped to name the tier, the profile and its file
+    (D-28.3's fourth refusal class), since local content had the last word
+    (there is none here, so the profile's own gap surfaces)."""
 
-    write(agents_dir / "half.yaml", "adapter: harness\n")
+    path = write(agents_dir / "half.yaml", "adapter: harness\n")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError, match="needs a command") as excinfo:
         load(tmp_path, "tiers:\n  executor:\n    profile: half\n")
+
+    assert not isinstance(excinfo.value, ValidationError)
+    message = str(excinfo.value)
+    assert "executor" in message
+    assert "half" in message
+    assert str(path) in message
 
 
 # ....................... #

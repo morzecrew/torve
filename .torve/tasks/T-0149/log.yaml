@@ -1,0 +1,26 @@
+schema_version: 1
+task: T-0149
+repo: morzecrew/torve
+base_sha: cfc7d7d3e8ce20988c86e43a337cfb1b0613bac8
+drift_count: 0
+entries:
+  - decision: D-28.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T18:11:48Z
+    attempt: 1
+    claim: >-
+      the fourth refusal class (invalid merged result) already refuses the
+      load and names the tier, profile name and profile path alongside the
+      wrapped pydantic error, matching the other three classes — no fallback
+      to inline defaults is introduced; verified present and covered on
+      arrival, no code change needed
+    evidence: src/torve/config/runconfig.py:984-1010 — load_runner_config
+      catches ValidationError, filters exc.errors() to loc entries under
+      "tiers" whose tier key is in profile_sources, and re-raises ValueError
+      naming tier, profile and path, or re-raises unchanged when no offender
+      traces to a profile; tests/test_runconfig.py:166-181 —
+      test_invalid_merged_result_fails_tierconfig_validation asserts the
+      raised error is not a ValidationError and names "executor", "half"
+      and the profile path
+    action: decided
