@@ -54,6 +54,27 @@ def test_profile_check_names_the_resolved_tier(monkeypatch, tmp_path: Path):
     assert "executor" in detail and "claude-sonnet" in detail
 
 
+def test_profile_check_names_the_chain_in_order_for_a_composed_tier(
+    monkeypatch, tmp_path: Path
+):
+    """A-74: a tier composed from a list of profiles gets one provenance
+    line naming the chain in order, wiring before equipment."""
+
+    _write_profile(monkeypatch, tmp_path, "wiring", "adapter: harness\nprovider: p\ncommand: c\n")
+    _write_profile(monkeypatch, tmp_path, "equipment", "model: m\n")
+    root = _doctor_repo(
+        tmp_path, {"tiers": {"executor": {"profile": ["wiring", "equipment"]}}}
+    )
+
+    checks = _profile_checks(root, None)
+
+    assert len(checks) == 1
+    name, ok, detail = checks[0]
+    assert name == "profile executor"
+    assert ok is True
+    assert "wiring -> equipment" in detail
+
+
 def test_profile_check_is_silent_with_no_profile_referenced(tmp_path: Path):
     root = _doctor_repo(tmp_path, {})
 

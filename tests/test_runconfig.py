@@ -134,6 +134,109 @@ def test_a_partial_profile_leaves_untouched_fields_at_their_default(
     assert tier.adapter == "fake"  # untouched by the profile, at its model default
 
 
+def test_profile_list_merges_left_to_right(agents_dir: Path, tmp_path: Path):
+    """A-74: a list of names merges left to right — the rightmost profile's
+    keys win over the ones before it, same shallow rule as local-over-profile."""
+
+    write(agents_dir / "wiring.yaml", "adapter: harness\ncommand: c\nmodel: wiring-model\n")
+    write(agents_dir / "equipment.yaml", "model: equipment-model\nprovider: anthropic\n")
+    config = load(
+        tmp_path,
+        "tiers:\n  executor:\n    profile: [wiring, equipment]\n",
+    )
+    tier = config.tiers["executor"]
+
+    assert tier.adapter == "harness"  # only wiring names it
+    assert tier.model == "equipment-model"  # equipment, to the right, wins the overlap
+    assert tier.provider == "anthropic"
+
+
+def test_profile_list_local_key_still_wins_last(agents_dir: Path, tmp_path: Path):
+    write(agents_dir / "wiring.yaml", "model: wiring-model\n")
+    write(agents_dir / "equipment.yaml", "model: equipment-model\n")
+    config = load(
+        tmp_path,
+        "tiers:\n  executor:\n    profile: [wiring, equipment]\n    model: local-model\n",
+    )
+
+    assert config.tiers["executor"].model == "local-model"
+
+
+def test_profile_list_list_fields_replace_wholesale_across_every_layer(
+    agents_dir: Path, tmp_path: Path
+):
+    write(agents_dir / "wiring.yaml", "api_key_env: [FOO]\n")
+    write(agents_dir / "equipment.yaml", "api_key_env: [BAR]\n")
+    config = load(
+        tmp_path,
+        "tiers:\n  executor:\n    profile: [wiring, equipment]\n",
+    )
+
+    # equipment's list replaces wiring's outright, never concatenates.
+    assert config.tiers["executor"].api_key_env == ["BAR"]
+
+    config = load(
+        tmp_path,
+        "tiers:\n  executor:\n    profile: [wiring, equipment]\n    api_key_env: [BAZ]\n",
+    )
+
+    # the local list, in turn, replaces the composed chain's outright.
+    assert config.tiers["executor"].api_key_env == ["BAZ"]
+
+
+def test_profile_list_records_the_chain_in_order(agents_dir: Path, tmp_path: Path):
+    write(agents_dir / "wiring.yaml", "model: m\n")
+    write(agents_dir / "equipment.yaml", "provider: anthropic\n")
+    config = load(tmp_path, "tiers:\n  executor:\n    profile: [wiring, equipment]\n")
+
+    assert config.tiers["executor"].profile == "wiring -> equipment"
+
+
+def test_single_name_profile_is_unaffected_by_list_support(agents_dir: Path, tmp_path: Path):
+    """A single name behaves exactly as today — the list machinery is never
+    exercised, and `profile` carries just that one name, no arrow."""
+
+    write(agents_dir / "solo.yaml", "adapter: harness\ncommand: c\nprovider: p\nmodel: solo-model\n")
+    config = load(tmp_path, "tiers:\n  executor:\n    profile: solo\n")
+    tier = config.tiers["executor"]
+
+    assert tier.model == "solo-model"
+    assert tier.profile == "solo"
+
+
+def test_profile_list_missing_file_names_that_profiles_own_path(
+    agents_dir: Path, tmp_path: Path
+):
+    write(agents_dir / "wiring.yaml", "model: m\n")
+
+    with pytest.raises(ValueError, match=r"missing\.yaml") as excinfo:
+        load(tmp_path, "tiers:\n  executor:\n    profile: [wiring, missing]\n")
+
+    assert "profile 'missing'" in str(excinfo.value)
+
+
+def test_profile_list_non_mapping_body_names_that_profiles_own_path(
+    agents_dir: Path, tmp_path: Path
+):
+    write(agents_dir / "wiring.yaml", "model: m\n")
+    bad_path = write(agents_dir / "listy.yaml", "- just\n- a\n- list\n")
+
+    with pytest.raises(ValueError, match="must be a mapping") as excinfo:
+        load(tmp_path, "tiers:\n  executor:\n    profile: [wiring, listy]\n")
+
+    assert str(bad_path) in str(excinfo.value)
+
+
+def test_profile_list_unknown_key_names_that_profiles_own_path(agents_dir: Path, tmp_path: Path):
+    write(agents_dir / "wiring.yaml", "model: m\n")
+    bad_path = write(agents_dir / "typo.yaml", "bogus_field: 1\n")
+
+    with pytest.raises(ValueError, match="bogus_field") as excinfo:
+        load(tmp_path, "tiers:\n  executor:\n    profile: [wiring, typo]\n")
+
+    assert str(bad_path) in str(excinfo.value)
+
+
 def test_profile_to_profile_reference_is_not_chased(agents_dir: Path, tmp_path: Path):
     """D-28.4: one merge level. A profile body naming its own `profile` key
     is not itself resolved — `base.yaml` is never read, and the field simply

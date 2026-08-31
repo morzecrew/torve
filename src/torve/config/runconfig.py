@@ -61,12 +61,15 @@ class TierConfig(BaseModel):
     # red is retried under the same tier, today's behaviour.
     retry_variant: str = ""
 
-    # RFC 0028 §5.1, D-28.1/D-28.2: the named profile this tier resolved
-    # from, if any — resolution happens on the raw mapping in
+    # RFC 0028 §5.1, D-28.1/D-28.2, A-74: the named profile(s) this tier
+    # resolved from, if any — resolution happens on the raw mapping in
     # `load_runner_config`, before this model ever validates, so by the time
     # a `TierConfig` exists every other field already carries the merged
-    # content. Kept (not popped) so `config_hash` and `torve doctor` can both
-    # see which profile a tier came from.
+    # content. The raw config's `profile` key may be a single name or a list
+    # merged left to right (A-74); either way this field ends up holding the
+    # chain in order (`"a -> b"`, or just `"a"` for a single name), kept
+    # (not popped) so `config_hash` and `torve doctor` can both see where a
+    # tier came from.
     profile: str = ""
 
     # RFC 0029 §5.1, D-29.1/D-29.3: `None` inherits the role-scoped skill set
@@ -916,67 +919,100 @@ def profiles_dir() -> Path:
 # ....................... #
 
 
-def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> dict[str, tuple[str, Path]]:
+def _load_profile_body(name: str, key: str, agents_dir: Path) -> tuple[dict[str, Any], Path]:
+    """One named profile's body, validated in isolation (D-28.3): every
+    refusal below names this profile's own file, never the chain it is
+    part of."""
+
+    path = agents_dir / f"{name}.yaml"
+
+    if not path.is_file():
+        present = sorted(p.stem for p in agents_dir.glob("*.yaml")) if agents_dir.is_dir() else []
+        raise ValueError(
+            f"tier {key!r} names profile {name!r}, resolving to {path} — no such "
+            f"file; profiles present: {', '.join(present) or 'none'}"
+        )
+
+    try:
+        raw_body = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"{path}: could not be read as a profile — {exc}") from exc
+
+    if raw_body is None:
+        raw_body = {}
+
+    if not isinstance(raw_body, dict):
+        raise ValueError(f"{path}: profile body must be a mapping")
+
+    body = cast("dict[str, Any]", raw_body)
+    unknown = sorted(k for k in body if k not in TierConfig.model_fields)
+
+    if unknown:
+        raise ValueError(f"{path}: unknown key(s) {', '.join(unknown)} — not a TierConfig field")
+
+    return body, path
+
+
+# ....................... #
+
+
+def _resolve_profiles(
+    tiers: dict[str, Any], agents_dir: Path
+) -> dict[str, list[tuple[str, Path]]]:
     """D-28.2: a raw-mapping merge, on `raw["tiers"]`, before
     `RunnerConfig.model_validate` ever runs — locally-present keys win, and
     the merged mapping is all `TierConfig` sees. One merge level, no
     profile-to-profile inheritance (D-28.4): a profile body's own `profile`
     key, if any, is never itself resolved.
 
+    A-74: `profile` also accepts a list of names, merged left to right under
+    this same shallow rule before local overrides — a tier composing flat
+    layers, never a profile referencing a profile. Each named profile is
+    loaded and validated on its own (`_load_profile_body`), so every refusal
+    class still names that profile's own path.
+
     D-28.3: every failure below refuses the configuration load, naming the
     file — there is no fallback to inline defaults.
 
-    Returns the tier key -> (profile name, profile path) map for every tier
-    resolved through a profile, so a later TierConfig validation failure on
-    the merged result can be traced back to the profile that supplied it."""
+    Returns the tier key -> ordered [(profile name, profile path), ...] map
+    for every tier resolved through a profile, so a later TierConfig
+    validation failure on the merged result can be traced back to the chain
+    that supplied it."""
 
-    sources: dict[str, tuple[str, Path]] = {}
+    sources: dict[str, list[tuple[str, Path]]] = {}
 
     for key, raw_entry in tiers.items():
         if not isinstance(raw_entry, dict):
             continue
 
         entry = cast("dict[str, Any]", raw_entry)
-        name = entry.get("profile")
+        names_field = entry.get("profile")
 
-        if not name:
+        if not names_field:
             continue
 
-        path = agents_dir / f"{name}.yaml"
+        names = cast(
+            "list[str]", names_field if isinstance(names_field, list) else [names_field]
+        )
 
-        if not path.is_file():
-            present = sorted(p.stem for p in agents_dir.glob("*.yaml")) if agents_dir.is_dir() else []
-            raise ValueError(
-                f"tier {key!r} names profile {name!r}, resolving to {path} — no such "
-                f"file; profiles present: {', '.join(present) or 'none'}"
-            )
+        merged_body: dict[str, Any] = {}
+        chain: list[tuple[str, Path]] = []
 
-        try:
-            raw_body = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as exc:
-            raise ValueError(f"{path}: could not be read as a profile — {exc}") from exc
+        for name in names:
+            body, path = _load_profile_body(name, key, agents_dir)
+            # Left to right (A-74): each next profile's keys win over the
+            # ones before it, same shallow-merge rule as local-over-profile
+            # below — list fields replace wholesale, never concatenate.
+            merged_body = {**merged_body, **body}
+            chain.append((name, path))
 
-        if raw_body is None:
-            raw_body = {}
-
-        if not isinstance(raw_body, dict):
-            raise ValueError(f"{path}: profile body must be a mapping")
-
-        body = cast("dict[str, Any]", raw_body)
-        unknown = sorted(k for k in body if k not in TierConfig.model_fields)
-
-        if unknown:
-            raise ValueError(
-                f"{path}: unknown key(s) {', '.join(unknown)} — not a TierConfig field"
-            )
-
-        # Local wins (D-28.2); list fields (api_key_env) replace wholesale,
-        # never concatenate (D-28.4) — this is a plain dict merge, no
-        # per-field logic, so that falls out for free.
-        merged = {**body, **{k: v for k, v in entry.items() if k != "profile"}}
-        merged["profile"] = name
+        # Local wins last (D-28.2); list fields (api_key_env) replace
+        # wholesale, never concatenate (D-28.4) — this is a plain dict
+        # merge, no per-field logic, so that falls out for free.
+        merged = {**merged_body, **{k: v for k, v in entry.items() if k != "profile"}}
+        merged["profile"] = " -> ".join(names)
         tiers[key] = merged
-        sources[key] = (name, path)
+        sources[key] = chain
 
     return sources
 
@@ -1007,7 +1043,7 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     config = cast("dict[str, Any]", raw)
     tiers = config.get("tiers")
-    profile_sources: dict[str, tuple[str, Path]] = {}
+    profile_sources: dict[str, list[tuple[str, Path]]] = {}
 
     if isinstance(tiers, dict):
         profile_sources = _resolve_profiles(cast("dict[str, Any]", tiers), profiles_dir())
@@ -1017,8 +1053,9 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     except ValidationError as exc:
         # D-28.3's fourth refusal class: a merged result invalid enough that
         # TierConfig itself refuses it. Pydantic's error names the field, not
-        # the profile that supplied it — named here so the offending profile
-        # and its file are as locatable as the other three refusal classes.
+        # the profile that supplied it — named here so the offending
+        # profile chain and its files are as locatable as the other three
+        # refusal classes.
         offenders = sorted(
             {
                 str(error["loc"][1])
@@ -1033,8 +1070,8 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
             raise
 
         named = "; ".join(
-            f"tier {name!r} via profile {profile_sources[name][0]!r} "
-            f"({profile_sources[name][1]})"
+            f"tier {name!r} via profile "
+            + " -> ".join(f"{pname!r} ({ppath})" for pname, ppath in profile_sources[name])
             for name in offenders
         )
 

@@ -23,7 +23,8 @@ The profile check is RFC 0028 D-28.7: each tier that resolved through a
 profile (`TierConfig.profile`, set by `load_runner_config`'s raw-mapping
 merge) gets one provenance line naming it — no check attached, so this can
 never turn doctor red, and a tier or profile file nobody referenced gets
-no line and no warning.
+no line and no warning. A-74: a tier composed from a list of profiles
+carries its chain, in order, in that same field and line.
 
 The equipment check is RFC 0029 D-29.5: each tier whose resolved `skills`
 or `prompt_extras` differ from its role default gets one provenance line —
@@ -296,7 +297,9 @@ def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, 
 def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     """D-28.7: provenance only — a resolved profile is named per tier, and no
     check is attached, so this can never turn doctor red. A tier that names
-    no profile, or an unreferenced profile file, gets no line at all."""
+    no profile, or an unreferenced profile file, gets no line at all. A-74:
+    `tier.profile` already carries a composed tier's chain in order
+    (`"a -> b"`), so the same line renders it with no extra formatting."""
 
     config = load_config(root, config_path)
 
