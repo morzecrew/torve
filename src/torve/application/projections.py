@@ -139,7 +139,14 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             # commit cites the task.
             "phase": record.get("phase", 0),
             "role": record.get("role", "implement"),
-            "state": "shipped" if task_id in shipped else "unstarted",
+            # A drafting contract (intake, decompose) with no live run has
+            # been consumed by its adoption — "unstarted" would claim work
+            # is still owed. A run state below overrides either way.
+            "state": (
+                "shipped"
+                if task_id in shipped
+                else ("consumed" if record.get("role") == "draft" else "unstarted")
+            ),
             "attempts": 0,
             "escalation": None,
             "escalated_at": None,
@@ -340,6 +347,7 @@ def _costs(root: Path) -> list[dict[str, Any]]:
             found.append(
                 {
                     "kind": "shadow",
+                    "at": row.get("at"),
                     "task": row.get("task_id"),
                     "config_hash": row.get("config_hash"),
                     "cost_usd": row.get("cost_usd_total"),
@@ -358,13 +366,23 @@ def _costs(root: Path) -> list[dict[str, Any]]:
             found.append(
                 {
                     "kind": "attempt",
+                    "at": row.get("at"),
                     "task": row.get("task_id"),
                     "config_hash": row.get("config_hash"),
                     "cost_usd": block.get("cost_usd"),
                     "adapter": block.get("adapter"),
+                    # Which harness did the work: the configured model beside
+                    # the reported snapshot — adapter alone says "harness"
+                    # for claude and dsh alike.
+                    "model": block.get("model"),
+                    "provider": block.get("provider"),
                     "model_version": block.get("model_version"),
                 }
             )
+
+    # Newest first: the reader's question is "what just ran", and the
+    # stream on disk is append-ordered.
+    found.sort(key=lambda r: str(r.get("at") or ""), reverse=True)
 
     return found
 
@@ -941,14 +959,19 @@ def render_markdown(report: dict[str, Any]) -> str:
             cost = row.get("cost_usd")
             shown = f"${cost:.4f}" if isinstance(cost, (int, float)) else "unrecorded"
 
-            extra = (
-                f", attempts {row['attempts']}, {row['state']}"
-                if row["kind"] == "shadow"
-                else f", {row.get('adapter')}"
-            )
+            if row["kind"] == "shadow":
+                extra = f", attempts {row['attempts']}, {row['state']}"
+            else:
+                agent_bits = " ".join(
+                    str(part)
+                    for part in (row.get("adapter"), row.get("model_version") or row.get("model"))
+                    if part
+                )
+                extra = f", {agent_bits}" if agent_bits else ""
 
+            stamp = f"{row['at']} · " if row.get("at") else ""
             lines.append(
-                f"- {row['kind']} {row['task']} @ {row.get('config_hash')}: {shown}{extra}"
+                f"- {stamp}{row['kind']} {row['task']} @ {row.get('config_hash')}: {shown}{extra}"
             )
 
         lines.append("")

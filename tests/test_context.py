@@ -221,6 +221,51 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
     assert doc["progress"]["2"] == "shipped"  # phase 2's only task shipped
 
 
+def test_a_consumed_drafting_contract_is_not_unstarted(plan_repo):  # noqa: F811
+    """A drafting contract (intake, decompose) with no live run was consumed
+    by its adoption — 'unstarted' would claim work is still owed."""
+    root, _, _ = plan_repo
+    task_dir = root / ".torve" / "tasks" / "T-0500"
+    task_dir.mkdir(parents=True)
+    (task_dir / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0500\nrole: draft\n"
+        "intent: decompose something\nscope: {allow: []}\n",
+        encoding="utf-8",
+    )
+    report = context_report(root, root / "rfcs")
+    states = {t["id"]: t["state"] for t in report["tasks"]}
+    assert states["T-0500"] == "consumed"
+
+
+def test_costs_are_newest_first_and_carry_the_model(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    telemetry = root / ".torve" / "telemetry.jsonl"
+    records = [
+        {
+            "schema_version": 1,
+            "at": "2026-08-30T10:00:00Z",
+            "task_id": "T-0001",
+            "config_hash": "aaa",
+            "agent": {"adapter": "harness", "model": "claude-sonnet-5", "cost_usd": 1.0},
+            "results": [],
+        },
+        {
+            "schema_version": 1,
+            "at": "2026-08-31T10:00:00Z",
+            "task_id": "T-0002",
+            "config_hash": "bbb",
+            "agent": {"adapter": "harness", "model": "deepseek-chat", "cost_usd": 2.0},
+            "results": [],
+        },
+    ]
+    telemetry.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    report = context_report(root, root / "rfcs")
+    assert [c["task"] for c in report["costs"]] == ["T-0002", "T-0001"]
+    assert report["costs"][0]["model"] == "deepseek-chat"
+    rendered = render_markdown(report)
+    assert "2026-08-31T10:00:00Z · attempt T-0002 @ bbb: $2.0000, harness deepseek-chat" in rendered
+
+
 def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
     """D-7.26: only a landing citation — a parenthesized (T-nnnn), the
     merge-branch shape torve/T-nnnn, or the Torve-Task trailer — ships a
