@@ -29,6 +29,7 @@ from torve.application import sizing
 from torve.application.ports import (
     Agent,
     AgentContext,
+    AgentResult,
     Broker,
     BrokerBudget,
     BrokerHandle,
@@ -43,6 +44,7 @@ from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import (
     RunnerConfig,
+    TierConfig,
     broker_in_force,
     configured_images,
     image_for,
@@ -872,6 +874,296 @@ def drafts_file(root: Path, task_id: str) -> Path:
 # ....................... #
 
 
+def _decomposition_parent(root: Path, task: Task) -> Task | None:
+    """RFC 0026 §5.2: a drafting run whose contract names a single target
+    is a decomposition — the contract that target names is its parent."""
+
+    if not task.targets:
+        return None
+
+    from torve.gates.context import load_task
+
+    parent_contract = layout.task_file(root, task.targets[0])
+
+    if not parent_contract.is_file():
+        raise ValueError(f"no contract at {parent_contract} to decompose")
+
+    return load_task(parent_contract)
+
+
+# ....................... #
+
+
+def _claimed_or_resumed_state(task: Task, state_path: Path) -> RunState:
+    """A fresh mint starts a state; a re-queued run (D-20.6) — the
+    commander's revise put it back to QUEUED with its feedback written —
+    resumes one, its history continuing. Either way the drafting run
+    claims from here."""
+
+    if state_path.exists():
+        state = RunState.load(state_path)
+
+        if state.state is not TaskState.QUEUED:
+            raise ValueError(
+                f"{task.id} is {state.state} — a drafting run resumes only from queued"
+            )
+    else:
+        state = RunState(task_id=task.id, path=state_path)
+
+    state.transition(TaskState.CLAIMED, "engine-minted at intake")
+    state.save()
+    return state
+
+
+# ....................... #
+
+
+def _open_intake_broker(
+    task: Task, tier: TierConfig, config: RunnerConfig, broker: Broker | None
+) -> BrokerHandle | None:
+    """The drafting run's provider credential rides the same broker as any
+    run (RFC 0021): the sandbox sees the broker's URL and the run-scoped
+    token, never a key (D-21.4 — the planner tier's provider is the
+    drafting run's routing)."""
+
+    if broker is None or not broker_in_force(config):
+        return None
+
+    routing: list[BrokerRoute] = []
+
+    if tier.adapter != "fake" and tier.provider:
+        provider = config.broker.providers.get(tier.provider)
+
+        if provider is None:
+            raise ValueError(
+                f"tier {task.tier!r} uses provider {tier.provider!r} but the broker "
+                "configuration routes no such provider — add it under broker.providers"
+            )
+
+        routing.append(
+            BrokerRoute(
+                provider=tier.provider,
+                upstream=provider.upstream,
+                key_env=provider.key_env,
+                via_proxy=provider.via_proxy,
+            )
+        )
+
+    return broker.open(
+        task.id, BrokerRouting(routes=tuple(routing)), BrokerBudget(tokens=task.budget.tokens)
+    )
+
+
+# ....................... #
+
+
+def _attempt_intake_draft(
+    root: Path,
+    worktree: Path,
+    task: Task,
+    config: RunnerConfig,
+    runtime: Runtime,
+    agent: Agent,
+    tier: TierConfig,
+    state: RunState,
+    lint_errors: list[str],
+    feedback: str | None,
+    parent: Task | None,
+    broker_handle: BrokerHandle | None,
+) -> tuple[AgentResult, DraftsDocument | None]:
+    """One drafting attempt: sandbox up, agent run, sandbox down (always),
+    output parsed — the lint's own refusals from the prior attempt, if
+    any, ride the next prompt."""
+
+    state.transition(TaskState.RUNNING, f"drafting attempt {state.attempts + 1}")
+    state.save()
+
+    spec = SandboxSpec(
+        name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
+        image=image_for(config, tier),
+        labels=naming.labels(task.id, state.run_id, root),
+        timeout_s=config.runtime.sandbox_timeout,
+        env_passthrough=tuple(tier.api_key_env),
+        workspace_read_only=True,
+    )
+
+    prompt = build_intake_prompt(
+        task.intent,
+        worktree,
+        config.intake.max_drafts,
+        lint_errors or None,
+        feedback,
+        facts=execution_facts(root, config),
+        parent=parent,
+    )
+
+    handle = runtime.create(spec, worktree)
+    state.sandbox_id = handle.id
+    state.save()
+
+    try:
+        result = agent.run(
+            AgentContext(
+                task=task,
+                attempt=state.attempts,
+                workspace=worktree,
+                handle=handle,
+                runtime=runtime,
+                workdir=spec.workdir,
+                timeout_s=config.runtime.agent_timeout,
+                prompt=prompt,
+                broker=broker_handle,
+            )
+        )
+
+    finally:
+        runtime.destroy(handle)
+        state.sandbox_id = None
+        state.save()
+
+    return result, parse_drafts(result.output)
+
+
+# ....................... #
+
+
+def _lint_intake_batch(
+    worktree: Path,
+    document: DraftsDocument,
+    parent: Task | None,
+    config: RunnerConfig,
+    runtime: Runtime,
+) -> list[str]:
+    """The contract lint, routed on whether this is a decomposition, then
+    (D-27.6) the configuration-change lint layered on top — a no-op for
+    any batch that names no configuration surface, so this costs an
+    ordinary drafting run nothing."""
+
+    lint_errors = (
+        lint_decomposition(worktree, document, parent, config.intake.max_drafts)
+        if parent is not None
+        else lint_drafts(worktree, document, config.intake.max_drafts)
+    )
+
+    if not lint_errors:
+        lint_errors = lint_configuration_change(worktree, document, config, runtime)
+
+    return lint_errors
+
+
+# ....................... #
+
+
+def _finish_intake_success(
+    root: Path,
+    task: Task,
+    state: RunState,
+    document: DraftsDocument,
+    config_digest: str,
+    tier: TierConfig,
+    result: AgentResult,
+    broker_block_now: Callable[[], dict[str, Any] | None],
+) -> IntakeOutcome:
+    """Lint-green: persist the drafts and go ready — awaiting adoption,
+    dispatching nothing (D-20.1)."""
+
+    fact = f"{len(document.drafts)} draft(s) lint-green"
+    state.transition(TaskState.GATED, "drafts produced; lint green")
+    state.transition(TaskState.REVIEWED, fact)
+
+    drafts_file(root, task.id).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "request": task.intent,
+                "rfc": task.rfc,
+                "rationale": document.rationale,
+                "drafts": [d.model_dump() for d in document.drafts],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    state.transition(TaskState.READY, fact + " — awaiting adoption")
+    state.save()
+
+    _append_intake_record(
+        root,
+        task,
+        config_digest,
+        tier.adapter,
+        result_model=result.model_version,
+        cost=result.cost_usd,
+        trace=result.trace_ref,
+        drafts=len(document.drafts),
+        attempts=state.attempts,
+        unparseable=False,
+        broker=broker_block_now(),
+    )
+
+    engine_event(
+        root,
+        "intake_drafted",
+        {"task": task.id, "drafts": len(document.drafts), "attempts": state.attempts},
+    )
+
+    return IntakeOutcome(
+        task.id, fact, list(document.drafts), document.rationale, state.attempts
+    )
+
+
+# ....................... #
+
+
+def _finish_intake_exhausted(
+    root: Path,
+    task: Task,
+    state: RunState,
+    config_digest: str,
+    tier: TierConfig,
+    unparseable: bool,
+    lint_errors: list[str],
+    broker_block_now: Callable[[], dict[str, Any] | None],
+) -> IntakeOutcome:
+    """The budget spent with nothing lint-green: escalate, record, and
+    hand back what the last attempt showed."""
+
+    detail = (
+        "drafter output unparseable"
+        if unparseable
+        else f"lint red after {state.attempts} attempt(s): " + "; ".join(lint_errors[:3])
+    )
+
+    state.escalate(EscalationReason.BUDGET_EXHAUSTED, detail[:300])
+
+    _append_intake_record(
+        root,
+        task,
+        config_digest,
+        tier.adapter,
+        result_model=None,
+        cost=None,
+        trace=None,
+        drafts=0,
+        attempts=state.attempts,
+        unparseable=unparseable,
+        broker=broker_block_now(),
+    )
+
+    return IntakeOutcome(
+        task.id,
+        detail,
+        attempts=state.attempts,
+        lint_errors=lint_errors,
+        unparseable=unparseable,
+    )
+
+
+# ....................... #
+
+
 def run_intake(
     root: Path,
     worktree: Path,
@@ -892,66 +1184,11 @@ def run_intake(
     a decomposition: the prompt and the lint both route on the parent
     contract that target names, in place of the free-text request path."""
 
-    parent: Task | None = None
-
-    if task.targets:
-        from torve.gates.context import load_task
-
-        parent_contract = layout.task_file(root, task.targets[0])
-
-        if not parent_contract.is_file():
-            raise ValueError(f"no contract at {parent_contract} to decompose")
-
-        parent = load_task(parent_contract)
-
+    parent = _decomposition_parent(root, task)
     tier = tier_for(config, task.tier)
     state_path = naming.state_file(root, task.id)
-
-    if state_path.exists():
-        # A re-queued run (D-20.6): the commander's revise put it back to
-        # QUEUED with its feedback written; the history continues.
-        state = RunState.load(state_path)
-
-        if state.state is not TaskState.QUEUED:
-            raise ValueError(
-                f"{task.id} is {state.state} — a drafting run resumes only from queued"
-            )
-    else:
-        state = RunState(task_id=task.id, path=state_path)
-
-    state.transition(TaskState.CLAIMED, "engine-minted at intake")
-    state.save()
-
-    # The drafting run's provider credential rides the same broker as any
-    # run (RFC 0021): the sandbox sees the broker's URL and the run-scoped
-    # token, never a key (D-21.4 — the planner tier's provider is the
-    # drafting run's routing).
-    broker_handle: BrokerHandle | None = None
-
-    if broker is not None and broker_in_force(config):
-        routing: list[BrokerRoute] = []
-
-        if tier.adapter != "fake" and tier.provider:
-            provider = config.broker.providers.get(tier.provider)
-
-            if provider is None:
-                raise ValueError(
-                    f"tier {task.tier!r} uses provider {tier.provider!r} but the broker "
-                    "configuration routes no such provider — add it under broker.providers"
-                )
-
-            routing.append(
-                BrokerRoute(
-                    provider=tier.provider,
-                    upstream=provider.upstream,
-                    key_env=provider.key_env,
-                    via_proxy=provider.via_proxy,
-                )
-            )
-
-        broker_handle = broker.open(
-            task.id, BrokerRouting(routes=tuple(routing)), BrokerBudget(tokens=task.budget.tokens)
-        )
+    state = _claimed_or_resumed_state(task, state_path)
+    broker_handle = _open_intake_broker(task, tier, config, broker)
 
     def broker_block_now() -> dict[str, Any] | None:
         if broker is None or broker_handle is None:
@@ -967,57 +1204,23 @@ def run_intake(
     budget = task.budget.iterations or config.intake.iterations
     lint_errors: list[str] = []
     unparseable = False
-    document: DraftsDocument | None = None
 
     try:
         for _ in range(budget):
-            state.transition(TaskState.RUNNING, f"drafting attempt {state.attempts + 1}")
-            state.save()
-
-            spec = SandboxSpec(
-                name=naming.sandbox_name(task.id, state.run_id) + f"-a{state.attempts}",
-                image=image_for(config, tier),
-                labels=naming.labels(task.id, state.run_id, root),
-                timeout_s=config.runtime.sandbox_timeout,
-                env_passthrough=tuple(tier.api_key_env),
-                workspace_read_only=True,
-            )
-
-            prompt = build_intake_prompt(
-                task.intent,
+            result, document = _attempt_intake_draft(
+                root,
                 worktree,
-                config.intake.max_drafts,
-                lint_errors or None,
+                task,
+                config,
+                runtime,
+                agent,
+                tier,
+                state,
+                lint_errors,
                 feedback,
-                facts=execution_facts(root, config),
-                parent=parent,
+                parent,
+                broker_handle,
             )
-
-            handle = runtime.create(spec, worktree)
-            state.sandbox_id = handle.id
-            state.save()
-
-            try:
-                result = agent.run(
-                    AgentContext(
-                        task=task,
-                        attempt=state.attempts,
-                        workspace=worktree,
-                        handle=handle,
-                        runtime=runtime,
-                        workdir=spec.workdir,
-                        timeout_s=config.runtime.agent_timeout,
-                        prompt=prompt,
-                        broker=broker_handle,
-                    )
-                )
-
-            finally:
-                runtime.destroy(handle)
-                state.sandbox_id = None
-                state.save()
-
-            document = parse_drafts(result.output)
 
             if document is None:
                 unparseable = True
@@ -1028,98 +1231,19 @@ def run_intake(
                 continue
 
             unparseable = False
-            lint_errors = (
-                lint_decomposition(worktree, document, parent, config.intake.max_drafts)
-                if parent is not None
-                else lint_drafts(worktree, document, config.intake.max_drafts)
-            )
-
-            if not lint_errors:
-                # D-27.6: the configuration-change lint layers onto the
-                # ordinary contract lint — a no-op for any batch that names
-                # no configuration surface, so this costs an ordinary
-                # drafting run nothing.
-                lint_errors = lint_configuration_change(worktree, document, config, runtime)
+            lint_errors = _lint_intake_batch(worktree, document, parent, config, runtime)
 
             if lint_errors:
                 state.transition(TaskState.GATED, f"lint red: {len(lint_errors)} refusal(s)")
                 state.save()
                 continue
 
-            fact = f"{len(document.drafts)} draft(s) lint-green"
-            state.transition(TaskState.GATED, "drafts produced; lint green")
-            state.transition(TaskState.REVIEWED, fact)
-
-            drafts_file(root, task.id).write_text(
-                json.dumps(
-                    {
-                        "schema_version": 1,
-                        "request": task.intent,
-                        "rfc": task.rfc,
-                        "rationale": document.rationale,
-                        "drafts": [d.model_dump() for d in document.drafts],
-                    },
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
+            return _finish_intake_success(
+                root, task, state, document, config_digest, tier, result, broker_block_now
             )
 
-            state.transition(TaskState.READY, fact + " — awaiting adoption")
-            state.save()
-
-            _append_intake_record(
-                root,
-                task,
-                config_digest,
-                tier.adapter,
-                result_model=result.model_version,
-                cost=result.cost_usd,
-                trace=result.trace_ref,
-                drafts=len(document.drafts),
-                attempts=state.attempts,
-                unparseable=False,
-                broker=broker_block_now(),
-            )
-
-            engine_event(
-                root,
-                "intake_drafted",
-                {"task": task.id, "drafts": len(document.drafts), "attempts": state.attempts},
-            )
-
-            return IntakeOutcome(
-                task.id, fact, list(document.drafts), document.rationale, state.attempts
-            )
-
-        detail = (
-            "drafter output unparseable"
-            if unparseable
-            else f"lint red after {state.attempts} attempt(s): " + "; ".join(lint_errors[:3])
-        )
-
-        state.escalate(EscalationReason.BUDGET_EXHAUSTED, detail[:300])
-
-        _append_intake_record(
-            root,
-            task,
-            config_digest,
-            tier.adapter,
-            result_model=None,
-            cost=None,
-            trace=None,
-            drafts=0,
-            attempts=state.attempts,
-            unparseable=unparseable,
-            broker=broker_block_now(),
-        )
-
-        return IntakeOutcome(
-            task.id,
-            detail,
-            attempts=state.attempts,
-            lint_errors=lint_errors,
-            unparseable=unparseable,
+        return _finish_intake_exhausted(
+            root, task, state, config_digest, tier, unparseable, lint_errors, broker_block_now
         )
 
     finally:
@@ -1489,16 +1613,14 @@ def _drafts_comment(record: dict[str, Any], task_id: str) -> str:
 # ....................... #
 
 
-def intake_leg(
+def _claim_intake_requests(
     root: Path, config: RunnerConfig, deps: IntakeDeps, commanders: tuple[str, ...]
-) -> tuple[str, bool]:
-    """Claim, run, project — each bounded to this tick. Authorization
-    precedes claiming (D-20.5, D-8.9's list): a request from outside the
-    commander list is left unclaimed and counted, never interpreted."""
+) -> tuple[int, int]:
+    """Authorization precedes claiming (D-20.5, D-8.9's list): a request
+    from outside the commander list is left unclaimed and counted, never
+    interpreted. Returns (claimed, skipped)."""
 
-    from torve.application.outbox import Effect, stage
-
-    claimed = ran = staged = skipped = 0
+    claimed = skipped = 0
 
     for request in deps.tracker.intake_requests():
         if request.author not in commanders:
@@ -1530,86 +1652,138 @@ def intake_leg(
 
         claimed += 1
 
+    return claimed, skipped
+
+
+# ....................... #
+
+
+def _stage_adopted_close(root: Path, task_id: str) -> bool:
+    """The consumed thread closes itself (T-0093): keyed, so the sync leg
+    delivers it exactly once."""
+
+    from torve.application.outbox import Effect, stage
+
+    return stage(
+        root,
+        Effect(
+            key=f"{task_id}:adopted-close",
+            kind="state",
+            payload={"task": task_id, "state": "adopted", "title": _title_for(root, task_id)},
+        ),
+    )
+
+
+# ....................... #
+
+
+def _run_pending_intake(root: Path, config: RunnerConfig, deps: IntakeDeps, task_id: str) -> bool:
+    """A fresh or re-queued drafting run gets a worktree and a drafting
+    attempt (D-20.6); an already-running or already-drafted one is left
+    alone. Returns whether a drafting attempt actually ran."""
+
+    state_path = naming.state_file(root, task_id)
+    state = RunState.load(state_path) if state_path.exists() else None
+    fresh = state is None and not drafts_file(root, task_id).is_file()
+    queued = state is not None and state.state is TaskState.QUEUED
+
+    if not (fresh or queued):
+        return False
+
+    contract = layout.task_file(root, task_id)
+
+    if not contract.is_file():
+        return False
+
+    from torve.gates.context import load_task
+
+    task = load_task(contract)
+    tip = deps.base_tip()
+
+    if tip is None:
+        return False
+
+    workdir = naming.intake_worktree(root, task_id)
+    deps.worktree_at(root, tip, workdir)
+
+    try:
+        run_intake(
+            root,
+            workdir,
+            task,
+            config,
+            deps.runtime,
+            deps.agent_factory(),
+            deps.config_digest,
+            broker=deps.broker,
+        )
+
+    finally:
+        deps.remove_worktree(root, workdir)
+
+    return True
+
+
+# ....................... #
+
+
+def _stage_ready_drafts(root: Path, task_id: str) -> bool:
+    """The lint-green drafts of a READY run, projected onto the request's
+    thread — the current on-disk state, whether or not this tick just ran
+    the attempt that produced it."""
+
+    from torve.application.outbox import Effect, stage
+
+    state_path = naming.state_file(root, task_id)
+    state = RunState.load(state_path) if state_path.exists() else None
+
+    if state is None or state.state is not TaskState.READY:
+        return False
+
+    draft_path = drafts_file(root, task_id)
+
+    if not draft_path.is_file():
+        return False
+
+    record = cast("dict[str, Any]", json.loads(draft_path.read_text(encoding="utf-8")))
+
+    return stage(
+        root,
+        Effect(
+            key=f"{task_id}:drafts:a{state.attempts}",
+            kind="drafts",
+            payload={"task": task_id, "body": _drafts_comment(record, task_id)},
+        ),
+    )
+
+
+# ....................... #
+
+
+def intake_leg(
+    root: Path, config: RunnerConfig, deps: IntakeDeps, commanders: tuple[str, ...]
+) -> tuple[str, bool]:
+    """Claim, run, project — each bounded to this tick. Authorization
+    precedes claiming (D-20.5, D-8.9's list): a request from outside the
+    commander list is left unclaimed and counted, never interpreted."""
+
+    claimed, skipped = _claim_intake_requests(root, config, deps, commanders)
+    ran = staged = 0
+
     for row in _ledger_rows(root):
         task_id = str(row["task"])
 
         if adopted_file(root, task_id).is_file():
-            # The consumed thread closes itself (T-0093): keyed, so the
-            # sync leg delivers it exactly once.
-            if stage(
-                root,
-                Effect(
-                    key=f"{task_id}:adopted-close",
-                    kind="state",
-                    payload={
-                        "task": task_id,
-                        "state": "adopted",
-                        "title": _title_for(root, task_id),
-                    },
-                ),
-            ):
+            if _stage_adopted_close(root, task_id):
                 staged += 1
 
             continue
 
-        state_path = naming.state_file(root, task_id)
-        state = RunState.load(state_path) if state_path.exists() else None
-        fresh = state is None and not drafts_file(root, task_id).is_file()
-        queued = state is not None and state.state is TaskState.QUEUED
-
-        if fresh or queued:
-            contract = layout.task_file(root, task_id)
-
-            if not contract.is_file():
-                continue
-
-            from torve.gates.context import load_task
-
-            task = load_task(contract)
-            tip = deps.base_tip()
-
-            if tip is None:
-                continue
-
-            workdir = naming.intake_worktree(root, task_id)
-            deps.worktree_at(root, tip, workdir)
-
-            try:
-                run_intake(
-                    root,
-                    workdir,
-                    task,
-                    config,
-                    deps.runtime,
-                    deps.agent_factory(),
-                    deps.config_digest,
-                    broker=deps.broker,
-                )
-
-            finally:
-                deps.remove_worktree(root, workdir)
-
+        if _run_pending_intake(root, config, deps, task_id):
             ran += 1
-            state = RunState.load(state_path) if state_path.exists() else None
 
-        if (
-            state is not None
-            and state.state is TaskState.READY
-            and drafts_file(root, task_id).is_file()
-        ):
-            record = cast(
-                "dict[str, Any]", json.loads(drafts_file(root, task_id).read_text(encoding="utf-8"))
-            )
-
-            if stage(
-                root,
-                Effect(
-                    key=f"{task_id}:drafts:a{state.attempts}",
-                    kind="drafts",
-                    payload={"task": task_id, "body": _drafts_comment(record, task_id)},
-                ),
-            ):
-                staged += 1
+        if _stage_ready_drafts(root, task_id):
+            staged += 1
 
     parts = [f"claimed {claimed}", f"ran {ran}", f"projected {staged}"]
 
