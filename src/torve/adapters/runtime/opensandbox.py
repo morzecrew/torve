@@ -9,12 +9,23 @@ the host) travels in through the files API at create, and back out through a
 base64 pipe at `sync_out`. Labels ride the sandbox's metadata, which is what
 lets the reaper enumerate by convention.
 
+The real SDK (opensandbox 0.1.15) nests its surface: `ConnectionConfigSync`
+lives under `opensandbox.config`, `WriteEntry` and `SandboxFilter` under
+`opensandbox.models`, and the sync sandbox manager is `SandboxManagerSync`.
+`CommandsAdapterSync.run` takes no `timeout` kwarg — the call is
+`run(command, opts=RunCommandOpts(timeout=..., working_directory=...))`,
+which is also how this adapter changes into the sandbox's workdir, replacing
+a hand-rolled `cd {workdir} &&` shell prefix.
+
 The SDK ships as the optional extra `torve[opensandbox]`; without it, or
 without a reachable server, construction fails with an instructive error
-rather than a stack trace. Integration against a real server is deferred
-until one exists — the conformance battery runs this adapter against an
-in-process SDK emulation (see tests/opensandbox_stub.py) and Docker against
-the real daemon, asserting the same contract for both.
+rather than a stack trace. Verified live against a self-hosted
+opensandbox-server: `create`'s tar-seed round-trip worked against the real
+server first try, and the platform-enforced sandbox timeout collected a
+probe sandbox on schedule. Full integration is otherwise deferred until a
+server is routinely available — the conformance battery runs this adapter
+against an in-process SDK emulation (see tests/opensandbox_stub.py) and
+Docker against the real daemon, asserting the same contract for both.
 """
 
 from __future__ import annotations
@@ -52,10 +63,17 @@ _IMPORT_HINT = (
 
 def _sdk() -> Any:
     try:
-        return import_module("opensandbox")
+        module = import_module("opensandbox")
+        # Submodule imports attach as attributes of the package (Python import
+        # semantics), so `module.config` / `module.models` resolve below
+        # regardless of what opensandbox's own __init__.py re-exports.
+        import_module("opensandbox.config")
+        import_module("opensandbox.models")
 
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
         raise RuntimeError(_IMPORT_HINT) from exc
+
+    return module
 
 
 # ....................... #
@@ -130,7 +148,7 @@ class OpenSandboxRuntime:
 
         self._sdk = sdk or _sdk()
         api_key = os.environ.get(config.api_key_env, "")
-        self._connection = self._sdk.ConnectionConfigSync(domain=config.domain, api_key=api_key)
+        self._connection = self._sdk.config.ConnectionConfigSync(domain=config.domain, api_key=api_key)
         self._live: dict[str, tuple[Any, str]] = {}  # handle id -> (sdk sandbox, workdir)
 
     # ....................... #
@@ -172,7 +190,7 @@ class OpenSandboxRuntime:
         # A path inside the freshly created sandbox container, not on this
         # host — there is no local tempdir race to have.
         staging = f"/tmp/torve-ws-{spec.name}.b64"  # nosec B108
-        sandbox.files.write_files([self._sdk.WriteEntry(path=staging, data=payload)])
+        sandbox.files.write_files([self._sdk.models.WriteEntry(path=staging, data=payload)])
 
         seed = sandbox.commands.run(
             f"mkdir -p {spec.workdir} && base64 -d {staging} "
@@ -204,7 +222,10 @@ class OpenSandboxRuntime:
         started = time.monotonic()
 
         execution = sandbox.commands.run(
-            f"cd {workdir} && ({command})", timeout=timedelta(seconds=timeout_s)
+            command,
+            opts=self._sdk.models.RunCommandOpts(
+                timeout=timedelta(seconds=timeout_s), working_directory=workdir
+            ),
         )
 
         return _exec_result(execution, started)
@@ -234,7 +255,7 @@ class OpenSandboxRuntime:
     # ....................... #
 
     def destroy_by_id(self, sandbox_id: str) -> None:
-        with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:
+        with self._sdk.SandboxManagerSync.create(connection_config=self._connection) as manager:
             manager.kill_sandbox(sandbox_id)
 
     # ....................... #
@@ -260,8 +281,8 @@ class OpenSandboxRuntime:
     # ....................... #
 
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
-        with self._sdk.SandboxManager.create(connection_config=self._connection) as manager:
-            infos = manager.list_sandbox_infos(self._sdk.SandboxFilter(states=["RUNNING"]))
+        with self._sdk.SandboxManagerSync.create(connection_config=self._connection) as manager:
+            infos = manager.list_sandbox_infos(self._sdk.models.SandboxFilter(states=["RUNNING"]))
 
         found: list[SandboxInfo] = []
 

@@ -14,7 +14,9 @@ import subprocess
 import tempfile
 import uuid
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 REGISTRY: dict[str, SandboxSync] = {}
 
@@ -39,6 +41,12 @@ class SandboxFilter:
 
 
 @dataclass
+class RunCommandOpts:
+    timeout: timedelta | None = None
+    working_directory: str | None = None
+
+
+@dataclass
 class _LogEntry:
     text: str
 
@@ -59,7 +67,8 @@ class _Commands:
     def __init__(self, sandbox: SandboxSync) -> None:
         self._sandbox = sandbox
 
-    def run(self, command: str, timeout=None) -> _Execution:
+    def run(self, command: str, opts: RunCommandOpts | None = None) -> _Execution:
+        opts = opts or RunCommandOpts()
         try:
             proc = subprocess.run(
                 command,
@@ -67,7 +76,8 @@ class _Commands:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=timeout.total_seconds() if timeout else None,
+                cwd=opts.working_directory,
+                timeout=opts.timeout.total_seconds() if opts.timeout else None,
             )
         except subprocess.TimeoutExpired:
             return _Execution(None, "", "stub: command timed out")
@@ -114,12 +124,12 @@ class _Info:
     state: str
 
 
-class SandboxManager:
+class SandboxManagerSync:
     @classmethod
-    def create(cls, *, connection_config=None) -> SandboxManager:
+    def create(cls, *, connection_config=None) -> SandboxManagerSync:
         return cls()
 
-    def __enter__(self) -> SandboxManager:
+    def __enter__(self) -> SandboxManagerSync:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -136,3 +146,13 @@ class SandboxManager:
         sandbox = REGISTRY.get(sandbox_id)
         if sandbox is not None:
             sandbox.destroy()
+
+
+# Mirrors the real SDK's nesting — ConnectionConfigSync under
+# opensandbox.config, WriteEntry/SandboxFilter/RunCommandOpts under
+# opensandbox.models — so the adapter's attribute lookups behave identically
+# against the stub and the real package.
+config = SimpleNamespace(ConnectionConfigSync=ConnectionConfigSync)
+models = SimpleNamespace(
+    WriteEntry=WriteEntry, SandboxFilter=SandboxFilter, RunCommandOpts=RunCommandOpts
+)

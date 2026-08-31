@@ -1,0 +1,30 @@
+schema_version: 1
+task: T-0152
+repo: morzecrew/torve
+base_sha: 2f097859f1842f1201574ea7df94762c33af09f7
+drift_count: 0
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-31T00:00:00Z
+    attempt: 1
+    claim: >-
+      the contract names the three measured namespace drifts
+      (ConnectionConfigSync at opensandbox.config, WriteEntry/SandboxFilter
+      at opensandbox.models, the manager renamed to SandboxManagerSync) and
+      CommandsAdapterSync.run's new run(command, opts=RunCommandOpts(...))
+      signature, but never states which module RunCommandOpts itself lives
+      in on the real SDK.
+    evidence: .torve/tasks/T-0152/contract.yaml:11-25 — intent enumerates the
+      three measured namespace places and the run() signature change,
+      silent on RunCommandOpts's own module
+    action: decided
+    proposal: >-
+      RunCommandOpts is placed at opensandbox.models, alongside WriteEntry
+      and SandboxFilter — the SDK's other plain option/data types — and read
+      by the adapter as self._sdk.models.RunCommandOpts;
+      tests/opensandbox_stub.py mirrors the same path via its `models`
+      namespace. If a live SDK probe finds it elsewhere, only that one
+      attribute path and the stub's namespace assignment move.
