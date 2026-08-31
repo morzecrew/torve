@@ -20,6 +20,7 @@ scope:
   - src/torve/application/runner.py
   - src/torve/application/intake.py
   - src/torve/cli/intake.py
+  - src/torve/base/naming.py
   - tests/test_reaper.py
   - tests/test_runner.py
   - tests/test_intake.py
