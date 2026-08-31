@@ -1,0 +1,36 @@
+# Hand-minted — maintenance: deepest nesting in the corpus parser (health directive).
+schema_version: 1
+id: T-0141
+rfc: null
+phase: 0
+role: implement
+title: check_decisions flattened
+intent: >-
+  src/torve/config/rfc_parse.py's check_decisions nests six levels deep —
+  the deepest function in the codebase — and the file peaks at CCN 18.
+  Flatten check_decisions into per-check helpers with early returns —
+  extraction and inversion only, every emitted problem string and its
+  ordering unchanged, no new module. The existing suites must pass
+  unmodified except for imports of any helper a test legitimately
+  exercises directly.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/config/rfc_parse.py
+  - tests/test_rfc_check.py
+  - tests/test_gates.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_rfc_check.py tests/test_gates.py tests/test_plan.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null

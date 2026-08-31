@@ -1,0 +1,36 @@
+# Hand-minted — maintenance: nested_complexity in the runner (health directive).
+schema_version: 1
+id: T-0140
+rfc: null
+phase: 0
+role: implement
+title: runner overlap logic flattened
+intent: >-
+  src/torve/application/runner.py's _blocking_overlap nests four levels
+  deep and the file carries six bug fixes in ninety days — the shape and
+  the history agree it is the next defect's address. Flatten the deepest
+  nesting in _blocking_overlap and its worst neighbours into early returns
+  and named predicates — extraction and inversion only, public behavior
+  unchanged, no new module. The existing suites must pass unmodified
+  except for imports of any helper a test legitimately exercises directly.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/runner.py
+  - tests/test_runner.py
+  - tests/test_run_loop.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_runner.py tests/test_run_loop.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null

@@ -1,0 +1,45 @@
+# Hand-minted — executes A-72 on RFC 0004 (D-4.19, the regime preimage).
+schema_version: 1
+id: T-0138
+rfc: rfcs/0004-agents-tiering.md
+phase: 0
+role: implement
+title: regime preimage recorded
+intent: >-
+  config_hash names a regime nobody can inspect once any input moves on
+  (RFC 0004 §6a, fourth defect). Record the preimage: at record time, write
+  the exact parts mapping the digest was computed over to
+  .torve/regimes/<config_hash>.json — host-local, gitignored,
+  content-addressed, written once and only if absent, never a database.
+  Every telemetry row's config_hash becomes resolvable to inspectable
+  content and two regimes diff as two files.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/telemetry.py
+  - tests/test_tiering.py
+  - .gitignore
+  deny: []
+acceptance:
+- uv run pytest tests/test_tiering.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-4.19
+  grade: ASSUMED
+  text: 'The regime preimage is recorded: at record time the exact parts
+    mapping config_hash digested is written, once and only if absent, to
+    .torve/regimes/<config_hash>.json — host-local, gitignored,
+    content-addressed by the hash it produces; never a database, never
+    committed. Added by amendment A-72 2026-08-31'
+  paths:
+  - src/torve/application/telemetry.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
