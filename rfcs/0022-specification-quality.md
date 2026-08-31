@@ -8,7 +8,7 @@ depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-59", "A-62"]
+amended_by: ["A-59", "A-62", "A-67"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -410,6 +410,13 @@ and telling the executor it is being measured would change what it writes.
   tasks never touched its declared paths — silence about nothing stays quiet.
 
 ## Amendments
+
+### A-67 — 2026-08-31 — the phase-3 close-out reviewed (cites T-0112)
+
+T-0112's execution log closes out D-22.1 compliant as built, no
+divergence. Reviewed and accepted with no corpus change; this citation
+is the disposition — an uncited no-change close-out otherwise waits in
+the proposals queue forever.
 
 ### A-62 — 2026-08-30 — the dispatch envelope (adds D-22.11)
 

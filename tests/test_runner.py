@@ -379,3 +379,19 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
     assert failed and failed[0]["agent"]["cost_usd"] == 4.05
     assert failed[0]["task_id"] == "T-9020"
     assert failed[0]["exit_code"] == 1
+
+
+def test_harness_label_needs_the_reviewed_definition(tmp_path):
+    """A torve-agent:<name> tag labels the record only when the reviewed
+    .torve/sandbox/<name>/ definition exists in the root tree — a bare tag
+    is operator-supplied and proves nothing (doctor's ambient-regime rule,
+    applied to the record)."""
+    from torve.application.runner import _harness_definition
+
+    assert _harness_definition(tmp_path, "torve-agent:claude") is None  # no definition
+    assert _harness_definition(tmp_path, "python:3.13-slim") is None  # not ours
+
+    definition = tmp_path / ".torve" / "sandbox" / "claude"
+    definition.mkdir(parents=True)
+    (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    assert _harness_definition(tmp_path, "torve-agent:claude") == "claude"

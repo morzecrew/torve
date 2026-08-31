@@ -319,14 +319,16 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
 
 
 def _harness_label(agent: dict[str, Any]) -> str | None:
-    """Which harness did the work — identity is the image (D-17.4), so a
-    `torve-agent:<name>` tag labels by name; records from before the tag
-    was stamped fall back to the adapter kind."""
+    """Which harness did the work: the definition-backed name the runner
+    recorded at dispatch (a torve-agent:<name> tag counts only when the
+    reviewed .torve/sandbox/<name>/ definition existed — a bare tag is
+    operator-supplied and proves nothing), falling back to the adapter
+    kind for records from before the field existed."""
 
-    image = agent.get("image")
+    harness = agent.get("harness")
 
-    if isinstance(image, str) and image:
-        return image.rsplit(":", 1)[-1] if ":" in image else image
+    if isinstance(harness, str) and harness:
+        return harness
 
     adapter = agent.get("adapter")
     return str(adapter) if adapter else None

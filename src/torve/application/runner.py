@@ -402,6 +402,25 @@ def _restore_never_send(withheld: dict[Path, bytes]) -> None:
 # ....................... #
 
 
+def _harness_definition(root: Path, image: str) -> str | None:
+    """The reviewed definition name behind a torve-agent:<name> tag, or None
+    — doctor's own rule (an image without a definition is an ambient
+    regime), applied to the record instead of the check."""
+
+    prefix = "torve-agent:"
+
+    if not image.startswith(prefix):
+        return None
+
+    name = image.removeprefix(prefix)
+    definition = root / layout.TORVE_DIR / "sandbox" / name / "Dockerfile"
+
+    return name if definition.is_file() else None
+
+
+# ....................... #
+
+
 def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
     """(env_passthrough, volumes) for the tier's authentication route (RFC
     0004 §1): key names for api and harness, a per-slot volume for
@@ -856,6 +875,12 @@ def real_hooks(
         # The image tag beside its digest: harness identity is the image
         # (D-17.4), and a projection labeling "which harness" reads the tag.
         "image": image,
+        # The stable human label: the reviewed sandbox definition backing a
+        # torve-agent:<name> tag, resolved from the ROOT tree at dispatch —
+        # never the worktree (agent-writable) and never the bare tag (any
+        # image can wear one). No reviewed definition, no name: the digest
+        # remains the identity.
+        "harness": _harness_definition(root, image),
         "image_digest": image_digest,
         "shadow": shadow,
         # Per-skill attribution (RFC 0009 §5): filled with what materialize
@@ -902,6 +927,7 @@ def real_hooks(
             provider=(resolved_tier.provider or None) if run_real else None,
             model=(resolved_tier.model or None) if run_real else None,
             image=current["image"],
+            harness=_harness_definition(root, current["image"]),
             image_digest=current["image_digest"],
         )
 
