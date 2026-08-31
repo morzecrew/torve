@@ -113,8 +113,44 @@ tiers:
 ```
 
 with `~/.config/torve/agents/claude-sonnet.yaml` holding the adapter,
-model and command that tier runs with. `torve doctor` prints which tiers
-resolved through a profile.
+model and command that tier runs with.
+
+`profile` also takes a list of names, merged left to right under the same
+rule, local keys still winning last — a tier composing a wiring layer and an
+equipment layer without duplicating either:
+
+```yaml
+tiers:
+  executor.copywriter:
+    profile: [claude-sonnet, copywriter]
+```
+
+A tier entry may also carry `skills:` and `prompt_extras:` directly, which
+turns a named variant into a persona: `skills` fully overrides the
+role-scoped skill set for that tier — never additive — and `prompt_extras`
+appends working-rule lines after the charter's base rules, which stay
+unaddressable from configuration. For example:
+
+```yaml
+tiers:
+  executor.copywriter:
+    profile: claude-sonnet
+    skills: ["prose-voice", "keep-a-changelog"]
+    prompt_extras:
+      - "Docstrings and user-facing text follow the repository's house voice."
+```
+
+A phase in a spec's phasing can route its work to a persona: `tier_variant:
+copywriter` on a phase is copied by `torve plan` onto the minted contract,
+so which persona a phase runs under is a line in a reviewed document, never
+an inference the engine makes on its own.
+
+Resolution is fail-closed throughout: a `profile` naming no file and a
+`skills` name the materializer doesn't recognize both refuse rather than
+fall back to inline defaults — a profile miss refuses the configuration
+load, an unknown skill refuses dispatch before a sandbox exists. `torve
+doctor` prints which tiers resolved through a profile and which carry
+equipment that differs from their role's default.
 
 ## Design corpus
 
