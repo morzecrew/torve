@@ -282,6 +282,36 @@ def test_inherit_decisions_refuses_an_ungraded_row():
         inherit_decisions(ungraded, "0090-widgets.md")
 
 
+def test_parse_phasing_defaults_tier_variant_empty():
+    entries = parse_phasing(PHASING)
+    assert entries is not None
+    assert all(e.tier_variant == "" for e in entries)
+
+
+def test_parse_phasing_accepts_tier_variant():
+    text = PHASING.replace(
+        "  title: widget-core\n", "  title: widget-core\n  tier_variant: copywriter\n"
+    )
+    entries = parse_phasing(text)
+    assert entries is not None
+    assert entries[0].tier_variant == "copywriter"
+    assert entries[1].tier_variant == ""
+
+
+def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
+    root, write_doc, git = plan_repo
+    variant_phasing = PHASING.replace(
+        "  title: widget-core\n", "  title: widget-core\n  tier_variant: copywriter\n"
+    )
+    write_doc("0099", "Personas", body=TABLE + variant_phasing)
+    git("add", "-A")
+    git("commit", "-qm", "personas")
+    report = plan_document(root, root / "rfcs", "0099")
+    equipped, plain = report.tasks[0].task, report.tasks[1].task
+    assert equipped.tier_variant == "copywriter"
+    assert plain.tier_variant is None
+
+
 def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
     """A-69: the phase title reaches the contract as its short name, and a
     multiline intent dumps as a literal block — never the single-quoted

@@ -24,6 +24,10 @@ profile (`TierConfig.profile`, set by `load_runner_config`'s raw-mapping
 merge) gets one provenance line naming it — no check attached, so this can
 never turn doctor red, and a tier or profile file nobody referenced gets
 no line and no warning.
+
+The equipment check is RFC 0029 D-29.5: each tier whose resolved `skills`
+or `prompt_extras` differ from its role default gets one provenance line —
+no check attached, dispatch already owns the refusals (D-29.2).
 """
 
 from __future__ import annotations
@@ -310,6 +314,37 @@ def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, boo
 # ....................... #
 
 
+def _equipment_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """RFC 0029 D-29.5: provenance only — a tier's resolved equipment is named
+    when it differs from its role default (`skills` set, or any
+    `prompt_extras`), and no check is attached, so this can never turn doctor
+    red. A tier that inherits its role's default set and carries no extras
+    gets no line."""
+
+    config = load_config(root, config_path)
+    checks: list[tuple[str, bool, str]] = []
+
+    for name, tier in sorted(config.tiers.items()):
+        parts: list[str] = []
+
+        if tier.skills is not None:
+            parts.append(f"skills [{', '.join(tier.skills)}] (override)")
+
+        if tier.prompt_extras:
+            n = len(tier.prompt_extras)
+            parts.append(f"+{n} prompt extra{'s' if n != 1 else ''}")
+
+        if not parts:
+            continue
+
+        checks.append((f"equipment {name}", True, f"tier {name}: {', '.join(parts)}"))
+
+    return checks
+
+
+# ....................... #
+
+
 def doctor(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -330,6 +365,7 @@ def doctor(
     checks += _broker_check(root, config_path)
     checks += _review_bias_check(root, config_path)
     checks += _profile_checks(root, config_path)
+    checks += _equipment_checks(root, config_path)
     checks += _image_checks(root, config_path)
     healthy = all(passed for _, passed, _ in checks)
 

@@ -428,6 +428,11 @@ class PhasingEntry(BaseModel):
     acceptance: list[str] = Field(default_factory=list)
     depends_on: list[int] = Field(default_factory=list)  # phase numbers
 
+    # RFC 0029 §5.2, D-29.4: the persona this phase runs under, copied
+    # verbatim onto the minted contract's `tier_variant`. Empty means the
+    # seat's default persona — the same "absent" `torve plan` already writes.
+    tier_variant: str = ""
+
 
 # ....................... #
 
