@@ -11,9 +11,10 @@ are not (D-4b in spirit at the operator level too).
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
 import yaml
@@ -59,6 +60,14 @@ class TierConfig(BaseModel):
     # gate-red — one rung, not a chain. Empty means an attempt that gates
     # red is retried under the same tier, today's behaviour.
     retry_variant: str = ""
+
+    # RFC 0028 §5.1, D-28.1/D-28.2: the named profile this tier resolved
+    # from, if any — resolution happens on the raw mapping in
+    # `load_runner_config`, before this model ever validates, so by the time
+    # a `TierConfig` exists every other field already carries the merged
+    # content. Kept (not popped) so `config_hash` and `torve doctor` can both
+    # see which profile a tier came from.
+    profile: str = ""
 
     # ....................... #
 
@@ -863,6 +872,78 @@ class RunnerConfig(BaseModel):
 # ....................... #
 
 
+def profiles_dir() -> Path:
+    """`~/.config/torve/agents/` (RFC 0028 §5.1, D-28.1) — beside the fleet
+    manifest, on the operator's machine, never the repository under work.
+    XDG_CONFIG_HOME when set, matching `fleet.default_manifest_path`."""
+
+    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+
+    return Path(base) / "torve" / "agents"
+
+
+# ....................... #
+
+
+def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> None:
+    """D-28.2: a raw-mapping merge, on `raw["tiers"]`, before
+    `RunnerConfig.model_validate` ever runs — locally-present keys win, and
+    the merged mapping is all `TierConfig` sees. One merge level, no
+    profile-to-profile inheritance (D-28.4): a profile body's own `profile`
+    key, if any, is never itself resolved.
+
+    D-28.3: every failure below refuses the configuration load, naming the
+    file — there is no fallback to inline defaults."""
+
+    for key, raw_entry in tiers.items():
+        if not isinstance(raw_entry, dict):
+            continue
+
+        entry = cast("dict[str, Any]", raw_entry)
+        name = entry.get("profile")
+
+        if not name:
+            continue
+
+        path = agents_dir / f"{name}.yaml"
+
+        if not path.is_file():
+            present = sorted(p.stem for p in agents_dir.glob("*.yaml")) if agents_dir.is_dir() else []
+            raise ValueError(
+                f"tier {key!r} names profile {name!r}, resolving to {path} — no such "
+                f"file; profiles present: {', '.join(present) or 'none'}"
+            )
+
+        try:
+            raw_body = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            raise ValueError(f"{path}: could not be read as a profile — {exc}") from exc
+
+        if raw_body is None:
+            raw_body = {}
+
+        if not isinstance(raw_body, dict):
+            raise ValueError(f"{path}: profile body must be a mapping")
+
+        body = cast("dict[str, Any]", raw_body)
+        unknown = sorted(k for k in body if k not in TierConfig.model_fields)
+
+        if unknown:
+            raise ValueError(
+                f"{path}: unknown key(s) {', '.join(unknown)} — not a TierConfig field"
+            )
+
+        # Local wins (D-28.2); list fields (api_key_env) replace wholesale,
+        # never concatenate (D-28.4) — this is a plain dict merge, no
+        # per-field logic, so that falls out for free.
+        merged = {**body, **{k: v for k, v in entry.items() if k != "profile"}}
+        merged["profile"] = name
+        tiers[key] = merged
+
+
+# ....................... #
+
+
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     """Explicit `path` is a flag-level override (D-13.4); otherwise the file
     is `.torve/config.yaml` and nowhere else. A missing default file means
@@ -884,4 +965,10 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     if not isinstance(raw, dict):
         raise ValueError(f"{resolved}: runner configuration must be a mapping")
 
-    return RunnerConfig.model_validate(raw)
+    config = cast("dict[str, Any]", raw)
+    tiers = config.get("tiers")
+
+    if isinstance(tiers, dict):
+        _resolve_profiles(cast("dict[str, Any]", tiers), profiles_dir())
+
+    return RunnerConfig.model_validate(config)

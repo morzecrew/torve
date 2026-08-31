@@ -1,0 +1,69 @@
+schema_version: 1
+task: T-0136
+repo: morzecrew/torve
+base_sha: c5f36d24eb2e50df8fa0ab765de2e0eae4c90531
+drift_count: 0
+entries:
+  - decision: D-28.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T00:00:00Z
+    attempt: 1
+    claim: profiles resolve only from the operator's config directory, beside
+      the fleet manifest, never from the repository under work; a repository
+      names a profile only.
+    evidence: src/torve/config/runconfig.py:875-882 — `profiles_dir()` derives
+      `~/.config/torve/agents/` (XDG_CONFIG_HOME override), mirroring
+      `fleet.default_manifest_path`; src/torve/config/runconfig.py:947-973 —
+      `load_runner_config` reads only the repository's `tiers.<name>.profile`
+      string and resolves it against that directory, never against anything
+      under `root`.
+    action: decided
+    notes: |
+      Compliant close-out for a touched LOCKED area — no contradiction found;
+      built exactly as specified.
+  - decision: D-28.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T00:00:00Z
+    attempt: 1
+    claim: resolution is a raw-mapping merge inside load_runner_config, before
+      RunnerConfig.model_validate, with locally-present keys winning; every
+      downstream reader (config_hash included) sees only the resolved
+      TierConfig.
+    evidence: src/torve/config/runconfig.py:947-973 — `_resolve_profiles`
+      mutates `raw["tiers"]` (dict-of-dicts from `yaml.safe_load`, not
+      models) prior to the single `RunnerConfig.model_validate(config)` call
+      at line 973; src/torve/config/runconfig.py:939-940 builds the merged
+      dict as the profile body spread first, the local entry (minus its
+      `profile` key) spread second, so a locally-present key wins, including
+      an explicit empty string, since the merge reads raw-dict key presence
+      rather than the model's defaulted field.
+    action: decided
+    notes: |
+      Compliant close-out — pinned by
+      tests/test_runconfig.py::test_local_key_wins_over_profile_key and
+      test_locally_written_empty_string_wins_over_a_profile_value.
+  - decision: D-28.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T00:00:00Z
+    attempt: 1
+    claim: every resolution failure (missing file, non-mapping body, unknown
+      key, invalid merged result) refuses the configuration load and names
+      the file; there is no fallback to inline defaults.
+    evidence: src/torve/config/runconfig.py:909-935 — each of the four
+      checks (`path.is_file()`, the `yaml.safe_load`/read `try/except`, the
+      `isinstance(raw_body, dict)` guard, the unknown-key scan against
+      `TierConfig.model_fields`) raises `ValueError` naming `path`; the
+      fourth failure mode (invalid merged result) is the ordinary
+      `RunnerConfig.model_validate` call at line 973 raising
+      `pydantic.ValidationError` on the merged dict — no except clause
+      swallows it anywhere in this function.
+    action: decided
+    notes: |
+      Compliant close-out — pinned by
+      tests/test_runconfig.py::test_unknown_profile_name_refuses_naming_the_path_and_present_stems,
+      test_non_mapping_profile_body_refuses_naming_the_file,
+      test_unknown_key_in_profile_body_refuses_naming_key_and_file, and
+      test_invalid_merged_result_fails_tierconfig_validation.
