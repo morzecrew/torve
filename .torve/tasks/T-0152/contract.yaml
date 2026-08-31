@@ -1,0 +1,61 @@
+# Hand-minted — the live-server integration the corpus deferred (RFC 0003),
+# from the first probe against a self-hosted opensandbox-server on 127.0.0.1:5266.
+schema_version: 1
+id: T-0152
+rfc: rfcs/0003-runner-isolation.md
+phase: 0
+role: implement
+title: opensandbox adapter follows the real SDK
+intent: >-
+  The adapter and its stub were written against an imagined flat SDK
+  namespace; the real opensandbox 0.1.15 against a live server drifts in
+  three measured places. ConnectionConfigSync lives at opensandbox.config,
+  WriteEntry and SandboxFilter at opensandbox.models, and the sync manager
+  is SandboxManagerSync — the adapter's _sdk lookups must follow (an
+  sdk-object seam already exists for tests). CommandsAdapterSync.run takes
+  no timeout kwarg: it is run(command, opts=RunCommandOpts(timeout=...,
+  working_directory=...)) — which also replaces the hand-rolled
+  "cd {workdir} &&" prefix with the native working_directory. Execution
+  exposes exit_code and logs as before. Reshape the adapter to the real
+  surface, reshape tests/opensandbox_stub.py to emulate exactly that
+  surface (same nesting, same signatures), and keep the conformance
+  battery asserting the unchanged Runtime contract. Live-verified facts
+  worth preserving in the docstring: create with tar-seed worked against
+  the real server first try, and the platform-enforced timeout collected
+  the probe sandbox on schedule.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/adapters/runtime/opensandbox.py
+  - tests/opensandbox_stub.py
+  - tests/test_runtime_conformance.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_runtime_conformance.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-3.11
+  grade: ASSUMED
+  text: 'The Runtime contract is "workspace in, changed files out": Docker
+    satisfies it by bind mount, OpenSandbox by tar-over-files-API sync; the
+    conformance battery asserts the contract, not the mechanism. Added by
+    execution 2026-08-21'
+  paths:
+  - src/torve/application/ports.py
+  - src/torve/adapters/**
+- id: D-3.12
+  grade: ASSUMED
+  text: The opensandbox SDK ships as the optional extra `torve[opensandbox]`;
+    the adapter import-guards it. Added by execution 2026-08-21
+  paths:
+  - pyproject.toml
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
