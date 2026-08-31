@@ -70,7 +70,7 @@ SPEC_DRIFT_FINDINGS_LIMIT = 10
 # ....................... #
 
 
-def _shipped_ids(root: Path) -> set[str]:
+def shipped_ids(root: Path) -> set[str]:
     """Task ids the history records as shipped, in one batched log pass —
     a task with no run state is not necessarily unstarted: the engine did
     not run it, but a shipping commit records that someone did."""
@@ -121,7 +121,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
     if not tasks_dir.is_dir():
         return found
 
-    shipped = _shipped_ids(root)
+    shipped = shipped_ids(root)
 
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         record = _load_yaml_dict(contract)

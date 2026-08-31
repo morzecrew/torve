@@ -188,8 +188,10 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
             continue
 
         record = cast("dict[str, Any]", data)
-        part = record.get("part")
-        sources = (record, part) if isinstance(part, dict) else (record,)
+        part: Any = record.get("part")
+        sources: tuple[dict[str, Any], ...] = (
+            (record, cast("dict[str, Any]", part)) if isinstance(part, dict) else (record,)
+        )
 
         cost: Any = next(
             (

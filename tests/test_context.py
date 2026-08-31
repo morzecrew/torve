@@ -273,7 +273,7 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
     'T-0097–T-0104' shipped a whole phase in the programme view once."""
     import subprocess
 
-    from torve.application.projections import _shipped_ids
+    from torve.application.projections import shipped_ids
 
     root = tmp_path
     subprocess.run(["git", "init", "-q", str(root)], check=True)
@@ -304,7 +304,7 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
         check=True,
     )
 
-    assert _shipped_ids(root) == {"T-0105", "T-0106", "T-0107"}
+    assert shipped_ids(root) == {"T-0105", "T-0106", "T-0107"}
 
 
 # ----------------------- #

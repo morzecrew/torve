@@ -390,9 +390,9 @@ class _ContractDumper(yaml.SafeDumper):
     intent read like a double-spaced telegram."""
 
 
-def _str_representer(dumper: yaml.SafeDumper, data: str):  # type: ignore[no-untyped-def]
+def _str_representer(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
     style = "|" if "\n" in data else None
-    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)  # pyright: ignore[reportUnknownMemberType]
 
 
 _ContractDumper.add_representer(str, _str_representer)

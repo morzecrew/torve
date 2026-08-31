@@ -414,7 +414,7 @@ def test_durable_reap_dry_run_predicts_no_live_run_escalation_without_mutating(
 def test_escalated_states_sweep_only_on_the_flag(tmp_path):
     """A-70: an escalation exists to be looked at — the default sweep keeps
     it; --escalated is the operator's explicit triage-discard."""
-    from torve.application.reaper import _sweep_states, ReapReport
+    from torve.application.reaper import ReapReport, _sweep_states
     from torve.application.runstate import RunState
     from torve.base import naming
     from torve.domain.states import EscalationReason, TaskState

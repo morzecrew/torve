@@ -256,7 +256,7 @@ def _flake_over_threshold(root: Path, threshold: int) -> bool:
                     counts[command] = counts.get(command, 0) + n
 
     manifest_file = layout.gates_file(root)
-    quarantined = (
+    quarantined: set[str] = (
         set(load_manifest(manifest_file).quarantine) if manifest_file.is_file() else set()
     )
 

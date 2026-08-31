@@ -278,10 +278,10 @@ def _landed_task_ids(root: Path) -> set[str]:
     # and a second copy here would drift. The trailer-only first cut left
     # every pre-trailer landing uncounted, which is half of the very
     # "(0 landed)" symptom this function exists to fix.
-    from torve.application.projections import _shipped_ids
+    from torve.application.projections import shipped_ids
 
     try:
-        return _shipped_ids(root)
+        return shipped_ids(root)
 
     except OSError:
         return set()
