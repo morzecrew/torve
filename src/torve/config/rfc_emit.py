@@ -201,6 +201,9 @@ def _render_phasing(entries: list[PhasingEntry]) -> str:
         else:
             lines.append("  acceptance: []")
 
+        if entry.tier_variant:
+            lines.append(f"  tier_variant: {_yaml_scalar(entry.tier_variant)}")
+
         lines.append(f"  depends_on: [{', '.join(str(d) for d in entry.depends_on)}]")
 
     lines.append("```")

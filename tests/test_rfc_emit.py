@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from torve.config.rfc_emit import emit, render_frontmatter
-from torve.config.rfc_parse import parse_frontmatter, rfc_files
+from torve.config.rfc_parse import parse_frontmatter, parse_phasing, rfc_files
 
 DOC = """---
 id: "0001"
@@ -233,3 +233,13 @@ def test_decision_row_paths_are_backtick_wrapped_and_consequence_dashed() -> Non
 def test_phasing_scope_renders_as_a_block_list() -> None:
     once = emit(DOC)
     assert '  scope:\n    - "src/thing/**"' in once
+
+
+def test_phasing_tier_variant_survives_parse_emit_parse() -> None:
+    doc = DOC.replace("  depends_on: []\n```", "  tier_variant: copywriter\n  depends_on: []\n```")
+    once = emit(doc)
+    assert "  tier_variant: copywriter\n  depends_on: []" in once
+
+    entries = parse_phasing(once)
+    assert entries is not None
+    assert entries[0].tier_variant == "copywriter"
