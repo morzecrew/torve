@@ -1,0 +1,37 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0169
+rfc: rfcs/0022-specification-quality.md
+role: review
+intent: Review T-0162's diff against its contract and inherited decisions.
+targets:
+- T-0162
+decisions:
+- id: D-22.12
+  grade: ASSUMED
+  text: "The corpus summary and the context section print the operator-attention line:\
+    \ landed changes in the window and the operator interventions behind them \u2014\
+    \ feedback minutes, command and approval events, escalations triaged \u2014 computed\
+    \ from records already written, denominators printed, suppressed below the floor.\
+    \ Added by amendment A-73 2026-08-31"
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/application/projections.py
+- id: D-22.7
+  grade: LOCKED
+  text: "RFC 0004 \xA76a's quasi-experiment caveat is printed with the report, not\
+    \ paraphrased in documentation. Amended by A-59 2026-08-29: printed without its\
+    \ corpus coordinate (a report reader has no corpus to resolve); when a third surface\
+    \ needs the string its canonical home is `torve.base`, importable from both layers"
+  paths:
+  - src/torve/cli/rfc.py
+  - src/torve/application/projections.py
+- id: D-22.8
+  grade: ASSUMED
+  text: Readings are suppressed below a printed floor of observations; ratios always
+    print their denominator
+  paths:
+  - src/torve/application/specquality.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
