@@ -1,0 +1,26 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0153
+rfc: rfcs/0003-runner-isolation.md
+role: review
+intent: Review T-0152's diff against its contract and inherited decisions.
+targets:
+- T-0152
+decisions:
+- id: D-3.11
+  grade: ASSUMED
+  text: 'The Runtime contract is "workspace in, changed files out": Docker satisfies
+    it by bind mount, OpenSandbox by tar-over-files-API sync; the conformance battery
+    asserts the contract, not the mechanism. Added by execution 2026-08-21'
+  paths:
+  - src/torve/application/ports.py
+  - src/torve/adapters/**
+- id: D-3.12
+  grade: ASSUMED
+  text: The opensandbox SDK ships as the optional extra `torve[opensandbox]`; the
+    adapter import-guards it. Added by execution 2026-08-21
+  paths:
+  - pyproject.toml
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
