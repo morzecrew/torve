@@ -3,7 +3,7 @@
 # workspace, python3 kept for parity with gate commands.
 FROM node:24-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git curl ca-certificates python3 \
+ && apt-get install -y --no-install-recommends git curl ca-certificates python3 zstd \
  && rm -rf /var/lib/apt/lists/* \
  && npm install -g @deepseek-ai/dsh \
  && dsh --version
@@ -24,3 +24,7 @@ COPY deepseek-chat.yml /opt/dsh/deepseek-chat.yml
 # business, never the image's.
 COPY qwen3.8-flash.yml /opt/dsh/qwen3.8-flash.yml
 COPY brokered-deepseek.yml /opt/dsh/brokered-deepseek.yml
+# Usage extraction (D-4.6, self-reported regime): headless dsh prints no
+# usage; the session log carries it. The reporter sums it and prints the
+# one JSON line parse_metadata reads.
+COPY report-usage.js /opt/dsh/report-usage.js

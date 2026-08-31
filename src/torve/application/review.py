@@ -317,6 +317,9 @@ def run_review(
             "model_version": result.model_version,
             "cost_usd": result.cost_usd,
             "trace_ref": result.trace_ref,
+            # The image tag beside the adapter (D-17.4) — the cost table's
+            # harness column reads it; the attempt records already carry it.
+            "image": image,
             "shadow": False,
             # The reviewer spends the run's budget on the same handle; its
             # counts ride the record beside the adapter's report (D-21.5).
