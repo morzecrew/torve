@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0030**.
+number is **0032**.
 
 ## Design
 
@@ -30,7 +30,7 @@ number is **0030**.
 | [0019](0019-standing-loop.md) | The standing loop | accepted | partial | 0003, 0006, 0008 | A-27, A-28, A-29, A-31, A-34, A-39 | The bounded tick that makes the team standing: drain one queued task, process the lane under its existing approval switch, project the board, and stop — cadence delivered by the environment, never a resident daemon. Intake pauses while the escalation queue is non-empty, because a queue nobody triages must stop the machine, not the person. |
 | [0020](0020-intake-and-the-drafting-run.md) | Intake and the drafting run | accepted | complete | 0003, 0007, 0008 | — | A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption. |
 | [0021](0021-egress-broker.md) | The egress broker | accepted | partial | 0003, 0004 | A-56, A-70 | Credential custody and outbound traffic for a sandbox: the agent holds no provider key and the broker injects, routes and meters at the wire — closing D-4b under Docker today, with the OpenSandbox vault as one adapter rather than a prerequisite. |
-| [0022](0022-specification-quality.md) | Specification quality as a measured quantity | accepted | complete | 0004, 0007 | A-59, A-62, A-67, A-71 | Reading the records the engine already writes to measure the corpus that produced them: per-decision and per-document attribution, grade calibration, and the decoration check — reported to a human who then writes an amendment, never applied by the engine. |
+| [0022](0022-specification-quality.md) | Specification quality as a measured quantity | accepted | partial | 0004, 0007 | A-59, A-62, A-67, A-71, A-73 | Reading the records the engine already writes to measure the corpus that produced them: per-decision and per-document attribution, grade calibration, and the decoration check — reported to a human who then writes an amendment, never applied by the engine. |
 | [0023](0023-standing-maintenance.md) | Standing maintenance | accepted | complete | 0007, 0019, 0020 | A-68 | Work that recurs on a condition rather than on a plan: a committed contract template plus a deterministic trigger the tick evaluates and instantiates — the machine recognising a condition a human already decided to answer, never inventing a backlog. |
 | [0024](0024-fleet.md) | Fleet — one department, many repositories | accepted | complete | 0008, 0013, 0019 | A-60, A-61, A-63 | Running the standing loop over several repositories from one operator's attention: an operator-side manifest, a fleet-wide escalation pause, trust classes that bind per-repository capability, and aggregation that keeps every root authoritative for itself. |
 | [0025](0025-corpus-authoring-surface.md) | The corpus authoring surface | accepted | complete | 0007, 0016 | A-66 | Mechanical writers over the corpus parser — a canonical emitter, torve rfc fmt, and transactional verbs for amendments, decisions, retirement and path relocation — so the structure-bearing edits stop being hand-typed. |
@@ -38,6 +38,8 @@ number is **0030**.
 | [0027](0027-harness-configuration-evolution.md) | Harness configuration as measured evolution | accepted | complete | 0004, 0017, 0020, 0021 | A-65 | Capturing the performance a well-configured harness offers without a runtime configurator: contract-selected tier variants, a configuration drafting run fed harness telemetry, and adoption gated on paired replay measurement — configuration stays committed, hashed and human-signed. |
 | [0028](0028-agent-profiles.md) | Agent profiles | accepted | complete | 0004 | — | A host-level library of named tier definitions under the operator's config directory, referenced by name from repository configuration and merged before validation — one authoritative copy of each agent incantation instead of a copy per root. |
 | [0029](0029-agent-equipment.md) | Agent equipment | accepted | complete | 0009, 0027, 0028 | — | Per-tier skill sets and prompt extras layered over role-scoped defaults, so a named variant becomes a persona — equipped, addressable from a document's phasing, and measured as its own regime by machinery that already exists. |
+| [0030](0030-the-document-threshold.md) | The document threshold | draft | none | 0007, 0020 | — | When work must carry its own document and when it may ride the standing corpus: paths-intersection inheritance for document-less contracts and a deterministic threshold that routes large or LOCKED-crossing work to authoring. |
+| [0031](0031-brownfield-onboarding.md) | Brownfield onboarding | draft | none | 0004, 0030 | — | First contact with a repository that has no corpus: a read-only agentless survey replaying merged history through the gate battery, and the baseline standing-decisions document extracted outside the engine that turns its silence into governance. |
 
 ## Conventions
 

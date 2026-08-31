@@ -3,12 +3,12 @@ id: "0022"
 title: Specification quality as a measured quantity
 kind: design
 status: accepted
-implementation: complete
+implementation: partial
 depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-59", "A-62", "A-67", "A-71"]
+amended_by: ["A-59", "A-62", "A-67", "A-71", "A-73"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -325,6 +325,7 @@ and telling the executor it is being measured would change what it writes.
 | D-22.9 | `ASSUMED` | Tasks without an `rfc` join at the decision level and are reported as their own population, never merged into a document's numbers | `src/torve/application/specquality.py` | Adopted intake work and hand-minted contracts have no document to indict, and mixing them would indict one anyway |
 | D-22.11 | `ASSUMED` | Dispatch prints the envelope: expected attempts, cost and wall minutes for the task's size class, computed from this document's join over telemetry, denominator and caveat printed, silent below the floor | `src/torve/application/specquality.py` `src/torve/cli/run.py` | The operator's real question at dispatch is "how long and how much before I should worry"; the data answering it already exists here and an envelope with a printed denominator cannot become a promise |
 | D-22.10 | `OPEN` | Whether an abandoned task's entries weigh the same as a landed task's; execution reports both and logs which the data supports | `src/torve/application/specquality.py` | Departures on work that never landed are evidence of a different kind, and guessing the answer here would bake it in before anyone has seen the distribution |
+| D-22.12 | `ASSUMED` | The corpus summary and the context section print the operator-attention line: landed changes in the window and the operator interventions behind them — feedback minutes, command and approval events, escalations triaged — computed from records already written, denominators printed, suppressed below the floor. Added by amendment A-73 2026-08-31 | `src/torve/application/specquality.py` `src/torve/application/projections.py` | The engine's cost claim is human attention per landed change; a line computed from existing records with its denominator printed cannot become a promise, and without it the claim rests on anecdote |
 
 ## Phasing
 
@@ -368,6 +369,22 @@ and telling the executor it is being measured would change what it writes.
     - "src/torve/application/specquality.py"
     - "src/torve/cli/run.py"
     - "src/torve/cli/tick.py"
+    - "tests/**"
+  acceptance:
+    - "uv run ruff check src tests"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run pytest"
+    - "uv run lint-imports"
+  depends_on: [2]
+- phase: 4
+  title: operator-attention-line
+  intent: >-
+    The operator-attention line (D-22.12, A-73): landed changes per window and the operator interventions behind them — feedback human_minutes, command and approval events, escalations triaged — joined from the records the engine already writes, printed in the corpus summary of torve rfc health and the context section, denominators printed, suppressed below the floor, the quasi-experiment caveat attached. No new recorded fields.
+  scope:
+    - "src/torve/application/specquality.py"
+    - "src/torve/application/projections.py"
+    - "src/torve/cli/rfc.py"
     - "tests/**"
   acceptance:
     - "uv run ruff check src tests"
@@ -464,3 +481,22 @@ proposing corpus corrections; every one is approved here.
 **Deliberately unchanged:** D-22.10 stays `OPEN` — §5.3's landed-only rule
 is the reporting default T-0100 shipped, not the weighting answer; the
 distribution still decides.
+
+### A-73 — 2026-08-31 — the operator-attention line (adds D-22.12)
+**Found in the adoption research of 2026-08-31.** The documented first
+rejection of every surveyed spec-first tool is fixed-cost ceremony, and
+this engine's structural answer — agents pay the ceremony, humans sign —
+currently rests on anecdote: two human comments on a lab thread,
+remembered. Every input to the real number is already recorded — feedback
+carries `human_minutes`, tracker commands and approvals ride engine
+events, landings carry their trailer — and nothing prints attention per
+landed change.
+
+**Changed:** D-22.12 — the corpus summary (`torve rfc health` with no
+number) and the `torve context` section gain the operator-attention line:
+landed changes in the window and the operator interventions behind them,
+from the records the engine already writes. No new recorded fields — the
+§4 non-goal stands. Denominators printed, suppression below the floor,
+the §6a caveat printed with it (D-22.7). §Phasing gains phase 4
+(operator-attention-line) carrying exactly this; `implementation` returns
+to `partial` until it ships.
