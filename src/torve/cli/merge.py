@@ -7,7 +7,7 @@ the queue without moving anything, per the house convention.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.text import Text
@@ -35,6 +35,13 @@ from torve.domain.states import (
     EXIT_OK,
 )
 
+if TYPE_CHECKING:
+    from rich.console import Console
+
+    from torve.application.lane import LaneResult
+    from torve.application.ports import CiStatus
+    from torve.config.runconfig import RunnerConfig
+
 # ----------------------- #
 
 _MARKS = {
@@ -50,6 +57,88 @@ _MARKS = {
     "quiet window": "fail",
     "no branch": "skipped",
 }
+
+
+# ....................... #
+
+
+def _resolve_ci(config: RunnerConfig) -> CiStatus | None:
+    """`promotion.require_ci` needs `scm.repo` to name the remote the
+    lane consults; anything else is a configuration error (EXIT_CONFIG)."""
+
+    if not config.promotion.require_ci:
+        return None
+
+    if not config.scm.repo:
+        raise fail(
+            "configuration error: promotion.require_ci needs "
+            "scm.repo to name the remote whose ci is consulted",
+            EXIT_CONFIG,
+        )
+
+    from torve.adapters.vcs.git import GhCi
+
+    return GhCi(config.scm.repo, config.scm.token_env)
+
+
+# ....................... #
+
+
+def _action_style(action: str) -> str:
+    if action in ("conflict", "gates red"):
+        return STYLE_FAIL
+
+    if "land" in action:
+        return STYLE_PASS
+
+    return STYLE_DIM
+
+
+# ....................... #
+
+
+def _render_text(console: Console, dry_run: bool, results: list[LaneResult]) -> None:
+    header(console, "merge", "dry run" if dry_run else "serialized lane")
+
+    if not results:
+        console.print("no ready candidates")
+        return
+
+    table = make_table("", "task", "action", "detail", "sha")
+
+    for result in results:
+        table.add_row(
+            mark(_MARKS.get(result.action, "skipped")),
+            Text(result.task, STYLE_ID),
+            Text(result.action, _action_style(result.action)),
+            result.detail,
+            Text(result.sha[:10], STYLE_DIM),
+        )
+
+    console.print(table)
+    landed = sum(1 for r in results if r.landed)
+
+    closing(
+        console,
+        f"{landed} landed of {len(results)} candidate(s)" + (" (dry run)" if dry_run else ""),
+    )
+
+
+# ....................... #
+
+
+def _exit_code(results: list[LaneResult]) -> int:
+    if any(r.action == "conflict" for r in results):
+        return EXIT_ESCALATED
+
+    if any(
+        r.action
+        in ("gates red", "ci not green", "approvals short", "review missing", "quiet window")
+        for r in results
+    ):
+        return EXIT_GATES_RED
+
+    return EXIT_OK
 
 
 # ....................... #
@@ -71,23 +160,13 @@ def merge_cmd(
     measured; a moved base rebases and re-runs the gates first; a conflict
     is reported and left for a human — the lane never resolves one."""
 
-    from torve.adapters.vcs.git import GhCi, GitLane
+    from torve.adapters.vcs.git import GitLane
     from torve.application.lane import process_lane
     from torve.cli.options import load_config
 
     root = root.resolve()
     config = load_config(root, config_path)
-    ci = None
-
-    if config.promotion.require_ci:
-        if not config.scm.repo:
-            raise fail(
-                "configuration error: promotion.require_ci needs "
-                "scm.repo to name the remote whose ci is consulted",
-                EXIT_CONFIG,
-            )
-
-        ci = GhCi(config.scm.repo, config.scm.token_env)
+    ci = _resolve_ci(config)
 
     try:
         results = process_lane(
@@ -107,47 +186,6 @@ def merge_cmd(
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "dry_run": dry_run, "results": [vars(r) for r in results]})
     else:
-        console = out(fmt)
-        header(console, "merge", "dry run" if dry_run else "serialized lane")
+        _render_text(out(fmt), dry_run, results)
 
-        if not results:
-            console.print("no ready candidates")
-        else:
-            table = make_table("", "task", "action", "detail", "sha")
-
-            for result in results:
-                table.add_row(
-                    mark(_MARKS.get(result.action, "skipped")),
-                    Text(result.task, STYLE_ID),
-                    Text(
-                        result.action,
-                        STYLE_FAIL
-                        if result.action in ("conflict", "gates red")
-                        else STYLE_PASS
-                        if "land" in result.action
-                        else STYLE_DIM,
-                    ),
-                    result.detail,
-                    Text(result.sha[:10], STYLE_DIM),
-                )
-
-            console.print(table)
-            landed = sum(1 for r in results if r.landed)
-
-            closing(
-                console,
-                f"{landed} landed of {len(results)} candidate(s)"
-                + (" (dry run)" if dry_run else ""),
-            )
-
-    if any(r.action == "conflict" for r in results):
-        raise typer.Exit(EXIT_ESCALATED)
-
-    if any(
-        r.action
-        in ("gates red", "ci not green", "approvals short", "review missing", "quiet window")
-        for r in results
-    ):
-        raise typer.Exit(EXIT_GATES_RED)
-
-    raise typer.Exit(EXIT_OK)
+    raise typer.Exit(_exit_code(results))

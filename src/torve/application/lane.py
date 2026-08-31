@@ -253,6 +253,337 @@ def _dispose_conflict(
 # ....................... #
 
 
+def _review_missing(
+    root: Path, state: RunState, require_review: bool, dry_run: bool, branch: str, branch_tip: str
+) -> LaneResult | None:
+    """§3's review criterion as a lane predicate (D-6.14, A-43): the
+    producing run recorded no concluded review — refused before CI is
+    polled and before the approvals prompt, so a candidate the policy
+    cannot land is never offered for approval."""
+
+    if not require_review or dry_run or state.reviewed_by is not None:
+        return None
+
+    engine_event(root, "lane_review_missing", {"task": state.task_id, "sha": branch_tip})
+
+    return LaneResult(
+        state.task_id,
+        branch,
+        "review missing",
+        "run recorded no review verdict (promotion.require_review)",
+        sha=branch_tip,
+    )
+
+
+# ....................... #
+
+
+def _ci_not_green(
+    root: Path, ci: CiStatus | None, dry_run: bool, task_id: str, branch: str, branch_tip: str
+) -> LaneResult | None:
+    """ci: green_on_current_head (RFC 0006 §3): the remote's verdict for
+    the tip the remote actually saw. Only "success" lands; a rebased tree
+    is additionally judged by the local battery in `_regate`."""
+
+    if ci is None or dry_run:
+        return None
+
+    verdict = ci.conclusion(branch_tip)
+
+    if verdict == "success":
+        return None
+
+    engine_event(
+        root, "lane_ci_not_green", {"task": task_id, "sha": branch_tip, "verdict": verdict}
+    )
+
+    return LaneResult(task_id, branch, "ci not green", f"remote ci {verdict} on {branch_tip[:10]}")
+
+
+# ....................... #
+
+
+def _conflicting_probe(
+    vcs: LaneVcs,
+    root: Path,
+    state: RunState,
+    branch: str,
+    base: str,
+    branch_tip: str,
+    probe_base: str,
+    on_conflict: Callable[[str], str] | None,
+) -> bool:
+    """The probe precedes the prompt (D-6.13, A-42): true when a wired
+    disposal would find this tip provably conflicting against the current
+    base before anyone is asked to approve it."""
+
+    return (
+        on_conflict is not None
+        and state.conflict_base != probe_base
+        and not vcs.is_ancestor(root, probe_base, branch_tip)
+        and vcs.rebase_conflicts(root, branch, base)
+    )
+
+
+# ....................... #
+
+
+def _approvals_satisfied(
+    root: Path,
+    vcs: LaneVcs,
+    state: RunState,
+    base: str,
+    branch: str,
+    branch_tip: str,
+    approvals_required: int,
+    dry_run: bool,
+    on_conflict: Callable[[str], str] | None,
+    results: list[LaneResult],
+) -> bool:
+    """True when landing may proceed. False means a `LaneResult` (short,
+    or a conflict disposal) was appended and the candidate is done for
+    this pass."""
+
+    if not approvals_required or dry_run:
+        return True
+
+    task_id = state.task_id
+    # Sha-bound (D-6.3): only approvals of the tip as measured now count —
+    # an approval of a superseded tip approves nothing.
+    current = [a for a in state.approvals if a.get("sha") == branch_tip]
+
+    if len(current) >= approvals_required:
+        return True
+
+    probe_base = vcs.tip(root, base) or base
+
+    if on_conflict is not None and _conflicting_probe(
+        vcs, root, state, branch, base, branch_tip, probe_base, on_conflict
+    ):
+        engine_event(root, "lane_conflict", {"task": task_id, "base": base, "probe": True})
+        _dispose_conflict(
+            root, state, task_id, branch, base, probe_base, on_conflict, results, found_by="probe"
+        )
+
+        return False
+
+    engine_event(
+        root,
+        "lane_approvals_short",
+        {"task": task_id, "sha": branch_tip, "have": len(current), "need": approvals_required},
+    )
+
+    results.append(
+        LaneResult(
+            task_id,
+            branch,
+            "approvals short",
+            f"{len(current)} of {approvals_required} approval(s) for {branch_tip[:10]}",
+            sha=branch_tip,
+        )
+    )
+
+    return False
+
+
+# ....................... #
+
+
+def _quiet_window(
+    root: Path,
+    vcs: LaneVcs,
+    quiet_window_s: int,
+    dry_run: bool,
+    task_id: str,
+    branch: str,
+    branch_tip: str,
+) -> LaneResult | None:
+    """Pushing reset the window (§3): a tip fresher than the window is
+    too fresh to land."""
+
+    if not quiet_window_s or dry_run:
+        return None
+
+    age = vcs.tip_age_s(root, branch_tip)
+
+    if age >= quiet_window_s:
+        return None
+
+    engine_event(
+        root,
+        "lane_quiet_window",
+        {"task": task_id, "sha": branch_tip, "age_s": age, "window_s": quiet_window_s},
+    )
+
+    return LaneResult(
+        task_id, branch, "quiet window", f"tip is {age:.0f}s old; the window is {quiet_window_s}s"
+    )
+
+
+# ....................... #
+
+
+def _land_fast_forward(
+    root: Path,
+    vcs: LaneVcs,
+    task_id: str,
+    branch: str,
+    branch_tip: str,
+    dry_run: bool,
+    approver: str,
+    results: list[LaneResult],
+) -> None:
+    if dry_run:
+        results.append(
+            LaneResult(task_id, branch, "would land", "fast-forward, gates already measured")
+        )
+
+        return
+
+    # D-19.11 (A-28): the landing may carry the task's own records — an
+    # untracked byte-identical root copy is adopted, never a reason for
+    # git to refuse the fast-forward.
+    vcs.adopt_identical(root, branch_tip)
+    sha = vcs.merge_ff(root, branch_tip)
+
+    engine_event(
+        root,
+        "lane_landed",
+        {"task": task_id, "mode": "fast-forward", "sha": sha, "approver": approver},
+    )
+
+    results.append(LaneResult(task_id, branch, "landed", "fast-forward", sha))
+
+
+# ....................... #
+
+
+def _handle_rebase_conflict(
+    root: Path,
+    state: RunState,
+    task_id: str,
+    branch: str,
+    base: str,
+    base_tip: str,
+    on_conflict: Callable[[str], str] | None,
+    results: list[LaneResult],
+) -> None:
+    engine_event(root, "lane_conflict", {"task": task_id, "base": base})
+
+    if on_conflict is not None and state.conflict_base != base_tip:
+        # D-6.10 as amended by A-35: the escalation's standard disposal is
+        # mechanical, so the loop applies it in place — bounded by
+        # progress: once per base tip (D-6.12); a repeat against an
+        # unmoved base falls through to the human fork below.
+        _dispose_conflict(
+            root, state, task_id, branch, base, base_tip, on_conflict, results, found_by="rebase"
+        )
+
+        return
+
+    state.escalate(
+        EscalationReason.MERGE_CONFLICT,
+        f"rebase onto {base!r} conflicts; branch untouched — re-queue or abandon",
+    )
+
+    results.append(
+        LaneResult(
+            task_id,
+            branch,
+            "conflict",
+            "merge_conflict: rebase aborted, branch untouched — run escalated",
+        )
+    )
+
+
+# ....................... #
+
+
+def _land_rebased(
+    root: Path,
+    vcs: LaneVcs,
+    state: RunState,
+    task_id: str,
+    branch: str,
+    base: str,
+    base_tip: str,
+    on_conflict: Callable[[str], str] | None,
+    approver: str,
+    results: list[LaneResult],
+) -> None:
+    engine_wt = root / naming.WORKTREE_DIR / task_id
+
+    if engine_wt.exists():
+        # The run's own worktree still pins the branch, and git refuses to
+        # check a branch out twice. A READY candidate's worktree is
+        # disposable — the work lives on the branch, and the reap would
+        # collect it anyway — so the lane releases it for the rebase.
+        vcs.remove_worktree(root, engine_wt)
+
+    workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
+
+    if not vcs.rebase_in_worktree(root, branch, base, workdir):
+        _handle_rebase_conflict(root, state, task_id, branch, base, base_tip, on_conflict, results)
+        return
+
+    try:
+        exit_code, summary = _regate(workdir, base, task_id)
+
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+    if exit_code != 0:
+        engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
+        results.append(LaneResult(task_id, branch, "gates red", summary))
+        return
+
+    vcs.adopt_identical(root, branch)
+    sha = vcs.merge_ff(root, branch)
+
+    engine_event(
+        root, "lane_landed", {"task": task_id, "mode": "rebased", "sha": sha, "approver": approver}
+    )
+
+    results.append(LaneResult(task_id, branch, "landed", "rebased, gates green", sha))
+
+
+# ....................... #
+
+
+def _land_candidate(
+    root: Path,
+    vcs: LaneVcs,
+    state: RunState,
+    task_id: str,
+    branch: str,
+    branch_tip: str,
+    base: str,
+    dry_run: bool,
+    on_conflict: Callable[[str], str] | None,
+    approver: str,
+    results: list[LaneResult],
+) -> None:
+    base_tip = vcs.tip(root, base) or base
+
+    if vcs.is_ancestor(root, base_tip, branch_tip):
+        # The base has not moved under this branch: the tree that would
+        # land is byte-identical to the one the gates measured.
+        _land_fast_forward(root, vcs, task_id, branch, branch_tip, dry_run, approver, results)
+        return
+
+    if dry_run:
+        results.append(
+            LaneResult(task_id, branch, "would rebase", "base moved; gates re-run before landing")
+        )
+
+        return
+
+    _land_rebased(root, vcs, state, task_id, branch, base, base_tip, on_conflict, approver, results)
+
+
+# ....................... #
+
+
 def process_lane(
     root: Path,
     vcs: LaneVcs,
@@ -299,236 +630,52 @@ def process_lane(
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
             continue
 
-        if require_review and not dry_run and state.reviewed_by is None:
-            # §3's review criterion as a lane predicate (D-6.14, A-43):
-            # the producing run recorded no concluded review — refused
-            # before CI is polled and before the approvals prompt, so a
-            # candidate the policy cannot land is never offered for
-            # approval.
-            engine_event(root, "lane_review_missing", {"task": task_id, "sha": branch_tip})
+        review_result = _review_missing(root, state, require_review, dry_run, branch, branch_tip)
 
-            results.append(
-                LaneResult(
-                    task_id,
-                    branch,
-                    "review missing",
-                    "run recorded no review verdict (promotion.require_review)",
-                    sha=branch_tip,
-                )
-            )
-
+        if review_result is not None:
+            results.append(review_result)
             continue
 
-        if ci is not None and not dry_run:
-            # ci: green_on_current_head (RFC 0006 §3): the remote's verdict
-            # for the tip the remote actually saw. Only "success" lands; a
-            # rebased tree is additionally judged by the local battery below.
-            verdict = ci.conclusion(branch_tip)
+        ci_result = _ci_not_green(root, ci, dry_run, task_id, branch, branch_tip)
 
-            if verdict != "success":
-                engine_event(
-                    root,
-                    "lane_ci_not_green",
-                    {"task": task_id, "sha": branch_tip, "verdict": verdict},
-                )
-
-                results.append(
-                    LaneResult(
-                        task_id, branch, "ci not green", f"remote ci {verdict} on {branch_tip[:10]}"
-                    )
-                )
-
-                continue
-
-        if approvals_required and not dry_run:
-            # Sha-bound (D-6.3): only approvals of the tip as measured now
-            # count — an approval of a superseded tip approves nothing.
-            current = [a for a in state.approvals if a.get("sha") == branch_tip]
-
-            if len(current) < approvals_required:
-                probe_base = vcs.tip(root, base) or base
-
-                if (
-                    on_conflict is not None
-                    and state.conflict_base != probe_base
-                    and not vcs.is_ancestor(root, probe_base, branch_tip)
-                    and vcs.rebase_conflicts(root, branch, base)
-                ):
-                    # The probe precedes the prompt (D-6.13, A-42): a
-                    # provably conflicting tip is never offered for
-                    # approval — the disposal that would have burned the
-                    # approval fires now, before anyone is asked.
-                    engine_event(
-                        root, "lane_conflict", {"task": task_id, "base": base, "probe": True}
-                    )
-
-                    _dispose_conflict(
-                        root,
-                        state,
-                        task_id,
-                        branch,
-                        base,
-                        probe_base,
-                        on_conflict,
-                        results,
-                        found_by="probe",
-                    )
-
-                    continue
-
-                engine_event(
-                    root,
-                    "lane_approvals_short",
-                    {
-                        "task": task_id,
-                        "sha": branch_tip,
-                        "have": len(current),
-                        "need": approvals_required,
-                    },
-                )
-
-                results.append(
-                    LaneResult(
-                        task_id,
-                        branch,
-                        "approvals short",
-                        f"{len(current)} of {approvals_required} approval(s) for {branch_tip[:10]}",
-                        sha=branch_tip,
-                    )
-                )
-
-                continue
-
-        if quiet_window_s and not dry_run:
-            age = vcs.tip_age_s(root, branch_tip)
-
-            if age < quiet_window_s:
-                # Pushing reset the window (§3): the tip is too fresh.
-                engine_event(
-                    root,
-                    "lane_quiet_window",
-                    {"task": task_id, "sha": branch_tip, "age_s": age, "window_s": quiet_window_s},
-                )
-
-                results.append(
-                    LaneResult(
-                        task_id,
-                        branch,
-                        "quiet window",
-                        f"tip is {age:.0f}s old; the window is {quiet_window_s}s",
-                    )
-                )
-
-                continue
-
-        base_tip = vcs.tip(root, base) or base
-
-        if vcs.is_ancestor(root, base_tip, branch_tip):
-            # The base has not moved under this branch: the tree that would
-            # land is byte-identical to the one the gates measured.
-            if dry_run:
-                results.append(
-                    LaneResult(
-                        task_id, branch, "would land", "fast-forward, gates already measured"
-                    )
-                )
-
-                continue
-
-            # D-19.11 (A-28): the landing may carry the task's own records
-            # — an untracked byte-identical root copy is adopted, never a
-            # reason for git to refuse the fast-forward.
-            vcs.adopt_identical(root, branch_tip)
-            sha = vcs.merge_ff(root, branch_tip)
-
-            engine_event(
-                root,
-                "lane_landed",
-                {"task": task_id, "mode": "fast-forward", "sha": sha, "approver": approver},
-            )
-
-            results.append(LaneResult(task_id, branch, "landed", "fast-forward", sha))
+        if ci_result is not None:
+            results.append(ci_result)
             continue
 
-        if dry_run:
-            results.append(
-                LaneResult(
-                    task_id, branch, "would rebase", "base moved; gates re-run before landing"
-                )
-            )
-
-            continue
-
-        engine_wt = root / naming.WORKTREE_DIR / task_id
-
-        if engine_wt.exists():
-            # The run's own worktree still pins the branch, and git refuses
-            # to check a branch out twice. A READY candidate's worktree is
-            # disposable — the work lives on the branch, and the reap would
-            # collect it anyway — so the lane releases it for the rebase.
-            vcs.remove_worktree(root, engine_wt)
-
-        workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
-
-        if not vcs.rebase_in_worktree(root, branch, base, workdir):
-            engine_event(root, "lane_conflict", {"task": task_id, "base": base})
-
-            if on_conflict is not None and state.conflict_base != base_tip:
-                # D-6.10 as amended by A-35: the escalation's standard
-                # disposal is mechanical, so the loop applies it in place
-                # — bounded by progress: once per base tip (D-6.12); a
-                # repeat against an unmoved base falls through to the
-                # human fork below.
-                _dispose_conflict(
-                    root,
-                    state,
-                    task_id,
-                    branch,
-                    base,
-                    base_tip,
-                    on_conflict,
-                    results,
-                    found_by="rebase",
-                )
-
-                continue
-
-            state.escalate(
-                EscalationReason.MERGE_CONFLICT,
-                f"rebase onto {base!r} conflicts; branch untouched — re-queue or abandon",
-            )
-
-            results.append(
-                LaneResult(
-                    task_id,
-                    branch,
-                    "conflict",
-                    "merge_conflict: rebase aborted, branch untouched — run escalated",
-                )
-            )
-
-            continue
-
-        try:
-            exit_code, summary = _regate(workdir, base, task_id)
-
-        finally:
-            vcs.remove_worktree(root, workdir)
-
-        if exit_code != 0:
-            engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
-            results.append(LaneResult(task_id, branch, "gates red", summary))
-            continue
-
-        vcs.adopt_identical(root, branch)
-        sha = vcs.merge_ff(root, branch)
-
-        engine_event(
+        if not _approvals_satisfied(
             root,
-            "lane_landed",
-            {"task": task_id, "mode": "rebased", "sha": sha, "approver": approver},
+            vcs,
+            state,
+            base,
+            branch,
+            branch_tip,
+            approvals_required,
+            dry_run,
+            on_conflict,
+            results,
+        ):
+            continue
+
+        quiet_result = _quiet_window(
+            root, vcs, quiet_window_s, dry_run, task_id, branch, branch_tip
         )
 
-        results.append(LaneResult(task_id, branch, "landed", "rebased, gates green", sha))
+        if quiet_result is not None:
+            results.append(quiet_result)
+            continue
+
+        _land_candidate(
+            root,
+            vcs,
+            state,
+            task_id,
+            branch,
+            branch_tip,
+            base,
+            dry_run,
+            on_conflict,
+            approver,
+            results,
+        )
 
     return results
