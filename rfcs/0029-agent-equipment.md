@@ -2,7 +2,7 @@
 id: 0029
 title: Agent equipment
 kind: design
-status: draft
+status: accepted
 depends_on: ["0009", "0027", "0028"]
 informed_by: ["0004", "0007", "0026"]
 supersedes: []
