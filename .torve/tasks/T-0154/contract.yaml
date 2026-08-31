@@ -1,0 +1,79 @@
+# Minted by `torve plan 0029` — phase 1: equipment-on-the-tier
+schema_version: 1
+id: T-0154
+rfc: rfcs/0029-agent-equipment.md
+phase: 1
+role: implement
+title: equipment on the tier
+intent: TierConfig gains skills (None inherits the role set, a list overrides it wholesale)
+  and prompt_extras (appended after the charter's base working rules, which stay unaddressable);
+  the runner threads the override into materialize and build_prompt appends the extras (D-29.1–D-29.3).
+  Tests pin inheritance, override, the fail-closed unknown-name refusal, the profile-merge
+  replace property, extras-after- base ordering, and the config_hash separation of equipped
+  regimes.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/config/runconfig.py
+  - src/torve/application/runner.py
+  - src/torve/adapters/agent/harness.py
+  - tests/test_runconfig.py
+  - tests/test_tiering.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_runconfig.py tests/test_tiering.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-29.1
+  grade: LOCKED
+  text: 'Equipment lives on the tier entry: `skills` fully overrides the role-scoped set when
+    present, `prompt_extras` appends after the charter''s base working rules; base rules are
+    not addressable from configuration'
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/adapters/agent/harness.py
+- id: D-29.2
+  grade: LOCKED
+  text: Equipped skill names resolve through the existing materializer with its refusals unchanged
+    — unknown or shipped-and-vendored names refuse dispatch before a sandbox exists
+  paths:
+  - src/torve/application/skills.py
+  - src/torve/application/runner.py
+- id: D-29.3
+  grade: ASSUMED
+  text: '`skills` is a wholesale override, never additive, and rides the profile merge under
+    D-28.4''s replace-wholesale rule'
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-29.4
+  grade: ASSUMED
+  text: A Phasing entry may carry `tier_variant`, copied verbatim by the planner onto the
+    minted contract; drafters may set it on drafts, and adoption is where a human sees the
+    assignment
+  paths:
+  - src/torve/config/rfc_parse.py
+  - src/torve/application/planner.py
+- id: D-29.5
+  grade: ASSUMED
+  text: Doctor prints resolved equipment per tier that differs from its role default and attaches
+    no check
+  paths:
+  - src/torve/cli/doctor.py
+- id: D-29.6
+  grade: OPEN
+  text: Whether `review`-role sets are ever overridable per variant; the reviewer's empty
+    set is deliberate (the reviewer reads, it does not build), and the first equipped-reviewer
+    proposal must argue with that doctrine — evidence from the review lane's findings quality
+    would settle it
+  paths:
+  - src/torve/config/runconfig.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
