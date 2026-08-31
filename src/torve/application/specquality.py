@@ -41,9 +41,7 @@ or resizes a dispatch.
 from __future__ import annotations
 
 import json
-import re
 import statistics
-import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -87,7 +85,6 @@ _QUEUED_STATE = str(TaskState.QUEUED)
 # `torve.application.tracker._discharged` reads through its injected
 # oracle. `read_tasks` reads it directly (T-0133, departing D-22.5's "no
 # git subprocess" — logged) because it has no caller to inject one for it.
-_LANDING_TRAILER = re.compile(r"^Torve-Task: (T-\d{4,})$", re.M)
 
 
 # ....................... #
@@ -276,21 +273,18 @@ def _landed_task_ids(root: Path) -> set[str]:
     than erroring — the same convention `_load_yaml_dict` uses for a file
     it cannot read."""
 
+    # One derivation, not two (D-7.26): projections owns the landing
+    # spellings — trailer, parenthesized citation, merge-branch shape —
+    # and a second copy here would drift. The trailer-only first cut left
+    # every pre-trailer landing uncounted, which is half of the very
+    # "(0 landed)" symptom this function exists to fix.
+    from torve.application.projections import _shipped_ids
+
     try:
-        proc = subprocess.run(
-            ["git", "-C", str(root), "log", "--format=%B"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        return _shipped_ids(root)
 
     except OSError:
         return set()
-
-    if proc.returncode != 0:
-        return set()
-
-    return set(_LANDING_TRAILER.findall(proc.stdout))
 
 
 # ....................... #
