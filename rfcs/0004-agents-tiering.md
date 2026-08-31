@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-57"]
+amended_by: ["A-57", "A-72"]
 owner: Lev Litvinov
 description: >-
   Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable.
@@ -89,13 +89,15 @@ Per-gate health rides the same records (RFC 0002 §7.6, added by A-8): hit rate,
 
 The two hand-entered fields — `human_minutes` and `rework_after_review` — are added after merge and live in a separate `ReviewFeedback` record keyed by task id. Appending is easy; updating a row in an append-only store is not.
 
-## 6a. Three measurement defects to fix before trusting a number
+## 6a. Measurement defects to fix before trusting a number
 
 **`config_hash` does not catch model drift.** Providers update a model behind a stable name, so two runs with an identical hash can be two different models, and every before/after comparison silently breaks. Record whatever version string the provider returns alongside the hash, and pin where pinning is offered. Where neither is available, treat that model's history as a single uncontrolled regime and say so.
 
 **Shadow runs can see the future.** Replaying a completed task from its parent commit leaks the answer if the agent can reach later refs — the fix is already in the repository's history. Shadow worktrees get truncated history and no access to refs beyond the parent commit, or the numbers are flattering fiction.
 
 **Baseline is a quasi-experiment, not an A/B.** Tasks before and after are different tasks, done under different conditions. This supports direction ("iterations fell") and not magnitude ("40% faster"). Write that down now, because the first attractive number will otherwise become a promise to someone.
+
+**`config_hash` has no preimage.** *(Added by A-72 2026-08-31.)* The hash names a regime nobody can inspect: the moment any input moves on — gates.yaml edited, a tier's command template changed, the skills vendor tree bumped — the question "what was different between regime `a1b2…` and `c3d4…`?" has no answer anywhere. The fix is D-4.19: the exact `parts` mapping the digest was computed over is written once, content-addressed by the hash it produces, to `.torve/regimes/<config_hash>.json` — host-local and gitignored like the telemetry that references it. Two regimes then diff as two files.
 
 ## 6b. Provider routing and data boundaries
 
@@ -137,6 +139,7 @@ Enforced at dispatch, before a sandbox exists — a task whose repository has no
 | D-4.16 | `ASSUMED` | Sandbox egress follows the host only under an explicit network opt-in, which also forwards the proxy vocabulary; where egress control matters the OpenSandbox vault remains the answer. Added by execution 2026-08-22 — see .torve/tasks/T-0023 | `src/torve/adapters/runtime/docker.py` `src/torve/config/runconfig.py` | — |
 | D-4.18 | `LOCKED` | A shadow run's liveness is its host state file, never the durable store: shadow runs register no durable record by design (they are replays, not work), so the reaper treats a torve-labelled sandbox as live when a host run state names it with a fresh heartbeat — in both the local and the durable regime. Added by amendment A-57 2026-08-28 | `src/torve/application/reaper.py` `src/torve/application/shadow.py` | Without it, every tick on a patrolled root destroys every shadow sandbox mid-attempt: three campaigns of exit-137 kills read as harness failures before the reaper was found holding the knife |
 | D-4.17 | `ASSUMED` | The proxy convention is one vocabulary across runtimes, owned by the ports module; per-host egress mode is repository configuration, never a code default. Added by execution 2026-08-22 — see .torve/tasks/T-0024 | `src/torve/application/ports.py` `src/torve/adapters/runtime/docker.py` | — |
+| D-4.19 | `ASSUMED` | The regime preimage is recorded: at record time the exact `parts` mapping `config_hash` digested is written, once and only if absent, to `.torve/regimes/<config_hash>.json` — host-local, gitignored, content-addressed by the hash it produces; never a database, never committed. Added by amendment A-72 2026-08-31 | `src/torve/application/telemetry.py` | Every telemetry row's `config_hash` becomes resolvable to inspectable content, and two regimes diff as two files; without it §6a's before/after comparisons name regimes nobody can look inside |
 
 ## 8. Exit criteria
 
@@ -146,8 +149,30 @@ Enforced at dispatch, before a sandbox exists — a task whose repository has no
 
 ## Amendments
 
-### A-57 — 2026-08-28 — the reaper consults host truth for shadow sandboxes (amends §5, adds D-4.18)
+### A-72 — 2026-08-31 — the regime preimage recorded (amends §6a, adds D-4.19)
+**Found reviewing the storage question directly.** §6 made
+`schema_version`, `config_hash` and denormalised decisions mandatory from
+the first record "because none can be reconstructed" — and then recorded
+only the hash of the regime, which is precisely the unreconstructable
+case: the preimage spans gates.yaml, the resolved tier mapping, provider
+and broker policy, the image digest, the skills lockfile and the vendored
+skills tree, and several of those move on with every campaign. Every
+before/after comparison this section warns about currently compares two
+opaque twelve-character names.
 
+**Changed:** §6a gains the fourth measurement defect and D-4.19 records
+the fix: the exact `parts` mapping the digest was computed over is dumped
+once, content-addressed, to `.torve/regimes/<config_hash>.json`, beside
+the telemetry that references it — host-local, gitignored, write-if-absent.
+No database and no new dependency: the mapping is already in hand as a
+JSON-serialisable dict at the one place the hash is computed, and
+content-addressing makes the write idempotent and the store append-only by
+construction. A "yaml string + checksum in the durable store" variant was
+considered and declined: the durable store is the run-lease substrate, the
+regime is a telemetry concern, and the preimage belongs beside the stream
+whose rows cite it.
+
+### A-57 — 2026-08-28 — the reaper consults host truth for shadow sandboxes (amends §5, adds D-4.18)
 **Found in the first two-adapter campaign this section calls for.** Every
 shadow attempt on the lab repository died with exit 137 in under a minute,
 across three separately-diagnosed campaigns — first read as a dsh defect,

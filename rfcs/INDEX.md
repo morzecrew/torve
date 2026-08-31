@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0028**.
+number is **0029**.
 
 ## Design
 
@@ -15,7 +15,7 @@ number is **0028**.
 | [0001](0001-torve-charter.md) | Torve: charter | accepted | complete | — | A-1, A-4, A-5, A-11, A-12, A-17, A-21, A-22, A-26 | Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable. |
 | [0002](0002-gates-library.md) | Gates as a library | accepted | partial | 0001 | A-2, A-8, A-49, A-52 | The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment. |
 | [0003](0003-runner-isolation.md) | Runner and isolation | accepted | partial | 0002 | A-6, A-13, A-18, A-38, A-50 | `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine. |
-| [0004](0004-agents-tiering.md) | Agent adapters and tiering | accepted | partial | 0003 | A-57 | Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable. |
+| [0004](0004-agents-tiering.md) | Agent adapters and tiering | accepted | partial | 0003 | A-57, A-72 | Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable. |
 | [0005](0005-review-as-a-run.md) | Review as a run | accepted | partial | 0003, 0004 | A-32, A-41 | Independent automated review as a second run role: isolation rules, the finding contract, calibration, and replacing third-party PR reviewers. |
 | [0006](0006-merge-escalation.md) | Merge train and escalation policy | accepted | partial | 0003 | A-35, A-42, A-43 | Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted. |
 | [0007](0007-planner-context.md) | Planner and context | accepted | complete | 0003, 0016 | A-47, A-55, A-69 | Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface. |
@@ -36,6 +36,7 @@ number is **0028**.
 | [0025](0025-corpus-authoring-surface.md) | The corpus authoring surface | accepted | complete | 0007, 0016 | A-66 | Mechanical writers over the corpus parser — a canonical emitter, torve rfc fmt, and transactional verbs for amendments, decisions, retirement and path relocation — so the structure-bearing edits stop being hand-typed. |
 | [0026](0026-decomposition-and-continuation.md) | Decomposition and continuation | accepted | complete | 0002, 0003, 0007, 0020 | A-64 | What happens when a task is too big for one agent: the size verdict routes to a decomposition drafting run whose sub-contracts a human adopts, the parent becomes the integration task, and budget-exhausted attempts may continue from their own candidate instead of restarting. |
 | [0027](0027-harness-configuration-evolution.md) | Harness configuration as measured evolution | accepted | complete | 0004, 0017, 0020, 0021 | A-65 | Capturing the performance a well-configured harness offers without a runtime configurator: contract-selected tier variants, a configuration drafting run fed harness telemetry, and adoption gated on paired replay measurement — configuration stays committed, hashed and human-signed. |
+| [0028](0028-agent-profiles.md) | Agent profiles | draft | none | 0004 | — | A host-level library of named tier definitions under the operator's config directory, referenced by name from repository configuration and merged before validation — one authoritative copy of each agent incantation instead of a copy per root. |
 
 ## Conventions
 
