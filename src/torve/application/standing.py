@@ -52,16 +52,21 @@ _SANDBOX_UNSAFE = re.compile(r"[^a-z0-9_.-]")
 
 
 class Trigger(BaseModel):
-    """One predicate (D-23.8): `command` runs a shell line in the sandbox,
-    exit code as the answer; `path-digest` digests every file `paths`
-    reaches (gitwildmatch, the same dialect `Scope.allow` uses) and is due
-    when that digest differs from the one recorded at the job's last
-    firing — the moved-reference case, without a tool having to exist."""
+    """One predicate (D-23.8, A-68): `command` runs a shell line in the
+    sandbox, exit code as the answer; `path-digest` digests every file
+    `paths` reaches (gitwildmatch, the same dialect `Scope.allow` uses) and
+    is due when that digest differs from the one recorded at the job's last
+    firing; `flake-threshold` sums telemetry's `flaky_count_by_command` and
+    is due when any command not already in the gate manifest's quarantine
+    list crosses `threshold` — the engine reading its own records, where an
+    inline script would have to re-parse them with less than the engine
+    knows."""
 
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["command", "path-digest"] = "command"
+    kind: Literal["command", "path-digest", "flake-threshold"] = "command"
     run: str = ""
     paths: list[str] = Field(default_factory=list)
+    threshold: int = 3
 
     # ....................... #
 
@@ -74,6 +79,9 @@ class Trigger(BaseModel):
             raise ValueError(
                 "trigger.paths is empty — a path-digest predicate needs at least one path"
             )
+
+        if self.kind == "flake-threshold" and self.threshold < 1:
+            raise ValueError("trigger.threshold must be at least 1")
 
         return self
 
@@ -216,6 +224,48 @@ def _path_digest(root: Path, patterns: list[str]) -> str:
 # ....................... #
 
 
+def _flake_over_threshold(root: Path, threshold: int) -> bool:
+    """Any gate command whose accumulated `flaky_count_by_command` reaches
+    *threshold* and is not already quarantined in the gate manifest (A-68):
+    read with the engine's own parsers — the manifest loader and the
+    telemetry stream — never a regex over YAML."""
+
+    from torve.config.manifest import load_manifest
+
+    counts: dict[str, int] = {}
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
+    if telemetry.is_file():
+        for line in telemetry.read_text(encoding="utf-8").splitlines():
+            try:
+                record: Any = json.loads(line)
+
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(record, dict):
+                continue
+
+            raw: Any = cast("dict[str, Any]", record).get("flaky_count_by_command")
+
+            if not isinstance(raw, dict):
+                continue
+
+            for command, n in cast("dict[str, Any]", raw).items():
+                if isinstance(n, int):
+                    counts[command] = counts.get(command, 0) + n
+
+    manifest_file = layout.gates_file(root)
+    quarantined = (
+        set(load_manifest(manifest_file).quarantine) if manifest_file.is_file() else set()
+    )
+
+    return any(n >= threshold and command not in quarantined for command, n in counts.items())
+
+
+# ....................... #
+
+
 def evaluate_predicate(
     job: StandingContract, root: Path, config: RunnerConfig, runtime: Runtime
 ) -> bool:
@@ -233,6 +283,9 @@ def evaluate_predicate(
         # 'differs': the job fires once to record a baseline, then only on
         # an actual change thereafter.
         return last is None or current != last
+
+    if job.trigger.kind == "flake-threshold":
+        return _flake_over_threshold(root, job.trigger.threshold)
 
     safe_name = _SANDBOX_UNSAFE.sub("-", job.name.lower()) or "job"
 

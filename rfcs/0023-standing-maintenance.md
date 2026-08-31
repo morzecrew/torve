@@ -8,7 +8,7 @@ depends_on: ["0007", "0019", "0020"]
 informed_by: ["0001", "0002", "0006", "0012"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-68"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -351,7 +351,7 @@ template variable, not after.
 | D-23.5 | `LOCKED` | A standing instance's intent is fixed at authoring time and identical across firings; per-firing intent is not templated, and needing it means the job was a planner in disguise | `.torve/standing/**` `src/torve/application/standing.py` | The falsifiable test of §5.5 — the mechanism must be able to fail it, or D-19.8 was weakened rather than preserved |
 | D-23.6 | `ASSUMED` | Four bounds, in order: the escalation pause suppresses evaluation entirely; per-job `cooldown_hours` and `max_open`; `loop.standing_max_per_tick` default 1; self-disable after `standing.strike_limit` consecutive non-landings | `src/torve/application/loop.py` `src/torve/config/runconfig.py` | The one leg that grows the backlog must be bounded by the same attention budget as everything else, and a predicate that fires forever must stop rather than grind |
 | D-23.7 | `ASSUMED` | No enable flag: an empty `.torve/standing/` is off and deleting a file is the disable | `src/torve/config/layout.py` | RFC 0019's doctrine — scheduling the verb is the enablement — applied one level in; a second switch is a second place to look |
-| D-23.8 | `ASSUMED` | Two predicate kinds ship, `command` and `path-digest`; a third arrives with a job that needs it and not before | `src/torve/application/standing.py` | Predicate kinds are a language, and a language grown speculatively is one nobody can read |
+| D-23.8 | `ASSUMED` | Two predicate kinds ship, `command` and `path-digest`; a third arrives with a job that needs it and not before. Amended by A-68 2026-08-31: the third kind is flake-threshold — telemetry's flaky_count_by_command summed against a threshold, the gate manifest's quarantine list honoured, read with the engine's own parsers | `src/torve/application/standing.py` | Predicate kinds are a language, and a language grown speculatively is one nobody can read |
 | D-23.9 | `ASSUMED` | A standing contract's body is validated by RFC 0020's contract lint, unchanged | `src/torve/application/intake.py` | A hand-written template must not be able to carry a defect a drafted contract would have been refused for |
 | D-23.10 | `ASSUMED` | Each instance records its originating job, so repeated firings form one population for RFC 0022 | `src/torve/application/standing.py` `src/torve/application/telemetry.py` | Comparability is the second reason for fixed intent, and it is lost silently if the link is not recorded |
 | D-23.11 | `OPEN` | Where the firing ledger lives — the host-local telemetry stream or a committed file — and whether `max_open` counts escalated instances; execution decides both and logs them | `src/torve/application/standing.py` | A cooldown that resets on a fresh clone surprises; a committed ledger makes the engine write to git on every firing. Both costs are real and neither is knowable before the first job runs for a month |
@@ -420,3 +420,17 @@ template variable, not after.
   id — the comparability D-23.5 exists for, demonstrated rather than asserted.
 
 ## Amendments
+
+### A-68 — 2026-08-31 — the third predicate kind arrives with its job (amends D-23.8)
+
+**Found reading the first cut.** D-23.8 said a third kind arrives with a
+job that needs it and not before; `flake-quarantine` was that job from
+the day it shipped — its `command` predicate inlined a 36-line python
+heredoc that re-parsed `gates.yaml` with a regex to reach records the
+engine already parses natively. `flake-threshold` reads
+`flaky_count_by_command` from telemetry and the quarantine list from the
+manifest loader, threshold in the contract, nothing in a shell string.
+
+**Deliberately unchanged:** `command` stays for predicates over inputs
+the engine does not own; the doctrine that a kind arrives only with its
+job is what this amendment obeys, not what it revises.

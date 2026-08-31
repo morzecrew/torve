@@ -621,3 +621,32 @@ def test_standing_leg_a_landing_resets_the_strike_streak(seeded):
     _detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
     assert moved
     assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 3
+
+
+def test_flake_threshold_reads_the_engines_own_records(tmp_path):
+    """A-68's third kind: telemetry's flaky_count_by_command summed, the
+    gate manifest's quarantine list honoured, both read with the engine's
+    parsers — never a regex over YAML."""
+    import json
+
+    from torve.application.standing import _flake_over_threshold
+
+    torve_dir = tmp_path / ".torve"
+    torve_dir.mkdir()
+    telemetry = torve_dir / "telemetry.jsonl"
+    telemetry.write_text(
+        json.dumps({"flaky_count_by_command": {"uv run pytest": 2}}) + "\n"
+        + json.dumps({"flaky_count_by_command": {"uv run pytest": 1, "ruff check": 1}}) + "\n",
+        encoding="utf-8",
+    )
+
+    assert _flake_over_threshold(tmp_path, 3) is True  # pytest sums to 3
+    assert _flake_over_threshold(tmp_path, 4) is False
+
+    (torve_dir / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\nquarantine:\n  - uv run pytest\n",
+        encoding="utf-8",
+    )
+    # The quarantined command no longer fires the job (a landed response
+    # stops the refire); ruff's count of 1 stays under threshold.
+    assert _flake_over_threshold(tmp_path, 3) is False
