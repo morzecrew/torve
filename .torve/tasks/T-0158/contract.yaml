@@ -1,0 +1,43 @@
+# Hand-minted — T-0157's major review finding on T-0155 (RFC 0029 follow-up).
+schema_version: 1
+id: T-0158
+rfc: rfcs/0029-agent-equipment.md
+phase: 0
+role: implement
+title: emit renders tier_variant
+intent: >-
+  _render_phasing in src/torve/config/rfc_emit.py does not emit the new
+  tier_variant field, so any document whose phasing routes a unit to a
+  persona is silently stripped of that routing the moment it is
+  re-rendered through emit() — the path every torve rfc amendment flow
+  takes. Render tier_variant when set (omit when empty, matching how the
+  other optional keys behave), and add the round-trip test: a phasing
+  entry carrying tier_variant survives parse-emit-parse unchanged.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/config/rfc_emit.py
+  - tests/test_rfc_emit.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_rfc_emit.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-29.4
+  grade: ASSUMED
+  text: 'A Phasing entry may carry `tier_variant`, copied verbatim by the
+    planner onto the minted contract; drafters may set it on drafts, and
+    adoption is where a human sees the assignment'
+  paths:
+  - src/torve/config/rfc_parse.py
+  - src/torve/application/planner.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
