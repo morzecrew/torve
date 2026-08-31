@@ -20,7 +20,9 @@ from torve.application.specquality import (
     decision_report,
     dispatch_envelope,
     identifiers_for_document,
+    operator_attention,
     render_envelope,
+    render_operator_attention,
 )
 from torve.base import naming
 from torve.cli import app
@@ -146,6 +148,44 @@ def requeued_state(root, task_id: str) -> None:
     state.escalate(EscalationReason.LOCKED_CONFLICT, "d")
     state.transition(TaskState.QUEUED, "human requeue")
     state.save()
+
+
+def write_tracker_command_event(root, verb: str, task_id: str, *, applied: bool = True) -> None:
+    telemetry = root / ".torve" / "telemetry.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+
+    with telemetry.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "kind": "engine",
+                    "event": "tracker_command",
+                    "verb": verb,
+                    "task": task_id,
+                    "actor": "human",
+                    "applied": applied,
+                    "detail": "d",
+                }
+            )
+            + "\n"
+        )
+
+
+def write_feedback(root, task_id: str, human_minutes: int) -> None:
+    path = root / ".torve" / "feedback.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "human_minutes": human_minutes,
+                    "rework_after_review": False,
+                }
+            )
+            + "\n"
+        )
 
 
 # ....................... #
@@ -642,3 +682,131 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
     text_result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(text_repo.root)])
     assert text_result.exit_code == 0, text_result.output
     assert "size ok envelope" in text_result.output
+
+
+# ....................... #
+# operator_attention (D-22.12, A-73): the corpus-wide join
+
+
+def test_operator_attention_counts_landed_changes(tmp_path):
+    write_contract(tmp_path, "T-0001")
+    ready_state(tmp_path, "T-0001")
+    land_commit(tmp_path, "T-0001")
+    write_contract(tmp_path, "T-0002")  # never ran: not landed
+
+    report = operator_attention(tmp_path)
+    assert report["landed"] == 1
+
+
+def test_operator_attention_counts_tracker_command_events_applied_or_not(tmp_path):
+    write_tracker_command_event(tmp_path, "approve", "T-0001", applied=True)
+    write_tracker_command_event(tmp_path, "retry", "T-0002", applied=False)
+    # Not a tracker_command: a different engine event must not be counted.
+    (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
+    with (tmp_path / ".torve" / "telemetry.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"kind": "engine", "event": "tracker_divergence"}) + "\n")
+
+    report = operator_attention(tmp_path)
+    assert report["command_events"] == 2
+
+
+def test_operator_attention_counts_escalations_triaged_both_exits(tmp_path):
+    write_contract(tmp_path, "T-0001")
+    requeued_state(tmp_path, "T-0001")  # escalated -> queued
+    write_contract(tmp_path, "T-0002")
+    abandoned_state(tmp_path, "T-0002")  # escalated -> abandoned
+
+    report = operator_attention(tmp_path)
+    assert report["escalations_triaged"] == 2
+
+
+def test_operator_attention_human_minutes_suppressed_below_floor(tmp_path):
+    write_feedback(tmp_path, "T-0001", 10)
+    write_feedback(tmp_path, "T-0002", 20)
+
+    report = operator_attention(tmp_path, floor=3)
+    assert report["human_minutes_median"] is None
+    assert report["human_minutes_n"] == 2  # denominator prints regardless (D-22.8)
+
+
+def test_operator_attention_human_minutes_reported_once_floor_met(tmp_path):
+    write_feedback(tmp_path, "T-0001", 10)
+    write_feedback(tmp_path, "T-0002", 20)
+    write_feedback(tmp_path, "T-0003", 30)
+
+    report = operator_attention(tmp_path, floor=3)
+    assert report["human_minutes_median"] == 20
+    assert report["human_minutes_n"] == 3
+
+
+def test_operator_attention_carries_the_caveat(tmp_path):
+    report = operator_attention(tmp_path)
+    assert "quasi-experiment" in report["caveat"]
+
+
+# ....................... #
+# render_operator_attention
+
+
+def test_render_operator_attention_below_the_floor_names_the_floor():
+    report = {
+        "landed": 4,
+        "command_events": 6,
+        "escalations_triaged": 1,
+        "human_minutes_median": None,
+        "human_minutes_n": 2,
+        "floor": 5,
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+    text = render_operator_attention(report)
+    assert "4 landed change(s)" in text
+    assert "6 command/approval event(s)" in text
+    assert "1 escalation(s) triaged" in text
+    assert "below the observation floor of 5" in text and "n=2" in text
+    assert "quasi-experiment" in text
+
+
+def test_render_operator_attention_above_the_floor_carries_the_median():
+    report = {
+        "landed": 4,
+        "command_events": 6,
+        "escalations_triaged": 1,
+        "human_minutes_median": 20.0,
+        "human_minutes_n": 5,
+        "floor": 5,
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+    text = render_operator_attention(report)
+    assert "20m human effort (n=5)" in text
+
+
+# ....................... #
+# CLI surface: the operator-attention line in the corpus summary
+
+
+def test_health_cli_corpus_summary_prints_operator_attention_text(tmp_path):
+    _seed_cli_repo(tmp_path)
+    write_tracker_command_event(tmp_path, "approve", "T-0001")
+    result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "operator attention" in result.output
+    assert "1 command/approval event(s)" in result.output
+
+
+def test_health_cli_corpus_summary_carries_operator_attention_json(tmp_path):
+    _seed_cli_repo(tmp_path)
+    write_tracker_command_event(tmp_path, "approve", "T-0001")
+    result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path), "--format", "json"])
+    assert result.exit_code == 0, result.output
+    document = json.loads(result.output)
+    assert document["operator_attention"]["command_events"] == 1
+
+
+def test_health_cli_document_filter_has_no_operator_attention(tmp_path):
+    """D-22.12: the operator-attention line is a corpus-wide fact — a
+    single-document view is decision-level and has no bearing on it."""
+    _seed_cli_repo(tmp_path)
+    result = CliRunner().invoke(app, ["rfc", "health", "0001", "--root", str(tmp_path), "--format", "json"])
+    assert result.exit_code == 0, result.output
+    document = json.loads(result.output)
+    assert document["operator_attention"] is None

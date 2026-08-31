@@ -522,3 +522,54 @@ def test_context_cli_renders_specification_quality_in_all_three_formats(tmp_path
     doc = _spec_quality_doc(parsed, "rfcs/0090-a.md")
     assert doc["drift_count"] == 1
     assert doc["attempts_to_green_median"] == 2
+
+
+# ....................... #
+# operator_attention (D-22.12, A-73): the corpus-wide line beside the
+# document-level signals above
+
+
+def test_operator_attention_is_present_with_no_tasks(tmp_path):
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    attention = report["spec_quality"]["operator_attention"]
+    assert attention["landed"] == 0
+    assert attention["command_events"] == 0
+    assert attention["escalations_triaged"] == 0
+    assert attention["human_minutes_n"] == 0
+    assert "quasi-experiment" in attention["caveat"]
+
+
+def test_operator_attention_human_minutes_suppressed_below_the_default_floor(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
+    _write_feedback(tmp_path, "T-0001", 10, rework=False)
+    _write_feedback(tmp_path, "T-0002", 20, rework=False)
+
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    attention = report["spec_quality"]["operator_attention"]
+    assert attention["human_minutes_median"] is None  # 2 observations, default floor is 5
+    assert attention["human_minutes_n"] == 2  # denominator prints regardless (D-22.8)
+
+
+def test_render_markdown_prints_the_operator_attention_line_with_no_documents(tmp_path):
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    markdown = render_markdown(report)
+    assert "## Specification quality" in markdown
+    assert "operator attention:" in markdown
+    assert "0 landed change(s)" in markdown
+
+
+def test_context_cli_json_carries_operator_attention(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _write_feedback(tmp_path, "T-0001", 10, rework=False)
+
+    result = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "json"])
+    assert result.exit_code == 0, result.output
+    attention = json.loads(result.output)["spec_quality"]["operator_attention"]
+    assert attention["human_minutes_n"] == 1
+
+
+def test_context_cli_markdown_prints_operator_attention_line(tmp_path):
+    result = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "markdown"])
+    assert result.exit_code == 0, result.output
+    assert "operator attention:" in result.output

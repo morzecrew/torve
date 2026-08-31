@@ -1,0 +1,97 @@
+schema_version: 1
+task: T-0162
+repo: morzecrew/torve
+base_sha: f507427cfde80428cd58747c19f8d08ee5461799
+drift_count: 0
+entries:
+  - decision: D-22.12
+    grade: ASSUMED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-31T00:00:00Z
+    attempt: 1
+    claim: >-
+      the row names "landed changes per window" but no calendar-based
+      window exists anywhere in this reporting subsystem — every existing
+      population (decision_report, _document_signals, dispatch_envelope)
+      is read over the entire current corpus with floor-based suppression
+      as the only confidence mechanism, no `--days`/`--since` flag
+      anywhere. Built as: "window" is the full current population
+      `read_tasks` returns, the same reading every other function in this
+      module already gives that word.
+    evidence: src/torve/application/specquality.py:642-672 — dispatch_envelope
+      takes no date/window argument and pools its entire matching
+      population; `rg -n "window|--since|--days|timedelta" src/torve` —
+      no calendar-windowing construct outside unrelated quiet_window/sandbox
+      timeout hits
+    action: decided
+    proposal: >-
+      D-22.12 — spell out "window" as the full current population read at
+      report time (no date-range parameter), matching dispatch_envelope
+      and decision_report's own convention, so a future reader does not
+      infer a calendar filter that was never built.
+  - decision: D-22.12
+    grade: ASSUMED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-31T00:01:00Z
+    attempt: 1
+    claim: >-
+      the row names "command and approval events" without naming a
+      record; the tracker already writes one engine event per inbound
+      board command — `retry`, `abandon`, `unblock`, `approve`, `revise`
+      and `adopt` are all `verb` values of the same `tracker_command`
+      event, so "commands" and "approvals" are one population,
+      distinguished by `verb`, not two. Built as: every `kind: "engine"`,
+      `event: "tracker_command"` telemetry record counts, applied or
+      refused — a refused command is still an operator spending attention
+      on the board.
+    evidence: src/torve/application/tracker.py:807-817 — the single
+      engine_event("tracker_command", {verb, task, actor, applied,
+      detail}) call covering all six commander verbs
+    action: decided
+    proposal: >-
+      D-22.12 — count command/approval events as every `tracker_command`
+      engine event regardless of `applied`, since a refusal still records
+      an operator acting on the board; no new event or field needed.
+  - decision: D-22.12
+    grade: ASSUMED
+    kind: resolved
+    class: spec-gap
+    at: 2026-08-31T00:02:00Z
+    attempt: 1
+    claim: >-
+      the row names "escalations triaged" without defining resolution;
+      the state machine's own transition table gives the escalated
+      state exactly two human-driven exits. Built as: an escalation
+      is triaged when a task's history shows a transition from
+      `escalated` to either `queued` (requeued) or `abandoned` (given
+      up) — both branches, not only the requeue path
+      `requeued_after_escalation` already reads for the decision-level
+      report.
+    evidence: src/torve/domain/states.py:100 — TRANSITIONS[TaskState.ESCALATED]
+      == frozenset({TaskState.QUEUED, TaskState.ABANDONED}), the state
+      machine's only two exits from escalated
+    action: decided
+    proposal: >-
+      D-22.12 — define "escalations triaged" as a history transition from
+      escalated to queued or to abandoned, counted per exit so a task
+      that escalates more than once contributes more than one.
+  - decision: D-22.7
+    grade: LOCKED
+    kind: resolved
+    at: 2026-08-31T00:03:00Z
+    attempt: 1
+    claim: >-
+      D-22.7 declares src/torve/cli/rfc.py and src/torve/application/projections.py;
+      both are touched by this task's operator-attention line. The RFC 0004
+      §6a caveat prints with both surfaces verbatim, without its corpus
+      coordinate (A-59) — no divergence.
+    evidence: src/torve/cli/rfc.py:907 — QUASI_EXPERIMENT_CAVEAT printed beside
+      the decision report, then specquality's own copy again inside
+      render_operator_attention's line at rfc.py:917; src/torve/application/projections.py:1008
+      prints the module's own copy in render_markdown, and line 1012 prints
+      specquality's copy again via render_operator_attention — same text,
+      no RFC number or decision id in any of the four print sites
+    action: decided
+    proposal: 'LOCKED — compliant as built, no divergence'

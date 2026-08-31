@@ -27,7 +27,7 @@ from typing import Any, cast
 import yaml
 
 from torve.application.runstate import RunState
-from torve.application.specquality import read_tasks
+from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.base import naming
 from torve.config import layout, rfc_parse
 from torve.config.runconfig import RunnerConfig
@@ -535,10 +535,12 @@ def harness_populations(root: Path, config: RunnerConfig) -> list[dict[str, Any]
 # ....................... #
 
 
-def _feedback(root: Path) -> dict[str, dict[str, Any]]:
+def feedback_records(root: Path) -> dict[str, dict[str, Any]]:
     """The latest `torve feedback` record per task id — the stream is
     append-only and keyed by task id, latest wins at analysis time
-    (RFC 0022 §3)."""
+    (RFC 0022 §3). Public: `specquality.operator_attention` reads this
+    corpus-wide, the same lazy-import-to-avoid-a-cycle shape as
+    `specquality._landed_task_ids` already uses for `shipped_ids`."""
 
     found: dict[str, dict[str, Any]] = {}
     path = layout.feedback_file(root)
@@ -585,7 +587,7 @@ def _document_signals(root: Path, tasks: list[dict[str, Any]]) -> list[dict[str,
     `parse_log`."""
 
     logs_by_task = {task.id: task.log_entries for task in read_tasks(root)}
-    feedback = _feedback(root)
+    feedback = feedback_records(root)
     by_document: dict[str, list[dict[str, Any]]] = {}
 
     for task in tasks:
@@ -870,6 +872,9 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
         "spec_quality": {
             "caveat": QUASI_EXPERIMENT_CAVEAT,
             "documents": _document_signals(root, tasks),
+            # D-22.12, A-73: the corpus-wide reading, independent of any
+            # one document's population.
+            "operator_attention": operator_attention(root),
         },
     }
 
@@ -998,43 +1003,46 @@ def render_markdown(report: dict[str, Any]) -> str:
 
         lines.append("")
 
-    if report["spec_quality"]["documents"]:
-        lines.append("## Specification quality")
-        lines.append("")
-        lines.append(report["spec_quality"]["caveat"])
-        lines.append("")
+    lines.append("## Specification quality")
+    lines.append("")
+    lines.append(report["spec_quality"]["caveat"])
+    lines.append("")
+    # D-22.12: a corpus-wide fact, printed here even when no document below
+    # has anything to say yet.
+    lines.append(render_operator_attention(report["spec_quality"]["operator_attention"]))
+    lines.append("")
 
-        for doc in report["spec_quality"]["documents"]:
-            attempts = (
-                f"{doc['attempts_to_green_median']:.1f} attempt(s) to green "
-                f"(n={doc['attempts_to_green_n']})"
-                if doc["attempts_to_green_median"] is not None
-                else "no landed tasks yet"
+    for doc in report["spec_quality"]["documents"]:
+        attempts = (
+            f"{doc['attempts_to_green_median']:.1f} attempt(s) to green "
+            f"(n={doc['attempts_to_green_n']})"
+            if doc["attempts_to_green_median"] is not None
+            else "no landed tasks yet"
+        )
+        minutes = (
+            f"{doc['human_minutes_median']:.0f}m human effort (n={doc['human_minutes_n']})"
+            if doc["human_minutes_median"] is not None
+            else "no feedback recorded"
+        )
+        rework = (
+            f"{doc['rework_rate']:.0%} rework (n={doc['rework_n']})"
+            if doc["rework_rate"] is not None
+            else "no feedback recorded"
+        )
+        escalations = (
+            ", ".join(
+                f"{reason} ({count})"
+                for reason, count in doc["escalations_by_reason"].items()
+                if count
             )
-            minutes = (
-                f"{doc['human_minutes_median']:.0f}m human effort (n={doc['human_minutes_n']})"
-                if doc["human_minutes_median"] is not None
-                else "no feedback recorded"
-            )
-            rework = (
-                f"{doc['rework_rate']:.0%} rework (n={doc['rework_n']})"
-                if doc["rework_rate"] is not None
-                else "no feedback recorded"
-            )
-            escalations = (
-                ", ".join(
-                    f"{reason} ({count})"
-                    for reason, count in doc["escalations_by_reason"].items()
-                    if count
-                )
-                or "none"
-            )
+            or "none"
+        )
 
-            lines.append(
-                f"- **{doc['rfc']}** — {doc['minted']} minted, {attempts}, {minutes}, {rework}, "
-                f"{doc['drift_count']} spec-drift finding(s), escalations: {escalations}"
-            )
+        lines.append(
+            f"- **{doc['rfc']}** — {doc['minted']} minted, {attempts}, {minutes}, {rework}, "
+            f"{doc['drift_count']} spec-drift finding(s), escalations: {escalations}"
+        )
 
-        lines.append("")
+    lines.append("")
 
     return "\n".join(lines)

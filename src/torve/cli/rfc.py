@@ -860,9 +860,12 @@ def health(
     the one copied onto the contract at mint time, never the row as the
     corpus stands today. Never edits a decision table, proposes no text
     and calls no model: this is evidence for a human writing an amendment,
-    not a verdict. No single corpus score is computed anywhere."""
+    not a verdict. No single corpus score is computed anywhere. The
+    corpus-wide view (no document given) also prints landed changes beside
+    the operator attention already on record for them — feedback minutes,
+    tracker commands and approvals, escalations triaged."""
     # The docstring is help text and carries no corpus coordinates; the
-    # rules it states are D-22.2, D-22.1 and D-22.3 in that order.
+    # rules it states are D-22.2, D-22.1, D-22.3 and D-22.12 in that order.
 
     from torve.application import specquality
 
@@ -879,6 +882,11 @@ def health(
 
         populations = [p for p in populations if p["identifier"] in wanted]
 
+    # D-22.12: the operator-attention line is a corpus-wide fact — a
+    # single-document filter is a decision-level view and has no bearing
+    # on it, so it prints only when the whole corpus is in view.
+    attention = specquality.operator_attention(root.resolve(), floor=floor) if document is None else None
+
     if fmt is Format.JSON:
         emit_json(
             {
@@ -887,6 +895,7 @@ def health(
                 "document": document,
                 "caveat": QUASI_EXPERIMENT_CAVEAT,
                 "populations": populations,
+                "operator_attention": attention,
             }
         )
         raise typer.Exit(EXIT_OK)
@@ -903,6 +912,10 @@ def health(
             STYLE_DIM,
         )
     )
+
+    if attention is not None:
+        console.print(Text(specquality.render_operator_attention(attention), STYLE_DIM))
+
     console.print()
 
     if not populations:

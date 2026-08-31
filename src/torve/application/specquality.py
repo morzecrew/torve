@@ -36,6 +36,12 @@ prospectively: landed tasks sharing a size verdict's class, median attempts,
 cost and wall minutes, denominator always printed, reading suppressed below
 `floor`. It is a base rate over history, never a bound — nothing here blocks
 or resizes a dispatch.
+
+`operator_attention` (D-22.12, A-73) reads the same join corpus-wide: landed
+changes beside the operator interventions already recorded behind them —
+feedback minutes, tracker commands and approvals, escalations triaged —
+denominators printed, the human-minutes reading suppressed below `floor`, no
+ratio of attention to landed changes computed (D-22.3).
 """
 
 from __future__ import annotations
@@ -141,6 +147,22 @@ class TaskFacts:
 
         return any(
             e.get("from") == _ESCALATED_STATE and e.get("to") == _QUEUED_STATE for e in self.history
+        )
+
+    # ....................... #
+
+    @property
+    def escalations_triaged(self) -> int:
+        """Every escalation this task's own history shows a human resolved
+        — routed back to the queue or given up on, the state machine's own
+        two exits from `escalated` (`TRANSITIONS[ESCALATED]`, RFC 0006
+        D-6.10). Counted per exit, not per task: a task can escalate and be
+        triaged more than once."""
+
+        return sum(
+            1
+            for e in self.history
+            if e.get("from") == _ESCALATED_STATE and e.get("to") in (_QUEUED_STATE, _ABANDONED_STATE)
         )
 
 
@@ -702,3 +724,102 @@ def render_envelope(envelope: dict[str, Any]) -> str:
         body = f"n={n} — " + (", ".join(parts) if parts else "no attempt/cost/wall observations recorded")
 
     return f"size {size} envelope: {body} — {envelope['caveat']}"
+
+
+# ....................... #
+
+
+def _tracker_command_events(root: Path) -> list[dict[str, Any]]:
+    """Every `tracker_command` engine event the tracker's `poll_and_apply`
+    already writes for the six commander verbs, applied or refused — a
+    refused command is still an operator spending attention on the board,
+    read the same plain-JSONL way `_task_cost_usd` reads this stream."""
+
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
+    if not telemetry.is_file():
+        return []
+
+    found: list[dict[str, Any]] = []
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        row = cast("dict[str, Any]", record)
+
+        if row.get("kind") == "engine" and row.get("event") == "tracker_command":
+            found.append(row)
+
+    return found
+
+
+# ....................... #
+
+
+def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
+    """RFC 0022 §5.3/D-22.12 (A-73): landed changes beside the operator
+    interventions already recorded behind them — feedback minutes, tracker
+    commands and approvals (one event, distinguished by `verb`), escalations
+    a human triaged — joined from `read_tasks`, the telemetry stream and
+    `projections.feedback_records`, with no new recorded field. Every count
+    prints regardless of `floor`; only the human-minutes median, the one
+    statistic here with a real sample-size risk, is suppressed below it
+    (D-22.8). No ratio of attention to landed changes is computed (D-22.3):
+    the counts are printed beside each other for a human to relate."""
+
+    tasks = read_tasks(root)
+    landed = sum(1 for t in tasks if t.landed)
+
+    # D-22.5 layering: `torve.application.projections` imports `read_tasks`
+    # from this module at load time, so the reverse import stays lazy the
+    # same way `_landed_task_ids` above imports `shipped_ids`.
+    from torve.application.projections import feedback_records
+
+    minutes = [
+        int(row["human_minutes"])
+        for row in feedback_records(root).values()
+        if isinstance(row.get("human_minutes"), int)
+    ]
+    n_minutes = len(minutes)
+
+    return {
+        "schema_version": 1,
+        "floor": floor,
+        "landed": landed,
+        "command_events": len(_tracker_command_events(root)),
+        "escalations_triaged": sum(t.escalations_triaged for t in tasks),
+        "human_minutes_median": statistics.median(minutes) if n_minutes >= floor else None,
+        "human_minutes_n": n_minutes,
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+
+
+# ....................... #
+
+
+def render_operator_attention(report: dict[str, Any]) -> str:
+    """One line for the corpus summary and the context section (D-22.12):
+    landed changes and every intervention count printed always, the
+    human-minutes median only once it clears the floor, the caveat printed
+    with it every time — never paraphrased (RFC 0004 §6a)."""
+
+    if report["human_minutes_median"] is not None:
+        minutes = f"{report['human_minutes_median']:.0f}m human effort (n={report['human_minutes_n']})"
+    else:
+        minutes = (
+            f"human effort below the observation floor of {report['floor']} "
+            f"(n={report['human_minutes_n']})"
+        )
+
+    return (
+        f"operator attention: {report['landed']} landed change(s), "
+        f"{report['command_events']} command/approval event(s), "
+        f"{report['escalations_triaged']} escalation(s) triaged, {minutes} — {report['caveat']}"
+    )
