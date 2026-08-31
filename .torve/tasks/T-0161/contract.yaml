@@ -1,0 +1,21 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0161
+rfc: rfcs/0028-agent-profiles.md
+role: review
+intent: Review T-0160's diff against its contract and inherited decisions.
+targets:
+- T-0160
+decisions:
+- id: D-28.4
+  grade: ASSUMED
+  text: "One merge level: profile plus local overrides; no profile-to-profile inheritance,\
+    \ and list fields replace wholesale rather than concatenate. Amended by A-74 2026-09-01:\
+    \ `profile` also accepts a list of names, merged left to right under the same\
+    \ shallow rule before local overrides \u2014 a tier composing flat layers (wiring\
+    \ kit, equipment kit), never a profile referencing a profile"
+  paths:
+  - src/torve/config/runconfig.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
