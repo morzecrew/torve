@@ -1,0 +1,56 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0156
+rfc: rfcs/0029-agent-equipment.md
+role: review
+intent: Review T-0154's diff against its contract and inherited decisions.
+targets:
+- T-0154
+decisions:
+- id: D-29.1
+  grade: LOCKED
+  text: 'Equipment lives on the tier entry: `skills` fully overrides the role-scoped
+    set when present, `prompt_extras` appends after the charter''s base working rules;
+    base rules are not addressable from configuration'
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/adapters/agent/harness.py
+- id: D-29.2
+  grade: LOCKED
+  text: "Equipped skill names resolve through the existing materializer with its refusals\
+    \ unchanged \u2014 unknown or shipped-and-vendored names refuse dispatch before\
+    \ a sandbox exists"
+  paths:
+  - src/torve/application/skills.py
+  - src/torve/application/runner.py
+- id: D-29.3
+  grade: ASSUMED
+  text: '`skills` is a wholesale override, never additive, and rides the profile merge
+    under D-28.4''s replace-wholesale rule'
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-29.4
+  grade: ASSUMED
+  text: A Phasing entry may carry `tier_variant`, copied verbatim by the planner onto
+    the minted contract; drafters may set it on drafts, and adoption is where a human
+    sees the assignment
+  paths:
+  - src/torve/config/rfc_parse.py
+  - src/torve/application/planner.py
+- id: D-29.5
+  grade: ASSUMED
+  text: Doctor prints resolved equipment per tier that differs from its role default
+    and attaches no check
+  paths:
+  - src/torve/cli/doctor.py
+- id: D-29.6
+  grade: OPEN
+  text: "Whether `review`-role sets are ever overridable per variant; the reviewer's\
+    \ empty set is deliberate (the reviewer reads, it does not build), and the first\
+    \ equipped-reviewer proposal must argue with that doctrine \u2014 evidence from\
+    \ the review lane's findings quality would settle it"
+  paths:
+  - src/torve/config/runconfig.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
