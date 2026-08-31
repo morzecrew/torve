@@ -14,6 +14,6 @@ scope:
   - tests/test_review_run.py
   deny: []
 acceptance:
-- pytest tests/test_review_run.py -q
+- uv run pytest tests/test_review_run.py -q
 decisions: []
 tier: executor

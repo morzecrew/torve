@@ -15,6 +15,6 @@ scope:
   - tests/test_specquality.py
   deny: []
 acceptance:
-- pytest tests/test_specquality.py -q
+- uv run pytest tests/test_specquality.py -q
 decisions: []
 tier: executor

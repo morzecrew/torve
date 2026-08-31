@@ -25,6 +25,6 @@ scope:
   - tests/test_intake.py
   deny: []
 acceptance:
-- pytest tests/test_reaper.py tests/test_runner.py tests/test_intake.py -q
+- uv run pytest tests/test_reaper.py tests/test_runner.py tests/test_intake.py -q
 decisions: []
 tier: executor

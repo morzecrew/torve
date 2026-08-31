@@ -13,6 +13,6 @@ scope:
   - tests/test_tiering.py
   deny: []
 acceptance:
-- pytest tests/test_tiering.py -q
+- uv run pytest tests/test_tiering.py -q
 decisions: []
 tier: executor

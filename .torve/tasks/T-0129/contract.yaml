@@ -1,0 +1,25 @@
+# Minted by the engine at intake — drafting follows the request.
+id: T-0129
+role: draft
+intent: "Maintenance batch from the operator's gap ledger, five independent defects/gaps\
+  \ observed during the 0022-0027 campaigns: (1) the durable reap never escalates\
+  \ a stale shadow state \u2014 a shadow run whose heartbeat went stale sits in .wt\
+  \ forever, where A-57 taught the reaper host-truth for live shadows but nothing\
+  \ disposes of dead ones; (2) an intake or decompose run that dies on an exception\
+  \ before drafting leaves its engine-minted task claimed forever, and a drafting\
+  \ task's unconstrained scope then blocks every subsequent dispatch via the overlap\
+  \ gate \u2014 the reaper should treat a claimed state with no live engine run as\
+  \ reapable; (3) parse_metadata misses opencode's cost: with --format json the last\
+  \ step_finish event carries nested part.cost and part.tokens which the flat key\
+  \ scan never finds, so opencode runs read unrecorded; (4) torve rfc health prints\
+  \ '(0 landed)' for every population \u2014 its landed oracle never learned the landing-shape\
+  \ derivation that reap and context use, so grade-calibration readings undercount\
+  \ to zero; (5) ReviewConfig's trigger list is spelled 'on', which YAML 1.1 parses\
+  \ as boolean True unless quoted \u2014 accept the quoted spelling and the boolean-key\
+  \ mistake with a clear error naming the quoting fix, or rename the field with an\
+  \ alias."
+decisions: []
+budget:
+  iterations: 3
+tier: planner
+schema_version: 1
