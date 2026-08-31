@@ -545,6 +545,129 @@ def check_contract_example(path: Path, text: str) -> list[str]:
 # ....................... #
 
 
+def _glob_matches(root: Path, pattern: str) -> bool:
+    try:
+        return next(root.glob(pattern), None) is not None
+
+    except (ValueError, NotImplementedError):
+        return False
+
+
+# ....................... #
+
+
+def _check_locked_pattern(
+    path: Path, ident: str, pattern: str, root: Path, implementation: str
+) -> tuple[str | None, str | None]:
+    """One glob of a LOCKED row: a problem when an implemented RFC's glob
+    matches nothing (rot, D-32), an unbuilt note when it is merely not built
+    yet, or neither once it matches."""
+
+    if _glob_matches(root, pattern):
+        return None, None
+
+    if implementation == "complete":
+        return (
+            f"{path.name}: LOCKED row {ident!r} paths glob {pattern!r} "
+            "matches nothing in the repository (an implemented "
+            "RFC cites real areas, D-32)"
+        ), None
+
+    return None, f"{ident} -> {pattern}"
+
+
+# ....................... #
+
+
+def _check_locked_row(
+    path: Path, row: DecisionRow, root: Path, implementation: str, check_globs: bool
+) -> tuple[list[str], list[str]]:
+    """A LOCKED row: no Paths is always a problem; declared globs are only
+    walked when `check_globs` licenses it (D-32)."""
+
+    if not row.paths:
+        return [
+            (
+                f"{path.name}: LOCKED row {row.identifier!r} declares no Paths — "
+                "the silence check skips it and the lock protects nothing"
+            )
+        ], []
+
+    if not check_globs:
+        return [], []
+
+    problems: list[str] = []
+    unbuilt: list[str] = []
+
+    for pattern in row.paths:
+        problem, note = _check_locked_pattern(path, row.identifier, pattern, root, implementation)
+
+        if problem is not None:
+            problems.append(problem)
+
+        if note is not None:
+            unbuilt.append(note)
+
+    return problems, unbuilt
+
+
+# ....................... #
+
+
+def _check_row_identifier(path: Path, ident: str, seen: dict[str, str]) -> list[str]:
+    """Corpus-unique identifiers (D-A.4); records the defining document as a
+    side effect for every row seen after this one."""
+
+    if ident in seen:
+        return [
+            (
+                f"{path.name}: decision identifier {ident!r} already used in {seen[ident]} — "
+                "identifiers are permanent and corpus-unique (D-A.4)"
+            )
+        ]
+
+    seen[ident] = path.name
+    return []
+
+
+# ....................... #
+
+
+def _check_row_grade(path: Path, ident: str, grade: str) -> list[str]:
+    if grade in GRADES:
+        return []
+
+    return [f"{path.name}: row {ident!r} has grade {grade!r}, not one of {', '.join(GRADES)}"]
+
+
+# ....................... #
+
+
+def _check_row(
+    path: Path,
+    row: DecisionRow,
+    root: Path,
+    implementation: str,
+    check_globs: bool,
+    seen: dict[str, str],
+) -> tuple[list[str], list[str]]:
+    """One decision-table row: identifier uniqueness, grade validity, and —
+    for LOCKED rows only — its Paths globs."""
+
+    problems = _check_row_identifier(path, row.identifier, seen)
+    problems += _check_row_grade(path, row.identifier, row.grade)
+
+    if row.grade != "LOCKED":
+        return problems, []
+
+    locked_problems, unbuilt = _check_locked_row(path, row, root, implementation, check_globs)
+    problems += locked_problems
+    return problems, unbuilt
+
+
+# ....................... #
+
+
 def check_decisions(
     path: Path, text: str, fm: dict[str, Any], root: Path, seen: dict[str, str]
 ) -> tuple[list[str], list[str]]:
@@ -556,8 +679,6 @@ def check_decisions(
     # warning per document, which clears itself as the areas land.
     implementation = str(fm.get("implementation") or "none")
     check_globs = fm.get("status") == "accepted" and implementation != "none"
-    unbuilt: list[str] = []
-    warnings: list[str] = []
     section = decision_section(text)
 
     if section.rows is None:
@@ -566,54 +687,24 @@ def check_decisions(
                 f"{path.name}: no Decisions section with a table "
                 "(D-A.1: the table is what makes it an RFC)"
             )
-        ], warnings
+        ], []
 
     if not section.rows:
-        return [f"{path.name}: Decisions section has a header but no rows"], warnings
+        return [f"{path.name}: Decisions section has a header but no rows"], []
 
     problems: list[str] = []
 
     if not section.header_ok:
         problems.append(f"{path.name}: decision table header is not exactly {TABLE_HEADER!r}")
 
+    unbuilt: list[str] = []
+
     for row in section.rows:
-        ident, grade, globs = row.identifier, row.grade, row.paths
+        row_problems, row_unbuilt = _check_row(path, row, root, implementation, check_globs, seen)
+        problems += row_problems
+        unbuilt += row_unbuilt
 
-        if ident in seen:
-            problems.append(
-                f"{path.name}: decision identifier {ident!r} already used in {seen[ident]} — "
-                "identifiers are permanent and corpus-unique (D-A.4)"
-            )
-        else:
-            seen[ident] = path.name
-
-        if grade not in GRADES:
-            problems.append(
-                f"{path.name}: row {ident!r} has grade {grade!r}, not one of {', '.join(GRADES)}"
-            )
-
-        if grade == "LOCKED":
-            if not globs:
-                problems.append(
-                    f"{path.name}: LOCKED row {ident!r} declares no Paths — "
-                    "the silence check skips it and the lock protects nothing"
-                )
-            elif check_globs:
-                for pattern in globs:
-                    try:
-                        matched = next(root.glob(pattern), None)
-
-                    except (ValueError, NotImplementedError):
-                        matched = None
-
-                    if matched is None and implementation == "complete":
-                        problems.append(
-                            f"{path.name}: LOCKED row {ident!r} paths glob {pattern!r} "
-                            "matches nothing in the repository (an implemented "
-                            "RFC cites real areas, D-32)"
-                        )
-                    elif matched is None:
-                        unbuilt.append(f"{ident} -> {pattern}")
+    warnings: list[str] = []
 
     if unbuilt:
         warnings.append(
