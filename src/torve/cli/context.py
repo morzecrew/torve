@@ -248,7 +248,7 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     if report["costs"]:
         costs = make_table(
-            "at", "kind", "task", "regime", "cost", "harness", "model",
+            "at", "task", "kind", "regime", "model", "cost", "harness",
             title="Cost and iterations",
         )
         rows: list[tuple[Any, ...]] = []
@@ -266,12 +266,12 @@ def _render_rich(report: dict[str, Any]) -> None:
             rows.append(
                 (
                     Text(str(row.get("at") or ""), STYLE_DIM),
-                    row["kind"],
                     Text(str(row["task"]), STYLE_ID),
+                    row["kind"],
                     Text(str(row.get("config_hash")), STYLE_ID),
+                    model,
                     shown,
                     harness,
-                    model,
                 )
             )
 

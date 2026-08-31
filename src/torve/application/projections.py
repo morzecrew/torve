@@ -319,16 +319,15 @@ def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
 
 
 def _harness_label(agent: dict[str, Any]) -> str | None:
-    """Which harness did the work: the definition-backed name the runner
-    recorded at dispatch (a torve-agent:<name> tag counts only when the
-    reviewed .torve/sandbox/<name>/ definition existed — a bare tag is
-    operator-supplied and proves nothing), falling back to the adapter
-    kind for records from before the field existed."""
+    """Which harness did the work: the image reference verbatim, as
+    configured and recorded at dispatch — no name is derived from it (a
+    tag is operator-supplied; the digest beside it is the identity).
+    Records from before the field existed fall back to the adapter kind."""
 
-    harness = agent.get("harness")
+    image = agent.get("image")
 
-    if isinstance(harness, str) and harness:
-        return harness
+    if isinstance(image, str) and image:
+        return image
 
     adapter = agent.get("adapter")
     return str(adapter) if adapter else None
