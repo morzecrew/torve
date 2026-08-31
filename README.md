@@ -100,6 +100,22 @@ broker enabled, a sandbox holds no provider key at all: the broker injects
 credentials at its own boundary, enforces provider routing at the wire, and
 meters spend mid-run.
 
+A tier can also name a profile instead of spelling out its adapter, model
+and command inline: `profile: <name>` resolves against a file in the
+operator's own config directory (`~/.config/torve/agents/<name>.yaml`,
+`$XDG_CONFIG_HOME` when set) — never the repository under work — and any
+fields set locally on the tier win over the profile's. For example:
+
+```yaml
+tiers:
+  executor:
+    profile: claude-sonnet
+```
+
+with `~/.config/torve/agents/claude-sonnet.yaml` holding the adapter,
+model and command that tier runs with. `torve doctor` prints which tiers
+resolved through a profile.
+
 ## Design corpus
 
 The full design lives in `rfcs/` as a numbered, cross-checked RFC corpus —

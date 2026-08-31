@@ -18,6 +18,12 @@ D-27.10 (OPEN, decided here): rather than have a sandbox definition carry a
 pointer to the verdict that installed it — a write to `.torve/sandbox/**`
 out of this task's scope — doctor reads the eval ledger directly and
 matches on the digest it already resolved. Read-only, no new record shape.
+
+The profile check is RFC 0028 D-28.7: each tier that resolved through a
+profile (`TierConfig.profile`, set by `load_runner_config`'s raw-mapping
+merge) gets one provenance line naming it — no check attached, so this can
+never turn doctor red, and a tier or profile file nobody referenced gets
+no line and no warning.
 """
 
 from __future__ import annotations
@@ -283,6 +289,24 @@ def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, 
     return []
 
 
+def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """D-28.7: provenance only — a resolved profile is named per tier, and no
+    check is attached, so this can never turn doctor red. A tier that names
+    no profile, or an unreferenced profile file, gets no line at all."""
+
+    config = load_config(root, config_path)
+
+    return [
+        (
+            f"profile {name}",
+            True,
+            f"tier {name}: adapter, model and command resolved from profile '{tier.profile}'",
+        )
+        for name, tier in sorted(config.tiers.items(), key=lambda item: item[0])
+        if tier.profile
+    ]
+
+
 # ....................... #
 
 
@@ -305,6 +329,7 @@ def doctor(
     checks += _store_checks(root, config_path)
     checks += _broker_check(root, config_path)
     checks += _review_bias_check(root, config_path)
+    checks += _profile_checks(root, config_path)
     checks += _image_checks(root, config_path)
     healthy = all(passed for _, passed, _ in checks)
 
