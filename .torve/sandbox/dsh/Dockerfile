@@ -5,7 +5,7 @@ FROM node:24-slim
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git curl ca-certificates python3 zstd \
  && rm -rf /var/lib/apt/lists/* \
- && npm install -g @deepseek-ai/dsh \
+ && npm install -g @deepseek-ai/dsh@0.1.1-rc.2 \
  && dsh --version
 
 # uv for replaying tasks whose acceptance battery is uv-driven
