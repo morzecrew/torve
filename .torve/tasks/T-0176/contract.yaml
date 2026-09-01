@@ -1,0 +1,18 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0176
+rfc: rfcs/0005-review-as-a-run.md
+role: review
+intent: Review T-0172's diff against its contract and inherited decisions.
+targets:
+- T-0172
+decisions:
+- id: D-26.6
+  grade: ASSUMED
+  text: 'At adoption the parent becomes the integration task: `depends_on` gains every
+    child, scope and full battery stay, and its landing is the decomposition''s completion'
+  paths:
+  - src/torve/application/intake.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
