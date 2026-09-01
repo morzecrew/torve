@@ -26,11 +26,22 @@ ExecuteOnce = Callable[[str, float], tuple[int | None, str]]
 # ....................... #
 
 
+# A harness envelope is one long final JSON line; a clip landing inside it
+# destroys the only machine-readable verdict (a review died this way). The
+# final line survives whole up to this bound — outputs whose last line is
+# short (test logs, build output) keep the ordinary clip.
+FINAL_LINE_LIMIT = 262_144
+
+
 def truncate(text: str) -> str:
     if len(text) <= OUTPUT_LIMIT:
         return text
 
     head, tail = text[:2000], text[-(OUTPUT_LIMIT - 2000) :]
+    final_line = text[text.rfind("\n") + 1 :]
+
+    if len(tail) < len(final_line) <= FINAL_LINE_LIMIT:
+        tail = final_line
 
     return f"{head}\n… truncated …\n{tail}"
 

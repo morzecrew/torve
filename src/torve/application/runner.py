@@ -1068,6 +1068,10 @@ def real_hooks(
         withheld = _withhold_never_send(worktree, config.providers.never_send)
         # The attempt's own clock, sandbox creation included — the broker's
         # wall_time_s spans the whole run and reads cumulative on retries.
+        from datetime import UTC as _UTC
+        from datetime import datetime as _datetime
+
+        attempt_started_at = _datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         attempt_clock = time.monotonic()
         handle = deps.runtime.create(spec, worktree)
         state.sandbox_id = handle.id
@@ -1095,6 +1099,8 @@ def real_hooks(
                 model_version=result.model_version,
                 cost_usd=result.cost_usd,
                 trace_ref=result.trace_ref,
+                started_at=attempt_started_at,
+                ended_at=_datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 wall_time_s=round(time.monotonic() - attempt_clock, 3),
             )
             # The attempt's self-reported token counts ride the same block

@@ -286,6 +286,13 @@ def run_review(
     executor_trace = naming.trace_file(worktree, 1)
     saved_executor_trace = executor_trace.read_bytes() if executor_trace.is_file() else None
 
+    import time as _time
+    from datetime import UTC as _UTC
+    from datetime import datetime as _datetime
+
+    started_at = _datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    review_clock = _time.monotonic()
+
     try:
         result = agent.run(
             AgentContext(
@@ -383,6 +390,12 @@ def run_review(
             "model_version": result.model_version,
             "cost_usd": result.cost_usd,
             "trace_ref": result.trace_ref,
+            # The review's own span (the broker clock covers the whole run,
+            # so it can never answer "how long was the review"): two wall
+            # stamps for the humans, the monotonic duration as the truth.
+            "started_at": started_at,
+            "ended_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "wall_time_s": round(_time.monotonic() - review_clock, 3),
             # The reviewer's token counts, flat beside cost (T-0186) — only
             # the reported ones, absent keys omitted (D-4.6).
             **token_counts,
