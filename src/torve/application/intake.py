@@ -509,6 +509,50 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
 # ....................... #
 
 
+def standing_warnings(tree: Path, contract: Path, rfc_dir: Path | None = None) -> list[str]:
+    """The lint-contract advisory (RFC 0030 §5.1): the standing rows whose
+    declared paths intersect the contract's scope.allow but that the
+    contract does not carry, each named. Advisory, never a refusal — a
+    hand-minted contract is already a human's signature (D-30.4); the
+    consuming CLI renders these as warnings."""
+
+    try:
+        raw = yaml.safe_load(contract.read_text(encoding="utf-8"))
+
+    except yaml.YAMLError:
+        return []
+
+    if not isinstance(raw, dict):
+        return []
+
+    data = cast("dict[str, Any]", raw)
+
+    try:
+        task = Task.model_validate({**data, "decisions": data.get("decisions", [])})
+
+    except ValidationError:
+        return []
+
+    if task.role != "implement":
+        return []
+
+    from torve.application.planner import standing_decisions
+
+    standing = standing_decisions(rfc_dir or tree / "rfcs", task.scope.allow)
+    carried = {row.id for row in task.decisions}
+    missing = [row for row in standing if row.id not in carried]
+
+    return [
+        f"{row.id} ({row.grade}): its declared paths intersect this "
+        "contract's scope.allow, and the contract does not carry it — copy "
+        "the row into decisions to inherit it"
+        for row in missing
+    ]
+
+
+# ....................... #
+
+
 # The drafting run.
 def mint_intake_task(
     root: Path, request: str, config: RunnerConfig, rfc: str | None = None
@@ -658,7 +702,9 @@ def _harness_facts(root: Path, config: RunnerConfig) -> list[str]:
             )
 
         escalations = (
-            ", ".join(f"{reason} ({n})" for reason, n in sorted(pop["escalations_by_reason"].items()))
+            ", ".join(
+                f"{reason} ({n})" for reason, n in sorted(pop["escalations_by_reason"].items())
+            )
             or "none"
         )
 
@@ -800,9 +846,7 @@ def build_intake_prompt(
         parent_block = (
             f"\n## The contract you are decomposing ({parent.id})\n\n"
             f"- scope.allow: {', '.join(parent.scope.allow)}\n"
-            "- acceptance:\n"
-            + "\n".join(f"  - {command}" for command in parent.acceptance)
-            + "\n"
+            "- acceptance:\n" + "\n".join(f"  - {command}" for command in parent.acceptance) + "\n"
         )
         rules_block = (
             f"Split {parent.id} into at most {{max_drafts}} draft contract(s). Every\n"
@@ -1109,9 +1153,7 @@ def _finish_intake_success(
         {"task": task.id, "drafts": len(document.drafts), "attempts": state.attempts},
     )
 
-    return IntakeOutcome(
-        task.id, fact, list(document.drafts), document.rationale, state.attempts
-    )
+    return IntakeOutcome(task.id, fact, list(document.drafts), document.rationale, state.attempts)
 
 
 # ....................... #
@@ -1344,6 +1386,39 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
 # ....................... #
 
 
+def _merged_decisions(
+    root: Path,
+    config: RunnerConfig,
+    scope_allow: list[str],
+    rfc_line: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """The adoption merge (D-30.1): every adopted contract carries the
+    standing rows its scope crosses, merged with the cited document's copy
+    and deduplicated by identifier — the cited copy wins on conflict, since
+    it is the one the request was written against."""
+
+    from torve.application.planner import PlanError, standing_decisions
+
+    try:
+        standing = standing_decisions(root / config.rfcs.path, scope_allow)
+
+    except PlanError as exc:
+        raise ValueError(str(exc)) from exc
+
+    merged: dict[str, dict[str, Any]] = {}
+
+    for row in rfc_line:
+        merged[row["id"]] = row
+
+    for standing_row in standing:
+        merged.setdefault(standing_row.id, standing_row.model_dump())
+
+    return list(merged.values())
+
+
+# ....................... #
+
+
 def adopted_file(root: Path, task_id: str) -> Path:
     return root / layout.TORVE_DIR / "tasks" / task_id / ADOPTED_FILE
 
@@ -1417,7 +1492,10 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                 "depends_on": [ids[ref] for ref in draft.depends_on],
                 "scope": draft.scope.model_dump(),
                 "acceptance": list(draft.acceptance),
-                "decisions": decisions,
+                # D-30.1: adoption always merges the standing rows the
+                # draft's own scope crosses with the cited document's copy,
+                # deduplicated by identifier — never RFC_LINE alone.
+                "decisions": _merged_decisions(root, config, draft.scope.allow, decisions),
                 "tier": "executor",
             }
 

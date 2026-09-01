@@ -24,6 +24,7 @@ from torve.application.intake import (
     mint_intake_task,
     parse_drafts,
     run_intake,
+    standing_warnings,
 )
 from torve.application.ports import AgentResult, SandboxHandle
 from torve.application.runstate import RunState
@@ -387,6 +388,94 @@ def test_lint_contract_standalone_and_role_guard(tree: Path):
     assert lint_contract(tree, review) == []
 
 
+def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path):
+    (tree / "rfcs").mkdir()
+    (tree / "rfcs" / "0099-stand.md").write_text(
+        "\n".join(
+            [
+                "---",
+                'id: "0099"',
+                "title: Stand",
+                "status: accepted",
+                "owner: t",
+                "schema_version: 1",
+                "---",
+                "",
+                "## Decisions",
+                "",
+                "| # | Grade | Decision | Paths | Consequence |",
+                "| --- | --- | --- | --- | --- |",
+                "| D-99.1 | `LOCKED` | The rule | `src/**` | — |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def contract(decisions: list) -> Path:
+        path = tree / "contract.yaml"
+        path.write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": 1,
+                    "id": "T-0001",
+                    "role": "implement",
+                    "intent": "do",
+                    "scope": {"allow": ["src/app.py"], "deny": []},
+                    "acceptance": ["true"],
+                    "decisions": decisions,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    # A hand-minted contract whose scope crosses the standing row but that
+    # does not carry it: the advisory names it.
+    warnings = standing_warnings(tree, contract([]))
+    assert len(warnings) == 1
+    assert "D-99.1" in warnings[0] and "LOCKED" in warnings[0]
+    assert "scope.allow" in warnings[0]
+
+    # Carrying the row silences the advisory.
+    carried = [{"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}]
+    assert standing_warnings(tree, contract(carried)) == []
+
+    # A scope that does not intersect the standing row hears nothing.
+    out = tree / "out.yaml"
+    out.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": "T-0002",
+                "role": "implement",
+                "intent": "elsewhere",
+                "scope": {"allow": ["docs/**"], "deny": []},
+                "acceptance": ["true"],
+                "decisions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert standing_warnings(tree, out) == []
+
+    # Non-implement roles are outside the advisory's surface.
+    review = tree / "review.yaml"
+    review.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": "T-0003",
+                "role": "review",
+                "targets": ["T-0001"],
+                "decisions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert standing_warnings(tree, review) == []
+
+
 # ----------------------- #
 # The role's contract shape.
 
@@ -559,6 +648,106 @@ def test_adopt_copies_decisions_from_an_accepted_document(seeded):
         ),
     )
     seeded.commit("fixture rfc")
+    source = adopted_ready_run(seeded, rfc="rfcs/0099-fixture.md")
+    adopted = adopt(seeded.root, source, RunnerConfig())
+
+    contract = yaml.safe_load(
+        (seeded.root / ".torve" / "tasks" / adopted[0] / "contract.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert contract["decisions"] == [
+        {"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
+    ]
+
+
+def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
+    # RFC 0030 §5.1: adoption always merges standing rows — the cited copy
+    # is not the only lane; a scope crossing another document's paths
+    # inherits that row even with no rfc line at all.
+    seeded.write(
+        "rfcs/0099-fixture.md",
+        "\n".join(
+            [
+                "---",
+                'id: "0099"',
+                "title: Fixture",
+                "status: accepted",
+                "owner: t",
+                "schema_version: 1",
+                "---",
+                "",
+                "## Decisions",
+                "",
+                "| # | Grade | Decision | Paths | Consequence |",
+                "| --- | --- | --- | --- | --- |",
+                "| D-99.1 | `LOCKED` | The rule | `src/**` | — |",
+                "",
+            ]
+        ),
+    )
+    seeded.commit("fixture rfc")
+    source = adopted_ready_run(seeded)  # no rfc line — the document-less lane
+    adopted = adopt(seeded.root, source, RunnerConfig())
+
+    for task_id in adopted:  # both drafts' scope crosses src/**
+        contract = yaml.safe_load(
+            (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert contract["decisions"] == [
+            {"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
+        ]
+
+
+def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
+    # Deduplicated by identifier, the cited copy wins (D-30.1): 0097's
+    # standing row is the same identifier as 0099's, and the request was
+    # written against 0099 — its grade and text stand.
+    seeded.write(
+        "rfcs/0097-other.md",
+        "\n".join(
+            [
+                "---",
+                'id: "0097"',
+                "title: Other",
+                "status: accepted",
+                "owner: t",
+                "schema_version: 1",
+                "---",
+                "",
+                "## Decisions",
+                "",
+                "| # | Grade | Decision | Paths | Consequence |",
+                "| --- | --- | --- | --- | --- |",
+                "| D-99.1 | `ASSUMED` | A weaker copy | `src/**` | — |",
+                "",
+            ]
+        ),
+    )
+    seeded.write(
+        "rfcs/0099-fixture.md",
+        "\n".join(
+            [
+                "---",
+                'id: "0099"',
+                "title: Fixture",
+                "status: accepted",
+                "owner: t",
+                "schema_version: 1",
+                "---",
+                "",
+                "## Decisions",
+                "",
+                "| # | Grade | Decision | Paths | Consequence |",
+                "| --- | --- | --- | --- | --- |",
+                "| D-99.1 | `LOCKED` | The rule | `src/**` | — |",
+                "",
+            ]
+        ),
+    )
+    seeded.commit("fixture rfcs")
     source = adopted_ready_run(seeded, rfc="rfcs/0099-fixture.md")
     adopted = adopt(seeded.root, source, RunnerConfig())
 

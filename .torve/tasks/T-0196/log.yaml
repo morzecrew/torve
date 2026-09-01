@@ -1,0 +1,44 @@
+schema_version: 1
+task: T-0196
+repo: morzecrew/torve
+base_sha: 97926fabfe5e1be480de88339245235248a702fb
+drift_count: 0
+entries:
+  - decision: D-30.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T09:23:59Z
+    attempt: 1
+    claim: >-
+      close-out: standing_decisions implements the decision as written —
+      only accepted, non-superseded documents are read (draft and
+      superseded documents skip), a row is standing only when its declared
+      paths intersect the contract's scope.allow via globs_intersect, and
+      grade, text and paths are copied at write time through
+      inherit_decisions, the planner's one reader (A-47); pathless rows are
+      skipped outright. Adoption always merges the standing result with the
+      RFC_LINE copy, deduplicated by identifier with the cited copy winning
+      (setdefault in _merged_decisions, wired at write time in adopt), and
+      the lint-contract advisory for hand-minters reads the same function.
+    evidence: src/torve/application/planner.py:303-334 — standing_decisions;
+      src/torve/application/intake.py:1389-1416 — the adoption merge;
+      src/torve/application/intake.py:1495-1498 — wired at write time in
+      adopt; src/torve/application/intake.py:512-550 — the lint-contract
+      advisory
+    action: decided
+  - decision: D-30.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T09:24:59Z
+    attempt: 1
+    claim: >-
+      close-out: phase 1 touches D-30.2's declared paths but adds no
+      verdict; the standing computation it ships is deterministic — corpus
+      order, then document order within a table, pure arithmetic over
+      intersected rows and paths, with no model opinion of risk anywhere in
+      the routing. The threshold verdict itself (document_required) is phase
+      2's scope and is not implemented here.
+    evidence: src/torve/application/planner.py:303-334 — the deterministic
+      standing computation; src/torve/application/intake.py:1389-1416 — the
+      adoption merge, equally deterministic
+    action: decided

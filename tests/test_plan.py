@@ -15,10 +15,12 @@ from torve.application.planner import (
     globs_intersect,
     inherit_decisions,
     plan_document,
+    standing_decisions,
     write_contracts,
 )
 from torve.cli import app
 from torve.config.rfc_parse import parse_phasing
+from torve.domain.task import InheritedDecision
 from torve.gates.context import load_task
 
 # ----------------------- #
@@ -280,6 +282,89 @@ def test_inherit_decisions_refuses_an_ungraded_row():
     ungraded = TABLE.replace("`ASSUMED`", "`MAYBE`")
     with pytest.raises(PlanError, match="not mintable"):
         inherit_decisions(ungraded, "0090-widgets.md")
+
+
+# ....................... #
+# Standing inheritance (RFC 0030 §5.1): the document-less lane.
+
+
+def test_standing_decisions_intersect_in_and_out(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc(
+        "0091",
+        "Frobs",
+        body=(
+            "## 7. Decisions\n\n"
+            "| # | Grade | Decision | Paths | Consequence |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| D-91.1 | `LOCKED` | Frobs are idempotent | `src/frob/**` | Retries double-charge |\n"
+            "| D-91.2 | `ASSUMED` | Frob names are short | `tests/frob/**` | Cheap to revisit |\n"
+        ),
+    )
+    git("add", "-A")
+    git("commit", "-qm", "frobs")
+
+    inside = standing_decisions(root / "rfcs", ["src/frob/core.py"])
+    assert [d.id for d in inside] == ["D-91.1"]
+
+    outside = standing_decisions(root / "rfcs", ["src/widget/core.py"])
+    assert [d.id for d in outside] == ["D-90.1"]
+
+    both = standing_decisions(root / "rfcs", ["src/**"])
+    assert [d.id for d in both] == ["D-90.1", "D-91.1"]
+
+    unconstrained = standing_decisions(root / "rfcs", [])
+    assert unconstrained == []
+
+
+def test_standing_decisions_copy_grade_and_paths_at_write_time(plan_repo):
+    root, _, _ = plan_repo
+    assert standing_decisions(root / "rfcs", ["src/widget/core.py"]) == [
+        InheritedDecision(
+            id="D-90.1", grade="LOCKED", text="Widgets are idempotent", paths=["src/widget/**"]
+        )
+    ]
+
+
+def test_standing_decisions_pathless_rows_are_never_standing(plan_repo):
+    root, _, _ = plan_repo
+    # D-90.2 declares no paths — it governs its own document's work only and
+    # can never be standing, even against an allow that would cover anything.
+    rows = standing_decisions(root / "rfcs", ["src/**", "tests/**"])
+    assert [d.id for d in rows] == ["D-90.1"]
+    assert "D-90.2" not in [d.id for d in rows]
+
+
+def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc(
+        "0092",
+        "Sketch",
+        status="draft",
+        body=(
+            "## 7. Decisions\n\n"
+            "| # | Grade | Decision | Paths | Consequence |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| D-92.1 | `LOCKED` | A draft's rule | `src/widget/**` | — |\n"
+        ),
+    )
+    write_doc(
+        "0093",
+        "Old",
+        status="accepted",
+        superseded_by='"0090"',
+        body=(
+            "## 7. Decisions\n\n"
+            "| # | Grade | Decision | Paths | Consequence |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| D-93.1 | `LOCKED` | A superseded rule | `src/widget/**` | — |\n"
+        ),
+    )
+    git("add", "-A")
+    git("commit", "-qm", "non-standing docs")
+
+    rows = standing_decisions(root / "rfcs", ["src/widget/**"])
+    assert [d.id for d in rows] == ["D-90.1"]
 
 
 def test_parse_phasing_defaults_tier_variant_empty():

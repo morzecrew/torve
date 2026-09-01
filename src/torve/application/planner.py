@@ -16,6 +16,13 @@ and declared paths at write time — and takes intent, scope and acceptance
 from the Phasing entry. Dry-run is the default (D-11's convention): minting
 writes `.torve/tasks/T-nnnn/contract.yaml`, ids derived max+1 and never
 reused, the same discipline as RFC numbering (D-A.17 by analogy).
+
+Beside `inherit_decisions` sits the document-less lane's mechanism,
+`standing_decisions` (RFC 0030): rows of every accepted document whose
+declared paths intersect a contract's scope, copied at write time the same
+way. `torve plan` itself is unchanged — a document's own table is inherited
+whole (D-7.22); standing inheritance is what adoption and the contract lint
+read.
 """
 
 from __future__ import annotations
@@ -288,6 +295,43 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
         )
 
     return decisions
+
+
+# ....................... #
+
+
+def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedDecision]:
+    """The document-less lane's inheritance (RFC 0030 §5.1): every accepted
+    document's table is read through the same one reader `inherit_decisions`
+    is (A-47), and a row is inherited when any of its declared paths
+    intersects `scope_allow` (`globs_intersect`, conservative — a false
+    inclusion costs a few contract lines, a false exclusion costs the
+    silence check). Grade and paths are copied at write time, the same
+    discipline as D-7.22; rows without declared paths are never standing —
+    they govern their own document's work only (D-30.1). Draft and
+    superseded documents are never read: their decisions do not stand.
+    Deterministic: corpus order, then document order within a table."""
+
+    standing: list[InheritedDecision] = []
+
+    for path in rfc_parse.rfc_files(rfc_dir).values():
+        text = path.read_text(encoding="utf-8")
+        frontmatter = rfc_parse.parse_frontmatter(text)
+
+        if frontmatter is None:
+            continue
+
+        if str(frontmatter.get("status", "")) != "accepted" or frontmatter.get("superseded_by"):
+            continue
+
+        for row in inherit_decisions(text, path.name):
+            if not row.paths:
+                continue
+
+            if globs_intersect(row.paths, scope_allow):
+                standing.append(row)
+
+    return standing
 
 
 # ....................... #
