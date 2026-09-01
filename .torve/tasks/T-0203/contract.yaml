@@ -1,0 +1,45 @@
+# Hand-minted — the evidence-format class's third ceiling: teach at the
+# moment of failure, not the moment of briefing.
+schema_version: 1
+id: T-0203
+rfc: rfcs/0022-specification-quality.md
+phase: 0
+role: implement
+title: evidence rejection teaches the repair
+intent: >-
+  The decisions-reported gate's evidence rejection names the failure but
+  not the repair — "is neither a path:line citation nor a backticked
+  command" — and the class has now cost three poison ceilings across two
+  models, the last with the skill's example materialized and the prompt
+  rule present: instructions read at minute zero decay by the minute the
+  log is written, while gate output is fed back to the retry at exactly
+  the moment of failure. Make the rejection message teach: print the
+  expected grammar (a single leading `path:line — one sentence` citation,
+  or a backticked command with output), quote the offending line, and
+  diagnose the first defect found — separator missing after the citation,
+  multiple semicolon-joined citations where prose belongs, no citation at
+  all. The gate rejects exactly what it rejects today: no normalization,
+  no loosening — the message changes, the judgement does not. Also add
+  one sharpened line to the flag-dont-flip skill's evidence example
+  naming the semicolon-chain mistake explicitly.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/gates/decisions_reported.py
+  - skills/flag-dont-flip/SKILL.md
+  - tests/test_gates.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_gates.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
