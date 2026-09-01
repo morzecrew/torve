@@ -1,0 +1,78 @@
+# Minted by `torve plan 0030` — phase 1: standing-inheritance
+schema_version: 1
+id: T-0196
+rfc: rfcs/0030-the-document-threshold.md
+phase: 1
+role: implement
+title: standing inheritance
+intent: standing_decisions beside inherit_decisions in the planner — accepted documents only,
+  paths-intersection via globs_intersect, grade copied at write time, pathless rows excluded
+  (D-30.1); adoption always merges its result with RFC_LINE inheritance deduplicated by identifier,
+  and lint-contract warns on standing rows a contract does not carry. Tests pin intersection,
+  copy-at-write, the dedup preference and the adoption-without-rfc-line case.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/planner.py
+  - src/torve/application/intake.py
+  - tests/test_plan.py
+  - tests/test_intake.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_plan.py tests/test_intake.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+- uv run lint-imports
+decisions:
+- id: D-30.1
+  grade: LOCKED
+  text: A contract without a source document inherits standing rows from every accepted document
+    whose declared paths intersect its `scope.allow`, copied grade-and-paths at write time
+    through the planner's one reader; pathless rows are never standing
+  paths:
+  - src/torve/application/planner.py
+  - src/torve/application/intake.py
+- id: D-30.2
+  grade: LOCKED
+  text: The threshold verdict is deterministic — arithmetic over intersected rows, distinct
+    documents and the size class; no model opinion of risk anywhere in the routing
+  paths:
+  - src/torve/application/planner.py
+  - src/torve/application/intake.py
+- id: D-30.3
+  grade: ASSUMED
+  text: 'The rule: `document_required` when the scope crosses LOCKED rows from two or more
+    accepted documents, or the size verdict is `too_large`; thresholds live in configuration
+    beside intake''s'
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-30.4
+  grade: ASSUMED
+  text: Enforcement is authoring-time only — intake lint error and adoption refusal (exit
+    3), `lint-contract` advisory for hand-minters; execution and gates never re-check the
+    verdict
+  paths:
+  - src/torve/application/intake.py
+  - src/torve/cli/intake.py
+- id: D-30.5
+  grade: ASSUMED
+  text: '`torve plan` inheritance is unchanged: the source document''s table whole, per D-7.22;
+    standing inheritance is the document-less lane''s mechanism'
+  paths:
+  - src/torve/application/planner.py
+- id: D-30.6
+  grade: OPEN
+  text: Whether document-minted contracts also inherit intersecting standing rows from other
+    accepted documents; decisions-reported silence over cross-document areas in minted work
+    would settle it
+  paths:
+  - src/torve/application/planner.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
