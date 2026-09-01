@@ -804,11 +804,35 @@ def test_render_operator_attention_below_the_floor_names_the_floor():
     }
     text = render_operator_attention(report)
     assert "4 landed change(s)" in text
-    assert "feedback: 2 behind landed change(s) (of 4), 3 total" in text
-    assert "command/approval events: 2 behind landed change(s) (of 4), 6 total" in text
-    assert "escalations triaged: 1 behind landed change(s) (of 4), 2 total" in text
+    assert "feedback: 2 behind landed change(s), 3 total" in text
+    assert "command/approval events: 2 behind landed change(s), 6 total" in text
+    assert "escalations triaged: 1 behind landed change(s), 2 total" in text
     assert "below the observation floor of 5" in text and "n=2" in text
     assert "quasi-experiment" in text
+
+
+def test_render_operator_attention_never_prints_a_mixed_population_ratio():
+    """T-0174: the joined count is interventions whose task landed, and one
+    task can hold several — so joined may exceed the landed-window count
+    without anything being wrong. The line must never print joined against
+    the landed window as an '(of N)' denominator; every count keeps its own
+    population label and no printed ratio mixes two."""
+    report = {
+        "landed": 1,
+        "feedback": {"joined": 2, "total": 3},
+        "command_events": {"joined": 5, "total": 7},
+        "escalations_triaged": {"joined": 1, "total": 2},
+        "human_minutes_median": None,
+        "human_minutes_n": 3,
+        "floor": 5,
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+    text = render_operator_attention(report)
+    assert "1 landed change(s)" in text
+    assert "feedback: 2 behind landed change(s), 3 total" in text
+    assert "command/approval events: 5 behind landed change(s), 7 total" in text
+    assert "escalations triaged: 1 behind landed change(s), 2 total" in text
+    assert "(of 1)" not in text  # joined is interventions, not changes
 
 
 def test_render_operator_attention_above_the_floor_carries_the_median():
@@ -873,6 +897,41 @@ def test_tracker_command_events_default_to_the_shipped_path(tmp_path):
     assert operator_attention(tmp_path)["command_events"] == {"joined": 0, "total": 1}
 
 
+def _write_cost_record(root, path: str, task_id: str, cost_usd: float) -> None:
+    target = root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps({"task_id": task_id, "agent": {"adapter": "harness", "cost_usd": cost_usd}})
+            + "\n"
+        )
+
+
+def test_dispatch_envelope_cost_follows_the_configured_telemetry_path(tmp_path):
+    """A repository that relocates the telemetry stream is read at the
+    configured path for spend too — the hardcoded default must not silently
+    read zero cost in the size envelope (D-22.11, T-0174)."""
+    write_contract(tmp_path, "T-0001", scope_allow=["src/a.py"])
+    landed_state_with(
+        tmp_path,
+        "T-0001",
+        attempts=1,
+        start_at="2026-08-20T10:00:00.000000Z",
+        end_at="2026-08-20T10:05:00.000000Z",
+    )
+    land_commit(tmp_path, "T-0001")
+
+    _write_gates_with_telemetry(tmp_path, ".torve/custom-telemetry.jsonl")
+    _write_cost_record(tmp_path, ".torve/custom-telemetry.jsonl", "T-0001", 2.0)
+    # A stray record at the default path belongs to a stream this repository
+    # does not write: it must not count.
+    _write_cost_record(tmp_path, ".torve/telemetry.jsonl", "T-0001", 99.0)
+
+    envelope = dispatch_envelope(tmp_path, "ok", floor=1)
+    assert envelope["n"] == 1
+    assert envelope["cost_usd_median"] == 2.0 and envelope["cost_usd_n"] == 1
+
+
 # ....................... #
 # CLI surface: the operator-attention line in the corpus summary
 
@@ -884,8 +943,9 @@ def test_health_cli_corpus_summary_prints_operator_attention_text(tmp_path):
     assert result.exit_code == 0, result.output
     assert "operator attention" in result.output
     # The event's task never landed in the window: the raw total prints, the
-    # joined count stays zero.
-    assert "command/approval events: 0 behind landed change(s) (of 0), 1 total" in result.output
+    # joined count stays zero — and the joined count never prints against
+    # the landed window as its denominator (T-0174).
+    assert "command/approval events: 0 behind landed change(s), 1 total" in result.output
 
 
 def test_health_cli_corpus_summary_carries_operator_attention_json(tmp_path):

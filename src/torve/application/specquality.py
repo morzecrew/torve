@@ -41,11 +41,14 @@ or resizes a dispatch.
 changes beside the operator interventions already recorded behind them —
 feedback minutes, tracker commands and approvals, escalations triaged —
 joined per task id. Each intervention kind reports its count behind landed
-changes beside its raw total, with the landed window and the raw total as
-the two printed denominators; an intervention whose task never landed in the
-window stays in the raw total only. The human-minutes reading is suppressed
-below `floor` (D-22.8), no ratio of attention to landed changes computed
-(D-22.3).
+changes beside its raw total, every count labeled with its own population —
+the joined count's population is interventions whose task landed, the raw
+total's is every intervention, and the landed window prints as its own count
+beside them, never as a denominator for an intervention count (D-22.8: a
+task can hold several interventions, so "joined of landed" would mix two
+populations); an intervention whose task never landed in the window stays in
+the raw total only. The human-minutes reading is suppressed below `floor`
+(D-22.8), no ratio of attention to landed changes computed (D-22.3).
 """
 
 from __future__ import annotations
@@ -596,13 +599,42 @@ def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> di
 # ....................... #
 
 
+def _telemetry_file(root: Path) -> Path:
+    """The telemetry stream's configured location, resolved through the same
+    layout/configuration the writer resolves it with: gates.yaml's `telemetry`
+    field when the manifest exists, the default path otherwise. The stream is
+    relocatable by configuration (a repository that moves it must be read
+    where the writer appends, not silently read as empty at the default)."""
+
+    # Same resolution as `telemetry.engine_event` (the writer), lane.py and
+    # loop.py: the manifest's `telemetry` field, or the shipped default when
+    # no manifest exists.
+    from torve.config.manifest import Manifest, load_manifest
+
+    manifest_path = layout.gates_file(root)
+
+    telemetry_rel = (
+        load_manifest(manifest_path).telemetry
+        if manifest_path.is_file()
+        else Manifest(gates=[]).telemetry
+    )
+
+    return root / telemetry_rel
+
+
+# ....................... #
+
+
 def _task_cost_usd(root: Path) -> dict[str, float]:
     """Real-adapter spend per task, summed across its attempts, read the same
     way `torve.application.projections._costs` reads one attempt at a time
-    (D-22.5: a plain JSONL reader, no new dependency). Fake-agent attempts are
-    simulation, not spend, and stay out."""
+    (D-22.5: a plain JSONL reader, no new dependency), from the telemetry
+    stream's configured location — `_telemetry_file`, the same manifest
+    resolution the writer appends with, so a repository that relocates the
+    stream still reports its spend rather than a silent zero (D-22.11).
+    Fake-agent attempts are simulation, not spend, and stay out."""
 
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+    telemetry = _telemetry_file(root)
     totals: dict[str, float] = {}
 
     if not telemetry.is_file():
@@ -733,32 +765,6 @@ def render_envelope(envelope: dict[str, Any]) -> str:
 # ....................... #
 
 
-def _telemetry_file(root: Path) -> Path:
-    """The telemetry stream's configured location, resolved through the same
-    layout/configuration the writer resolves it with: gates.yaml's `telemetry`
-    field when the manifest exists, the default path otherwise. The stream is
-    relocatable by configuration (a repository that moves it must be read
-    where the writer appends, not silently read as empty at the default)."""
-
-    # Same resolution as `telemetry.engine_event` (the writer), lane.py and
-    # loop.py: the manifest's `telemetry` field, or the shipped default when
-    # no manifest exists.
-    from torve.config.manifest import Manifest, load_manifest
-
-    manifest_path = layout.gates_file(root)
-
-    telemetry_rel = (
-        load_manifest(manifest_path).telemetry
-        if manifest_path.is_file()
-        else Manifest(gates=[]).telemetry
-    )
-
-    return root / telemetry_rel
-
-
-# ....................... #
-
-
 def _tracker_command_events(root: Path) -> list[dict[str, Any]]:
     """Every `tracker_command` engine event the tracker's `poll_and_apply`
     already writes for the six commander verbs, applied or refused — a
@@ -801,13 +807,18 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
     `projections.feedback_records`, with no new recorded field. Feedback rows
     and tracker events carry task ids and landings resolve to task ids through
     the shipped derivation, so every intervention kind reports its joined
-    count (its task landed in the window) beside its raw total, with the
-    landed window and the raw total as the two denominators (D-22.8); an
-    intervention whose task never landed in the window stays in the raw total
-    only. Every count prints regardless of `floor`; only the human-minutes
-    median, the one statistic here with a real sample-size risk, is suppressed
-    below it (D-22.8). No ratio of attention to landed changes is computed
-    (D-22.3): the counts are printed beside each other for a human to relate."""
+    count (its task landed in the window) beside its raw total; each count
+    carries its own population — the joined count is interventions behind
+    landed changes, the raw total is every intervention, and `landed` is the
+    task window itself, printed as its own count rather than as a denominator
+    for an intervention count (D-22.8, T-0174: a task can hold several
+    interventions, so joined can exceed landed without anything being wrong).
+    An intervention whose task never landed in the window stays in the raw
+    total only. Every count prints regardless of `floor`; only the
+    human-minutes median, the one statistic here with a real sample-size
+    risk, is suppressed below it (D-22.8). No ratio of attention to landed
+    changes is computed (D-22.3): the counts are printed beside each other
+    for a human to relate."""
 
     tasks = read_tasks(root)
     landed_tasks = [t for t in tasks if t.landed]
@@ -858,11 +869,13 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
 
 def render_operator_attention(report: dict[str, Any]) -> str:
     """One line for the corpus summary and the context section (D-22.12):
-    landed changes and every intervention count printed always — each kind's
-    joined count (interventions whose task landed) beside its raw total, the
-    landed window and the raw total as the two denominators — the
-    human-minutes median only once it clears the floor, the caveat printed
-    with it every time — never paraphrased (RFC 0004 §6a)."""
+    the landed window and every intervention count printed always — each
+    kind's joined count (interventions whose task landed) beside its raw
+    total, each count labeled with its own population, and the landed window
+    as its own count, never as a denominator for an intervention count
+    (D-22.8, T-0174: a task can hold several interventions, so joined may
+    exceed landed) — the human-minutes median only once it clears the floor,
+    the caveat printed with it every time — never paraphrased (RFC 0004 §6a)."""
 
     if report["human_minutes_median"] is not None:
         minutes = (
@@ -883,7 +896,7 @@ def render_operator_attention(report: dict[str, Any]) -> str:
     )
 
     counts = "; ".join(
-        f"{label}: {block['joined']} behind landed change(s) (of {landed}), {block['total']} total"
+        f"{label}: {block['joined']} behind landed change(s), {block['total']} total"
         for label, block in kinds
     )
 
