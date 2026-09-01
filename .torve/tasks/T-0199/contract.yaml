@@ -1,0 +1,74 @@
+# Minted by `torve plan 0031` — phase 2: the-bootstrap-skill
+schema_version: 1
+id: T-0199
+rfc: rfcs/0031-brownfield-onboarding.md
+phase: 2
+role: implement
+title: the bootstrap skill
+intent: 'skills/corpus-bootstrap shipped as wheel data: the extraction doctrine (mostly ASSUMED,
+  LOCKED only on defended boundaries, paths on every row, no phasing), the survey report as
+  input, one draft document in this corpus''s format as output for a human to edit, commit
+  and accept (D-31.2, D-31.3, D-31.6). A sample survey report and the checkable output shape
+  ride the skill as its fixture.'
+depends_on:
+- T-0198
+parent: null
+targets: []
+scope:
+  allow:
+  - skills/corpus-bootstrap/**
+  - tests/test_skills.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_skills.py
+- uv run torve rfc check
+decisions:
+- id: D-31.1
+  grade: LOCKED
+  text: 'The survey is agentless and read-only: no model call, no sandbox, no credentials,
+    nothing written into the target beyond the report the operator names; exit 0 on any completed
+    measurement'
+  paths:
+  - src/torve/application/survey.py
+  - src/torve/cli/survey.py
+- id: D-31.2
+  grade: LOCKED
+  text: Baseline extraction runs outside the engine as a skill; the engine only ever reads
+    the committed, human-accepted document, through RFC 0030's standing inheritance and nothing
+    else
+  paths:
+  - skills/corpus-bootstrap/**
+- id: D-31.3
+  grade: LOCKED
+  text: The baseline governs contracts minted after its acceptance only; no gate convicts
+    the existing tree or its history retroactively
+  paths:
+  - src/torve/application/survey.py
+  - skills/corpus-bootstrap/**
+- id: D-31.4
+  grade: ASSUMED
+  text: Replays are truncated clones at the landing sha with the first parent as gate base,
+    via the shadow workspace mechanics; task- and log-input gates record their no-task skip
+    and the report prints that silence as the corpus's absence made visible
+  paths:
+  - src/torve/adapters/workspace/git.py
+  - src/torve/application/survey.py
+- id: D-31.5
+  grade: ASSUMED
+  text: A target with no gates manifest is surveyed with the shipped product battery under
+    manifest defaults; a target with one is surveyed with its own
+  paths:
+  - src/torve/config/manifest.py
+  - src/torve/application/survey.py
+- id: D-31.6
+  grade: OPEN
+  text: Whether the baseline is one document or several by area, and its naming convention;
+    the first real adoption settles it and the bootstrap skill records the shape it chose
+  paths:
+  - skills/corpus-bootstrap/**
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
