@@ -1,0 +1,48 @@
+# Hand-minted — T-0182's major finding on T-0180: the front door lets a
+# review run writable.
+schema_version: 1
+id: T-0183
+rfc: rfcs/0005-review-as-a-run.md
+phase: 0
+role: implement
+title: review not dispatchable through the front door
+intent: >-
+  torve run loads any contract by id with no role guard, so a
+  review-role task dispatched directly runs through the generic attempt
+  path — a writable workspace, and since T-0180 also unfenced. D-5.2's
+  read-only mount is enforced only on the runner-internal review path;
+  the front door must refuse a review-role contract with an instructive
+  error (review follows execution — the runner mints and drives it at
+  gated), so the fence exemption's assumption becomes true by
+  construction. Same guard for direct dispatch of any role the generic
+  path does not implement the isolation contract for; implement and
+  revert stay dispatchable exactly as today.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/runner.py
+  - src/torve/cli/run.py
+  - tests/test_run_loop.py
+  - tests/test_runner.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_run_loop.py tests/test_runner.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-5.2
+  grade: LOCKED
+  text: The reviewer gets a read-only workspace and no forge credential;
+    the runner posts comments
+  paths:
+  - src/torve/application/review.py
+  - src/torve/adapters/runtime/**
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
