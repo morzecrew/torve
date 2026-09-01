@@ -1,0 +1,51 @@
+# Hand-minted — step 1 of the token-usage work: measure before optimizing.
+schema_version: 1
+id: T-0186
+rfc: rfcs/0004-agents-tiering.md
+phase: 0
+role: implement
+title: token shape recorded per attempt
+intent: >-
+  Telemetry records an attempt's cost but not its token shape, so every
+  optimization claim about roundtrips and context growth is unfounded —
+  one live hour showed ~25.7M input tokens at 95% cache hit across three
+  tasks and nothing in the records can attribute it. Extend
+  parse_metadata to extract token counts alongside cost and model —
+  input, cache-read, cache-creation and output tokens, best effort
+  across the shapes the harnesses already emit (the claude result
+  envelope's usage/modelUsage blocks; the dsh reporter's usage object
+  with inputTokens/outputTokens/cacheReadTokens/reasoningTokens) — and
+  carry them on the agent block of the attempt record, absent keys
+  omitted rather than zeroed so a harness that reports nothing stays
+  visibly unreported (D-4.6's self-reported regime). Recording only: no
+  new surface, no derived ratios — the readers come later, on top of
+  real records.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/adapters/agent/harness.py
+  - src/torve/application/telemetry.py
+  - src/torve/application/runner.py
+  - src/torve/application/review.py
+  - tests/test_tiering.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_tiering.py tests/test_review_run.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-4.6
+  grade: LOCKED
+  text: Provider version is recorded alongside `config_hash`; unpinnable
+    models are one uncontrolled regime
+  paths:
+  - src/torve/application/telemetry.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
