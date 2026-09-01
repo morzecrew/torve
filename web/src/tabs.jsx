@@ -244,6 +244,29 @@ export function Costs({ ctx }) {
   for (const t of ctx.tasks)
     if (t.role === "review" && t.targets?.length) reviewOf[t.id] = t.targets[0];
 
+  // Pre-clock records (wall_est) carry the broker's run clock, cumulative
+  // across a run's attempts and its trailing review. The snapshots are
+  // exact at each boundary, so deltas per broker session recover the
+  // per-attempt time; a review chains onto the run it audited (same
+  // session), keyed through reviewOf. Still ~: the delta includes the
+  // engine's between-attempts work (gates, prep).
+  const derived = {};
+  const cum = {};
+  for (const r of [...rows].sort((a, b) => (a.at < b.at ? -1 : 1))) {
+    if (r.kind !== "attempt" || !r.wall_est || r.wall_time_s == null) continue;
+    // Keyed by run task alone (a timed-out attempt records no config_hash).
+    // Same-session test: consecutive snapshots of one broker clock are
+    // exactly as far apart in wall time as in timestamp — a mismatch means
+    // a different run whose clock merely happened to read higher.
+    const key = (r.tier === "reviewer" && reviewOf[r.task]) || r.task;
+    const prev = cum[key];
+    const delta = prev ? r.wall_time_s - prev.wall : null;
+    const gap = prev ? (Date.parse(r.at) - prev.atMs) / 1e3 : null;
+    const chained = prev && delta > 0 && Math.abs(gap - delta) < Math.max(120, delta * 0.25);
+    derived[r.at + r.task] = chained ? delta : r.wall_time_s;
+    cum[key] = { atMs: Date.parse(r.at), wall: r.wall_time_s };
+  }
+
   // Live attempts numbered per task in time order; replays stay unnumbered
   // (arms would interleave into a lying ordinal).
   const ordinal = {};
@@ -271,9 +294,7 @@ export function Costs({ ctx }) {
     col("model", (r) => r.model || r.adapter, {}),
     col("time", "wall_time_s", {
       num: true, cls: "dim",
-      // wall_est: pre-clock records fall back to the broker's run clock,
-      // cumulative across retries — shown as approximate.
-      cell: (r) => (r.wall_est ? "~" : "") + fmtDur(r.wall_time_s),
+      cell: (r) => (r.wall_est ? "~" + fmtDur(derived[r.at + r.task] ?? r.wall_time_s) : fmtDur(r.wall_time_s)),
     }),
     col("cost", "cost_usd", { num: true, cell: (r) => fmt$(r.cost_usd) }),
     col("in", "input_tokens", { num: true, cls: "dim", cell: (r) => fmtK(r.input_tokens) }),
