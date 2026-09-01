@@ -1,0 +1,56 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0211
+rfc: rfcs/0031-brownfield-onboarding.md
+role: review
+intent: Review T-0199's diff against its contract and inherited decisions.
+targets:
+- T-0199
+decisions:
+- id: D-31.1
+  grade: LOCKED
+  text: 'The survey is agentless and read-only: no model call, no sandbox, no credentials,
+    nothing written into the target beyond the report the operator names; exit 0 on
+    any completed measurement'
+  paths:
+  - src/torve/application/survey.py
+  - src/torve/cli/survey.py
+- id: D-31.2
+  grade: LOCKED
+  text: Baseline extraction runs outside the engine as a skill; the engine only ever
+    reads the committed, human-accepted document, through RFC 0030's standing inheritance
+    and nothing else
+  paths:
+  - skills/corpus-bootstrap/**
+- id: D-31.3
+  grade: LOCKED
+  text: The baseline governs contracts minted after its acceptance only; no gate convicts
+    the existing tree or its history retroactively
+  paths:
+  - src/torve/application/survey.py
+  - skills/corpus-bootstrap/**
+- id: D-31.4
+  grade: ASSUMED
+  text: Replays are truncated clones at the landing sha with the first parent as gate
+    base, via the shadow workspace mechanics; task- and log-input gates record their
+    no-task skip and the report prints that silence as the corpus's absence made visible
+  paths:
+  - src/torve/adapters/workspace/git.py
+  - src/torve/application/survey.py
+- id: D-31.5
+  grade: ASSUMED
+  text: A target with no gates manifest is surveyed with the shipped product battery
+    under manifest defaults; a target with one is surveyed with its own
+  paths:
+  - src/torve/config/manifest.py
+  - src/torve/application/survey.py
+- id: D-31.6
+  grade: OPEN
+  text: Whether the baseline is one document or several by area, and its naming convention;
+    the first real adoption settles it and the bootstrap skill records the shape it
+    chose
+  paths:
+  - skills/corpus-bootstrap/**
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
