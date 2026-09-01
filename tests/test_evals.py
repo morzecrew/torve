@@ -1,6 +1,12 @@
 """RFC 0009 §5: the eval loop — with-skill versus without-skill shadow
 replays of the same task, arms marked on the shadow records, one eval
-record in the ledger, and the baseline verdict as direction only."""
+record in the ledger, and the baseline verdict as direction only.
+
+RFC 0034 (D-34.10) extends the paired configuration eval with a
+tier-variant override beside the image override: the candidate arm
+resolves the dotted variant, the record names it and cites both config
+hashes, and the two overrides refuse to combine in one invocation.
+"""
 
 from __future__ import annotations
 
@@ -74,6 +80,59 @@ def test_an_image_the_tier_already_resolves_refuses():
 def test_an_unknown_tier_refuses_loudly():
     with pytest.raises(ValueError, match="no tier"):
         candidate_config(RunnerConfig(), "no-such-tier", "torve-agent:candidate")
+
+
+def test_candidate_config_resolves_a_configured_variant_onto_the_seat():
+    config = RunnerConfig(
+        tiers={
+            **RunnerConfig().tiers,
+            # D-34.10: a tier variant is a dotted tier entry beside the seat.
+            "executor.indexed": TierConfig(model="candidate-model", image="torve-agent:candidate"),
+        }
+    )
+
+    candidate = candidate_config(config, "executor", variant="indexed")
+
+    # The seat now resolves the variant's content — the candidate arm runs
+    # the dotted variant's model, command, adapter or image as itself.
+    assert candidate.tiers["executor"] == config.tiers["executor.indexed"]
+    assert candidate.tiers["executor"].model == "candidate-model"
+    # The incumbent's configuration is untouched, and every other tier too.
+    assert config.tiers["executor"].model == ""
+    assert candidate.tiers["planner"] == config.tiers["planner"]
+    assert candidate.tiers["executor.indexed"] == config.tiers["executor.indexed"]
+
+
+def test_an_unknown_variant_refuses_loudly():
+    config = RunnerConfig(
+        tiers={**RunnerConfig().tiers, "executor.indexed": TierConfig(model="candidate-model")}
+    )
+    with pytest.raises(ValueError, match=r"no tier 'executor\.ghost'"):
+        candidate_config(config, "executor", variant="ghost")
+
+
+def test_a_variant_the_seat_already_resolves_refuses():
+    config = RunnerConfig(
+        tiers={
+            **RunnerConfig().tiers,
+            "executor.indexed": TierConfig(),  # identical to the seat — nothing to measure
+        }
+    )
+    with pytest.raises(ValueError, match="nothing to measure"):
+        candidate_config(config, "executor", variant="indexed")
+
+
+def test_image_and_variant_overrides_refuse_to_combine():
+    config = RunnerConfig(
+        tiers={**RunnerConfig().tiers, "executor.indexed": TierConfig(model="candidate-model")}
+    )
+    with pytest.raises(ValueError, match="refuse to combine"):
+        candidate_config(config, "executor", "torve-agent:candidate", variant="indexed")
+
+
+def test_candidate_config_needs_an_override():
+    with pytest.raises(ValueError, match="needs an override"):
+        candidate_config(RunnerConfig(), "executor")
 
 
 def test_skill_eval_runs_both_arms_and_ledgers(repo):
@@ -181,15 +240,14 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     candidate_image = "torve-eval-candidate:test"
     runtime.build_image(context, candidate_image)
 
+    steps = [
+        {"writes": {"src/feature.py": "FEATURE = 'a'\n"}, "exit": 0},
+        {"writes": {"src/feature.py": "FEATURE = 'b'\n"}, "exit": 0},
+    ]
     deps = RunDeps(
         workspace=GitWorkspace(repo.root),
         runtime=runtime,
-        agent=FakeAgent(
-            [
-                {"writes": {"src/feature.py": "FEATURE = 'a'\n"}, "exit": 0},
-                {"writes": {"src/feature.py": "FEATURE = 'b'\n"}, "exit": 0},
-            ]
-        ),
+        agent=FakeAgent(steps),
         vcs=GitVcs(),
         scm=NullScm(),
         store=open_store,
@@ -204,15 +262,30 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
-    record = run_config_eval(repo.root, "executor", candidate_image, [task], config, deps, source)
+    record = run_config_eval(
+        repo.root,
+        "executor",
+        [task],
+        config,
+        deps,
+        source,
+        image=candidate_image,
+        # Each arm runs the agent its own configuration resolves — the
+        # candidate's own, not the incumbent's under a candidate label.
+        candidate_agent=FakeAgent(steps),
+    )
 
     assert record["kind"] == "config-eval" and record["tier"] == "executor"
+    assert record["image"] == candidate_image
     assert [r["task"] for r in record["arms"]["incumbent"]] == [TASK_ID]
     assert [r["task"] for r in record["arms"]["candidate"]] == [TASK_ID]
     assert isinstance(record["candidate_matched"], bool)
     # Both digests cited, and they name two different regimes (D-27.7).
     assert record["digests"]["incumbent"] and record["digests"]["candidate"]
     assert record["digests"]["incumbent"] != record["digests"]["candidate"]
+    # Both config hashes cited too — the regime identity of each arm (D-34.10).
+    assert record["configs"]["incumbent"] and record["configs"]["candidate"]
+    assert record["configs"]["incumbent"] != record["configs"]["candidate"]
 
     # One line in the ledger; two arm-marked shadow records in telemetry.
     ledger = (repo.root / ".torve" / "evals.jsonl").read_text().splitlines()
@@ -225,6 +298,98 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     assert sorted(arms) == ["candidate", "incumbent"]
     image_digests = {line["image_digest"] for line in lines if line.get("eval")}
     assert len(image_digests) == 2
+    # Never merged: the shipped content is untouched.
+    head_file = subprocess.run(
+        ["git", "-C", str(repo.root), "show", "HEAD:src/feature.py"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert head_file == "FEATURE = 'shipped'\n"
+
+
+def test_variant_eval_runs_both_arms_and_ledgers(repo):
+    from test_runtime_conformance import docker_available
+
+    if not docker_available():
+        pytest.skip("docker daemon not available")
+    from torve.adapters.runtime.docker import DockerRuntime
+
+    repo.seed()
+    task_doc = base_task(allow=["src/**"])
+    task_doc["acceptance"] = ["test -f src/feature.py"]
+    repo.task(task_doc, None)
+    repo.commit("task minted")
+    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
+    repo.commit(f"torve({TASK_ID}): shipped\n\nTorve-Task: {TASK_ID}")
+
+    config = RunnerConfig(
+        runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90),
+        poison_ceiling=2,
+        tiers={
+            **RunnerConfig().tiers,
+            # D-34.10: the candidate arm resolves the dotted variant.
+            "executor.indexed": TierConfig(model="candidate-model"),
+        },
+    )
+    steps = [
+        {"writes": {"src/feature.py": "FEATURE = 'a'\n"}, "exit": 0},
+        {"writes": {"src/feature.py": "FEATURE = 'b'\n"}, "exit": 0},
+    ]
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=DockerRuntime(),
+        agent=FakeAgent(steps),
+        vcs=GitVcs(),
+        scm=NullScm(),
+        store=open_store,
+    )
+    shadow_ws = ShadowWorkspace(repo.root, depth=10)
+    source = ShadowSource(
+        create_workspace=shadow_ws.create,
+        shipped_commit=partial(shipped_commit, repo.root),
+        parent_of=partial(parent_of, repo.root),
+        diff_range=partial(diff_range, repo.root),
+        diff_worktree=diff_worktree,
+    )
+    task = load_task(layout.task_file(repo.root, TASK_ID))
+
+    record = run_config_eval(
+        repo.root,
+        "executor",
+        [task],
+        config,
+        deps,
+        source,
+        variant="indexed",
+        candidate_agent=FakeAgent(steps),
+    )
+
+    assert record["kind"] == "config-eval" and record["tier"] == "executor"
+    # D-34.10: the record names the dotted variant the candidate arm resolved.
+    assert record["variant"] == "executor.indexed"
+    assert [r["task"] for r in record["arms"]["incumbent"]] == [TASK_ID]
+    assert [r["task"] for r in record["arms"]["candidate"]] == [TASK_ID]
+    assert isinstance(record["candidate_matched"], bool)
+    # Both config hashes cited, and they name two different regimes.
+    assert record["configs"]["incumbent"] and record["configs"]["candidate"]
+    assert record["configs"]["incumbent"] != record["configs"]["candidate"]
+    # A variant eval is a config measurement, not an image displacement: no
+    # image, no digests to feed the image-displacement guard (D-27.7).
+    assert "image" not in record and "digests" not in record
+
+    # One line in the ledger; two arm-marked shadow records in telemetry,
+    # both stamped with the dotted variant they replayed under.
+    ledger = (repo.root / ".torve" / "evals.jsonl").read_text().splitlines()
+    assert len(ledger) == 1 and json.loads(ledger[0])["variant"] == "executor.indexed"
+    lines = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    arms = [line["eval"]["arm"] for line in lines if line.get("eval")]
+    assert sorted(arms) == ["candidate", "incumbent"]
+    variants = {line["eval"]["variant"] for line in lines if line.get("eval")}
+    assert variants == {"executor.indexed"}
     # Never merged: the shipped content is untouched.
     head_file = subprocess.run(
         ["git", "-C", str(repo.root), "show", "HEAD:src/feature.py"],
@@ -254,39 +419,33 @@ def _bare_task_repo(root, tier: str = "executor"):
     )
 
 
-def test_eval_cli_refuses_neither_skill_nor_tier_and_image(tmp_path):
+def test_eval_cli_refuses_neither_skill_nor_tier_with_an_override(tmp_path):
     root = tmp_path / "repo"
     _bare_task_repo(root)
 
     result = CliRunner().invoke(app, ["eval", "--task", "T-0042", "--root", str(root)])
 
     assert result.exit_code == 3
-    assert "give a skill argument, or both --tier and --image" in result.stderr
+    assert "give a skill argument, or --tier with either --image or --variant" in result.stderr
 
 
-def test_eval_cli_refuses_a_skill_together_with_tier_or_image(tmp_path):
+def test_eval_cli_refuses_a_skill_together_with_config_overrides(tmp_path):
     root = tmp_path / "repo"
     _bare_task_repo(root)
 
-    result = CliRunner().invoke(
-        app,
-        [
-            "eval",
-            "flag-dont-flip",
-            "--task",
-            "T-0042",
-            "--tier",
-            "executor",
-            "--root",
-            str(root),
-        ],
-    )
+    for overrides in (
+        ["--tier", "executor"],
+        ["--tier", "executor", "--variant", "indexed"],
+    ):
+        result = CliRunner().invoke(
+            app, ["eval", "flag-dont-flip", "--task", "T-0042", "--root", str(root), *overrides]
+        )
 
-    assert result.exit_code == 3
-    assert "not both" in result.stderr
+        assert result.exit_code == 3
+        assert "not both" in result.stderr
 
 
-def test_eval_cli_refuses_tier_without_image(tmp_path):
+def test_eval_cli_refuses_tier_without_an_override(tmp_path):
     root = tmp_path / "repo"
     _bare_task_repo(root)
 
@@ -295,7 +454,62 @@ def test_eval_cli_refuses_tier_without_image(tmp_path):
     )
 
     assert result.exit_code == 3
-    assert "give a skill argument, or both --tier and --image" in result.stderr
+    assert "give a skill argument, or --tier with either --image or --variant" in result.stderr
+
+
+def test_eval_cli_refuses_image_and_variant_together(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "--task",
+            "T-0042",
+            "--tier",
+            "executor",
+            "--image",
+            "torve-agent:candidate",
+            "--variant",
+            "indexed",
+            "--root",
+            str(root),
+        ],
+    )
+
+    assert result.exit_code == 3
+    assert "refuse to combine" in result.stderr
+
+
+def test_eval_cli_refuses_an_unknown_variant(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+
+    result = CliRunner().invoke(
+        app,
+        ["eval", "--task", "T-0042", "--tier", "executor", "--variant", "ghost", "--root", str(root)],
+    )
+
+    assert result.exit_code == 3
+    assert "no tier 'executor.ghost'" in result.stderr
+
+
+def test_eval_cli_config_mode_refuses_an_already_resolved_variant(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+    # The variant is configured, but identical to the seat — nothing to measure.
+    (root / ".torve" / "config.yaml").write_text(
+        "tiers:\n  executor: {}\n  executor.indexed: {}\n", encoding="utf-8"
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["eval", "--task", "T-0042", "--tier", "executor", "--variant", "indexed", "--root", str(root)],
+    )
+
+    assert result.exit_code == 3
+    assert "nothing to measure" in result.stderr
 
 
 def test_eval_cli_config_mode_refuses_an_already_resolved_image(tmp_path):
