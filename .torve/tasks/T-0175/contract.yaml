@@ -1,0 +1,18 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0175
+rfc: rfcs/0022-specification-quality.md
+role: review
+intent: Review T-0174's diff against its contract and inherited decisions.
+targets:
+- T-0174
+decisions:
+- id: D-22.8
+  grade: ASSUMED
+  text: Readings are suppressed below a printed floor of observations; ratios always
+    print their denominator
+  paths:
+  - src/torve/application/specquality.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
