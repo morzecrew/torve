@@ -13,9 +13,10 @@ on:
     tags:
       - "r*"
 
+# Least privilege at the workflow level; the publish job alone raises
+# packages to write (zizmor excessive-permissions, triaged 2026-09-01).
 permissions:
   contents: read
-  packages: write
 
 jobs:
   # The publish gate (RFC 0033 §5.4, D-33.5): what CI publishes is what this
@@ -28,6 +29,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: false
       - run: uv sync --frozen
       - run: uv run pytest tests/test_sandbox_images.py
 
@@ -35,6 +38,9 @@ jobs:
     name: publish ${{ matrix.name }}
     needs: conformance
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
