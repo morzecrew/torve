@@ -24,6 +24,7 @@ COPY deepseek-chat.yml /opt/dsh/deepseek-chat.yml
 # business, never the image's.
 COPY qwen3.8-flash.yml /opt/dsh/qwen3.8-flash.yml
 COPY brokered-deepseek.yml /opt/dsh/brokered-deepseek.yml
+COPY brokered-deepseek-v4-flash.yml /opt/dsh/brokered-deepseek-v4-flash.yml
 # Usage extraction (D-4.6, self-reported regime): headless dsh prints no
 # usage; the session log carries it. The reporter sums it and prints the
 # one JSON line parse_metadata reads.

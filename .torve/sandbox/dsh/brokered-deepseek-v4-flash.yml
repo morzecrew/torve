@@ -1,0 +1,25 @@
+# The brokered executor seat (RFC 0021 D-21.1): deepseek-v4-flash reached
+# only through the run's egress broker. Same shape as brokered-deepseek.yml
+# — the overlay is static, the per-run route and token arrive as environment
+# set by the tier command's {broker_url} / {broker_token} substitution, so
+# no credential and no per-run value is ever baked. A different model is a
+# different overlay and a different image digest — a visible regime change
+# (RFC 0017 §3, D-17.4).
+- id: llm-pi-ai
+  config:
+    providers:
+      torve-broker:
+        api: openai-completions
+        baseURL: !!js process.env.TORVE_BROKER_URL
+        apiKeyEnv: TORVE_BROKER_TOKEN
+        models:
+          - id: deepseek-v4-flash
+            name: DeepSeek V4 Flash
+            contextWindow: 128000
+            maxTokens: 8192
+            input: [text]
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: torve-broker
+    model: deepseek-v4-flash
