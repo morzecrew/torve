@@ -11,9 +11,10 @@ intent: 'The character field end to end: parse_phasing validates the structural|
   character-routed variant''s provider the same way include_retry already routes the retry_variant
   (D-21.4): a dispatch never runs under a tier whose provider the broker did not route, and a provider
   the configuration denies stays denied under every routing path. The effective tier is resolved at
-  exactly one point and every consumer — the CLI''s agent construction, the runner''s telemetry and
-  image stamps, the broker''s routing — reads that one resolution: a character-routed task runs, records
-  and routes as the same tier. The rfc-writer template documents the field.'
+  exactly one point and every dispatch surface — torve run, tick, fleet, shadow, the runner''s telemetry
+  and image stamps, the broker''s routing and route_provider''s deny check — reads that one resolution:
+  a character-routed task runs, records and routes as the same tier. The rfc-writer template documents
+  the field.'
 depends_on: []
 parent: null
 targets: []
@@ -31,6 +32,12 @@ scope:
   - src/torve/cli/run.py
   - tests/test_cli.py
   - tests/test_runconfig.py
+  - src/torve/cli/tick.py
+  - src/torve/cli/fleet.py
+  - src/torve/cli/shadow.py
+  - tests/test_tick.py
+  - tests/test_fleet.py
+  - tests/test_shadow.py
   deny: []
 acceptance:
 - uv run basedpyright src
@@ -40,6 +47,7 @@ acceptance:
 - uv run ruff check .
 - uv run torve rfc check
 - uv run pytest tests/test_runconfig.py
+- uv run pytest tests/test_tick.py tests/test_fleet.py tests/test_shadow.py
 decisions:
 - id: D-34.1
   grade: LOCKED
