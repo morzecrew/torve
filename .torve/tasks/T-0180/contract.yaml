@@ -1,0 +1,46 @@
+# Hand-minted — a live review blocked an unrelated dispatch: review-role
+# tasks must hold no fence.
+schema_version: 1
+id: T-0180
+rfc: rfcs/0005-review-as-a-run.md
+phase: 0
+role: implement
+title: review holds no fence
+intent: >-
+  The overlap gate read a running review task's empty scope.allow as
+  "unconstrained scope" and refused an unrelated dispatch
+  (blocked_by_overlap: T-0179 on unconstrained scope, blocking T-0178
+  whose fence was disjoint from everything writable). A review-role task
+  runs in a read-only workspace and writes nothing by construction
+  (D-5.2) — it must be excluded from overlap fencing entirely, never
+  treated as claiming the whole tree. Empty scope.allow on a *writing*
+  role keeps today's conservative unconstrained reading; the exemption
+  keys on the role, not on the emptiness.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/runner.py
+  - tests/test_run_loop.py
+  - tests/test_runner.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_run_loop.py tests/test_runner.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-5.2
+  grade: LOCKED
+  text: The reviewer gets a read-only workspace and no forge credential;
+    the runner posts comments
+  paths:
+  - src/torve/application/review.py
+  - src/torve/adapters/runtime/**
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
