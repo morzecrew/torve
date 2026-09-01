@@ -1,0 +1,50 @@
+# Hand-minted — T-0176's major finding on T-0172: the wrong discriminator.
+schema_version: 1
+id: T-0177
+rfc: rfcs/0005-review-as-a-run.md
+phase: 0
+role: implement
+title: integration task discriminated by adoption
+intent: >-
+  T-0172's empty-diff refusal exempts any task with a non-empty
+  depends_on, which exempts every ordinary phase-sequenced implement task
+  — most of the population the incident concerns. The engine's actual
+  record of "this parent became the integration task" is the adopted.json
+  marker adoption writes beside the parent's contract
+  (.torve/tasks/<id>/adopted.json, RFC 0026 D-26.5/D-26.6) — discriminate
+  on that marker instead of depends_on, so a phase task producing an
+  empty diff is refused like any other no-op while a real integration
+  task keeps its D-26.6 legality. Also T-0176's minor: the review
+  record's trace_ref is rewritten to a harness-shaped path even for
+  adapters that wrote no trace — record the path only when the trace file
+  was actually written, never fabricated.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/runner.py
+  - src/torve/application/review.py
+  - tests/test_review_run.py
+  - tests/test_run_loop.py
+  - tests/test_runner.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_review_run.py tests/test_run_loop.py tests/test_runner.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-26.6
+  grade: ASSUMED
+  text: 'At adoption the parent becomes the integration task: `depends_on`
+    gains every child, scope and full battery stay, and its landing is the
+    decomposition''s completion'
+  paths:
+  - src/torve/application/intake.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
