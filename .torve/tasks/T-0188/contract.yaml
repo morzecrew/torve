@@ -1,0 +1,73 @@
+# Minted by `torve plan 0033` — phase 1: toolkit-and-args
+schema_version: 1
+id: T-0188
+rfc: rfcs/0033-published-harness-images.md
+phase: 1
+role: implement
+title: toolkit and args
+intent: 'The three publishable definitions converge on the conventions: harness installs behind
+  pinned-default ARGs (D-33.3), the existing utilities moved under /opt/torve with symlinks
+  at their old paths for one transition revision (D-33.4), and the definition-level tests
+  — the ARG-pin check and the toolkit existence checks — joining the sandbox battery. Profile
+  command templates in the README examples shorten to the toolkit paths.'
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - .torve/sandbox/claude/**
+  - .torve/sandbox/dsh/**
+  - .torve/sandbox/mimo/**
+  - tests/test_sandbox_images.py
+  - README.md
+  deny: []
+acceptance:
+- uv run pytest tests/test_sandbox_images.py
+- uv run ruff check .
+decisions:
+- id: D-33.1
+  grade: LOCKED
+  text: 'Published images are a convenience, never a requirement: no engine behavior conditions
+    on an in-house image, every published image builds locally from its in-repo definition
+    with one command, and a stock upstream image plus a longer command template always works'
+  paths:
+  - .torve/sandbox/**
+- id: D-33.2
+  grade: LOCKED
+  text: Tags are immutable `<harness-version>-r<image-rev>` and CI refuses to re-push an existing
+    tag; `latest` floats as convenience; the digest remains the only identity the engine trusts
+    (D-17.1 unchanged)
+  paths:
+  - .github/workflows/**
+- id: D-33.3
+  grade: ASSUMED
+  text: Every harness install in a published definition goes through an `ARG` with a pinned
+    default; a version bump is a one-line reviewed diff, never a rebuild side effect
+  paths:
+  - .torve/sandbox/**
+- id: D-33.4
+  grade: ASSUMED
+  text: 'The `/opt/torve/` toolkit is thin by rule: single-file utilities, variability from
+    environment only, no reading of contracts or `.torve/`; a utility wanting task context
+    has outgrown the image'
+  paths:
+  - .torve/sandbox/**
+- id: D-33.5
+  grade: ASSUMED
+  text: Publishing happens from this repository's CI, gated by the same conformance battery
+    that tests the definitions; platform-images supplies bases and prior art, never these
+    definitions
+  paths:
+  - .github/workflows/**
+- id: D-33.6
+  grade: OPEN
+  text: Whether images carry their definition's git sha as an OCI label for provenance-by-inspection;
+    the first debugging session against a pulled image settles it
+  paths:
+  - .torve/sandbox/**
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null

@@ -1,0 +1,18 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0187
+rfc: rfcs/0004-agents-tiering.md
+role: review
+intent: Review T-0186's diff against its contract and inherited decisions.
+targets:
+- T-0186
+decisions:
+- id: D-4.6
+  grade: LOCKED
+  text: Provider version is recorded alongside `config_hash`; unpinnable models are
+    one uncontrolled regime
+  paths:
+  - src/torve/application/telemetry.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
