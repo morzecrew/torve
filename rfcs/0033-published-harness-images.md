@@ -3,6 +3,7 @@ id: "0033"
 title: Published harness images
 kind: design
 status: accepted
+implementation: complete
 depends_on: ["0017"]
 informed_by: ["0003", "0004", "0021", "0028"]
 supersedes: []
@@ -16,6 +17,14 @@ schema_version: 1
 
 # RFC 0033 — Published harness images
 
+- **Implementation state:** complete (judged 2026-09-01). Phase 1 executed
+  as T-0188 (toolkit and ARG pins, landed dc66b8b); phase 3 as T-0190
+  (doctor remote digest, landed f5fd409); phase 2 as T-0189 (publish
+  workflow, landed 33f1466 as an operator triage after two reviewer
+  blockers fixed real workflow defects and a three-red evidence-format
+  ceiling — the disclosure rides the landing commit), hardened to zizmor
+  clean in f7c5c99. The first actual publish to ghcr is an operator
+  workflow_dispatch, deliberately manual.
 - **Scope:** Publishing the harness sandbox images this repository already
   defines — `claude`, `dsh`, `mimo` — to `ghcr.io/morzecrew/`, and the
   conventions that keep publishing honest: the tag scheme, harness version
