@@ -1,0 +1,51 @@
+# Hand-minted — executes A-75 on RFC 0005 (D-5.15, the findings ledger).
+schema_version: 1
+id: T-0178
+rfc: rfcs/0005-review-as-a-run.md
+phase: 0
+role: implement
+title: findings ledger in context
+intent: >-
+  torve context gains "Findings awaiting the operator" (D-5.15, A-75):
+  every kept non-blocking finding from a landed target's review, read
+  from the review records telemetry already carries, shown with its
+  review id, severity and claim, and marked possibly_addressed when a
+  later contract's text cites the review's task id — the same
+  weak-citation discipline the proposals section uses (D-7.24), honest
+  about being evidence rather than proof. The engine mints nothing from
+  a finding; the section is a ledger for batch triage. Mirror the
+  proposals section's shape and truncation discipline in both the
+  projection and the context render.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/projections.py
+  - src/torve/cli/context.py
+  - tests/test_context.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_context.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-5.15
+  grade: ASSUMED
+  text: 'Non-blocking findings get a ledger, not a lifecycle: `torve
+    context` gains "Findings awaiting the operator" — every kept finding
+    from a landed target''s review, marked possibly_addressed when a later
+    contract''s text cites the review''s task id (D-7.24''s possibly_landed
+    discipline applied to findings); the engine still mints nothing from a
+    finding, and the operator triages the ledger in batch — per-finding
+    instant minting is a habit, never a requirement. Added by amendment
+    A-75 2026-09-01'
+  paths:
+  - src/torve/application/projections.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
