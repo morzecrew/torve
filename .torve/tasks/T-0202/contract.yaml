@@ -1,0 +1,66 @@
+# Minted by `torve plan 0032` — phase 3: serve-bundle-ci
+schema_version: 1
+id: T-0202
+rfc: rfcs/0032-the-serve-surface.md
+phase: 3
+role: implement
+title: serve bundle ci
+intent: 'The npm-builder CI job building web/ into the torve/_web package data on the release
+  path (D-32.4), and the D-32.5 call made from the first real build: vendored-and-hash-checked
+  or CI-attached. The job runs the frontend build and asserts the backend suite stays green
+  against the produced bundle.'
+depends_on:
+- T-0201
+parent: null
+targets: []
+scope:
+  allow:
+  - .github/**
+  deny: []
+acceptance:
+- uv run ruff check .
+decisions:
+- id: D-32.1
+  grade: LOCKED
+  text: The server re-exposes existing projection functions verbatim and computes nothing
+    of its own; a shape the browser needs is added to the projection, for every surface at
+    once
+  paths:
+  - src/torve/cli/serve.py
+- id: D-32.2
+  grade: LOCKED
+  text: 'v1 is read-only and loopback-only: no mutating endpoint, no host flag, no auth because
+    no reachability; the write path arrives only with its own RFC'
+  paths:
+  - src/torve/cli/serve.py
+- id: D-32.3
+  grade: ASSUMED
+  text: '`torve serve` lives behind the `torve[serve]` extra with starlette and uvicorn, lazy-imported
+    with an instructive refusal — the opensandbox/migrate pattern'
+  paths:
+  - pyproject.toml
+  - src/torve/cli/serve.py
+- id: D-32.4
+  grade: ASSUMED
+  text: The frontend ships as built assets in wheel package data (`torve/_web`), built in
+    CI by the organization's npm-builder image; runtime and install never touch node
+  paths:
+  - pyproject.toml
+  - src/torve/cli/serve.py
+- id: D-32.5
+  grade: OPEN
+  text: Whether the built bundle is vendored in-repo (hash-checked against source like INDEX.md)
+    or CI-attached at wheel build; the first release build settles it
+  paths:
+  - pyproject.toml
+- id: D-32.6
+  grade: ASSUMED
+  text: The page polls with a visible projected-at stamp; no push channel
+  paths:
+  - src/torve/cli/serve.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
