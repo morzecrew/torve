@@ -8,7 +8,7 @@ depends_on: ["0007", "0022"]
 informed_by: ["0005", "0011", "0013", "0018"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-76"]
 owner: Lev Litvinov
 description: >-
   A local read-only dashboard over the projections the engine already computes — `torve serve` behind an extra, loopback-only, polling JSON the CLI already emits, with the frontend shipped as built assets in the wheel.
@@ -262,3 +262,26 @@ not paraphrased.
 
 *(Phase 2 split into phases 2–3 on 2026-09-01, pre-mint: sizing routed
 the original combined phase `too_large`.)*
+
+## Amendments
+
+### A-76 — 2026-09-01 — the buildless surface (amends §5.3)
+**Found the day the first bundle shipped.** The React build produced an
+unreadable page — the operator judged it no better than the CLI — and the
+rebuild that replaced it needed no framework at all: the whole surface is
+one dependency-free HTML file of vanilla JS over the two endpoints, with
+tabs, filters, severity badges and live counts. With the framework gone,
+the npm-builder toolchain §5.3 prescribed had nothing left to build.
+
+**Changed:** §5.3 in effect — `web/index.html` is the source and the
+bundle; `web/scripts/build.sh` copies it into `src/torve/_web/` (D-32.4's
+shipping mechanism unchanged), and the serve-bundle job now asserts the
+vendored copy matches the source byte-for-byte and runs the backend
+suite. D-32.5 is thereby settled as vendored-and-checked — the "first
+release build" it waited on turned out to be a copy. The rewrite was
+operator work, outside the lane, disclosed here: a design-quality
+deliverable the configured executors had already failed once.
+
+**Deliberately unchanged:** every decision row. Read-only, loopback,
+projections-verbatim, wheel-shipped — the doctrine held; only the
+toolchain died.

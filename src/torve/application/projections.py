@@ -505,6 +505,19 @@ def _costs(root: Path) -> list[dict[str, Any]]:
                     "model": block.get("model"),
                     "provider": block.get("provider"),
                     "model_version": block.get("model_version"),
+                    # Token shape (D-4.6 self-reported regime): absent keys
+                    # stay absent — a harness that reported nothing must not
+                    # read as zero.
+                    **{
+                        key: block[key]
+                        for key in (
+                            "input_tokens",
+                            "cache_read_tokens",
+                            "cache_creation_tokens",
+                            "output_tokens",
+                        )
+                        if key in block
+                    },
                 }
             )
 

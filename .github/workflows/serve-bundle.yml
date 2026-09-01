@@ -1,13 +1,10 @@
 name: serve-bundle
 
-# The release-path build of the dashboard bundle (RFC 0032 D-32.4): the
-# frontend is built by the organization's npm-builder image into the
-# torve/_web wheel package data, the vendored bundle is hash-checked
-# against the fresh build (D-32.5: vendored-and-hash-checked), and the
-# backend suite must stay green against the produced bundle. It rides the
-# repo's release signal (an r<N> tag push, D-33.2's convention) and a
-# manual dispatch — the "first real build" that settles D-32.5 can be run
-# by an operator at any time.
+# The dashboard is buildless (RFC 0032, A-76): one dependency-free HTML
+# file, "built" by copying into the wheel's package data. This job asserts
+# the vendored copy matches the source byte-for-byte and that the backend
+# suite stays green — the npm-builder toolchain the first cut used is gone
+# with the framework.
 
 on:
   workflow_dispatch:
@@ -15,7 +12,6 @@ on:
     tags:
       - "r*"
 
-# Read-only: the job only builds and asserts, it never pushes.
 permissions:
   contents: read
 
@@ -26,61 +22,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      # The vendored bundle is the baseline the fresh build must reproduce
-      # (D-32.5). Snapshot it before the build overwrites src/torve/_web —
-      # the build lands in the working tree, and the committed bundle is
-      # what the wheel ships, so the two must agree.
-      - name: Snapshot the vendored bundle
-        run: |
-          set -euo pipefail
-          if [ ! -f src/torve/_web/index.html ]; then
-            echo "::error::no vendored bundle at src/torve/_web — the release build hash-checks the committed bundle against a fresh npm build (D-32.5); run web/scripts/build.sh and commit the result" >&2
-            exit 1
-          fi
-          cp -a src/torve/_web /tmp/bundle-vendored
-
-      # The org's npm-builder image (morzecrew/platform-images, images/
-      # npm-builder): build-js-app does the frozen npm install, runs the
-      # project build, and verifies the output — it must exist, hold an
-      # index.html, and have been written by this build, so a build that
-      # silently emits nothing fails here instead of shipping. Vite writes
-      # into src/torve/_web (web/vite.config.ts outDir); APP_ROOT is the
-      # project dir and BUILD_OUTPUT_DIR where the framework writes.
-      # Pinned by digest — the tag is the image's immutable dated tag
-      # (platform-images publishes :<version>-<yyyymmdd>-<run>; cleanup
-      # only removes untagged versions, so this reference stays put).
-      - name: Build the bundle with npm-builder
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/app" \
-            -e APP_ROOT=/app/web \
-            -e BUILD_OUTPUT_DIR=/app/src/torve/_web \
-            ghcr.io/morzecrew/npm-builder:24-20260831-33386125930.1@sha256:3e0b390ba45f6f082d903f382b4e6a2c783c06505736fbc453940088cd6cc1ac \
-            build-js-app
-
-      # The hash check (D-32.5, vendored-and-hash-checked): the committed
-      # bundle must equal a fresh build of the current source — the same
-      # drift-check shape `torve rfc check` applies to INDEX.md. A mismatch
-      # means web/ changed without the bundle being rebuilt and committed,
-      # and the wheel would ship stale assets.
-      - name: Hash-check the vendored bundle against the fresh build
-        run: |
-          set -euo pipefail
-          if ! diff_out="$(diff -rq /tmp/bundle-vendored src/torve/_web 2>&1)"; then
-            echo "::error::vendored bundle at src/torve/_web does not match a fresh npm build — run web/scripts/build.sh and commit the resulting bundle" >&2
-            printf '%s\n' "$diff_out" >&2
-            exit 1
-          fi
-
+      - name: vendored bundle matches source
+        run: cmp web/index.html src/torve/_web/index.html
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: false
-      - run: uv sync --frozen
-
-      # The backend suite must stay green against the produced bundle: the
-      # serve tests exercise exactly the bundle that just landed in
-      # src/torve/_web, which is the package data the wheel ships.
-      - name: Assert the backend suite stays green against the produced bundle
-        run: uv run pytest
+      - run: uv sync --frozen --extra serve
+      - run: uv run pytest tests/test_serve.py
