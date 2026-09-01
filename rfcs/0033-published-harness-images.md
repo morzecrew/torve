@@ -280,12 +280,20 @@ same definitions with `torve sandbox build`.
 - phase: 2
   title: publish-workflow
   intent: >-
-    The ghcr publish job: buildx over the three definitions on manual or tag-shaped triggers, the immutable tag scheme with re-push refusal (D-33.2), conformance battery as the gate (D-33.5), linux/amd64 only. Doctor's image line covers remote references with their resolved digest. README gains the ghcr quickstart with a full version tag.
+    The ghcr publish job: buildx over the three definitions on manual or tag-shaped triggers, the immutable tag scheme with re-push refusal (D-33.2), conformance battery as the gate (D-33.5), linux/amd64 only. README gains the ghcr quickstart with a full version tag.
   scope:
     - ".github/workflows/**"
+    - "README.md"
+  acceptance:
+    - "uv run ruff check ."
+  depends_on: [1]
+- phase: 3
+  title: doctor-remote-digest
+  intent: >-
+    Doctor's image line covers remote references: a tier naming a registry reference prints the resolved digest beside it, the same line local images already get, so "what exactly will run" has one answer for both kinds of reference. No new check — resolution failure already fails dispatch loudly.
+  scope:
     - "src/torve/cli/doctor.py"
     - "tests/test_cli.py"
-    - "README.md"
   acceptance:
     - "uv run pytest tests/test_cli.py"
     - "uv run mypy src"
@@ -293,3 +301,6 @@ same definitions with `torve sandbox build`.
     - "uv run ruff check ."
   depends_on: [1]
 ```
+
+*(Phase 2 split into phases 2–3 on 2026-09-01, pre-mint: sizing routed
+the original combined phase `too_large`.)*
