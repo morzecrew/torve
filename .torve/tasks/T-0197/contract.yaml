@@ -5,11 +5,19 @@ rfc: rfcs/0030-the-document-threshold.md
 phase: 2
 role: implement
 title: threshold verdict
-intent: document_threshold over the standing result and the size verdict, with the D-30.3
-  rule in configuration; intake lint gains the document_required error naming the crossings,
-  adoption refuses it with exit 3, and the refusal text routes to authoring without corpus
-  coordinates in user-facing strings. Tests pin each clause, the ride-through case and both
-  enforcement surfaces.
+intent: >-
+  document_threshold over the standing result and the size verdict, with
+  the D-30.3 rule in configuration; intake lint gains the
+  document_required error naming the crossings, adoption refuses it with
+  exit 3, and the refusal text routes to authoring without corpus
+  coordinates in user-facing strings. Tests pin each clause, the
+  ride-through case and both enforcement surfaces. A family of decision
+  identifiers is not a document — RFC 0001 alone carries several families
+  (D-2, D-25, D-A.*), so counting families trips the two-document clause
+  on a single document; count distinct accepted documents, resolved
+  through the corpus parse that already knows which document owns each
+  identifier. The blocker that convicted the first form was exactly this
+  overcount.
 depends_on:
 - T-0196
 parent: null
@@ -75,4 +83,4 @@ budget:
   wallclock_minutes: null
   tokens: null
 tier: executor
-tier_variant: null
+tier_variant: heavy
