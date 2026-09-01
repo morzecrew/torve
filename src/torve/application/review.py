@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from torve.application.ports import (
     Agent,
     AgentContext,
+    AgentResult,
     Broker,
     BrokerBudget,
     BrokerHandle,
@@ -275,6 +276,16 @@ def run_review(
     state.sandbox_id = handle.id
     state.save()
 
+    # T-0172: the harness names the session trace after the workspace it is
+    # given — which for a review is the target's worktree — so without this
+    # the reviewer's session would overwrite the executor's trace and destroy
+    # the very evidence the review exists to look at. The executor's trace is
+    # kept byte-for-byte (its record cites it) and the review's own session is
+    # recorded under the review task's id (D-5.3: the review never authors the
+    # target's trace).
+    executor_trace = naming.trace_file(worktree, 1)
+    saved_executor_trace = executor_trace.read_bytes() if executor_trace.is_file() else None
+
     try:
         result = agent.run(
             AgentContext(
@@ -294,6 +305,29 @@ def run_review(
         runtime.destroy(handle)
         state.sandbox_id = None
         state.save()
+
+        # The reviewer's session may have been written over the executor's
+        # trace path before anything else could fail — put the executor's
+        # evidence back either way (or drop the review's session from a path
+        # that never held one before).
+        if saved_executor_trace is not None:
+            executor_trace.write_bytes(saved_executor_trace)
+        else:
+            executor_trace.unlink(missing_ok=True)
+
+    # The review's session lives under its own id, named exactly as the
+    # harness would have named it had it been given the review's workspace;
+    # the record's trace_ref then points at evidence that survives the review.
+    review_trace = naming.trace_file(naming.worktree(root, review.id), 1)
+    review_trace.write_text(result.output, encoding="utf-8")
+
+    result = AgentResult(
+        exit_code=result.exit_code,
+        output=result.output,
+        cost_usd=result.cost_usd,
+        model_version=result.model_version,
+        trace_ref=str(review_trace),
+    )
 
     broker_usage = (
         broker.usage(broker_handle) if broker is not None and broker_handle is not None else None

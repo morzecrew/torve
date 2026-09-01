@@ -565,3 +565,88 @@ def test_no_forge_leg_means_no_push(rig):
     assert state.state is TaskState.READY
     assert vcs.commits, "the candidate still commits locally"
     assert vcs.pushed == []
+
+
+def test_an_empty_implement_diff_is_a_red_attempt_retried_to_the_ceiling(repo):
+    """T-0172: an implement attempt that changed nothing must be a red
+    attempt — retried toward the poison ceiling, with a fact naming the
+    empty diff — never a green promotion of an unchanged tree. This runs
+    the real gate pass (not a scripted one), so the refusal exercised is
+    the shipped one. The contract sits on `main`: the worktree is cut
+    there, and an untracked contract copy would itself read as a change."""
+    import json
+
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.gates.sabotage import base_task
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    repo.task(base_task(allow=["src/**"]), None)
+    repo.commit("task minted")
+
+    config = RunnerConfig(poison_ceiling=2)
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),  # exits 0, writes nothing
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation.reason == "poison_ceiling"
+    assert state.attempts == 2
+    facts = [event["fact"] for event in state.history]
+    assert facts.count("gates red: empty diff against base — no changes produced") == 2
+
+    # RFC 0004 §6: the spend of each refused attempt survives as a red
+    # record — two attempts, two red gate records.
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    assert len(records) == 2
+    assert all(r["task_id"] == "T-9001" and r["exit_code"] == 1 for r in records)
+
+
+def test_a_noop_whose_only_trace_is_the_contract_copy_is_red_to_the_ceiling(repo):
+    """T-0172, the incident's own shape end to end: the contract was minted
+    after the base, so the worktree cut there lacks it and the gate pass's
+    own copy is the only file a no-op attempt leaves — an untracked
+    bookkeeping file, implicitly in scope. It must not read as candidate
+    work: the no-op is still a red attempt, retried toward the poison
+    ceiling, exactly like the empty-diff case with a tracked contract."""
+    import json
+
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.gates.sabotage import base_task
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    # Minted after the base commit and never committed: absent from every
+    # worktree cut at base, present only as the root's untracked contract.
+    repo.task(base_task(allow=["src/**"]), None)
+
+    config = RunnerConfig(poison_ceiling=2)
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),  # exits 0, writes nothing
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation.reason == "poison_ceiling"
+    assert state.attempts == 2
+    facts = [event["fact"] for event in state.history]
+    assert facts.count("gates red: empty diff against base — no changes produced") == 2
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    assert len(records) == 2
+    assert all(r["task_id"] == "T-9001" and r["exit_code"] == 1 for r in records)

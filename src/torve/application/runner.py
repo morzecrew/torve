@@ -78,8 +78,8 @@ from torve.config.runconfig import (
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
-from torve.gates.context import build_context, resolve_base
-from torve.gates.runner import run_gates
+from torve.gates.context import GateContext, build_context, resolve_base
+from torve.gates.runner import RunReport, run_gates
 
 # ----------------------- #
 
@@ -520,6 +520,22 @@ def _run_gates_in_worktree(
         )
 
         ctx.execute = executor
+
+        if _is_empty_implement_diff(ctx):
+            # T-0172: an implement attempt that changed nothing against the
+            # merge base is a no-op — refusing it here makes the loop read a
+            # red gates fact and retry toward the poison ceiling, instead of
+            # blessing an unchanged tree green. The attempt already spent
+            # (RFC 0004 §6), so the red record carries that cost and names
+            # the refusal; the battery itself would only repeat the same
+            # verdicts over a tree the agent never touched.
+            digest = config_hash(manifest_path, worktree, config, image_digest=image_digest)
+            record = build_record(ctx, RunReport(exit_code=1), digest, agent=agent_meta)
+            append_record(root / manifest.telemetry, record)
+            summary = "empty diff against base — no changes produced"
+
+            return 1, summary, digest, [], ctx.patch
+
         report = run_gates(ctx)
 
     finally:
@@ -531,6 +547,55 @@ def _run_gates_in_worktree(
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
     return report.exit_code, summary, digest, report.results, ctx.patch
+
+
+def _task_bookkeeping(task_id: str) -> set[str]:
+    """The engine's own files for one task, canonical and legacy layouts —
+    the same set the scope gate skips (gates/scope.py). They are not
+    candidate work: an attempt whose only trace is its own contract copy
+    changed nothing an operator would review. Keep the two lists in step."""
+
+    return {
+        f"{layout.TORVE_DIR}/tasks/{task_id}/contract.yaml",
+        f"{layout.TORVE_DIR}/tasks/{task_id}/log.yaml",
+        f"{layout.TORVE_DIR}/logs/{task_id}.yaml",
+        f"{layout.TORVE_DIR}/tasks/{task_id}.yaml",
+        f"logs/{task_id}.yaml",
+        f"tasks/{task_id}.yaml",
+    }
+
+
+def _is_empty_implement_diff(ctx: GateContext) -> bool:
+    """An implement attempt whose candidate changed nothing must read as a
+    red attempt (T-0172) — a green verdict over an unchanged tree is exactly
+    how a silent no-op promoted. The candidate's diff is judged excluding
+    the task's own contract and log: a worktree cut at base before the
+    mint carries no contract, so the gate pass copies it in as an untracked
+    file — the engine's bookkeeping, implicitly in scope, and no more
+    candidate work than the tree's gitignored artefacts. The integration
+    task's empty diff stays legal (D-26.6: at adoption `depends_on` grows
+    with every child, the battery over the composed tree is the point, and
+    its landing is the decomposition's completion); revert and review roles
+    are untouched. No base resolved means there is nothing to diff against,
+    so nothing to refuse."""
+
+    task = ctx.task
+
+    if (
+        task is None
+        or task.role != "implement"
+        or task.depends_on
+        or ctx.merge_base is None
+    ):
+        return False
+
+    bookkeeping = _task_bookkeeping(task.id)
+
+    return all(
+        entry.path in bookkeeping
+        and (entry.old_path is None or entry.old_path in bookkeeping)
+        for entry in ctx.diff
+    )
 
 
 # ....................... #

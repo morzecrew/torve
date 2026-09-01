@@ -257,3 +257,79 @@ def test_parse_findings_survives_ansi_and_multiline_documents():
     )
     found = parse_findings(output)
     assert found is not None and found[0].severity == "blocker"
+
+
+class HarnessLikeReviewer:
+    """Mimics the harness's trace behaviour: writes the session trace
+    beside the workspace it is given — which for a review is the target's
+    worktree (the collision T-0172 fixes) — and returns that trace_ref."""
+
+    def __init__(self, output):
+        self.output = output
+
+    def run(self, ctx):
+        trace = naming.trace_file(ctx.workspace, ctx.attempt)
+        trace.write_text(self.output, encoding="utf-8")
+        return AgentResult(exit_code=0, output=self.output, trace_ref=str(trace))
+
+
+def test_the_review_trace_lands_under_the_review_id_and_spares_the_executors(review_rig):
+    # T-0172: the reviewer's session used to overwrite the executor's trace
+    # at .wt/<target>.a1.trace.log — the review's own trace must land at
+    # .wt/<review-id>.a1.trace.log and the executor's evidence must survive
+    # byte-for-byte (its record still cites it).
+    repo, _runtime, deps_for = review_rig
+
+    # The executor's trace, as its own record cites it (RFC 0004 §4).
+    executor_trace = naming.trace_file(repo.root / ".wt" / "T-9001", 1)
+    executor_trace.parent.mkdir(parents=True, exist_ok=True)
+    executor_trace.write_bytes(b"the executor's session, verbatim\n")
+
+    # The review's record rides the worktree's manifest telemetry path.
+    (repo.root / ".wt" / "T-9001" / ".torve").mkdir(parents=True, exist_ok=True)
+    (repo.root / ".wt" / "T-9001" / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    output = reviewer_output([])
+    state = run_task(
+        repo.root, task_for(repo), review_config(), deps_for(HarnessLikeReviewer(output))
+    )
+
+    assert state.state is TaskState.READY
+    # The executor's trace survived the review byte-for-byte.
+    assert executor_trace.read_bytes() == b"the executor's session, verbatim\n"
+
+    review_id = state.reviewed_by
+    assert review_id is not None
+
+    # The review's own session is recorded under the review task id, named
+    # exactly as the harness would have named it for the review's workspace.
+    review_trace = naming.trace_file(repo.root / ".wt" / review_id, 1)
+    assert review_trace.is_file()
+    assert review_trace.read_text(encoding="utf-8") == output
+
+    # And the review's record cites it — the evidence telemetry points at
+    # actually exists, and it is never the executor's path.
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    review_records = [r for r in records if r.get("kind") == "review"]
+    assert len(review_records) == 1
+    assert review_records[0]["task_id"] == review_id
+    assert review_records[0]["agent"]["trace_ref"] == str(review_trace)
+
+
+def test_a_review_session_never_leaks_onto_the_executors_trace_path(review_rig):
+    # T-0172: without a pre-existing executor trace, the reviewer's session
+    # must not remain at .wt/<target>.a1.trace.log under the executor's name
+    # — an evidence file in the wrong place is as misleading as a missing one.
+    repo, _runtime, deps_for = review_rig
+    output = reviewer_output([])
+
+    state = run_task(
+        repo.root, task_for(repo), review_config(), deps_for(HarnessLikeReviewer(output))
+    )
+
+    assert state.state is TaskState.READY
+    executor_trace = naming.trace_file(repo.root / ".wt" / "T-9001", 1)
+    assert not executor_trace.exists()

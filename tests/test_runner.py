@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 
 import pytest
+import yaml
 from conftest import context_for
 
 from torve.application.telemetry import append_record, build_record, config_hash
 from torve.config import layout
+from torve.config.runconfig import RunnerConfig
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 
@@ -379,4 +381,240 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
     assert failed and failed[0]["agent"]["cost_usd"] == 4.05
     assert failed[0]["task_id"] == "T-9020"
     assert failed[0]["exit_code"] == 1
+
+
+class _NoSandboxRuntime:
+    """The gate pass under test never opens a sandbox: the empty-diff
+    refusal fires before the battery, and the pass-through manifests carry
+    no shell gates. Any sandbox call is a test defect."""
+
+    def create(self, spec, workspace):
+        raise AssertionError("no sandbox should be opened")
+
+    def exec(self, handle, command, timeout_s):
+        raise AssertionError("no command should execute")
+
+    def sync_out(self, handle, workspace):
+        raise AssertionError("no sandbox to sync")
+
+    def destroy(self, handle):
+        raise AssertionError("no sandbox to destroy")
+
+    def resolve_image(self, image):
+        return "sha256:mock"
+
+
+def _cut_worktree(repo, manifest, task_doc):
+    """Seed a repo whose `main` carries the gate manifest and the task
+    contract (tracked, so the worktree cut there is clean), and return a
+    fresh worktree at its tip."""
+    from torve.adapters.workspace.git import GitWorkspace
+
+    repo.git("checkout", "-q", "main")
+    repo.write(".torve/gates.yaml", yaml.safe_dump(manifest, sort_keys=False))
+    repo.task(task_doc, None)
+    repo.commit("task minted")
+
+    return GitWorkspace(repo.root).create(TASK_ID, "main")
+
+
+def test_the_empty_implement_diff_predicate():
+    # T-0172: only a standalone implement task with a resolvable base and
+    # nothing changed reads as a no-op. The integration task's empty diff
+    # stays legal (D-26.6: `depends_on` marks the composed tree as the
+    # point); revert/review roles and base-less repos are untouched.
+    from pathlib import Path
+
+    from torve.application.runner import _is_empty_implement_diff
+    from torve.config.manifest import Manifest
+    from torve.domain.task import Task
+    from torve.gates.context import DiffEntry, GateContext
+
+    def ctx(*, task, merge_base="main-tip", diff=()):
+        return GateContext(
+            root=Path("."),
+            manifest=Manifest(),
+            head_sha="head",
+            base="main",
+            merge_base=merge_base,
+            diff=list(diff),
+            task=task,
+        )
+
+    implement = Task(id="T-9001", role="implement", decisions=[])
+    integration = Task(id="T-9002", role="implement", decisions=[], depends_on=["T-9001"])
+    revert = Task(id="T-9003", role="revert", decisions=[], targets=["T-9001"])
+
+    assert _is_empty_implement_diff(ctx(task=implement))
+    # An untracked-only candidate is a change, not a no-op.
+    assert not _is_empty_implement_diff(
+        ctx(task=implement, diff=[DiffEntry(status="A", path="new.txt")])
+    )
+    # The engine's own contract copy — a worktree cut at base before the
+    # mint carries none, so the gate pass's copy is the only untracked
+    # file a no-op leaves — is bookkeeping, not candidate work.
+    assert _is_empty_implement_diff(
+        ctx(
+            task=implement,
+            diff=[DiffEntry(status="A", path=".torve/tasks/T-9001/contract.yaml")],
+        )
+    )
+    assert _is_empty_implement_diff(
+        ctx(
+            task=implement,
+            diff=[
+                DiffEntry(status="A", path=".torve/tasks/T-9001/contract.yaml"),
+                DiffEntry(status="A", path=".torve/tasks/T-9001/log.yaml"),
+            ],
+        )
+    )
+    # A real file beside the bookkeeping is a candidate, not a no-op; so is
+    # another task's contract, which the scope gate would not skip.
+    assert not _is_empty_implement_diff(
+        ctx(
+            task=implement,
+            diff=[
+                DiffEntry(status="A", path=".torve/tasks/T-9001/contract.yaml"),
+                DiffEntry(status="A", path="src/app.py"),
+            ],
+        )
+    )
+    assert not _is_empty_implement_diff(
+        ctx(task=implement, diff=[DiffEntry(status="A", path=".torve/tasks/T-9999/contract.yaml")])
+    )
+    # No base resolved: nothing to diff against, nothing to refuse.
+    assert not _is_empty_implement_diff(ctx(task=implement, merge_base=None))
+    assert not _is_empty_implement_diff(ctx(task=integration))
+    assert not _is_empty_implement_diff(ctx(task=revert))
+    assert not _is_empty_implement_diff(ctx(task=None))
+
+
+def test_an_empty_implement_diff_is_refused_before_the_battery(repo):
+    """T-0172: end to end through the shipped gate pass — an implement
+    attempt that changed nothing comes back red with a fact naming the
+    empty diff, and the attempt's spend survives as a red record (RFC 0004
+    §6). The battery is never blessed over a tree the agent never touched."""
+    from torve.application.runner import _run_gates_in_worktree
+
+    repo.seed()
+    worktree = _cut_worktree(repo, BASE_MANIFEST, base_task(allow=["src/**"]))
+
+    exit_code, summary, _digest, results, patch = _run_gates_in_worktree(
+        worktree,
+        TASK_ID,
+        RunnerConfig(),
+        _NoSandboxRuntime(),
+        "run-1",
+        repo.root,
+        agent_meta={"adapter": "fake", "model": None},
+        base="main",
+    )
+
+    assert exit_code == 1
+    assert summary == "empty diff against base — no changes produced"
+    assert results == []
+    assert patch == ""
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    assert len(records) == 1
+    assert records[0]["task_id"] == TASK_ID
+    assert records[0]["exit_code"] == 1
+    assert records[0]["results"] == []
+
+
+def test_an_empty_implement_diff_is_refused_when_the_contract_was_minted_after_base(repo):
+    """T-0172, the incident's own shape: the contract was minted after the
+    base, so the worktree cut at base carries none and the gate pass's copy
+    of it is the only file a no-op attempt leaves behind. That copy must
+    not read as candidate work — the refusal fires, before the battery."""
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.application.runner import _run_gates_in_worktree
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    # Minted but never committed: untracked at the root, absent from the
+    # worktree the dispatch cuts — exactly how a fresh mint reads to the
+    # runner. The gate pass's own copy step brings it into the worktree.
+    repo.task(base_task(allow=["src/**"]), None)
+    worktree = GitWorkspace(repo.root).create(TASK_ID, "main")
+
+    exit_code, summary, _digest, results, _patch = _run_gates_in_worktree(
+        worktree,
+        TASK_ID,
+        RunnerConfig(),
+        _NoSandboxRuntime(),
+        "run-1",
+        repo.root,
+        agent_meta={"adapter": "fake", "model": None},
+        base="main",
+    )
+
+    assert exit_code == 1
+    assert summary == "empty diff against base — no changes produced"
+    assert results == []
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    assert len(records) == 1
+    assert records[0]["task_id"] == TASK_ID
+    assert records[0]["exit_code"] == 1
+    assert records[0]["results"] == []
+
+
+def test_an_integration_tasks_empty_diff_stays_legal(repo):
+    """D-26.6: at adoption the parent becomes the integration task — its
+    `depends_on` grows with every child and its landing is the
+    decomposition's completion, so its legitimately-empty diff is not a
+    refused no-op."""
+    from torve.application.runner import _run_gates_in_worktree
+
+    repo.seed()
+    task_doc = base_task(allow=["src/**"])
+    task_doc["depends_on"] = ["T-9000"]
+    worktree = _cut_worktree(repo, {"schema_version": 1, "gates": []}, task_doc)
+
+    exit_code, summary, _digest, results, _patch = _run_gates_in_worktree(
+        worktree,
+        TASK_ID,
+        RunnerConfig(),
+        _NoSandboxRuntime(),
+        "run-1",
+        repo.root,
+        agent_meta={"adapter": "fake", "model": None},
+        base="main",
+    )
+
+    assert exit_code == 0
+    assert summary == ""
+    assert results == []
+
+
+def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
+    """An untracked-only candidate is a change, not a no-op — the pass must
+    proceed and record a green verdict."""
+    from torve.application.runner import _run_gates_in_worktree
+
+    repo.seed()
+    worktree = _cut_worktree(repo, {"schema_version": 1, "gates": []}, base_task(allow=["src/**"]))
+    (worktree / "notes.txt").write_text("agent's own notes\n", encoding="utf-8")
+
+    exit_code, _summary, _digest, results, _patch = _run_gates_in_worktree(
+        worktree,
+        TASK_ID,
+        RunnerConfig(),
+        _NoSandboxRuntime(),
+        "run-1",
+        repo.root,
+        agent_meta={"adapter": "fake", "model": None},
+        base="main",
+    )
+
+    assert exit_code == 0
+    assert results == []
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    assert len(records) == 1
+    assert records[0]["exit_code"] == 0
 
