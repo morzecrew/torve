@@ -269,7 +269,12 @@ export function Costs({ ctx }) {
     col("what", (r) => (r.kind === "shadow" ? "replay" : r.shadow ? "replay-attempt" : r.tier || r.kind), { cell: what }),
     col("regime", (r) => (r.config_hash || "").slice(0, 8), { cls: "id dim" }),
     col("model", (r) => r.model || r.adapter, {}),
-    col("time", "wall_time_s", { num: true, cls: "dim", cell: (r) => fmtDur(r.wall_time_s) }),
+    col("time", "wall_time_s", {
+      num: true, cls: "dim",
+      // wall_est: pre-clock records fall back to the broker's run clock,
+      // cumulative across retries — shown as approximate.
+      cell: (r) => (r.wall_est ? "~" : "") + fmtDur(r.wall_time_s),
+    }),
     col("cost", "cost_usd", { num: true, cell: (r) => fmt$(r.cost_usd) }),
     col("in", "input_tokens", { num: true, cls: "dim", cell: (r) => fmtK(r.input_tokens) }),
     col("cache", "cache_read_tokens", { num: true, cls: "dim", cell: (r) => fmtK(r.cache_read_tokens) }),

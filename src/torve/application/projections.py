@@ -499,11 +499,14 @@ def _costs(root: Path) -> list[dict[str, Any]]:
         if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("adapter") != "fake":
             block = cast("dict[str, Any]", agent)
             broker: Any = block.get("broker")
-            wall_time_s = (
-                cast("dict[str, Any]", broker).get("wall_time_s")
-                if isinstance(broker, dict)
-                else None
-            )
+            # The attempt's own clock when the record has one; older records
+            # fall back to the broker's run clock, which reads cumulative on
+            # retries — flagged as an estimate so no reader trusts it flat.
+            wall_time_s = block.get("wall_time_s")
+            wall_estimated = wall_time_s is None
+
+            if wall_time_s is None and isinstance(broker, dict):
+                wall_time_s = cast("dict[str, Any]", broker).get("wall_time_s")
 
             found.append(
                 {
@@ -526,9 +529,13 @@ def _costs(root: Path) -> list[dict[str, Any]]:
                     "model": block.get("model"),
                     "provider": block.get("provider"),
                     "model_version": block.get("model_version"),
-                    # Wall clock as the broker observed it — time is spend
-                    # too, and absent stays absent like the token shape.
-                    **({"wall_time_s": wall_time_s} if wall_time_s is not None else {}),
+                    # Wall clock — time is spend too, and absent stays
+                    # absent like the token shape.
+                    **(
+                        {"wall_time_s": wall_time_s, **({"wall_est": True} if wall_estimated else {})}
+                        if wall_time_s is not None
+                        else {}
+                    ),
                     # Token shape (D-4.6 self-reported regime): absent keys
                     # stay absent — a harness that reported nothing must not
                     # read as zero.

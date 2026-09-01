@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -1065,6 +1066,9 @@ def real_hooks(
         )
 
         withheld = _withhold_never_send(worktree, config.providers.never_send)
+        # The attempt's own clock, sandbox creation included — the broker's
+        # wall_time_s spans the whole run and reads cumulative on retries.
+        attempt_clock = time.monotonic()
         handle = deps.runtime.create(spec, worktree)
         state.sandbox_id = handle.id
         state.save()
@@ -1091,6 +1095,7 @@ def real_hooks(
                 model_version=result.model_version,
                 cost_usd=result.cost_usd,
                 trace_ref=result.trace_ref,
+                wall_time_s=round(time.monotonic() - attempt_clock, 3),
             )
             # The attempt's self-reported token counts ride the same block
             # (T-0186): only the counts the adapter reported — absent keys
