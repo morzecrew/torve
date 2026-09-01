@@ -71,4 +71,4 @@ budget:
   wallclock_minutes: null
   tokens: null
 tier: executor
-tier_variant: null
+tier_variant: heavy
