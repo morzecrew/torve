@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32", "A-41"]
+amended_by: ["A-32", "A-41", "A-75"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -199,6 +199,7 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.12 | `ASSUMED` | Retry captures revision feedback before the candidate is superseded: the previous candidate's diff and the pull request's `path:line`-anchored review threads from `review.feedback_from` logins — verbatim, whole threads, attributed, size-capped with recorded truncation; an empty allow-list turns the loop off. Added by amendment A-32 2026-08-24. *Amended by A-37 2026-08-25 (registered on RFC 0010, D-10.10): the branch is no longer deleted at requeue — the next attempt's leased force-push supersedes it; capture-first stands unchanged* | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` | A stranger's comment must never reach an agent; a parsed format rots with every vendor redesign |
 | D-5.13 | `ASSUMED` | A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs — revise, not restart; scope, gates and the sha-bound approval are unchanged, and revision spend stays behind the human retry. Added by amendment A-32 2026-08-24 | `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py` | The feedback channel steers attempts, never landings |
 | D-5.14 | `ASSUMED` | The landing answers the review threads its revision consumed: capture retains each thread's reply address, and the tick's landing leg posts one reply per captured root — composed from records, saying what the loop did (captured, revised, landed as this sha) and never what the finding deserves; each reply carries its idempotency marker so a replay is absorbed at the destination, a failed answer waits for the next tick, and an unconsumed record answers nothing. Added by amendment A-41 2026-08-25 | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | A reviewer whose finding vanishes into a merged pull request stops reading; the loop must close its own conversations |
+| D-5.15 | `ASSUMED` | Non-blocking findings get a ledger, not a lifecycle: `torve context` gains "Findings awaiting the operator" — every kept finding from a landed target's review, marked possibly_addressed when a later contract's text cites the review's task id (D-7.24's possibly_landed discipline applied to findings); the engine still mints nothing from a finding, and the operator triages the ledger in batch — per-finding instant minting is a habit, never a requirement. Added by amendment A-75 2026-09-01 | `src/torve/application/projections.py` | A finding recorded into telemetry and read by nobody is a review that ran for nothing; a ledger keeps the operator honest without making the engine decide work exists (D-2) |
 
 D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
 
@@ -211,12 +212,8 @@ D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the i
 ```yaml
 - phase: 1
   title: The finding and the role's mechanics
-  intent: |
-    Findings become a domain type and the review role becomes real in the
-    contract: Task gains targets, a review task refuses acceptance commands
-    by validation, the acceptance gate is skipped for the role rather than
-    passed with an empty list, and evidence location becomes a check that
-    discards findings citing coordinates nothing can resolve.
+  intent: >-
+    Findings become a domain type and the review role becomes real in the contract: Task gains targets, a review task refuses acceptance commands by validation, the acceptance gate is skipped for the role rather than passed with an empty list, and evidence location becomes a check that discards findings citing coordinates nothing can resolve.
   scope:
     - "src/torve/domain/**"
     - "src/torve/gates/**"
@@ -228,19 +225,11 @@ D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the i
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: []
 - phase: 2
   title: The review run
-  depends_on: [1]
-  intent: |
-    Review runs through the pipeline: input assembled from the diff, the
-    target's contract, inherited decisions and gate results — never the
-    author's trace; the workspace mounts read-only and the reviewer holds
-    no credential beyond its tier's; findings parse from the agent's
-    output, unlocatable evidence is discarded before anyone sees it, a
-    surviving blocker escalates the target as blocker_finding and
-    everything else is recorded on the attempt; the runner mints and
-    drives the review task when its target's gates go green, replacing
-    the review-not-configured bridge — off by default in configuration.
+  intent: >-
+    Review runs through the pipeline: input assembled from the diff, the target's contract, inherited decisions and gate results — never the author's trace; the workspace mounts read-only and the reviewer holds no credential beyond its tier's; findings parse from the agent's output, unlocatable evidence is discarded before anyone sees it, a surviving blocker escalates the target as blocker_finding and everything else is recorded on the attempt; the runner mints and drives the review task when its target's gates go green, replacing the review-not-configured bridge — off by default in configuration.
   scope:
     - "src/torve/application/**"
     - "src/torve/adapters/**"
@@ -253,16 +242,11 @@ D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the i
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: [1]
 - phase: 3
   title: Degraded mode and the seeded corpus
-  depends_on: [2]
-  intent: |
-    Reviews without a contract run in degraded mode and are told so
-    explicitly, so no specification is invented; the seeded-defect corpus
-    becomes a repository artefact under .torve/review-corpus/ with a
-    command that replays every case through the reviewer tier and reports
-    which expected findings were caught — the regression harness that
-    gates every prompt or model change.
+  intent: >-
+    Reviews without a contract run in degraded mode and are told so explicitly, so no specification is invented; the seeded-defect corpus becomes a repository artefact under .torve/review-corpus/ with a command that replays every case through the reviewer tier and reports which expected findings were caught — the regression harness that gates every prompt or model change.
   scope:
     - "src/torve/cli/**"
     - ".torve/review-corpus/**"
@@ -274,6 +258,7 @@ D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the i
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: [2]
 ```
 
 ## 10. Exit criteria
@@ -284,8 +269,32 @@ D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the i
 
 ## Amendments
 
-### A-32 — 2026-08-24 — the revision loop (adds §4a, D-5.12–D-5.13)
+### A-75 — 2026-09-01 — the findings ledger (adds D-5.15)
+**Found in the first capable-reviewer week.** With opus on the review seat
+the non-blocking findings became consistently worth acting on — and the
+operator was hand-minting a follow-up task per finding within minutes,
+because the alternative was guaranteed loss: a kept finding lands in the
+review's telemetry record and no surface ever shows it again. Proposals
+got "awaiting the author" (D-7.24); findings got silence, and the
+silence was being papered over by operator reflex at finding granularity
+— fix-forward churn with no batch judgement.
 
+**Changed:** D-5.15 — `torve context` gains "Findings awaiting the
+operator": every kept finding from a landed target's review, with its
+review id, severity and claim, marked `possibly_addressed` when a later
+contract's text cites the review's task id — the same weak-citation
+discipline `possibly_landed` uses, honest about being evidence rather
+than proof. The engine still mints nothing from a finding; the ledger
+exists so the operator can triage in batch instead of racing the
+telemetry scroll.
+
+**Deliberately unchanged:** the severity consequence. A reviewer-major
+still lands and records — one capable model's "major" is still one
+model's opinion, the blocker escalation path exists for certainty, and
+promoting majors to blocking would hand the reviewer a veto the corpus
+never graded. Reopen against ledger evidence, not incident memory.
+
+### A-32 — 2026-08-24 — the revision loop (adds §4a, D-5.12–D-5.13)
 **Found in operation** — the first external reviewer connected to the
 lab made the gap concrete: its findings reached the human at the
 approval gate, but a `retry` re-dispatched from scratch, and the next
@@ -310,7 +319,6 @@ human act gating all spend — nothing auto-retries because a bot
 commented.
 
 ### A-41 — 2026-08-25 — the engine answers its reviewers (adds D-5.14)
-
 **Found in operation** — the disjoint experiment batch's Major finding
 travelled the whole loop: captured, revised against, fixed, landed —
 and the thread that started it heard nothing. The pull request merged
