@@ -5,6 +5,7 @@ conformance battery."""
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -149,3 +150,97 @@ def test_sandbox_build_refuses_an_unknown_definition(tmp_path):
     root = seed_repo(tmp_path, {})
     result = CliRunner().invoke(app, ["sandbox", "build", "ghost", "--root", str(root)])
     assert result.exit_code == 3, result.output
+
+
+# ....................... #
+# definition conventions (RFC 0033 §6): the publishable definitions pin
+# their harness versions behind defaulted ARGs (D-33.3) and keep the
+# toolkit under /opt/torve/ with one transition revision of old-path
+# symlinks (D-33.4). The ARG-pin check is the regex-level test the RFC
+# names; the toolkit contract joins the docker-gated battery below.
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# name -> (npm package, version ARG): the three publishable definitions.
+PUBLISHABLE = {
+    "claude": ("@anthropic-ai/claude-code", "CLAUDE_VERSION"),
+    "dsh": ("@deepseek-ai/dsh", "DSH_VERSION"),
+    "mimo": ("@mimo-ai/cli", "MIMO_VERSION"),
+}
+
+
+def _definition_dockerfile(name: str) -> Path:
+    return REPO_ROOT / ".torve" / "sandbox" / name / "Dockerfile"
+
+
+def test_harness_installs_ride_pinned_default_args():
+    # D-33.3: every harness install in a publishable definition consumes a
+    # version ARG whose default is a literal pin — a bump is a one-line
+    # reviewed diff, never a rebuild side effect.
+    for name, (package, arg) in PUBLISHABLE.items():
+        text = _definition_dockerfile(name).read_text(encoding="utf-8")
+        declared = re.search(rf"^ARG\s+{arg}=(\S+)\s*$", text, re.MULTILINE)
+        assert declared, f"{name}: no harness version ARG {arg} declared"
+        default = declared.group(1)
+        assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+-]*", default), (
+            f"{name}: {arg} default {default!r} is not a literal version pin"
+        )
+        assert re.search(rf"npm install -g {re.escape(package)}@\${{{arg}}}", text), (
+            f"{name}: the install does not consume ${{{arg}}}"
+        )
+
+
+# The toolkit contract per image (RFC 0033 §6): what a profile's command
+# template depends on. `answer` must exit 0 inside the container — for dsh
+# the reporter the RFC names, for claude the seed's settings file — and
+# every old path must survive as a symlink for the transition revision.
+TOOLKIT = {
+    "claude": {
+        "answer": "test -f /opt/torve/seed/.claude/settings.json",
+        "symlinks": {"/opt/claude-seed": "/opt/torve/seed"},
+    },
+    "dsh": {
+        "answer": "/opt/torve/report-usage --help >/dev/null 2>&1",
+        "symlinks": {
+            "/opt/dsh/report-usage.js": "/opt/torve/report-usage",
+            "/opt/dsh/deepseek-chat.yml": "/opt/torve/overlays/deepseek-chat.yml",
+            "/opt/dsh/qwen3.8-flash.yml": "/opt/torve/overlays/qwen3.8-flash.yml",
+            "/opt/dsh/brokered-deepseek.yml": "/opt/torve/overlays/brokered-deepseek.yml",
+            "/opt/dsh/brokered-deepseek-v4-flash.yml": (
+                "/opt/torve/overlays/brokered-deepseek-v4-flash.yml"
+            ),
+        },
+    },
+    # mimo carries no toolkit utility, so nothing a profile depends on to
+    # protect — an empty contract here would be a vacuous pass.
+}
+
+
+def _toolkit_check(name: str) -> str:
+    contract = TOOLKIT[name]
+    checks = [contract["answer"]]
+    checks += [
+        f'test -L {link} && test "$(readlink {link})" = {target}'
+        for link, target in contract["symlinks"].items()
+    ]
+    return " && ".join(checks)
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@pytest.mark.parametrize("name", ["claude", "dsh"])
+def test_toolkit_contract_answers_in_the_container(name):
+    # What CI publishes is what the battery built (D-33.5): the definition
+    # builds through the same command as an operator's, then answers.
+    built = CliRunner().invoke(
+        app, ["sandbox", "build", name, "--root", str(REPO_ROOT), "--format", "json"]
+    )
+    assert built.exit_code == 0, built.output
+    try:
+        probe = subprocess.run(
+            ["docker", "run", "--rm", f"torve-agent:{name}", "sh", "-c", _toolkit_check(name)],
+            capture_output=True,
+            text=True,
+        )
+        assert probe.returncode == 0, probe.stderr
+    finally:
+        subprocess.run(["docker", "rmi", "-f", f"torve-agent:{name}"], capture_output=True, check=False)

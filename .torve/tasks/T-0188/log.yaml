@@ -1,0 +1,52 @@
+schema_version: 1
+task: T-0188
+repo: morzecrew/torve
+base_sha: 1fd89f1a8c8908085bd859f759cac7f396a95bed
+drift_count: 0
+entries:
+- decision: D-33.1
+  grade: LOCKED
+  kind: resolved
+  action: decided
+  at: '2026-09-01T12:00:00Z'
+  attempt: 1
+  claim: >-
+    compliant close-out in the LOCKED convenience area the diff touches:
+    claude, dsh and mimo still build locally from their in-repo definitions
+    with one command (`torve sandbox build`), no engine behavior conditions
+    on an in-house image, and the stock-upstream escape hatch (unpinned
+    definition plus a longer command template) is untouched — the phase only
+    adds harness-version ARG pins, moves the toolkit under /opt/torve/ and
+    joins the definition tests to the sandbox battery, all definition-side
+  evidence: >-
+    .torve/sandbox/claude/Dockerfile:1-38 — definition-side changes only;
+    tests/test_sandbox_images.py:176-246 — the battery rebuilds each
+    definition through the same command an operator runs
+  notes: >-
+    D-33.3 and D-33.4 (ASSUMED) were implemented as specced — no departure
+    to log; D-33.5's publish side and D-33.2's tag scheme are phase 2
+    (this diff enters no .github/workflows/ file); D-33.6's git-sha label
+    question stays OPEN until a pulled image is debugged, which phase 1
+    cannot do
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  action: decided
+  at: '2026-09-01T12:05:00Z'
+  attempt: 1
+  claim: >-
+    D-33.3 demands pinned defaults but names only dsh's (0.1.1-rc.2, in the
+    RFC's example); the initial pins for claude and mimo were taken from the
+    live npm registry at implementation time — @anthropic-ai/claude-code
+    2.1.252, @mimo-ai/cli 0.1.13 — and the ARG naming follows the RFC's
+    DSH_VERSION shape (<NAME>_VERSION)
+  evidence: >-
+    .torve/sandbox/claude/Dockerfile:7 — ARG CLAUDE_VERSION=2.1.252;
+    .torve/sandbox/mimo/Dockerfile:6 — ARG MIMO_VERSION=0.1.13;
+    .torve/sandbox/dsh/Dockerfile:7 — the RFC's example pin, unchanged
+  proposal: >-
+    a version bump stays the one-line reviewed diff D-33.3 promises; when
+    the published images gain their first consumers, the phase 2 review can
+    re-pin to registry-current versions as a normal one-line amendment —
+    no schema change, no rebuild side effect

@@ -113,7 +113,25 @@ tiers:
 ```
 
 with `~/.config/torve/agents/claude-sonnet.yaml` holding the adapter,
-model and command that tier runs with.
+model and command that tier runs with:
+
+```yaml
+# ~/.config/torve/agents/claude-sonnet.yaml
+adapter: harness
+provider: anthropic
+model: claude-sonnet-5
+image: torve-agent:claude
+command: >-
+  cp -r /opt/torve/seed/. "$HOME/.claude/" && claude -p --model {model}
+  "$(cat {prompt})" --output-format json
+```
+
+The command runs inside the sandbox image, so it reaches the harness and
+the small toolkit the image bakes at `/opt/torve/` — here the claude seed,
+copied into the runtime home (`$HOME` is the container's `/tmp`) before the
+harness starts. The image itself is the one `torve sandbox build claude`
+produces from the in-repo definition, or a pinned pull from the registry
+when publishing is configured.
 
 `profile` also takes a list of names, merged left to right under the same
 rule, local keys still winning last — a tier composing a wiring layer and an
