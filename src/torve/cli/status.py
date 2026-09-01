@@ -41,14 +41,18 @@ def status(
 ) -> None:
     """Run states from the .wt/ state files."""
 
+    if fmt is Format.JSON:
+        from torve.application.projections import status_report
+
+        # The projection, verbatim: the serve endpoint renders the same
+        # envelope, so the browser and the terminal cannot disagree (D-32.1).
+        emit_json(status_report(root))
+        return
+
     from torve.application.runstate import RunState
     from torve.base import naming
 
     states = RunState.load_all(root.resolve() / naming.WORKTREE_DIR)
-
-    if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "runs": [s.to_record() for s in states]})
-        return
 
     console = out(fmt)
 

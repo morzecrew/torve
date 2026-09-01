@@ -22,6 +22,9 @@ postgres = ["forze[postgres]>=0.6.0"]
 migrate = ["yoyo-migrations>=9"]
 # The planning session's read surface — never installed into an executor image.
 mcp = ["mcp>=1.2"]
+# The loopback dashboard's HTTP stack (RFC 0032 §5) — lazy-imported behind
+# the extra, so a gates-only install never pays for it.
+serve = ["starlette>=1.0", "uvicorn>=0.30"]
 
 [project.scripts]
 torve = "torve.cli:main"
@@ -40,6 +43,8 @@ dev = [
     "types-pyyaml>=6.0.12",
     "yoyo-migrations>=9",
     "mcp>=1.2",
+    # Backs the serve endpoint tests (starlette's TestClient).
+    "starlette>=1.0",
     "vulture>=2.16",
     "deptry>=0.25.1",
     "bandit>=1.9.4",
@@ -185,11 +190,13 @@ ignore_notebooks = true
 [tool.deptry.per_rule_ignores]
 DEP002 = [
     # Imported lazily behind their extras (`torve[opensandbox]`,
-    # `torve[migrate]`, `torve[mcp]`), so no static import ties them to the
-    # codebase.
+    # `torve[migrate]`, `torve[mcp]`, `torve[serve]`), so no static import
+    # ties them to the codebase.
     "opensandbox",
     "yoyo-migrations",
     "mcp",
+    "starlette",
+    "uvicorn",
 ]
 
 # ....................... #

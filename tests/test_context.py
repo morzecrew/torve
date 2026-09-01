@@ -12,7 +12,7 @@ from test_plan import PHASING, TABLE, plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
 from torve.application.planner import plan_document, write_contracts
-from torve.application.projections import context_report, render_markdown
+from torve.application.projections import context_report, render_markdown, status_report
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli import app
@@ -768,3 +768,28 @@ def test_addressed_findings_collapse_to_the_plus_line(tmp_path):
     text = CliRunner().invoke(app, ["context", "--root", str(tmp_path)])
     assert text.exit_code == 0, text.output
     assert "possibly addressed (see JSON)" in text.output
+
+
+def test_status_report_is_the_status_json_envelope(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+
+    # A fresh checkout ships no run states: the empty envelope, exactly what
+    # `torve status --format json` prints (test_status_json_carries_persisted_records).
+    assert status_report(root) == {"schema_version": 1, "runs": []}
+
+    seed_facts(root)
+    report = status_report(root)
+
+    assert report["schema_version"] == 1
+    assert {r["task_id"] for r in report["runs"]} == {"T-0001", "T-0002"}
+    assert {r["state"] for r in report["runs"]} == {"ready", "escalated"}
+
+
+def test_status_cli_json_consumes_the_projection(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_facts(root)
+
+    cli = CliRunner().invoke(app, ["status", "--root", str(root), "--format", "json"])
+
+    assert cli.exit_code == 0, cli.output
+    assert json.loads(cli.output) == status_report(root)

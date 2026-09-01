@@ -1,0 +1,94 @@
+schema_version: 1
+task: T-0200
+repo: morzecrew/torve
+base_sha: 895f70523f2b4bae9c42ce704f55f413a9ac7266
+drift_count: 0
+entries:
+  - decision: D-32.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T10:11:48Z
+    attempt: 1
+    claim: >-
+      the server re-exposes the existing projection functions verbatim and
+      computes nothing of its own: /api/context returns context_report(root,
+      rfc_dir) and /api/status returns status_report(root), each handler a
+      single call into the projection. The status envelope had no projection
+      function — the CLI assembled it inline — so that assembly was first
+      lifted into status_report(root) in the projections module, and both the
+      CLI's `status --format json` branch and the endpoint consume the same
+      envelope: one shape, two readers.
+    evidence: >-
+      src/torve/cli/serve.py:126-137 — the two handlers are single calls into
+      the projection functions; src/torve/cli/status.py:49 — the CLI's json
+      branch emits the same status_report envelope
+    action: decided
+  - decision: D-32.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T10:12:48Z
+    attempt: 1
+    claim: >-
+      v1 is read-only and loopback-only: both API routes are GET-only (a POST
+      to /api/context is answered 405, asserted by test_api_is_read_only), the
+      only bind is BIND_HOST "127.0.0.1" passed to uvicorn.run, and no --host
+      flag exists — serve --help offers --port, --config and --root only
+      (test_serve_has_no_host_flag). No auth, because the loopback interface
+      is the whole security posture; the write path arrives only with its own
+      RFC.
+    evidence: >-
+      src/torve/cli/serve.py:32 — BIND_HOST is the only bind this verb knows,
+      and serve_cmd passes it to uvicorn.run; tests/test_serve.py asserts the
+      captured host and the absence of a --host flag
+    action: decided
+  - decision: D-32.5
+    grade: OPEN
+    kind: resolved
+    at: 2026-09-01T10:13:48Z
+    attempt: 1
+    claim: >-
+      the vendored-in-repo vs CI-attached choice is deferred exactly as the
+      RFC frames it — the first release build settles it. Phase 1 ships no
+      frontend bundle, so there is nothing to vendor or attach; the only
+      pyproject change this phase makes is the serve extra (starlette and
+      uvicorn), and the web/ package-data wiring arrives with phase 2's
+      bundle.
+    evidence: >-
+      pyproject.toml:27 — the serve extra is the only optional-dependencies
+      change this phase makes
+    action: decided
+  - decision: D-32.4
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-09-01T10:14:48Z
+    attempt: 1
+    claim: >-
+      the serve-side half of the bundle contract is in: _bundle_root()
+      resolves the shipped wheel package data at torve/_web (with a
+      development-checkout source fallback) and the server answers an
+      instructive 404 naming the build gap when neither exists. The pyproject
+      package-data wiring is deliberately deferred to phase 2 — no bundle
+      exists in phase 1 to force-include, and force-including a missing
+      directory breaks the wheel build; src/torve/_web ships under the
+      existing `packages = ["src/torve"]` wheel target once phase 2 creates
+      it. Runtime and install never touch node: the 404 tells the user to
+      build the bundle, the server never runs a builder.
+    evidence: >-
+      src/torve/cli/serve.py:101-111 — package-data resolution with the dev
+      fallback, None when the bundle was never built
+    action: decided
+  - decision: D-32.6
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-09-01T10:15:48Z
+    attempt: 1
+    claim: >-
+      the data half of the polling contract is served: the projected-at stamp
+      rides the re-exposed projection (context_report's "at" field) and
+      /api/context and /api/status return it unchanged; the polling page that
+      renders the stamp is phase 2's frontend work, and no push channel is
+      built anywhere in this phase.
+    evidence: >-
+      src/torve/cli/serve.py:140-141 — the two GET routes re-expose the
+      projections, stamp included
+    action: decided

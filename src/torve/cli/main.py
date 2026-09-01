@@ -34,6 +34,7 @@ from torve.cli import (
     rfc,
     run,
     sandbox,
+    serve,
     shadow,
     status,
     tick,
@@ -102,6 +103,7 @@ app.command("lint-contract")(intake.lint_contract_cmd)
 app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
 app.command("shadow")(shadow.shadow_cmd)
+app.command("serve")(serve.serve_cmd)
 app.command("eval")(evals.eval_cmd)
 app.command("cancel")(run.cancel)
 app.command("kill")(run.kill)

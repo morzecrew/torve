@@ -989,6 +989,19 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
 # ....................... #
 
 
+def status_report(root: Path) -> dict[str, Any]:
+    """The `torve status` projection (RFC 0032 §5.2): live run states, one
+    record per task, in the same envelope the CLI's --format json emits.
+    One reader, two renderers (D-32.1): the CLI and the serve endpoint both
+    consume this, so the browser and the terminal can never disagree."""
+
+    states = RunState.load_all(root.resolve() / naming.WORKTREE_DIR)
+    return {"schema_version": 1, "runs": [s.to_record() for s in states]}
+
+
+# ....................... #
+
+
 def render_markdown(report: dict[str, Any]) -> str:
     """The human-facing projection (D-7.4: format decided by use — markdown
     for pasting into a planning session, JSON for machines, both from one
