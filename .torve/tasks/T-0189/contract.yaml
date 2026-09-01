@@ -10,7 +10,10 @@ intent: 'The ghcr publish job: buildx over the three definitions on manual or ta
   (D-33.5), linux/amd64 only. README gains the ghcr quickstart with a full version tag.
   Auth is the workflow''s ambient GITHUB_TOKEN under an explicit `permissions: packages: write`
   block — the organization''s repositories publish to ghcr this way (platform-images precedent);
-  invent no PAT and reference no repository secret for the push.'
+  invent no PAT and reference no repository secret for the push. The ambient token reaches a
+  step only where the step passes it explicitly (`env: GITHUB_TOKEN: ${{ github.token }}`) —
+  a shell step assuming it under set -u dies unset, which is exactly how the first attempt''s
+  re-push guard failed its review.'
 depends_on:
 - T-0188
 parent: null
