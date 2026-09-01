@@ -1,0 +1,124 @@
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_rev:
+        description: >-
+          Image revision for the r<N> tag suffix. Bump when a definition
+          changes under an unchanged harness version.
+        required: true
+        type: string
+  push:
+    tags:
+      - "r*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # The publish gate (RFC 0033 §5.4, D-33.5): what CI publishes is what this
+  # battery built, on the same runner that will push it.
+  conformance:
+    name: sandbox conformance battery
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - run: uv sync --frozen
+      - run: uv run pytest tests/test_sandbox_images.py
+
+  publish:
+    name: publish ${{ matrix.name }}
+    needs: conformance
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [claude, dsh, mimo]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # r<N> from the triggering tag, or the manual-dispatch input — never
+      # both, and never anything but digits (D-33.2's tag scheme).
+      - name: Resolve image revision
+        id: rev
+        env:
+          IMAGE_REV_INPUT: ${{ inputs.image_rev }}
+        run: |
+          set -euo pipefail
+          if [ -n "${IMAGE_REV_INPUT:-}" ]; then
+            n="${IMAGE_REV_INPUT}"
+          else
+            n="${GITHUB_REF_NAME#r}"
+          fi
+          case "$n" in
+            ''|*[!0-9]*)
+              echo "::error::image revision must be digits only, got '${n}' (push an r<N> tag or set image_rev)" >&2
+              exit 1
+              ;;
+          esac
+          echo "n=${n}" >> "$GITHUB_OUTPUT"
+
+      # Harness version is read from the definition's own pinned-default ARG
+      # (D-33.3) — CI passes nothing, so the tag can never say a version the
+      # image itself doesn't declare.
+      - name: Resolve harness version and tag
+        id: tag
+        env:
+          DEF_NAME: ${{ matrix.name }}
+          IMAGE_REV: ${{ steps.rev.outputs.n }}
+        run: |
+          set -euo pipefail
+          case "${DEF_NAME}" in
+            claude) arg=CLAUDE_VERSION ;;
+            dsh) arg=DSH_VERSION ;;
+            mimo) arg=MIMO_VERSION ;;
+            *)
+              echo "::error::unknown definition ${DEF_NAME}" >&2
+              exit 1
+              ;;
+          esac
+          version=$(grep -oP "^ARG ${arg}=\K\S+" ".torve/sandbox/${DEF_NAME}/Dockerfile")
+          echo "value=${version}-r${IMAGE_REV}" >> "$GITHUB_OUTPUT"
+
+      # D-33.2: CI refuses to re-push an existing tag. gh reads GITHUB_TOKEN
+      # from the process environment, which is not populated by default —
+      # it must reach this step explicitly, or the step dies unset under
+      # set -u instead of running the check.
+      - name: Refuse to re-push an existing tag
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          IMAGE_OWNER: ${{ github.repository_owner }}
+          PACKAGE: torve-agent-${{ matrix.name }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          existing=$(gh api "orgs/${IMAGE_OWNER}/packages/container/${PACKAGE}/versions" \
+            --jq '.[].metadata.container.tags[]' 2>/dev/null || true)
+          if printf '%s\n' "$existing" | grep -qx "$TAG"; then
+            echo "::error::${PACKAGE}:${TAG} already published; tags are immutable (D-33.2)" >&2
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
+
+      - uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+        with:
+          context: .torve/sandbox/${{ matrix.name }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/torve-agent-${{ matrix.name }}:${{ steps.tag.outputs.value }}
+            ghcr.io/${{ github.repository_owner }}/torve-agent-${{ matrix.name }}:latest

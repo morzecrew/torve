@@ -1,0 +1,33 @@
+schema_version: 1
+task: T-0189
+repo: morzecrew/torve
+base_sha: 05555f7eec50d8068991755fea400d496f34290f
+drift_count: 0
+entries:
+  - decision: D-33.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T00:00:00Z
+    attempt: 1
+    claim: 'the publish workflow complies with D-33.2 in full: tags are immutable
+      <harness-version>-r<image-rev> (the harness version read from each
+      definition''s pinned-default ARG per D-33.3, never passed in), a dedicated
+      step queries ghcr for the computed tag and exits 1 before build/push if it
+      already exists, latest is pushed alongside as the named convenience, and
+      no tag is ever mutated in place — the digest identity story (D-17.1) is
+      untouched, nothing in this workflow feeds a tag back into engine
+      dispatch.'
+    evidence: '.github/workflows/publish.yml:94-107 — the re-push refusal step,
+      exiting 1 before build/push when ghcr already holds the computed tag;
+      lines 71-88 of the same file compute the immutable tag from the ARG
+      default, and lines 122-124 push the immutable tag plus latest, never
+      latest alone.'
+    action: decided
+    proposal: LOCKED — no departure, compliance close-out only.
+    notes: |
+      The auth pattern the task called out separately (ambient GITHUB_TOKEN via
+      github.token, passed explicitly through env: on every step that needs it,
+      no PAT, no repository secret) is the same shape as the re-push guard's
+      failure mode described in the task brief — recorded here because it is
+      the mechanism that makes the re-push refusal actually run instead of
+      dying unset. See .github/workflows/publish.yml:96 and :115.
