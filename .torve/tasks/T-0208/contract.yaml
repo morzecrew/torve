@@ -1,0 +1,56 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0208
+rfc: rfcs/0030-the-document-threshold.md
+role: review
+intent: Review T-0197's diff against its contract and inherited decisions.
+targets:
+- T-0197
+decisions:
+- id: D-30.1
+  grade: LOCKED
+  text: A contract without a source document inherits standing rows from every accepted
+    document whose declared paths intersect its `scope.allow`, copied grade-and-paths
+    at write time through the planner's one reader; pathless rows are never standing
+  paths:
+  - src/torve/application/planner.py
+  - src/torve/application/intake.py
+- id: D-30.2
+  grade: LOCKED
+  text: "The threshold verdict is deterministic \u2014 arithmetic over intersected\
+    \ rows, distinct documents and the size class; no model opinion of risk anywhere\
+    \ in the routing"
+  paths:
+  - src/torve/application/planner.py
+  - src/torve/application/intake.py
+- id: D-30.3
+  grade: ASSUMED
+  text: 'The rule: `document_required` when the scope crosses LOCKED rows from two
+    or more accepted documents, or the size verdict is `too_large`; thresholds live
+    in configuration beside intake''s'
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-30.4
+  grade: ASSUMED
+  text: "Enforcement is authoring-time only \u2014 intake lint error and adoption\
+    \ refusal (exit 3), `lint-contract` advisory for hand-minters; execution and gates\
+    \ never re-check the verdict"
+  paths:
+  - src/torve/application/intake.py
+  - src/torve/cli/intake.py
+- id: D-30.5
+  grade: ASSUMED
+  text: '`torve plan` inheritance is unchanged: the source document''s table whole,
+    per D-7.22; standing inheritance is the document-less lane''s mechanism'
+  paths:
+  - src/torve/application/planner.py
+- id: D-30.6
+  grade: OPEN
+  text: Whether document-minted contracts also inherit intersecting standing rows
+    from other accepted documents; decisions-reported silence over cross-document
+    areas in minted work would settle it
+  paths:
+  - src/torve/application/planner.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
