@@ -1,0 +1,52 @@
+# Hand-minted — two lane-evidence holes found in the new-regime smoke run
+# (the T-0170 no-op cascade), one fence.
+schema_version: 1
+id: T-0172
+rfc: rfcs/0005-review-as-a-run.md
+phase: 0
+role: implement
+title: empty diff refused and traces kept apart
+intent: >-
+  Two holes from the same incident. First, an implement attempt whose
+  candidate diff against base is empty passed its gates and reached ready
+  — gates ran green over an unchanged tree, so a harness that silently
+  did nothing promoted a no-op; an empty diff on an implement-role task
+  must be treated as a red attempt (retried toward the poison ceiling,
+  with a fact naming it), while an integration task's empty diff remains
+  legal completion per D-26.6 and revert/review roles are untouched.
+  Second, the review attempt writes its trace to the same path as the
+  executor attempt it reviews — telemetry showed both records citing
+  .wt/T-0170.a1.trace.log and the executor's trace was overwritten,
+  destroying the evidence needed to triage the very failure the review
+  caught; the review's trace must land at its own path, named by the
+  review task id.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/runner.py
+  - src/torve/application/review.py
+  - tests/test_review_run.py
+  - tests/test_run_loop.py
+  - tests/test_runner.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_review_run.py tests/test_run_loop.py tests/test_runner.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-26.6
+  grade: ASSUMED
+  text: 'At adoption the parent becomes the integration task: `depends_on`
+    gains every child, scope and full battery stay, and its landing is the
+    decomposition''s completion'
+  paths:
+  - src/torve/application/intake.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
