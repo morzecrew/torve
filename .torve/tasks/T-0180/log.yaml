@@ -1,0 +1,36 @@
+schema_version: 1
+task: T-0180
+repo: morzecrew/torve
+base_sha: 612c4733379d7aa7182def273f5b2e7d241ebe4e
+drift_count: 0
+entries:
+  - decision: D-5.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T12:00:00Z
+    attempt: 1
+    claim: >-
+      D-5.2's consequence is implemented on the overlap fence: a review-role
+      task writes nothing by construction, so it is excluded from overlap
+      fencing entirely — never read as claiming the whole tree. The
+      exemption keys on the role, not on the emptiness: an empty allow-set
+      on a writing role keeps today's conservative unconstrained reading.
+      The incident's shape (a running review's empty scope.allow refusing an
+      unrelated dispatch as "unconstrained scope") is pinned by a test, and
+      the role-keyed reading is pinned by a non-empty-allow review twin and
+      by the writing-role regression that still refuses.
+    evidence: >-
+      src/torve/application/runner.py:1526-1562 — _blocking_overlap returns
+      None for a review dispatch and skips active review runs, so a review
+      never blocks and is never blocked; src/torve/application/runner.py:1537
+      and 1558 are the role-keyed exemptions; tests/test_run_loop.py:424-472
+      — the four tests pinning the exemption (incident shape, role-keyed
+      twin, writing-role regression, review dispatch against an active
+      writer)
+    action: decided
+    notes: |
+      Compliant close-out — the overlap gate (RFC 0006 §2) keeps preventing
+      concurrent writes; a review that writes nothing simply participates in
+      no fence. No divergence from D-5.2: the reviewer's workspace stays
+      read-only and the runner still posts comments; this task only stops
+      the fence from treating a read-only run as a writer.

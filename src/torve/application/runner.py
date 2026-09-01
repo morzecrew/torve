@@ -1526,7 +1526,16 @@ def _scope_overlap(mine: list[str], theirs: list[str]) -> str | None:
 def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
     """(blocking task id, contended path) when an active run's allow-set
     intersects this task's; an empty allow-set is unconstrained and
-    contends with everything."""
+    contends with everything. Review-role tasks hold no fence on either
+    side: they write nothing, so they claim no files and no fence can
+    conflict with them."""
+
+    # D-5.2: a review runs in a read-only workspace and writes nothing by
+    # construction — it is excluded from overlap fencing entirely. The
+    # exemption keys on the role: an empty allow-set on a writing role
+    # still means unconstrained (RFC 0002 §6).
+    if task.role == "review":
+        return None
 
     from torve.gates.context import load_task
 
@@ -1542,6 +1551,12 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
             continue
 
         other = load_task(contract)
+
+        # An active review claims no fence (D-5.2): its empty allow-set is
+        # never "unconstrained", or an unrelated dispatch is refused by a
+        # task that will write nothing.
+        if other.role == "review":
+            continue
 
         if not task.scope.allow or not other.scope.allow:
             return state.task_id, "unconstrained scope"

@@ -7,11 +7,14 @@ the real gate integration is exercised in test_run_integration.py.
 from __future__ import annotations
 
 import pytest
+import yaml
 
 import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
 from torve.application.ports import AgentResult, ExecResult, SandboxHandle, SandboxInfo
-from torve.application.runner import RunDeps, run_task
+from torve.application.runner import BlockedDispatch, RunDeps, run_task
+from torve.application.runstate import RunState
+from torve.base import naming
 from torve.config.runconfig import RunnerConfig, TierConfig
 from torve.domain.states import TaskState
 from torve.domain.task import Budget, Scope, Task
@@ -132,6 +135,34 @@ TIMEOUT = AgentResult(exit_code=None, output="hard timeout")
 
 def task_for(repo, iterations=None):
     return Task(id="T-9001", scope=Scope(), decisions=[], budget=Budget(iterations=iterations))
+
+
+def _active_run(root, task_id: str, *, role: str, allow: list[str]) -> RunState:
+    """Seed an in-flight run's contract and state file — the fence
+    `_blocking_overlap` refuses dispatches against. A review contract
+    carries targets, the shape the role's validator demands."""
+
+    contract = {
+        "schema_version": 1,
+        "id": task_id,
+        "role": role,
+        "scope": {"allow": allow, "deny": []},
+        "acceptance": [],
+        "decisions": [],
+    }
+
+    if role == "review":
+        contract["targets"] = ["T-9000"]
+
+    contract_dir = root / ".torve" / "tasks" / task_id
+    contract_dir.mkdir(parents=True, exist_ok=True)
+    (contract_dir / "contract.yaml").write_text(yaml.safe_dump(contract), encoding="utf-8")
+
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.transition(TaskState.CLAIMED, "seeded active run")
+    state.transition(TaskState.RUNNING, "seeded active run")
+    state.save()
+    return state
 
 
 @pytest.fixture
@@ -388,6 +419,58 @@ def test_existing_non_terminal_run_refuses_a_second_claim(rig):
     assert first.state is TaskState.ESCALATED
     with pytest.raises(RuntimeError, match="existing run"):
         run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+
+
+def test_an_active_review_run_blocks_no_dispatch(rig):
+    """T-0180, the incident's shape: a running review-role task carries an
+    empty allow-set (it writes nothing by construction) — the overlap gate
+    must not read that as "unconstrained scope" and refuse an unrelated
+    dispatch against it."""
+    repo, deps, _runtime, _vcs, _ = rig
+    _active_run(repo.root, "T-8001", role="review", allow=[])
+    task = Task(id="T-8002", scope=Scope(allow=["src/app/**"]), decisions=[])
+    # Dispatch proceeds (no BlockedDispatch): the review claims no fence.
+    state = run_task(repo.root, task, RunnerConfig(), deps)
+    assert state.state is TaskState.READY
+
+
+def test_the_review_exemption_keys_on_the_role_not_on_the_emptiness(rig):
+    """Even a review contract that carried a non-empty allow-set (which the
+    contract shape does not produce) holds no fence: the exemption is
+    role-keyed, so it can never depend on scope.allow being empty."""
+    repo, deps, _runtime, _vcs, _ = rig
+    _active_run(repo.root, "T-8001", role="review", allow=["src/app/**"])
+    task = Task(id="T-8002", scope=Scope(allow=["src/app/**"]), decisions=[])
+    state = run_task(repo.root, task, RunnerConfig(), deps)
+    assert state.state is TaskState.READY
+
+
+def test_an_empty_allow_on_a_writing_role_is_still_unconstrained(rig):
+    """The exemption keys on the role, not on the emptiness: an empty
+    allow-set on an implement task keeps the conservative reading — the
+    active run claims the whole tree, so an unrelated dispatch is refused."""
+    repo, deps, _runtime, _vcs, _ = rig
+    _active_run(repo.root, "T-8001", role="implement", allow=[])
+    task = Task(id="T-8002", scope=Scope(allow=["docs/**"]), decisions=[])
+    with pytest.raises(BlockedDispatch, match="unconstrained"):
+        run_task(repo.root, task, RunnerConfig(), deps)
+
+
+def test_a_review_dispatch_holds_no_fence_against_active_writers(rig):
+    """A review task being dispatched is excluded from overlap fencing
+    entirely: it writes nothing, so no active writer's fence can conflict
+    with it — the review proceeds while the writer's run is in flight."""
+    repo, deps, _runtime, _vcs, _ = rig
+    _active_run(repo.root, "T-8001", role="implement", allow=["src/app/**"])
+    review = Task(
+        id="T-8002",
+        role="review",
+        targets=["T-8001"],
+        scope=Scope(),
+        decisions=[],
+    )
+    state = run_task(repo.root, review, RunnerConfig(), deps)
+    assert state.state is TaskState.READY
 
 
 def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
