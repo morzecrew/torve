@@ -2,7 +2,7 @@
 id: "0034"
 title: Task character and conviction-routed retries
 kind: design
-status: draft
+status: accepted
 depends_on: ["0007", "0027", "0029"]
 informed_by: ["0004", "0009", "0026"]
 supersedes: []

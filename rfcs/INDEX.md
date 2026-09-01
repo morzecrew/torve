@@ -42,7 +42,7 @@ number is **0035**.
 | [0031](0031-brownfield-onboarding.md) | Brownfield onboarding | accepted | complete | 0004, 0030 | — | First contact with a repository that has no corpus: a read-only agentless survey replaying merged history through the gate battery, and the baseline standing-decisions document extracted outside the engine that turns its silence into governance. |
 | [0032](0032-the-serve-surface.md) | The serve surface | accepted | complete | 0007, 0022 | A-76, A-77 | A local read-only dashboard over the projections the engine already computes — `torve serve` behind an extra, loopback-only, polling JSON the CLI already emits, with the frontend shipped as built assets in the wheel. |
 | [0033](0033-published-harness-images.md) | Published harness images | accepted | complete | 0017 | — | The in-repo sandbox definitions for claude, dsh and mimo published to ghcr.io with immutable version tags and a thin baked-in toolkit — a convenience reference, never a requirement, with the digest staying the only identity. |
-| [0034](0034-task-character-and-conviction-routed-retries.md) | Task character and conviction-routed retries | draft | none | 0007, 0027, 0029 | — | Three task-character axes — structural and routine declared per phase, compliance measured from gate convictions — routing equipment at mint and retries at the failing gate, calibrated by a projection. |
+| [0034](0034-task-character-and-conviction-routed-retries.md) | Task character and conviction-routed retries | accepted | none | 0007, 0027, 0029 | — | Three task-character axes — structural and routine declared per phase, compliance measured from gate convictions — routing equipment at mint and retries at the failing gate, calibrated by a projection. |
 
 ## Conventions
 
