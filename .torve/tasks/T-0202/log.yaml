@@ -1,0 +1,39 @@
+schema_version: 1
+task: T-0202
+repo: morzecrew/torve
+base_sha: 5943cdc2c4448d69819aa5c0b944c56d41095229
+drift_count: 0
+entries:
+  - decision: D-32.5
+    grade: OPEN
+    kind: resolved
+    at: 2026-09-01T12:25:17Z
+    attempt: 1
+    claim: >-
+      the first real build settles it: vendored-and-hash-checked. The bundle
+      is already in the tree — phase 2 built it into src/torve/_web and no
+      ignore rule excludes it — and this phase's scope (.github/**) cannot
+      un-vendor it, so CI-attached is not implementable here; what the
+      release job can do, and does, is rebuild web/ with the org's
+      npm-builder image and fail when the committed bundle differs from the
+      fresh build — the INDEX.md hash-check shape the decision itself names.
+      The first real build also surfaced the condition this check exists to
+      catch: the committed frontend source cannot currently build, because
+      the @/lib modules every component imports (web/src/lib) are excluded
+      by the root gitignore's lib/ rule and absent from the tree — tsc
+      --noEmit fails on TS2307 for the @/lib imports and vite build on ENOENT
+      for src/lib/api. The release job therefore fails at the build step
+      until the repo commits the frontend source, which is outside this
+      task's scope; CI-attached is impossible for the same reason (there is
+      no build to attach). That is recorded here rather than papered over —
+      the job's failure mode on the current source is the check working, not
+      a defect in it.
+    evidence: >-
+      .github/workflows/serve-bundle.yml:53-75 — the npm-builder build step
+      and the vendored-vs-fresh hash check; the snapshot step that preserves
+      the committed bundle is .github/workflows/serve-bundle.yml:34-41;
+      .gitignore:17 is the lib/ rule that keeps web/src/lib out of the tree;
+      web/vite.config.ts:20-21 points the build output at src/torve/_web;
+      `npx tsc --noEmit` in web/ exits on TS2307 for the @/lib imports and
+      `npx vite build` on ENOENT for src/lib/api
+    action: decided
