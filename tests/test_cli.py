@@ -183,6 +183,129 @@ def test_doctor_image_check_is_unchanged_with_no_eval_ledger(tmp_path, monkeypat
     assert image_check["detail"] == f"python:3.13-slim = {digest[:19]}"
 
 
+def test_doctor_prints_the_registry_digest_for_a_remote_reference(tmp_path, monkeypatch):
+    # RFC 0033's phase-3 line: a registry reference the runtime cannot
+    # resolve (an unpulled remote image) prints the digest the registry
+    # itself resolves — the same line a local image already gets.
+    root = _doctor_repo(
+        tmp_path,
+        {"runtime": {"adapter": "docker", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
+    )
+    digest = "sha256:" + "ab" * 32
+    monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(None))
+    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: digest)
+
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    image_check = checks["image ghcr.io/morzecrew/torve-agent:0.1.1"]
+    assert image_check["ok"] is True
+    assert image_check["detail"] == f"ghcr.io/morzecrew/torve-agent:0.1.1 = {digest[:19]}"
+
+
+def test_doctor_does_not_ask_the_registry_when_the_runtime_resolves(tmp_path, monkeypatch):
+    # The runtime's answer is authoritative and local — the registry leg
+    # only speaks when the runtime cannot.
+    root = _doctor_repo(
+        tmp_path,
+        {"runtime": {"adapter": "docker", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
+    )
+    digest = "sha256:" + "ab" * 32
+    monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(digest))
+    asked: list[str] = []
+    monkeypatch.setattr(
+        "torve.cli.doctor._registry_digest", lambda image: asked.append(image) or digest
+    )
+
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    assert checks["image ghcr.io/morzecrew/torve-agent:0.1.1"]["ok"] is True
+    assert asked == []
+
+
+def test_doctor_keeps_the_runtime_red_when_the_registry_cannot_resolve(tmp_path, monkeypatch):
+    # No new check: an unpulled reference the registry cannot answer keeps
+    # the existing docker red, with the same words.
+    root = _doctor_repo(
+        tmp_path,
+        {"runtime": {"adapter": "docker", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
+    )
+    monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(None))
+    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: None)
+
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    image_check = checks["image ghcr.io/morzecrew/torve-agent:0.1.1"]
+    assert image_check["ok"] is False
+    assert image_check["detail"] == (
+        "ghcr.io/morzecrew/torve-agent:0.1.1: not present in the runtime — "
+        "build it (torve sandbox build) or pull it"
+    )
+
+
+def test_doctor_prints_the_registry_digest_under_opensandbox(tmp_path, monkeypatch):
+    # The digest rule is runtime-independent (RFC 0017 §2): under the
+    # opensandbox runtime — whose server pulls from a registry — a
+    # registry reference gets the same line, resolved from the registry.
+    root = _doctor_repo(
+        tmp_path,
+        {"runtime": {"adapter": "opensandbox", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
+    )
+    digest = "sha256:" + "ab" * 32
+    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: digest)
+
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
+    image_check = checks["image ghcr.io/morzecrew/torve-agent:0.1.1"]
+    assert image_check["ok"] is True
+    assert image_check["detail"] == f"ghcr.io/morzecrew/torve-agent:0.1.1 = {digest[:19]}"
+
+
+def test_doctor_opensandbox_stays_silent_when_the_registry_cannot_resolve(tmp_path, monkeypatch):
+    # No new failure mode under opensandbox: an unresolved reference gets
+    # no image line at all, never a red doctor.
+    root = _doctor_repo(
+        tmp_path,
+        {"runtime": {"adapter": "opensandbox", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
+    )
+    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: None)
+
+    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
+    names = [c["name"] for c in json.loads(result.stdout)["checks"]]
+    assert not any(name.startswith("image ") for name in names)
+
+
+def test_registry_digest_only_queries_explicit_registry_hosts(monkeypatch):
+    from torve.cli.doctor import _registry_digest
+
+    asked: list[tuple[str, str, str]] = []
+
+    def fake_manifest(host: str, repository: str, reference: str) -> str:
+        asked.append((host, repository, reference))
+        return "sha256:" + "ab" * 32
+
+    monkeypatch.setattr("torve.cli.doctor._registry_manifest_digest", fake_manifest)
+    digest = "sha256:" + "ab" * 32
+
+    # A host-less tag is not a registry reference — the runtime's business.
+    assert _registry_digest("python:3.13-slim") is None
+    assert _registry_digest("morzecrew/torve-agent:0.1.1") is None
+    assert _registry_digest("ghcr.io/") is None
+    assert asked == []
+
+    assert _registry_digest("ghcr.io/morzecrew/torve-agent:0.1.1") == digest
+    assert asked[-1] == ("ghcr.io", "morzecrew/torve-agent", "0.1.1")
+    assert _registry_digest("ghcr.io/morzecrew/torve-agent") == digest
+    assert asked[-1] == ("ghcr.io", "morzecrew/torve-agent", "latest")
+    assert _registry_digest("ghcr.io/morzecrew/torve-agent@sha256:abcd") == digest
+    assert asked[-1] == ("ghcr.io", "morzecrew/torve-agent", "sha256:abcd")
+    # A digest pin wins over the tag it rides with.
+    assert _registry_digest("ghcr.io/morzecrew/torve-agent:0.1.1@sha256:abcd") == digest
+    assert asked[-1] == ("ghcr.io", "morzecrew/torve-agent", "sha256:abcd")
+    # docker.io is an accepted alias for Docker Hub's registry.
+    assert _registry_digest("docker.io/library/python:3.13") == digest
+    assert asked[-1] == ("registry-1.docker.io", "library/python", "3.13")
+
+
 def test_run_missing_contract_is_a_config_error(tmp_path):
     result = CliRunner().invoke(app, ["run", "T-0000", "--root", str(tmp_path)])
     assert result.exit_code == 3

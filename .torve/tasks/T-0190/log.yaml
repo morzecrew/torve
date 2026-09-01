@@ -1,0 +1,59 @@
+schema_version: 1
+task: T-0190
+repo: morzecrew/torve
+base_sha: dc66b8b08f61b86c79fd4a84f72687a941c35e7b
+drift_count: 0
+entries:
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  action: decided
+  at: '2026-09-01T08:40:13Z'
+  attempt: 1
+  claim: >-
+    the phase intent says "a tier naming a registry reference" but never
+    defines one; decided that a registry reference is a name with an
+    explicit registry host (a first path component that is `localhost` or
+    contains `.` or `:`), per the docker reference grammar — host-less
+    tags (`python:3.13-slim`) are the runtime's business and keep their
+    existing answer exactly, so the registry leg only ever speaks for
+    refs the runtime cannot mean locally
+  evidence: >-
+    src/torve/cli/doctor.py:213-216 — the explicit-host rule in
+    _registry_digest; rfcs/0033-published-harness-images.md:293 is the
+    phase intent that names the reference without defining it
+  proposal: >-
+    a decision row: "registry reference" means an image whose first path
+    component is an explicit registry host (localhost, or containing `.`
+    or `:`); host-less tags keep the runtime's resolution and its
+    existing doctor answer
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  action: decided
+  at: '2026-09-01T08:42:05Z'
+  attempt: 1
+  claim: >-
+    the doctor's image checks were docker-only (the runtime's word covers
+    local images); decided to lift that guard so the opensandbox runtime
+    — whose server cannot see local tags and pulls from a registry —
+    gets the same digest line for registry references, resolved from the
+    registry itself, per the runtime-independent digest rule. The lift
+    adds no new failure: an unresolvable reference stays silent under
+    opensandbox, the docker red is byte-for-byte unchanged, and the
+    runtime is not even constructed under opensandbox, so the adapter
+    keeps no new configuration or SDK failure surface
+  evidence: >-
+    src/torve/cli/doctor.py:112 — the guard lift: the runtime is
+    constructed only under docker; src/torve/cli/doctor.py:123-136 is the
+    retained red under docker and the silence under opensandbox;
+    rfcs/0017-sandbox-provisioning.md:83-86 states the digest rule is
+    runtime-independent
+  proposal: >-
+    a decision row: the doctor's image checks run under every runtime —
+    the docker runtime resolves locally first, the registry leg answers
+    registry references for any runtime, and an unresolvable reference is
+    a red only where a local runtime exists (docker), never under
+    opensandbox

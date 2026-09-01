@@ -29,13 +29,26 @@ carries its chain, in order, in that same field and line.
 The equipment check is RFC 0029 D-29.5: each tier whose resolved `skills`
 or `prompt_extras` differ from its role default gets one provenance line —
 no check attached, dispatch already owns the refusals (D-29.2).
+
+The image line also covers remote references (RFC 0033 §5.5): a tier
+naming a registry reference — an image with an explicit registry host —
+that the runtime cannot resolve asks the registry itself for the digest,
+anonymously and best-effort, and prints the same line a local image
+gets, so "what exactly will run" has one answer for both kinds of
+reference. The registry leg is informational: an unreachable registry or
+unknown reference keeps the runtime's existing answer (the docker red,
+or silence under the opensandbox runtime, whose server pulls from the
+registry), because resolution failure already fails dispatch loudly.
 """
 
 from __future__ import annotations
 
+import http.client
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlencode, urlsplit
 
 import typer
 from rich.text import Text
@@ -92,26 +105,33 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     config = load_config(root, config_path)
     checks: list[tuple[str, bool, str]] = []
 
-    if config.runtime.adapter != "docker":
-        return checks
-
     try:
-        runtime = runtime_for(config, None)
+        # The runtime's word covers local images (docker daemon, D-17.2).
+        # The opensandbox runtime sees no local images — its server pulls
+        # from a registry — so only the registry leg speaks for it.
+        runtime = runtime_for(config, None) if config.runtime.adapter == "docker" else None
 
         for image in configured_images(config):
-            digest = runtime.resolve_image(image)
+            digest = runtime.resolve_image(image) if runtime is not None else None
 
             if digest is None:
-                checks.append(
-                    (
-                        f"image {image}",
-                        False,
+                # RFC 0033 §5.5: a registry reference the runtime cannot
+                # resolve answers from the registry itself. Best-effort and
+                # informational — None here keeps the runtime's answer.
+                digest = _registry_digest(image)
+
+            if digest is None:
+                if runtime is not None:
+                    checks.append(
                         (
-                            f"{image}: not present in the runtime — build it "
-                            "(torve sandbox build) or pull it"
-                        ),
+                            f"image {image}",
+                            False,
+                            (
+                                f"{image}: not present in the runtime — build it "
+                                "(torve sandbox build) or pull it"
+                            ),
+                        )
                     )
-                )
 
                 continue
 
@@ -153,6 +173,184 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
         return [("images", False, f"runtime unavailable: {error}")]
 
     return checks
+
+
+# ....................... #
+
+
+_REGISTRY_TIMEOUT_S = 10.0
+
+# Docker Hub's registry is registry-1.docker.io; the grammar's accepted
+# aliases resolve there.
+_REGISTRY_HOST_ALIASES = {
+    "docker.io": "registry-1.docker.io",
+    "index.docker.io": "registry-1.docker.io",
+}
+
+# The manifest media types a pull would accept, in preference order, so the
+# `Docker-Content-Digest` header names the content the sandbox would run.
+_MANIFEST_ACCEPT = (
+    "application/vnd.oci.image.index.v1+json, "
+    "application/vnd.docker.distribution.manifest.list.v2+json, "
+    "application/vnd.oci.image.manifest.v1+json, "
+    "application/vnd.docker.distribution.manifest.v2+json"
+)
+
+
+def _registry_digest(image: str) -> str | None:
+    """A registry reference's content digest, asked of the registry itself
+    (RFC 0033 §5.5): a tier naming a registry reference prints the resolved
+    digest beside it, the same line a local image already gets.
+
+    Only a reference naming an explicit registry host is queried — a
+    host-less tag (`python:3.13-slim`) is the runtime's business and keeps
+    its existing answer. Best-effort and informational: any failure
+    (unreachable registry, unknown tag, private image, malformed
+    reference) returns None and no new check appears — resolution failure
+    already fails dispatch loudly.
+    """
+
+    host, _, name = image.partition("/")
+
+    if not name or not (host == "localhost" or "." in host or ":" in host):
+        return None
+
+    repository, reference = _registry_reference(name)
+
+    if reference is None:
+        return None
+
+    host = _REGISTRY_HOST_ALIASES.get(host, host)
+
+    return _registry_manifest_digest(host, repository, reference)
+
+
+def _registry_reference(name: str) -> tuple[str, str | None]:
+    """(repository, tag-or-digest) from the name part of a registry
+    reference. A bare name means `latest`, as the docker reference grammar
+    prescribes; a digest pin wins over a tag; an empty repository or
+    reference is a malformed name."""
+
+    repository, _, digest = name.partition("@")
+
+    if ":" in repository:
+        repository, _, tag = repository.rpartition(":")
+    else:
+        tag = ""
+
+    reference = digest or tag or "latest"
+
+    if not repository or not reference:
+        return repository, None
+
+    return repository, reference
+
+
+def _registry_manifest_digest(host: str, repository: str, reference: str) -> str | None:
+    """One anonymous registry v2 manifest fetch, honouring the standard
+    bearer-token challenge the first request earns. `None` on any failure
+    — the caller's check already has the runtime's answer."""
+
+    path = f"/v2/{repository}/manifests/{reference}"
+    status, headers = _registry_request(host, path, token=None)
+
+    if status == 401:
+        token = _registry_bearer_token(headers.get("www-authenticate", ""))
+
+        if token is None:
+            return None
+
+        status, headers = _registry_request(host, path, token=token)
+
+    if status != 200:
+        return None
+
+    digest = headers.get("docker-content-digest", "")
+
+    return digest if digest.startswith("sha256:") else None
+
+
+def _registry_request(host: str, path: str, token: str | None) -> tuple[int, dict[str, str]]:
+    """One TLS GET against a registry host, drained and closed, headers
+    lower-cased. Transport failure returns (0, {}); never raises — the
+    registry leg must not take the doctor down with it."""
+
+    try:
+        connection = http.client.HTTPSConnection(host, timeout=_REGISTRY_TIMEOUT_S)
+
+    except Exception:
+        return 0, {}
+
+    try:
+        headers = {"Accept": _MANIFEST_ACCEPT}
+
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        connection.request("GET", path, headers=headers)
+        response = connection.getresponse()
+        response.read()
+        return response.status, {key.lower(): value for key, value in response.getheaders()}
+
+    except Exception:
+        return 0, {}
+
+    finally:
+        connection.close()
+
+
+def _registry_bearer_token(challenge: str) -> str | None:
+    """The token leg of a registry bearer challenge: GET the realm echoing
+    the service and scope back, anonymously. Public images are all the
+    doctor's informational line needs; a private image's challenge stays
+    unanswered and the runtime's answer stands. Never raises."""
+
+    fields: dict[str, str] = {}
+
+    for key, value in re.findall(r'(\w+)="([^"]*)"', challenge):
+        fields[key] = value
+
+    realm, service, scope = (
+        fields.get("realm", ""),
+        fields.get("service", ""),
+        fields.get("scope", ""),
+    )
+
+    if not realm or not scope:
+        return None
+
+    try:
+        parsed = urlsplit(realm)
+
+        if not parsed.hostname:
+            return None
+
+        connection = http.client.HTTPSConnection(
+            parsed.hostname, parsed.port or 443, timeout=_REGISTRY_TIMEOUT_S
+        )
+
+    except Exception:
+        return None
+
+    try:
+        query = urlencode({"service": service, "scope": scope})
+        target = f"{parsed.path}?{parsed.query}&{query}" if parsed.query else f"{parsed.path}?{query}"
+        connection.request("GET", target, headers={"Accept": "application/json"})
+        response = connection.getresponse()
+
+        if response.status != 200:
+            return None
+
+        payload = json.loads(response.read().decode("utf-8"))
+        token = payload.get("token") or payload.get("access_token")
+
+        return token if isinstance(token, str) and token else None
+
+    except Exception:
+        return None
+
+    finally:
+        connection.close()
 
 
 # ....................... #
