@@ -1,0 +1,48 @@
+schema_version: 1
+task: T-0186
+repo: morzecrew/torve
+base_sha: e58b19f91d81517cc9f5085ae0ba8fca316b0537
+drift_count: 0
+entries:
+- decision: D-4.6
+  grade: LOCKED
+  kind: resolved
+  action: decided
+  at: '2026-09-01T08:00:00Z'
+  attempt: 1
+  claim: the agent block's token counts extend the self-reported recording regime
+    without changing it — absent keys are omitted, never zeroed, and provider-version
+    recording (model_version from the dated modelUsage snapshot ids) is untouched
+  evidence: src/torve/application/telemetry.py:171-198 — TOKEN_FIELDS and
+    agent_token_counts stamp only the counts an adapter actually reported
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-09-01T08:05:00Z'
+  attempt: 1
+  claim: the dsh reporter's usage object carries reasoningTokens, but the task's
+    four recorded counts are input/cache-read/cache-creation/output; the reporter's
+    own cost math bills outputTokens as the complete output, so reasoning is a
+    breakdown of that count, not an additional one — extracting it as a fifth count
+    would invite double counting in readers
+  evidence: .torve/sandbox/dsh/report-usage.js:41-67 — the totals map sums
+    reasoningTokens to nothing and the cost formula bills outputTokens only
+  action: decided
+  proposal: record reasoning_tokens as its own optional agent-block field when a
+    reader needs the breakdown — an amendment row, not part of this task
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: '2026-09-01T08:10:00Z'
+  attempt: 1
+  claim: the record's token counts ride the attempt and review records, but
+    ports.AgentResult is outside this task's scope (ports.py is not in the contract's
+    allow list), so the carrier is a harness-side subclass carrying the four fields
+    and the runner reads whichever are present by attribute
+  evidence: src/torve/adapters/agent/harness.py:306-315 — HarnessResult;
+    src/torve/application/telemetry.py:185-198 — agent_token_counts reads present fields only
+  action: decided
+  proposal: promote the token fields onto ports.AgentResult when a second adapter
+    reports tokens — one surface, no getattr

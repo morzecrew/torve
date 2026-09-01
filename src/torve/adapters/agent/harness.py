@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -171,14 +172,68 @@ def build_prompt(
 # ....................... #
 
 
-def parse_metadata(output: str) -> tuple[float | None, str | None]:
-    """(cost_usd, model_version) from a harness result, best effort: the last
-    JSON object line wins (`claude -p --output-format json` and friends emit
-    one). Absence is not an error — it is an uncontrolled regime (D-4.6).
+@dataclass(frozen=True)
+class AgentMetadata:
+    """Everything `parse_metadata` could read off a harness result: the
+    attempt's cost and model version plus the token counts the record's
+    agent block carries (T-0186). Every field defaults to None — a harness
+    that reports nothing stays visibly unreported (D-4.6's self-reported
+    regime), never zeroed."""
+
+    cost_usd: float | None = None
+    model_version: str | None = None
+    input_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_creation_tokens: int | None = None
+    output_tokens: int | None = None
+
+
+# The claude CLI's usage block spells these in snake_case; the dsh reporter's
+# usage object spells them in camelCase. Both shapes are scanned for each
+# count (T-0186).
+_TOKEN_USAGE_NAMES: tuple[tuple[str, ...], ...] = (
+    ("input_tokens", "inputTokens"),
+    ("cache_read_input_tokens", "cacheReadTokens"),
+    ("cache_creation_input_tokens", "cacheCreationTokens"),
+    ("output_tokens", "outputTokens"),
+)
+
+
+def _usage_tokens(sources: tuple[dict[str, Any], ...], names: tuple[str, ...]) -> int | None:
+    """One token count from the first `usage` object among the sources.
+    Best effort — a non-numeric value is ignored, never invented."""
+
+    for source in sources:
+        candidate: Any = source.get("usage")
+
+        if not isinstance(candidate, dict):
+            continue
+
+        usage = cast("dict[str, Any]", candidate)
+
+        for name in names:
+            value: Any = usage.get(name)
+
+            if isinstance(value, (int, float)):
+                return int(value)
+
+    return None
+
+
+def parse_metadata(output: str) -> AgentMetadata:
+    """(cost, model, token counts) from a harness result, best effort: the
+    last JSON object line wins (`claude -p --output-format json` and friends
+    emit one). Absence is not an error — it is an uncontrolled regime (D-4.6).
 
     opencode's `--format json` nests both under its last `step_finish`
     event's `part` instead of at the top level — `part` is scanned as a
-    second, lower-priority source next to the record itself."""
+    second, lower-priority source next to the record itself. Token counts
+    come from a `usage` object in the same sources: the claude envelope's
+    snake_case block and the dsh reporter's camelCase object. The dsh
+    reporter's `reasoningTokens` is deliberately not extracted — its own
+    cost math bills `outputTokens` as the complete output, so reasoning is
+    a breakdown of that count, and recording it would invite double
+    counting in readers."""
 
     for line in reversed(output.strip().splitlines()):
         line = line.strip()
@@ -228,12 +283,36 @@ def parse_metadata(output: str) -> tuple[float | None, str | None]:
             if isinstance(usage, dict) and usage:
                 model = "+".join(sorted(cast("dict[str, Any]", usage)))
 
-        return (
-            float(cost) if isinstance(cost, (int, float)) else None,
-            str(model) if isinstance(model, str) and model else None,
+        input_tokens, cache_read_tokens, cache_creation_tokens, output_tokens = (
+            _usage_tokens(sources, names) for names in _TOKEN_USAGE_NAMES
         )
 
-    return None, None
+        return AgentMetadata(
+            cost_usd=float(cost) if isinstance(cost, (int, float)) else None,
+            model_version=str(model) if isinstance(model, str) and model else None,
+            input_tokens=input_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_creation_tokens=cache_creation_tokens,
+            output_tokens=output_tokens,
+        )
+
+    return AgentMetadata()
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class HarnessResult(AgentResult):
+    """AgentResult plus the token counts `parse_metadata` read off the
+    harness output. The token fields live on the harness result, not on
+    ports.AgentResult, because the application surface predates them; the
+    runner reads whichever are present by attribute (T-0186)."""
+
+    input_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_creation_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 # ....................... #
@@ -324,12 +403,16 @@ class HarnessAgent:
 
         trace = naming.trace_file(ctx.workspace, ctx.attempt)
         trace.write_text(result.output, encoding="utf-8")
-        cost_usd, model_version = parse_metadata(result.output)
+        meta = parse_metadata(result.output)
 
-        return AgentResult(
+        return HarnessResult(
             exit_code=result.exit_code,
             output=result.output,
-            cost_usd=cost_usd,
-            model_version=model_version,
+            cost_usd=meta.cost_usd,
+            model_version=meta.model_version,
+            input_tokens=meta.input_tokens,
+            cache_read_tokens=meta.cache_read_tokens,
+            cache_creation_tokens=meta.cache_creation_tokens,
+            output_tokens=meta.output_tokens,
             trace_ref=str(trace),
         )

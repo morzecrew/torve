@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import torve
-from torve.application.ports import BrokerUsage
+from torve.application.ports import AgentResult, BrokerUsage
 from torve.base.naming import WORKTREE_DIR
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
@@ -163,6 +163,39 @@ def broker_block(name: str, usage: BrokerUsage) -> dict[str, Any]:
         "wall_time_s": round(usage.wall_time_s, 3),
         "refusals": usage.refusals,
     }
+
+
+# ....................... #
+
+
+# The agent block's token fields (T-0186): the four counts the harness
+# adapter's parse_metadata extracts from the shapes the harnesses emit (the
+# claude envelope's snake_case usage block; the dsh reporter's camelCase
+# usage object). Keys ride flat beside cost_usd and model_version. Absent
+# keys are omitted, never zeroed (D-4.6's self-reported regime) — a harness
+# that reports nothing stays visibly unreported.
+TOKEN_FIELDS: tuple[str, ...] = (
+    "input_tokens",
+    "cache_read_tokens",
+    "cache_creation_tokens",
+    "output_tokens",
+)
+
+
+def agent_token_counts(result: AgentResult) -> dict[str, int]:
+    """The token counts an adapter self-reported, as the agent block's record
+    keys — only the counts that are present: absent stays absent (D-4.6). A
+    plain AgentResult (no token fields) contributes nothing."""
+
+    counts: dict[str, int] = {}
+
+    for name in TOKEN_FIELDS:
+        value: Any = getattr(result, name, None)
+
+        if value is not None:
+            counts[name] = int(value)
+
+    return counts
 
 
 # ....................... #

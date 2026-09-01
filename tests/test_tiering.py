@@ -6,6 +6,7 @@ skips; everything else runs host-side."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import subprocess
 
@@ -13,9 +14,15 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
-from torve.adapters.agent.harness import HarnessAgent, build_prompt, parse_metadata
+from torve.adapters.agent.harness import (
+    AgentMetadata,
+    HarnessAgent,
+    HarnessResult,
+    build_prompt,
+    parse_metadata,
+)
 from torve.adapters.vcs.git import repository_name
-from torve.application.ports import AgentContext, ExecResult, SandboxHandle
+from torve.application.ports import AgentContext, AgentResult, ExecResult, SandboxHandle
 from torve.application.runner import _restore_never_send, _sandbox_auth, _withhold_never_send
 from torve.application.skills import materialize
 from torve.cli import app
@@ -314,9 +321,9 @@ def test_harness_without_metadata_is_an_uncontrolled_regime(tmp_path):
 
 def test_parse_metadata_takes_the_last_json_object():
     output = '{"model": "early"}\nnoise\n{"cost_usd": 3, "model_version": "final-2"}'
-    assert parse_metadata(output) == (3.0, "final-2")
-    assert parse_metadata("no json here") == (None, None)
-    assert parse_metadata('{"model": ""}') == (None, None)
+    assert parse_metadata(output) == AgentMetadata(cost_usd=3.0, model_version="final-2")
+    assert parse_metadata("no json here") == AgentMetadata()
+    assert parse_metadata('{"model": ""}') == AgentMetadata()
 
 
 def test_prompt_states_explicit_emptiness():
@@ -662,7 +669,74 @@ def test_parse_metadata_reads_claude_model_usage_keys():
             "modelUsage": {"claude-haiku-4-5-20251001": {}, "claude-sonnet-5": {}},
         }
     )
-    assert parse_metadata(line) == (0.0999, "claude-haiku-4-5-20251001+claude-sonnet-5")
+    assert parse_metadata(line) == AgentMetadata(
+        cost_usd=0.0999, model_version="claude-haiku-4-5-20251001+claude-sonnet-5"
+    )
+
+
+def test_parse_metadata_reads_claude_usage_token_counts():
+    # The claude envelope's usage block spells the four counts in
+    # snake_case, flat beside cost and modelUsage (T-0186).
+    line = json.dumps(
+        {
+            "total_cost_usd": 0.0999,
+            "usage": {
+                "input_tokens": 1000,
+                "cache_creation_input_tokens": 200,
+                "cache_read_input_tokens": 5000,
+                "output_tokens": 300,
+            },
+            "modelUsage": {"claude-sonnet-5": {}},
+        }
+    )
+    meta = parse_metadata(line)
+
+    assert meta == AgentMetadata(
+        cost_usd=0.0999,
+        model_version="claude-sonnet-5",
+        input_tokens=1000,
+        cache_creation_tokens=200,
+        cache_read_tokens=5000,
+        output_tokens=300,
+    )
+
+
+def test_parse_metadata_reads_the_dsh_reporters_usage_object():
+    # The dsh reporter's usage object spells the counts in camelCase and
+    # adds reasoningTokens as a breakdown of output — deliberately not
+    # extracted (T-0186): its own cost math bills outputTokens as the
+    # complete output, so recording reasoning invites double counting.
+    line = json.dumps(
+        {
+            "total_cost_usd": 0.05,
+            "model": "deepseek-chat",
+            "usage": {
+                "inputTokens": 100,
+                "outputTokens": 50,
+                "cacheReadTokens": 900,
+                "reasoningTokens": 10,
+            },
+        }
+    )
+    meta = parse_metadata(line)
+
+    assert meta.input_tokens == 100
+    assert meta.output_tokens == 50
+    assert meta.cache_read_tokens == 900
+    # The dsh shape reports no cache-creation count — absent stays absent.
+    assert meta.cache_creation_tokens is None
+    # reasoningTokens is a breakdown of output, not an additional count:
+    # the metadata vocabulary has no field for it (T-0186), so the parse
+    # could not have recorded it even by mistake.
+    assert all(field.name != "reasoning_tokens" for field in dataclasses.fields(meta))
+
+
+def test_parse_metadata_absent_token_keys_stay_none():
+    # Best effort, never invented: no usage object, or a non-numeric value,
+    # leaves the count unreported (D-4.6's self-reported regime).
+    assert parse_metadata('{"cost_usd": 1.0}').input_tokens is None
+    assert parse_metadata('{"cost_usd": 1.0}').cache_creation_tokens is None
+    assert parse_metadata('{"usage": {"input_tokens": "NaN"}}').output_tokens is None
 
 
 def test_parse_metadata_reads_opencodes_nested_step_finish_part():
@@ -683,4 +757,210 @@ def test_parse_metadata_reads_opencodes_nested_step_finish_part():
             ),
         ]
     )
-    assert parse_metadata(output) == (0.0431, "claude-haiku-4-5+claude-sonnet-5-20260315")
+    assert parse_metadata(output) == AgentMetadata(
+        cost_usd=0.0431, model_version="claude-haiku-4-5+claude-sonnet-5-20260315"
+    )
+
+
+def test_harness_agent_carries_reported_token_counts(tmp_path):
+    # T-0186: the counts parse_metadata reads off a usage block ride the
+    # harness result — the runner stamps them onto the record's agent block.
+    tier = TierConfig(
+        adapter="api",
+        provider="anthropic",
+        model="m",
+        command='echo \'{"total_cost_usd": 0.5, "model": "m", '
+        '"usage": {"input_tokens": 10, "cache_read_input_tokens": 100, '
+        '"output_tokens": 5}}\'',
+    )
+    ctx, agent = harness_ctx(tmp_path, tier)
+    result = agent.run(ctx)
+
+    assert isinstance(result, HarnessResult)
+    assert result.input_tokens == 10
+    assert result.cache_read_tokens == 100
+    assert result.output_tokens == 5
+    # The harness did not report a cache-creation count — absent stays absent.
+    assert result.cache_creation_tokens is None
+    # The base AgentResult contract is intact.
+    assert result.exit_code == 0
+    assert result.cost_usd == 0.5
+
+
+def test_agent_token_counts_records_only_what_was_reported():
+    from torve.application.telemetry import agent_token_counts
+
+    assert agent_token_counts(
+        HarnessResult(exit_code=0, output="", input_tokens=10, output_tokens=5)
+    ) == {"input_tokens": 10, "output_tokens": 5}
+
+    # A plain AgentResult carries no token fields — the block stays empty,
+    # and the absent keys are omitted from the record, never zeroed (D-4.6).
+    assert agent_token_counts(AgentResult(exit_code=0, output="")) == {}
+
+
+def test_attempt_record_carries_reported_token_counts(tmp_path):
+    """T-0186 end to end: the token counts an adapter reports ride the agent
+    block of the attempt record, and a silent adapter leaves the keys absent
+    — absent stays absent, never zeroed (D-4.6's self-reported regime)."""
+    import asyncio
+    import subprocess
+
+    from torve.application.runner import RunDeps, drive_attempts, real_hooks
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RunnerConfig, TierConfig
+    from torve.domain.states import TaskState
+    from torve.domain.task import Task
+
+    class TokenAgent:
+        kind = "harness"
+
+        def run(self, ctx):
+            return HarnessResult(
+                exit_code=1,
+                output="",
+                cost_usd=4.05,
+                model_version="m-x",
+                input_tokens=1000,
+                cache_read_tokens=9000,
+                cache_creation_tokens=100,
+                output_tokens=400,
+            )
+
+    class SilentAgent:
+        kind = "harness"
+
+        def run(self, ctx):
+            return HarnessResult(exit_code=1, output="")
+
+    class InertRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def resolve_image(self, image):
+            return None
+
+        def sync_out(self, handle, worktree):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+    def run_once(root, agent):
+        worktree = root / "wt"
+        (worktree / ".torve" / "skills").mkdir(parents=True)
+        (worktree / ".torve" / "gates.yaml").write_text(
+            "schema_version: 1\ngates: []\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "init", "-q"], cwd=worktree, check=True)
+
+        config = RunnerConfig(
+            poison_ceiling=1,
+            tiers={
+                "planner": TierConfig(),
+                "reviewer": TierConfig(),
+                "executor": TierConfig(
+                    adapter="harness", command="run", provider="p", model="m", api_key_env=[]
+                ),
+            },
+        )
+        task = Task(id="T-9020", decisions=[])
+        deps = RunDeps(
+            workspace=None,  # type: ignore[arg-type]
+            runtime=InertRuntime(),
+            agent=agent,
+            vcs=None,  # type: ignore[arg-type]
+            scm=None,  # type: ignore[arg-type]
+            store=None,  # type: ignore[arg-type]
+        )
+        state = RunState(task_id=task.id, path=root / "T-9020.state.json")
+        state.transition(TaskState.CLAIMED, "test claim")
+        hooks = real_hooks(root, task, config, deps, worktree)
+        asyncio.run(drive_attempts(state, task, config, hooks))
+
+        telemetry = root / ".torve" / "telemetry.jsonl"
+        records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+        failed = [r for r in records if r.get("gates_run") is False]
+        assert failed
+        return failed[0]["agent"]
+
+    agent_block = run_once(tmp_path / "reporting", TokenAgent())
+    assert agent_block["cost_usd"] == 4.05
+    assert agent_block["input_tokens"] == 1000
+    assert agent_block["cache_read_tokens"] == 9000
+    assert agent_block["cache_creation_tokens"] == 100
+    assert agent_block["output_tokens"] == 400
+
+    silent_block = run_once(tmp_path / "silent", SilentAgent())
+    assert silent_block["cost_usd"] is None
+    for key in ("input_tokens", "cache_read_tokens", "cache_creation_tokens", "output_tokens"):
+        assert key not in silent_block
+
+
+def test_review_record_carries_reported_token_counts(repo, monkeypatch):
+    """T-0186: the reviewer's token counts survive the base-shape rebuild in
+    run_review and ride the review record's agent block — only the reported
+    ones, absent keys omitted (D-4.6)."""
+    from test_review_run import review_config, reviewer_output
+    from test_run_loop import (
+        OK,
+        MockRuntime,
+        MockScm,
+        MockVcs,
+        MockWorkspace,
+        ScriptedAgent,
+        task_for,
+    )
+
+    import torve.application.runner as run_module
+    from torve.adapters.store.durable import open_store
+    from torve.application.runner import RunDeps, run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+
+    def scripted_gates(*args, **kwargs):
+        return 0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"
+
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+        review_agent=ScriptedAgent(
+            [
+                HarnessResult(
+                    exit_code=0,
+                    output=reviewer_output([]),
+                    cost_usd=0.2,
+                    model_version="m-r",
+                    input_tokens=50,
+                    cache_read_tokens=5,
+                    output_tokens=10,
+                )
+            ]
+        ),
+    )
+
+    # The review's record rides the worktree's manifest telemetry path.
+    (repo.root / ".wt" / "T-9001" / ".torve").mkdir(parents=True, exist_ok=True)
+    (repo.root / ".wt" / "T-9001" / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    state = run_task(repo.root, task_for(repo), review_config(), deps)
+
+    assert state.state is TaskState.READY
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    review_records = [r for r in records if r.get("kind") == "review"]
+    assert len(review_records) == 1
+    agent_block = review_records[0]["agent"]
+    assert agent_block["input_tokens"] == 50
+    assert agent_block["cache_read_tokens"] == 5
+    assert agent_block["output_tokens"] == 10
+    assert "cache_creation_tokens" not in agent_block

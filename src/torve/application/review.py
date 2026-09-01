@@ -252,7 +252,7 @@ def run_review(
     Produces the review's run state and telemetry record; the caller applies
     the consequence to the target."""
 
-    from torve.application.telemetry import append_record, broker_block
+    from torve.application.telemetry import agent_token_counts, append_record, broker_block
 
     tier = tier_for(config, review.tier)
     state = RunState(task_id=review.id, path=naming.state_file(root, review.id))
@@ -329,6 +329,11 @@ def run_review(
         review_trace.write_text(result.output, encoding="utf-8")
         review_trace_ref = str(review_trace)
 
+    # T-0186: the reviewer's self-reported token counts must survive the
+    # rebuild below — the rebuilt AgentResult is the base shape and carries
+    # no token fields, so read them off the original result first.
+    token_counts = agent_token_counts(result)
+
     result = AgentResult(
         exit_code=result.exit_code,
         output=result.output,
@@ -378,6 +383,9 @@ def run_review(
             "model_version": result.model_version,
             "cost_usd": result.cost_usd,
             "trace_ref": result.trace_ref,
+            # The reviewer's token counts, flat beside cost (T-0186) — only
+            # the reported ones, absent keys omitted (D-4.6).
+            **token_counts,
             # The image tag beside the adapter (D-17.4) — the cost table's
             # harness column reads it; the attempt records already carry it.
             "image": image,

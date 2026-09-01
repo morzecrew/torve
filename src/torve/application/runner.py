@@ -58,6 +58,7 @@ from torve.application.sizing import has_children
 from torve.application.skills import materialize
 from torve.application.taskstore import TaskStore
 from torve.application.telemetry import (
+    agent_token_counts,
     append_record,
     broker_block,
     build_record,
@@ -1091,6 +1092,10 @@ def real_hooks(
                 cost_usd=result.cost_usd,
                 trace_ref=result.trace_ref,
             )
+            # The attempt's self-reported token counts ride the same block
+            # (T-0186): only the counts the adapter reported — absent keys
+            # stay absent, never zeroed (D-4.6's self-reported regime).
+            agent_meta.update(agent_token_counts(result))
 
             # The broker's live counts ride the attempt record beside the
             # adapter's self-report (D-21.5). A budget refusal escalates in
