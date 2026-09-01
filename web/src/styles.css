@@ -69,8 +69,8 @@ body {
   background: rgba(18, 18, 28, 0.85); backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255,255,255,.09);
 }
-/* headers stay left-aligned everywhere; only cells right-align numerics */
-.dt td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* everything left-aligned; numerics keep tabular figures for scanability */
+.dt td.num { font-variant-numeric: tabular-nums; }
 .dt th .arrow { opacity: .9; color: var(--green); margin-left: 5px; }
 .dt td { padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,.05); vertical-align: top; }
 .dt tbody tr:last-child td { border-bottom: 0; }
