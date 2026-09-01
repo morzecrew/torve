@@ -2,7 +2,7 @@
 id: "0032"
 title: The serve surface
 kind: design
-status: draft
+status: accepted
 depends_on: ["0007", "0022"]
 informed_by: ["0005", "0011", "0013", "0018"]
 supersedes: []

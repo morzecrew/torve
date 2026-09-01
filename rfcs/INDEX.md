@@ -40,7 +40,7 @@ number is **0033**.
 | [0029](0029-agent-equipment.md) | Agent equipment | accepted | complete | 0009, 0027, 0028 | — | Per-tier skill sets and prompt extras layered over role-scoped defaults, so a named variant becomes a persona — equipped, addressable from a document's phasing, and measured as its own regime by machinery that already exists. |
 | [0030](0030-the-document-threshold.md) | The document threshold | accepted | none | 0007, 0020 | — | When work must carry its own document and when it may ride the standing corpus: paths-intersection inheritance for document-less contracts and a deterministic threshold that routes large or LOCKED-crossing work to authoring. |
 | [0031](0031-brownfield-onboarding.md) | Brownfield onboarding | accepted | none | 0004, 0030 | — | First contact with a repository that has no corpus: a read-only agentless survey replaying merged history through the gate battery, and the baseline standing-decisions document extracted outside the engine that turns its silence into governance. |
-| [0032](0032-the-serve-surface.md) | The serve surface | draft | none | 0007, 0022 | — | A local read-only dashboard over the projections the engine already computes — `torve serve` behind an extra, loopback-only, polling JSON the CLI already emits, with the frontend shipped as built assets in the wheel. |
+| [0032](0032-the-serve-surface.md) | The serve surface | accepted | none | 0007, 0022 | — | A local read-only dashboard over the projections the engine already computes — `torve serve` behind an extra, loopback-only, polling JSON the CLI already emits, with the frontend shipped as built assets in the wheel. |
 
 ## Conventions
 
