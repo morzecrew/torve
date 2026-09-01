@@ -1,14 +1,13 @@
-# Minted by `torve plan 0034` — phase 1: eval variant override
 schema_version: 1
 id: T-0214
 rfc: rfcs/0034-task-character-and-conviction-routed-retries.md
 phase: 1
 role: implement
 title: eval variant override
-intent: 'candidate_config accepts a tier-variant override beside the image override (D-34.10):
-  torve eval --tier <seat> --variant <name> replays with the candidate arm resolving the dotted
-  variant; the eval record carries the variant name and both config hashes; combining --image
-  and --variant in one invocation is refused with an instructive message.'
+intent: 'candidate_config accepts a tier-variant override beside the image override (D-34.10): torve
+  eval --tier <seat> --variant <name> replays with the candidate arm resolving the dotted variant;
+  the eval record carries the variant name and both config hashes; combining --image and --variant
+  in one invocation is refused with an instructive message.'
 depends_on: []
 parent: null
 targets: []
@@ -33,89 +32,74 @@ decisions:
   - src/torve/application/projections.py
 - id: D-34.2
   grade: ASSUMED
-  text: 'A Phasing entry may carry `character: structural\'
+  text: A Phasing entry may carry `character:` with value `structural` or `routine`, validated at
+    parse, copied verbatim by the planner onto the contract; absent means undeclared and is never
+    inferred
   paths:
-  - routine
-  - ','
-  - validated
-  - at
-  - parse,
-  - copied
-  - verbatim
-  - by
-  - the
-  - planner
-  - onto
-  - the
-  - contract;
-  - absent
-  - means
-  - undeclared
-  - and
-  - is
-  - never
-  - inferred
+  - src/torve/config/rfc_parse.py
+  - src/torve/application/planner.py
+  - src/torve/domain/task.py
 - id: D-34.3
   grade: ASSUMED
-  text: '`character_routing` on a seat maps a declared character to a tier variant; an explicit
-    contract `tier_variant` always wins; an unmapped character falls through to the seat default'
+  text: '`character_routing` on a seat maps a declared character to a tier variant; an explicit contract
+    `tier_variant` always wins; an unmapped character falls through to the seat default'
   paths:
   - src/torve/config/runconfig.py
   - src/torve/application/runner.py
 - id: D-34.4
   grade: ASSUMED
-  text: 'A gate declaration may carry `axis: functional\'
+  text: A gate declaration may carry `axis:` with value `functional`, `boundary`, `compliance` or
+    `form`; an unlabeled gate reads as functional
   paths:
-  - boundary\
+  - src/torve/config/manifest.py
+  - .torve/gates.yaml
 - id: D-34.5
   grade: LOCKED
-  text: Retry-rung selection is deterministic over the red attempt's recorded gate outcomes
-    alone — never the trace or model output — resolving the most severe axis present in the
-    fixed order functional > boundary > compliance > form
+  text: Retry-rung selection is deterministic over the red attempt's recorded gate outcomes alone
+    — never the trace or model output — resolving the most severe axis present in the fixed order
+    functional > boundary > compliance > form
   paths:
   - src/torve/application/runner.py
 - id: D-34.6
   grade: ASSUMED
-  text: '`retry_variants` maps axes to rungs, generalizing D-27.11''s single rung; the scalar
-    form stays as sugar for the functional key; every attempt''s row stamps the tier it actually
-    ran under'
+  text: '`retry_variants` maps axes to rungs, generalizing D-27.11''s single rung; the scalar form
+    stays as sugar for the functional key; every attempt''s row stamps the tier it actually ran under'
   paths:
   - src/torve/config/runconfig.py
   - src/torve/application/runner.py
 - id: D-34.7
   grade: ASSUMED
-  text: 'A boundary conviction resolves no retry rung by default: fence defects are repaired
-    by the operator''s disclosed chore commit before the landing, never escaped by a heavier
-    model'
+  text: 'A boundary conviction resolves no retry rung by default: fence defects are repaired by the
+    operator''s disclosed chore commit before the landing, never escaped by a heavier model'
   paths:
   - src/torve/application/runner.py
 - id: D-34.8
   grade: ASSUMED
-  text: The context projection gains a character section — declared character against realized
-    conviction profile by axis, attempts, token shape — re-exposed verbatim by serve per D-32.1;
-    measurement, never enforcement
+  text: The context projection gains a character section — declared character against realized conviction
+    profile by axis, attempts, token shape — re-exposed verbatim by serve per D-32.1; measurement,
+    never enforcement
   paths:
   - src/torve/application/projections.py
 - id: D-34.9
   grade: OPEN
-  text: 'Whether the evidence-format grammar itself gets simplified is settled by a measurement
-    window over post-T-0203 implement tasks: if gate-taught repair does not materially cut
-    `decisions-reported` convictions, the owner decides on the grammar'
+  text: 'Whether the evidence-format grammar itself gets simplified is settled by a measurement window
+    over post-T-0203 implement tasks: if gate-taught repair does not materially cut `decisions-reported`
+    convictions, the owner decides on the grammar'
   paths:
   - src/torve/gates/decisions_reported.py
 - id: D-34.10
   grade: ASSUMED
-  text: The eval candidate arm may override a tier variant beside the existing image override;
-    the record carries the variant and both config hashes; combining both overrides in one
-    invocation is refused until a need is shown
+  text: The eval candidate arm may override a tier variant beside the existing image override; the
+    record carries the variant and both config hashes; combining both overrides in one invocation
+    is refused until a need is shown
   paths:
   - src/torve/application/evals.py
   - src/torve/cli/evals.py
 - id: D-34.11
   grade: OPEN
-  text: 'The scribe log post-pass (a second agent writing the divergence log from the finished
-    diff) stays out: it collides with D-4.6''s self-report doctrine — revisited only if D-34.9''s
-    window shows routing plus gate-taught repair failing to bend the compliance share'
+  text: 'The scribe log post-pass (a second agent writing the divergence log from the finished diff)
+    stays out: it collides with D-4.6''s self-report doctrine — revisited only if D-34.9''s window
+    shows routing plus gate-taught repair failing to bend the compliance share'
   paths:
   - src/torve/application/runner.py
 budget:
