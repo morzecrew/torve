@@ -159,6 +159,9 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             # RFC 0026 D-26.5: read by this projection only — dispatch, lane
             # and store never consult it.
             "parent": record.get("parent"),
+            # A review contract's targets name the task under review — the
+            # cross-reference a reader otherwise digs out of the intent.
+            "targets": record.get("targets") or [],
         }
 
         state_path = naming.state_file(root, task_id)
@@ -479,6 +482,13 @@ def _costs(root: Path) -> list[dict[str, Any]]:
                     "cost_usd": row.get("cost_usd_total"),
                     "attempts": row.get("attempts"),
                     "state": row.get("state"),
+                    # The eval loop's arm annotation, when this replay was
+                    # one side of a paired measurement (D-27.7).
+                    **(
+                        {"arm": cast("dict[str, Any]", row["eval"]).get("arm")}
+                        if isinstance(row.get("eval"), dict)
+                        else {}
+                    ),
                 }
             )
 
@@ -503,6 +513,11 @@ def _costs(root: Path) -> list[dict[str, Any]]:
                     "config_hash": row.get("config_hash"),
                     "cost_usd": block.get("cost_usd"),
                     "adapter": block.get("adapter"),
+                    # Which seat ran and whether it was a replay: the two
+                    # facts a reader needs to tell an execution attempt from
+                    # a review run or a shadow arm without a join.
+                    "tier": block.get("tier"),
+                    **({"shadow": True} if block.get("shadow") else {}),
                     # Which harness did the work: identity is the image
                     # (D-17.4) — a torve-agent:<name> tag labels by name;
                     # records from before the tag was stamped fall back to

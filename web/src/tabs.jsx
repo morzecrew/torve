@@ -239,10 +239,34 @@ export function Costs({ ctx }) {
     byModel[k] = (byModel[k] || 0) + (+r.cost_usd || 0);
   }
 
+  // A review run reviews the task its contract targets — surface that id.
+  const reviewOf = {};
+  for (const t of ctx.tasks)
+    if (t.role === "review" && t.targets?.length) reviewOf[t.id] = t.targets[0];
+
+  // Live attempts numbered per task in time order; replays stay unnumbered
+  // (arms would interleave into a lying ordinal).
+  const ordinal = {};
+  const perTask = {};
+  for (const r of [...rows].sort((a, b) => (a.at < b.at ? -1 : 1)))
+    if (r.kind === "attempt" && !r.shadow)
+      ordinal[r.at + r.task] = perTask[r.task] = (perTask[r.task] || 0) + 1;
+
+  const what = (r) => {
+    if (r.kind === "shadow")
+      return <><Badge color="cyan">replay{r.arm ? ` · ${r.arm}` : ""}</Badge>{" "}
+        <span className="text-[var(--dim)]">{r.attempts} att · {r.state}</span></>;
+    if (r.shadow) return <Badge color="cyan">replay attempt</Badge>;
+    if (r.tier === "reviewer" || reviewOf[r.task])
+      return <><Badge color="violet">review</Badge>
+        {reviewOf[r.task] && <span className="text-[var(--dim)]"> of {reviewOf[r.task]}</span>}</>;
+    return <Badge color="blue">attempt #{ordinal[r.at + r.task] || "?"}</Badge>;
+  };
+
   const columns = [
     col("at", "at", { cls: "id dim", cell: (r) => when(r.at) }),
     col("task", "task", { cls: "id" }),
-    col("kind", "kind", { cls: "dim" }),
+    col("what", (r) => (r.kind === "shadow" ? "replay" : r.shadow ? "replay-attempt" : r.tier || r.kind), { cell: what }),
     col("regime", (r) => (r.config_hash || "").slice(0, 8), { cls: "id dim" }),
     col("model", (r) => r.model || r.adapter, {}),
     col("time", "wall_time_s", { num: true, cls: "dim", cell: (r) => fmtDur(r.wall_time_s) }),
