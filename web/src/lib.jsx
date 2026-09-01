@@ -21,6 +21,13 @@ export const fmtK = (v) =>
         ? (v / 1e3).toFixed(1) + "k"
         : String(v);
 
+export const fmtDur = (s) => {
+  if (s == null) return "—";
+  if (s < 60) return Math.round(s) + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m" + String(Math.round(s % 60)).padStart(2, "0") + "s";
+  return Math.floor(s / 3600) + "h" + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m";
+};
+
 export const ago = (iso) => {
   if (!iso) return "—";
   const s = (Date.now() - Date.parse(iso)) / 1e3;

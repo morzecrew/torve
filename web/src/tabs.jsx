@@ -1,7 +1,7 @@
 import React from "react";
 import {
   DataTable, MultiSelect, Badge, Chip, Card, Empty,
-  fmt$, fmtK, ago, when, STATE_COLOR, SEV_COLOR,
+  fmt$, fmtK, fmtDur, ago, when, STATE_COLOR, SEV_COLOR,
 } from "./lib.jsx";
 
 const col = (header, accessor, opts = {}) => ({
@@ -245,6 +245,7 @@ export function Costs({ ctx }) {
     col("kind", "kind", { cls: "dim" }),
     col("regime", (r) => (r.config_hash || "").slice(0, 8), { cls: "id dim" }),
     col("model", (r) => r.model || r.adapter, {}),
+    col("time", "wall_time_s", { num: true, cls: "dim", cell: (r) => fmtDur(r.wall_time_s) }),
     col("cost", "cost_usd", { num: true, cell: (r) => fmt$(r.cost_usd) }),
     col("in", "input_tokens", { num: true, cls: "dim", cell: (r) => fmtK(r.input_tokens) }),
     col("cache", "cache_read_tokens", { num: true, cls: "dim", cell: (r) => fmtK(r.cache_read_tokens) }),
