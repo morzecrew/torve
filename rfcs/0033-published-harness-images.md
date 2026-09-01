@@ -2,7 +2,7 @@
 id: "0033"
 title: Published harness images
 kind: design
-status: draft
+status: accepted
 depends_on: ["0017"]
 informed_by: ["0003", "0004", "0021", "0028"]
 supersedes: []

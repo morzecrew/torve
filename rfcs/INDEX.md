@@ -41,7 +41,7 @@ number is **0034**.
 | [0030](0030-the-document-threshold.md) | The document threshold | accepted | none | 0007, 0020 | — | When work must carry its own document and when it may ride the standing corpus: paths-intersection inheritance for document-less contracts and a deterministic threshold that routes large or LOCKED-crossing work to authoring. |
 | [0031](0031-brownfield-onboarding.md) | Brownfield onboarding | accepted | none | 0004, 0030 | — | First contact with a repository that has no corpus: a read-only agentless survey replaying merged history through the gate battery, and the baseline standing-decisions document extracted outside the engine that turns its silence into governance. |
 | [0032](0032-the-serve-surface.md) | The serve surface | accepted | none | 0007, 0022 | — | A local read-only dashboard over the projections the engine already computes — `torve serve` behind an extra, loopback-only, polling JSON the CLI already emits, with the frontend shipped as built assets in the wheel. |
-| [0033](0033-published-harness-images.md) | Published harness images | draft | none | 0017 | — | The in-repo sandbox definitions for claude, dsh and mimo published to ghcr.io with immutable version tags and a thin baked-in toolkit — a convenience reference, never a requirement, with the digest staying the only identity. |
+| [0033](0033-published-harness-images.md) | Published harness images | accepted | none | 0017 | — | The in-repo sandbox definitions for claude, dsh and mimo published to ghcr.io with immutable version tags and a thin baked-in toolkit — a convenience reference, never a requirement, with the digest staying the only identity. |
 
 ## Conventions
 
