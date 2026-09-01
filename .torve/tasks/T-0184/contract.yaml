@@ -1,0 +1,23 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0184
+rfc: rfcs/0005-review-as-a-run.md
+role: review
+intent: Review T-0178's diff against its contract and inherited decisions.
+targets:
+- T-0178
+decisions:
+- id: D-5.15
+  grade: ASSUMED
+  text: "Non-blocking findings get a ledger, not a lifecycle: `torve context` gains\
+    \ \"Findings awaiting the operator\" \u2014 every kept finding from a landed target's\
+    \ review, marked possibly_addressed when a later contract's text cites the review's\
+    \ task id (D-7.24's possibly_landed discipline applied to findings); the engine\
+    \ still mints nothing from a finding, and the operator triages the ledger in batch\
+    \ \u2014 per-finding instant minting is a habit, never a requirement. Added by\
+    \ amendment A-75 2026-09-01"
+  paths:
+  - src/torve/application/projections.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
