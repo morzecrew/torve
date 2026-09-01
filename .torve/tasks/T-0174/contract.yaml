@@ -1,0 +1,46 @@
+# Hand-minted — T-0173's two minor findings on T-0170 (0022 P4 follow-up).
+schema_version: 1
+id: T-0174
+rfc: rfcs/0022-specification-quality.md
+phase: 4
+role: implement
+title: cost reader path and attention denominator honest
+intent: >-
+  Two minor review findings on the attention surface. First,
+  _task_cost_usd still hardcodes .torve/telemetry.jsonl the way
+  _tracker_command_events did before T-0170, so a repository relocating
+  telemetry reads zero spend in the size envelope (D-22.11) — resolve it
+  through the same manifest path the writer uses. Second, the
+  operator-attention line prints a joined count against an "(of N)"
+  whose N is a different population (events and escalations, not tasks),
+  so the joined number can exceed its apparent denominator — label each
+  count with its own population so no printed ratio mixes two.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/specquality.py
+  - src/torve/application/projections.py
+  - src/torve/cli/rfc.py
+  - tests/test_specquality.py
+  - tests/test_context.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_specquality.py tests/test_context.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-22.8
+  grade: ASSUMED
+  text: Readings are suppressed below a printed floor of observations;
+    ratios always print their denominator
+  paths:
+  - src/torve/application/specquality.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
