@@ -7,7 +7,10 @@ title: eval variant override
 intent: 'candidate_config accepts a tier-variant override beside the image override (D-34.10): torve
   eval --tier <seat> --variant <name> replays with the candidate arm resolving the dotted variant;
   the eval record carries the variant name and both config hashes; combining --image and --variant
-  in one invocation is refused with an instructive message.'
+  in one invocation is refused with an instructive message. Each arm runs the agent its own configuration
+  resolves: the candidate arm builds its Agent from the resolved override (image or variant) through
+  the CLI''s factory, the incumbent keeps the seat''s — a candidate differing in model, command, adapter
+  or image runs as itself in every respect, never as the incumbent''s agent under a candidate label.'
 depends_on: []
 parent: null
 targets: []

@@ -1,0 +1,97 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0222
+rfc: rfcs/0034-task-character-and-conviction-routed-retries.md
+role: review
+intent: Review T-0214's diff against its contract and inherited decisions.
+targets:
+- T-0214
+decisions:
+- id: D-34.1
+  grade: LOCKED
+  text: 'Task character has exactly three axes: structural and routine are declarable;
+    compliance is measured from gate convictions and never declarable'
+  paths:
+  - src/torve/config/rfc_parse.py
+  - src/torve/application/projections.py
+- id: D-34.2
+  grade: ASSUMED
+  text: A Phasing entry may carry `character:` with value `structural` or `routine`,
+    validated at parse, copied verbatim by the planner onto the contract; absent means
+    undeclared and is never inferred
+  paths:
+  - src/torve/config/rfc_parse.py
+  - src/torve/application/planner.py
+  - src/torve/domain/task.py
+- id: D-34.3
+  grade: ASSUMED
+  text: '`character_routing` on a seat maps a declared character to a tier variant;
+    an explicit contract `tier_variant` always wins; an unmapped character falls through
+    to the seat default'
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/application/runner.py
+- id: D-34.4
+  grade: ASSUMED
+  text: A gate declaration may carry `axis:` with value `functional`, `boundary`,
+    `compliance` or `form`; an unlabeled gate reads as functional
+  paths:
+  - src/torve/config/manifest.py
+  - .torve/gates.yaml
+- id: D-34.5
+  grade: LOCKED
+  text: "Retry-rung selection is deterministic over the red attempt's recorded gate\
+    \ outcomes alone \u2014 never the trace or model output \u2014 resolving the most\
+    \ severe axis present in the fixed order functional > boundary > compliance >\
+    \ form"
+  paths:
+  - src/torve/application/runner.py
+- id: D-34.6
+  grade: ASSUMED
+  text: '`retry_variants` maps axes to rungs, generalizing D-27.11''s single rung;
+    the scalar form stays as sugar for the functional key; every attempt''s row stamps
+    the tier it actually ran under'
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/application/runner.py
+- id: D-34.7
+  grade: ASSUMED
+  text: 'A boundary conviction resolves no retry rung by default: fence defects are
+    repaired by the operator''s disclosed chore commit before the landing, never escaped
+    by a heavier model'
+  paths:
+  - src/torve/application/runner.py
+- id: D-34.8
+  grade: ASSUMED
+  text: "The context projection gains a character section \u2014 declared character\
+    \ against realized conviction profile by axis, attempts, token shape \u2014 re-exposed\
+    \ verbatim by serve per D-32.1; measurement, never enforcement"
+  paths:
+  - src/torve/application/projections.py
+- id: D-34.9
+  grade: OPEN
+  text: 'Whether the evidence-format grammar itself gets simplified is settled by
+    a measurement window over post-T-0203 implement tasks: if gate-taught repair does
+    not materially cut `decisions-reported` convictions, the owner decides on the
+    grammar'
+  paths:
+  - src/torve/gates/decisions_reported.py
+- id: D-34.10
+  grade: ASSUMED
+  text: The eval candidate arm may override a tier variant beside the existing image
+    override; the record carries the variant and both config hashes; combining both
+    overrides in one invocation is refused until a need is shown
+  paths:
+  - src/torve/application/evals.py
+  - src/torve/cli/evals.py
+- id: D-34.11
+  grade: OPEN
+  text: "The scribe log post-pass (a second agent writing the divergence log from\
+    \ the finished diff) stays out: it collides with D-4.6's self-report doctrine\
+    \ \u2014 revisited only if D-34.9's window shows routing plus gate-taught repair\
+    \ failing to bend the compliance share"
+  paths:
+  - src/torve/application/runner.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
