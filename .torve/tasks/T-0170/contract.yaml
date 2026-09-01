@@ -1,0 +1,59 @@
+# Hand-minted — T-0169's two review findings on T-0162 (0022 P4 follow-up).
+schema_version: 1
+id: T-0170
+rfc: rfcs/0022-specification-quality.md
+phase: 4
+role: implement
+title: operator attention joined and path honest
+intent: >-
+  Two review findings on the operator-attention line, one edit site.
+  First, operator_attention counts landed changes and counts operator
+  interventions but never joins them, though D-22.12's framing is "the
+  operator interventions behind them": feedback rows and tracker events
+  carry task ids and landings resolve to task ids through the shipped
+  derivation, so join per task id where the records allow and report the
+  joined counts beside the raw totals with both denominators printed; an
+  intervention whose task never landed in the window stays in the raw
+  total only. Second, _tracker_command_events hardcodes
+  .torve/telemetry.jsonl, silently reading zero events when a repository
+  configures a custom telemetry path — resolve the path through the same
+  layout/configuration the writer uses.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/specquality.py
+  - src/torve/application/projections.py
+  - tests/test_specquality.py
+  - tests/test_context.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_specquality.py tests/test_context.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-22.12
+  grade: ASSUMED
+  text: 'The corpus summary and the context section print the
+    operator-attention line: landed changes in the window and the operator
+    interventions behind them — feedback minutes, command and approval
+    events, escalations triaged — computed from records already written,
+    denominators printed, suppressed below the floor. Added by amendment
+    A-73 2026-08-31'
+  paths:
+  - src/torve/application/specquality.py
+  - src/torve/application/projections.py
+- id: D-22.8
+  grade: ASSUMED
+  text: Readings are suppressed below a printed floor of observations;
+    ratios always print their denominator
+  paths:
+  - src/torve/application/specquality.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
