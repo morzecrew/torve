@@ -8,8 +8,11 @@ title: character declared and routed
 intent: 'The character field end to end: parse_phasing validates the structural|routine vocabulary
   (D-34.2), the planner copies it verbatim onto the minted contract beside tier_variant, Task
   carries it optionally, and dispatch resolves character_routing (D-34.3) — explicit tier_variant
-  wins, unmapped character falls through to the seat default. The rfc-writer template documents
-  the field.'
+  wins, unmapped character falls through to the seat default. The run''s broker routing derivation
+  must include the character-routed variant''s provider the same way include_retry already routes
+  the retry_variant (D-21.4): a dispatch never runs under a tier whose provider the broker did
+  not route, and a provider the configuration denies stays denied under every routing path. The
+  rfc-writer template documents the field.'
 depends_on: []
 parent: null
 targets: []
