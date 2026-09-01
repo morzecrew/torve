@@ -1,0 +1,101 @@
+schema_version: 1
+task: T-0199
+repo: morzecrew/torve
+base_sha: 5943cdc2c4448d69819aa5c0b944c56d41095229
+drift_count: 0
+entries:
+  - decision: D-31.2
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-01T12:20:32Z
+    attempt: 1
+    claim: >-
+      The baseline extraction ships as the corpus-bootstrap skill and the
+      engine has no surface for it: the skill is in no default role set, so
+      no tier ever names it and materialize never writes it into a sandbox —
+      the supervisor names it explicitly when an adoption is on the table.
+      The engine's only read of the baseline is RFC 0030's standing
+      inheritance, which copies rows of a committed, accepted document whose
+      declared paths intersect a contract's scope — exactly D-31.2's
+      "through standing inheritance and nothing else"
+    evidence: >-
+      pyproject.toml:62-65 — the wheel force-include ships the whole skills/
+      tree as torve/_skills, so the skill rides the wheel but nothing
+      materializes it; src/torve/config/runconfig.py:563-569 — the default
+      role sets name only flag-dont-flip, ratchet-what-you-build and
+      rfc-writer; the corpus-bootstrap name appears nowhere in src/. The
+      engine's single reader of the accepted baseline is
+      standing_decisions() -> inherit_decisions()
+      (src/torve/application/planner.py:272-303), gated by scope
+      intersection (A-47 one reader)
+    action: decided
+    notes: |
+      Close-out attestation. The skill's own text says the same thing in its
+      contract's voice: "run in a supervised session, never by the engine"
+      (skills/corpus-bootstrap/SKILL.md:19) and "There is no engine surface
+      for the baseline at all" (skills/corpus-bootstrap/SKILL.md:29-31).
+      tests/test_skills.py pins the ship-side: the new skill joins
+      available() and the fixture tests parse the draft with the package's
+      own parsers (tests/test_skills.py:140-212).
+  - decision: D-31.3
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-01T12:20:32Z
+    attempt: 1
+    claim: >-
+      Nothing convicts the existing tree or its history retroactively: the
+      survey replay that produced the report is read-only (D-31.1, phase 1),
+      this phase touched no gate battery code, and both the skill's doctrine
+      and the draft fixture restrict the baseline to contracts minted after
+      acceptance — the fixture's scope line says it holds "never the tree as
+      it stands and never its history", and the skill closes with "a
+      ratchet, never a purge"
+    evidence: >-
+      skills/corpus-bootstrap/SKILL.md:110-116 — "Nothing the engine reads
+      exists before that commit, and nothing the engine reads after it is
+      this skill's doing: standing inheritance copies grade and paths at
+      mint time and the battery convicts only work minted after — a ratchet,
+      never a purge (D-31.3)"; fixtures/0001-standing-decisions.md:22-23 —
+      "From acceptance these rows govern work minted after it, never the
+      tree as it stands and never its history"; this phase's scope allow is
+      skills/corpus-bootstrap/** and tests/test_skills.py — src/ was not
+      touched, so the battery itself is exactly phase 1's
+    action: decided
+    notes: |
+      Close-out attestation. The extraction doctrine also refuses
+      retroactivity in the only place it could sneak in: no Phasing section
+      in the draft (PHASING_HEADING test, tests/test_skills.py:176) means no
+      engine-mintable plan, and "no gate convicts" holds because the gates
+      themselves were not modified by this phase.
+  - decision: D-31.6
+    grade: OPEN
+    kind: resolved
+    at: 2026-09-01T12:20:32Z
+    attempt: 1
+    claim: >-
+      The recorded shape: one document per adoption, named
+      NNNN-standing-decisions.md in the corpus directory (rfcs/ by default)
+      with NNNN the next free corpus number, titled "Standing decisions".
+      Several-by-area is deferred until a real adoption needs it: a first
+      adopter has no areas taxonomy to split by, one document keeps the
+      acceptance ceremony to one commit, and RFC 0030's path-intersection
+      inheritance already selects rows by scope, so several-by-area buys
+      nothing until a corpus is big enough to need it
+    evidence: >-
+      skills/corpus-bootstrap/SKILL.md:93-103 — "The shape this skill
+      records (D-31.6)" section, including the recording-update sentence
+      ("the first real adoption settles this shape; this paragraph is the
+      skill recording the shape it chose"); fixtures/0001-standing-decisions.md
+      is the shape concrete — filename NNNN-prefixed, title "Standing
+      decisions", status draft; tests/test_skills.py:196-212 pins the record:
+      the SKILL.md names the NNNN-standing-decisions.md convention and the
+      fixture filename matches the corpus's own RFC_FILENAME
+    action: decided
+    notes: |
+      D-31.6 was OPEN in the contract; the skill records the shape it chose
+      as its deliverable's own structure, and the fixture plus
+      test_the_bootstrap_skill_records_the_shape_it_chose keep the record
+      checkable. If the first real adoption picks differently, the
+      recording-update sentence in SKILL.md is the line that changes.

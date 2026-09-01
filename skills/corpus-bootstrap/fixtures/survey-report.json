@@ -1,0 +1,359 @@
+{
+  "schema_version": 1,
+  "kind": "survey",
+  "branch": "main",
+  "last": 5,
+  "manifest": "target",
+  "landings": [
+    {
+      "sha": "8ef5b123e2d546a629fb570ede94d58e81b03fec",
+      "short": "8ef5b12",
+      "subject": "chore: deployment script at repository root",
+      "parent": "d55fecb85f851df6893836c3b3090a020339af00",
+      "gates": [
+        {
+          "name": "scope",
+          "outcome": "fail",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "outside allow: scripts/deploy.sh",
+          "no_corpus": false
+        },
+        {
+          "name": "secrets",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "not run: an earlier blocking gate failed",
+          "no_corpus": false
+        },
+        {
+          "name": "no-test-tampering",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "not run: an earlier blocking gate failed",
+          "no_corpus": false
+        },
+        {
+          "name": "decisions-reported",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "not run: an earlier blocking gate failed",
+          "no_corpus": false
+        },
+        {
+          "name": "self-audit",
+          "outcome": "skipped",
+          "state": "shadow",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "acceptance",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "not run: an earlier blocking gate failed",
+          "no_corpus": false
+        }
+      ]
+    },
+    {
+      "sha": "d55fecb85f851df6893836c3b3090a020339af00",
+      "short": "d55fecb",
+      "subject": "fix: rotate credentials out of the tree",
+      "parent": "f901a7b38904c1fd405fbda601fb920b31fe3328",
+      "gates": [
+        {
+          "name": "scope",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "2 changed path(s), clean (manifest scope)",
+          "no_corpus": false
+        },
+        {
+          "name": "secrets",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no secret patterns in added lines",
+          "no_corpus": false
+        },
+        {
+          "name": "no-test-tampering",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "decisions-reported",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "self-audit",
+          "outcome": "skipped",
+          "state": "shadow",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "acceptance",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": 0,
+          "output": "$ test -f src/app.py  [ok, 0.0s]\n",
+          "no_corpus": false
+        }
+      ]
+    },
+    {
+      "sha": "f901a7b38904c1fd405fbda601fb920b31fe3328",
+      "short": "f901a7b",
+      "subject": "chore: wire stripe credentials",
+      "parent": "a033268bb0ee347fbecd44f50d7dcd4ddd9471ff",
+      "gates": [
+        {
+          "name": "scope",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "1 changed path(s), clean (manifest scope)",
+          "no_corpus": false
+        },
+        {
+          "name": "secrets",
+          "outcome": "fail",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "src/leak.py:1: aws access key id",
+          "no_corpus": false
+        },
+        {
+          "name": "no-test-tampering",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "not run: an earlier blocking gate failed",
+          "no_corpus": false
+        },
+        {
+          "name": "decisions-reported",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "not run: an earlier blocking gate failed",
+          "no_corpus": false
+        },
+        {
+          "name": "self-audit",
+          "outcome": "skipped",
+          "state": "shadow",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "acceptance",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "not run: an earlier blocking gate failed",
+          "no_corpus": false
+        }
+      ]
+    },
+    {
+      "sha": "a033268bb0ee347fbecd44f50d7dcd4ddd9471ff",
+      "short": "a033268",
+      "subject": "merge feature/reporting",
+      "parent": "299c5f0d6801401c2ff66f529750e5a136173278",
+      "gates": [
+        {
+          "name": "scope",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "1 changed path(s), clean (manifest scope)",
+          "no_corpus": false
+        },
+        {
+          "name": "secrets",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no secret patterns in added lines",
+          "no_corpus": false
+        },
+        {
+          "name": "no-test-tampering",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "decisions-reported",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "self-audit",
+          "outcome": "skipped",
+          "state": "shadow",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "acceptance",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": 0,
+          "output": "$ test -f src/app.py  [ok, 0.0s]\n",
+          "no_corpus": false
+        }
+      ]
+    },
+    {
+      "sha": "299c5f0d6801401c2ff66f529750e5a136173278",
+      "short": "299c5f0",
+      "subject": "merge feature/payments",
+      "parent": "220615b5f85bb48847b4f442a678f3dd101ff8c8",
+      "gates": [
+        {
+          "name": "scope",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "1 changed path(s), clean (manifest scope)",
+          "no_corpus": false
+        },
+        {
+          "name": "secrets",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no secret patterns in added lines",
+          "no_corpus": false
+        },
+        {
+          "name": "no-test-tampering",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "decisions-reported",
+          "outcome": "skipped",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "self-audit",
+          "outcome": "skipped",
+          "state": "shadow",
+          "duration_s": 0.0,
+          "exit_code": null,
+          "output": "no task contract on this run; recorded as skipped, not as green (degraded mode — the check is meaningless without a spec)",
+          "no_corpus": true
+        },
+        {
+          "name": "acceptance",
+          "outcome": "pass",
+          "state": "blocking",
+          "duration_s": 0.0,
+          "exit_code": 0,
+          "output": "$ test -f src/app.py  [ok, 0.0s]\n",
+          "no_corpus": false
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "landings": 5,
+    "by_gate": {
+      "scope": {
+        "fired": 1,
+        "clean": 4,
+        "skipped": 0
+      },
+      "secrets": {
+        "fired": 1,
+        "clean": 3,
+        "skipped": 1
+      },
+      "no-test-tampering": {
+        "fired": 0,
+        "clean": 0,
+        "skipped": 5
+      },
+      "decisions-reported": {
+        "fired": 0,
+        "clean": 0,
+        "skipped": 5
+      },
+      "self-audit": {
+        "fired": 0,
+        "clean": 0,
+        "skipped": 5
+      },
+      "acceptance": {
+        "fired": 0,
+        "clean": 3,
+        "skipped": 2
+      }
+    },
+    "corpus_adds": [
+      "no-test-tampering",
+      "decisions-reported",
+      "self-audit"
+    ]
+  }
+}
