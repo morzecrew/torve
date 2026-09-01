@@ -319,6 +319,40 @@ def test_the_review_trace_lands_under_the_review_id_and_spares_the_executors(rev
     assert review_records[0]["agent"]["trace_ref"] == str(review_trace)
 
 
+def test_a_reviewer_that_wrote_no_trace_records_none(review_rig):
+    # T-0176: the review record's trace_ref used to be rewritten to a
+    # harness-shaped path even when the adapter wrote no trace — a
+    # fabricated coordinate, exactly as misleading as a missing one. Only
+    # an actually-written trace earns a trace_ref; an adapter that wrote
+    # none records None and leaves no file behind.
+    repo, _runtime, deps_for = review_rig
+
+    # The review's record rides the worktree's manifest telemetry path.
+    (repo.root / ".wt" / "T-9001" / ".torve").mkdir(parents=True, exist_ok=True)
+    (repo.root / ".wt" / "T-9001" / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    reviewer = ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output([]))])
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.READY
+    review_id = state.reviewed_by
+    assert review_id is not None
+
+    # No fabricated file: the harness-shaped path was never written.
+    review_trace = naming.trace_file(repo.root / ".wt" / review_id, 1)
+    assert not review_trace.exists()
+
+    # And the review record carries no invented coordinate.
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    review_records = [r for r in records if r.get("kind") == "review"]
+    assert len(review_records) == 1
+    assert review_records[0]["task_id"] == review_id
+    assert review_records[0]["agent"]["trace_ref"] is None
+
+
 def test_a_review_session_never_leaks_onto_the_executors_trace_path(review_rig):
     # T-0172: without a pre-existing executor trace, the reviewer's session
     # must not remain at .wt/<target>.a1.trace.log under the executor's name

@@ -317,16 +317,24 @@ def run_review(
 
     # The review's session lives under its own id, named exactly as the
     # harness would have named it had it been given the review's workspace;
-    # the record's trace_ref then points at evidence that survives the review.
-    review_trace = naming.trace_file(naming.worktree(root, review.id), 1)
-    review_trace.write_text(result.output, encoding="utf-8")
+    # the record's trace_ref then points at evidence that survives the
+    # review. Only an adapter that actually wrote a trace gets that
+    # relocation (T-0176): an adapter that wrote none left no file, and a
+    # record citing a harness-shaped path nothing produced is a fabricated
+    # coordinate — as misleading as a missing one.
+    review_trace_ref = None
+
+    if result.trace_ref is not None:
+        review_trace = naming.trace_file(naming.worktree(root, review.id), 1)
+        review_trace.write_text(result.output, encoding="utf-8")
+        review_trace_ref = str(review_trace)
 
     result = AgentResult(
         exit_code=result.exit_code,
         output=result.output,
         cost_usd=result.cost_usd,
         model_version=result.model_version,
-        trace_ref=str(review_trace),
+        trace_ref=review_trace_ref,
     )
 
     broker_usage = (

@@ -418,13 +418,14 @@ def _cut_worktree(repo, manifest, task_doc):
     return GitWorkspace(repo.root).create(TASK_ID, "main")
 
 
-def test_the_empty_implement_diff_predicate():
-    # T-0172: only a standalone implement task with a resolvable base and
-    # nothing changed reads as a no-op. The integration task's empty diff
-    # stays legal (D-26.6: `depends_on` marks the composed tree as the
-    # point); revert/review roles and base-less repos are untouched.
-    from pathlib import Path
-
+def test_the_empty_implement_diff_predicate(tmp_path):
+    # T-0172 + T-0177: only a standalone implement task with a resolvable
+    # base and nothing changed reads as a no-op. The integration task's
+    # empty diff stays legal — but only the adoption-made one: a task is
+    # the integration task exactly when some contract under the engine's
+    # .torve/tasks names it as parent (T-0177). `depends_on` alone exempted
+    # every phase-sequenced implement task — the wrong discriminator;
+    # revert/review roles and base-less repos are untouched.
     from torve.application.runner import _is_empty_implement_diff
     from torve.config.manifest import Manifest
     from torve.domain.task import Task
@@ -432,7 +433,7 @@ def test_the_empty_implement_diff_predicate():
 
     def ctx(*, task, merge_base="main-tip", diff=()):
         return GateContext(
-            root=Path("."),
+            root=tmp_path,
             manifest=Manifest(),
             head_sha="head",
             base="main",
@@ -442,13 +443,13 @@ def test_the_empty_implement_diff_predicate():
         )
 
     implement = Task(id="T-9001", role="implement", decisions=[])
-    integration = Task(id="T-9002", role="implement", decisions=[], depends_on=["T-9001"])
+    sequenced = Task(id="T-9002", role="implement", decisions=[], depends_on=["T-9001"])
     revert = Task(id="T-9003", role="revert", decisions=[], targets=["T-9001"])
 
-    assert _is_empty_implement_diff(ctx(task=implement))
+    assert _is_empty_implement_diff(ctx(task=implement), tmp_path)
     # An untracked-only candidate is a change, not a no-op.
     assert not _is_empty_implement_diff(
-        ctx(task=implement, diff=[DiffEntry(status="A", path="new.txt")])
+        ctx(task=implement, diff=[DiffEntry(status="A", path="new.txt")]), tmp_path
     )
     # The engine's own contract copy — a worktree cut at base before the
     # mint carries none, so the gate pass's copy is the only untracked
@@ -457,7 +458,8 @@ def test_the_empty_implement_diff_predicate():
         ctx(
             task=implement,
             diff=[DiffEntry(status="A", path=".torve/tasks/T-9001/contract.yaml")],
-        )
+        ),
+        tmp_path,
     )
     assert _is_empty_implement_diff(
         ctx(
@@ -466,7 +468,8 @@ def test_the_empty_implement_diff_predicate():
                 DiffEntry(status="A", path=".torve/tasks/T-9001/contract.yaml"),
                 DiffEntry(status="A", path=".torve/tasks/T-9001/log.yaml"),
             ],
-        )
+        ),
+        tmp_path,
     )
     # A real file beside the bookkeeping is a candidate, not a no-op; so is
     # another task's contract, which the scope gate would not skip.
@@ -477,16 +480,43 @@ def test_the_empty_implement_diff_predicate():
                 DiffEntry(status="A", path=".torve/tasks/T-9001/contract.yaml"),
                 DiffEntry(status="A", path="src/app.py"),
             ],
-        )
+        ),
+        tmp_path,
     )
     assert not _is_empty_implement_diff(
-        ctx(task=implement, diff=[DiffEntry(status="A", path=".torve/tasks/T-9999/contract.yaml")])
+        ctx(task=implement, diff=[DiffEntry(status="A", path=".torve/tasks/T-9999/contract.yaml")]),
+        tmp_path,
     )
     # No base resolved: nothing to diff against, nothing to refuse.
-    assert not _is_empty_implement_diff(ctx(task=implement, merge_base=None))
-    assert not _is_empty_implement_diff(ctx(task=integration))
-    assert not _is_empty_implement_diff(ctx(task=revert))
-    assert not _is_empty_implement_diff(ctx(task=None))
+    assert not _is_empty_implement_diff(ctx(task=implement, merge_base=None), tmp_path)
+    # A phase-sequenced task's `depends_on` does not exempt it (T-0177):
+    # nothing names it as parent, so it is an ordinary implement task and
+    # its empty diff is a no-op like any other.
+    assert _is_empty_implement_diff(ctx(task=sequenced), tmp_path)
+    assert not _is_empty_implement_diff(ctx(task=revert), tmp_path)
+    assert not _is_empty_implement_diff(ctx(task=None), tmp_path)
+
+    # The adoption record decides: a contract naming the task as parent
+    # (D-26.5) makes it the integration task, whose empty diff stays legal.
+    adopted = tmp_path / "with-children"
+    (adopted / ".torve" / "tasks" / "T-9000").mkdir(parents=True)
+    (adopted / ".torve" / "tasks" / "T-9000" / "contract.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": "T-9000",
+                "role": "implement",
+                "parent": "T-9002",
+                "depends_on": [],
+                "scope": {"allow": [], "deny": []},
+                "acceptance": [],
+                "decisions": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    assert not _is_empty_implement_diff(ctx(task=sequenced), adopted)
 
 
 def test_an_empty_implement_diff_is_refused_before_the_battery(repo):
@@ -563,15 +593,37 @@ def test_an_empty_implement_diff_is_refused_when_the_contract_was_minted_after_b
 
 
 def test_an_integration_tasks_empty_diff_stays_legal(repo):
-    """D-26.6: at adoption the parent becomes the integration task — its
-    `depends_on` grows with every child and its landing is the
+    """D-26.6 + T-0177: at adoption the parent becomes the integration
+    task — its `depends_on` grows with every child and its landing is the
     decomposition's completion, so its legitimately-empty diff is not a
-    refused no-op."""
+    refused no-op. What makes it the integration task is the engine's
+    record of the adoption — a child contract naming it as parent — not
+    the grown `depends_on`, which an ordinary phase-sequenced task carries
+    too."""
     from torve.application.runner import _run_gates_in_worktree
 
     repo.seed()
     task_doc = base_task(allow=["src/**"])
     task_doc["depends_on"] = ["T-9000"]
+    # The adopted children carry the parent (D-26.5) — the engine's record
+    # the discriminator reads. It lives in the engine root's task
+    # directory; the worktree cut at base carries the committed copy.
+    repo.write(
+        ".torve/tasks/T-9000/contract.yaml",
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": "T-9000",
+                "role": "implement",
+                "parent": TASK_ID,
+                "depends_on": [],
+                "scope": {"allow": ["src/**"], "deny": []},
+                "acceptance": [],
+                "decisions": [],
+            },
+            sort_keys=False,
+        ),
+    )
     worktree = _cut_worktree(repo, {"schema_version": 1, "gates": []}, task_doc)
 
     exit_code, summary, _digest, results, _patch = _run_gates_in_worktree(

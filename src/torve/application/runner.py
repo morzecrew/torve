@@ -54,6 +54,7 @@ from torve.application.ports import (
     WorkspacePort,
 )
 from torve.application.runstate import Escalation, RunState
+from torve.application.sizing import has_children
 from torve.application.skills import materialize
 from torve.application.taskstore import TaskStore
 from torve.application.telemetry import (
@@ -521,7 +522,7 @@ def _run_gates_in_worktree(
 
         ctx.execute = executor
 
-        if _is_empty_implement_diff(ctx):
+        if _is_empty_implement_diff(ctx, root):
             # T-0172: an implement attempt that changed nothing against the
             # merge base is a no-op — refusing it here makes the loop read a
             # red gates fact and retry toward the poison ceiling, instead of
@@ -565,7 +566,7 @@ def _task_bookkeeping(task_id: str) -> set[str]:
     }
 
 
-def _is_empty_implement_diff(ctx: GateContext) -> bool:
+def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
     """An implement attempt whose candidate changed nothing must read as a
     red attempt (T-0172) — a green verdict over an unchanged tree is exactly
     how a silent no-op promoted. The candidate's diff is judged excluding
@@ -573,20 +574,26 @@ def _is_empty_implement_diff(ctx: GateContext) -> bool:
     mint carries no contract, so the gate pass copies it in as an untracked
     file — the engine's bookkeeping, implicitly in scope, and no more
     candidate work than the tree's gitignored artefacts. The integration
-    task's empty diff stays legal (D-26.6: at adoption `depends_on` grows
-    with every child, the battery over the composed tree is the point, and
-    its landing is the decomposition's completion); revert and review roles
-    are untouched. No base resolved means there is nothing to diff against,
-    so nothing to refuse."""
+    task's empty diff stays legal (D-26.6: at adoption the parent becomes
+    the integration task, the battery over the composed tree is the point,
+    and its landing is the decomposition's completion) — but only the
+    adoption makes it one: a task is the integration task exactly when some
+    contract under the engine's .torve/tasks names it as parent, not when
+    it merely carries `depends_on`, which every phase-sequenced implement
+    task does. Revert and review roles are untouched. No base resolved
+    means there is nothing to diff against, so nothing to refuse."""
 
     task = ctx.task
 
-    if (
-        task is None
-        or task.role != "implement"
-        or task.depends_on
-        or ctx.merge_base is None
-    ):
+    if task is None or task.role != "implement" or ctx.merge_base is None:
+        return False
+
+    # T-0177: the engine's record of adoption is D-26.5's parent field on
+    # the children (the adopted.json marker sits beside the decomposition
+    # run's contract, not the parent's, so it cannot discriminate at the
+    # parent's id). `depends_on` is the wrong discriminator — it exempts
+    # every ordinary phase-sequenced implement task.
+    if has_children(root, task.id):
         return False
 
     bookkeeping = _task_bookkeeping(task.id)
