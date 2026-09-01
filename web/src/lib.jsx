@@ -23,9 +23,10 @@ export const fmtK = (v) =>
 
 export const fmtDur = (s) => {
   if (s == null) return "—";
-  if (s < 60) return Math.round(s) + "s";
-  if (s < 3600) return Math.floor(s / 60) + "m" + String(Math.round(s % 60)).padStart(2, "0") + "s";
-  return Math.floor(s / 3600) + "h" + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m";
+  const t = Math.round(s);
+  return [t / 3600, (t % 3600) / 60, t % 60]
+    .map((v) => String(Math.floor(v)).padStart(2, "0"))
+    .join(":");
 };
 
 export const ago = (iso) => {
