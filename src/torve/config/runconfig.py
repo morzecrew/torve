@@ -785,12 +785,17 @@ class LoopConfig(BaseModel):
 class IntakeConfig(BaseModel):
     """The drafting run's knobs (RFC 0020). `max_drafts` is D-20.8's
     decomposition ceiling — how many contracts one request may yield;
-    `iterations` bounds the draft-lint loop like any attempt budget."""
+    `iterations` bounds the draft-lint loop like any attempt budget.
+    `document_threshold` is the document-threshold rule's starting point —
+    the number of distinct documents whose settled ground a scope must
+    cross before the work needs one of its own (RFC 0030 D-30.3), a
+    calibration knob rather than a truth."""
 
     model_config = ConfigDict(extra="forbid")
 
     max_drafts: int = 4
     iterations: int = 3
+    document_threshold: int = 2
 
 
 # ....................... #

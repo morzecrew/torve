@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -50,8 +50,9 @@ from torve.config.runconfig import (
     image_for,
     tier_for,
 )
+from torve.domain.attempt import SizeVerdict
 from torve.domain.states import EscalationReason, TaskState
-from torve.domain.task import SCHEMA_VERSION, Budget, Scope, Task
+from torve.domain.task import SCHEMA_VERSION, Budget, InheritedDecision, Scope, Task
 
 # ----------------------- #
 
@@ -548,6 +549,160 @@ def standing_warnings(tree: Path, contract: Path, rfc_dir: Path | None = None) -
         "the row into decisions to inherit it"
         for row in missing
     ]
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class ThresholdVerdict:
+    """RFC 0030 §5.2: `rides` or `document_required`, with the reasons that
+    drove it — named so both enforcement surfaces can render the same
+    evidence without recomputing it."""
+
+    verdict: Literal["rides", "document_required"]
+    reasons: list[str] = field(default_factory=list)
+
+
+def _document_owners(rfc_dir: Path) -> dict[str, str]:
+    """Which accepted document owns each decision id, resolved through the
+    same corpus parse `inherit_decisions` already reads (D-30.3) — never
+    from the identifier's own shape. A family of ids is not a document: RFC
+    0001 alone carries D-2, D-25 and D-A.* as one, and counting families
+    would overcount that single document as several — the mistake this
+    resolution exists to rule out."""
+
+    from torve.application.planner import inherit_decisions
+    from torve.config import rfc_parse
+
+    owners: dict[str, str] = {}
+
+    for path in rfc_parse.rfc_files(rfc_dir).values():
+        text = path.read_text(encoding="utf-8")
+        frontmatter = rfc_parse.parse_frontmatter(text)
+
+        if frontmatter is None:
+            continue
+
+        if str(frontmatter.get("status", "")) != "accepted" or frontmatter.get("superseded_by"):
+            continue
+
+        for row in inherit_decisions(text, path.name):
+            owners[row.id] = path.name
+
+    return owners
+
+
+def document_threshold(
+    standing: list[InheritedDecision],
+    size: SizeVerdict,
+    documents: dict[str, str],
+    min_documents: int,
+) -> ThresholdVerdict:
+    """RFC 0030 §5.2 (D-30.2/D-30.3): deterministic arithmetic over the
+    standing rows a scope crosses and the size verdict already computed
+    elsewhere — no model opinion of risk anywhere in the routing.
+    `documents` maps a row's id to the accepted document that owns it
+    (`_document_owners`); a row missing from the map counts as its own
+    document rather than vanishing from the count."""
+
+    by_document: dict[str, set[str]] = {}
+
+    for row in standing:
+        if row.grade == "LOCKED":
+            by_document.setdefault(documents.get(row.id, row.id), set()).add(row.id)
+
+    reasons: list[str] = []
+
+    if len(by_document) >= min_documents:
+        crossings = "; ".join(
+            f"{doc} ({', '.join(sorted(ids))})" for doc, ids in sorted(by_document.items())
+        )
+        reasons.append(f"crosses locked decisions from {len(by_document)} documents: {crossings}")
+
+    if size.size == "too_large":
+        reasons.append(f"too large ({'; '.join(size.reasons)})")
+
+    return ThresholdVerdict(verdict="document_required" if reasons else "rides", reasons=reasons)
+
+
+def _threshold_for_scope(
+    rfc_dir: Path, scope: Scope, acceptance: list[str], min_documents: int
+) -> ThresholdVerdict:
+    """Wires §5.1's standing rows and the size verdict into `document_
+    threshold` for one scope — the shape both the intake lint and adoption
+    need, and the lint-contract advisory too."""
+
+    from torve.application.planner import standing_decisions
+
+    standing = standing_decisions(rfc_dir, scope.allow)
+    size = sizing.estimate_scope(scope, acceptance)
+    documents = _document_owners(rfc_dir)
+
+    return document_threshold(standing, size, documents, min_documents)
+
+
+def lint_document_threshold(
+    tree: Path, document: DraftsDocument, config: RunnerConfig
+) -> list[str]:
+    """RFC 0030 §5.2 (D-30.4): the intake lint's enforcement surface — a
+    draft whose scope crosses the document threshold is a lint error naming
+    the crossings, so the drafter's next iteration can narrow scope, or the
+    commander routes the request to authoring instead."""
+
+    rfc_dir = tree / config.rfcs.path
+    errors: list[str] = []
+
+    for draft in document.drafts:
+        verdict = _threshold_for_scope(
+            rfc_dir, draft.scope, draft.acceptance, config.intake.document_threshold
+        )
+
+        if verdict.verdict == "document_required":
+            errors.append(
+                f"{draft.ref}: needs its own document — {'; '.join(verdict.reasons)} — "
+                "split it into an RFC with `torve rfc new`, or narrow scope.allow"
+            )
+
+    return errors
+
+
+def document_threshold_warnings(
+    tree: Path, contract: Path, config: RunnerConfig, rfc_dir: Path | None = None
+) -> list[str]:
+    """The lint-contract advisory (RFC 0030 D-30.4): when a hand-minted
+    contract's scope already crosses the document threshold, named —
+    advisory, never a refusal, since a hand-minted contract is already a
+    human's signature."""
+
+    try:
+        raw = yaml.safe_load(contract.read_text(encoding="utf-8"))
+
+    except yaml.YAMLError:
+        return []
+
+    if not isinstance(raw, dict):
+        return []
+
+    data = cast("dict[str, Any]", raw)
+
+    try:
+        task = Task.model_validate({**data, "decisions": data.get("decisions", [])})
+
+    except ValidationError:
+        return []
+
+    if task.role != "implement":
+        return []
+
+    verdict = _threshold_for_scope(
+        rfc_dir or tree / "rfcs", task.scope, task.acceptance, config.intake.document_threshold
+    )
+
+    if verdict.verdict != "document_required":
+        return []
+
+    return [f"needs its own document — {'; '.join(verdict.reasons)}"]
 
 
 # ....................... #
@@ -1079,15 +1234,18 @@ def _lint_intake_batch(
     runtime: Runtime,
 ) -> list[str]:
     """The contract lint, routed on whether this is a decomposition, then
-    (D-27.6) the configuration-change lint layered on top — a no-op for
-    any batch that names no configuration surface, so this costs an
-    ordinary drafting run nothing."""
+    the document-threshold lint (D-30.4), then (D-27.6) the configuration-
+    change lint layered on top — each a no-op unless its own condition
+    fires, so this costs an ordinary drafting run nothing."""
 
     lint_errors = (
         lint_decomposition(worktree, document, parent, config.intake.max_drafts)
         if parent is not None
         else lint_drafts(worktree, document, config.intake.max_drafts)
     )
+
+    if not lint_errors:
+        lint_errors = lint_document_threshold(worktree, document, config)
 
     if not lint_errors:
         lint_errors = lint_configuration_change(worktree, document, config, runtime)
@@ -1460,6 +1618,22 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     drafts: list[Draft] = [Draft.model_validate(d) for d in record["drafts"]]
     rfc = record.get("rfc")
     decisions = _inherit_decisions(root, str(rfc)) if rfc else []
+
+    # D-30.4: adoption refuses document_required before anything is
+    # written — the same check the intake lint already ran, re-run here
+    # since a hand-minted drafts file never passed it.
+    rfc_dir = root / config.rfcs.path
+
+    for draft in drafts:
+        verdict = _threshold_for_scope(
+            rfc_dir, draft.scope, draft.acceptance, config.intake.document_threshold
+        )
+
+        if verdict.verdict == "document_required":
+            raise ValueError(
+                f"{draft.ref}: needs its own document — {'; '.join(verdict.reasons)} — "
+                "split it into an RFC with `torve rfc new`, or narrow scope.allow"
+            )
 
     # A decomposition run names the contract it decomposes as its single
     # target (RFC 0026 §5.2); an ordinary intake names none.

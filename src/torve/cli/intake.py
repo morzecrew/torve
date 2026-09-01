@@ -281,30 +281,44 @@ def adopt_cmd(
 
 def lint_contract_cmd(
     contract: Annotated[Path, typer.Argument(help="A contract.yaml to lint against the tree.")],
+    config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """The standalone lint — the same mechanical protection a drafted
     contract gets, for the hand-minted path."""
 
-    from torve.application.intake import lint_contract
+    from torve.application.intake import document_threshold_warnings, lint_contract
 
     root = root.resolve()
+    config = load_config(root, config_path)
 
     if not contract.is_file():
         raise fail(f"configuration error: no contract at {contract}", EXIT_CONFIG)
 
     errors = lint_contract(root, contract)
+    # D-30.4: advisory only — a hand-minted contract is already signed, so
+    # crossing the document threshold warns here rather than refusing.
+    warnings = document_threshold_warnings(root, contract, config)
 
     if fmt is Format.JSON:
         emit_json(
-            {"schema_version": 1, "contract": str(contract), "ok": not errors, "errors": errors}
+            {
+                "schema_version": 1,
+                "contract": str(contract),
+                "ok": not errors,
+                "errors": errors,
+                "warnings": warnings,
+            }
         )
 
         raise typer.Exit(EXIT_OK if not errors else EXIT_GATES_RED)
 
     console = out(fmt)
     header(console, "lint-contract", contract.name)
+
+    for warning in warnings:
+        console.print(Text(f"  {warning}", DIM))
 
     if not errors:
         closing(console, "lint green")

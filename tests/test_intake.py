@@ -13,12 +13,16 @@ import yaml
 
 from torve.application.intake import (
     DraftsDocument,
+    ThresholdVerdict,
     adopt,
+    document_threshold,
+    document_threshold_warnings,
     drafts_file,
     execution_facts,
     lint_configuration_change,
     lint_contract,
     lint_decomposition,
+    lint_document_threshold,
     lint_drafts,
     mint_decomposition_task,
     mint_intake_task,
@@ -30,8 +34,9 @@ from torve.application.ports import AgentResult, SandboxHandle
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig
+from torve.domain.attempt import SizeVerdict
 from torve.domain.states import TaskState
-from torve.domain.task import Scope, Task
+from torve.domain.task import InheritedDecision, Scope, Task
 
 # ----------------------- #
 
@@ -476,6 +481,187 @@ def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path
     assert standing_warnings(tree, review) == []
 
 
+def _rfc_doc(number: str, decision_id: str, path: str, *, grade: str = "LOCKED") -> str:
+    return "\n".join(
+        [
+            "---",
+            f'id: "{number}"',
+            "title: Fixture",
+            "status: accepted",
+            "owner: t",
+            "schema_version: 1",
+            "---",
+            "",
+            "## Decisions",
+            "",
+            "| # | Grade | Decision | Paths | Consequence |",
+            "| --- | --- | --- | --- | --- |",
+            f"| {decision_id} | `{grade}` | The rule | `{path}` | — |",
+            "",
+        ]
+    )
+
+
+def _locked(decision_id: str, paths: list[str] | None = None) -> InheritedDecision:
+    return InheritedDecision(id=decision_id, grade="LOCKED", text="rule", paths=paths or ["src/**"])
+
+
+# ----------------------- #
+# The threshold verdict (D-30.2/D-30.3): pure arithmetic over standing
+# rows, document ownership and the size verdict — no file I/O.
+
+
+def test_document_threshold_rides_one_documents_locked_ground():
+    standing = [_locked("D-1.1"), _locked("D-1.2")]
+    documents = {"D-1.1": "0001-a.md", "D-1.2": "0001-a.md"}
+    verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
+    assert verdict == ThresholdVerdict(verdict="rides", reasons=[])
+
+
+def test_document_threshold_fires_when_locked_rows_cross_two_documents():
+    standing = [_locked("D-1.1"), _locked("D-2.1")]
+    documents = {"D-1.1": "0001-a.md", "D-2.1": "0002-b.md"}
+    verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
+    assert verdict.verdict == "document_required"
+    assert "0001-a.md" in verdict.reasons[0] and "0002-b.md" in verdict.reasons[0]
+    assert "D-1.1" in verdict.reasons[0] and "D-2.1" in verdict.reasons[0]
+
+
+def test_document_threshold_ignores_non_locked_rows_across_documents():
+    standing = [
+        InheritedDecision(id="D-1.1", grade="ASSUMED", text="r", paths=["src/**"]),
+        InheritedDecision(id="D-2.1", grade="OPEN", text="r", paths=["src/**"]),
+    ]
+    documents = {"D-1.1": "0001-a.md", "D-2.1": "0002-b.md"}
+    verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
+    assert verdict.verdict == "rides"
+
+
+def test_document_threshold_fires_on_too_large_alone():
+    size = SizeVerdict(size="too_large", reasons=["touches 2 top-level modules: lib, src"])
+    verdict = document_threshold([], size, {}, 2)
+    assert verdict.verdict == "document_required"
+    assert "too large" in verdict.reasons[0]
+
+
+def test_document_threshold_honours_a_lower_configured_minimum():
+    standing = [_locked("D-1.1")]
+    verdict = document_threshold(standing, SizeVerdict(size="ok"), {"D-1.1": "0001-a.md"}, 1)
+    assert verdict.verdict == "document_required"
+
+
+def test_document_threshold_counts_documents_not_id_families():
+    # A family of ids is not a document (D-30.3): RFC 0001 alone carries
+    # D-2, D-25 and D-A.* as one document — counting families would
+    # overcount this single document as three, which is the bug this
+    # resolution exists to rule out.
+    standing = [_locked("D-2.1"), _locked("D-25.3"), _locked("D-A.7")]
+    documents = {"D-2.1": "0001.md", "D-25.3": "0001.md", "D-A.7": "0001.md"}
+    verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
+    assert verdict.verdict == "rides"
+
+
+# ----------------------- #
+# The intake lint's enforcement surface (D-30.4): a batch-level check, a
+# no-op absent an rfcs/ directory, layered like the configuration lint.
+
+
+def test_lint_document_threshold_rides_one_documents_locked_ground(tree: Path):
+    (tree / "rfcs").mkdir()
+    (tree / "rfcs" / "0099-fixture.md").write_text(
+        _rfc_doc("0099", "D-99.1", "src/**"), encoding="utf-8"
+    )
+    errors = lint_document_threshold(tree, document(draft_dict("DRAFT-1")), RunnerConfig())
+    assert errors == []
+
+
+def test_lint_document_threshold_fires_when_scope_crosses_two_documents(tree: Path):
+    (tree / "rfcs").mkdir()
+    (tree / "rfcs" / "0097-other.md").write_text(
+        _rfc_doc("0097", "D-97.1", "src/newmod.py"), encoding="utf-8"
+    )
+    (tree / "rfcs" / "0099-fixture.md").write_text(
+        _rfc_doc("0099", "D-99.1", "src/newmod.py"), encoding="utf-8"
+    )
+    errors = lint_document_threshold(tree, document(draft_dict("DRAFT-1")), RunnerConfig())
+    assert len(errors) == 1
+    assert "DRAFT-1" in errors[0]
+    assert "D-97.1" in errors[0] and "D-99.1" in errors[0]
+    assert "0097-other.md" in errors[0] and "0099-fixture.md" in errors[0]
+    for coordinate in ("RFC 0030", "D-30."):
+        assert coordinate not in errors[0]
+
+
+def test_lint_document_threshold_fires_on_too_large_alone(tree: Path):
+    errors = lint_document_threshold(
+        tree, document(draft_dict("DRAFT-1", allow=["src/a.py", "lib/b.py"])), RunnerConfig()
+    )
+    assert len(errors) == 1
+    assert "too large" in errors[0]
+    for coordinate in ("RFC 0030", "D-30."):
+        assert coordinate not in errors[0]
+
+
+def test_lint_document_threshold_counts_documents_not_id_families(tree: Path):
+    (tree / "rfcs").mkdir()
+    (tree / "rfcs" / "0001-engine.md").write_text(
+        "\n".join(
+            [
+                "---",
+                'id: "0001"',
+                "title: Engine",
+                "status: accepted",
+                "owner: t",
+                "schema_version: 1",
+                "---",
+                "",
+                "## Decisions",
+                "",
+                "| # | Grade | Decision | Paths | Consequence |",
+                "| --- | --- | --- | --- | --- |",
+                "| D-2.1 | `LOCKED` | Rule one | `src/**` | — |",
+                "| D-25.3 | `LOCKED` | Rule two | `src/**` | — |",
+                "| D-A.7 | `LOCKED` | Rule three | `src/**` | — |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    errors = lint_document_threshold(tree, document(draft_dict("DRAFT-1")), RunnerConfig())
+    assert errors == []
+
+
+def test_document_threshold_warnings_advise_without_failing_the_contract_lint(tree: Path):
+    (tree / "rfcs").mkdir()
+    (tree / "rfcs" / "0097-other.md").write_text(
+        _rfc_doc("0097", "D-97.1", "src/app.py"), encoding="utf-8"
+    )
+    (tree / "rfcs" / "0099-fixture.md").write_text(
+        _rfc_doc("0099", "D-99.1", "src/app.py"), encoding="utf-8"
+    )
+    contract = tree / "contract.yaml"
+    contract.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": "T-0001",
+                "role": "implement",
+                "intent": "do",
+                "scope": {"allow": ["src/app.py", "tests/test_app.py"], "deny": []},
+                "acceptance": ["true"],
+                "decisions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert lint_contract(tree, contract) == []  # advisory, never a refusal
+    warnings = document_threshold_warnings(tree, contract, RunnerConfig())
+    assert len(warnings) == 1
+    assert "needs its own document" in warnings[0]
+    for coordinate in ("RFC 0030", "D-30."):
+        assert coordinate not in warnings[0]
+
+
 # ----------------------- #
 # The role's contract shape.
 
@@ -835,6 +1021,65 @@ def test_adopt_refuses_a_draft_status_document(seeded):
     source = adopted_ready_run(seeded, rfc="rfcs/0098-fixture.md")
     with pytest.raises(ValueError, match="not accepted"):
         adopt(seeded.root, source, RunnerConfig())
+
+
+def _write_ready_drafts(seeded, task_id: str, request: str, *drafts: dict) -> None:
+    # A hand-assembled drafts.json, bypassing the drafting run entirely —
+    # the same shape a green run would have persisted (D-20.4), used here
+    # because the scenario under test is one the intake lint itself would
+    # already refuse (T-0197): adoption's own refusal must stand on its
+    # own, not lean on the lint catching it first.
+    drafts_file(seeded.root, task_id).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "request": request,
+                "rfc": None,
+                "rationale": "",
+                "drafts": list(drafts),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_adopt_refuses_a_scope_crossing_two_documents_locked_ground(seeded):
+    # RFC 0030 D-30.4: refused before anything is written — no lock, no
+    # minted id, no commit — since adoption is the signature and a
+    # signature over two documents' settled ground belongs on one.
+    seeded.write("rfcs/0097-other.md", _rfc_doc("0097", "D-97.1", "src/newmod.py"))
+    seeded.write("rfcs/0099-fixture.md", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
+    seeded.commit("fixture rfcs")
+    config = RunnerConfig()
+    task = mint_intake_task(seeded.root, "two docs", config)
+    _write_ready_drafts(seeded, task.id, "two docs", draft_dict())  # no rfc line
+
+    with pytest.raises(ValueError, match="needs its own document") as excinfo:
+        adopt(seeded.root, task.id, config)
+
+    for coordinate in ("RFC 0030", "D-30."):
+        assert coordinate not in str(excinfo.value)
+    assert not (seeded.root / ".torve" / "tick.lock").exists()
+    assert drafts_file(seeded.root, task.id).exists()  # nothing consumed
+
+
+def test_adopt_refuses_a_too_large_draft(seeded):
+    config = RunnerConfig()
+    task = mint_intake_task(seeded.root, "one big thing", config)
+    _write_ready_drafts(
+        seeded, task.id, "one big thing", draft_dict(allow=["src/a.py", "lib/b.py"])
+    )
+
+    with pytest.raises(ValueError, match="too large"):
+        adopt(seeded.root, task.id, config)
+
+
+def test_adopt_rides_one_documents_locked_ground_with_bounded_size(seeded):
+    seeded.write("rfcs/0099-fixture.md", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
+    seeded.commit("fixture rfc")
+    source = adopted_ready_run(seeded)
+    adopted = adopt(seeded.root, source, RunnerConfig())
+    assert len(adopted) == 2
 
 
 def test_adopt_refuses_without_a_ready_run(seeded):

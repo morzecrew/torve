@@ -1,0 +1,49 @@
+schema_version: 1
+task: T-0197
+repo: morzecrew/torve
+base_sha: 5911932bffa138d57a2ef2dda514b9a4adde7f9d
+drift_count: 0
+entries:
+  - decision: D-30.1
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-01T00:00:00Z
+    attempt: 1
+    claim: the threshold verdict consumes standing rows through the planner's
+      existing standing_decisions reader unchanged — no second reader of the
+      corpus was written for this phase, and pathless rows still never stand
+      because that filter lives inside the reused function
+    evidence: src/torve/application/intake.py:636-638 — _threshold_for_scope
+      calls torve.application.planner.standing_decisions(rfc_dir, scope.allow)
+      and passes its result straight into document_threshold, no local
+      re-parse of the decision table
+    action: decided
+    notes: |
+      Close-out attestation: this phase touches src/torve/application/intake.py,
+      one of D-30.1's declared paths, by adding the threshold verdict beside the
+      standing-inheritance consumers phase 1 already built (_merged_decisions,
+      standing_warnings). It does not alter how rows become standing.
+  - decision: D-30.2
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-01T00:00:00Z
+    attempt: 1
+    claim: document_threshold is arithmetic over already-computed inputs
+      (standing rows, a document-ownership map, the size verdict) with no
+      agent/model call anywhere in its body or its callers' path to it
+    evidence: src/torve/application/intake.py:596-626 — document_threshold's
+      full body is dict/set bookkeeping and string joins over its four
+      parameters; no import of an agent, broker or runtime port appears in
+      this function or in _threshold_for_scope (intake.py:629-641)
+    action: decided
+    notes: |
+      Close-out attestation: document_threshold and its document-ownership
+      helper (_document_owners, intake.py:567-593) resolve distinct documents
+      through the corpus parse (rfc_parse + planner.inherit_decisions) rather
+      than by inspecting a decision id's shape — a family of ids (e.g. RFC
+      0001's D-2, D-25, D-A.*) resolves to one document, not several, which
+      test_document_threshold_counts_documents_not_id_families and
+      test_lint_document_threshold_counts_documents_not_id_families in
+      tests/test_intake.py pin directly.
