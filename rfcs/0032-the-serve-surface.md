@@ -239,13 +239,24 @@ not paraphrased.
 - phase: 2
   title: serve-frontend
   intent: >-
-    The web/ source tree: React + shadcn single page rendering board, escalations, findings ledger, proposals, gate health, cost and token shape, and programme sections from the two endpoints, polling with a visible projected-at stamp (D-32.6); the npm-builder CI job building the bundle into torve/_web package data (D-32.4). No pytest surface — the phase's acceptance is the build completing and the backend suite still green.
+    The web/ source tree: React + shadcn single page rendering board, escalations, findings ledger, proposals, gate health, cost and token shape, and programme sections from the two endpoints, polling with a visible projected-at stamp (D-32.6). A local build script produces the bundle into src/torve/_web; committing the bundle is phase 3's CI question, not this phase's.
   scope:
     - "web/**"
-    - ".github/**"
     - "src/torve/_web/**"
   acceptance:
     - "uv run pytest tests/test_serve.py"
     - "uv run ruff check ."
   depends_on: [1]
+- phase: 3
+  title: serve-bundle-ci
+  intent: >-
+    The npm-builder CI job building web/ into the torve/_web package data on the release path (D-32.4), and the D-32.5 call made from the first real build: vendored-and-hash-checked or CI-attached. The job runs the frontend build and asserts the backend suite stays green against the produced bundle.
+  scope:
+    - ".github/**"
+  acceptance:
+    - "uv run ruff check ."
+  depends_on: [2]
 ```
+
+*(Phase 2 split into phases 2–3 on 2026-09-01, pre-mint: sizing routed
+the original combined phase `too_large`.)*
