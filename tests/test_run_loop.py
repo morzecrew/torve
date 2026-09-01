@@ -12,7 +12,12 @@ import yaml
 import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
 from torve.application.ports import AgentResult, ExecResult, SandboxHandle, SandboxInfo
-from torve.application.runner import BlockedDispatch, RunDeps, run_task
+from torve.application.runner import (
+    BlockedDispatch,
+    RoleNotDispatchable,
+    RunDeps,
+    run_task,
+)
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig, TierConfig
@@ -456,10 +461,13 @@ def test_an_empty_allow_on_a_writing_role_is_still_unconstrained(rig):
         run_task(repo.root, task, RunnerConfig(), deps)
 
 
-def test_a_review_dispatch_holds_no_fence_against_active_writers(rig):
-    """A review task being dispatched is excluded from overlap fencing
-    entirely: it writes nothing, so no active writer's fence can conflict
-    with it — the review proceeds while the writer's run is in flight."""
+def test_a_review_dispatch_is_refused_at_the_door(rig):
+    """T-0183: the generic attempt path mounts the workspace writable, so a
+    review-role task is never dispatched through it — the front door
+    refuses before the fence or any claim exists. That refusal makes the
+    review exemption's "writes nothing" assumption true by construction:
+    the fence never sees a review dispatch, with or without an active
+    writer."""
     repo, deps, _runtime, _vcs, _ = rig
     _active_run(repo.root, "T-8001", role="implement", allow=["src/app/**"])
     review = Task(
@@ -469,8 +477,71 @@ def test_a_review_dispatch_holds_no_fence_against_active_writers(rig):
         scope=Scope(),
         decisions=[],
     )
-    state = run_task(repo.root, review, RunnerConfig(), deps)
+    with pytest.raises(RoleNotDispatchable, match="review"):
+        run_task(repo.root, review, RunnerConfig(), deps)
+    # Refused at the door: no claim, no state file, no sandbox.
+    assert not naming.state_file(repo.root, "T-8002").exists()
+
+
+def test_a_draft_dispatch_is_refused_at_the_door(rig):
+    """The same guard for any role the generic path does not implement the
+    isolation contract for: a draft runs read-only through intake, so a
+    direct dispatch is refused with its own way out."""
+    repo, deps, _runtime, _vcs, _ = rig
+    draft = Task(id="T-8003", role="draft", scope=Scope(), decisions=[])
+    with pytest.raises(RoleNotDispatchable, match="draft"):
+        run_task(repo.root, draft, RunnerConfig(), deps)
+    assert not naming.state_file(repo.root, "T-8003").exists()
+
+
+def test_implement_and_revert_pass_the_role_guard(rig):
+    """T-0183's fence: the guard refuses only the roles the generic path
+    cannot isolate — implement and revert stay dispatchable exactly as
+    today."""
+    from torve.application.runner import check_dispatch_role
+
+    repo, deps, _runtime, _vcs, _ = rig
+    check_dispatch_role(Task(id="T-8004", role="implement", scope=Scope(), decisions=[]))
+    check_dispatch_role(
+        Task(id="T-8005", role="revert", targets=["T-8004"], scope=Scope(), decisions=[])
+    )
+    state = run_task(
+        repo.root,
+        Task(id="T-8004", role="implement", scope=Scope(), decisions=[]),
+        RunnerConfig(),
+        deps,
+    )
     assert state.state is TaskState.READY
+
+
+def test_run_refuses_a_review_contract_at_the_front_door(repo):
+    """`torve run` refuses a review-role contract with the way out — before
+    sizing, provider routing or a sandbox exists: the review follows
+    execution, and the runner mints and drives it once the target's gates
+    go green."""
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+
+    repo.seed()
+    repo.write(
+        ".torve/tasks/T-8010/contract.yaml",
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": "T-8010",
+                "role": "review",
+                "scope": {"allow": [], "deny": []},
+                "acceptance": [],
+                "targets": ["T-8009"],
+                "decisions": [],
+            }
+        ),
+    )
+    result = CliRunner().invoke(app, ["run", "T-8010", "--root", str(repo.root)])
+    assert result.exit_code == 3
+    assert "T-8010 is a review-role task" in result.stderr
+    assert "follows execution" in result.stderr
 
 
 def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):

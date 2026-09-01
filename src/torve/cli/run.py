@@ -109,7 +109,12 @@ def run_cmd(
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GhScm, GitVcs, NullScm, repository_name
     from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.runner import RunDeps, run_task
+    from torve.application.runner import (
+        RoleNotDispatchable,
+        RunDeps,
+        check_dispatch_role,
+        run_task,
+    )
     from torve.config.runconfig import (
         ProviderDenied,
         TierConfig,
@@ -128,6 +133,19 @@ def run_cmd(
         raise fail(f"configuration error: no task contract at {task_file}", EXIT_CONFIG)
 
     task = load_task(task_file)
+
+    # T-0183: the front door refuses any role the generic attempt path does
+    # not implement the isolation contract for — review (D-5.2) and draft
+    # (D-20.2) each have a runner-minted path with a read-only workspace,
+    # and this path would mount the workspace writable. Refused here,
+    # before sizing, provider routing or an agent exists, with the way out;
+    # run_task enforces the same guard, so no caller can bypass the door.
+    try:
+        check_dispatch_role(task)
+
+    except RoleNotDispatchable as exc:
+        raise fail(str(exc), EXIT_CONFIG) from exc
+
     config = load_config(root, config_path)
 
     # RFC 0026 D-26.7: a too_large verdict routes to decomposition; a

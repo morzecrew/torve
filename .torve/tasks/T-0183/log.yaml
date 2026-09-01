@@ -1,0 +1,42 @@
+schema_version: 1
+task: T-0183
+repo: morzecrew/torve
+base_sha: 1fdaef97d0d3852b9473cf15940f4a45eb6e4cb8
+drift_count: 0
+entries:
+  - decision: D-5.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T05:49:24Z
+    attempt: 1
+    claim: >-
+      D-5.2's read-only guarantee now holds at the front door by
+      construction: the generic attempt path implements the isolation
+      contract for implement and revert only, and run_task — the one
+      dispatch entry the CLI, tick and fleet share — refuses review- and
+      draft-role tasks before state, the fence or any claim exists, with
+      the way out (a review follows execution, the runner mints and
+      drives it once its target's gates go green; drafting runs through
+      torve intake). The fence's review exemption therefore holds by
+      construction: the dispatch-side exemption is gone, the active-side
+      skip remains, and implement and revert stay dispatchable exactly
+      as today.
+    evidence: >-
+      src/torve/application/runner.py:1598-1625 — check_dispatch_role
+      refuses review and draft with the runner-minted paths that own
+      them; src/torve/application/runner.py:1628-1635 — run_task invokes
+      the guard before state load, the fence and the claim, so the
+      unsafe writable path no longer exists; src/torve/application/
+      runner.py:1526-1564 — the fence keeps only the active-review skip,
+      its dispatch-side exemption removed; src/torve/cli/run.py:135-147 —
+      the run front door refuses before sizing, routing or a sandbox
+      exists; tests/test_run_loop.py:464-536 — the refusal tests for
+      review and draft, the implement/revert pass pin, and the CLI
+      front-door refusal
+    action: decided
+    notes: |
+      Compliant close-out — no divergence from D-5.2: the reviewer's
+      workspace stays read-only and the runner still posts comments; this
+      task only stops the front door from mounting that workspace writable
+      on a direct dispatch. The user-facing refusal strings carry no corpus
+      coordinates; the references live in the code comments beside them.

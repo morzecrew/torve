@@ -1526,16 +1526,11 @@ def _scope_overlap(mine: list[str], theirs: list[str]) -> str | None:
 def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
     """(blocking task id, contended path) when an active run's allow-set
     intersects this task's; an empty allow-set is unconstrained and
-    contends with everything. Review-role tasks hold no fence on either
-    side: they write nothing, so they claim no files and no fence can
-    conflict with them."""
-
-    # D-5.2: a review runs in a read-only workspace and writes nothing by
-    # construction — it is excluded from overlap fencing entirely. The
-    # exemption keys on the role: an empty allow-set on a writing role
-    # still means unconstrained (RFC 0002 §6).
-    if task.role == "review":
-        return None
+    contends with everything. An active review claims no fence — it
+    writes nothing by construction (D-5.2), so no dispatch is refused
+    against it. A review dispatch never reaches the fence at all: the
+    front door refuses it (T-0183), so the exemption's assumption holds
+    by construction."""
 
     from torve.gates.context import load_task
 
@@ -1592,7 +1587,53 @@ def _should_resume(previous: RunState) -> bool:
 # ....................... #
 
 
+class RoleNotDispatchable(ValueError):
+    """Direct dispatch of a role the generic attempt path does not implement
+    the isolation contract for (T-0183): review (D-5.2) and draft (D-20.2)
+    each run through a runner-minted path with a read-only workspace, and
+    this path would mount the workspace writable. A ValueError, so the run
+    CLI's configuration-error catch already handles it."""
+
+
+def check_dispatch_role(task: Task) -> None:
+    """The front door's role guard (T-0183): refuse direct dispatch of any
+    role the generic attempt path does not implement the isolation contract
+    for. Implement and revert are the only roles this path isolates; review
+    (D-5.2) and draft (D-20.2) are each refused with the path that owns
+    them. Refusing here — before the fence or any claim — makes the review
+    exemption's "writes nothing" assumption true by construction: the fence
+    never sees a review dispatch."""
+
+    if task.role == "review":
+        # D-5.2 (T-0183): a direct dispatch would mount the workspace
+        # writable, so the door points at the runner-minted path instead.
+        target = task.targets[0] if task.targets else "its target"
+        raise RoleNotDispatchable(
+            f"{task.id} is a review-role task — reviews are not run "
+            f"directly: a review follows execution, and the runner mints "
+            f"and drives it once its target's gates go green. Run "
+            f"{target} and its review follows."
+        )
+
+    if task.role == "draft":
+        # RFC 0020 D-20.2 (T-0183): the drafting path owns the read-only
+        # workspace; the generic attempt path would mount it writable.
+        raise RoleNotDispatchable(
+            f"{task.id} is a draft-role task — drafting runs are driven "
+            "by `torve intake`, never by `torve run`: the drafter works "
+            "in a read-only workspace and its gate is the contract lint."
+        )
+
+
 def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> RunState:
+    # T-0183: review and draft reach this generic path only through a
+    # bypass — each has a runner-minted path with a read-only workspace
+    # (D-5.2, D-20.2), and this path mounts the workspace writable. Refuse
+    # at the door, before state, the fence or any claim exists; implement
+    # and revert are the only roles this path implements the isolation
+    # contract for.
+    check_dispatch_role(task)
+
     state_path = naming.state_file(root, task.id)
     resume = False
 
