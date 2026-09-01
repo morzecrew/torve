@@ -3,6 +3,7 @@ id: "0032"
 title: The serve surface
 kind: design
 status: accepted
+implementation: complete
 depends_on: ["0007", "0022"]
 informed_by: ["0005", "0011", "0013", "0018"]
 supersedes: []
@@ -16,6 +17,7 @@ schema_version: 1
 
 # RFC 0032 — The serve surface
 
+- **Implementation state:** complete (judged 2026-09-01). Phase 1 executed as T-0200 (serve backend, landed e43a2d2 after T-0205's LOCKED D-32.1 blocker forced the status projection to be lifted rather than re-derived); phase 2 as T-0201 (the frontend, landed 536c01c, dashboard smoke-tested live); phase 3 as T-0202 (bundle CI, landed 144a090). D-32.5 settles on the first release build.
 - **Scope:** A browser surface for the facts the CLI already projects: the
   board, the programme, cost and token shape, gate health, the findings
   ledger, escalations, attempts in flight. Covers the `torve serve` verb,

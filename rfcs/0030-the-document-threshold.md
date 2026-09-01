@@ -2,6 +2,7 @@
 id: "0030"
 title: The document threshold
 status: accepted
+implementation: complete
 depends_on: ["0007", "0020"]
 informed_by: ["0016", "0022", "0026"]
 supersedes: []
@@ -18,6 +19,7 @@ schema_version: 1
 
 # RFC 0030 — The document threshold
 
+- **Implementation state:** complete (judged 2026-09-01). Phase 1 executed as T-0196 (standing inheritance, landed 6e12761); phase 2 as T-0197 (threshold verdict, landed 15c905d under the heavy rung after T-0208's families-are-not-documents blocker corrected the first form).
 - **Scope:** How a contract that has no source document stays governed, and
   when the engine refuses to let work proceed without one. Covers a standing
   inheritance function beside the planner's `inherit_decisions` — rows from

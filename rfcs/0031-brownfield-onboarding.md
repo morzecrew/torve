@@ -2,6 +2,7 @@
 id: "0031"
 title: Brownfield onboarding
 status: accepted
+implementation: complete
 depends_on: ["0004", "0030"]
 informed_by: ["0007", "0017", "0022"]
 supersedes: []
@@ -18,6 +19,7 @@ schema_version: 1
 
 # RFC 0031 — Brownfield onboarding
 
+- **Implementation state:** complete (judged 2026-09-01). Phase 1 executed as T-0198 (the survey, landed e2fac4c); phase 2 as T-0199 (the bootstrap skill, landed de19e3d). D-31.6's document shape waits on the first real adoption, as written.
 - **Scope:** What torve can do for a repository it has never run in, before
   that repository trusts it with anything. Covers `torve survey` — an
   agentless, read-only replay of the last N landings on the default branch
