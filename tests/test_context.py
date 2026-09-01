@@ -533,8 +533,9 @@ def test_operator_attention_is_present_with_no_tasks(tmp_path):
     report = context_report(tmp_path, tmp_path / "rfcs")
     attention = report["spec_quality"]["operator_attention"]
     assert attention["landed"] == 0
-    assert attention["command_events"] == 0
-    assert attention["escalations_triaged"] == 0
+    assert attention["feedback"] == {"joined": 0, "total": 0}
+    assert attention["command_events"] == {"joined": 0, "total": 0}
+    assert attention["escalations_triaged"] == {"joined": 0, "total": 0}
     assert attention["human_minutes_n"] == 0
     assert "quasi-experiment" in attention["caveat"]
 
@@ -549,6 +550,68 @@ def test_operator_attention_human_minutes_suppressed_below_the_default_floor(tmp
     attention = report["spec_quality"]["operator_attention"]
     assert attention["human_minutes_median"] is None  # 2 observations, default floor is 5
     assert attention["human_minutes_n"] == 2  # denominator prints regardless (D-22.8)
+
+
+def _land_commit(root, task_id: str) -> None:
+    import subprocess
+
+    if not (root / ".git").exists():
+        subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    marker = root / f".landed-{task_id}"
+    marker.write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", str(marker)], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-q", "-m", f"land {task_id}\n\nTorve-Task: {task_id}"],
+        check=True,
+    )
+
+
+def test_operator_attention_joins_interventions_to_landed_changes(tmp_path):
+    """D-22.12: the interventions behind landed changes — feedback, commands
+    and escalations — join per task id, with the raw total carrying whatever
+    never landed in the window."""
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    _ready_state(tmp_path, "T-0001")
+    _land_commit(tmp_path, "T-0001")
+    _write_feedback(tmp_path, "T-0001", 10, rework=False)
+    _write_feedback(tmp_path, "T-0002", 20, rework=False)  # never landed: raw only
+    _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
+
+    telemetry = tmp_path / ".torve" / "telemetry.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+    telemetry.write_text(
+        json.dumps({"kind": "engine", "event": "tracker_command", "task": "T-0001"})
+        + "\n"
+        + json.dumps({"kind": "engine", "event": "tracker_command", "task": "T-0002"})
+        + "\n",
+        encoding="utf-8",
+    )
+
+    attention = context_report(tmp_path, tmp_path / "rfcs")["spec_quality"]["operator_attention"]
+    assert attention["landed"] == 1
+    assert attention["feedback"] == {"joined": 1, "total": 2}
+    assert attention["command_events"] == {"joined": 1, "total": 2}
+
+
+def test_operator_attention_reads_the_configured_telemetry_path(tmp_path):
+    """The context section reads the telemetry stream where gates.yaml puts
+    it, not a hardcoded default — a relocated stream must not read as zero."""
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
+    custom = tmp_path / ".torve" / "custom-telemetry.jsonl"
+    custom.parent.mkdir(parents=True, exist_ok=True)
+    custom.write_text(
+        json.dumps({"kind": "engine", "event": "tracker_command", "task": "T-0001"}) + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump({"schema_version": 1, "telemetry": ".torve/custom-telemetry.jsonl"}),
+        encoding="utf-8",
+    )
+
+    attention = context_report(tmp_path, tmp_path / "rfcs")["spec_quality"]["operator_attention"]
+    assert attention["command_events"] == {"joined": 0, "total": 1}
 
 
 def test_render_markdown_prints_the_operator_attention_line_with_no_documents(tmp_path):

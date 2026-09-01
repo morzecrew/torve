@@ -40,8 +40,12 @@ or resizes a dispatch.
 `operator_attention` (D-22.12, A-73) reads the same join corpus-wide: landed
 changes beside the operator interventions already recorded behind them —
 feedback minutes, tracker commands and approvals, escalations triaged —
-denominators printed, the human-minutes reading suppressed below `floor`, no
-ratio of attention to landed changes computed (D-22.3).
+joined per task id. Each intervention kind reports its count behind landed
+changes beside its raw total, with the landed window and the raw total as
+the two printed denominators; an intervention whose task never landed in the
+window stays in the raw total only. The human-minutes reading is suppressed
+below `floor` (D-22.8), no ratio of attention to landed changes computed
+(D-22.3).
 """
 
 from __future__ import annotations
@@ -729,13 +733,39 @@ def render_envelope(envelope: dict[str, Any]) -> str:
 # ....................... #
 
 
+def _telemetry_file(root: Path) -> Path:
+    """The telemetry stream's configured location, resolved through the same
+    layout/configuration the writer resolves it with: gates.yaml's `telemetry`
+    field when the manifest exists, the default path otherwise. The stream is
+    relocatable by configuration (a repository that moves it must be read
+    where the writer appends, not silently read as empty at the default)."""
+
+    # Same resolution as `telemetry.engine_event` (the writer), lane.py and
+    # loop.py: the manifest's `telemetry` field, or the shipped default when
+    # no manifest exists.
+    from torve.config.manifest import Manifest, load_manifest
+
+    manifest_path = layout.gates_file(root)
+
+    telemetry_rel = (
+        load_manifest(manifest_path).telemetry
+        if manifest_path.is_file()
+        else Manifest(gates=[]).telemetry
+    )
+
+    return root / telemetry_rel
+
+
+# ....................... #
+
+
 def _tracker_command_events(root: Path) -> list[dict[str, Any]]:
     """Every `tracker_command` engine event the tracker's `poll_and_apply`
     already writes for the six commander verbs, applied or refused — a
     refused command is still an operator spending attention on the board,
     read the same plain-JSONL way `_task_cost_usd` reads this stream."""
 
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+    telemetry = _telemetry_file(root)
 
     if not telemetry.is_file():
         return []
@@ -768,35 +798,57 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
     interventions already recorded behind them — feedback minutes, tracker
     commands and approvals (one event, distinguished by `verb`), escalations
     a human triaged — joined from `read_tasks`, the telemetry stream and
-    `projections.feedback_records`, with no new recorded field. Every count
-    prints regardless of `floor`; only the human-minutes median, the one
-    statistic here with a real sample-size risk, is suppressed below it
-    (D-22.8). No ratio of attention to landed changes is computed (D-22.3):
-    the counts are printed beside each other for a human to relate."""
+    `projections.feedback_records`, with no new recorded field. Feedback rows
+    and tracker events carry task ids and landings resolve to task ids through
+    the shipped derivation, so every intervention kind reports its joined
+    count (its task landed in the window) beside its raw total, with the
+    landed window and the raw total as the two denominators (D-22.8); an
+    intervention whose task never landed in the window stays in the raw total
+    only. Every count prints regardless of `floor`; only the human-minutes
+    median, the one statistic here with a real sample-size risk, is suppressed
+    below it (D-22.8). No ratio of attention to landed changes is computed
+    (D-22.3): the counts are printed beside each other for a human to relate."""
 
     tasks = read_tasks(root)
-    landed = sum(1 for t in tasks if t.landed)
+    landed_tasks = [t for t in tasks if t.landed]
+    landed_ids = {t.id for t in landed_tasks}
 
     # D-22.5 layering: `torve.application.projections` imports `read_tasks`
     # from this module at load time, so the reverse import stays lazy the
     # same way `_landed_task_ids` above imports `shipped_ids`.
     from torve.application.projections import feedback_records
 
-    minutes = [
-        int(row["human_minutes"])
-        for row in feedback_records(root).values()
+    # Feedback is one row per task id (latest wins); the joined count is the
+    # rows whose task landed, the raw total all rows. The human-minutes
+    # median keeps its own population and printed n — the join is over the
+    # counts, not a new median (D-22.12: "the interventions behind them").
+    feedback_rows = [
+        (task_id, row)
+        for task_id, row in feedback_records(root).items()
         if isinstance(row.get("human_minutes"), int)
     ]
-    n_minutes = len(minutes)
+    minutes = [int(row["human_minutes"]) for _, row in feedback_rows]
+
+    events = _tracker_command_events(root)
 
     return {
         "schema_version": 1,
         "floor": floor,
-        "landed": landed,
-        "command_events": len(_tracker_command_events(root)),
-        "escalations_triaged": sum(t.escalations_triaged for t in tasks),
-        "human_minutes_median": statistics.median(minutes) if n_minutes >= floor else None,
-        "human_minutes_n": n_minutes,
+        "landed": len(landed_tasks),
+        "feedback": {
+            "joined": sum(1 for task_id, _ in feedback_rows if task_id in landed_ids),
+            "total": len(feedback_rows),
+        },
+        "command_events": {
+            "joined": sum(1 for event in events if str(event.get("task") or "") in landed_ids),
+            "total": len(events),
+        },
+        "escalations_triaged": {
+            "joined": sum(t.escalations_triaged for t in landed_tasks),
+            "total": sum(t.escalations_triaged for t in tasks),
+        },
+        "human_minutes_median": statistics.median(minutes) if len(minutes) >= floor else None,
+        "human_minutes_n": len(minutes),
         "caveat": QUASI_EXPERIMENT_CAVEAT,
     }
 
@@ -806,20 +858,35 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
 
 def render_operator_attention(report: dict[str, Any]) -> str:
     """One line for the corpus summary and the context section (D-22.12):
-    landed changes and every intervention count printed always, the
+    landed changes and every intervention count printed always — each kind's
+    joined count (interventions whose task landed) beside its raw total, the
+    landed window and the raw total as the two denominators — the
     human-minutes median only once it clears the floor, the caveat printed
     with it every time — never paraphrased (RFC 0004 §6a)."""
 
     if report["human_minutes_median"] is not None:
-        minutes = f"{report['human_minutes_median']:.0f}m human effort (n={report['human_minutes_n']})"
+        minutes = (
+            f"{report['human_minutes_median']:.0f}m human effort (n={report['human_minutes_n']})"
+        )
     else:
         minutes = (
             f"human effort below the observation floor of {report['floor']} "
             f"(n={report['human_minutes_n']})"
         )
 
+    landed = report["landed"]
+
+    kinds = (
+        ("feedback", report["feedback"]),
+        ("command/approval events", report["command_events"]),
+        ("escalations triaged", report["escalations_triaged"]),
+    )
+
+    counts = "; ".join(
+        f"{label}: {block['joined']} behind landed change(s) (of {landed}), {block['total']} total"
+        for label, block in kinds
+    )
+
     return (
-        f"operator attention: {report['landed']} landed change(s), "
-        f"{report['command_events']} command/approval event(s), "
-        f"{report['escalations_triaged']} escalation(s) triaged, {minutes} — {report['caveat']}"
+        f"operator attention: {landed} landed change(s) — {counts}; {minutes} — {report['caveat']}"
     )

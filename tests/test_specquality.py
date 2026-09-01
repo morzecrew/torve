@@ -707,7 +707,8 @@ def test_operator_attention_counts_tracker_command_events_applied_or_not(tmp_pat
         handle.write(json.dumps({"kind": "engine", "event": "tracker_divergence"}) + "\n")
 
     report = operator_attention(tmp_path)
-    assert report["command_events"] == 2
+    # No task ever landed here, so both events stay in the raw total only.
+    assert report["command_events"] == {"joined": 0, "total": 2}
 
 
 def test_operator_attention_counts_escalations_triaged_both_exits(tmp_path):
@@ -717,7 +718,48 @@ def test_operator_attention_counts_escalations_triaged_both_exits(tmp_path):
     abandoned_state(tmp_path, "T-0002")  # escalated -> abandoned
 
     report = operator_attention(tmp_path)
-    assert report["escalations_triaged"] == 2
+    assert report["escalations_triaged"] == {"joined": 0, "total": 2}
+
+
+def test_operator_attention_joins_feedback_to_landed_changes(tmp_path):
+    write_contract(tmp_path, "T-0001")
+    ready_state(tmp_path, "T-0001")
+    land_commit(tmp_path, "T-0001")
+    write_feedback(tmp_path, "T-0001", 10)
+    write_contract(tmp_path, "T-0002")
+    write_feedback(tmp_path, "T-0002", 20)  # never landed: raw total only
+
+    report = operator_attention(tmp_path)
+    assert report["landed"] == 1
+    assert report["feedback"] == {"joined": 1, "total": 2}
+    assert report["human_minutes_n"] == 2  # the median keeps its own population
+
+
+def test_operator_attention_joins_tracker_events_to_landed_changes(tmp_path):
+    write_contract(tmp_path, "T-0001")
+    ready_state(tmp_path, "T-0001")
+    land_commit(tmp_path, "T-0001")
+    write_contract(tmp_path, "T-0002")
+    write_tracker_command_event(tmp_path, "approve", "T-0001")
+    write_tracker_command_event(tmp_path, "retry", "T-0002")  # never landed: raw total only
+    write_tracker_command_event(
+        tmp_path, "approve", "T-0001"
+    )  # a second event behind the same landing
+
+    report = operator_attention(tmp_path)
+    assert report["command_events"] == {"joined": 2, "total": 3}
+
+
+def test_operator_attention_joins_escalations_to_landed_changes(tmp_path):
+    write_contract(tmp_path, "T-0001")
+    requeued_state(tmp_path, "T-0001")  # escalated -> queued, then lands
+    land_commit(tmp_path, "T-0001")
+    write_contract(tmp_path, "T-0002")
+    requeued_state(tmp_path, "T-0002")  # never landed: raw total only
+
+    report = operator_attention(tmp_path)
+    assert report["landed"] == 1
+    assert report["escalations_triaged"] == {"joined": 1, "total": 2}
 
 
 def test_operator_attention_human_minutes_suppressed_below_floor(tmp_path):
@@ -727,6 +769,7 @@ def test_operator_attention_human_minutes_suppressed_below_floor(tmp_path):
     report = operator_attention(tmp_path, floor=3)
     assert report["human_minutes_median"] is None
     assert report["human_minutes_n"] == 2  # denominator prints regardless (D-22.8)
+    assert report["feedback"] == {"joined": 0, "total": 2}
 
 
 def test_operator_attention_human_minutes_reported_once_floor_met(tmp_path):
@@ -751,8 +794,9 @@ def test_operator_attention_carries_the_caveat(tmp_path):
 def test_render_operator_attention_below_the_floor_names_the_floor():
     report = {
         "landed": 4,
-        "command_events": 6,
-        "escalations_triaged": 1,
+        "feedback": {"joined": 2, "total": 3},
+        "command_events": {"joined": 2, "total": 6},
+        "escalations_triaged": {"joined": 1, "total": 2},
         "human_minutes_median": None,
         "human_minutes_n": 2,
         "floor": 5,
@@ -760,8 +804,9 @@ def test_render_operator_attention_below_the_floor_names_the_floor():
     }
     text = render_operator_attention(report)
     assert "4 landed change(s)" in text
-    assert "6 command/approval event(s)" in text
-    assert "1 escalation(s) triaged" in text
+    assert "feedback: 2 behind landed change(s) (of 4), 3 total" in text
+    assert "command/approval events: 2 behind landed change(s) (of 4), 6 total" in text
+    assert "escalations triaged: 1 behind landed change(s) (of 4), 2 total" in text
     assert "below the observation floor of 5" in text and "n=2" in text
     assert "quasi-experiment" in text
 
@@ -769,8 +814,9 @@ def test_render_operator_attention_below_the_floor_names_the_floor():
 def test_render_operator_attention_above_the_floor_carries_the_median():
     report = {
         "landed": 4,
-        "command_events": 6,
-        "escalations_triaged": 1,
+        "feedback": {"joined": 2, "total": 3},
+        "command_events": {"joined": 2, "total": 6},
+        "escalations_triaged": {"joined": 1, "total": 2},
         "human_minutes_median": 20.0,
         "human_minutes_n": 5,
         "floor": 5,
@@ -778,6 +824,53 @@ def test_render_operator_attention_above_the_floor_carries_the_median():
     }
     text = render_operator_attention(report)
     assert "20m human effort (n=5)" in text
+
+
+# ....................... #
+# the telemetry stream's configured path (the writer's resolution, not a hardcoded default)
+
+
+def _write_gates_with_telemetry(root, telemetry_rel: str) -> None:
+    path = root / ".torve" / "gates.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump({"schema_version": 1, "telemetry": telemetry_rel}), encoding="utf-8"
+    )
+
+
+def _write_engine_event(root, path: str, *, event: str, task_id: str) -> None:
+    target = root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"kind": "engine", "event": event, "task": task_id}) + "\n")
+
+
+def test_tracker_command_events_follow_the_configured_telemetry_path(tmp_path):
+    """A repository that relocates the telemetry stream is read at the
+    configured path — the hardcoded default must not silently read zero."""
+    _write_gates_with_telemetry(tmp_path, ".torve/custom-telemetry.jsonl")
+    _write_engine_event(
+        tmp_path, ".torve/custom-telemetry.jsonl", event="tracker_command", task_id="T-0001"
+    )
+    # A stray event at the default path belongs to a stream this repository
+    # does not write: it must not count.
+    _write_engine_event(
+        tmp_path, ".torve/telemetry.jsonl", event="tracker_command", task_id="T-0002"
+    )
+
+    report = operator_attention(tmp_path)
+    assert report["command_events"] == {"joined": 0, "total": 1}
+
+
+def test_tracker_command_events_default_to_the_shipped_path(tmp_path):
+    """No gates.yaml, or a gates.yaml without a telemetry field — the writer
+    falls back to the shipped default, and the reader must too."""
+    _write_engine_event(
+        tmp_path, ".torve/telemetry.jsonl", event="tracker_command", task_id="T-0001"
+    )
+    _write_gates_with_telemetry(tmp_path, ".torve/telemetry.jsonl")
+
+    assert operator_attention(tmp_path)["command_events"] == {"joined": 0, "total": 1}
 
 
 # ....................... #
@@ -790,7 +883,9 @@ def test_health_cli_corpus_summary_prints_operator_attention_text(tmp_path):
     result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "operator attention" in result.output
-    assert "1 command/approval event(s)" in result.output
+    # The event's task never landed in the window: the raw total prints, the
+    # joined count stays zero.
+    assert "command/approval events: 0 behind landed change(s) (of 0), 1 total" in result.output
 
 
 def test_health_cli_corpus_summary_carries_operator_attention_json(tmp_path):
@@ -799,7 +894,7 @@ def test_health_cli_corpus_summary_carries_operator_attention_json(tmp_path):
     result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path), "--format", "json"])
     assert result.exit_code == 0, result.output
     document = json.loads(result.output)
-    assert document["operator_attention"]["command_events"] == 1
+    assert document["operator_attention"]["command_events"] == {"joined": 0, "total": 1}
 
 
 def test_health_cli_document_filter_has_no_operator_attention(tmp_path):
