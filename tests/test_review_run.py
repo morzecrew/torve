@@ -160,15 +160,18 @@ def test_a_blocker_with_unlocatable_evidence_is_discarded(review_rig):
     assert state.state is TaskState.READY
 
 
-def test_unparseable_review_output_is_recorded_not_invented(review_rig):
+def test_unparseable_review_output_escalates_never_promotes(review_rig):
+    # Fail closed (D-5.4): an opus review once carried two blockers inside a
+    # harness envelope, parsed as nothing, and waved a no-op to ready.
     repo, _runtime, deps_for = review_rig
     reviewer = ScriptedAgent([AgentResult(exit_code=0, output="prose, no document")])
 
     state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
 
-    assert state.state is TaskState.READY
-    facts = [h["fact"] for h in state.history]
-    assert any("unparseable" in fact for fact in facts)
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "gate_infrastructure_failure"
+    assert "unparseable" in state.escalation.detail
 
 
 def test_review_configured_without_an_agent_is_loud(review_rig):
@@ -228,6 +231,19 @@ def test_parse_findings_takes_the_last_document():
     assert found == [Finding(severity="nit", claim="c", evidence="e")]
     assert parse_findings("no document here") is None
     assert parse_findings('{"findings": "not a list"}') is None
+
+
+def test_parse_findings_unwraps_a_harness_result_envelope():
+    # `claude -p --output-format json` wraps the reviewer's answer as the
+    # envelope's `result` string — the findings document rides inside it,
+    # escaped (parse_drafts' envelope discipline, relearned on T-0171).
+    inner = 'prose first\n{"findings": [{"severity": "blocker", "claim": "no change", "evidence": "src/x.py:1 — absent"}]}'
+    envelope = json.dumps({"type": "result", "total_cost_usd": 0.8, "result": inner})
+    found = parse_findings(envelope)
+    assert found is not None and found[0].severity == "blocker"
+    # A direct document still wins over an envelope when both are present.
+    both = envelope + '\n{"findings": []}'
+    assert parse_findings(both) == []
 
 
 def test_parse_findings_survives_ansi_and_multiline_documents():

@@ -1251,6 +1251,19 @@ def real_hooks(
 
                     return None
 
+            if outcome.unparseable:
+                # Fail closed (D-5.4): a verdict that cannot be read must
+                # not promote — "no findings recorded" once waved a review
+                # carrying two blockers straight to ready.
+                state.escalate(
+                    EscalationReason.GATE_INFRASTRUCTURE_FAILURE,
+                    f"{outcome.review_id}: review output unparseable — an "
+                    "unreadable verdict is a review infrastructure failure, "
+                    "never a clean review",
+                )
+
+                return None
+
             if outcome.blockers:
                 detail = "; ".join(f.claim for f in outcome.blockers)
 

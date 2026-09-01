@@ -176,6 +176,7 @@ def parse_findings(output: str) -> list[Finding] | None:
     text = ANSI.sub("", output)
     decoder = json.JSONDecoder()
     last: object | None = None
+    envelopes: list[str] = []
 
     for brace in re.finditer(r"\{", text):
         try:
@@ -186,6 +187,24 @@ def parse_findings(output: str) -> list[Finding] | None:
 
         if isinstance(document, dict) and "findings" in document:
             last = cast("dict[str, Any]", document)
+
+        elif isinstance(document, dict):
+            # A harness result envelope (`claude -p --output-format json`)
+            # carries the reviewer's answer as the `result` string — the
+            # findings document is inside it, escaped, invisible to this
+            # scan (parse_drafts' envelope discipline, learned again when
+            # an opus review's two blockers were dropped as unparseable).
+            result: Any = cast("dict[str, Any]", document).get("result")
+
+            if isinstance(result, str) and "findings" in result:
+                envelopes.append(result)
+
+    if last is None:
+        for enveloped in envelopes:
+            nested = parse_findings(enveloped)
+
+            if nested is not None:
+                return nested
 
     if last is None:
         return None
