@@ -7,7 +7,10 @@ role: implement
 title: publish workflow
 intent: 'The ghcr publish job: buildx over the three definitions on manual or tag-shaped triggers,
   the immutable tag scheme with re-push refusal (D-33.2), conformance battery as the gate
-  (D-33.5), linux/amd64 only. README gains the ghcr quickstart with a full version tag.'
+  (D-33.5), linux/amd64 only. README gains the ghcr quickstart with a full version tag.
+  Auth is the workflow''s ambient GITHUB_TOKEN under an explicit `permissions: packages: write`
+  block — the organization''s repositories publish to ghcr this way (platform-images precedent);
+  invent no PAT and reference no repository secret for the push.'
 depends_on:
 - T-0188
 parent: null
