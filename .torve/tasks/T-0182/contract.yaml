@@ -1,0 +1,19 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0182
+rfc: rfcs/0005-review-as-a-run.md
+role: review
+intent: Review T-0180's diff against its contract and inherited decisions.
+targets:
+- T-0180
+decisions:
+- id: D-5.2
+  grade: LOCKED
+  text: The reviewer gets a read-only workspace and no forge credential; the runner
+    posts comments
+  paths:
+  - src/torve/application/review.py
+  - src/torve/adapters/runtime/**
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
