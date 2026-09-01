@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  DataTable, Badge, Chip, Card, Empty,
+  DataTable, MultiSelect, Badge, Chip, Card, Empty,
   fmt$, fmtK, ago, when, STATE_COLOR, SEV_COLOR,
 } from "./lib.jsx";
 
@@ -21,19 +21,38 @@ const Search = ({ value, onChange, placeholder }) => (
   />
 );
 
+const Evidence = ({ children }) =>
+  children ? (
+    <pre className="mono whitespace-pre-wrap break-words bg-black/30 border border-white/10 rounded-lg px-3 py-2 mt-1.5">
+      {children}
+    </pre>
+  ) : null;
+
 /* ---------- Board ---------- */
+
+const BOARD_HIDDEN = new Set(["shipped", "consumed"]);
 
 export function Board({ ctx }) {
   const [q, setQ] = React.useState("");
-  const [states, setStates] = React.useState(new Set());
   const tasks = ctx.tasks;
   const by = {};
   for (const t of tasks) (by[t.state] ??= []).push(t);
+  const allStates = Object.keys(by).sort((a, b) => by[b].length - by[a].length);
+  const [states, setStates] = React.useState(
+    () => new Set(allStates.filter((s) => !BOARD_HIDDEN.has(s))),
+  );
+  // states appearing later (a run starting) join the selection automatically
+  React.useEffect(() => {
+    setStates((p) => {
+      const n = new Set(p);
+      for (const s of allStates) if (!BOARD_HIDDEN.has(s) && !n.has(s)) n.add(s);
+      return n.size === p.size ? p : n;
+    });
+  }, [allStates.join("|")]);
+
   const active = ["running", "claimed", "gated", "reviewed"]
     .reduce((a, s) => a + (by[s]?.length || 0), 0);
-
-  let rows = tasks.slice().reverse();
-  if (states.size) rows = rows.filter((t) => states.has(t.state));
+  const rows = tasks.slice().reverse().filter((t) => states.has(t.state));
 
   const columns = [
     col("task", "id", { cls: "id" }),
@@ -60,12 +79,13 @@ export function Board({ ctx }) {
       </div>
       <div className="flex gap-2.5 items-center flex-wrap mb-3.5">
         <Search value={q} onChange={setQ} placeholder="filter id / rfc / role…" />
-        {Object.entries(by).sort((a, b) => b[1].length - a[1].length).map(([s, list]) => (
-          <Chip key={s} on={states.has(s)} color={STATE_COLOR[s]}
-            onClick={() => setStates((p) => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n; })}>
-            {s} <span className="opacity-70">{list.length}</span>
-          </Chip>
-        ))}
+        <MultiSelect
+          label="state"
+          options={allStates.map((s) => ({ value: s, count: by[s].length }))}
+          selected={states}
+          onChange={setStates}
+        />
+        <span className="text-xs text-[var(--faint)]">shipped and consumed hidden by default</span>
       </div>
       <DataTable columns={columns} data={rows} globalFilter={q} empty="no tasks match" />
     </>
@@ -100,43 +120,34 @@ export function Runs({ live }) {
   );
 }
 
-/* ---------- Findings / Proposals (expandable) ---------- */
-
-function ExpandList({ items, renderSummary, renderBody, empty }) {
-  if (!items.length) return <Empty>{empty}</Empty>;
-  return (
-    <div className="glass overflow-hidden">
-      {items.map((x, i) => (
-        <details key={i} className="frow border-b border-white/5 last:border-0">
-          <summary className="flex gap-2.5 items-baseline px-4 py-2.5 hover:bg-white/[.03]">
-            {renderSummary(x)}
-          </summary>
-          <div className="px-4 pb-3 text-[12.5px] text-[var(--dim)]">{renderBody(x)}</div>
-        </details>
-      ))}
-    </div>
-  );
-}
-
-const Evidence = ({ children }) =>
-  children ? (
-    <pre className="mono whitespace-pre-wrap break-words bg-black/30 border border-white/10 rounded-lg px-3 py-2 mt-1.5">
-      {children}
-    </pre>
-  ) : null;
+/* ---------- Findings ---------- */
 
 export function Findings({ ctx }) {
   const [q, setQ] = React.useState("");
   const [sev, setSev] = React.useState(new Set());
   const [hide, setHide] = React.useState(true);
-  let items = ctx.findings.slice().reverse();
-  if (hide) items = items.filter((f) => !f.possibly_addressed);
-  if (sev.size) items = items.filter((f) => sev.has(f.severity));
-  if (q) items = items.filter((f) =>
-    (f.claim + " " + f.review + " " + f.target).toLowerCase().includes(q.toLowerCase()));
+  let rows = ctx.findings.slice().reverse();
+  if (hide) rows = rows.filter((f) => !f.possibly_addressed);
+  if (sev.size) rows = rows.filter((f) => sev.has(f.severity));
 
   const counts = {};
   for (const f of ctx.findings) counts[f.severity] = (counts[f.severity] || 0) + 1;
+  const sevRank = { blocker: 0, major: 1, minor: 2, nit: 3 };
+
+  const columns = [
+    col("severity", (f) => sevRank[f.severity] ?? 9, {
+      cell: (f) => <Badge color={SEV_COLOR[f.severity]}>{f.severity}</Badge>,
+    }),
+    col("review", "review", { cls: "id dim" }),
+    col("target", "target", { cls: "id" }),
+    col("claim", "claim", {
+      cls: "wrap",
+      cell: (f) => <span className="line-clamp-2">{f.claim}</span>,
+    }),
+    col("status", (f) => (f.possibly_addressed ? 1 : 0), {
+      cell: (f) => (f.possibly_addressed ? <Badge color="green">possibly addressed</Badge> : ""),
+    }),
+  ];
 
   return (
     <>
@@ -150,20 +161,14 @@ export function Findings({ ctx }) {
         ))}
         <Chip on={hide} onClick={() => setHide(!hide)}>hide possibly addressed</Chip>
       </div>
-      <ExpandList
-        items={items}
+      <DataTable
+        columns={columns}
+        data={rows}
+        globalFilter={q}
         empty="ledger clear"
-        renderSummary={(f) => (
+        renderDetail={(f) => (
           <>
-            <Badge color={SEV_COLOR[f.severity]}>{f.severity}</Badge>
-            <span className="mono text-[var(--faint)] whitespace-nowrap">{f.review}→{f.target}</span>
-            <span className="flex-1 truncate">{f.claim}</span>
-            {f.possibly_addressed && <Badge color="green">possibly addressed</Badge>}
-          </>
-        )}
-        renderBody={(f) => (
-          <>
-            <div className="whitespace-pre-wrap">{f.claim}</div>
+            <div className="whitespace-pre-wrap text-[var(--text)]">{f.claim}</div>
             <Evidence>{f.evidence}</Evidence>
           </>
         )}
@@ -172,13 +177,28 @@ export function Findings({ ctx }) {
   );
 }
 
+/* ---------- Proposals ---------- */
+
 export function Proposals({ ctx }) {
   const [q, setQ] = React.useState("");
   const [hide, setHide] = React.useState(true);
-  let items = ctx.proposals.slice().reverse();
-  if (hide) items = items.filter((p) => !p.possibly_landed);
-  if (q) items = items.filter((p) =>
-    (p.decision + " " + p.task + " " + p.claim).toLowerCase().includes(q.toLowerCase()));
+  let rows = ctx.proposals.slice().reverse();
+  if (hide) rows = rows.filter((p) => !p.possibly_landed);
+
+  const columns = [
+    col("decision", "decision", { cell: (p) => <Badge color="violet">{p.decision}</Badge> }),
+    col("grade", "grade", {
+      cell: (p) => <Badge color={p.grade === "LOCKED" ? "red" : "grey"}>{p.grade}</Badge>,
+    }),
+    col("task", "task", { cls: "id dim" }),
+    col("proposal", (p) => p.proposal || p.claim, {
+      cls: "wrap",
+      cell: (p) => <span className="line-clamp-2">{p.proposal || p.claim}</span>,
+    }),
+    col("status", (p) => (p.possibly_landed ? 1 : 0), {
+      cell: (p) => (p.possibly_landed ? <Badge color="green">possibly landed</Badge> : ""),
+    }),
+  ];
 
   return (
     <>
@@ -186,23 +206,18 @@ export function Proposals({ ctx }) {
         <Search value={q} onChange={setQ} placeholder="filter decision / task…" />
         <Chip on={hide} onClick={() => setHide(!hide)}>hide possibly landed</Chip>
       </div>
-      <ExpandList
-        items={items}
+      <DataTable
+        columns={columns}
+        data={rows}
+        globalFilter={q}
         empty="nothing awaiting the author"
-        renderSummary={(p) => (
-          <>
-            <Badge color="violet">{p.decision}</Badge>
-            <Badge color={p.grade === "LOCKED" ? "red" : "grey"}>{p.grade}</Badge>
-            <span className="mono text-[var(--faint)]">{p.task}</span>
-            <span className="flex-1 truncate">{p.proposal || p.claim}</span>
-            {p.possibly_landed && <Badge color="green">possibly landed</Badge>}
-          </>
-        )}
-        renderBody={(p) => (
+        renderDetail={(p) => (
           <>
             <div className="whitespace-pre-wrap"><b className="text-[var(--text)]">claim</b> — {p.claim}</div>
             {p.proposal && (
-              <div className="whitespace-pre-wrap mt-1.5"><b className="text-[var(--text)]">proposal</b> — {p.proposal}</div>
+              <div className="whitespace-pre-wrap mt-1.5">
+                <b className="text-[var(--text)]">proposal</b> — {p.proposal}
+              </div>
             )}
             <Evidence>{p.evidence}</Evidence>
           </>
@@ -290,16 +305,27 @@ export function Gates({ ctx }) {
 /* ---------- Programme ---------- */
 
 const PHASE_COLOR = { shipped: "green", in_flight: "blue", blocked: "red", planned: "grey" };
+const IMPLS = ["none", "partial", "complete"];
 
 export function Programme({ ctx }) {
-  const rows = ctx.programme;
+  const all = ctx.programme;
+  const counts = {};
+  for (const r of all) {
+    const k = r.implementation || "none";
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  // complete-and-clean is noise by default; anything with a disagreement
+  // always shows regardless of the dropdown.
+  const [impls, setImpls] = React.useState(() => new Set(["none", "partial"]));
+  const rows = all.filter((r) => impls.has(r.implementation || "none") || r.disagreement);
+
   const columns = [
     col("rfc", "rfc", { cls: "id" }),
     col("title", "title", { cls: "wrap" }),
     col("status", "status", {
       cell: (r) => <Badge color={r.status === "accepted" ? "green" : "grey"}>{r.status}</Badge>,
     }),
-    col("impl", "implementation", {
+    col("impl", (r) => r.implementation || "none", {
       cell: (r) => (
         <Badge color={{ complete: "green", partial: "blue" }[r.implementation] || "grey"}>
           {r.implementation || "none"}
@@ -334,17 +360,27 @@ export function Programme({ ctx }) {
     }),
   ];
 
-  const done = rows.filter((r) => r.implementation === "complete").length;
   return (
     <>
       <div className="flex gap-3 flex-wrap mb-4">
-        <Card k="documents" v={rows.length} s="in the corpus" />
-        <Card k="complete" v={done} s="implementation judged" accent="green" />
-        <Card k="partial" v={rows.filter((r) => r.implementation === "partial").length} s="in flight" accent="blue" />
-        <Card k="disagreements" v={rows.filter((r) => r.disagreement).length}
-          s="assertion vs derived" accent={rows.some((r) => r.disagreement) ? "amber" : undefined} />
+        <Card k="documents" v={all.length} s="in the corpus" />
+        <Card k="complete" v={counts.complete || 0} s="implementation judged" accent="green" />
+        <Card k="partial" v={counts.partial || 0} s="in flight" accent="blue" />
+        <Card k="disagreements" v={all.filter((r) => r.disagreement).length}
+          s="assertion vs derived" accent={all.some((r) => r.disagreement) ? "amber" : undefined} />
       </div>
-      <DataTable columns={columns} data={rows} empty="no documents" />
+      <div className="flex gap-2.5 items-center flex-wrap mb-3.5">
+        <MultiSelect
+          label="implementation"
+          options={IMPLS.map((v) => ({ value: v, count: counts[v] || 0 }))}
+          selected={impls}
+          onChange={setImpls}
+        />
+        <span className="text-xs text-[var(--faint)]">
+          complete hidden by default · a disagreement always shows
+        </span>
+      </div>
+      <DataTable columns={columns} data={rows} empty="nothing needs attention here" />
     </>
   );
 }
@@ -353,7 +389,45 @@ export function Programme({ ctx }) {
 
 export function Attention({ ctx }) {
   const oa = ctx.spec_quality?.operator_attention;
+  const docs = ctx.spec_quality?.documents || [];
   if (!oa) return <Empty>no attention data</Empty>;
+
+  const columns = [
+    col("document", (d) => (d.rfc || "").replace("rfcs/", "").replace(".md", ""), { cls: "id" }),
+    col("minted", "minted", { num: true }),
+    col("attempts→green", (d) => d.attempts_to_green_median, {
+      num: true, cls: "dim",
+      cell: (d) =>
+        d.attempts_to_green_median == null
+          ? "—"
+          : `${d.attempts_to_green_median} (n=${d.attempts_to_green_n})`,
+    }),
+    col("underspecified", (d) => d.escalations_by_reason?.underspecified || 0, {
+      num: true,
+      cell: (d) => {
+        const n = d.escalations_by_reason?.underspecified || 0;
+        return n ? <Badge color="red">{n}</Badge> : "0";
+      },
+    }),
+    col("stale", (d) => d.escalations_by_reason?.stale_inheritance || 0, {
+      num: true,
+      cell: (d) => {
+        const n = d.escalations_by_reason?.stale_inheritance || 0;
+        return n ? <Badge color="amber">{n}</Badge> : "0";
+      },
+    }),
+    col("drift", "drift_count", { num: true, cls: "dim" }),
+    col("spec-drift findings", (d) => (d.spec_drift_findings || []).length, { num: true, cls: "dim" }),
+    col("human min", (d) => d.human_minutes_median, {
+      num: true, cls: "dim",
+      cell: (d) => (d.human_minutes_median == null ? "—" : `${d.human_minutes_median} (n=${d.human_minutes_n})`),
+    }),
+    col("rework", (d) => d.rework_rate, {
+      num: true, cls: "dim",
+      cell: (d) => (d.rework_rate == null ? "—" : `${(100 * d.rework_rate).toFixed(0)}% (n=${d.rework_n})`),
+    }),
+  ];
+
   return (
     <>
       <div className="flex gap-3 flex-wrap mb-4">
@@ -363,7 +437,13 @@ export function Attention({ ctx }) {
         <Card k="escalations triaged" v={`${oa.escalations_triaged.joined} / ${oa.escalations_triaged.total}`} s="joined / total" />
         <Card k="human minutes" v={oa.human_minutes_median ?? "—"} s={`median · n=${oa.human_minutes_n} · floor ${oa.floor}`} />
       </div>
-      <p className="text-xs text-[var(--faint)] max-w-3xl">{oa.caveat || ctx.spec_quality.caveat}</p>
+      <DataTable
+        columns={columns}
+        data={docs.filter((d) => d.minted)}
+        initialSort={[{ id: "minted", desc: true }]}
+        empty="no per-document signals yet"
+      />
+      <p className="text-xs text-[var(--faint)] max-w-3xl mt-4">{oa.caveat || ctx.spec_quality.caveat}</p>
     </>
   );
 }

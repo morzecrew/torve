@@ -69,9 +69,47 @@ export const Empty = ({ children }) => (
   <div className="glass p-8 text-center text-[var(--faint)]">{children}</div>
 );
 
+/* ---------- multi-select dropdown ---------- */
+
+export function MultiSelect({ label, options, selected, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+  const toggle = (v) => {
+    const n = new Set(selected);
+    n.has(v) ? n.delete(v) : n.add(v);
+    onChange(n);
+  };
+  return (
+    <div className="dd" ref={ref}>
+      <button className="dd-btn" onClick={() => setOpen(!open)}>
+        {label}
+        <span className="text-[var(--faint)] text-xs">{selected.size}/{options.length}</span>
+        <span className="text-[var(--faint)]">▾</span>
+      </button>
+      {open && (
+        <div className="dd-pop">
+          {options.map(({ value, count }) => (
+            <div key={value} className={`dd-item ${selected.has(value) ? "on" : ""}`}
+              onClick={() => toggle(value)}>
+              <span className="box">{selected.has(value) ? "✓" : ""}</span>
+              {value}
+              {count != null && <span className="n">{count}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- the data table ---------- */
 
-export function DataTable({ columns, data, globalFilter, initialSort = [], empty }) {
+export function DataTable({ columns, data, globalFilter, initialSort = [], empty, renderDetail }) {
   const [sorting, setSorting] = React.useState(initialSort);
   const table = useReactTable({
     data,
@@ -90,8 +128,13 @@ export function DataTable({ columns, data, globalFilter, initialSort = [], empty
     },
   });
 
+  const [expanded, setExpanded] = React.useState(() => new Set());
   const rows = table.getRowModel().rows;
   if (!rows.length) return <Empty>{empty || "nothing here"}</Empty>;
+
+  const nCols = columns.length + (renderDetail ? 1 : 0);
+  const flip = (id) =>
+    setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   return (
     <div className="glass overflow-auto max-h-[72vh]">
@@ -99,14 +142,11 @@ export function DataTable({ columns, data, globalFilter, initialSort = [], empty
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
+              {renderDetail && <th style={{ width: 28 }} />}
               {hg.headers.map((h) => {
                 const dir = h.column.getIsSorted();
                 return (
-                  <th
-                    key={h.id}
-                    className={h.column.columnDef.meta?.num ? "num" : ""}
-                    onClick={h.column.getToggleSortingHandler()}
-                  >
+                  <th key={h.id} onClick={h.column.getToggleSortingHandler()}>
                     {flexRender(h.column.columnDef.header, h.getContext())}
                     {dir && <span className="arrow">{dir === "asc" ? "↑" : "↓"}</span>}
                   </th>
@@ -117,13 +157,26 @@ export function DataTable({ columns, data, globalFilter, initialSort = [], empty
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id}>
-              {r.getVisibleCells().map((c) => (
-                <td key={c.id} className={c.column.columnDef.meta?.cls || ""}>
-                  {flexRender(c.column.columnDef.cell, c.getContext())}
-                </td>
-              ))}
-            </tr>
+            <React.Fragment key={r.id}>
+              <tr
+                className={renderDetail ? "expandable" : ""}
+                onClick={renderDetail ? () => flip(r.id) : undefined}
+              >
+                {renderDetail && (
+                  <td><span className={`chev ${expanded.has(r.id) ? "open" : ""}`}>▸</span></td>
+                )}
+                {r.getVisibleCells().map((c) => (
+                  <td key={c.id} className={`${c.column.columnDef.meta?.cls || ""} ${c.column.columnDef.meta?.num ? "num" : ""}`}>
+                    {flexRender(c.column.columnDef.cell, c.getContext())}
+                  </td>
+                ))}
+              </tr>
+              {renderDetail && expanded.has(r.id) && (
+                <tr className="detail">
+                  <td colSpan={nCols}>{renderDetail(r.original)}</td>
+                </tr>
+              )}
+            </React.Fragment>
           ))}
         </tbody>
       </table>

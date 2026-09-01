@@ -69,7 +69,8 @@ body {
   background: rgba(18, 18, 28, 0.85); backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255,255,255,.09);
 }
-.dt th.num, .dt td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* headers stay left-aligned everywhere; only cells right-align numerics */
+.dt td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .dt th .arrow { opacity: .9; color: var(--green); margin-left: 5px; }
 .dt td { padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,.05); vertical-align: top; }
 .dt tbody tr:last-child td { border-bottom: 0; }
@@ -103,6 +104,43 @@ input[type="search"]::placeholder { color: var(--faint); }
 
 details.frow summary { list-style: none; cursor: pointer; }
 details.frow summary::-webkit-details-marker { display: none; }
+
+/* expandable table rows */
+.dt tr.expandable { cursor: pointer; }
+.dt tr.detail td {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 10px 16px 14px 40px;
+  color: var(--dim);
+  font-size: 12.5px;
+}
+.chev { display: inline-block; width: 14px; color: var(--faint); transition: transform .15s; }
+.chev.open { transform: rotate(90deg); color: var(--green); }
+
+/* dropdown */
+.dd { position: relative; display: inline-block; }
+.dd-btn {
+  border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 7px 14px;
+  font-size: 13px; color: var(--text); cursor: pointer; user-select: none;
+  background: rgba(255,255,255,.045); display: flex; gap: 8px; align-items: center;
+}
+.dd-btn:hover { border-color: rgba(255,255,255,.22); }
+.dd-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 13rem;
+  padding: 6px; border-radius: 12px;
+  background: rgba(18, 18, 28, 0.95); border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(16px); box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.dd-item {
+  display: flex; gap: 9px; align-items: center; padding: 6px 10px; border-radius: 8px;
+  font-size: 13px; cursor: pointer; color: var(--text);
+}
+.dd-item:hover { background: rgba(255,255,255,.06); }
+.dd-item .box {
+  width: 15px; height: 15px; border-radius: 4px; border: 1px solid rgba(255,255,255,.25);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 11px;
+}
+.dd-item.on .box { background: var(--green); border-color: var(--green); color: #0b0b12; font-weight: 700; }
+.dd-item .n { margin-left: auto; color: var(--faint); font-size: 12px; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 5px; }
