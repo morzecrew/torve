@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32", "A-41", "A-75"]
+amended_by: ["A-32", "A-41", "A-75", "A-78"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -187,7 +187,7 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
 | D-5.1 | `LOCKED` | Review is a run with `role: review`, not a distinct subsystem | `src/torve/application/review.py` `src/torve/application/runner.py` | Inherits budgets, cancellation, telemetry; reversing duplicates all of it |
-| D-5.2 | `LOCKED` | The reviewer gets a read-only workspace and no forge credential; the runner posts comments | `src/torve/application/review.py` `src/torve/adapters/runtime/**` | An agent that can fix-and-approve is not a reviewer |
+| D-5.2 | `LOCKED` | The reviewer works in a disposable copy of the target worktree and holds no forge credential; the diff under judgment is composed before the copy exists, nothing written in the copy survives the review, and the runner posts comments (reworded by A-78; was: read-only workspace) | `src/torve/application/review.py` `src/torve/adapters/runtime/**` | An agent that can fix-and-approve is not a reviewer |
 | D-5.3 | `LOCKED` | The reviewer never receives the author's session trace | `src/torve/application/review.py` | Otherwise it audits reasoning, not the change |
 | D-5.4 | `ASSUMED` | Findings with unlocatable evidence are discarded automatically | `src/torve/application/review.py` `src/torve/gates/decisions_reported.py` | Shared with the execution-log check; remove if it discards true positives |
 | D-5.6 | `LOCKED` | A seeded-defect corpus gates every prompt or model change | `.torve/review-corpus/**` `src/torve/cli/review.py` | Prompt tuning without it is guesswork |
@@ -200,6 +200,7 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.13 | `ASSUMED` | A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs — revise, not restart; scope, gates and the sha-bound approval are unchanged, and revision spend stays behind the human retry. Added by amendment A-32 2026-08-24 | `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py` | The feedback channel steers attempts, never landings |
 | D-5.14 | `ASSUMED` | The landing answers the review threads its revision consumed: capture retains each thread's reply address, and the tick's landing leg posts one reply per captured root — composed from records, saying what the loop did (captured, revised, landed as this sha) and never what the finding deserves; each reply carries its idempotency marker so a replay is absorbed at the destination, a failed answer waits for the next tick, and an unconsumed record answers nothing. Added by amendment A-41 2026-08-25 | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | A reviewer whose finding vanishes into a merged pull request stops reading; the loop must close its own conversations |
 | D-5.15 | `ASSUMED` | Non-blocking findings get a ledger, not a lifecycle: `torve context` gains "Findings awaiting the operator" — every kept finding from a landed target's review, marked possibly_addressed when a later contract's text cites the review's task id (D-7.24's possibly_landed discipline applied to findings); the engine still mints nothing from a finding, and the operator triages the ledger in batch — per-finding instant minting is a habit, never a requirement. Added by amendment A-75 2026-09-01 | `src/torve/application/projections.py` | A finding recorded into telemetry and read by nobody is a review that ran for nothing; a ledger keeps the operator honest without making the engine decide work exists (D-2) |
+| D-5.16 | `ASSUMED` | Inside its disposable copy the reviewer may execute the target's acceptance commands and gates; command output it cites is evidence like any path:line, and execution spends the review attempt's own budget and timeout — a battery too slow for the review window is a finding about the battery, never a license to extend the review. Added by amendment A-78 2026-09-01 | `src/torve/application/review.py` | A reviewer that can only read judges tests by their text; one that runs them reports what the change actually does |
 
 D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
 
@@ -343,3 +344,32 @@ entered the revision record are answered — the engine does not chat);
 D-8.5's untrusted-text doctrine, which governs what comes *in*, not
 this outbound record; and the human acts — approve, revise — that
 create the relationship the reply reports.
+
+### A-78 — 2026-09-01 — The reviewer may execute — in a copy nothing survives
+
+A reviewer that can only read judges tests by their text; the operator
+asked for representative feedback — the reviewer running the battery it
+is judging. The separation D-5.2 exists for ("an agent that can
+fix-and-approve is not a reviewer") is not reading versus running: it is
+that nothing the reviewer does can alter what lands. So the boundary
+moves from the filesystem to the lifecycle:
+
+- **D-5.2 is reworded** (was: "The reviewer gets a read-only workspace
+  and no forge credential; the runner posts comments"): *The reviewer
+  works in a disposable copy of the target worktree and holds no forge
+  credential; the diff under judgment is composed before the copy
+  exists, nothing written in the copy survives the review, and the
+  runner posts comments.* The consequence stands unchanged.
+- **D-5.16 (`ASSUMED`, added)**: Inside its copy the reviewer may
+  execute the target's acceptance commands and gates; command output it
+  cites is evidence like any `path:line`, and the execution spends the
+  review attempt's own budget and timeout — a battery too slow for the
+  review window is a finding about the battery, not a license to extend
+  the review. Paths: `src/torve/application/review.py`.
+- The review prompt drops "the workspace is read-only" and says what is
+  now true: the copy is disposable, running the acceptance commands is
+  allowed and encouraged, and no edit made in the copy reaches anyone.
+
+Deliberately unchanged: D-5.3 (no author trace), D-5.4 (unlocatable
+evidence discarded), the runner-posts-comments half of D-5.2, and the
+reviewer's lack of any forge credential.
