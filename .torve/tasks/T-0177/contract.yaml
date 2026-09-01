@@ -8,16 +8,17 @@ title: integration task discriminated by adoption
 intent: >-
   T-0172's empty-diff refusal exempts any task with a non-empty
   depends_on, which exempts every ordinary phase-sequenced implement task
-  — most of the population the incident concerns. The engine's actual
-  record of "this parent became the integration task" is the adopted.json
-  marker adoption writes beside the parent's contract
-  (.torve/tasks/<id>/adopted.json, RFC 0026 D-26.5/D-26.6) — discriminate
-  on that marker instead of depends_on, so a phase task producing an
-  empty diff is refused like any other no-op while a real integration
-  task keeps its D-26.6 legality. Also T-0176's minor: the review
-  record's trace_ref is rewritten to a harness-shaped path even for
-  adapters that wrote no trace — record the path only when the trace file
-  was actually written, never fabricated.
+  — most of the population the incident concerns. The engine's record of
+  "this task became the integration task" is D-26.5's parent field on the
+  adopted children: a task is the integration task exactly when some
+  contract under .torve/tasks names it as parent (the adopted.json marker
+  sits beside the decomposition run's contract, not the parent's, so it
+  cannot discriminate at the parent's id) — discriminate on the parent
+  field, so a phase task producing an empty diff is refused like any
+  other no-op while a real integration task keeps its D-26.6 legality.
+  Also T-0176's minor: the review record's trace_ref is rewritten to a
+  harness-shaped path even for adapters that wrote no trace — record the
+  path only when the trace file was actually written, never fabricated.
 depends_on: []
 parent: null
 targets: []
