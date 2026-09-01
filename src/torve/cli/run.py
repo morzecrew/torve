@@ -118,6 +118,7 @@ def run_cmd(
     from torve.config.runconfig import (
         ProviderDenied,
         TierConfig,
+        resolve_character_tier,
         route_provider,
         tier_for,
         tier_name_for,
@@ -133,6 +134,11 @@ def run_cmd(
         raise fail(f"configuration error: no task contract at {task_file}", EXIT_CONFIG)
 
     task = load_task(task_file)
+    config = load_config(root, config_path)
+    # RFC 0034 D-34.3: resolved once, here, before anything reads the
+    # task's tier — sizing, provider routing, agent construction and the
+    # dispatched run all see the same already-resolved task.
+    task = resolve_character_tier(config, task)
 
     # T-0183: the front door refuses any role the generic attempt path does
     # not implement the isolation contract for — review (D-5.2) and draft
@@ -145,8 +151,6 @@ def run_cmd(
 
     except RoleNotDispatchable as exc:
         raise fail(str(exc), EXIT_CONFIG) from exc
-
-    config = load_config(root, config_path)
 
     # RFC 0026 D-26.7: a too_large verdict routes to decomposition; a
     # manual dispatch needs the explicit, recorded override to bypass it.

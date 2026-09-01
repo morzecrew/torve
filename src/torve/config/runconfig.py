@@ -87,6 +87,14 @@ class TierConfig(BaseModel):
     # rung; `boundary` may not name a rung here at all (D-34.7).
     retry_variants: dict[GateAxis, str] = Field(default_factory=dict)
 
+    # RFC 0034 D-34.3: character -> variant, resolved once at dispatch
+    # (`resolve_character_tier`) before anything reads `tier_name_for`.
+    # A value is this seat's own variant suffix, the same bare shape a
+    # contract's `tier_variant` already carries (D-27.3) — character
+    # routing never reassigns a task to a different seat. An unmapped or
+    # undeclared character falls through to the seat default.
+    character_routing: dict[str, str] = Field(default_factory=dict)
+
     # RFC 0028 §5.1, D-28.1/D-28.2, A-74: the named profile(s) this tier
     # resolved from, if any — resolution happens on the raw mapping in
     # `load_runner_config`, before this model ever validates, so by the time
@@ -306,6 +314,25 @@ def tier_name_for(task: Task) -> str:
     fallback to the seat."""
 
     return f"{task.tier}.{task.tier_variant}" if task.tier_variant else task.tier
+
+
+# ....................... #
+
+
+def resolve_character_tier(config: RunnerConfig, task: Task) -> Task:
+    """RFC 0034 D-34.3, the one resolution point every dispatch surface
+    reads: an explicit `tier_variant` always wins, an unmapped or absent
+    `character` falls through to the seat default, and a mapped character
+    resolves to its variant here — before `tier_name_for` is ever read —
+    so `torve run`/`tick`/`fleet`/`shadow`, the broker routing derivation
+    and the runner's telemetry all see one already-resolved task."""
+
+    if task.tier_variant or not task.character:
+        return task
+
+    variant = tier_for(config, task.tier).character_routing.get(task.character)
+
+    return task.model_copy(update={"tier_variant": variant}) if variant else task
 
 
 # ....................... #
@@ -980,6 +1007,33 @@ class RunnerConfig(BaseModel):
             )
 
             raise ValueError(f"retry_variant names no configured tier: {named}")
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _character_routing_names_a_configured_tier(self) -> RunnerConfig:
+        """D-34.3: a character routed to a variant that is not configured is
+        a load-time refusal, the same rung `retry_variant` already stands
+        on — never a dispatch-time surprise."""
+
+        offenders: set[tuple[str, str, str]] = set()
+
+        for name, tier in self.tiers.items():
+            for character, variant in tier.character_routing.items():
+                target = f"{name}.{variant}"
+
+                if target not in self.tiers:
+                    offenders.add((name, character, target))
+
+        if offenders:
+            named = ", ".join(
+                f"{name!r} character {character!r} -> {target!r}"
+                for name, character, target in sorted(offenders)
+            )
+
+            raise ValueError(f"character_routing names no configured tier: {named}")
 
         return self
 

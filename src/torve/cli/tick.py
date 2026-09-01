@@ -227,13 +227,22 @@ def tick_cmd(
         from torve.application.runner import RunDeps, run_task
         from torve.cli.options import runtime_for
         from torve.cli.run import build_reviewer_agent
-        from torve.config.runconfig import TierConfig, route_provider, tier_for, tier_name_for
+        from torve.config.runconfig import (
+            TierConfig,
+            resolve_character_tier,
+            route_provider,
+            tier_for,
+            tier_name_for,
+        )
         from torve.gates.context import load_task
 
         def _tier_agent(tier: TierConfig) -> Agent:
             return FakeAgent(None) if tier.adapter == "fake" else HarnessAgent(tier)
 
         task = load_task(root / ".torve" / "tasks" / task_id / "contract.yaml")
+        # RFC 0034 D-34.3: resolved once, before the tier this dispatch
+        # routes and runs under is read anywhere else.
+        task = resolve_character_tier(config, task)
         tier = tier_for(config, tier_name_for(task))
         route_provider(config.providers, repository_name(root), tier.provider)
 

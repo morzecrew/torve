@@ -294,6 +294,63 @@ def test_an_explicit_tier_variant_dispatches_freely_even_against_an_unmeasured_d
     assert hooks.attempt is not None
 
 
+def test_a_character_routed_task_dispatches_freely_like_an_explicit_variant(tmp_path):
+    """RFC 0034 D-34.3: character routing resolves to a tier_variant before
+    real_hooks ever sees the task — the same free-dispatch path an explicit
+    tier_variant already takes (D-27.3), never the silently-resolved base
+    seat's displacement refusal."""
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig, TierConfig, resolve_character_tier
+
+    _write_config_eval(tmp_path, "executor", "sha256:old", "sha256:new")
+    deps = _dispatch_deps(_StubRuntime("sha256:nobody-measured-this-one"))
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(character_routing={"structural": "candidate"}),
+            "executor.candidate": TierConfig(),
+        }
+    )
+
+    task = resolve_character_tier(config, _executor_task(character="structural"))
+    hooks = real_hooks(tmp_path, task, config, deps, tmp_path / "wt")
+    assert hooks.attempt is not None
+
+
+def test_run_routing_includes_the_character_routed_variants_provider(tmp_path):
+    """D-21.4 parity with include_retry: once resolve_character_tier has run
+    upstream, the run's routing derivation sees the character-routed
+    variant's provider, not the seat default's."""
+    from torve.application.runner import run_routing
+    from torve.config.runconfig import (
+        BrokerConfig,
+        BrokerProvider,
+        RunnerConfig,
+        TierConfig,
+        resolve_character_tier,
+    )
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="fake", character_routing={"structural": "indexed"}),
+            "executor.indexed": TierConfig(
+                adapter="harness", command="run", provider="p", model="m"
+            ),
+        },
+        broker=BrokerConfig(
+            adapter="local",
+            providers={"p": BrokerProvider(upstream="https://p.example", key_env="P_KEY")},
+        ),
+    )
+
+    task = resolve_character_tier(config, _executor_task(character="structural"))
+    routing = run_routing(config, task, review_on=False)
+    assert [route.provider for route in routing.routes] == ["p"]
+
+
 def test_shadow_dispatch_never_trips_the_guard(tmp_path):
     """The eval loop's own shadow replays (run_config_eval) resolve an
     unmeasured candidate digest through this same real_hooks() call — the

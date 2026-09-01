@@ -19,8 +19,10 @@ from torve.config.runconfig import (
     agent_timeout_for,
     load_runner_config,
     profiles_dir,
+    resolve_character_tier,
     sandbox_timeout_for,
 )
+from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -575,3 +577,86 @@ def test_a_warm_regime_is_a_different_regime_digest(tmp_path: Path):
     gate = manifest(tmp_path)
 
     assert config_hash(gate, tmp_path, cold) != config_hash(gate, tmp_path, warm)
+
+
+# ....................... #
+# character_routing (RFC 0034 D-34.3)
+
+
+def test_character_routing_names_no_configured_tier_is_a_load_time_refusal():
+    with pytest.raises(ValidationError, match="character_routing names no configured tier"):
+        RunnerConfig(
+            tiers={
+                "executor": TierConfig(character_routing={"structural": "indexed"}),
+                "reviewer": TierConfig(),
+            }
+        )
+
+
+def test_character_routing_may_name_a_configured_variant():
+    config = RunnerConfig(
+        tiers={
+            "executor": TierConfig(character_routing={"structural": "indexed"}),
+            "executor.indexed": TierConfig(),
+            "reviewer": TierConfig(),
+        }
+    )
+    assert config.tiers["executor"].character_routing == {"structural": "indexed"}
+
+
+def _executor_task(**overrides) -> Task:
+    fields: dict = {"id": "T-1", "decisions": []}
+    fields.update(overrides)
+    return Task(**fields)
+
+
+def test_resolve_character_tier_maps_a_declared_character_to_its_variant():
+    config = RunnerConfig(
+        tiers={
+            "executor": TierConfig(character_routing={"structural": "indexed"}),
+            "executor.indexed": TierConfig(),
+            "reviewer": TierConfig(),
+        }
+    )
+    resolved = resolve_character_tier(config, _executor_task(character="structural"))
+    assert resolved.tier_variant == "indexed"
+
+
+def test_resolve_character_tier_leaves_an_unmapped_character_on_the_seat_default():
+    config = RunnerConfig(
+        tiers={
+            "executor": TierConfig(character_routing={"structural": "indexed"}),
+            "executor.indexed": TierConfig(),
+            "reviewer": TierConfig(),
+        }
+    )
+    resolved = resolve_character_tier(config, _executor_task(character="routine"))
+    assert resolved.tier_variant is None
+
+
+def test_resolve_character_tier_leaves_a_task_with_no_character_alone():
+    config = RunnerConfig(
+        tiers={
+            "executor": TierConfig(character_routing={"structural": "indexed"}),
+            "executor.indexed": TierConfig(),
+            "reviewer": TierConfig(),
+        }
+    )
+    task = _executor_task()
+    assert resolve_character_tier(config, task) is task
+
+
+def test_an_explicit_tier_variant_wins_over_a_mapped_character():
+    """D-34.3: explicit tier_variant always wins over character routing."""
+
+    config = RunnerConfig(
+        tiers={
+            "executor": TierConfig(character_routing={"structural": "indexed"}),
+            "executor.indexed": TierConfig(),
+            "executor.pinned": TierConfig(),
+            "reviewer": TierConfig(),
+        }
+    )
+    task = _executor_task(character="structural", tier_variant="pinned")
+    resolved = resolve_character_tier(config, task)
+    assert resolved.tier_variant == "pinned"

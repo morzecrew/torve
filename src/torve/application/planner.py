@@ -419,6 +419,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
             acceptance=list(entry.acceptance),
             decisions=decisions,
             tier_variant=entry.tier_variant or None,
+            character=entry.character or None,
         )
 
         planned.append(PlannedTask(task=task, title=entry.title, size=sizing.estimate(task)))

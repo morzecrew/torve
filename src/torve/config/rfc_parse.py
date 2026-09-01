@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -432,6 +432,12 @@ class PhasingEntry(BaseModel):
     # verbatim onto the minted contract's `tier_variant`. Empty means the
     # seat's default persona — the same "absent" `torve plan` already writes.
     tier_variant: str = ""
+
+    # RFC 0034 §5.1, D-34.1/D-34.2: the closed structural|routine vocabulary
+    # a phase may declare, copied verbatim onto the minted contract's
+    # `character`. Empty means no character — dispatch falls through to the
+    # seat default, same absent-means-default shape as tier_variant above.
+    character: Literal["", "structural", "routine"] = ""
 
 
 # ....................... #

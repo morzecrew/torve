@@ -397,6 +397,54 @@ def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
     assert plain.tier_variant is None
 
 
+# ....................... #
+
+
+def test_parse_phasing_defaults_character_empty():
+    """RFC 0034 D-34.2: absent means no character, same absent-means-default
+    shape tier_variant already carries."""
+
+    entries = parse_phasing(PHASING)
+    assert entries is not None
+    assert all(e.character == "" for e in entries)
+
+
+def test_parse_phasing_accepts_the_closed_character_vocabulary():
+    text = PHASING.replace(
+        "  title: widget-core\n", "  title: widget-core\n  character: structural\n"
+    )
+    entries = parse_phasing(text)
+    assert entries is not None
+    assert entries[0].character == "structural"
+    assert entries[1].character == ""
+
+
+def test_parse_phasing_refuses_a_character_outside_the_vocabulary():
+    """D-34.1: structural|routine is a closed vocabulary — compliance is
+    measured, never declarable, and a typo is not a third option."""
+
+    text = PHASING.replace(
+        "  title: widget-core\n", "  title: widget-core\n  character: compliance\n"
+    )
+
+    with pytest.raises(ValueError):
+        parse_phasing(text)
+
+
+def test_minting_copies_character_onto_the_contract(plan_repo):
+    root, write_doc, git = plan_repo
+    character_phasing = PHASING.replace(
+        "  title: widget-core\n", "  title: widget-core\n  character: routine\n"
+    )
+    write_doc("0098", "Characters", body=TABLE + character_phasing)
+    git("add", "-A")
+    git("commit", "-qm", "characters")
+    report = plan_document(root, root / "rfcs", "0098")
+    marked, plain = report.tasks[0].task, report.tasks[1].task
+    assert marked.character == "routine"
+    assert plain.character is None
+
+
 def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
     """A-69: the phase title reaches the contract as its short name, and a
     multiline intent dumps as a literal block — never the single-quoted

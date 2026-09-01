@@ -124,7 +124,9 @@ fenced YAML block — a list of units, each with a phase number, a title, one
 intent paragraph (what changes and why — never steps), the scope it may
 touch, its acceptance commands, and the phase numbers it waits on. Several
 entries may share a phase number: they run in parallel, so their scopes must
-not intersect.>
+not intersect. `character` is optional: `structural` or `routine`, copied
+verbatim onto the minted contract; absent means dispatch routes on the seat
+alone.>
 
 ```yaml
 - phase: 1
@@ -134,6 +136,7 @@ not intersect.>
   scope: ["src/thing/**", "tests/**"]
   acceptance: ["make test"]
   depends_on: []
+  character: structural
 - phase: 2
   title: the-follow-up
   intent: >-

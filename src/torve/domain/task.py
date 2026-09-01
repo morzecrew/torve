@@ -103,6 +103,12 @@ class Task(BaseModel):
     # variant that is not configured is a refused dispatch, not a fallback.
     tier_variant: str | None = None
 
+    # RFC 0034 D-34.1/D-34.2: the phase's declared structural|routine
+    # character, copied verbatim from the Phasing entry at mint. Absent by
+    # default — a task with no character declared routes on the seat alone,
+    # same as one with no tier_variant.
+    character: Literal["structural", "routine"] | None = None
+
     # ....................... #
 
     @model_validator(mode="after")

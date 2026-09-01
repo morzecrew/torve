@@ -1,0 +1,44 @@
+schema_version: 1
+task: T-0213
+repo: morzecrew/torve
+base_sha: 3d54f8b14b909c03aec302188f3af7f53530c59d
+drift_count: 0
+entries:
+  - decision: D-34.3
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: 2026-09-01T00:00:00Z
+    attempt: 1
+    claim: character_routing values are the seat's own bare variant suffix
+      (e.g. {"structural":"indexed"}), not a full dotted tier name
+      (e.g. "executor.indexed") as the RFC's illustrative example suggested.
+    evidence: src/torve/config/runconfig.py:220-226 — tier_name_for dots
+      `task.tier_variant` onto `task.tier` to form the tier name; a full
+      dotted value stored in character_routing would need prefix-stripping
+      against the owning seat and reopens cross-seat routing the RFC does
+      not ask for.
+    action: departed
+    proposal: character_routing values stay bare variant suffixes, matching
+      the shape Task.tier_variant (D-27.3) already carries, so a
+      character-resolved task round-trips through tier_name_for unchanged
+      and cross-seat routing stays structurally impossible.
+    notes: |
+      Discovered while wiring resolve_character_tier: tier_name_for(task)
+      has no config access and its signature is frozen by out-of-scope
+      callers (tests/test_tiering.py, application/shadow.py), so resolution
+      must happen upstream and produce a value tier_name_for already knows
+      how to consume — the bare-suffix shape is what makes that work.
+  - decision: D-34.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-01T00:00:00Z
+    attempt: 1
+    claim: character stays the closed two-axis pair the decision fixes —
+      structural and routine are the only declarable values, and compliance
+      was not added as a third. The area's other governed path,
+      application/projections.py, is untouched by this task.
+    evidence: src/torve/config/rfc_parse.py:440 — PhasingEntry.character is a
+      closed enum of empty-string, structural and routine; no compliance
+      value exists to parse or copy forward.
+    action: decided

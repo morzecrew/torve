@@ -91,7 +91,13 @@ def shadow_cmd(
     from torve.application.ports import Agent
     from torve.application.runner import RunDeps
     from torve.application.shadow import ShadowSource, run_shadow
-    from torve.config.runconfig import ProviderDenied, route_provider, tier_for, tier_name_for
+    from torve.config.runconfig import (
+        ProviderDenied,
+        resolve_character_tier,
+        route_provider,
+        tier_for,
+        tier_name_for,
+    )
 
     if agent_name not in (None, "fake"):
         raise fail(f"configuration error: unknown agent {agent_name!r}", EXIT_CONFIG)
@@ -104,6 +110,9 @@ def shadow_cmd(
 
     task = load_task(task_file)
     config = load_config(root, config_path)
+    # RFC 0034 D-34.3: resolved once, before anything reads the tier this
+    # replay routes and runs under — the same shape a live dispatch resolves.
+    task = resolve_character_tier(config, task)
 
     try:
         tier = tier_for(config, tier_name_for(task))
