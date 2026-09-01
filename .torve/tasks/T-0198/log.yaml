@@ -1,0 +1,85 @@
+schema_version: 1
+task: T-0198
+repo: morzecrew/torve
+base_sha: 46cd903944a2e6a6097a2cda036664fc8dd268aa
+drift_count: 0
+entries:
+  - decision: D-31.1
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-01T11:53:34Z
+    attempt: 1
+    claim: >-
+      The survey is agentless and read-only as built: run_survey orchestrates
+      host-side git calls and the gate battery only, the only write into the
+      target is the report at the operator-named --output path, and a
+      completed survey always exits 0 — a red history is a successful
+      measurement of a red history
+    evidence: >-
+      src/torve/application/survey.py:108-121 — run_survey's docstring and
+      signature: it walks landings and runs gates through the injected
+      SurveySource (landings, parent_of, create_workspace, remove_workspace);
+      no agent, sandbox, broker or runtime import exists anywhere in the
+      module
+    action: decided
+    notes: |
+      Close-out attestation. D-31.1's two declared paths are this phase's
+      spine: the application layer (src/torve/application/survey.py) and the
+      CLI (src/torve/cli/survey.py). The CLI's only write into the target is
+      the report the operator names (src/torve/cli/survey.py:168-173), and a
+      completed measurement always raises exit 0
+      (src/torve/cli/survey.py:237), with 3 reserved for configuration errors
+      and 4 for infrastructure failure (src/torve/cli/survey.py:162-166).
+      tests/test_survey.py pins the read-only contract
+      (test_survey_is_read_only: the target tree byte-identical after a run,
+      no .wt residue) and the always-zero exit on red history
+      (test_survey_exits_zero_on_fired_history, tests/test_survey.py:230-239).
+      The clone-at-landing mechanics add no write either: the truncated clone
+      lives under .wt/ and remove_at deletes it and the empty shell it
+      created (src/torve/adapters/workspace/git.py:217-228).
+  - decision: D-31.3
+    grade: LOCKED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-01T11:53:34Z
+    attempt: 1
+    claim: >-
+      Nothing in this phase convicts the surveyed tree or its history:
+      per-landing gate outcomes are report data, the report names the gates a
+      corpus would add, and the CLI exits 0 however red the history reads —
+      the measurement is the product, never a verdict, so no gate here can
+      convict the existing tree retroactively
+    evidence: >-
+      src/torve/cli/survey.py:235-237 — the closing line states a survey is a
+      measurement and a red history is a successful measurement of a red
+      history, then raises EXIT_OK unconditionally;
+      tests/test_survey.py:230-239 pins the fired-landings-still-exit-0
+      property
+    action: decided
+    notes: |
+      Close-out attestation. This phase touches one of D-31.3's declared
+      paths (src/torve/application/survey.py) but only to report history:
+      the survey's summary names what a corpus would add (survey.py:202-207)
+      and nothing the survey writes is enforced against the surveyed tree.
+      The baseline that will govern future work is the bootstrap skill's
+      document — D-31.2's area (skills/corpus-bootstrap/**), untouched by
+      this phase — so governance stays a ratchet: new work convicted,
+      existing history left alone.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-09-01T12:03:00Z
+    attempt: 1
+    claim: >-
+      The minted phase-1 scope named the four component files but not
+      src/torve/cli/main.py — where the Typer app is assembled explicitly and
+      the survey command must be registered for `torve survey` to exist; the
+      same wiring-seam lesson T-0039 logged for run.py, now legal cross-phase
+      overlap
+    evidence: .torve/tasks/T-0198/contract.yaml:2-5 — the widening note
+    action: decided
+    proposal: 0031 row — when a phase mints a new CLI verb, its scope names
+      the app assembly file (src/torve/cli/main.py) alongside the verb's own
+      module

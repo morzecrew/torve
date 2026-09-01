@@ -37,6 +37,7 @@ from torve.cli import (
     serve,
     shadow,
     status,
+    survey,
     tick,
     tracker,
 )
@@ -103,6 +104,7 @@ app.command("lint-contract")(intake.lint_contract_cmd)
 app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
 app.command("shadow")(shadow.shadow_cmd)
+app.command("survey")(survey.survey_cmd)
 app.command("serve")(serve.serve_cmd)
 app.command("eval")(evals.eval_cmd)
 app.command("cancel")(run.cancel)

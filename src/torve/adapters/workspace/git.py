@@ -6,6 +6,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import threading
+from contextlib import suppress
 from pathlib import Path
 
 from torve.base import naming
@@ -154,7 +155,28 @@ class ShadowWorkspace:
     # ....................... #
 
     def create(self, task_id: str, parent_sha: str) -> Path:
-        path = self.path_for(task_id)
+        return self._clone(naming.shadow_id(task_id), parent_sha)
+
+    # ....................... #
+
+    def create_at(self, label: str, sha: str) -> Path:
+        """The survey's clone-at-landing variant (RFC 0031 D-31.4): the same
+        bounded-depth mechanics, but the clone is cut at the LANDING sha — the
+        tree the battery runs over — with the landing's first parent as the
+        gate base. Depth 2 is enough for that diff; the mechanics never
+        transfer anything past the requested sha either way."""
+
+        return self._clone(label, sha)
+
+    # ....................... #
+
+    def _clone(self, label: str, sha: str) -> Path:
+        """The shared truncated-clone mechanics (RFC 0004 §5, D-4.7): init a
+        fresh repository under `.wt/<label>`, fetch the exact sha at bounded
+        depth — so later objects are never transferred — and check it out on
+        a `shadow` branch with no refs beyond it."""
+
+        path = self.root / naming.WORKTREE_DIR / label
 
         if path.exists():
             shutil.rmtree(path)
@@ -178,7 +200,7 @@ class ShadowWorkspace:
             "--upload-pack",
             "git -c uploadpack.allowanysha1inwant=true upload-pack",
             str(self.root),
-            parent_sha,
+            sha,
         )
 
         run("checkout", "-q", "-b", "shadow", "FETCH_HEAD")
@@ -189,6 +211,21 @@ class ShadowWorkspace:
 
     def remove(self, task_id: str) -> None:
         shutil.rmtree(self.path_for(task_id), ignore_errors=True)
+
+    # ....................... #
+
+    def remove_at(self, label: str) -> None:
+        """Remove one survey clone and the empty `.wt/` shell this class
+        created around it (RFC 0031 D-31.1: the target tree ends byte-identical
+        — no workspace residue). rmdir only removes an empty directory, so a
+        `.wt/` holding other work survives untouched."""
+
+        shutil.rmtree(self.root / naming.WORKTREE_DIR / label, ignore_errors=True)
+
+        # rmdir only removes an empty directory, so a `.wt/` holding other
+        # work survives untouched.
+        with suppress(OSError):
+            (self.root / naming.WORKTREE_DIR).rmdir()
 
 
 # ....................... #

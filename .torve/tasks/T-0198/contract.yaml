@@ -1,4 +1,8 @@
 # Minted by `torve plan 0031` — phase 1: the-survey
+# Scope widened by hand: `torve survey` only exists once the Typer app — which
+# is assembled explicitly in main.py — registers it, so the app assembly file
+# joins the allow list alongside the verb's own module; the same wiring-seam
+# widening T-0039 logged for run.py (the log entry cites this note).
 schema_version: 1
 id: T-0198
 rfc: rfcs/0031-brownfield-onboarding.md
@@ -19,6 +23,7 @@ scope:
   - src/torve/application/survey.py
   - src/torve/cli/survey.py
   - src/torve/adapters/workspace/git.py
+  - src/torve/cli/main.py
   - tests/test_survey.py
   deny: []
 acceptance:
