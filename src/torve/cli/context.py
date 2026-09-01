@@ -56,9 +56,10 @@ def context_cmd(
     ] = ContextFormat.TEXT,
 ) -> None:
     """Project accumulated facts for a planning session: tasks
-    by state, escalations by reason, proposals awaiting the author, gate
-    health, cost against config_hash, the programme view, and the
-    document-level specification-quality signals."""
+    by state, escalations by reason, proposals awaiting the author,
+    findings awaiting the operator, gate health, cost against config_hash,
+    the programme view, and the document-level specification-quality
+    signals."""
     # The document-signals section is RFC 0022 §5.3; the docstring is help
     # text and carries no corpus coordinates.
 
@@ -226,6 +227,48 @@ def _render_rich(report: dict[str, Any]) -> None:
                 console,
                 f"… plus {landed} from tasks the decision tables "
                 "already cite — likely landed (see JSON)",
+            )
+
+    fresh_findings = [f for f in report["findings"] if not f.get("possibly_addressed")]
+
+    if report["findings"]:
+        findings = make_table(
+            "review",
+            "severity",
+            "claim",
+            title="Findings awaiting the operator",
+            lines=True,
+            last_max_width=76,
+        )
+
+        withheld = add_rows_truncated(
+            findings,
+            [
+                (
+                    Text(str(item["review"]), STYLE_ID),
+                    Text(
+                        str(item["severity"]),
+                        STYLE_WARN if item["severity"] == "major" else STYLE_DIM,
+                    ),
+                    str(item["claim"]).strip(),
+                )
+                for item in fresh_findings
+            ],
+            limit=40,
+        )
+
+        console.print(findings)
+
+        if withheld:
+            footer(console, f"… {withheld} more fresh finding(s) (see JSON)")
+
+        addressed = len(report["findings"]) - len(fresh_findings)
+
+        if addressed:
+            footer(
+                console,
+                f"… plus {addressed} from reviews later contracts cite — "
+                "possibly addressed (see JSON)",
             )
 
     if report["gates"]:

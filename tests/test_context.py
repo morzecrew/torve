@@ -636,3 +636,135 @@ def test_context_cli_markdown_prints_operator_attention_line(tmp_path):
     result = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "markdown"])
     assert result.exit_code == 0, result.output
     assert "operator attention:" in result.output
+
+
+# ....................... #
+# D-5.15 (A-75): the findings ledger — every kept non-blocking finding
+# from a landed target's review, read from the review records telemetry
+# already carries, marked possibly_addressed under D-7.24's weak-citation
+# discipline applied to findings.
+
+
+def _write_review_telemetry(root, review_id: str, target: str, findings: list[dict]) -> None:
+    path = root / ".torve" / "telemetry.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "schema_version": 1,
+        "kind": "review",
+        "at": "2026-09-01T10:00:00Z",
+        "config_hash": "abc123",
+        "task_id": review_id,
+        "target": target,
+        "findings": findings,
+        "discarded": [],
+        "unparseable": False,
+        "agent": {"tier": "reviewer", "adapter": "api"},
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record) + "\n")
+
+
+def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tmp_path):
+    _land_commit(tmp_path, "T-0001")
+    _write_review_telemetry(
+        tmp_path,
+        "T-0101",
+        "T-0001",
+        [
+            {"severity": "major", "claim": "the retry loop swallows errors", "evidence": "x.py:1 — loop"},
+            {"severity": "minor", "claim": "a nit", "evidence": "x.py:2 — nit"},
+            {"severity": "blocker", "claim": "unsafe", "evidence": "x.py:3 — bad"},
+        ],
+    )
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    findings = report["findings"]
+    # Blockers escalate their target and never land beside it: non-blocking only.
+    assert [f["severity"] for f in findings] == ["major", "minor"]
+    assert all(f["review"] == "T-0101" for f in findings)
+    assert all(f["target"] == "T-0001" for f in findings)
+    assert findings[0]["claim"] == "the retry loop swallows errors"
+    assert findings[0]["evidence"] == "x.py:1 — loop"
+    assert all(f["possibly_addressed"] is False for f in findings)
+
+
+def test_findings_from_unlanded_targets_stay_out(tmp_path):
+    _write_review_telemetry(
+        tmp_path, "T-0101", "T-0001", [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}]
+    )
+    assert context_report(tmp_path, tmp_path / "rfcs")["findings"] == []
+
+
+def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_path):
+    _land_commit(tmp_path, "T-0001")
+    _write_review_telemetry(
+        tmp_path, "T-0101", "T-0001", [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}]
+    )
+    assert context_report(tmp_path, tmp_path / "rfcs")["findings"][0]["possibly_addressed"] is False
+
+    # The review's own contract cites its id — self-citation must not count.
+    task_dir = tmp_path / ".torve" / "tasks" / "T-0101"
+    task_dir.mkdir(parents=True)
+    (task_dir / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0101\nrole: review\ntargets: [T-0001]\n",
+        encoding="utf-8",
+    )
+    assert context_report(tmp_path, tmp_path / "rfcs")["findings"][0]["possibly_addressed"] is False
+
+    # A later contract citing the review id is evidence the finding was
+    # followed up — possibly addressed, never "resolved".
+    later = tmp_path / ".torve" / "tasks" / "T-0102"
+    later.mkdir(parents=True)
+    (later / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0102\nintent: address T-0101's major finding\n",
+        encoding="utf-8",
+    )
+    assert context_report(tmp_path, tmp_path / "rfcs")["findings"][0]["possibly_addressed"] is True
+
+
+def test_findings_render_in_all_three_formats(tmp_path):
+    _land_commit(tmp_path, "T-0001")
+    _write_review_telemetry(
+        tmp_path,
+        "T-0101",
+        "T-0001",
+        [{"severity": "major", "claim": "the retry loop swallows errors", "evidence": "x.py:1 — loop"}],
+    )
+
+    markdown = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "markdown"])
+    assert markdown.exit_code == 0, markdown.output
+    assert "## Findings awaiting the operator" in markdown.output
+    assert "[major] T-0101: the retry loop swallows errors" in markdown.output
+
+    text = CliRunner().invoke(app, ["context", "--root", str(tmp_path)])
+    assert text.exit_code == 0, text.output
+    assert "Findings awaiting the operator" in text.output
+    assert "T-0101" in text.output
+    assert "the retry loop swallows errors" in text.output
+
+    raw = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "json"])
+    assert raw.exit_code == 0
+    assert json.loads(raw.output)["findings"][0]["review"] == "T-0101"
+
+
+def test_addressed_findings_collapse_to_the_plus_line(tmp_path):
+    _land_commit(tmp_path, "T-0001")
+    _write_review_telemetry(
+        tmp_path, "T-0101", "T-0001", [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}]
+    )
+    later = tmp_path / ".torve" / "tasks" / "T-0102"
+    later.mkdir(parents=True)
+    (later / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0102\nintent: address T-0101's finding\n",
+        encoding="utf-8",
+    )
+
+    markdown = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "markdown"])
+    assert markdown.exit_code == 0, markdown.output
+    assert "## Findings awaiting the operator" in markdown.output
+    assert "possibly addressed; the JSON report carries them all" in markdown.output
+    # The addressed finding itself leaves the fresh list.
+    assert "[major] T-0101: c" not in markdown.output
+
+    text = CliRunner().invoke(app, ["context", "--root", str(tmp_path)])
+    assert text.exit_code == 0, text.output
+    assert "possibly addressed (see JSON)" in text.output

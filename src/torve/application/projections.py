@@ -1,12 +1,13 @@
 """`torve context` — a projection of accumulated facts into a form a
 planning session can consume (RFC 0007 §4). Not a plan: tasks by state,
 escalations by reason, execution-log divergences ready to become
-decision-table rows, per-gate health, cost against `config_hash`, the
-programme view of the RFC graph (D-7.11), asserted `implementation` beside
-derived per-phase progress with disagreements flagged (D-7.15), and the
-document-level half of the specification-quality report (RFC 0022 §5.3,
-D-22.6): the same MCP surface that already exposes this projection carries
-it to a planning session with no new tool.
+decision-table rows, findings awaiting the operator, per-gate health, cost
+against `config_hash`, the programme view of the RFC graph (D-7.11),
+asserted `implementation` beside derived per-phase progress with
+disagreements flagged (D-7.15), and the document-level half of the
+specification-quality report (RFC 0022 §5.3, D-22.6): the same MCP surface
+that already exposes this projection carries it to a planning session with
+no new tool.
 
 Everything here is read from files the engine already writes — contracts,
 run states, execution logs, the feedback and telemetry streams, the corpus.
@@ -245,6 +246,111 @@ def _proposals(root: Path, rfc_dir: Path) -> list[dict[str, Any]]:
                     # provenance convention carry no citation and stay visible;
                     # surfacing them is the feature, not a defect.
                     "possibly_landed": task_id in cited,
+                }
+            )
+
+    return found
+
+
+# ....................... #
+
+
+def _contract_texts(root: Path) -> dict[str, str]:
+    """Raw contract text per task id — the citation corpus `_findings`
+    checks `possibly_addressed` against. Each review's own contract is
+    excluded at the call site; its `id` would cite itself and mark every
+    finding addressed."""
+
+    texts: dict[str, str] = {}
+    tasks_dir = root / layout.TORVE_DIR / "tasks"
+
+    if not tasks_dir.is_dir():
+        return texts
+
+    for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
+        try:
+            raw = contract.read_text(encoding="utf-8")
+
+        except OSError:
+            continue
+
+        record = _load_yaml_dict(contract)
+        task_id = (
+            str(record["id"]) if record is not None and record.get("id") else contract.parent.name
+        )
+        texts[task_id] = raw
+
+    return texts
+
+
+# ....................... #
+
+
+def _findings(root: Path) -> list[dict[str, Any]]:
+    """The findings ledger (D-5.15, A-75): every kept non-blocking finding
+    from a landed target's review, read from the review records telemetry
+    already carries — review id, severity and claim, with
+    `possibly_addressed` marking. The weak-citation discipline is D-7.24's
+    `possibly_landed` applied to findings: a contract whose text cites the
+    review's task id is evidence the author has been through that review —
+    evidence, never proof. The engine mints nothing from a finding; the
+    operator triages this ledger in batch."""
+
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
+    if not telemetry.is_file():
+        return []
+
+    landed = shipped_ids(root)
+    contract_texts = _contract_texts(root)
+    found: list[dict[str, Any]] = []
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        row = cast("dict[str, Any]", record)
+
+        if row.get("kind") != "review":
+            continue
+
+        review_id = str(row.get("task_id") or "")
+        target = str(row.get("target") or "")
+        findings = row.get("findings")
+
+        if not review_id or not target or target not in landed or not isinstance(findings, list):
+            continue
+
+        # Any contract text citing the review id is evidence a follow-up
+        # exists — the review's own contract excluded, whose id would
+        # cite itself and mark every finding addressed.
+        cited = "".join(text for task_id, text in contract_texts.items() if task_id != review_id)
+
+        for finding in cast("list[object]", findings):
+            if not isinstance(finding, dict):
+                continue
+
+            item = cast("dict[str, Any]", finding)
+
+            # D-5.15: non-blocking only — a blocker escalates its target
+            # and never lands beside it.
+            if item.get("severity") == "blocker":
+                continue
+
+            found.append(
+                {
+                    "review": review_id,
+                    "target": target,
+                    "severity": str(item.get("severity") or ""),
+                    "claim": str(item.get("claim") or ""),
+                    "evidence": str(item.get("evidence") or ""),
+                    "possibly_addressed": review_id in cited,
                 }
             )
 
@@ -866,6 +972,7 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
         "decompositions": _decompositions(tasks),
         "escalations": escalations,
         "proposals": _proposals(root, rfc_dir),
+        "findings": _findings(root),
         "gates": _gate_health(root),
         "costs": _costs(root),
         "programme": _programme(root, rfc_dir, tasks),
@@ -961,6 +1068,23 @@ def render_markdown(report: dict[str, Any]) -> str:
             lines.append(
                 f"- …plus {landed} proposal(s) from tasks the decision tables already "
                 "cite — likely landed; the JSON report carries them all"
+            )
+
+        lines.append("")
+
+    if report["findings"]:
+        fresh = [f for f in report["findings"] if not f.get("possibly_addressed")]
+        addressed = len(report["findings"]) - len(fresh)
+        lines.append("## Findings awaiting the operator")
+        lines.append("")
+
+        for item in fresh:
+            lines.append(f"- [{item['severity']}] {item['review']}: {str(item['claim']).strip()}")
+
+        if addressed:
+            lines.append(
+                f"- …plus {addressed} finding(s) from reviews later contracts cite — "
+                "possibly addressed; the JSON report carries them all"
             )
 
         lines.append("")
