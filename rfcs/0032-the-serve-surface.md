@@ -8,7 +8,7 @@ depends_on: ["0007", "0022"]
 informed_by: ["0005", "0011", "0013", "0018"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-76"]
+amended_by: ["A-76", "A-77"]
 owner: Lev Litvinov
 description: >-
   A local read-only dashboard over the projections the engine already computes — `torve serve` behind an extra, loopback-only, polling JSON the CLI already emits, with the frontend shipped as built assets in the wheel.
@@ -285,3 +285,24 @@ deliverable the configured executors had already failed once.
 **Deliberately unchanged:** every decision row. Read-only, loopback,
 projections-verbatim, wheel-shipped — the doctrine held; only the
 toolchain died.
+
+### A-77 — 2026-09-01 — the glass dashboard (amends §5.3 again, supersedes A-76's toolchain call)
+**Found within hours of A-76.** The buildless page fixed readability and
+the operator immediately wanted the rest: real data tables with sorting,
+richer filtering, and a surface that looks deliberate. That is a
+framework's job after all — the first React attempt failed on design
+quality, not on React.
+
+**Changed:** §5.3 in effect — React + Tailwind + TanStack Table under
+Vite, eight tabs, sortable columns on every table, per-tab filters and
+chips, expandable findings/proposals with evidence blocks, glass panels
+over an aurora ground. The build is deterministic per lockfile (verified
+by double-build diff), so D-32.5's vendored-and-checked call survives
+with `git diff --exit-code` against a fresh CI build replacing the copy
+comparison; node stays a CI-and-development concern, the wheel still
+ships static data (D-32.4 unchanged). Built as operator work like A-76's
+page, disclosed here.
+
+**Deliberately unchanged:** every decision row, again. A-76's lesson
+stands as history: the framework was never the problem, and the vanilla
+page was the right bridge to knowing what the surface needed.

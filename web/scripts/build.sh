@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
-# The dashboard is buildless (0032 A-76): one dependency-free HTML file.
-# "Building" is copying the source into the wheel's package data, which
-# keeps D-32.4's shipping mechanism and deletes the toolchain.
+# Build the dashboard into the wheel's package data (RFC 0032 D-32.4).
+# Vite's output is deterministic for a given lockfile, so the vendored
+# bundle is byte-comparable against a fresh build (D-32.5).
 set -eu
 cd "$(dirname "$0")/.."
-cp index.html ../src/torve/_web/index.html
-echo "bundle: src/torve/_web/index.html ($(wc -c < index.html) bytes)"
+npm ci
+npm run build
+echo "bundle: src/torve/_web ($(du -sh ../src/torve/_web | cut -f1))"

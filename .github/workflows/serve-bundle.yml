@@ -1,10 +1,9 @@
 name: serve-bundle
 
-# The dashboard is buildless (RFC 0032, A-76): one dependency-free HTML
-# file, "built" by copying into the wheel's package data. This job asserts
-# the vendored copy matches the source byte-for-byte and that the backend
-# suite stays green — the npm-builder toolchain the first cut used is gone
-# with the framework.
+# The dashboard build (RFC 0032 D-32.4, A-77): Vite output is
+# deterministic per lockfile, so the vendored bundle in torve/_web is
+# byte-compared against a fresh build, and the backend suite must stay
+# green beside it.
 
 on:
   workflow_dispatch:
@@ -22,8 +21,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: vendored bundle matches source
-        run: cmp web/index.html src/torve/_web/index.html
+      # zizmor: ignore[cache-poisoning] — this job publishes nothing: it
+      # builds and diffs, read-only permissions, no artifact leaves it.
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.0.0 # zizmor: ignore[cache-poisoning]
+        with:
+          node-version: 26
+      - name: fresh build
+        run: cd web && npm ci && npm run build
+      - name: vendored bundle matches the fresh build
+        run: git diff --exit-code -- src/torve/_web
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: false
