@@ -28,11 +28,14 @@ import yaml
 from torve.config.manifest import Gate
 from torve.gates.context import GateContext
 from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
-from torve.gates.evidence import locate
+from torve.gates.evidence import BACKTICKED, CITATION, locate
 
 # ----------------------- #
 
 RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(?:Z|\+00:00)$")
+# The locator's CITATION without the end anchor — the diagnosis needs to know
+# where the leading citation ends, not whether the whole line is one (D-5.4).
+CITATION_PREFIX = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?")
 REQUIRED = ("decision", "grade", "at", "attempt", "claim", "evidence", "action")
 OPTIONAL = ("kind", "class", "proposal", "notes")
 GRADES = {"LOCKED", "ASSUMED", "OPEN", "UNLISTED"}
@@ -167,6 +170,61 @@ def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
 # ....................... #
 
 
+def _is_grammar_rejection(evidence: str) -> bool:
+    """True when the shared locator's rejection of *evidence* is the grammar
+    one (neither a path:line citation nor a backticked command), as opposed
+    to a locatable-format line pointing at a missing or out-of-range path.
+    Mirrors the locator's own branches with its own regexes, so the
+    judgement cannot drift from it (D-5.4)."""
+
+    if BACKTICKED.match(evidence):
+        return False
+
+    citation = evidence.split(" — ")[0].split(" - ")[0].strip()
+
+    return CITATION.match(citation) is None
+
+
+def _first_evidence_defect(evidence: str) -> str:
+    """The first grammar defect found in *evidence*, for the teaching
+    rejection: no citation at all, a semicolon chain of citations where
+    prose belongs, or the separator missing after the citation. (A line
+    whose citation is already followed by ` — ` cannot reach here — the
+    locator would have accepted it.)"""
+
+    m = CITATION_PREFIX.match(evidence)
+
+    if m is None:
+        return "no citation at all — a sentence is a claim, not evidence"
+
+    after = evidence[m.end() :].lstrip()
+
+    if after.startswith(";"):
+        return (
+            "multiple semicolon-joined citations where prose belongs — "
+            "one citation leads; the rest is prose after ` — `"
+        )
+
+    return "separator missing after the citation — prose follows after ` — `"
+
+
+def _grammar_rejection_message(evidence: str) -> str:
+    """The teaching version of the locator's grammar rejection: the expected
+    grammar, the offending line quoted, and the first defect diagnosed. The
+    judgement is the locator's — only the message changes."""
+
+    return "\n".join(
+        [
+            f"evidence {evidence!r} is not locatable",
+            (
+                "expected: a single leading `path:line — one sentence` citation, "
+                "or a backticked command with its output"
+            ),
+            f"first defect: {_first_evidence_defect(evidence)}",
+        ]
+    )
+
+
 def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list[str]:
     evidence = _norm(entry.get("evidence")).strip()
 
@@ -174,11 +232,16 @@ def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list
         return []  # already reported by the schema check
 
     # One locator, two consumers (D-5.4): this check and the review findings
-    # filter share the mechanism in gates/evidence.py.
+    # filter share the mechanism in gates/evidence.py. The judgement is the
+    # locator's; when it rejects the grammar, the message here teaches the
+    # repair instead of only naming the failure.
     problem = locate(evidence, ctx.root)
 
     if problem is None:
         return []
+
+    if _is_grammar_rejection(evidence):
+        problem = _grammar_rejection_message(evidence)
 
     return [f"entry {index + 1}: {problem}"]
 
@@ -274,14 +337,17 @@ def _check_pin(document: dict[str, Any]) -> list[str]:
     problems: list[str] = []
 
     if not str(document.get("repo") or "").strip():
-        problems.append("log carries no repo — the D-A.7 pin names the repository")
+        problems.append(
+            "log carries no repo — the pin opening the log names the repository "
+            "its evidence resolves against"
+        )
 
     base = str(document.get("base_sha") or "").strip()
 
     if not base:
         problems.append(
             "log carries no base_sha — evidence resolves against the commit the "
-            "work started from (D-A.7); the prompt hands you the pin verbatim"
+            "work started from; the prompt hands you the pin verbatim"
         )
     elif not SHA_SHAPE.match(base):
         problems.append(f"base_sha {base!r} is not a commit sha")

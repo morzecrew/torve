@@ -111,6 +111,7 @@ entries:
   without `:line` is not a citation:
   - wrong: `src/a.py:10-20 (the guard); src/b.py:5 (its caller)`
   - wrong: `src/a.py — the guard` (no line number)
+  - wrong: `src/a.py:10-20; src/b.py:5 — the guard` (semicolon-joined citations where prose belongs — one citation leads)
   - right: `src/a.py:10-20 — the guard; src/b.py:5 is its caller`
 - **`class` answers: could this have been known before code existed?**
   `discovery` no (healthy) · `spec-gap` yes, spec was silent · `drift` yes, spec

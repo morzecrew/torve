@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from conftest import context_for
 
 from torve.config.manifest import Gate
@@ -110,6 +111,63 @@ def test_decisions_drift_count_must_match_entries(repo):
     result = check_decisions_reported(GATE, context_for(repo))
     assert result.outcome == "fail"
     assert "drift count 0 != 1" in result.output
+
+
+@pytest.mark.parametrize(
+    ("evidence", "defect"),
+    [
+        ("src/app.py:1 the guard", "separator missing after the citation"),
+        (
+            "src/app.py:1; src/app.py:2 — the guard",
+            "multiple semicolon-joined citations where prose belongs",
+        ),
+        ("no redis service in this deployment", "no citation at all"),
+    ],
+)
+def test_decisions_evidence_rejection_teaches_the_repair(repo, evidence, defect):
+    """T-0203: the grammar rejection quotes the offending line, prints the
+    expected grammar, and diagnoses the first defect — the judgement itself
+    is unchanged (still a rejection)."""
+    repo.seed()
+    repo.task(
+        base_task(allow=["src/**"], decisions=[]),
+        log_document(entry(evidence=evidence)),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("unlocatable evidence")
+    result = check_decisions_reported(GATE, context_for(repo))
+    assert result.outcome == "fail"
+    assert f"evidence {evidence!r} is not locatable" in result.output
+    assert "expected: a single leading `path:line — one sentence` citation" in result.output
+    assert defect in result.output
+
+
+def test_decisions_evidence_path_rejection_keeps_the_locators_message(repo):
+    """A locatable-format line pointing nowhere is not a grammar rejection —
+    it keeps the locator's message; only the grammar rejection teaches."""
+    repo.seed()
+    repo.task(
+        base_task(allow=["src/**"], decisions=[]),
+        log_document(entry(evidence="ghost.py:1")),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("evidence points nowhere")
+    result = check_decisions_reported(GATE, context_for(repo))
+    assert result.outcome == "fail"
+    assert "does not exist" in result.output
+    assert "expected: a single leading" not in result.output
+
+
+def test_decisions_evidence_with_separator_still_passes(repo):
+    repo.seed()
+    repo.task(
+        base_task(allow=["src/**"], decisions=[]),
+        log_document(entry(evidence="src/app.py:1 — the guard")),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("citation with prose after the separator")
+    result = check_decisions_reported(GATE, context_for(repo))
+    assert result.outcome == "pass", result.output
 
 
 def test_decisions_empty_list_with_no_log_passes(repo):
