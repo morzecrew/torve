@@ -18,6 +18,7 @@ scope:
   - src/torve/cli/serve.py
   - src/torve/cli/main.py
   - pyproject.toml
+  - uv.lock
   - tests/test_serve.py
   deny: []
 acceptance:
