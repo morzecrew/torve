@@ -9,7 +9,10 @@ intent: 'The torve serve verb behind the torve[serve] extra: starlette app with 
   and /api/status re-exposing the existing projections verbatim (D-32.1), loopback-only with
   no host flag (D-32.2), lazy-imported with an instructive refusal (D-32.3), instructive 404
   when no bundle is shipped. Endpoint tests via TestClient, import-guard test mirrored from
-  the opensandbox pattern.'
+  the opensandbox pattern. The status envelope has no projection function today — the CLI
+  assembles it inline — so satisfying the re-exposure rule means lifting that assembly into
+  the projections module first and having both the CLI and the endpoint consume it; the first
+  attempt re-derived it inside the handler and was blocked for exactly that.'
 depends_on: []
 parent: null
 targets: []
@@ -19,6 +22,9 @@ scope:
   - src/torve/cli/main.py
   - pyproject.toml
   - uv.lock
+  - src/torve/application/projections.py
+  - src/torve/cli/status.py
+  - tests/test_context.py
   - tests/test_serve.py
   deny: []
 acceptance:
