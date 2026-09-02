@@ -542,3 +542,36 @@ def test_tier_clocks_ride_the_profile_merge(agents_dir: Path, tmp_path: Path):
 
     assert agent_timeout_for(config, tier) == 3600  # from the profile
     assert sandbox_timeout_for(config, tier) == 5000  # local wins last
+
+
+# ....................... #
+# The derived-cache volume (RFC 0035 §5.2, D-35.4)
+
+
+def test_an_unnamed_cache_volume_is_cold_by_default():
+    assert TierConfig().cache_volume == ""
+
+
+def test_cache_volume_loads_from_the_tier_mapping(tmp_path: Path):
+    config = load(tmp_path, "tiers:\n  executor:\n    cache_volume: torve-cache\n  planner: {}\n")
+
+    assert config.tiers["executor"].cache_volume == "torve-cache"
+    assert config.tiers["planner"].cache_volume == ""  # opted-in per tier, not globally
+
+
+def test_cache_volume_rides_the_profile_merge(agents_dir: Path, tmp_path: Path):
+    write(agents_dir / "warm.yaml", "cache_volume: torve-cache\n")
+    config = load(tmp_path, "tiers:\n  executor:\n    profile: warm\n")
+
+    assert config.tiers["executor"].cache_volume == "torve-cache"
+
+
+def test_a_warm_regime_is_a_different_regime_digest(tmp_path: Path):
+    # The tier dump `config_hash` already digests carries `cache_volume` for
+    # free — warm and cold arms of one campaign are separable populations,
+    # even though the only difference a run may see is wall clock (D-35.1).
+    cold = RunnerConfig()
+    warm = RunnerConfig(tiers={**cold.tiers, "executor": TierConfig(cache_volume="torve-cache")})
+    gate = manifest(tmp_path)
+
+    assert config_hash(gate, tmp_path, cold) != config_hash(gate, tmp_path, warm)

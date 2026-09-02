@@ -49,7 +49,7 @@ from torve.application.ports import (
 )
 from torve.base import naming
 from torve.base.shell import truncate
-from torve.config.runconfig import OpenSandboxConfig
+from torve.config.runconfig import CACHE_MOUNT, OpenSandboxConfig
 
 # ----------------------- #
 
@@ -154,6 +154,18 @@ class OpenSandboxRuntime:
     # ....................... #
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
+        if CACHE_MOUNT in spec.volumes.values():
+            # D-35.5: refused loudly until a server-side analog exists —
+            # never a quiet cold fallback, which would let a run measure a
+            # different regime than the tier configured.
+            raise RuntimeError(
+                "the opensandbox runtime refuses a tier's cache_volume — there is "
+                "no server-side analog for the slot-suffixed derived-cache volume "
+                "yet, and falling back to cold silently would measure a different "
+                "regime than the tier you configured; drop cache_volume or use the "
+                "docker runtime for warm tiers"
+            )
+
         if spec.volumes:
             raise RuntimeError(
                 "OpenSandbox has no per-slot auth volumes — subscription adapters "

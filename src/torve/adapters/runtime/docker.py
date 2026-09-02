@@ -24,13 +24,34 @@ from torve.application.ports import (
 )
 from torve.base import naming
 from torve.base.shell import truncate
-from torve.config.runconfig import sealed_broker_port
+from torve.config.runconfig import CACHE_MOUNT, sealed_broker_port
 
 # ----------------------- #
 
 
 class DockerError(RuntimeError):
     pass
+
+
+# ....................... #
+
+
+# The toolchain cache homes pointed at the derived-cache volume (D-35.4):
+# subdirectory on the mount -> environment variable. The roster is the one
+# measured to warm across attempts — each entry is a cache the tool
+# demonstrably honors by variable, and a cache whose deletion changes
+# nothing but wall clock (D-35.1's doctrine, checked by a conformance case
+# running the same battery cold and warm).
+CACHE_HOMES = (("uv", "UV_CACHE_DIR"), ("mypy", "MYPY_CACHE_DIR"), ("ruff", "RUFF_CACHE_DIR"))
+
+
+# ....................... #
+
+
+def cache_home_env(mount: str = CACHE_MOUNT) -> dict[str, str]:
+    """The sandbox environment pointing the toolchain caches at *mount*."""
+
+    return {var: f"{mount}/{name}" for name, var in CACHE_HOMES}
 
 
 # ....................... #
@@ -97,7 +118,21 @@ class DockerRuntime:
 
     # ....................... #
 
-    def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
+    @staticmethod
+    def _mounts_cache(spec: SandboxSpec) -> bool:
+        """A spec carrying the fixed cache mount is the whole signal: the
+        runner composed the slot-suffixed volume name, the decision that a
+        warm tier's sandboxes point their toolchains at it lives here
+        (D-35.4), and shadow runs simply never carry the mount (D-35.3)."""
+
+        return CACHE_MOUNT in spec.volumes.values()
+
+    # ....................... #
+
+    def _run_args(self, spec: SandboxSpec, workspace: Path) -> list[str]:
+        """The `docker run` argument list for a spec — pure, so the mount
+        and env wiring is testable without a daemon."""
+
         mount_mode = ":ro" if spec.workspace_read_only else ""
 
         args = [
@@ -156,6 +191,16 @@ class DockerRuntime:
                         if variant in os.environ:
                             args += ["-e", variant]
 
+        if self._mounts_cache(spec):
+            # The adapter points the toolchain cache homes at the mount
+            # (D-35.4). Emitted before the spec's own env — which docker
+            # resolves last-wins over earlier duplicates, but these are
+            # skipped for any name the spec already carries, so an explicit
+            # env on the spec still decides.
+            for name, path in cache_home_env().items():
+                if name not in spec.env:
+                    args += ["-e", f"{name}={path}"]
+
         for key, value in spec.labels.items():
             args += ["--label", f"{key}={value}"]
 
@@ -171,12 +216,37 @@ class DockerRuntime:
             args += ["-v", f"{volume}:{mount}"]
 
         args += [spec.image, "sleep", str(int(spec.timeout_s))]
-        proc = self._run(*args)
+
+        return args
+
+    # ....................... #
+
+    def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
+        proc = self._run(*self._run_args(spec, workspace))
 
         if proc.returncode != 0:
             raise DockerError(proc.stderr.strip() or "docker run failed")
 
-        return SandboxHandle(id=proc.stdout.strip(), name=spec.name)
+        handle = SandboxHandle(id=proc.stdout.strip(), name=spec.name)
+
+        if self._mounts_cache(spec):
+            # A named volume Docker creates on first use is root-owned, and
+            # this container runs as the invoking uid — a derived cache that
+            # cannot be written is worse than no cache at all. Take
+            # ownership of the mount once, from inside, as root; the chown
+            # is idempotent, and it lands on the volume, so every later
+            # sandbox over the same slot finds it writable.
+            self._run(
+                "exec",
+                "-u",
+                "root",
+                handle.id,
+                "chown",
+                f"{os.getuid()}:{os.getgid()}",
+                CACHE_MOUNT,
+            )
+
+        return handle
 
     # ....................... #
 

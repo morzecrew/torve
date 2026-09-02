@@ -96,6 +96,10 @@ def run_shadow(
 
     state.transition(TaskState.CLAIMED, f"shadow replay of {resolved[:10]} from {parent[:10]}")
 
+    # `shadow=True` is where the warm-state exclusion rides (D-35.3): the
+    # hooks below compose no cache mount under it, so the replay measures
+    # the cold truth and an eval comparing arms never compares caches —
+    # whatever cache_volume the task's tier names.
     inner = real_hooks(root, task, config, deps, workspace, shadow=True, gates_base=parent)
     costs: list[float] = []
     traces: list[str] = []

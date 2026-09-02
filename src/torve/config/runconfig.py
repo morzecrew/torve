@@ -28,6 +28,13 @@ from torve.domain.task import SCHEMA_VERSION, Task
 
 ADAPTERS = ("fake", "api", "harness", "subscription")
 
+# The derived-cache volume's fixed mount (D-35.4): outside the workspace,
+# beside the image's own toolkit paths, so nothing project-visible ever
+# reads from it and no attempt can mistake a cache for history. The one
+# address a tier's cache volume gets — the slot-suffixed naming is the
+# runner's, the toolchain homes are the adapter's, the mount point is this.
+CACHE_MOUNT = "/opt/torve/cache"
+
 
 # ....................... #
 
@@ -56,6 +63,17 @@ class TierConfig(BaseModel):
     api_key_env: list[str] = Field(default_factory=list)
     auth_volume: str = "torve-auth"
     auth_mount: str = "/auth"
+
+    # RFC 0035 §5.2, D-35.4: a named tier opts its run's sandboxes into the
+    # derived-cache volume `cache_volume-<worker_slot>` — slot-suffixed like
+    # the auth volume, so two concurrent workers never share a cache —
+    # mounted read-write at the fixed CACHE_MOUNT with the toolchain cache
+    # homes pointed at it by the runtime adapter. Empty (the default) is
+    # cold exactly as today. The volume holds derived state only: deleting
+    # it may change nothing but wall clock (D-35.1), and shadow replays
+    # never mount it (D-35.3 — the exclusion is applied where the mount is
+    # composed, under the runner's `shadow` flag).
+    cache_volume: str = ""
 
     # D-27.11: the dotted tier this seat's attempt resolves to after a
     # gate-red — one rung, not a chain. Empty means an attempt that gates

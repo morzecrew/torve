@@ -1,0 +1,117 @@
+schema_version: 1
+task: T-0226
+repo: morzecrew/torve
+base_sha: db0493679f0c629c3a137ad3d9dd9a087e0b4e94
+drift_count: 0
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-02T19:19:01Z
+    attempt: 1
+    claim: >-
+      the cache-home roster RFC 0035 §10 delegates to implementation is uv
+      (UV_CACHE_DIR), mypy (MYPY_CACHE_DIR) and ruff (RUFF_CACHE_DIR);
+      basedpyright and pytest earn no place at the mount — measured, not assumed
+    evidence: >-
+      `BPR=$(uv run python -c "import basedpyright, os; print(os.path.dirname(basedpyright.__file__))"); grep -rhoE "process\.env\.[A-Z_]*" $BPR/dist/*.js | sort -u` — the basedpyright 1.39.10 CLI exposes no cache-directory variable at all (its env surface ends at PYRIGHT_TMPDIR, a temp dir); `RUFF_CACHE_DIR=/tmp/rc uv run ruff check src/torve/base/__init__.py` — ruff 0.16.4 creates and uses /tmp/rc (CACHEDIR.TAG present); mypy's MYPY_CACHE_DIR is documented and honored by the installed mypy[faster-cache]
+    action: decided
+    proposal: >-
+      0035 §10's first bullet settles as the three-variable roster —
+      UV_CACHE_DIR, MYPY_CACHE_DIR, RUFF_CACHE_DIR, each at a subdirectory
+      of the fixed cache mount
+    notes: |
+      Why basedpyright is out: its CLI exposes no persistent-cache home to
+      point at a mount, so the only way to warm it would be relocating its
+      tempdir (PYRIGHT_TMPDIR) — a temp dir, not derived state the mount is
+      for, and warming it is outside D-35.1's category. Why pytest is out:
+      its cache (.pytest_cache) holds --lf/stepwise session state inside the
+      workspace, saves no measurable wall clock on a fresh worktree, and
+      pulling it onto a cross-attempt mount would move non-derived state
+      across attempts — the doctrine D-35.1 exists to police. The mount
+      itself is /opt/torve/cache: fixed, outside the /work workspace, beside
+      the image's own /opt/torve toolkit paths, so nothing project-visible
+      ever reads from it.
+  - decision: D-35.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T19:35:00Z
+    attempt: 1
+    claim: >-
+      what crosses attempts through the cache volume stays derived state
+      only — the roster exports exactly the toolchain caches rebuilt
+      deterministically from committed inputs, the mount lives outside the
+      workspace bind at a fixed address nothing project-visible reads, and
+      deleting the volume is proven to change nothing but wall clock
+    evidence: >-
+      src/torve/adapters/runtime/docker.py:40-47 — the exported roster is uv/mypy/ruff, each a content-hashed or mtime-invalidated toolchain cache, and tests/test_sandbox_images.py:529-578 runs the same mypy+ruff battery cold, warm and again after `docker volume rm`, asserting identical verdicts — deletion costs seconds, nothing else
+    action: decided
+    notes: |
+      Close-out attestation of compliance in a touched LOCKED area, not a
+      divergence. The doctrine test is executable, not rhetorical: the
+      conformance case (docker-gated) is the third pass over a deleted
+      volume answering with the first pass's bytes.
+  - decision: D-35.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T19:36:00Z
+    attempt: 1
+    claim: >-
+      a tier's cache_volume is ignored under shadow=True at the one place
+      the mount is composed — neither the replay's attempt sandbox nor its
+      gate passes receive a cache mount, so replays measure the cold truth
+      and eval arms never differ by cache
+    evidence: >-
+      src/torve/application/runner.py:1176-1183 — the mount merge sits inside `if not shadow`, and src/torve/application/runner.py:1337-1339 passes `{}` to the gates lane under the same flag; tests/test_shadow.py:318-378 drives the real run_shadow with a tier naming cache_volume and asserts every created spec is volume-free
+    action: decided
+    notes: |
+      Close-out attestation. Evals ride run_shadow's hooks (RFC 0009 §5),
+      so the exclusion at these two composition points covers replays and
+      eval arms with no third site to forget.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-09-02T19:52:00Z
+    attempt: 1
+    claim: >-
+      a cache_volume named on the reviewer seat's tier stays inert — the
+      review lane composes its sandbox spec directly and mounts no tier
+      volumes at all (its subscription auth volume is equally inert); the
+      warm mount is composed for the attempt sandbox and the gate passes,
+      which is where the battery actually pays the cold tax
+    evidence: >-
+      src/torve/application/review.py:424-431 — the reviewer spec passes env_passthrough only, no volumes, the same shape it had before this task, and src/torve/application/runner.py:1182-1183 is where the mount is composed for live runs
+    action: decided
+    proposal: >-
+      when the reviewer seat starts executing batteries (A-78's
+      battery-running reviews), the review lane should compose its tier
+      volumes through the same _sandbox_auth/_sandbox_cache resolution the
+      runner uses, rather than a third mount site
+  - decision: D-35.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T19:58:00Z
+    attempt: 1
+    claim: >-
+      correction to entry 3 — its prose citation for the pinning test reads
+      318-378 but the test ends at line 377 of the final tree; the leading
+      citation (runner.py:1176-1183) and the test itself are unchanged, the
+      range was true when written and shrank by two lines in a later edit
+      of the same attempt
+    evidence: >-
+      tests/test_shadow.py:318-377 — the replay-exclusion test as it stands in the final tree
+    action: decided
+  - decision: D-35.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T20:02:00Z
+    attempt: 1
+    claim: >-
+      correction to entry 3 — its prose cited the pinning test as lines
+      318-378 of tests/test_shadow.py; the test is 318-377, the leading
+      citation (runner.py:1176-1183) and the attestation are unaffected
+    evidence: >-
+      tests/test_shadow.py:318-377 — the replay-exclusion test, final extent
+    action: decided

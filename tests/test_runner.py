@@ -1223,3 +1223,123 @@ def test_the_chosen_rung_is_derivable_from_telemetry_records_alone(repo, monkeyp
     )
     assert most_severe == "compliance"
     assert config.tiers["executor"].resolved_retry_variants()[most_severe] == rows[1]["agent"]["tier"]
+
+
+# ....................... #
+# The derived-cache volume (RFC 0035 §5.2, D-35.4): slot-suffixed naming
+# like the auth volume, a fixed mount outside the workspace, and the gates
+# lane of a live run carrying the same warmth the attempt got. D-35.3's
+# replay exclusion is pinned beside the replay, in test_shadow.py.
+
+
+def test_an_unnamed_cache_mounts_nothing_a_named_one_is_slot_suffixed():
+    from torve.application.ports import SandboxSpec
+    from torve.application.runner import _sandbox_cache
+    from torve.config.runconfig import CACHE_MOUNT
+
+    assert _sandbox_cache(TierConfig(), worker_slot=0) == {}  # cold as today
+
+    mounts = _sandbox_cache(TierConfig(cache_volume="torve-cache"), worker_slot=2)
+    assert mounts == {"torve-cache-2": CACHE_MOUNT}
+
+    # Slot-scoped like auth volumes: two concurrent workers share nothing.
+    assert _sandbox_cache(TierConfig(cache_volume="torve-cache"), 3) != mounts
+
+    # The mount is fixed and outside the workspace bind — no attempt can
+    # read the cache as project content.
+    workdir = SandboxSpec(name="n", image="i", labels={}, timeout_s=1.0).workdir
+    assert workdir != CACHE_MOUNT
+    assert not CACHE_MOUNT.startswith(f"{workdir}/")
+
+
+def _warm_config(worker_slot: int) -> RunnerConfig:
+    cold = RunnerConfig()
+
+    return RunnerConfig(
+        worker_slot=worker_slot,
+        tiers={**cold.tiers, "executor": TierConfig(cache_volume="torve-cache")},
+    )
+
+
+def _cache_deps(repo, runtime):
+    from test_run_loop import OK, MockScm, MockVcs, MockWorkspace, ScriptedAgent
+
+    from torve.adapters.store.durable import open_store
+    from torve.application.runner import RunDeps
+
+    return RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=runtime,
+        agent=ScriptedAgent([OK]),
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
+
+
+def _recording_runtime():
+    from test_run_loop import MockRuntime
+
+    class RecordingRuntime(MockRuntime):
+        def __init__(self) -> None:
+            super().__init__()
+            self.specs: list = []
+
+        def create(self, spec, workspace):
+            self.specs.append(spec)
+            return super().create(spec, workspace)
+
+    return RecordingRuntime()
+
+
+def _script_gates_capturing_cache(monkeypatch):
+    """Replace the gate pass with a recorder of the cache volumes it was
+    handed — the argument the gates sandbox spec would mount verbatim."""
+    import torve.application.runner as run_module
+
+    seen: list[dict] = []
+
+    def scripted(_worktree, _task_id, _config, _runtime, _run_id, _root, _meta=None, *_args):
+        seen.append(dict(_args[-1]) if _args else {})
+        return 0, "scripted", "cafecafe1234", [], ""
+
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted)
+    return seen
+
+
+def test_a_warm_tiers_run_mounts_the_slot_volume_attempt_and_gates_alike(repo, monkeypatch):
+    from test_run_loop import task_for
+
+    from torve.application.runner import run_task
+    from torve.config.runconfig import CACHE_MOUNT
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    gate_caches = _script_gates_capturing_cache(monkeypatch)
+    runtime = _recording_runtime()
+
+    state = run_task(repo.root, task_for(repo), _warm_config(5), _cache_deps(repo, runtime))
+
+    assert state.state is TaskState.READY
+    assert runtime.specs  # the attempt sandbox, and only it: gates are scripted
+    for spec in runtime.specs:
+        assert spec.volumes == {"torve-cache-5": CACHE_MOUNT}
+    # The gates lane of the same live pass is handed the same mount: the
+    # battery is where the toolchain cold tax is paid.
+    assert gate_caches == [{"torve-cache-5": CACHE_MOUNT}]
+
+
+def test_a_cold_run_mounts_nothing_at_all(repo, monkeypatch):
+    from test_run_loop import task_for
+
+    from torve.application.runner import run_task
+
+    repo.seed()
+    gate_caches = _script_gates_capturing_cache(monkeypatch)
+    runtime = _recording_runtime()
+
+    run_task(repo.root, task_for(repo), RunnerConfig(), _cache_deps(repo, runtime))
+
+    # Empty (the default) is cold exactly as today (D-35.4).
+    assert runtime.specs and all(spec.volumes == {} for spec in runtime.specs)
+    assert gate_caches == [{}]

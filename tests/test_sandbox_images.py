@@ -400,3 +400,179 @@ def test_the_bare_definition_builds_thin_as_before():
         subprocess.run(
             ["docker", "rmi", "-f", "torve-agent:battery"], capture_output=True, check=False
         )
+
+
+# ....................... #
+# The derived-cache volume at the runtime adapters (RFC 0035 §5.2,
+# D-35.4/D-35.5): the Docker adapter mounts what the runner names and
+# points the toolchain cache homes at the mount; the opensandbox adapter
+# refuses the field loudly. The arg-construction cases need no daemon;
+# the cold/warm conformance case (D-35.1) does.
+
+CACHE_HOMES = {
+    "UV_CACHE_DIR": "/opt/torve/cache/uv",
+    "MYPY_CACHE_DIR": "/opt/torve/cache/mypy",
+    "RUFF_CACHE_DIR": "/opt/torve/cache/ruff",
+}
+
+
+def cache_spec(workspace: Path, volumes: dict[str, str], name: str = "torve-T1-r1-a1", **kw):
+    from torve.application.ports import SandboxSpec
+
+    return SandboxSpec(
+        name=name,
+        image=kw.pop("image", LAYER_IMAGE),
+        labels={},
+        timeout_s=600.0,
+        volumes=volumes,
+        **kw,
+    )
+
+
+def docker_run_args(spec, tmp_path: Path) -> list[str]:
+    from torve.adapters.runtime.docker import DockerRuntime
+
+    return DockerRuntime()._run_args(spec, tmp_path)
+
+
+def test_docker_mounts_the_slot_volume_the_runner_names(tmp_path):
+    from torve.config.runconfig import CACHE_MOUNT
+
+    args = docker_run_args(cache_spec(tmp_path, {"torve-cache-2": CACHE_MOUNT}), tmp_path)
+
+    # Slot-suffixed naming like the auth volume, mounted at the fixed
+    # address — docker creates-or-reuses the named volume on the pair.
+    assert f"torve-cache-2:{CACHE_MOUNT}" in args
+
+
+def test_docker_points_every_toolchain_cache_home_at_the_mount(tmp_path):
+    from torve.config.runconfig import CACHE_MOUNT
+
+    args = docker_run_args(cache_spec(tmp_path, {"torve-cache-2": CACHE_MOUNT}), tmp_path)
+    exported = {
+        pair.split("=", 1)[0]: pair.split("=", 1)[1] for pair in args if "_CACHE_DIR=" in pair
+    }
+
+    assert exported == CACHE_HOMES
+    assert all(path.startswith(CACHE_MOUNT + "/") for path in exported.values())
+
+
+def test_a_cold_sandbox_carries_no_cache_wiring_at_all(tmp_path):
+    from torve.adapters.runtime.docker import DockerRuntime
+    from torve.config.runconfig import CACHE_MOUNT
+
+    # Empty (the default) is cold exactly as today (D-35.4): no exports.
+    plain = docker_run_args(cache_spec(tmp_path, {}), tmp_path)
+    assert not [pair for pair in plain if "_CACHE_DIR=" in pair]
+
+    # An auth-only volume (a subscription tier, still cold) warms nothing.
+    authed = DockerRuntime()._run_args(cache_spec(tmp_path, {"torve-auth-1": "/auth"}), tmp_path)
+    assert not [pair for pair in authed if "_CACHE_DIR=" in pair]
+    assert "torve-auth-1:/auth" in authed  # its own mount still works
+
+    # Only the fixed address counts as the cache: a volume someone
+    # pointlessly named at another path is left alone.
+    other = docker_run_args(cache_spec(tmp_path, {"stray": "/elsewhere"}), tmp_path)
+    assert not [pair for pair in other if "_CACHE_DIR=" in pair]
+    assert CACHE_MOUNT not in other
+
+
+def test_an_explicit_spec_env_wins_over_the_cache_homes(tmp_path):
+    from torve.config.runconfig import CACHE_MOUNT
+
+    args = docker_run_args(
+        cache_spec(
+            tmp_path,
+            {"torve-cache-2": CACHE_MOUNT},
+            env={"UV_CACHE_DIR": "/somewhere/else"},
+        ),
+        tmp_path,
+    )
+
+    assert "UV_CACHE_DIR=/somewhere/else" in args
+    assert "UV_CACHE_DIR=/opt/torve/cache/uv" not in args
+    # The untaken homes still point at the mount.
+    assert "MYPY_CACHE_DIR=/opt/torve/cache/mypy" in args
+
+
+def test_opensandbox_refuses_a_cache_volume_loudly(tmp_path):
+    # D-35.5: a loud refusal, never a quiet cold fallback — a warm tier on
+    # the opensandbox runtime learns about it at the first create, not
+    # from a mysteriously slow attempt.
+    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
+
+    with pytest.raises(RuntimeError, match="refuses a tier's cache_volume"):
+        runtime.create(cache_spec(tmp_path, {"torve-cache-0": "/opt/torve/cache"}), tmp_path)
+
+    # The auth refusal is untouched and still distinguishes itself.
+    with pytest.raises(RuntimeError, match="auth volumes"):
+        runtime.create(cache_spec(tmp_path, {"torve-auth-0": "/auth"}), tmp_path)
+
+
+def test_the_cache_mount_is_a_fixed_address_outside_the_workspace():
+    from torve.application.ports import SandboxSpec
+    from torve.config.runconfig import CACHE_MOUNT
+
+    workdir = SandboxSpec(name="n", image="i", labels={}, timeout_s=1.0).workdir
+    assert not CACHE_MOUNT.startswith(f"{workdir}/")
+    assert workdir != CACHE_MOUNT
+
+
+# The wall-clock-only doctrine (D-35.1), measured: the same battery over
+# the same tree — populating the volume, reading it back warm, and running
+# again after the operator's `docker volume rm` — must decide identically.
+BATTERY = "/opt/torve/project/.venv/bin/mypy /work/t.py && /opt/torve/project/.venv/bin/ruff check /work/t.py"
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@pytest.mark.timeout(1800)
+def test_deleting_the_cache_volume_changes_nothing_but_wall_clock(tmp_path):
+    from torve.adapters.runtime.docker import DockerRuntime
+    from torve.config.runconfig import CACHE_MOUNT
+
+    volume = "torve-cache-conformance-0"
+    runtime = DockerRuntime()
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "t.py").write_text("x: int = 1\nprint(x)\n", encoding="utf-8")
+
+    built = _build_battery(LAYER_IMAGE, _stage_battery_context(tmp_path))
+    assert built.returncode == 0, built.stderr[-4000:]
+
+    def run_pass(name: str) -> tuple[int | None, str, str]:
+        handle = runtime.create(cache_spec(workspace, {volume: CACHE_MOUNT}, name=name), workspace)
+        try:
+            battery = runtime.exec(handle, BATTERY, 600)
+            homes = runtime.exec(handle, "ls /opt/torve/cache", 60)
+        finally:
+            runtime.destroy(handle)
+        return battery.exit_code, battery.output, homes.output
+
+    def delete_volume() -> None:
+        subprocess.run(["docker", "volume", "rm", "-f", volume], capture_output=True, check=False)
+
+    try:
+        delete_volume()  # start from the operator's cold truth
+
+        populating = run_pass("torve-cache-conformance-a1")
+        assert populating[0] == 0, populating[1]
+        reused = run_pass("torve-cache-conformance-a2")
+        assert reused[0] == 0, reused[1]
+
+        # The caches really went through the mount — the roster's homes
+        # live on the volume, not in the container's throwaway /tmp.
+        assert {"mypy", "ruff"} <= set(reused[2].split())
+
+        # Warm re-run decides identically to the cold pass that populated.
+        assert reused[1] == populating[1]
+
+        # Delete-is-always-safe: `docker volume rm` is the eviction policy,
+        # and the pass that follows one is indistinguishable from the first
+        # in anything but the seconds it spent (D-35.1).
+        delete_volume()
+        deleted = run_pass("torve-cache-conformance-a3")
+        assert deleted[0] == 0, deleted[1]
+        assert deleted[1] == populating[1]
+    finally:
+        delete_volume()
+        _remove_battery(LAYER_IMAGE)

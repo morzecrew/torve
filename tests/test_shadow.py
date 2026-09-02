@@ -284,3 +284,94 @@ def test_shadow_without_a_findable_commit_exits_3(tmp_path):
     result = CliRunner().invoke(app, ["shadow", "T-0042", "--root", str(root)])
     assert result.exit_code == 3
     assert "no shipped commit" in result.stderr
+
+
+# ....................... #
+# The warm-state exclusion (D-35.3): a tier's `cache_volume` is ignored
+# under `shadow=True` — the replay measures the cold truth, and an eval
+# comparing arms never compares caches.
+
+
+def _shadow_deps(repo, runtime):
+    from test_run_loop import OK, MockScm, ScriptedAgent
+
+    from torve.config.runconfig import TierConfig
+
+    cold = RunnerConfig()
+
+    config = RunnerConfig(
+        worker_slot=3,
+        tiers={**cold.tiers, "executor": TierConfig(cache_volume="torve-cache")},
+        poison_ceiling=2,
+    )
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=runtime,
+        agent=ScriptedAgent([OK]),
+        vcs=GitVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
+    return config, deps
+
+
+def test_replay_never_mounts_the_cache_volume_even_when_the_tier_names_one(
+    repo, tmp_path, monkeypatch
+):
+    from functools import partial
+
+    from test_run_loop import MockRuntime
+
+    repo.seed()
+    task_doc = base_task(allow=["src/**"])
+    repo.task(task_doc, None)
+    repo.commit("task minted")
+    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
+    repo.commit(f"torve({TASK_ID}): shipped\n\nTorve-Task: {TASK_ID}")
+    shipped = subprocess.run(
+        ["git", "-C", str(repo.root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    specs: list = []
+
+    class RecordingRuntime(MockRuntime):
+        def create(self, spec, workspace):
+            specs.append(spec)
+            return super().create(spec, workspace)
+
+    gate_caches: list[dict] = []
+
+    def scripted_gates(_worktree, _task_id, _config, _runtime, _run_id, _root, _meta=None, *_args):
+        gate_caches.append(dict(_args[-1]) if _args else {})
+        return 0, "scripted", "cafecafe1234", [], ""
+
+    import torve.application.runner as run_module
+
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+
+    config, deps = _shadow_deps(repo, RecordingRuntime())
+    shadow_ws = ShadowWorkspace(repo.root, depth=10)
+    source = ShadowSource(
+        create_workspace=shadow_ws.create,
+        shipped_commit=partial(shipped_commit, repo.root),
+        parent_of=partial(parent_of, repo.root),
+        diff_range=partial(diff_range, repo.root),
+        diff_worktree=diff_worktree,
+    )
+    task = load_task(layout.task_file(repo.root, TASK_ID))
+
+    assert config.tiers["executor"].cache_volume == "torve-cache"  # the tier names one
+
+    record = run_shadow(repo.root, task, config, deps, source)
+
+    assert record["state"] == "ready"
+    assert record["commit"] == shipped
+    # Every sandbox the replay created — and every gate pass it would have
+    # mounted — is cold: the named volume is ignored under `shadow`, so the
+    # wall clock this record stamps is the cold truth.
+    assert specs, "the replay created no sandbox to inspect"
+    assert all(spec.volumes == {} for spec in specs)
+    assert gate_caches and all(caches == {} for caches in gate_caches)

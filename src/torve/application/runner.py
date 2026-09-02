@@ -70,6 +70,7 @@ from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, GateAxis, load_manifest
 from torve.config.runconfig import (
+    CACHE_MOUNT,
     RunnerConfig,
     TierConfig,
     agent_timeout_for,
@@ -513,6 +514,23 @@ def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], 
 # ....................... #
 
 
+def _sandbox_cache(tier: TierConfig, worker_slot: int) -> dict[str, str]:
+    """The tier's derived-cache volume for this worker slot (RFC 0035 §5.2,
+    D-35.4): named exactly like the auth volume — base plus `-<slot>`, so
+    two concurrent workers never share a cache — mounted at the fixed
+    address outside the workspace. An unnamed cache is no volume at all:
+    cold exactly as before the field existed. The runtime adapter, not
+    this function, points the toolchain cache homes at the mount."""
+
+    if not tier.cache_volume:
+        return {}
+
+    return {f"{tier.cache_volume}-{worker_slot}": CACHE_MOUNT}
+
+
+# ....................... #
+
+
 class _SandboxExecutor:
     """ExecuteOnce over a fresh sandbox, created lazily so gate passes with no
     shell gates cost nothing, destroyed by the caller when the pass ends."""
@@ -554,10 +572,13 @@ def _run_gates_in_worktree(
     base: str | None = None,
     image: str | None = None,
     image_digest: str | None = None,
+    cache_volumes: dict[str, str] | None = None,
 ) -> tuple[int, str, str, list[GateResult], str]:
     """(exit_code, summary, config_hash, results, patch) — the results and
     the patch feed the review's input when one is configured. Raises on
-    infrastructure failure."""
+    infrastructure failure. `cache_volumes` is the live run's derived-cache
+    mount — the battery is what pays the toolchain cold tax — empty for an
+    unnamed cache and always empty under shadow (D-35.3)."""
 
     manifest_path = layout.gates_file(worktree)
 
@@ -585,6 +606,11 @@ def _run_gates_in_worktree(
             image=image or config.runtime.image,
             labels=naming.labels(task_id, run_id, root),
             timeout_s=config.runtime.sandbox_timeout,
+            # The battery pays the toolchain cold tax (mypy, ruff, uv all
+            # run under these gates), so the live gates sandbox carries the
+            # same derived-cache mount the attempt did — an empty dict here
+            # is the cold pass, shadow's the exclusion (D-35.3).
+            volumes=dict(cache_volumes or {}),
         ),
         worktree,
     )
@@ -1147,6 +1173,14 @@ def real_hooks(
         env_passthrough, volumes = (
             _sandbox_auth(resolved_tier, config.worker_slot) if run_real else ((), {})
         )
+        # Shadow replays never see warm state (D-35.3): the tier's
+        # cache_volume is ignored under `shadow`, so a replay measures the
+        # cold truth and an eval comparing arms never compares caches. Live
+        # sandboxes of a warm tier mount the slot-suffixed derived cache —
+        # the runtime adapter, not the agent adapter, is what makes it
+        # warm, so a fake adapter's live sandbox carries it too.
+        if not shadow:
+            volumes = {**volumes, **_sandbox_cache(resolved_tier, config.worker_slot)}
         infra_id = naming.shadow_id(task.id) if shadow else task.id
 
         spec = SandboxSpec(
@@ -1300,6 +1334,9 @@ def real_hooks(
             gates_base,
             current["image"],
             current["image_digest"],
+            # Always empty under shadow: a replay's gate pass measures the
+            # cold truth even when the tier names a cache (D-35.3).
+            {} if shadow else _sandbox_cache(current["tier"], config.worker_slot),
         )
 
         last_convictions["results"] = list(results)
