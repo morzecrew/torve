@@ -1,0 +1,46 @@
+# Hand-minted by the operator against RFC 0034 §5.3 — the labeling half
+# T-0215 cannot carry: the gates run under the host engine, so the axis
+# labels land only once the schema-bearing engine (T-0215's landing) is
+# the one evaluating them. Dispatch strictly after T-0215 ships.
+schema_version: 1
+id: T-0229
+rfc: rfcs/0034-task-character-and-conviction-routed-retries.md
+phase: 0
+role: implement
+title: the battery labels its axes
+intent: >-
+  This repository's gates.yaml labels its battery per 0034 §5.3:
+  acceptance functional; scope boundary; decisions-reported,
+  user-facing-text, self-audit compliance; source-layout, rfc-valid
+  compliance-form... precisely: source-layout and rfc-valid carry
+  axis form, layering and the remaining structural gates carry
+  functional by default (unlabeled reads as functional, D-34.4 — label
+  only where the default is wrong). No schema change: manifest.py
+  already validates the field. The manifest still loads green under
+  torve gates check.
+depends_on:
+- T-0215
+parent: null
+targets: []
+scope:
+  allow:
+  - .torve/gates.yaml
+  deny: []
+acceptance:
+- uv run torve gates check
+- uv run pytest tests/test_manifest.py tests/test_gates.py
+- uv run torve rfc check
+decisions:
+- id: D-34.4
+  grade: ASSUMED
+  text: 'A gate declaration may carry `axis:` with value `functional`, `boundary`, `compliance`
+    or `form`; an unlabeled gate reads as functional'
+  paths:
+  - src/torve/config/manifest.py
+  - .torve/gates.yaml
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null

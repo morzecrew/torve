@@ -4,18 +4,19 @@ rfc: rfcs/0034-task-character-and-conviction-routed-retries.md
 phase: 2
 role: implement
 title: axis vocabulary and calibration
-intent: Gate declarations carry the optional axis field with the four-word vocabulary, unlabeled reads
-  as functional (D-34.4); this repository's gates.yaml labels its battery per §5.3; the context projection
-  gains the character calibration section (D-34.8) — declared character against realized conviction
-  profile grouped by axis, attempts and token shape — rendered in context and re-exposed verbatim
-  by serve.
+intent: 'Gate declarations carry the optional axis field with the four-word vocabulary, unlabeled
+  reads as functional (D-34.4); the context projection gains the character calibration section (D-34.8)
+  — declared character against realized conviction profile grouped by axis, attempts and token shape
+  — rendered in context and re-exposed verbatim by serve. This repository''s own gates.yaml is NOT
+  touched here: the gates run under the host engine, whose manifest model predates this task''s schema
+  — the battery''s axis labels land in a follow-up task once the schema-bearing engine is the one
+  evaluating them (the self-hosting boundary; attempt 1 died proving it).'
 depends_on: []
 parent: null
 targets: []
 scope:
   allow:
   - src/torve/config/manifest.py
-  - .torve/gates.yaml
   - src/torve/application/projections.py
   - src/torve/cli/context.py
   - tests/test_context.py
