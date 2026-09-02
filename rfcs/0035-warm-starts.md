@@ -2,7 +2,7 @@
 id: "0035"
 title: Warm starts
 kind: design
-status: draft
+status: accepted
 depends_on: ["0017", "0027"]
 informed_by: ["0004", "0033", "0034"]
 supersedes: []
