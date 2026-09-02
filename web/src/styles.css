@@ -116,6 +116,31 @@ details.frow summary::-webkit-details-marker { display: none; }
 .chev { display: inline-block; width: 14px; color: var(--faint); transition: transform .15s; }
 .chev.open { transform: rotate(90deg); color: var(--green); }
 
+/* table pagination */
+.pager {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  padding: 10px 14px; font-size: 12px; color: var(--dim);
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.pager .count { font-variant-numeric: tabular-nums; }
+select.pg-size {
+  background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px; color: var(--text); font: inherit; font-size: 12px;
+  padding: 4px 8px; cursor: pointer; outline: none; transition: border-color .12s;
+}
+select.pg-size:hover { border-color: rgba(255,255,255,.22); }
+select.pg-size:focus { border-color: rgba(52,211,153,.5); }
+select.pg-size option { background: #12121c; color: var(--text); }
+.pg-nav { display: flex; gap: 5px; }
+.pg-btn {
+  border: 1px solid rgba(255,255,255,.1); border-radius: 8px;
+  background: rgba(255,255,255,.045); color: var(--text);
+  font: inherit; font-size: 12px; padding: 4px 11px; cursor: pointer;
+  user-select: none; transition: all .12s;
+}
+.pg-btn:hover:not(:disabled) { border-color: rgba(255,255,255,.22); }
+.pg-btn:disabled { color: var(--faint); background: transparent; border-color: rgba(255,255,255,.05); cursor: default; }
+
 /* dropdown */
 .dd { position: relative; display: inline-block; }
 .dd-btn {

@@ -1,0 +1,70 @@
+schema_version: 1
+task: T-0228
+repo: morzecrew/torve
+base_sha: 60561d591228e802aa41435aa4e25aa82ee99bd4
+drift_count: 0
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: 2026-09-02T17:40:13Z
+    attempt: 1
+    claim: >-
+      with pagination enabled, TanStack's default auto-reset treats the 3s/10s
+      polls' fresh data-array identity as new data and resets the reader to
+      page one on every re-render — pagination is unusable without disabling
+      it; the contract stated only that the pagination row model composes
+      after the sorted and filtered models
+    evidence: >-
+      web/src/lib.jsx:135-139 — the option and its rationale comment; a
+      headless table-core 8.21.3 repro (three renders with fresh-identity
+      data, pageIndex 2 seeded) reset to 0 after the first microtask flush
+      and stayed at 2 with autoResetPageIndex: false
+    action: decided
+    proposal: >-
+      amend the serve-surface frontend decision table with a row: served
+      tables on polled data keep autoResetPageIndex off and own their page
+      index (reset on filter edit, clamp on shrink)
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-02T17:40:13Z
+    attempt: 1
+    claim: >-
+      the contract does not say what the page index does across data or filter
+      changes; decided: a filter edit returns the reader to the first page of
+      the new results, while a shrinking row set (live refresh, dropdown
+      filters) keeps the reader's page where it remains valid and walks them
+      onto the last page only when stranded past it — the Board's state
+      dropdown and the Programme's implementation filter must not fling the
+      reader to page one on every poll tick
+    evidence: >-
+      web/src/lib.jsx:155-163 — the clamp and filter-reset effects;
+      web/src/lib.jsx:150-152 is where total and lastPageIndex derive from
+      the filtered model both effects guard
+    action: decided
+    proposal: >-
+      row for the decision table: "filter edits page to the first page;
+      data-set contractions clamp to the last valid page" — or an explicit
+      statement that page-index lifecycle is implementer's discretion
+  - decision: D-32.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-09-02T17:40:13Z
+    attempt: 1
+    claim: >-
+      pagination is entirely client-side; no endpoint derives, filters or
+      reshapes anything — src/torve/cli/serve.py and
+      src/torve/application/projections.py are untouched by this task (the
+      diff touches only web/src/** and the built src/torve/_web/**), and the
+      full row set still crosses the wire so sorting and the global filter
+      operate over it before pagination. Compliance attestation for the
+      declared LOCKED area
+    evidence: >-
+      web/src/lib.jsx:131-134 — the four row models (core, sorted, filtered,
+      pagination) are composed in the browser over the whole data prop; the
+      server's untouched re-exposure is src/torve/cli/serve.py:118-130
+    action: decided

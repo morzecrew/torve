@@ -3,6 +3,7 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
@@ -117,16 +118,25 @@ export function MultiSelect({ label, options, selected, onChange }) {
 
 /* ---------- the data table ---------- */
 
+const PAGE_SIZES = [25, 50, 100];
+
 export function DataTable({ columns, data, globalFilter, initialSort = [], empty, renderDetail }) {
   const [sorting, setSorting] = React.useState(initialSort);
   const table = useReactTable({
     data,
     columns,
+    initialState: { pagination: { pageIndex: 0, pageSize: PAGE_SIZES[0] } },
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    // The projections re-poll every few seconds and each refresh hands us a
+    // brand-new array identity; TanStack's auto-reset reads that as new data
+    // and yanks the reader back to page one mid-read. The clamp and filter
+    // effects below own the page index instead.
+    autoResetPageIndex: false,
     globalFilterFn: (row, _id, value) => {
       const hay = Object.values(row.original)
         .filter((v) => typeof v === "string" || typeof v === "number")
@@ -137,57 +147,99 @@ export function DataTable({ columns, data, globalFilter, initialSort = [], empty
   });
 
   const [expanded, setExpanded] = React.useState(() => new Set());
+  const { pageIndex, pageSize } = table.getState().pagination;
+  const total = table.getFilteredRowModel().rows.length;
+  const lastPageIndex = Math.max(0, Math.ceil(total / pageSize) - 1);
+
+  // a narrower row set — a filter edit or a live refresh — can strand the
+  // reader past the last page; walk them back onto it
+  React.useEffect(() => {
+    if (pageIndex > lastPageIndex) table.setPageIndex(lastPageIndex);
+  }, [total]);
+
+  // a fresh filter is a fresh search: show the first page of its results
+  React.useEffect(() => {
+    if (table.getState().pagination.pageIndex !== 0) table.setPageIndex(0);
+  }, [globalFilter]);
+
   const rows = table.getRowModel().rows;
-  if (!rows.length) return <Empty>{empty || "nothing here"}</Empty>;
+  if (!total) return <Empty>{empty || "nothing here"}</Empty>;
 
   const nCols = columns.length + (renderDetail ? 1 : 0);
   const flip = (id) =>
     setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const from = pageIndex * pageSize + 1;
+  const to = Math.min(total, (pageIndex + 1) * pageSize);
 
   return (
-    <div className="glass overflow-auto max-h-[72vh]">
-      <table className="dt">
-        <thead>
-          {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id}>
-              {renderDetail && <th style={{ width: 28 }} />}
-              {hg.headers.map((h) => {
-                const dir = h.column.getIsSorted();
-                return (
-                  <th key={h.id} onClick={h.column.getToggleSortingHandler()}>
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                    {dir && <span className="arrow">{dir === "asc" ? "↑" : "↓"}</span>}
-                  </th>
-                );
-              })}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <React.Fragment key={r.id}>
-              <tr
-                className={renderDetail ? "expandable" : ""}
-                onClick={renderDetail ? () => flip(r.id) : undefined}
-              >
-                {renderDetail && (
-                  <td><span className={`chev ${expanded.has(r.id) ? "open" : ""}`}>▸</span></td>
-                )}
-                {r.getVisibleCells().map((c) => (
-                  <td key={c.id} className={`${c.column.columnDef.meta?.cls || ""} ${c.column.columnDef.meta?.num ? "num" : ""}`}>
-                    {flexRender(c.column.columnDef.cell, c.getContext())}
-                  </td>
-                ))}
+    <div className="glass">
+      <div className="overflow-auto max-h-[72vh]">
+        <table className="dt">
+          <thead>
+            {table.getHeaderGroups().map((hg) => (
+              <tr key={hg.id}>
+                {renderDetail && <th style={{ width: 28 }} />}
+                {hg.headers.map((h) => {
+                  const dir = h.column.getIsSorted();
+                  return (
+                    <th key={h.id} onClick={h.column.getToggleSortingHandler()}>
+                      {flexRender(h.column.columnDef.header, h.getContext())}
+                      {dir && <span className="arrow">{dir === "asc" ? "↑" : "↓"}</span>}
+                    </th>
+                  );
+                })}
               </tr>
-              {renderDetail && expanded.has(r.id) && (
-                <tr className="detail">
-                  <td colSpan={nCols}>{renderDetail(r.original)}</td>
+            ))}
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <React.Fragment key={r.id}>
+                <tr
+                  className={renderDetail ? "expandable" : ""}
+                  onClick={renderDetail ? () => flip(r.id) : undefined}
+                >
+                  {renderDetail && (
+                    <td><span className={`chev ${expanded.has(r.id) ? "open" : ""}`}>▸</span></td>
+                  )}
+                  {r.getVisibleCells().map((c) => (
+                    <td key={c.id} className={`${c.column.columnDef.meta?.cls || ""} ${c.column.columnDef.meta?.num ? "num" : ""}`}>
+                      {flexRender(c.column.columnDef.cell, c.getContext())}
+                    </td>
+                  ))}
                 </tr>
-              )}
-            </React.Fragment>
+                {renderDetail && expanded.has(r.id) && (
+                  <tr className="detail">
+                    <td colSpan={nCols}>{renderDetail(r.original)}</td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="pager">
+        <span className="count">rows {from}–{to} of {total}</span>
+        <select
+          className="pg-size"
+          value={pageSize}
+          onChange={(e) => table.setPageSize(Number(e.target.value))}
+          aria-label="rows per page"
+        >
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>{n} / page</option>
           ))}
-        </tbody>
-      </table>
+        </select>
+        <span className="pg-nav">
+          <button className="pg-btn" onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}>first</button>
+          <button className="pg-btn" onClick={table.previousPage}
+            disabled={!table.getCanPreviousPage()}>prev</button>
+          <button className="pg-btn" onClick={table.nextPage}
+            disabled={!table.getCanNextPage()}>next</button>
+          <button className="pg-btn" onClick={() => table.setPageIndex(lastPageIndex)}
+            disabled={!table.getCanNextPage()}>last</button>
+        </span>
+      </div>
     </div>
   );
 }
