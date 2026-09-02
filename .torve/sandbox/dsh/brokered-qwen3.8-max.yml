@@ -8,13 +8,25 @@
         api: openai-completions
         baseURL: !!js process.env.TORVE_BROKER_URL
         apiKeyEnv: TORVE_BROKER_TOKEN
+        # 2026-09-02: a wedged-but-trickling stream idled two attempts to the
+        # full agent cap — the hard per-request timeout is the fix, the idle
+        # cap the backstop; agent-level retries reissue within the attempt.
+        timeoutMs: 600000
+        streamIdleTimeoutMs: 120000
+        # These are reasoning models (plan console); false stripped the
+        # capability and every trace showed reasoningTokens: 0.
+        reasoning: medium
         models:
           - id: qwen3.8-max
             name: Qwen3.8 Max
             contextWindow: 256000
             maxTokens: 32768
             input: [text]
-            reasoningEfforts: false
+            reasoningEfforts:
+              off:
+              low: low
+              medium: medium
+              high: high
 - id: agent-default-model
   config:
     provider: torve-broker
