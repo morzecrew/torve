@@ -9,6 +9,7 @@ supersedes: []
 superseded_by: null
 amended_by: []
 owner: Lev Litvinov
+implementation: complete
 description: >-
   Three task-character axes — structural and routine declared per phase, compliance measured from gate convictions — routing equipment at mint and retries at the failing gate, calibrated by a projection.
 schema_version: 1

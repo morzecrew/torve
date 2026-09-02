@@ -9,6 +9,7 @@ supersedes: []
 superseded_by: null
 amended_by: []
 owner: Lev Litvinov
+implementation: partial
 description: >-
   The cold-start tax priced and removed where it is safe: a lockfile-keyed baked venv layer, per-slot derived-cache volumes that never enter replays, and the attempt clock scaled per tier.
 schema_version: 1

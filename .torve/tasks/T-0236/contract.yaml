@@ -1,0 +1,59 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0236
+rfc: rfcs/0035-warm-starts.md
+role: review
+intent: Review T-0225's diff against its contract and inherited decisions.
+targets:
+- T-0225
+decisions:
+- id: D-35.1
+  grade: LOCKED
+  text: 'Warm state is derived state: only artifacts rebuilt deterministically from
+    committed inputs (the dependency layer from the lockfile, toolchain caches from
+    the tree) may cross attempts, and deleting all of it may change nothing but wall
+    clock'
+  paths:
+  - .torve/sandbox/battery/Dockerfile
+  - src/torve/application/runner.py
+- id: D-35.2
+  grade: ASSUMED
+  text: The battery image bakes a lockfile-keyed dependency layer (`uv sync` at build,
+    `UV_PROJECT_ENVIRONMENT` fixed); a lockfile change rebuilds the layer and the
+    digest change is the visible regime change (D-17.1)
+  paths:
+  - .torve/sandbox/battery/Dockerfile
+- id: D-35.3
+  grade: LOCKED
+  text: 'Shadow replays and evals never mount warm state: a tier''s `cache_volume`
+    is ignored under `shadow=True`, so replays measure the cold truth and an eval
+    never compares caches'
+  paths:
+  - src/torve/application/shadow.py
+  - src/torve/application/runner.py
+- id: D-35.4
+  grade: ASSUMED
+  text: '`cache_volume` on a tier opts into a slot-suffixed derived-cache volume at
+    a fixed mount outside the workspace, with toolchain cache homes pointed at it;
+    empty (the default) is cold exactly as today'
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/adapters/runtime/docker.py
+- id: D-35.5
+  grade: ASSUMED
+  text: "The opensandbox runtime refuses a tier naming `cache_volume` loudly until\
+    \ a server-side analog exists \u2014 never a quiet cold fallback"
+  paths:
+  - src/torve/adapters/runtime/opensandbox.py
+- id: D-35.6
+  grade: ASSUMED
+  text: TierConfig gains optional `agent_timeout` and `sandbox_timeout`; absent falls
+    through to the RuntimeConfig globals; the runner and the review lane read the
+    resolved tier's values
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/application/runner.py
+  - src/torve/application/review.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
