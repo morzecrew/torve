@@ -1,8 +1,10 @@
 """Review as a run (RFC 0005): the runner mints the review task when its
 target's gates go green (D-5.11), composes the reviewer's input — the diff,
 the target's contract, its inherited decisions and the gate results, never
-the author's session trace (D-5.3) — and drives one attempt in a read-only
-sandbox (D-5.2). Findings come back as data; unlocatable evidence is
+the author's session trace (D-5.3) — and drives one attempt in a disposable
+copy of the target worktree (D-5.2 as reworded by A-78). The reviewer runs the
+battery it is judging inside that copy (D-5.16); nothing written in it
+survives the review. Findings come back as data; unlocatable evidence is
 discarded before anyone sees it (D-5.4), a surviving blocker escalates the
 target as blocker_finding, and configuration — never the model — decided
 that consequence (D-2).
@@ -16,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -100,13 +103,21 @@ def build_review_prompt(
     """The reviewer's whole input (D-5.3: no author trace, ever). The
     calibration paragraph is deliberate — this reviewer sees a diff after
     green gates, where clean is the normal outcome; without permission to
-    say so it manufactures work."""
+    say so it manufactures work.
+
+    The workspace paragraph is the other deliberate one: the reviewer is told
+    what its tree actually is — a copy nobody reads back — and that running
+    the change is allowed and expected, on this attempt's own clock."""
 
     gates_summary = (
         "\n".join(f"- {r.name}: {r.outcome}" for r in gate_results) or "- (none recorded)"
     )
 
     decisions = "\n".join(f"- {d.id} [{d.grade}] {d.text}" for d in target.decisions) or "- none"
+
+    # The battery by name: told what the change was judged green on, the
+    # reviewer can run that same battery rather than guess at it (D-5.16).
+    acceptance = "\n".join(f"- {command}" for command in target.acceptance) or "- none declared"
 
     spec_block = (
         "No task contract exists for this change: you are reviewing in "
@@ -115,12 +126,25 @@ def build_review_prompt(
         "are unavailable, and that is expected."
         if degraded
         else f"## The task under review\n\nintent:\n{target.intent}\n\n"
+        f"acceptance commands, yours to run in this copy:\n{acceptance}\n\n"
         f"inherited decisions:\n{decisions}"
     )
 
     return f"""# Review
 
-You are reviewing a change, not fixing it. The workspace is read-only.
+You are reviewing a change, not landing one. This workspace is a copy of the
+tree the change lives in — a copy that is destroyed when this review ends.
+Nothing you write here reaches the branch, the candidate, or anyone's view of
+them, so an edit of yours cannot fix what you found, and cannot count as
+evidence for it either.
+
+Run what you are judging. The target's acceptance commands and its gate
+battery are yours to execute in this copy, and a change you have executed is
+worth more than a change you have read: run the tests, not only the diff.
+That execution spends this attempt's own budget and timeout — the review
+never waits, never restarts, and never extends itself. A battery too slow to
+finish inside the window is a finding about the battery; say so, and say what
+you did not get to run.
 
 {spec_block}
 
@@ -144,9 +168,11 @@ decision), major (a reviewer would insist before merge), minor or nit
 (preferences; at most two).
 
 Every finding needs evidence that locates: a leading `path:line` citation
-(against the files in this workspace) followed by " — " and one sentence,
-or a backticked command with its output. A finding whose evidence does not
-locate is discarded unread.
+(against the files as they arrived here, not as you left them) followed by
+" — " and one sentence, or a backticked command with the output it printed —
+what you ran here is evidence exactly like a path:line is, and the output is
+the part that locates. A finding whose evidence does not locate is discarded
+unread.
 
 Your final output must be exactly one JSON document, nothing after it:
 
@@ -154,6 +180,48 @@ Your final output must be exactly one JSON document, nothing after it:
 
 An empty list is a valid, complete review: {{"findings": []}}
 """
+
+
+# ....................... #
+
+
+def stage_review_copy(worktree: Path, copy: Path) -> Path:
+    """The reviewer's workspace: a copy of the target worktree it may write in
+    and run (D-5.2 as reworded by A-78), destroyed with its sandbox.
+
+    Staged only once the review's whole input exists, so nothing read into the
+    judgment can be something the reviewer then wrote. And `.git` does not
+    travel with the copy: a worktree's gitfile is a pointer into the host's
+    repository — the same pointer the OpenSandbox adapter strips from its
+    workspace tar, and for the same reason — so a copy that carried it could
+    write through the pointer into the very history the review exists to
+    leave alone. The tree travels; the repository does not.
+    """
+
+    if copy.exists():
+        shutil.rmtree(copy, ignore_errors=True)
+
+    copy.parent.mkdir(parents=True, exist_ok=True)
+
+    # symlinks are copied as links: the sandbox saw links, not targets, before
+    # the copy existed, and resolving them here would reach outside the tree.
+    return shutil.copytree(worktree, copy, ignore=shutil.ignore_patterns(".git"), symlinks=True)
+
+
+# ....................... #
+
+
+def destroy_review_copy(copy: Path) -> None:
+    """Nothing written in the copy survives the review (D-5.2): the reviewer's
+    edits, its build output, its scratch all die with its sandbox.
+
+    `ignore_errors` is the point, not the omission of one: a cleanup that
+    raises would replace the review's own verdict with a filesystem complaint,
+    and a copy left behind by a dying runner is a `.wt` directory the reaper
+    collects like any other worktree of a run that is no longer alive.
+    """
+
+    shutil.rmtree(copy, ignore_errors=True)
 
 
 # ....................... #
@@ -254,9 +322,14 @@ def run_review(
     broker: Broker | None = None,
     broker_handle: BrokerHandle | None = None,
 ) -> ReviewOutcome:
-    """One review attempt over the target's worktree, mounted read-only.
-    Produces the review's run state and telemetry record; the caller applies
-    the consequence to the target."""
+    """One review attempt in a disposable copy of the target worktree, which
+    the reviewer may run and write in (D-5.2 as reworded by A-78). Produces the
+    review's run state and telemetry record; the caller applies the consequence
+    to the target.
+
+    The order is the guarantee: the input, the executor's evidence and the
+    mount point are all settled before the copy exists, so no write the
+    reviewer makes can reach anything that was read into the judgment."""
 
     from torve.application.telemetry import agent_token_counts, append_record, broker_block
 
@@ -268,31 +341,38 @@ def run_review(
 
     image = image_for(config, tier)
 
+    # The reviewer's whole input, composed first (D-5.3: no author trace,
+    # ever) — after this line the diff under judgment is text in a string, and
+    # no state the copy can reach has any part in it.
+    prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded)
+
+    # T-0172: the harness names the session trace after the workspace it is
+    # given. The executor's trace is taken in hand here, before the copy is
+    # staged, and put back whatever the review does — its record cites those
+    # bytes, and the review exists to look at them, not to become them.
+    executor_trace = naming.trace_file(worktree, 1)
+    saved_executor_trace = executor_trace.read_bytes() if executor_trace.is_file() else None
+
+    # Only now does the reviewer get a tree: a copy of the target worktree at
+    # the review's own conventional address (D-3.4), writable, and destroyed
+    # with its sandbox.
+    copy = stage_review_copy(worktree, naming.worktree(root, review.id))
+
     spec = SandboxSpec(
         name=naming.sandbox_name(review.id, state.run_id) + "-a1",
         image=image,
         labels=naming.labels(review.id, state.run_id, root),
         # The reviewer seat carries its own clock when its tier names one
-        # (RFC 0035 §5.3, D-35.6): absent falls through to the globals.
+        # (RFC 0035 §5.3, D-35.6): absent falls through to the globals. That
+        # clock is also the bound on whatever the reviewer executes (D-5.16) —
+        # no budget or timeout of its own exists to widen it.
         timeout_s=sandbox_timeout_for(config, tier),
         env_passthrough=tuple(tier.api_key_env),
-        workspace_read_only=True,
     )
 
-    prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded)
-    handle = runtime.create(spec, worktree)
+    handle = runtime.create(spec, copy)
     state.sandbox_id = handle.id
     state.save()
-
-    # T-0172: the harness names the session trace after the workspace it is
-    # given — which for a review is the target's worktree — so without this
-    # the reviewer's session would overwrite the executor's trace and destroy
-    # the very evidence the review exists to look at. The executor's trace is
-    # kept byte-for-byte (its record cites it) and the review's own session is
-    # recorded under the review task's id (D-5.3: the review never authors the
-    # target's trace).
-    executor_trace = naming.trace_file(worktree, 1)
-    saved_executor_trace = executor_trace.read_bytes() if executor_trace.is_file() else None
 
     import time as _time
     from datetime import UTC as _UTC
@@ -306,7 +386,7 @@ def run_review(
             AgentContext(
                 task=review,
                 attempt=1,
-                workspace=worktree,
+                workspace=copy,
                 handle=handle,
                 runtime=runtime,
                 workdir=spec.workdir,
@@ -321,6 +401,10 @@ def run_review(
         state.sandbox_id = None
         state.save()
 
+        # The copy goes with the sandbox: whatever the reviewer wrote, built
+        # or broke reaches no one, because it is no longer anywhere (D-5.2).
+        destroy_review_copy(copy)
+
         # The reviewer's session may have been written over the executor's
         # trace path before anything else could fail — put the executor's
         # evidence back either way (or drop the review's session from a path
@@ -330,10 +414,11 @@ def run_review(
         else:
             executor_trace.unlink(missing_ok=True)
 
-    # The review's session lives under its own id, named exactly as the
-    # harness would have named it had it been given the review's workspace;
-    # the record's trace_ref then points at evidence that survives the
-    # review. Only an adapter that actually wrote a trace gets that
+    # The review's session lives under its own id — which, since the copy sits
+    # at the review's own worktree address, is the name the harness gives it
+    # here. The write keeps that true for an adapter that named its trace
+    # somewhere else, and the record's trace_ref then points at evidence that
+    # survives the review. Only an adapter that actually wrote a trace gets the
     # relocation (T-0176): an adapter that wrote none left no file, and a
     # record citing a harness-shaped path nothing produced is a fabricated
     # coordinate — as misleading as a missing one.
@@ -367,6 +452,12 @@ def run_review(
     discarded: list[str] = []
 
     if findings is not None:
+        # Evidence resolves against the tree under judgment, never against the
+        # copy: a `path:line` the reviewer could only produce by writing there
+        # is a coordinate about its own scratch, not about the change (D-5.4,
+        # D-5.2). A backticked command with its output locates without a
+        # filesystem at all — that is the shape execution evidence takes
+        # inside the copy (D-5.16).
         kept, discarded = filter_findings(findings, worktree)
 
     blockers = [f for f in kept if f.severity == "blocker"]

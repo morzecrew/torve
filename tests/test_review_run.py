@@ -1,10 +1,12 @@
 """RFC 0005 phase 2: the review run through the pipeline — runner-minted at
-gates green, read-only workspace, findings as data, blocker escalation as a
-configured consequence."""
+gates green, findings as data, blocker escalation as a configured consequence,
+and the reviewer at work in a disposable copy of the target worktree: it runs
+what it judges, and nothing it writes survives the review."""
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 import yaml
@@ -18,10 +20,11 @@ from test_run_loop import (
     task_for,
 )
 
+import torve.application.review as review_module
 import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
 from torve.application.ports import AgentResult
-from torve.application.review import build_review_prompt, parse_findings
+from torve.application.review import build_review_prompt, parse_findings, run_review
 from torve.application.runner import RunDeps, run_task
 from torve.application.runstate import RunState
 from torve.base import naming
@@ -39,13 +42,25 @@ def review_config() -> RunnerConfig:
     return RunnerConfig(review=ReviewConfig(on=["task_gated"]))
 
 
+def snapshot(tree):
+    """Every file the target worktree holds, by relative path and bytes."""
+
+    return {
+        str(path.relative_to(tree)): path.read_bytes()
+        for path in sorted(tree.rglob("*"))
+        if path.is_file()
+    }
+
+
 class SpecRecordingRuntime(MockRuntime):
     def __init__(self):
         super().__init__()
         self.specs = []
+        self.workspaces = []
 
     def create(self, spec, workspace):
         self.specs.append(spec)
+        self.workspaces.append(workspace)
         return super().create(spec, workspace)
 
 
@@ -73,6 +88,20 @@ def review_rig(repo, monkeypatch):
     return repo, runtime, deps_with_reviewer
 
 
+def review_inputs(repo, name="T-0227"):
+    """A target contract, its worktree, and the review task minted over them —
+    the shapes `run_review` drives, without the run loop around them."""
+
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / "src").mkdir(parents=True, exist_ok=True)
+    (worktree / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (worktree / "src" / "gone.py").write_text("y = 2\n", encoding="utf-8")
+
+    target = Task(id="T-9001", intent="Hold the line.", decisions=[])
+    review = Task(id=name, role="review", targets=[target.id], decisions=[])
+    return target, review, worktree
+
+
 def test_clean_review_lets_the_target_land(review_rig):
     repo, runtime, deps_for = review_rig
     reviewer = ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output([]))])
@@ -90,9 +119,19 @@ def test_clean_review_lets_the_target_land(review_rig):
     assert state.reviewed_by == review_id
     review_state = RunState.load(naming.state_file(repo.root, review_id))
     assert review_state.state is TaskState.READY
-    # The reviewer's sandbox mounted the workspace read-only.
-    review_specs = [s for s in runtime.specs if review_id.lower() in s.name]
-    assert review_specs and all(s.workspace_read_only for s in review_specs)
+    # The reviewer's sandbox ran on a copy of the worktree, writable and gone
+    # with the sandbox — not on the worktree itself (D-5.2).
+    review_mounts = [
+        (spec, path)
+        for spec, path in zip(runtime.specs, runtime.workspaces, strict=False)
+        if review_id.lower() in spec.name
+    ]
+    assert review_mounts
+    for spec, mount in review_mounts:
+        assert not spec.workspace_read_only
+        assert mount == repo.root / ".wt" / review_id
+        assert mount != repo.root / ".wt" / "T-9001"
+        assert not mount.exists()
 
 
 def test_a_surviving_blocker_escalates_the_target(review_rig):
@@ -204,6 +243,211 @@ def test_unquoted_on_key_is_refused_not_silently_dropped():
 
 
 # ....................... #
+# the disposable copy the reviewer works in (D-5.2 as reworded, D-5.16)
+
+
+class BatteryRunningReviewer:
+    """A reviewer that does what the amendment licenses: it reads, runs and
+    writes inside the tree it was given, then reports. Its findings include
+    one whose only coordinate is a line its own edit created — evidence about
+    its scratch, not about the change."""
+
+    kind = "harness"
+
+    def __init__(self, output: str) -> None:
+        self.output = output
+        self.workspace: Path | None = None
+        self.read_back = ""
+
+    def run(self, ctx):
+        self.workspace = ctx.workspace
+        self.read_back = (ctx.workspace / "src" / "app.py").read_text(encoding="utf-8")
+
+        # What a reviewer that runs the battery leaves behind: a rewritten
+        # file, a deleted one, a planted one, and its own staged prompt.
+        (ctx.workspace / "src" / "app.py").write_text(
+            "x = 1\nplanted_by_the_reviewer = True\n", encoding="utf-8"
+        )
+        (ctx.workspace / "src" / "gone.py").unlink()
+        (ctx.workspace / "reviewer_scratch.py").write_text("here only\n", encoding="utf-8")
+        stage = ctx.workspace / ".torve" / "tmp"
+        stage.mkdir(parents=True, exist_ok=True)
+        (stage / "prompt.md").write_text(ctx.prompt or "", encoding="utf-8")
+
+        return AgentResult(exit_code=0, output=self.output)
+
+
+def test_an_edit_in_the_copy_leaves_the_target_worktree_byte_identical(repo):
+    repo.seed()
+    target, review, worktree = review_inputs(repo)
+    before = snapshot(worktree)
+    reviewer = BatteryRunningReviewer(
+        reviewer_output(
+            [
+                {
+                    "severity": "major",
+                    "claim": "the bound is off by one",
+                    "evidence": "src/app.py:1 — the line as it arrived",
+                },
+                {
+                    "severity": "blocker",
+                    "claim": "a defect my own edit created",
+                    "evidence": "src/app.py:2 — the line I wrote",
+                },
+                {
+                    "severity": "minor",
+                    "claim": "a file I made",
+                    "evidence": "reviewer_scratch.py:1 — nothing under review",
+                },
+            ]
+        )
+    )
+
+    outcome = run_review(
+        repo.root,
+        worktree,
+        target,
+        review,
+        RunnerConfig(),
+        MockRuntime(),
+        reviewer,
+        "diff --git a/src/app.py b/src/app.py\n+x = 1\n",
+        [],
+        "digest",
+    )
+
+    # The reviewer worked in a copy, and the copy is what it changed.
+    assert reviewer.workspace is not None
+    assert reviewer.workspace != worktree
+    assert reviewer.read_back == "x = 1\n"
+    assert snapshot(worktree) == before
+    assert (worktree / "src" / "gone.py").is_file()
+    assert not (worktree / "reviewer_scratch.py").exists()
+    assert not (worktree / ".torve" / "tmp" / "prompt.md").exists()
+
+    # The copy is destroyed with its sandbox: what it held is nowhere.
+    assert not reviewer.workspace.exists()
+
+    # And an edit inside it cannot manufacture evidence: the coordinate that
+    # only the reviewer's own write created is discarded, the one the change
+    # really holds is kept (D-5.4, D-5.16).
+    assert [f.evidence for f in outcome.kept] == ["src/app.py:1 — the line as it arrived"]
+    assert len(outcome.discarded) == 2
+    assert outcome.blockers == []
+
+
+def test_the_copy_is_destroyed_even_when_the_reviewer_dies(repo):
+    repo.seed()
+    target, review, worktree = review_inputs(repo)
+
+    class DyingReviewer:
+        kind = "harness"
+
+        def __init__(self):
+            self.workspace = None
+
+        def run(self, ctx):
+            self.workspace = ctx.workspace
+            (ctx.workspace / "src" / "app.py").write_text("half a thought\n", encoding="utf-8")
+            raise RuntimeError("the reviewer died mid-write")
+
+    reviewer = DyingReviewer()
+
+    with pytest.raises(RuntimeError, match="mid-write"):
+        run_review(
+            repo.root,
+            worktree,
+            target,
+            review,
+            RunnerConfig(),
+            MockRuntime(),
+            reviewer,
+            "diff",
+            [],
+            "digest",
+        )
+
+    assert reviewer.workspace is not None
+    assert not reviewer.workspace.exists()
+    assert snapshot(worktree) == {
+        "src/app.py": b"x = 1\n",
+        "src/gone.py": b"y = 2\n",
+    }
+
+
+def test_the_review_input_is_composed_before_the_copy_exists(repo, monkeypatch):
+    # D-5.2 as reworded: the judgment is composed, and the executor's evidence
+    # taken in hand, while there is no copy to be tainted by — so nothing the
+    # reviewer writes can be part of what it was handed to judge.
+    repo.seed()
+    target, review, worktree = review_inputs(repo)
+    copy = naming.worktree(repo.root, review.id)
+    events: list[str] = []
+
+    compose = review_module.build_review_prompt
+
+    def watch_composition(*args, **kwargs):
+        prompt = compose(*args, **kwargs)
+        assert "diff --git a/src/app.py b/src/app.py" in prompt
+        assert not copy.exists()
+        events.append("input composed")
+        return prompt
+
+    stage = review_module.stage_review_copy
+
+    def watch_staging(source, destination):
+        events.append("copy staged")
+        return stage(source, destination)
+
+    monkeypatch.setattr(review_module, "build_review_prompt", watch_composition)
+    monkeypatch.setattr(review_module, "stage_review_copy", watch_staging)
+
+    run_review(
+        repo.root,
+        worktree,
+        target,
+        review,
+        RunnerConfig(),
+        MockRuntime(),
+        ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output([]))]),
+        "diff --git a/src/app.py b/src/app.py\n+x = 1\n",
+        [],
+        "digest",
+    )
+
+    assert events == ["input composed", "copy staged"]
+
+
+def test_a_command_the_reviewer_ran_is_evidence_for_a_finding(review_rig):
+    # D-5.16 through the whole run: output the reviewer produced in its copy
+    # locates like any path:line, so a blocker found by executing still stops
+    # the target.
+    repo, _runtime, deps_for = review_rig
+    reviewer = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=reviewer_output(
+                    [
+                        {
+                            "severity": "blocker",
+                            "claim": "the battery is red under the review's own clock",
+                            "evidence": "`uv run pytest tests/test_app.py` — 1 failed in 0.04s",
+                        }
+                    ]
+                ),
+            )
+        ]
+    )
+
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+    assert "the battery is red" in state.escalation.detail
+
+
+# ....................... #
 # the reviewer's input
 
 
@@ -212,7 +456,28 @@ def test_the_prompt_carries_the_contract_and_permission_to_be_clean():
     prompt = build_review_prompt(target, "diff --git", [])
     assert "Build the widget." in prompt
     assert "normal, frequent outcome" in prompt
-    assert "read-only" in prompt
+
+
+def test_the_reviewer_told_itself_may_run_the_battery():
+    # The prompt is the whole of the reviewer's permission: it names the copy
+    # for what it is, names the execution, and names the bound that execution
+    # stays inside. No "read-only" claim survives the amendment. Prose is
+    # wrapped for reading, so the pins are prose-normalised, not line-exact.
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[],
+        acceptance=["uv run pytest tests/test_widget.py"],
+    )
+    prompt = " ".join(build_review_prompt(target, "diff --git", []).split())
+    assert "This workspace is a copy of the tree the change lives in" in prompt
+    assert "destroyed when this review ends" in prompt
+    assert "Run what you are judging" in prompt
+    assert "acceptance commands, yours to run in this copy" in prompt
+    assert "uv run pytest tests/test_widget.py" in prompt
+    assert "A battery too slow to finish inside the window is a finding about the battery" in prompt
+    assert "never waits, never restarts, and never extends itself" in prompt
+    assert "read-only" not in prompt
 
 
 def test_the_degraded_prompt_forbids_invented_specifications():

@@ -1,0 +1,78 @@
+schema_version: 1
+task: T-0227
+repo: morzecrew/torve
+base_sha: 80bcae002cfc51d29a10252c85a3a55be279695d  # the engine's pin (D-A.7)
+drift_count: 0
+entries:
+  - decision: D-5.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T14:31:00Z
+    attempt: 1
+    claim: >-
+      this task's work in the reworded row's area complies, no divergence:
+      the review runs in a disposable writable copy of the target worktree,
+      the whole judgment — diff, gate results, contract — and the executor's
+      trace protection are composed before the copy exists, nothing written
+      in the copy survives the review, and the runner, not the reviewer,
+      posts comments; the reviewer holds no forge credential, only its tier's
+      API-key passthrough. Compliance attestation for a touched LOCKED area.
+    evidence: >-
+      src/torve/application/review.py:347-359 — the prompt is composed and the
+      executor's evidence taken in hand while no copy exists, and only then
+      does stage_review_copy give the reviewer a tree of its own; the finally
+      at src/torve/application/review.py:399-406 destroys the copy with the
+      sandbox, the spec at src/torve/application/review.py:361-371 leaves
+      workspace_read_only at its default and passes no forge credential, the
+      comment is posted by the caller at src/torve/application/review.py:714
+      after the reviewer is gone, and the pins are tests/test_review_run.py:280
+      (an edit-heavy review leaves the target worktree byte-identical),
+      tests/test_review_run.py:339 (the copy dies even when the reviewer does)
+      and tests/test_review_run.py:378 (the composed input predates the copy).
+    action: decided
+  - decision: D-5.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T14:31:30Z
+    attempt: 1
+    claim: >-
+      staging a writable copy changed nothing about the author's session
+      trace: the reviewer is still handed only the contract, the diff and the
+      gate results; the trace never enters the input, the copy or the
+      evidence path — the executor's own trace is taken in hand before the
+      copy exists and put back whichever way the review ends. Compliance
+      attestation for a touched LOCKED area, no divergence.
+    evidence: >-
+      src/torve/application/review.py:353-354 — the executor's trace bytes are
+      read into memory before the copy is staged and restored at
+      src/torve/application/review.py:412-415 either way;
+      src/torve/application/review.py:97-102 is the reviewer's whole input
+      function — target, diff text, gate results, no trace parameter exists —
+      and the trace lives beside the worktree, never inside it
+      (src/torve/base/naming.py:56-59), so the copy cannot carry it; pinned by
+      tests/test_review_run.py:541.
+    action: decided
+  - decision: D-5.16
+    grade: ASSUMED
+    kind: resolved
+    at: 2026-09-02T14:32:00Z
+    attempt: 1
+    claim: >-
+      the added row is implemented as written, nothing departed: the prompt
+      names the execution and enumerates the target's acceptance commands by
+      name; a backticked command with its output locates like any path:line
+      through the same locator the log gate uses; execution spends only the
+      review attempt's own single iteration and the reviewer tier's clocks —
+      no new budget or timeout knob was added, and the prompt says a battery
+      too slow for the window is a finding about the battery.
+    evidence: >-
+      src/torve/application/review.py:141-147 — the prompt's execution
+      paragraph, naming the bound the execution stays inside; the acceptance
+      battery by name rides the input at src/torve/application/review.py:120,
+      the command-with-output branch of the shared locator is
+      src/torve/gates/evidence.py:35-41, the review's clocks are the tier's
+      alone at src/torve/application/review.py:369 and
+      src/torve/application/review.py:393, src/torve/config/runconfig.py:766-773
+      shows ReviewConfig's whole field list carrying no timeout or budget
+      entry, and the end-to-end pin is tests/test_review_run.py:421.
+    action: decided
