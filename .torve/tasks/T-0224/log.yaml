@@ -1,0 +1,46 @@
+schema_version: 1
+task: T-0224
+repo: morzecrew/torve
+base_sha: b3b83e8db95dd6e13c17cb05d47a3e5c182cba68  # the engine's pin (D-A.7)
+drift_count: 0
+entries:
+  - decision: D-35.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T10:33:00Z
+    attempt: 1
+    claim: >-
+      this task's runner.py change introduces no state that crosses attempts:
+      the tier clock is configuration read at dispatch, the attempt sandbox
+      still mounts only the auth route's per-slot volume, and nothing was
+      baked, cached or pointed anywhere — there is no new derived artefact
+      whose deletion could be anything but a no-op, and the delete-may-change-
+      nothing-but-wall-clock rule stands untouched. Compliance attestation for
+      a touched LOCKED area, no divergence.
+    evidence: >-
+      src/torve/application/runner.py:1056-1057 — the attempt spec's
+      env_passthrough and volumes come solely from _sandbox_auth, unchanged
+      by this task; the new read at src/torve/application/runner.py:1068 is a
+      scalar timeout resolved per attempt, and the gate-pass sandbox at
+      src/torve/application/runner.py:514 keeps the runtime global because
+      the attempt hook and the review lane are what the tier clock names.
+    action: decided
+  - decision: D-35.3
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T10:33:30Z
+    attempt: 1
+    claim: >-
+      shadow replays drive the same attempt hook and therefore now read the
+      resolved tier's clocks too — a clock is a wall-time bound, not warm
+      state: nothing is mounted under shadow=True that is not mounted
+      today, so replays still measure the cold truth and an eval still
+      compares no caches. Compliance attestation for a touched LOCKED area;
+      the cache exclusion itself is untouched because no cache mount exists
+      yet (phase 2).
+    evidence: >-
+      src/torve/application/runner.py:1068 — the only timeout change in the
+      shared attempt hook writes a scalar into SandboxSpec, no volume; the
+      replay's cold identity rides src/torve/application/runner.py:1059
+      unchanged.
+    action: decided

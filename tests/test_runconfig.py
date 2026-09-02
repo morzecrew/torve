@@ -13,7 +13,14 @@ import pytest
 from pydantic import ValidationError
 
 from torve.application.telemetry import config_hash
-from torve.config.runconfig import RunnerConfig, TierConfig, load_runner_config, profiles_dir
+from torve.config.runconfig import (
+    RunnerConfig,
+    TierConfig,
+    agent_timeout_for,
+    load_runner_config,
+    profiles_dir,
+    sandbox_timeout_for,
+)
 
 # ----------------------- #
 
@@ -473,3 +480,65 @@ def test_retry_variants_change_the_regime_digest(tmp_path: Path):
     assert config_hash(manifest(tmp_path), tmp_path, plain) != config_hash(
         manifest(tmp_path), tmp_path, routed
     )
+
+
+# ....................... #
+# The tier clock (D-35.6): a named override wins, absence falls to the global
+
+
+def test_a_tier_clock_overrides_the_runtime_global(tmp_path: Path):
+    config = load(
+        tmp_path,
+        "runtime:\n  agent_timeout: 1200\n  sandbox_timeout: 1800\n"
+        "tiers:\n  executor:\n    agent_timeout: 3600\n    sandbox_timeout: 4200\n",
+    )
+    tier = config.tiers["executor"]
+
+    assert agent_timeout_for(config, tier) == 3600
+    assert sandbox_timeout_for(config, tier) == 4200
+
+
+def test_an_absent_tier_clock_falls_through_to_the_runtime_global(tmp_path: Path):
+    config = load(tmp_path, "runtime:\n  agent_timeout: 999\n  sandbox_timeout: 1500\n")
+    tier = config.tiers["executor"]
+
+    assert tier.agent_timeout is None
+    assert tier.sandbox_timeout is None
+    assert agent_timeout_for(config, tier) == 999
+    assert sandbox_timeout_for(config, tier) == 1500
+
+
+def test_the_two_clocks_resolve_independently(tmp_path: Path):
+    """Naming only the agent clock leaves the sandbox bound at the global —
+    the heavy rung wants a longer attempt inside an unchanged platform
+    ceiling just as easily as both raised."""
+
+    config = load(tmp_path, "tiers:\n  executor:\n    agent_timeout: 3600\n")
+    tier = config.tiers["executor"]
+
+    assert agent_timeout_for(config, tier) == 3600
+    assert sandbox_timeout_for(config, tier) == 1800  # the runtime default
+
+
+def test_an_explicit_zero_is_named_not_absent(tmp_path: Path):
+    """`is None`, not truthiness: a tier that writes `0` wins with `0`. The
+    fall-through is for absence, and a written value is never quietly
+    discarded — the same key-presence rule the profile merge pins."""
+
+    config = load(tmp_path, "tiers:\n  executor:\n    agent_timeout: 0\n")
+    tier = config.tiers["executor"]
+
+    assert agent_timeout_for(config, tier) == 0
+    assert sandbox_timeout_for(config, tier) == 1800
+
+
+def test_tier_clocks_ride_the_profile_merge(agents_dir: Path, tmp_path: Path):
+    write(agents_dir / "heavy.yaml", "agent_timeout: 3600\nsandbox_timeout: 4200\n")
+    config = load(
+        tmp_path,
+        "tiers:\n  executor:\n    profile: heavy\n    sandbox_timeout: 5000\n",
+    )
+    tier = config.tiers["executor"]
+
+    assert agent_timeout_for(config, tier) == 3600  # from the profile
+    assert sandbox_timeout_for(config, tier) == 5000  # local wins last

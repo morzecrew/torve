@@ -72,9 +72,11 @@ from torve.config.manifest import UNLABELED_AXIS, GateAxis, load_manifest
 from torve.config.runconfig import (
     RunnerConfig,
     TierConfig,
+    agent_timeout_for,
     broker_in_force,
     effective_skill_sets,
     image_for,
+    sandbox_timeout_for,
     tier_for,
     tier_name_for,
 )
@@ -1151,7 +1153,10 @@ def real_hooks(
             name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
             image=current["image"],
             labels=naming.labels(infra_id, state.run_id, root),
-            timeout_s=config.runtime.sandbox_timeout,
+            # The resolved tier's clock when it names one (RFC 0035 §5.3,
+            # D-35.6): the heavy rung raises its own bound without touching
+            # the global the gate passes and every untiered lane keep.
+            timeout_s=sandbox_timeout_for(config, resolved_tier),
             env_passthrough=env_passthrough,
             volumes=volumes,
         )
@@ -1178,7 +1183,10 @@ def real_hooks(
                     handle=handle,
                     runtime=deps.runtime,
                     workdir=spec.workdir,
-                    timeout_s=config.runtime.agent_timeout,
+                    # Same resolution as the sandbox bound above: one tier,
+                    # one clock, for both the agent and the platform over it
+                    # (D-35.6).
+                    timeout_s=agent_timeout_for(config, resolved_tier),
                     broker=broker_handle,
                     resume=resume,
                 ),

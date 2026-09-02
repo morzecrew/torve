@@ -385,6 +385,103 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
     assert failed[0]["exit_code"] == 1
 
 
+# ....................... #
+# The tier clock (RFC 0035 §5.3, D-35.6): the attempt hook reads the
+# resolved tier's values, so the heavy rung carries its own clocks.
+
+
+def test_the_attempt_hook_reads_the_resolved_tiers_clocks(tmp_path):
+    """The resolved value reaches the agent context and the sandbox spec:
+    a task varianting to a tier that names its clocks runs under them, and
+    the same configuration's untiered seat still runs under the runtime
+    globals — the fall-through is per-tier, not a global mutation."""
+    import asyncio
+    import subprocess
+
+    from torve.application.ports import AgentResult, SandboxHandle
+    from torve.application.runner import RunDeps, drive_attempts, real_hooks
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RunnerConfig, RuntimeConfig, TierConfig
+    from torve.domain.states import TaskState
+    from torve.domain.task import Task
+
+    class ClockRecordingAgent:
+        kind = "harness"
+
+        def __init__(self):
+            self.contexts = []
+
+        def run(self, ctx):
+            self.contexts.append(ctx)
+            return AgentResult(exit_code=1, output="")
+
+    class SpecRecordingRuntime:
+        def __init__(self):
+            self.specs = []
+
+        def create(self, spec, workspace):
+            self.specs.append(spec)
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def resolve_image(self, image):
+            return None
+
+        def sync_out(self, handle, worktree):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+    def drive(config: RunnerConfig, tier_variant: str | None, task_id: str) -> tuple[float, float]:
+        worktree = tmp_path / f"wt-{task_id}"
+        (worktree / ".torve" / "skills").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q"], cwd=worktree, check=True)
+
+        agent = ClockRecordingAgent()
+        runtime = SpecRecordingRuntime()
+        deps = RunDeps(
+            workspace=None,  # type: ignore[arg-type]
+            runtime=runtime,
+            agent=agent,
+            vcs=None,  # type: ignore[arg-type]
+            scm=None,  # type: ignore[arg-type]
+            store=None,  # type: ignore[arg-type]
+        )
+        task = Task(id=task_id, decisions=[], tier_variant=tier_variant)
+        state = RunState(task_id=task.id, path=tmp_path / f"{task.id}.state.json")
+        state.transition(TaskState.CLAIMED, "test claim")
+        hooks = real_hooks(tmp_path, task, config, deps, worktree)
+        asyncio.run(drive_attempts(state, task, config, hooks))
+
+        assert len(agent.contexts) == 1 and len(runtime.specs) == 1
+
+        return agent.contexts[0].timeout_s, runtime.specs[0].timeout_s
+
+    config = RunnerConfig(
+        poison_ceiling=1,
+        runtime=RuntimeConfig(agent_timeout=1200, sandbox_timeout=1800),
+        tiers={
+            "executor": TierConfig(adapter="harness", command="run", provider="p", model="m"),
+            "executor.heavy": TierConfig(
+                adapter="harness",
+                command="run",
+                provider="p",
+                model="m",
+                agent_timeout=3600,
+                sandbox_timeout=4200,
+            ),
+        },
+    )
+
+    agent_clock, sandbox_clock = drive(config, "heavy", "T-9024")
+    assert agent_clock == 3600
+    assert sandbox_clock == 4200
+
+    agent_clock, sandbox_clock = drive(config, None, "T-9025")
+    assert agent_clock == 1200
+    assert sandbox_clock == 1800
+
+
 class _NoSandboxRuntime:
     """The gate pass under test never opens a sandbox: the empty-diff
     refusal fires before the battery, and the pass-through manifests carry

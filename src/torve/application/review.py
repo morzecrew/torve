@@ -39,7 +39,13 @@ from torve.application.ports import (
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config import layout
-from torve.config.runconfig import RunnerConfig, image_for, tier_for
+from torve.config.runconfig import (
+    RunnerConfig,
+    agent_timeout_for,
+    image_for,
+    sandbox_timeout_for,
+    tier_for,
+)
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import TaskState
 from torve.domain.task import SCHEMA_VERSION, Budget, Task
@@ -266,7 +272,9 @@ def run_review(
         name=naming.sandbox_name(review.id, state.run_id) + "-a1",
         image=image,
         labels=naming.labels(review.id, state.run_id, root),
-        timeout_s=config.runtime.sandbox_timeout,
+        # The reviewer seat carries its own clock when its tier names one
+        # (RFC 0035 §5.3, D-35.6): absent falls through to the globals.
+        timeout_s=sandbox_timeout_for(config, tier),
         env_passthrough=tuple(tier.api_key_env),
         workspace_read_only=True,
     )
@@ -302,7 +310,7 @@ def run_review(
                 handle=handle,
                 runtime=runtime,
                 workdir=spec.workdir,
-                timeout_s=config.runtime.agent_timeout,
+                timeout_s=agent_timeout_for(config, tier),
                 prompt=prompt,
                 broker=broker_handle,
             )

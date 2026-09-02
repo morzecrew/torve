@@ -93,6 +93,16 @@ class TierConfig(BaseModel):
     # configuration.
     prompt_extras: list[str] = Field(default_factory=list)
 
+    # RFC 0035 §5.3, D-35.6: the tier's own attempt clocks. `None` (absent)
+    # falls through to the RuntimeConfig globals, exactly as today; a named
+    # value — even 0 — is the tier's, so the heavy rung and the reviewer
+    # seat carry their own clocks without the operator editing global
+    # configuration mid-incident. Rides the profile merge like every other
+    # field; read through `agent_timeout_for` / `sandbox_timeout_for` where
+    # the runner's attempt hook and the review lane take their timeouts.
+    agent_timeout: float | None = None
+    sandbox_timeout: float | None = None
+
     # ....................... #
 
     def resolved_retry_variants(self) -> dict[GateAxis, str]:
@@ -298,6 +308,27 @@ def image_for(config: RunnerConfig, tier: TierConfig) -> str:
     harness's identity is the image it runs in (RFC 0017 §3)."""
 
     return tier.image or config.runtime.image
+
+
+# ....................... #
+
+
+def agent_timeout_for(config: RunnerConfig, tier: TierConfig) -> float:
+    """The resolved tier's agent clock when it names one, else the runtime
+    global (RFC 0035 §5.3, D-35.6). `is None`, not truthiness: an explicit
+    `0` is a named value that wins, absence is what falls through."""
+
+    return config.runtime.agent_timeout if tier.agent_timeout is None else tier.agent_timeout
+
+
+# ....................... #
+
+
+def sandbox_timeout_for(config: RunnerConfig, tier: TierConfig) -> float:
+    """The resolved tier's sandbox lifecycle bound when it names one, else
+    the runtime global (RFC 0035 §5.3, D-35.6)."""
+
+    return config.runtime.sandbox_timeout if tier.sandbox_timeout is None else tier.sandbox_timeout
 
 
 # ....................... #

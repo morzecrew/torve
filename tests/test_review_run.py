@@ -25,7 +25,7 @@ from torve.application.review import build_review_prompt, parse_findings
 from torve.application.runner import RunDeps, run_task
 from torve.application.runstate import RunState
 from torve.base import naming
-from torve.config.runconfig import ReviewConfig, RunnerConfig
+from torve.config.runconfig import ReviewConfig, RunnerConfig, RuntimeConfig, TierConfig
 from torve.domain.attempt import Finding
 from torve.domain.states import TaskState
 from torve.domain.task import Task
@@ -367,3 +367,69 @@ def test_a_review_session_never_leaks_onto_the_executors_trace_path(review_rig):
     assert state.state is TaskState.READY
     executor_trace = naming.trace_file(repo.root / ".wt" / "T-9001", 1)
     assert not executor_trace.exists()
+
+
+# ....................... #
+# The tier clock (RFC 0035 §5.3, D-35.6): the review lane reads the
+# resolved reviewer tier's values.
+
+
+class ClockRecordingReviewer:
+    """Mimics ScriptedAgent but keeps the contexts it was run under — the
+    agent-side view of the clock the review lane resolved."""
+
+    def __init__(self):
+        self.contexts = []
+
+    def run(self, ctx):
+        self.contexts.append(ctx)
+        return AgentResult(exit_code=0, output=reviewer_output([]))
+
+
+def _review_sandbox_specs(runtime, review_id: str | None):
+    return [s for s in runtime.specs if review_id and review_id.lower() in s.name]
+
+
+def test_the_reviewer_seat_carries_its_own_clock(review_rig):
+    repo, runtime, deps_for = review_rig
+    reviewer = ClockRecordingReviewer()
+    config = RunnerConfig(
+        review=ReviewConfig(on=["task_gated"]),
+        runtime=RuntimeConfig(agent_timeout=1200, sandbox_timeout=1800),
+        tiers={
+            "planner": TierConfig(),
+            "executor": TierConfig(),
+            "reviewer": TierConfig(agent_timeout=3300, sandbox_timeout=3900),
+        },
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(reviewer))
+
+    assert state.state is TaskState.READY
+    # The reviewer's own clock reached its agent context…
+    assert reviewer.contexts and reviewer.contexts[0].timeout_s == 3300
+    # …and its sandbox bound is the tier's, not the global.
+    review_specs = _review_sandbox_specs(runtime, state.reviewed_by)
+    assert review_specs and all(s.timeout_s == 3900 for s in review_specs)
+    # The executor's attempt sandbox keeps the runtime global: the reviewer
+    # seat's clock never leaks sideways into the seat beside it.
+    executor_specs = [s for s in runtime.specs if "t-9001" in s.name]
+    assert executor_specs and all(s.timeout_s == 1800 for s in executor_specs)
+
+
+def test_a_reviewer_tier_without_clocks_keeps_the_globals(review_rig):
+    # The fall-through, end to end: absent tier clocks read exactly as
+    # today — the RuntimeConfig globals rule the review lane.
+    repo, runtime, deps_for = review_rig
+    reviewer = ClockRecordingReviewer()
+    config = RunnerConfig(
+        review=ReviewConfig(on=["task_gated"]),
+        runtime=RuntimeConfig(agent_timeout=900, sandbox_timeout=1500),
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(reviewer))
+
+    assert state.state is TaskState.READY
+    assert reviewer.contexts and reviewer.contexts[0].timeout_s == 900
+    review_specs = _review_sandbox_specs(runtime, state.reviewed_by)
+    assert review_specs and all(s.timeout_s == 1500 for s in review_specs)
