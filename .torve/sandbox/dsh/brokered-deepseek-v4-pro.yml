@@ -16,6 +16,12 @@
         # These are reasoning models (plan console); false stripped the
         # capability and every trace showed reasoningTokens: 0.
         reasoning: medium
+        # The endpoint takes classic roles only (400 on `developer`, which
+        # pi-ai switches to for reasoning models) and returns thinking as
+        # deepseek-style reasoning_content.
+        compat:
+          supportsDeveloperRole: false
+          thinkingFormat: deepseek
         models:
           - id: deepseek-v4-pro
             name: DeepSeek V4 Pro
