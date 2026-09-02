@@ -265,11 +265,12 @@ def _build_deps(root: Path, config: RunnerConfig) -> TickDeps:
         tier = tier_for(config, tier_name_for(task))
         route_provider(config.providers, repository_name(root), tier.provider)
 
-        # D-27.11: the retry_variant's provider routes too — the broker
-        # opens once, before the first attempt, so a provider only a later
-        # retry reaches must already be on the route table.
-        if tier.retry_variant:
-            retry_tier = tier_for(config, tier.retry_variant)
+        # D-27.11 generalized by D-34.6: every retry rung's provider routes
+        # too — the broker opens once, before the first attempt, so a
+        # provider only a later conviction-routed retry reaches must already
+        # be on the route table, on every axis.
+        for rung in tier.resolved_retry_variants().values():
+            retry_tier = tier_for(config, rung)
             route_provider(config.providers, repository_name(root), retry_tier.provider)
 
         agent = _tier_agent(tier)

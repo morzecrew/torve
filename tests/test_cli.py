@@ -378,3 +378,65 @@ def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
         encoding="utf-8",
     )
     assert _review_bias_check(tmp_path, None) == []
+
+
+# ....................... #
+# Retry rungs join the dispatch-time provider check on every axis
+# (D-34.6, D-4.8): a repository's denial must reach the surface that reads
+# the full mapping, not only the scalar's functional mirror.
+
+
+def _rung_routing_config(rungs: str, providers: str) -> str:
+    return (
+        "schema_version: 1\n"
+        "tiers:\n"
+        f"  executor: {{retry_variants: {{{rungs}}}}}\n"
+        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        f"{providers}\n"
+    )
+
+
+def test_run_refuses_a_provider_only_a_compliance_rung_needs_with_exit_3(repo):
+    """No retry may run under a provider the repository denies — and the
+    rung being keyed on an axis other than the scalar's does not hide it
+    from the dispatch check."""
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+    repo.write(
+        ".torve/config.yaml",
+        _rung_routing_config("compliance: executor.deep", "providers: {default: []}"),
+    )
+
+    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
+    assert result.exit_code == 3
+    assert "not permitted" in result.stderr
+    assert "deepseek" in result.stderr
+
+
+def test_run_dispatches_when_a_nonfunctional_rungs_provider_is_allowed(repo):
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+    repo.write(
+        ".torve/config.yaml",
+        _rung_routing_config(
+            "compliance: executor.deep", "providers: {default: [deepseek]}"
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
+    assert "not permitted" not in result.stderr + result.output
+
+
+def test_run_refuses_a_form_rung_the_repository_denies(repo):
+    """Every axis of the map, not a chosen few: the form rung's provider is
+    checked exactly like the functional one's."""
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+    repo.write(
+        ".torve/config.yaml",
+        _rung_routing_config("functional: executor, form: executor.deep", "providers: {default: []}"),
+    )
+
+    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
+    assert result.exit_code == 3
+    assert "not permitted" in result.stderr

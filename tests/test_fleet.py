@@ -415,3 +415,42 @@ def test_fleet_status_ignores_non_escalated_runs(tmp_path: Path):
     state.save()
     m = manifest(FleetRepository(root=str(a), trust="own"))
     assert fleet_escalations(m) == []
+
+
+# ....................... #
+# The fleet's dispatch leg reads the same full mapping (D-34.6, D-4.8):
+# a provider denied to the repository is refused at dispatch no matter
+# which axis's rung names it.
+
+
+def test_the_fleet_dispatch_leg_refuses_a_provider_only_a_rung_needs(tmp_path: Path):
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    a = root(tmp_path, "a")
+    (a / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\n"
+        "tiers:\n"
+        "  executor: {retry_variants: {compliance: executor.deep}}\n"
+        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        "providers: {default: []}\n",
+        encoding="utf-8",
+    )
+    contract(a, "T-9001")
+    manifest_path = tmp_path / "fleet.yaml"
+    manifest_path.write_text(
+        f"repositories:\n  - root: {a}\n    trust: own\n", encoding="utf-8"
+    )
+
+    result = CliRunner().invoke(app, ["fleet", "tick", "--manifest", str(manifest_path)])
+    assert result.exit_code == 0, result.output
+
+    ticks = [
+        json.loads(line)
+        for line in (a / ".torve" / "telemetry.jsonl").read_text(encoding="utf-8").splitlines()
+        if json.loads(line).get("event") == "tick"
+    ]
+    assert ticks, "the root's own tick must have run"
+    assert "not permitted" in ticks[-1]["dispatch"]
+    assert "deepseek" in ticks[-1]["dispatch"]

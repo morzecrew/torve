@@ -1,0 +1,69 @@
+schema_version: 1
+task: T-0216
+repo: morzecrew/torve
+base_sha: 052beef6c676ee9b9c03f43d3f8df1f50fd4a412  # the engine's pin (D-A.7)
+drift_count: 0
+entries:
+  - decision: D-34.5
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-09-02T09:31:00Z
+    attempt: 1
+    claim: the rung selection is implemented as a pure function over the red
+      attempt's recorded gate outcomes (name, outcome, state) plus declared
+      configuration (gate axis, axis-keyed rungs); no trace, model output or
+      other run-time artifact enters the decision, and the replay-shaped test
+      re-derives the chosen rung from the telemetry records alone
+    evidence: src/torve/application/runner.py:373 — _previous_attempt_gate_red
+      already selects on the recorded fact alone; the axis grouping extends
+      that read over the same attempt's recorded results
+    action: decided
+    notes: |
+      Close-out attestation for the touched LOCKED area: the selection reads
+      only recorded gate outcomes, resolving the most severe axis present in
+      the fixed order functional > boundary > compliance > form.
+
+  - decision: D-34.7
+    grade: ASSUMED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-02T09:31:00Z
+    attempt: 1
+    claim: the decision's "resolves no retry rung by default" and the
+      contract's flat "boundary resolves no rung" leave open whether a
+      boundary key may name a rung that the operator explicitly opted into;
+      this task reads them together — boundary is kept in the severity order
+      (so a fence conviction masks lighter axes) but no boundary rung may
+      exist, so the mapping refuses the key at load rather than accepting a
+      rung that selection could never resolve
+    evidence: rfcs/0034-task-character-and-conviction-routed-retries.md:214 —
+      Boundary convictions resolve no rung by default (D-34.7); a broken
+      fence is repaired by the operator's disclosed chore and not escaped by
+      a heavier model
+    action: decided
+    proposal: |
+      Amend the row to say the mapping refuses `boundary` (one spelling of
+      the doctrine), or record an explicit operator opt-in path if a need to
+      map a boundary rung is ever shown — same refusal-then-amendment shape
+      as §10's recursive-routing answer.
+
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-02T09:31:00Z
+    attempt: 1
+    claim: a red attempt can be recorded with no per-gate outcomes at all —
+      the empty-diff refusal goes red with an empty results list — and the
+      axis grouping the contract prescribes has no failing gate to group, so
+      the spec is silent on which rung (if any) such an attempt resolves
+    evidence: src/torve/application/runner.py:538 — the empty-diff refusal
+      returns a red exit with results [] and a summary naming the refusal,
+      not a gate
+    action: decided
+    proposal: |
+      One row: a red attempt whose record carries no failing-gate outcome
+      reads as the functional axis — the same fail-safe D-34.4 declares for
+      an unlabeled gate, and the reading that preserves D-27.11's
+      any-red-escalates behavior for refusals the battery never graded.

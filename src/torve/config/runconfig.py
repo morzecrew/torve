@@ -21,6 +21,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from torve.config import layout
+from torve.config.manifest import GateAxis
 from torve.domain.task import SCHEMA_VERSION, Task
 
 # ----------------------- #
@@ -58,8 +59,15 @@ class TierConfig(BaseModel):
 
     # D-27.11: the dotted tier this seat's attempt resolves to after a
     # gate-red — one rung, not a chain. Empty means an attempt that gates
-    # red is retried under the same tier, today's behaviour.
+    # red is retried under the same tier, today's behaviour. D-34.6 keeps
+    # this scalar as sugar for the functional key of the mapping below.
     retry_variant: str = ""
+
+    # D-34.6: the retry rungs keyed by axis — which conviction routes the
+    # next attempt where. Every reader takes the merged view through
+    # `resolved_retry_variants()`, so no surface sees only the functional
+    # rung; `boundary` may not name a rung here at all (D-34.7).
+    retry_variants: dict[GateAxis, str] = Field(default_factory=dict)
 
     # RFC 0028 §5.1, D-28.1/D-28.2, A-74: the named profile(s) this tier
     # resolved from, if any — resolution happens on the raw mapping in
@@ -87,6 +95,25 @@ class TierConfig(BaseModel):
 
     # ....................... #
 
+    def resolved_retry_variants(self) -> dict[GateAxis, str]:
+        """The one resolution of D-27.11's scalar and D-34.6's mapping: the
+        axis-keyed rungs with the scalar read as sugar for the functional
+        key, so every reader — the runner's routing, the dispatch-time
+        provider check in run, tick and fleet — answers from the full map.
+        Contradictory spellings of the functional rung are refused at
+        validation, so this never has to arbitrate. An axis absent from the
+        result resolves no rung: the attempt retries under the tier that
+        just ran."""
+
+        rungs = dict(self.retry_variants)
+
+        if self.retry_variant:
+            rungs["functional"] = self.retry_variant
+
+        return rungs
+
+    # ....................... #
+
     @model_validator(mode="after")
     def _real_adapters_are_fully_named(self) -> TierConfig:
         if self.adapter not in ADAPTERS:
@@ -100,6 +127,41 @@ class TierConfig(BaseModel):
                 # Silence is not a policy (§6b): a real adapter sends the
                 # repository somewhere, and routing needs to know where.
                 raise ValueError(f"adapter {self.adapter!r} needs a provider for routing (D-4.8)")
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _retry_rungs_are_coherent(self) -> TierConfig:
+        # D-34.7: no configuration may hang a retry rung on a boundary
+        # conviction — a fence defect is repaired by the operator's
+        # disclosed chore commit, never escalated to a heavier model. A
+        # mappable boundary would be a rung to nowhere: selection resolves
+        # none there whatever the mapping says.
+        if self.retry_variants.get("boundary"):
+            raise ValueError(
+                "a boundary conviction resolves no retry rung — remove the "
+                f"boundary entry (it names {self.retry_variants['boundary']!r}), "
+                "whose rung could never run"
+            )
+
+        # D-34.6: the scalar is sugar for the functional key; both spellings
+        # saying different things is a configuration error, never a silent
+        # precedence.
+        scalar, mapped = self.retry_variant, self.retry_variants.get("functional")
+
+        if scalar and mapped and scalar != mapped:
+            raise ValueError(
+                f"retry_variant ({scalar!r}) and retry_variants.functional ({mapped!r}) "
+                "name different tiers for the same axis; say it once"
+            )
+
+        if "" in self.retry_variants.values():
+            raise ValueError(
+                "retry_variants values must name a tier; omit the axis instead "
+                "of naming an empty one"
+            )
 
         return self
 
@@ -852,16 +914,21 @@ class RunnerConfig(BaseModel):
     @model_validator(mode="after")
     def _retry_variant_names_a_configured_tier(self) -> RunnerConfig:
         """D-27.11: a rung to nowhere is a configuration error at load time,
-        not a dispatch-time surprise after the first gate-red."""
+        not a dispatch-time surprise after the first gate-red. D-34.6's
+        mapping makes every axis's rung reachable, so every one of them is
+        checked, not only the scalar's functional mirror."""
 
         offenders = {
-            (name, tier.retry_variant)
-            for name, tier in self.tiers.items()
-            if tier.retry_variant and tier.retry_variant not in self.tiers
+            (seat, axis, rung)
+            for seat, tier in self.tiers.items()
+            for axis, rung in tier.resolved_retry_variants().items()
+            if rung not in self.tiers
         }
 
         if offenders:
-            named = ", ".join(f"{name!r} -> {target!r}" for name, target in sorted(offenders))
+            named = ", ".join(
+                f"{seat!r} on {axis} -> {rung!r}" for seat, axis, rung in sorted(offenders)
+            )
 
             raise ValueError(f"retry_variant names no configured tier: {named}")
 

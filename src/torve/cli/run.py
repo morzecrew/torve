@@ -185,14 +185,15 @@ def run_cmd(
         # exists (D-4.8). A repository with no permitted provider for its
         # tier is a configuration error, never a quiet fallback. The --agent
         # fake override sends nothing anywhere, so it routes as fake does.
-        # A configured retry_variant (D-27.11) routes too — the run may
-        # reach it after the first gate-red, and D-27.1 refuses to dispatch
-        # under a regime it has not already validated.
+        # Every retry rung routes too (D-27.11's scalar generalized by
+        # D-34.6): the run may reach any axis's rung after the matching
+        # conviction, and D-27.1 refuses to dispatch under a regime it has
+        # not already validated.
         if agent_name is None:
             route_provider(config.providers, repository_name(root), tier.provider)
 
-            if tier.retry_variant:
-                retry_tier = tier_for(config, tier.retry_variant)
+            for rung in tier.resolved_retry_variants().values():
+                retry_tier = tier_for(config, rung)
                 route_provider(config.providers, repository_name(root), retry_tier.provider)
 
         agent = _tier_agent(tier)

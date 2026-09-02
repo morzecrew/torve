@@ -13,7 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from torve.application.telemetry import config_hash
-from torve.config.runconfig import RunnerConfig, load_runner_config, profiles_dir
+from torve.config.runconfig import RunnerConfig, TierConfig, load_runner_config, profiles_dir
 
 # ----------------------- #
 
@@ -372,3 +372,104 @@ def test_profiles_dir_falls_back_to_the_home_config_dir(monkeypatch, tmp_path: P
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     assert profiles_dir() == tmp_path / ".config" / "torve" / "agents"
+
+
+# ....................... #
+# retry_variants (D-34.6, D-34.7): the axis-keyed mapping, the scalar kept
+# as its functional sugar, and one resolution every reader shares.
+
+
+def test_retry_variants_load_axes_from_yaml_and_resolve_through_one_map(tmp_path: Path):
+    config = load(
+        tmp_path,
+        "schema_version: 1\n"
+        "tiers:\n"
+        "  executor:\n"
+        "    retry_variants: {functional: executor.heavy, compliance: executor}\n"
+        "  executor.heavy: {adapter: api, command: c, provider: heavy, model: h}\n",
+    )
+
+    assert config.tiers["executor"].resolved_retry_variants() == {
+        "functional": "executor.heavy",
+        "compliance": "executor",
+    }
+
+
+def test_the_scalar_retry_variant_reads_as_functional_sugar():
+    tier = TierConfig(retry_variant="executor.heavy")
+    assert tier.resolved_retry_variants() == {"functional": "executor.heavy"}
+
+
+def test_the_scalar_and_the_mapping_merge_when_they_name_one_rung_together():
+    tier = TierConfig(
+        retry_variants={"compliance": "executor"},
+        retry_variant="executor.heavy",
+    )
+    assert tier.resolved_retry_variants() == {
+        "functional": "executor.heavy",
+        "compliance": "executor",
+    }
+
+
+def test_the_functional_rung_spelled_two_ways_differently_is_refused():
+    with pytest.raises(ValidationError, match="name different tiers for the same axis"):
+        TierConfig(
+            retry_variant="executor.heavy",
+            retry_variants={"functional": "executor.other"},
+        )
+
+
+def test_the_boundary_axis_may_name_no_rung():
+    with pytest.raises(ValidationError, match="boundary conviction resolves no retry rung"):
+        TierConfig(retry_variants={"boundary": "executor.heavy"})
+
+
+def test_an_empty_rung_in_the_mapping_is_refused():
+    with pytest.raises(ValidationError, match="must name a tier"):
+        TierConfig(retry_variants={"form": ""})
+
+
+def test_an_unknown_axis_key_is_refused_by_the_vocabulary():
+    with pytest.raises(ValidationError):
+        TierConfig(retry_variants={"performance": "executor.heavy"})  # type: ignore[dict-item]
+
+
+def test_a_rung_named_on_any_axis_must_be_a_configured_tier():
+    with pytest.raises(ValidationError, match="retry_variant names no configured tier"):
+        RunnerConfig(
+            tiers={
+                "executor": TierConfig(
+                    retry_variants={"compliance": "executor.ghost"},
+                )
+            }
+        )
+
+
+def test_the_mapping_rides_the_profile_merge_like_any_other_field(
+    agents_dir: Path, tmp_path: Path
+):
+    write(agents_dir / "armed.yaml", "retry_variants: {compliance: executor}\n")
+    config = load(
+        tmp_path,
+        "schema_version: 1\n"
+        "tiers:\n"
+        "  executor:\n"
+        "    profile: armed\n"
+        "    retry_variant: executor.heavy\n"
+        "  executor.heavy: {adapter: api, command: c, provider: heavy, model: h}\n",
+    )
+    assert config.tiers["executor"].resolved_retry_variants() == {
+        "compliance": "executor",
+        "functional": "executor.heavy",
+    }
+
+
+def test_retry_variants_change_the_regime_digest(tmp_path: Path):
+    base = {"planner": TierConfig(), "reviewer": TierConfig(), "executor": TierConfig()}
+    plain = RunnerConfig(tiers=base)
+    routed = RunnerConfig(
+        tiers={**base, "executor": TierConfig(retry_variants={"compliance": "executor"})}
+    )
+    assert config_hash(manifest(tmp_path), tmp_path, plain) != config_hash(
+        manifest(tmp_path), tmp_path, routed
+    )

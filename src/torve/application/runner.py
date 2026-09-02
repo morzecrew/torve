@@ -21,7 +21,7 @@ import os
 import re
 import shutil
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -68,7 +68,7 @@ from torve.application.telemetry import (
 )
 from torve.base import naming
 from torve.config import layout
-from torve.config.manifest import load_manifest
+from torve.config.manifest import UNLABELED_AXIS, GateAxis, load_manifest
 from torve.config.runconfig import (
     RunnerConfig,
     TierConfig,
@@ -377,6 +377,79 @@ def _previous_attempt_gate_red(state: RunState) -> bool:
     attempt's own "attempt N dispatched" entry — never the last one."""
 
     return len(state.history) >= 2 and state.history[-2]["fact"].startswith("gates red:")
+
+
+# ....................... #
+
+# The fixed severity order of the gate axes, most severe first: retry
+# selection resolves the rung of the most severe axis present among a red
+# attempt's convictions (D-34.5). This order is this module's rule, not the
+# vocabulary's — the manifest lists the same words in corpus order, and
+# importing that list here would let a re-listing silently move the ladder.
+AXIS_SEVERITY: tuple[GateAxis, ...] = ("functional", "boundary", "compliance", "form")
+
+
+def retry_rung_for(
+    tier: TierConfig,
+    outcomes: Iterable[GateResult],
+    gate_axes: Mapping[str, GateAxis],
+) -> str:
+    """The rung the red attempt's recorded gate outcomes resolve to (D-34.5):
+    the seat's axis→rung mapping read at the most severe axis present among
+    the attempt's convictions — outcome and state, the two fields every
+    telemetry row carries; never a trace, a gate output or model text, so a
+    replay of the rows reproduces this choice exactly.
+
+    A conviction is a *blocking* fail or error: a shadow or quarantined
+    failure reported beside the red never routes the retry (gate runner,
+    §7.3 — measurement, not obstacle). A red whose record carries no
+    conviction at all — the empty-diff refusal, an attempt that produced
+    nothing — reads as functional, the fail-safe every unlabeled gate shares:
+    route the retry up, never sideways.
+
+    A boundary conviction resolves no rung (D-34.7), and its presence masks
+    the lighter axes below compliance: a broken fence outranks the work's
+    retry. The operator repairs it with a disclosed chore commit, not a
+    heavier model. An axis the mapping names nothing for resolves no rung
+    either — the attempt retries under the tier that just ran."""
+
+    convicted = {
+        gate_axes.get(result.name, UNLABELED_AXIS)
+        for result in outcomes
+        if result.outcome in ("fail", "error") and result.state == "blocking"
+    }
+
+    if not convicted:
+        convicted = {UNLABELED_AXIS}
+
+    rungs = tier.resolved_retry_variants()
+
+    for axis in AXIS_SEVERITY:
+        if axis in convicted:
+            return "" if axis == "boundary" else rungs.get(axis, "")
+
+    return ""  # unreachable: convicted holds only axes from the full AXIS_SEVERITY ladder
+
+
+def _retry_gate_axes(worktree: Path) -> Mapping[str, GateAxis]:
+    """Gate name → declared axis, read from the manifest of the tree that
+    convicted — the same file the gate pass loaded, so selection classifies
+    each conviction exactly as its declaration labels it. A missing or
+    unreadable manifest maps nothing: every failing gate then reads as the
+    unlabeled default, functional, the fail-safe that routes up (D-34.4)."""
+
+    manifest_path = layout.gates_file(worktree)
+
+    if not manifest_path.is_file():
+        return {}
+
+    try:
+        resolved = load_manifest(manifest_path).resolved_gates()
+
+    except (OSError, ValueError, yaml.YAMLError):
+        return {}
+
+    return {gate.name: gate.axis or UNLABELED_AXIS for gate in resolved}
 
 
 # ....................... #
@@ -784,9 +857,11 @@ def run_routing(
     the broker enforces them at the wire. A provider the broker configuration
     does not route is a configuration error, never a quiet fallback.
 
-    `include_retry` (D-27.11) also routes the task's tier's `retry_variant`
-    when one is named: the broker opens once, before the first attempt, so a
-    provider only a later retry reaches must already be on the route table.
+    `include_retry` (D-27.11, generalized by D-34.6) also routes every rung
+    the task's tier resolves for a retry — every axis of `retry_variants`,
+    not only the scalar's functional one: the broker opens once, before the
+    first attempt, so a provider only a later conviction-routed retry
+    reaches must already be on the route table.
     """
 
     routes: list[BrokerRoute] = []
@@ -794,10 +869,11 @@ def run_routing(
     base_tier = tier_for(config, base_name)
     tier_names = [base_name]
 
-    if include_retry and base_tier.retry_variant:
-        tier_names.append(base_tier.retry_variant)
+    if include_retry:
+        rung_names = base_tier.resolved_retry_variants().values()
+        tier_names = list(dict.fromkeys([*tier_names, *rung_names]))
 
-    if review_on:
+    if review_on and "reviewer" not in tier_names:
         tier_names.append("reviewer")
 
     for tier_name in tier_names:
@@ -897,9 +973,9 @@ def real_hooks(
         # D-21.1's second line: the configuration validator already refuses a
         # brokered tier that names a credential; the runner refuses again so
         # a programmatically-built configuration cannot slip a key name past
-        # the validator into the sandbox's env. Checked for the retry_variant
-        # too (D-27.11) — a run never dispatches under a regime it hasn't
-        # already validated (D-27.1's spirit, applied ahead of time).
+        # the validator into the sandbox's env. Checked for every retry rung
+        # too (D-27.11, D-34.6) — a run never dispatches under a regime it
+        # hasn't already validated (D-27.1's spirit, applied ahead of time).
         if broker_in_force(config) and candidate.api_key_env:
             raise ValueError(
                 f"tier {name!r} names api_key_env {candidate.api_key_env} under broker "
@@ -908,8 +984,9 @@ def real_hooks(
 
     _refuse_credentialed_brokered_tier(tier_name, tier)
 
-    if deps.retry_agent is not None and tier.retry_variant:
-        _refuse_credentialed_brokered_tier(tier.retry_variant, tier_for(config, tier.retry_variant))
+    if deps.retry_agent is not None:
+        for rung in tier.resolved_retry_variants().values():
+            _refuse_credentialed_brokered_tier(rung, tier_for(config, rung))
 
     # What actually runs, not what the tier configured — an --agent fake
     # override must not masquerade as a model in the telemetry.
@@ -955,6 +1032,12 @@ def real_hooks(
         "image_digest": image_digest,
     }
 
+    # The most recent gate pass's recorded results (D-34.5): what retry
+    # selection reads after a red fact — the same `GateResult` records the
+    # telemetry row carries, never a re-reading of the trace or the model's
+    # output. The `gates` hook restamps it on every pass.
+    last_convictions: dict[str, Any] = {"results": []}
+
     # Denormalised into every record this run appends (RFC 0004 §6): which
     # adapter and model did the work cannot be reconstructed later. Shadow
     # gate passes are marked so the measurement population stays separable
@@ -980,19 +1063,27 @@ def real_hooks(
     }
 
     async def attempt(state: RunState) -> AgentResult:
-        # D-27.11: one rung. The attempt after a gate-red resolves the tier
-        # that just ran's retry_variant instead of continuing under it; any
-        # other attempt resolves the task's own tier. Never fabricated —
-        # this only fires when the CLI wired an agent factory to actually
-        # build the resolved tier's Agent, so telemetry never stamps a
-        # tier that did not produce the work (D-27.1).
+        # D-27.11's one rung, routed by the conviction: the attempt after a
+        # gate-red resolves the tier the red attempt's recorded gate outcomes
+        # select — the seat's mapping at the most severe axis present, the
+        # scalar read as its functional sugar — instead of continuing under
+        # the tier that just ran; any other attempt resolves the task's own
+        # tier. Never fabricated — this only fires when the CLI wired an
+        # agent factory to actually build the resolved tier's Agent, so
+        # telemetry never stamps a tier that did not produce the work
+        # (D-27.1).
         resolved_name, resolved_tier = tier_name, tier
         retry_agent = deps.retry_agent
         running_tier: TierConfig = current["tier"]
 
-        if retry_agent is not None and _previous_attempt_gate_red(state) and running_tier.retry_variant:
-            resolved_name = running_tier.retry_variant
-            resolved_tier = tier_for(config, resolved_name)
+        if retry_agent is not None and _previous_attempt_gate_red(state):
+            rung = retry_rung_for(
+                running_tier, last_convictions["results"], _retry_gate_axes(worktree)
+            )
+
+            if rung:
+                resolved_name = rung
+                resolved_tier = tier_for(config, resolved_name)
 
         if resolved_name != current["name"]:
             resolved_image = image_for(config, resolved_tier)
@@ -1203,6 +1294,7 @@ def real_hooks(
             current["image_digest"],
         )
 
+        last_convictions["results"] = list(results)
         last_pass.update(results=results, patch=patch, digest=digest)
 
         return exit_code, summary, digest

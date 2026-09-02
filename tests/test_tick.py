@@ -483,3 +483,69 @@ def test_a_decomposed_parent_is_no_longer_awaiting_and_dispatches(root):
     contract(root, "T-9001", allow=["src/a/**", "tests/a/**"])
     contract(root, "T-9002", parent="T-9001", allow=["docs/**"])
     assert queued_batch(root, lambda _t: False, limit=2) == ["T-9001", "T-9002"]
+
+
+# ....................... #
+# The tick's own dispatch leg checks every retry rung's provider at
+# dispatch — the full mapping, not the scalar's functional mirror (D-34.6,
+# D-4.8): a provider only a compliance conviction would reach is still a
+# provider the run may reach.
+
+
+def _rung_routing_config(rungs: str, providers: str) -> str:
+    return (
+        "schema_version: 1\n"
+        "tiers:\n"
+        f"  executor: {{retry_variants: {{{rungs}}}}}\n"
+        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        f"{providers}\n"
+    )
+
+
+def test_the_tick_dispatch_refuses_a_provider_only_a_nonfunctional_rung_needs(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    repo = tmp_path / "repo"
+    (repo / ".torve").mkdir(parents=True)
+    (repo / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    (repo / ".torve" / "config.yaml").write_text(
+        _rung_routing_config("compliance: executor.deep", "providers: {default: []}"),
+        encoding="utf-8",
+    )
+    contract(repo, "T-9301")
+
+    result = CliRunner().invoke(app, ["tick", "--root", str(repo)])
+    assert result.exit_code == 0, result.output
+    assert "not permitted" in result.output
+    assert "deepseek" in result.output
+
+
+def test_the_tick_dispatch_proceeds_past_the_check_when_the_rung_is_allowed(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    repo = tmp_path / "repo"
+    (repo / ".torve").mkdir(parents=True)
+    (repo / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    (repo / ".torve" / "config.yaml").write_text(
+        _rung_routing_config("compliance: executor.deep", "providers: {default: [deepseek]}"),
+        encoding="utf-8",
+    )
+    contract(repo, "T-9301")
+
+    result = CliRunner().invoke(app, ["tick", "--root", str(repo)])
+    assert result.exit_code == 0, result.output
+    assert "not permitted" not in result.output

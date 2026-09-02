@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 import yaml
@@ -8,7 +9,8 @@ from conftest import context_for
 
 from torve.application.telemetry import append_record, build_record, config_hash
 from torve.config import layout
-from torve.config.runconfig import RunnerConfig
+from torve.config.runconfig import RunnerConfig, TierConfig
+from torve.domain.attempt import GateResult
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 
@@ -670,3 +672,457 @@ def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
     assert len(records) == 1
     assert records[0]["exit_code"] == 0
 
+
+
+# ....................... #
+# Conviction-routed retries (T-0216, D-34.5/D-34.6/D-34.7): the red attempt's
+# recorded gate outcomes resolve the rung — the axis-keyed mapping read at
+# the most severe axis present, the scalar read as its functional sugar. The
+# selection sees outcomes, states and declared labels only, never a trace or
+# model text, so every case here doubles as a replay.
+
+
+def conviction(name: str, outcome: str = "fail", state: str = "blocking") -> GateResult:
+    return GateResult(name=name, outcome=outcome, state=state)  # type: ignore[arg-type]
+
+
+AXES: dict = {
+    "acceptance": "functional",
+    "fence": "boundary",
+    "grammar": "compliance",
+    "tidy": "form",
+}
+
+RUNGED = TierConfig(
+    retry_variants={
+        "functional": "executor.heavy",
+        "compliance": "executor.ink",
+        "form": "executor.tidy",
+    }
+)
+
+
+def test_the_most_severe_conviction_present_routes_the_retry():
+    from torve.application.runner import retry_rung_for
+
+    both = [conviction("grammar"), conviction("acceptance")]
+    assert retry_rung_for(RUNGED, both, AXES) == "executor.heavy"
+    assert (
+        retry_rung_for(RUNGED, [conviction("tidy"), conviction("grammar")], AXES)
+        == "executor.ink"
+    )
+    assert retry_rung_for(RUNGED, [conviction("tidy")], AXES) == "executor.tidy"
+
+
+def test_a_boundary_conviction_resolves_no_rung_and_masks_the_lighter_axes():
+    from torve.application.runner import retry_rung_for
+
+    assert retry_rung_for(RUNGED, [conviction("fence")], AXES) == ""
+
+    # The fence defect outranks compliance and form beside it: the operator
+    # repairs the contract with a disclosed chore, the retry earns no rung.
+    fence_with_light_convictions = [
+        conviction("fence"),
+        conviction("grammar"),
+        conviction("tidy"),
+    ]
+    assert retry_rung_for(RUNGED, fence_with_light_convictions, AXES) == ""
+
+    # Functional is heavier than boundary — it still wins over the fence.
+    assert (
+        retry_rung_for(RUNGED, [conviction("fence"), conviction("acceptance")], AXES)
+        == "executor.heavy"
+    )
+
+
+def test_an_unlabeled_gate_and_an_empty_record_read_as_functional():
+    from torve.application.runner import retry_rung_for
+
+    # A failing gate the manifest does not name (or does not label).
+    assert retry_rung_for(RUNGED, [conviction("mystery")], AXES) == "executor.heavy"
+    assert retry_rung_for(RUNGED, [conviction("grammar")], {}) == "executor.heavy"
+
+    # The empty-diff refusal: red with no per-gate outcome recorded at all.
+    assert retry_rung_for(RUNGED, [], AXES) == "executor.heavy"
+
+
+def test_only_a_blocking_failure_convicts():
+    from torve.application.runner import retry_rung_for
+
+    # A shadow or bypassed result beside a red attempt is not a conviction —
+    # it did not drive the exit code, so it does not drive the routing.
+    assert retry_rung_for(RUNGED, [conviction("grammar", state="shadow")], AXES) == "executor.heavy"
+    assert retry_rung_for(RUNGED, [conviction("tidy", outcome="bypassed")], AXES) == "executor.heavy"
+
+    # A blocking gate that errored reddens the attempt exactly as a failing
+    # one does (the runner's own redness rule), so it convicts likewise.
+    assert retry_rung_for(RUNGED, [conviction("grammar", outcome="error")], AXES) == "executor.ink"
+
+
+def test_the_scalar_form_is_the_functional_rung_of_the_resolved_mapping():
+    from torve.application.runner import retry_rung_for
+
+    scalar = TierConfig(retry_variant="executor.heavy")
+    assert retry_rung_for(scalar, [conviction("acceptance")], AXES) == "executor.heavy"
+    assert retry_rung_for(scalar, [conviction("grammar")], AXES) == ""
+    assert retry_rung_for(TierConfig(), [conviction("acceptance")], AXES) == ""
+
+
+def test_run_routing_carries_the_provider_of_every_axis_rung():
+    from torve.application.runner import run_routing
+    from torve.config.runconfig import BrokerConfig, BrokerProvider
+    from torve.domain.task import Task
+
+    def rung(provider: str) -> TierConfig:
+        return TierConfig(adapter="api", command="c", provider=provider, model="m")
+
+    routed = {
+        name: BrokerProvider(upstream="http://up", key_env="K")
+        for name in ("base", "heavy", "ink", "tidy")
+    }
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="api",
+                command="c",
+                provider="base",
+                model="m",
+                retry_variants={
+                    "functional": "executor.heavy",
+                    "compliance": "executor.ink",
+                    "form": "executor.tidy",
+                },
+            ),
+            "executor.heavy": rung("heavy"),
+            "executor.ink": rung("ink"),
+            "executor.tidy": rung("tidy"),
+        },
+        broker=BrokerConfig(adapter="local", providers=routed),
+    )
+    task = Task(id="T-9100", decisions=[])
+
+    routing = run_routing(config, task, review_on=False, include_retry=True)
+    assert {route.provider for route in routing.routes} == {"base", "heavy", "ink", "tidy"}
+
+    without = run_routing(config, task, review_on=False)
+    assert {route.provider for route in without.routes} == {"base"}
+
+
+def test_a_rung_naming_the_seat_itself_is_never_routed_twice():
+    from torve.application.runner import run_routing
+    from torve.config.runconfig import BrokerConfig, BrokerProvider
+    from torve.domain.task import Task
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="api",
+                command="c",
+                provider="base",
+                model="m",
+                retry_variants={"functional": "executor", "compliance": "executor"},
+            ),
+        },
+        broker=BrokerConfig(
+            adapter="local",
+            providers={"base": BrokerProvider(upstream="http://up", key_env="K")},
+        ),
+    )
+
+    routing = run_routing(config, Task(id="T-9101", decisions=[]), review_on=False, include_retry=True)
+    assert [route.provider for route in routing.routes] == ["base"]
+
+
+def test_an_axis_rung_the_broker_cannot_route_is_a_configuration_error():
+    from torve.application.runner import run_routing
+    from torve.config.runconfig import BrokerConfig, BrokerProvider
+    from torve.domain.task import Task
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="api",
+                command="c",
+                provider="base",
+                model="m",
+                retry_variants={"compliance": "executor.ink"},
+            ),
+            "executor.ink": TierConfig(adapter="api", command="c", provider="ink", model="m"),
+        },
+        broker=BrokerConfig(
+            adapter="local",
+            providers={"base": BrokerProvider(upstream="http://up", key_env="K")},
+        ),
+    )
+
+    with pytest.raises(ValueError, match=r"executor\.ink"):
+        run_routing(config, Task(id="T-9102", decisions=[]), review_on=False, include_retry=True)
+
+
+def test_a_credentialed_compliance_rung_is_refused_under_a_broker():
+    """The runner-side re-check walks every resolved rung, not only the
+    scalar's — the programmatically-built configuration the re-check exists
+    for slips the credential past the validator on a non-functional axis."""
+    from torve.application.runner import RunDeps, real_hooks
+    from torve.config.runconfig import BrokerConfig
+    from torve.domain.task import Task
+
+    calm = TierConfig(
+        adapter="api", command="c", provider="p", model="m", api_key_env=["CALM_KEY"]
+    )
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(retry_variants={"compliance": "executor.calm"}),
+            "executor.calm": calm,
+        }
+    )
+    brokered = config.model_copy(update={"broker": BrokerConfig(adapter="local")})
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]
+        runtime=_StubRuntime(None),
+        agent=object(),  # type: ignore[arg-type]
+        vcs=object(),  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+        retry_agent=lambda tier: object(),
+    )
+
+    with pytest.raises(ValueError, match=r"executor\.calm"):
+        real_hooks(Path("/unused"), Task(id="T-9103", decisions=[]), brokered, deps, Path("/unused/wt"))
+
+
+# ....................... #
+# The routed retry end to end: a scripted gate pass returns recorded
+# `GateResult`s against a labeled manifest — the same records the real pass
+# appends to telemetry — and the loop hands the next attempt to the rung
+# the convictions resolve.
+
+
+RETRY_MANIFEST = {
+    "schema_version": 1,
+    "gates": [
+        {"name": "acceptance", "run": "true", "state": "blocking", "origin": "structural", "axis": "functional"},
+        {"name": "fence", "run": "true", "state": "blocking", "origin": "structural", "axis": "boundary"},
+        {"name": "grammar", "run": "true", "state": "blocking", "origin": "structural", "axis": "compliance"},
+        {"name": "tidy", "run": "true", "state": "blocking", "origin": "structural", "axis": "form"},
+    ],
+}
+
+
+def _conviction_passes(monkeypatch, repo, passes, seen_metas, append_telemetry=False):
+    """Replace the gate pass with one driven by per-attempt entries: a
+    non-empty conviction list goes red with those recorded results, `[]` is
+    green, and `None` is the empty-diff shape — red with no per-gate record
+    at all. Each pass seeds the labeled manifest into the mock worktree so
+    selection reads the same declarations a real pass judged by. When
+    `append_telemetry`, each pass also writes the row the real pass would:
+    the outcome and state of every gate beside the tier stamp of the
+    attempt that produced them."""
+    import torve.application.runner as run_module
+
+    outcomes = list(passes)
+
+    def scripted(worktree, task_id, _config, _runtime, _run_id, root, agent_meta=None, *_args):
+        manifest_file = worktree / ".torve" / "gates.yaml"
+        manifest_file.parent.mkdir(parents=True, exist_ok=True)
+        manifest_file.write_text(yaml.safe_dump(RETRY_MANIFEST), encoding="utf-8")
+
+        entry = outcomes.pop(0)
+        results = [] if entry is None else entry
+        code = 0 if entry == [] else 1
+        seen_metas.append(dict(agent_meta or {}))
+
+        if append_telemetry:
+            append_record(
+                root / ".torve" / "telemetry.jsonl",
+                {
+                    "schema_version": 1,
+                    "task_id": task_id,
+                    "agent": dict(agent_meta or {}),
+                    "results": [r.model_dump() for r in results],
+                    "exit_code": code,
+                },
+            )
+
+        summary = ", ".join(f"{r.name}={r.outcome}" for r in results)
+        return code, summary or "all green", "cafecafe1234", results, ""
+
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted)
+
+
+def _retry_config(**rungs) -> RunnerConfig:
+    def rung(model: str) -> TierConfig:
+        return TierConfig(adapter="api", command="c", provider="p", model=model)
+
+    return RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(retry_variants=dict(rungs)),
+            "executor.heavy": rung("heavy-model"),
+            "executor.ink": rung("ink-model"),
+            "executor.tidy": rung("tidy-model"),
+        }
+    )
+
+
+def _loop_deps(repo, retry_agent):
+    from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace, ScriptedAgent
+
+    from torve.adapters.store.durable import open_store
+    from torve.application.runner import RunDeps
+
+    return RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+        retry_agent=retry_agent,
+    )
+
+
+def test_a_compliance_conviction_routes_the_retry_to_the_compliance_rung(repo, monkeypatch):
+    """A red carrying a compliance and a form conviction escalates on the
+    compliance rung only: the lighter axis loses, the unmapped-to-here
+    heavier rung is never built (one rung, not a chain)."""
+    from test_run_loop import OK, ScriptedAgent, task_for
+
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _conviction_passes(
+        monkeypatch,
+        repo,
+        [[conviction("grammar"), conviction("tidy")], []],
+        seen,
+    )
+
+    built: list[str] = []
+
+    def retry_agent(tier):
+        built.append(tier.model)
+        return ScriptedAgent([OK])
+
+    config = _retry_config(functional="executor.heavy", compliance="executor.ink", form="executor.tidy")
+    state = run_task(repo.root, task_for(repo), config, _loop_deps(repo, retry_agent))
+
+    assert state.state is TaskState.READY
+    assert state.attempts == 2
+    assert built == ["ink-model"]
+    assert [meta["tier"] for meta in seen] == ["executor", "executor.ink"]
+
+
+def test_a_boundary_conviction_retries_under_the_same_tier_never_a_heavier_one(repo, monkeypatch):
+    """A fence defect resolves no rung whatever the mapping says elsewhere:
+    the retry is the gate's own repair text on the same tier, and the
+    heavier rungs join nothing."""
+    from test_run_loop import task_for
+
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _conviction_passes(monkeypatch, repo, [[conviction("fence"), conviction("tidy")], []], seen)
+
+    def retry_agent(tier):
+        raise AssertionError("a boundary conviction must not reach any rung's factory")
+
+    config = _retry_config(functional="executor.heavy", compliance="executor.ink", form="executor.tidy")
+    state = run_task(repo.root, task_for(repo), config, _loop_deps(repo, retry_agent))
+
+    assert state.state is TaskState.READY
+    assert state.attempts == 2
+    assert [meta["tier"] for meta in seen] == ["executor", "executor"]
+
+
+def test_the_scalar_mirror_still_routes_every_unclassified_red(repo, monkeypatch):
+    """D-27.11 compatibility: a configured scalar is the functional rung of
+    the resolved mapping, and it still fires after reds whose record names
+    no gate (the scripted recordless red — the empty-diff shape)."""
+    from test_run_loop import OK, ScriptedAgent, task_for
+
+    from torve.application.runner import run_task
+
+    repo.seed()
+    seen: list[dict] = []
+    _conviction_passes(monkeypatch, repo, [None, []], seen)
+
+    built: list[str] = []
+
+    def retry_agent(tier):
+        built.append(tier.model)
+        return ScriptedAgent([OK])
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(retry_variant="executor.heavy"),
+            "executor.heavy": TierConfig(adapter="api", command="c", provider="p", model="heavy-model"),
+        }
+    )
+    state = run_task(repo.root, task_for(repo), config, _loop_deps(repo, retry_agent))
+
+    assert state.attempts == 2
+    assert built == ["heavy-model"]
+    assert [meta["tier"] for meta in seen] == ["executor", "executor.heavy"]
+
+
+def test_the_chosen_rung_is_derivable_from_telemetry_records_alone(repo, monkeypatch):
+    """D-34.5's claim made testable: replay the rung choice from the rows —
+    names, outcomes and states are the record's own fields, the axis labels
+    and the rung map are the configuration they were recorded beside — and
+    no attempt-level trace enters the derivation."""
+    from test_run_loop import task_for
+
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    _conviction_passes(
+        monkeypatch,
+        repo,
+        [[conviction("grammar"), conviction("tidy")], []],
+        [],
+        append_telemetry=True,
+    )
+
+    from test_run_loop import OK, ScriptedAgent
+
+    retry_agent = lambda tier: ScriptedAgent([OK])  # noqa: E731
+    config = _retry_config(functional="executor.heavy", compliance="executor.ink", form="executor.tidy")
+    state = run_task(repo.root, task_for(repo), config, _loop_deps(repo, retry_agent))
+
+    assert state.state is TaskState.READY
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    assert [row["agent"]["tier"] for row in rows] == ["executor", "executor.ink"]
+
+    # The replay, independent of the runner: severity ladder and axis map as
+    # declared, rung map as configured, outcomes as recorded.
+    axis_of = {gate["name"]: gate["axis"] for gate in RETRY_MANIFEST["gates"]}
+    convicted = {
+        axis_of[result["name"]]
+        for result in rows[0]["results"]
+        if result["outcome"] == "fail" and result["state"] == "blocking"
+    }
+    most_severe = next(
+        axis for axis in ("functional", "boundary", "compliance", "form") if axis in convicted
+    )
+    assert most_severe == "compliance"
+    assert config.tiers["executor"].resolved_retry_variants()[most_severe] == rows[1]["agent"]["tier"]
