@@ -1,0 +1,19 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0231
+rfc: rfcs/0034-task-character-and-conviction-routed-retries.md
+role: review
+intent: Review T-0229's diff against its contract and inherited decisions.
+targets:
+- T-0229
+decisions:
+- id: D-34.4
+  grade: ASSUMED
+  text: A gate declaration may carry `axis:` with value `functional`, `boundary`,
+    `compliance` or `form`; an unlabeled gate reads as functional
+  paths:
+  - src/torve/config/manifest.py
+  - .torve/gates.yaml
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1

@@ -4,11 +4,14 @@ rfc: rfcs/0034-task-character-and-conviction-routed-retries.md
 phase: 3
 role: implement
 title: conviction routed retries
-intent: retry_variants keyed by axis with the scalar form kept as sugar for functional (D-34.6); after
-  a red attempt the runner groups the attempt's failing gates by axis and resolves the rung for the
-  most severe axis present in the fixed order functional > boundary > compliance > form, reading only
-  recorded gate outcomes (D-34.5); boundary resolves no rung (D-34.7). A replay-shaped test derives
-  the chosen rung from telemetry records alone.
+intent: 'retry_variants keyed by axis with the scalar form kept as sugar for functional (D-34.6);
+  after a red attempt the runner groups the attempt''s failing gates by axis and resolves the rung
+  for the most severe axis present in the fixed order functional > boundary > compliance > form, reading
+  only recorded gate outcomes (D-34.5); boundary resolves no rung (D-34.7). A replay-shaped test derives
+  the chosen rung from telemetry records alone. Every rung in retry_variants — every axis, not only
+  the scalar mirror''s functional one — joins the run''s broker routing derivation and the dispatch-time
+  per-repository provider check (D-4.8), exactly as include_retry routes the single rung today: no
+  retry may run under a provider the repository denies, on any axis.'
 depends_on:
 - T-0215
 parent: null
