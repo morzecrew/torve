@@ -2,7 +2,7 @@
 id: "0036"
 title: Test evidence
 kind: design
-status: draft
+status: accepted
 depends_on: ["0002", "0005"]
 informed_by: ["0009", "0023", "0034"]
 supersedes: []

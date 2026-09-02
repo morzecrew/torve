@@ -1,7 +1,7 @@
 ---
 id: "0040"
 title: The why projection
-status: draft
+status: accepted
 depends_on: ["0007", "0032", "0038"]
 informed_by: ["0008", "0034", "0037", "0039"]
 supersedes: []

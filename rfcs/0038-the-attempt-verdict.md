@@ -1,7 +1,7 @@
 ---
 id: "0038"
 title: The attempt verdict
-status: draft
+status: accepted
 depends_on: ["0002", "0004", "0006"]
 informed_by: ["0021", "0026", "0034", "0037"]
 supersedes: []
