@@ -1,0 +1,110 @@
+schema_version: 1
+task: T-0225
+repo: morzecrew/torve
+base_sha: 37bef563f50758ea9f65097c7dca2f1be29f28f8
+drift_count: 0
+entries:
+  - decision: D-35.2
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: 2026-09-02T10:53:34Z
+    attempt: 1
+    claim: >-
+      the decision's mechanism — pyproject and uv.lock COPY'd into the battery
+      image — assumes those files sit in the build context, but every
+      sanctioned build of a definition sends the definition's own directory
+      (.torve/sandbox/<name>/) as the context, so a bare `COPY pyproject.toml
+      uv.lock` never sees the repository's files: `torve sandbox build
+      battery`, the intake configuration lint, and CI's publish context would
+      all die on the COPY. Committing copies of the two files under
+      .torve/sandbox/battery/ would fix the view but lies outside this task's
+      scope.allow, and no Dockerfile-only primitive can COPY conditionally.
+      Departure: the layer ships guarded — the definition copies its whole
+      (tiny) context in and bakes `uv sync --all-extras --no-install-project`
+      into a fixed UV_PROJECT_ENVIRONMENT only when the context carries the
+      two committed inputs, so a staged context (Dockerfile + pyproject.toml +
+      uv.lock) produces the warm image the decision describes, verified by
+      this task's conformance cases, while the unsanctioned bare-definition
+      build keeps producing exactly today's thin image — the layer is a
+      convenience, never a requirement, enforced by construction.
+    evidence: >-
+      src/torve/cli/sandbox.py:124 — build_image is passed
+      `definitions_root(root) / entry` as its only context;
+      src/torve/application/intake.py:450 builds linted definitions the same
+      way; .github/workflows/publish.yml:125 pins `context:
+      .torve/sandbox/${{ matrix.name }}`; rfcs/0035-warm-starts.md:119-121 is
+      the literal snippet, written as if the repository root were the context
+    action: departed
+    proposal: >-
+      amend D-35.2 (or its paths) to settle the context: either commit
+      pyproject.toml and uv.lock into .torve/sandbox/battery/ as the
+      definition's copies with a byte-identity test against the repository
+      root (the dsh-overlay convention), or teach `torve sandbox build` a
+      per-definition staging list — then the guarded COPY collapses to the
+      literal one the RFC snippet shows.
+    notes: |
+      Not drift: the spec predated nobody noticing that 0035's snippet is
+      written against a repo-root context while 0017's D-17.2 machinery is
+      not; the guard keeps both truths simultaneously — warm when staged,
+      cold-and-green when not, no new silent fallback because a staged
+      build that finds corrupt lock bytes fails the build (asserted).
+
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-02T10:54:10Z
+    attempt: 1
+    claim: >-
+      the contract does not settle how the conformance case gets the warm
+      image through a build the engine itself cannot yet run, nor what
+      "performs no package downloads inside an attempt" observes. Decided
+      here: the test stages the context (the definition's Dockerfile plus the
+      repository's own pyproject.toml and uv.lock) and builds it with docker
+      directly; the attempt-side probe is `uv sync --check --frozen
+      --all-extras --no-install-project` — the bake's own sync set, verifying
+      the environment against the lock without writing — executed inside a
+      container started with `--network none`, so any download attempt is
+      physically impossible and a green probe proves the layer served the
+      reconcile. The probe deliberately mirrors `--no-install-project`: the
+      project itself is per-attempt source, never layer; its build-backend
+      fetch (hatchling, absent from uv.lock) is the uv cache volume's
+      business, phase 2 (D-35.4).
+    evidence: >-
+      tests/test_sandbox_images.py:278-352 — the staged-context helper and
+      the network-none reconcile case as implemented; uv.lock:1500-1511 —
+      the lock lists no build-system requires for the torve package
+    action: decided
+    proposal: >-
+      a row for the battery's warm-build convention (staged context) until
+      the D-35.2 amendment lands, and one for what the layer is accountable
+      for at an attempt (locked dependencies, not the project build) —
+      otherwise "no downloads inside an attempt" overpromises.
+
+  - decision: D-35.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T10:54:40Z
+    attempt: 1
+    claim: >-
+      the battery Dockerfile touched here crosses warm state only in the
+      sanctioned sense: the baked venv is derived deterministically from two
+      committed inputs (pyproject.toml and uv.lock bytes, which key the
+      layer), it holds no per-attempt or agent-authored state, and the
+      /opt/torve/project path is outside the mounted workspace. Deleting the
+      layer is deletion of the image (or a cold `uv sync` in place) and
+      changes wall clock only — which is exactly what the thin-path
+      conformance case pins: the bare-definition image, with the layer
+      absent, still resolves uv and boots an attempt. No agent-authored
+      artifact crosses attempts here, so D-17.7 stands untouched; the
+      runner.py half of this decision's paths is not in this task's diff.
+    evidence: >-
+      .torve/sandbox/battery/Dockerfile:14-46 — the guarded layer and its
+      delete-is-cold rationale; tests/test_sandbox_images.py:356-402 — the
+      corrupt-lock case proving rebuild-on-lock-change and the thin-build
+      case proving the layer's absence changes capability nothing
+    action: decided
+    notes: |
+      The Dockerfile is one of D-35.1's declared paths, so the touched
+      LOCKED area owes this attestation.

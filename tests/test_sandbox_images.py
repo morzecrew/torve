@@ -244,3 +244,159 @@ def test_toolkit_contract_answers_in_the_container(name):
         assert probe.returncode == 0, probe.stderr
     finally:
         subprocess.run(["docker", "rmi", "-f", f"torve-agent:{name}"], capture_output=True, check=False)
+
+
+# ....................... #
+# The battery's dependency layer (D-35.2): pyproject.toml and uv.lock baked
+# by `uv sync --all-extras --no-install-project` into a fixed
+# UV_PROJECT_ENVIRONMENT, keyed to the lock's bytes so an attempt with an
+# unchanged lock reconciles the delta with zero package downloads. The bake
+# is context-staged — `torve sandbox build battery` (context: the definition
+# directory alone) yields today's thin image, a context staged with the two
+# project inputs yields the warm one — the layer is a convenience, never a
+# requirement.
+
+LAYER_IMAGE = "torve-agent:battery-layer-probe"
+
+
+def test_battery_bakes_the_lockfile_keyed_dependency_layer():
+    # D-35.2 at the text level, so the layer cannot silently vanish where
+    # no daemon runs: the fixed environment path, a build-time sync of the
+    # two project inputs under the flags that make it a dependency layer
+    # (--no-install-project keeps the per-attempt source out of it), and
+    # the check asserting the baked venv resolves against the lock.
+    text = _definition_dockerfile("battery").read_text(encoding="utf-8")
+    assert re.search(
+        r"^ENV\s+UV_PROJECT_ENVIRONMENT=/opt/torve/project/\.venv\s*$", text, re.MULTILINE
+    ), "battery: UV_PROJECT_ENVIRONMENT is not fixed at the layer path"
+    assert re.search(r"uv sync[^\n]*--all-extras[^\n]*--no-install-project", text), (
+        "battery: no lockfile-keyed uv sync at build"
+    )
+    assert re.search(r"uv sync[^\n]*--check", text), "battery: the layer ships no build-time check"
+
+
+def _stage_battery_context(tmp_path: Path) -> Path:
+    context = tmp_path / "battery-context"
+    context.mkdir()
+    shutil.copy(_definition_dockerfile("battery"), context / "Dockerfile")
+    shutil.copy(REPO_ROOT / "pyproject.toml", context / "pyproject.toml")
+    shutil.copy(REPO_ROOT / "uv.lock", context / "uv.lock")
+    return context
+
+
+def _build_battery(tag: str, context: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["docker", "build", "-t", tag, str(context)],
+        capture_output=True,
+        text=True,
+        timeout=1800,
+        check=False,
+    )
+
+
+def _remove_battery(tag: str) -> None:
+    subprocess.run(["docker", "rmi", "-f", tag], capture_output=True, check=False)
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@pytest.mark.timeout(1800)
+def test_unchanged_lockfile_downloads_nothing_in_an_attempt(tmp_path):
+    # The conformance case: the baked venv checked with `uv sync --check`
+    # over the exact lock bytes the bake consumed, inside a container whose
+    # only network is none. A green check on a routeless container means
+    # reconciling an unchanged lockfile performed no package downloads —
+    # the attempt-side mirror of the bake's own sync set.
+    built = _build_battery(LAYER_IMAGE, _stage_battery_context(tmp_path))
+    assert built.returncode == 0, built.stderr[-4000:]
+    try:
+        started = subprocess.run(
+            ["docker", "run", "--rm", "-d", "--network", "none", LAYER_IMAGE, "sleep", "600"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        container = started.stdout.strip()
+        try:
+            subprocess.run(
+                ["docker", "exec", container, "mkdir", "-p", "/workspace"],
+                capture_output=True,
+                check=True,
+            )
+
+            for project_file in ("pyproject.toml", "uv.lock"):
+                subprocess.run(
+                    [
+                        "docker",
+                        "cp",
+                        str(REPO_ROOT / project_file),
+                        f"{container}:/workspace/{project_file}",
+                    ],
+                    check=True,
+                )
+
+            reconciled = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    container,
+                    "sh",
+                    "-c",
+                    "cd /workspace && uv sync --check --locked --all-extras --no-install-project",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert reconciled.returncode == 0, reconciled.stdout + reconciled.stderr
+        finally:
+            subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
+    finally:
+        _remove_battery(LAYER_IMAGE)
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@pytest.mark.timeout(1800)
+def test_the_layer_is_keyed_to_the_lockfile_bytes(tmp_path):
+    # A lockfile change rebuilds the layer — and the rebuild is governed by
+    # the new bytes the moment the layer re-runs: a staged lock that stops
+    # parsing fails the build rather than serving a stale warm lie from
+    # cache. (A cached good build never re-runs the sync at all.)
+    context = _stage_battery_context(tmp_path)
+    context.joinpath("uv.lock").write_text("not a lockfile {{{\n", encoding="utf-8")
+    built = _build_battery(LAYER_IMAGE, context)
+    assert built.returncode != 0
+    assert "uv.lock" in built.stdout + built.stderr
+    _remove_battery(LAYER_IMAGE)
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@pytest.mark.timeout(1800)
+def test_the_bare_definition_builds_thin_as_before():
+    # The layer is a convenience, never a requirement: the path the engine
+    # itself takes — `torve sandbox build battery`, the definition
+    # directory as the only context — still produces today's thin image.
+    # The build succeeds, the uv the battery needs is there, and no baked
+    # venv exists to go stale. Deleting the layer changes nothing but wall
+    # clock, which is exactly this image at boot.
+    built = CliRunner().invoke(
+        app, ["sandbox", "build", "battery", "--root", str(REPO_ROOT), "--format", "json"]
+    )
+    assert built.exit_code == 0, built.output
+    try:
+        probe = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "torve-agent:battery",
+                "sh",
+                "-c",
+                "uv --version >/dev/null && test ! -d /opt/torve/project/.venv",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert probe.returncode == 0, probe.stderr
+    finally:
+        subprocess.run(
+            ["docker", "rmi", "-f", "torve-agent:battery"], capture_output=True, check=False
+        )
