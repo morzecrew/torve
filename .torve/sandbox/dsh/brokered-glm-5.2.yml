@@ -1,0 +1,22 @@
+# glm-5.2 through the ModelStudio token plan, brokered (D-21.1). Same
+# shape as brokered-deepseek-v4-flash.yml: the overlay is static, per-run
+# route and token arrive as environment. Context bounds are the plan
+# console's conservative defaults; a correction is a new digest.
+- id: llm-pi-ai
+  config:
+    providers:
+      torve-broker:
+        api: openai-completions
+        baseURL: !!js process.env.TORVE_BROKER_URL
+        apiKeyEnv: TORVE_BROKER_TOKEN
+        models:
+          - id: glm-5.2
+            name: GLM 5.2
+            contextWindow: 128000
+            maxTokens: 16384
+            input: [text]
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: torve-broker
+    model: glm-5.2

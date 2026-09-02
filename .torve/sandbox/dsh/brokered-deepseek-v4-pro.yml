@@ -1,0 +1,21 @@
+# deepseek-v4-pro through the ModelStudio token plan, brokered (D-21.1) —
+# a candidate heavy rung billed to the subscription. Same static-overlay
+# shape as its flash sibling.
+- id: llm-pi-ai
+  config:
+    providers:
+      torve-broker:
+        api: openai-completions
+        baseURL: !!js process.env.TORVE_BROKER_URL
+        apiKeyEnv: TORVE_BROKER_TOKEN
+        models:
+          - id: deepseek-v4-pro
+            name: DeepSeek V4 Pro
+            contextWindow: 128000
+            maxTokens: 16384
+            input: [text]
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: torve-broker
+    model: deepseek-v4-pro

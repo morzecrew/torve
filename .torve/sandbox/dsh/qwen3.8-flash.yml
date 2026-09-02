@@ -1,10 +1,16 @@
+# qwen3.8-flash, repointed 2026-09-01 from OpenRouter to the ModelStudio
+# token plan through the run's egress broker (D-21.1: no credential in the
+# overlay; per-run route and token arrive as TORVE_BROKER_URL/TOKEN). A
+# different route is a different digest — a visible regime change (D-17.4).
 - id: llm-pi-ai
   config:
     providers:
-      openrouter:
-        apiKeyEnv: OPENROUTER_API_KEY
+      torve-broker:
+        api: openai-completions
+        baseURL: !!js process.env.TORVE_BROKER_URL
+        apiKeyEnv: TORVE_BROKER_TOKEN
         models:
-          - id: qwen/qwen3.8-flash
+          - id: qwen3.8-flash
             name: Qwen3.8 Flash
             contextWindow: 1000000
             maxTokens: 65536
@@ -12,5 +18,5 @@
             reasoningEfforts: false
 - id: agent-default-model
   config:
-    provider: openrouter
-    model: qwen/qwen3.8-flash
+    provider: torve-broker
+    model: qwen3.8-flash

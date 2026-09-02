@@ -1,0 +1,21 @@
+# qwen3.8-max through the ModelStudio token plan, brokered (D-21.1) —
+# the plan's strongest qwen, night-discounted; a candidate for seats
+# where flash fumbles. Same static-overlay shape as the family.
+- id: llm-pi-ai
+  config:
+    providers:
+      torve-broker:
+        api: openai-completions
+        baseURL: !!js process.env.TORVE_BROKER_URL
+        apiKeyEnv: TORVE_BROKER_TOKEN
+        models:
+          - id: qwen3.8-max
+            name: Qwen3.8 Max
+            contextWindow: 256000
+            maxTokens: 32768
+            input: [text]
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: torve-broker
+    model: qwen3.8-max

@@ -30,6 +30,12 @@ COPY deepseek-chat.yml /opt/torve/overlays/deepseek-chat.yml
 COPY qwen3.8-flash.yml /opt/torve/overlays/qwen3.8-flash.yml
 COPY brokered-deepseek.yml /opt/torve/overlays/brokered-deepseek.yml
 COPY brokered-deepseek-v4-flash.yml /opt/torve/overlays/brokered-deepseek-v4-flash.yml
+# The ModelStudio token-plan seats (2026-09-01): glm-5.2, deepseek-v4-pro
+# and qwen3.8-max join the roster brokered; qwen3.8-flash above is
+# repointed from OpenRouter to the same plan.
+COPY brokered-glm-5.2.yml /opt/torve/overlays/brokered-glm-5.2.yml
+COPY brokered-deepseek-v4-pro.yml /opt/torve/overlays/brokered-deepseek-v4-pro.yml
+COPY brokered-qwen3.8-max.yml /opt/torve/overlays/brokered-qwen3.8-max.yml
 # Usage extraction (D-4.6, self-reported regime): headless dsh prints no
 # usage; the session log carries it. The reporter sums it and prints the
 # one JSON line parse_metadata reads. Named /opt/torve/report-usage so the
@@ -41,4 +47,7 @@ RUN mkdir -p /opt/dsh \
  && ln -s /opt/torve/overlays/deepseek-chat.yml /opt/dsh/deepseek-chat.yml \
  && ln -s /opt/torve/overlays/qwen3.8-flash.yml /opt/dsh/qwen3.8-flash.yml \
  && ln -s /opt/torve/overlays/brokered-deepseek.yml /opt/dsh/brokered-deepseek.yml \
- && ln -s /opt/torve/overlays/brokered-deepseek-v4-flash.yml /opt/dsh/brokered-deepseek-v4-flash.yml
+ && ln -s /opt/torve/overlays/brokered-deepseek-v4-flash.yml /opt/dsh/brokered-deepseek-v4-flash.yml \
+ && ln -s /opt/torve/overlays/brokered-glm-5.2.yml /opt/dsh/brokered-glm-5.2.yml \
+ && ln -s /opt/torve/overlays/brokered-deepseek-v4-pro.yml /opt/dsh/brokered-deepseek-v4-pro.yml \
+ && ln -s /opt/torve/overlays/brokered-qwen3.8-max.yml /opt/dsh/brokered-qwen3.8-max.yml
