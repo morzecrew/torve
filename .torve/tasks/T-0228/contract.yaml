@@ -1,0 +1,57 @@
+# Hand-minted by the operator against RFC 0032 (serve surface, A-77 dashboard).
+schema_version: 1
+id: T-0228
+rfc: rfcs/0032-the-serve-surface.md
+phase: 0
+role: implement
+title: pagination for the served tables
+intent: >-
+  Every DataTable in the served dashboard paginates client-side: a page
+  size the reader can change (25 default; 50/100 offered), first/prev/
+  next/last controls with a "rows X–Y of N" line, styled in the existing
+  glass vocabulary and left-aligned like the rest of the table chrome.
+  Sorting and the global filter operate over the FULL row set before
+  pagination (TanStack's pagination row model composes after the sorted
+  and filtered models); expandable detail rows keep working on every
+  page. The Board/Programme dropdown filters and live counts are
+  untouched. The bundle is rebuilt into src/torve/_web (D-32.4, vendored
+  and checked per D-32.5).
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - web/src/**
+  - src/torve/_web/**
+  deny: []
+acceptance:
+- cd web && npm run build
+- git diff --exit-code -- src/torve/_web
+- uv run torve rfc check
+decisions:
+- id: D-32.1
+  grade: LOCKED
+  text: The serve surface re-exposes the existing projections verbatim; no endpoint derives,
+    filters or reshapes what a projection already answers
+  paths:
+  - src/torve/cli/serve.py
+  - src/torve/application/projections.py
+- id: D-32.4
+  grade: ASSUMED
+  text: The web bundle ships as wheel package data under src/torve/_web, built from web/
+  paths:
+  - src/torve/_web/**
+  - web/**
+- id: D-32.5
+  grade: ASSUMED
+  text: 'The bundle is vendored and checked: a deterministic Vite build, CI rebuilding and
+    diffing src/torve/_web against a fresh build'
+  paths:
+  - .github/workflows/serve-bundle.yml
+  - src/torve/_web/**
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
