@@ -265,6 +265,7 @@ assembly. Phase 3 is investigation-gated by its own decision.
 ```yaml
 - phase: 1
   title: the composition root
+  character: structural
   intent: >-
     src/torve/cli/assembly.py: builders producing RunDeps, TickDeps
     and the intake/review legs from (root, config); run_cmd, tick_cmd
@@ -290,6 +291,8 @@ assembly. Phase 3 is investigation-gated by its own decision.
   depends_on: []
 - phase: 2
   title: quiesce and recovery as substrate steps
+  character: structural
+  tier_variant: heavy
   intent: >-
     Tick shutdown drains through forze's quiesce plane; the recovery
     invocation moves from the reaper's ad hoc call to the substrate's
@@ -312,6 +315,7 @@ assembly. Phase 3 is investigation-gated by its own decision.
   depends_on: [1]
 - phase: 3
   title: the tracker outbox investigation
+  character: structural
   intent: >-
     The timeboxed D-42.5 investigation: map D-8.2's staged-effect
     semantics onto forze_kits.integrations.outbox and record the

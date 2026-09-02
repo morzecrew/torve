@@ -1,15 +1,14 @@
-# Minted by `torve plan 0042` — phase 1: the composition root
 schema_version: 1
 id: T-0244
 rfc: rfcs/0042-the-composition-root-and-the-substrate-runtime.md
 phase: 1
 role: implement
 title: the composition root
-intent: 'src/torve/cli/assembly.py: builders producing RunDeps, TickDeps and the intake/review
-  legs from (root, config); run_cmd, tick_cmd and the fleet loop consume them; fleet._build_deps
-  is deleted (D-42.1). Behaviour-preserving and layering-preserving (D-42.2): front-door checks
-  stay in the verbs, bundles and ports unchanged. Assembly builder tests land with the extraction;
-  verb scenario tests pin behaviour unchanged.'
+intent: 'src/torve/cli/assembly.py: builders producing RunDeps, TickDeps and the intake/review legs
+  from (root, config); run_cmd, tick_cmd and the fleet loop consume them; fleet._build_deps is deleted
+  (D-42.1). Behaviour-preserving and layering-preserving (D-42.2): front-door checks stay in the verbs,
+  bundles and ports unchanged. Assembly builder tests land with the extraction; verb scenario tests
+  pin behaviour unchanged.'
 depends_on: []
 parent: null
 targets: []
@@ -22,6 +21,8 @@ scope:
   - tests/test_cli.py
   - tests/test_fleet_cli.py
   - tests/test_run_loop.py
+  - tests/test_tick.py
+  - tests/test_fleet.py
   deny: []
 acceptance:
 - uv run pytest tests/test_cli.py tests/test_fleet_cli.py tests/test_run_loop.py
@@ -29,11 +30,12 @@ acceptance:
 - uv run mypy src
 - uv run basedpyright src
 - uv run ruff check .
+- uv run pytest tests/test_tick.py tests/test_fleet.py
 decisions:
 - id: D-42.1
   grade: LOCKED
-  text: One composition root in `src/torve/cli/assembly.py` produces every dep bundle; verbs
-    consume it and no verb builds adapters inline again
+  text: One composition root in `src/torve/cli/assembly.py` produces every dep bundle; verbs consume
+    it and no verb builds adapters inline again
   paths:
   - src/torve/cli/assembly.py
   - src/torve/cli/run.py
@@ -41,35 +43,35 @@ decisions:
   - src/torve/cli/fleet.py
 - id: D-42.2
   grade: LOCKED
-  text: 'The extraction is behaviour-preserving and layering-preserving: same bundles, same
-    ports, no `lint-imports` change, front-door policy stays in the verbs'
+  text: 'The extraction is behaviour-preserving and layering-preserving: same bundles, same ports,
+    no `lint-imports` change, front-door policy stays in the verbs'
   paths:
   - src/torve/cli/assembly.py
 - id: D-42.3
   grade: ASSUMED
-  text: Tick shutdown runs forze's quiesce plane over what the tick started; recovery becomes
-    the substrate's step at tick start, replacing the ad hoc invocation with identical semantics
+  text: Tick shutdown runs forze's quiesce plane over what the tick started; recovery becomes the
+    substrate's step at tick start, replacing the ad hoc invocation with identical semantics
   paths:
   - src/torve/application/loop.py
   - src/torve/application/taskstore.py
 - id: D-42.4
   grade: ASSUMED
-  text: Substrate machinery is adopted only where it displaces a hand-rolled equivalent behind
-    an existing port; adoption without displacement is refused
+  text: Substrate machinery is adopted only where it displaces a hand-rolled equivalent behind an
+    existing port; adoption without displacement is refused
   paths:
   - src/torve/application/taskstore.py
 - id: D-42.5
   grade: OPEN
   text: Whether forze's outbox integration fits D-8.2's staging semantics — settled by a timeboxed
-    investigation task; fit → migration under the unchanged tracker suite, no fit → the finding
-    and the hand-rolled outbox stay, recorded
+    investigation task; fit → migration under the unchanged tracker suite, no fit → the finding and
+    the hand-rolled outbox stay, recorded
   paths:
   - src/torve/application/tracker.py
 - id: D-42.6
   grade: OPEN
-  text: The resident engine (a long-lived process owning cadence via the substrate scheduler
-    — the home for off-peak windows and the serve write path) contradicts RFC 0019 §2; building
-    it requires the owner amending that doctrine first. This row is the reopening's address
+  text: The resident engine (a long-lived process owning cadence via the substrate scheduler — the
+    home for off-peak windows and the serve write path) contradicts RFC 0019 §2; building it requires
+    the owner amending that doctrine first. This row is the reopening's address
   paths:
   - src/torve/application/loop.py
 budget:
@@ -78,4 +80,4 @@ budget:
   tokens: null
 tier: executor
 tier_variant: null
-character: null
+character: structural
