@@ -1,0 +1,35 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0237
+rfc: rfcs/0005-review-as-a-run.md
+role: review
+intent: Review T-0227's diff against its contract and inherited decisions.
+targets:
+- T-0227
+decisions:
+- id: D-5.2
+  grade: LOCKED
+  text: 'The reviewer works in a disposable copy of the target worktree and holds
+    no forge credential; the diff under judgment is composed before the copy exists,
+    nothing written in the copy survives the review, and the runner posts comments
+    (reworded by A-78; was: read-only workspace)'
+  paths:
+  - src/torve/application/review.py
+  - src/torve/adapters/runtime/**
+- id: D-5.3
+  grade: LOCKED
+  text: The reviewer never receives the author's session trace
+  paths:
+  - src/torve/application/review.py
+- id: D-5.16
+  grade: ASSUMED
+  text: "Inside its disposable copy the reviewer may execute the target's acceptance\
+    \ commands and gates; command output it cites is evidence like any path:line,\
+    \ and execution spends the review attempt's own budget and timeout \u2014 a battery\
+    \ too slow for the review window is a finding about the battery, never a license\
+    \ to extend the review. Added by amendment A-78 2026-09-01"
+  paths:
+  - src/torve/application/review.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
