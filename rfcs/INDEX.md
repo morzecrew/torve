@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0041**.
+number is **0043**.
 
 ## Design
 
@@ -49,6 +49,8 @@ number is **0041**.
 | [0038](0038-the-attempt-verdict.md) | The attempt verdict | draft | none | 0002, 0004, 0006 | — | Every attempt ends in exactly one durable telemetry row stamped with its attempt number and an engine-derived verdict, and every escalation lands an engine event — how a run ended stops dying with the state file. |
 | [0039](0039-durable-traces-and-the-burn-profile.md) | Durable traces and the burn profile | draft | none | 0002, 0004 | — | Session traces moved from reap-swept worktree siblings into a retention-capped local store with relative references, plus a best-effort per-turn burn profile on the attempt row — where the tokens went becomes readable after the run is gone. |
 | [0040](0040-the-why-projection.md) | The why projection | draft | none | 0007, 0032, 0038 | — | One on-demand per-task projection — torve why — joining attempt rows, verdicts, convictions, reviews, escalations and costs into a chronological timeline, rendered by CLI, MCP and serve from one reader. |
+| [0041](0041-remote-sandboxes.md) | Remote sandboxes | draft | none | 0003, 0017, 0021, 0033 | — | The OpenSandbox runtime matured into a first-class remote execution target — live-server conformance, registry-delivered images, measured workspace transfer, and a broker the sandbox can actually reach — so agent sessions and gate batteries run on machines that are not the operator's. |
+| [0042](0042-the-composition-root-and-the-substrate-runtime.md) | The composition root and the substrate runtime | draft | none | 0008, 0015, 0019 | — | One composition root instead of per-verb wiring, and the substrate's runtime machinery adopted where torve hand-rolls it — the enabling move for any deployment shape beyond "the operator's shell", with the resident-server question named and demand-gated, not smuggled. |
 
 ## Conventions
 
