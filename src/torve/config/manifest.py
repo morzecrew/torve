@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -14,6 +15,16 @@ from torve.domain.attempt import GateInput, GateState
 from torve.domain.task import SCHEMA_VERSION, Scope
 
 # ----------------------- #
+
+# What a conviction from this gate means (D-34.4). The tuple is the vocabulary
+# in the order the corpus lists it — retry selection reads it as a severity
+# order, but that reading is the runner's rule, not this file's. An unlabeled
+# gate resolves to UNLABELED_AXIS in `resolved_gates()`: the fail-safe routes
+# its retry to the heaviest rung, so a missing label costs money, never
+# correctness.
+GateAxis = Literal["functional", "boundary", "compliance", "form"]
+GATE_AXES: tuple[GateAxis, ...] = ("functional", "boundary", "compliance", "form")
+UNLABELED_AXIS: GateAxis = "functional"
 
 
 class Gate(BaseModel):
@@ -28,6 +39,11 @@ class Gate(BaseModel):
     cannot express shadow or quarantine, and provenance is unrecoverable
     later. `shadow` and `quarantined` gates run and report but never affect
     the exit code (§7.3).
+
+    `axis` is the optional conviction label (D-34.4): what a red result from
+    this gate means. An entry without it reads as `functional` once
+    `resolved_gates()` fills the default; the declaration itself stays absent
+    so the manifest diff shows only labels the operator chose.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -38,6 +54,7 @@ class Gate(BaseModel):
     added: date | None = None
     input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
     timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
+    axis: GateAxis | None = None  # derived for unlabeled entries, functional
     commands: list[str] = Field(default_factory=list)
 
     # ....................... #
@@ -153,7 +170,8 @@ class Manifest(BaseModel):
     # ....................... #
 
     def resolved_gates(self) -> list[Gate]:
-        """Gates with input and timeout filled in from builtin defaults."""
+        """Gates with input, timeout and axis filled in from builtin defaults
+        and the unlabeled default."""
 
         resolved: list[Gate] = []
 
@@ -170,6 +188,9 @@ class Manifest(BaseModel):
 
             if gate.timeout is None:
                 update["timeout"] = BUILTIN_TIMEOUTS.get(builtin or "", SHELL_GATE_TIMEOUT)
+
+            if gate.axis is None:
+                update["axis"] = UNLABELED_AXIS
 
             resolved.append(gate.model_copy(update=update) if update else gate)
 

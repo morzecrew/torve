@@ -4,10 +4,11 @@ escalations by reason, execution-log divergences ready to become
 decision-table rows, findings awaiting the operator, per-gate health, cost
 against `config_hash`, the programme view of the RFC graph (D-7.11),
 asserted `implementation` beside derived per-phase progress with
-disagreements flagged (D-7.15), and the document-level half of the
-specification-quality report (RFC 0022 §5.3, D-22.6): the same MCP surface
-that already exposes this projection carries it to a planning session with
-no new tool.
+disagreements flagged (D-7.15), the character calibration — declared
+character against the realized conviction profile, measurement only
+(D-34.8) — and the document-level half of the specification-quality report
+(RFC 0022 §5.3, D-22.6): the same MCP surface that already exposes this
+projection carries it to a planning session with no new tool.
 
 Everything here is read from files the engine already writes — contracts,
 run states, execution logs, the feedback and telemetry streams, the corpus.
@@ -29,8 +30,10 @@ import yaml
 
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
+from torve.application.telemetry import TOKEN_FIELDS
 from torve.base import naming
 from torve.config import layout, rfc_parse
+from torve.config.manifest import GATE_AXES, UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import SCHEMA_VERSION
@@ -684,6 +687,163 @@ def harness_populations(root: Path, config: RunnerConfig) -> list[dict[str, Any]
 
 # ....................... #
 
+# What enters the calibration profile as a conviction: a red result from a
+# blocking gate. `error` is kept out the way the outcome model keeps it out
+# of "red" — a broken fence escalates as gate-infrastructure failure, it does
+# not convict the work; shadow and quarantined gates run and report but
+# convict nobody. Records from streams whose gate rows carry no `state` key
+# at all read as the blocking default rather than vanish from measurement.
+_CONVICTION_OUTCOMES = frozenset({"fail"})
+_CONVICTION_STATES = frozenset({"blocking", ""})
+
+
+def _gate_axes_and_stream(root: Path) -> tuple[dict[str, str], str]:
+    """The gate-name to axis map the conviction profile groups on, and the
+    telemetry stream's configured location — both resolved through the
+    repository's gate manifest. No manifest: no labels, every gate reads on
+    the unlabeled default (`functional`), and the stream sits at the shipped
+    default path (same resolution as `specquality._telemetry_file`)."""
+
+    manifest_path = layout.gates_file(root)
+    manifest = load_manifest(manifest_path) if manifest_path.is_file() else Manifest(gates=[])
+
+    return (
+        {gate.name: gate.axis or UNLABELED_AXIS for gate in manifest.resolved_gates()},
+        manifest.telemetry,
+    )
+
+
+def _character_calibration(root: Path, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Character calibration (D-34.8): one row per task carrying a declaration
+    or a conviction — declared character, realized conviction profile grouped
+    by gate axis, attempts and token shape. The costs section already exposes
+    the per-attempt gate results and token shape and the gate-health section
+    already counts failures per gate name; this section is the join, which is
+    the shape that makes a lying declaration visible.
+
+    Measurement, never enforcement. The declared value is copied from the
+    committed contract as the planner wrote it — vocabulary validation lives
+    where character is declared, not here — and absence renders as
+    `undeclared` and is never inferred (D-34.1, D-34.2: compliance is the
+    axis nobody may declare, so it appears here only as a measured count).
+    A wrong declaration is corrected in the document by its author, the way
+    sizing estimates already earn observations."""
+
+    axis_by_gate, telemetry_rel = _gate_axes_and_stream(root)
+
+    declared: dict[str, str] = {}
+    tasks_dir = root / layout.TORVE_DIR / "tasks"
+
+    if tasks_dir.is_dir():
+        for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
+            contract_record = _load_yaml_dict(contract)
+
+            if contract_record is None:
+                continue
+
+            character = contract_record.get("character")
+
+            if character:
+                declared[str(contract_record.get("id", contract.parent.name))] = str(character)
+
+    convictions: dict[str, dict[str, int]] = {}
+    tokens: dict[str, dict[str, int]] = {}
+    telemetry = root / telemetry_rel
+
+    if telemetry.is_file():
+        for line in telemetry.read_text(encoding="utf-8").splitlines():
+            try:
+                record: Any = json.loads(line)
+
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(record, dict):
+                continue
+
+            row = cast("dict[str, Any]", record)
+            task_id = str(row.get("task_id") or "")
+
+            if not task_id or str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
+                continue
+
+            agent: Any = row.get("agent")
+
+            if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("adapter") == "fake":
+                continue  # simulation is neither spend nor conviction (D-4.6)
+
+            results: Any = row.get("results")
+
+            if isinstance(results, list):
+                for result in cast("list[object]", results):
+                    if not isinstance(result, dict):
+                        continue
+
+                    gate = cast("dict[str, Any]", result)
+
+                    if (
+                        str(gate.get("outcome", "")) in _CONVICTION_OUTCOMES
+                        and str(gate.get("state", "")) in _CONVICTION_STATES
+                    ):
+                        axis = axis_by_gate.get(str(gate.get("name", "")), UNLABELED_AXIS)
+                        profile = convictions.setdefault(task_id, {})
+                        profile[axis] = profile.get(axis, 0) + 1
+
+            if isinstance(agent, dict):
+                block = cast("dict[str, Any]", agent)
+
+                for key in TOKEN_FIELDS:
+                    value = block.get(key)
+
+                    if isinstance(value, int):
+                        shape = tokens.setdefault(task_id, {})
+                        shape[key] = shape.get(key, 0) + value
+
+    attempts = {str(task["id"]): task.get("attempts") for task in tasks}
+    found: list[dict[str, Any]] = []
+
+    for task_id in sorted(set(declared) | set(convictions)):
+        profile = convictions.get(task_id, {})
+        shape = tokens.get(task_id, {})
+
+        found.append(
+            {
+                "task": task_id,
+                "character": declared.get(task_id, "undeclared"),
+                # Vocabulary-ordered so the join reads the same in every
+                # renderer and in serve's verbatim re-exposure.
+                "convictions": {axis: profile[axis] for axis in GATE_AXES if axis in profile},
+                "attempts": attempts.get(task_id),
+                "tokens": {key: shape[key] for key in TOKEN_FIELDS if key in shape},
+            }
+        )
+
+    return found
+
+
+# ....................... #
+
+
+def conviction_profile_text(convictions: dict[str, int]) -> str:
+    """One prose cell for a profile — `functional 2, compliance 5`; the empty
+    profile reads `none`, because a clean row is a fact, not an absence."""
+
+    return ", ".join(f"{axis} {count}" for axis, count in convictions.items()) or "none"
+
+
+def token_shape_text(tokens: dict[str, int]) -> str:
+    """One prose cell for a token shape — `input 1200, cache-read 9000,
+    output 300`; unreported keys stay out and an all-absent shape says so."""
+
+    readable = {
+        key.removesuffix("_tokens").replace("_", "-"): count for key, count in tokens.items()
+    }
+
+    return ", ".join(f"{label} {count}" for label, count in readable.items()) or "unreported"
+
+
+# ....................... #
+
 
 def feedback_records(root: Path) -> dict[str, dict[str, Any]]:
     """The latest `torve feedback` record per task id — the stream is
@@ -1019,6 +1179,7 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
         "findings": _findings(root),
         "gates": _gate_health(root),
         "costs": _costs(root),
+        "character": _character_calibration(root, tasks),
         "programme": _programme(root, rfc_dir, tasks),
         "spec_quality": {
             "caveat": QUASI_EXPERIMENT_CAVEAT,
@@ -1155,6 +1316,22 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"- {name}: {gate['runs']} run(s), {gate['failures']} failure(s), "
                 f"{gate['flaky']} flaky, {gate['bypassed']} bypassed, "
                 f"mean {gate['mean_duration_s']}s, max {gate['max_duration_s']}s"
+            )
+
+        lines.append("")
+
+    if report["character"]:
+        lines.append("## Character calibration")
+        lines.append("")
+
+        for row in report["character"]:
+            attempts = (
+                f"{row['attempts']} attempt(s)" if row["attempts"] is not None else "no run state"
+            )
+            lines.append(
+                f"- **{row['task']}** {row['character']} — convictions: "
+                f"{conviction_profile_text(row['convictions'])} — {attempts}, "
+                f"tokens: {token_shape_text(row['tokens'])}"
             )
 
         lines.append("")

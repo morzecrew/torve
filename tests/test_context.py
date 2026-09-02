@@ -316,7 +316,14 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
 # actually existing on disk.
 
 
-def _write_task(root, task_id: str, *, rfc: str | None, parent: str | None = None) -> None:
+def _write_task(
+    root,
+    task_id: str,
+    *,
+    rfc: str | None,
+    parent: str | None = None,
+    character: str | None = None,
+) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     document: dict = {
@@ -336,6 +343,8 @@ def _write_task(root, task_id: str, *, rfc: str | None, parent: str | None = Non
     }
     if parent:
         document["parent"] = parent
+    if character:
+        document["character"] = character
     (task_dir / "contract.yaml").write_text(yaml.safe_dump(document), encoding="utf-8")
 
 
@@ -768,6 +777,208 @@ def test_addressed_findings_collapse_to_the_plus_line(tmp_path):
     text = CliRunner().invoke(app, ["context", "--root", str(tmp_path)])
     assert text.exit_code == 0, text.output
     assert "possibly addressed (see JSON)" in text.output
+
+
+# ....................... #
+# RFC 0034 §5.5: the character calibration section — declared character
+# against the realized conviction profile grouped by gate axis, attempts and
+# token shape. Measurement, never enforcement, and part of the report serve
+# re-exposes verbatim.
+
+
+def _write_gates(root, gates, **extra) -> None:
+    path = root / ".torve" / "gates.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump({"schema_version": 1, "gates": gates, **extra}), encoding="utf-8"
+    )
+
+
+def _append_attempt(root, task_id, results, agent=None, kind=None, stream=".torve/telemetry.jsonl"):
+    record = {
+        "schema_version": 1,
+        "at": "2026-09-02T10:00:00Z",
+        "task_id": task_id,
+        "results": results,
+    }
+    if agent is not None:
+        record["agent"] = agent
+    if kind is not None:
+        record["kind"] = kind
+    path = root / stream
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record) + "\n")
+
+
+# acceptance is declared here unlabeled on purpose: the default reading is
+# the whole fail-safe of D-34.4.
+_LABELED_GATES = [
+    {"name": "acceptance", "run": "@task.acceptance", "state": "blocking", "origin": "structural"},
+    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural", "axis": "boundary"},
+    {
+        "name": "decisions-reported",
+        "run": "@decisions-reported",
+        "state": "blocking",
+        "origin": "structural",
+        "axis": "compliance",
+    },
+    {
+        "name": "self-audit",
+        "run": "@self-audit",
+        "state": "shadow",
+        "origin": "structural",
+        "axis": "compliance",
+    },
+]
+
+
+def _calibration_rows(root):
+    return {row["task"]: row for row in context_report(root, root / "rfcs")["character"]}
+
+
+def test_character_calibration_joins_declaration_convictions_attempts_and_tokens(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md", character="structural")
+    _ready_state(tmp_path, "T-0001", attempts=3)
+    _write_gates(tmp_path, _LABELED_GATES)
+
+    harness = {"adapter": "harness", "tier": "executor"}
+    _append_attempt(
+        tmp_path,
+        "T-0001",
+        [
+            {"name": "acceptance", "outcome": "fail", "state": "blocking"},  # unlabeled: functional
+            {"name": "decisions-reported", "outcome": "fail", "state": "blocking"},
+            {"name": "scope", "outcome": "pass", "state": "blocking"},
+            {"name": "self-audit", "outcome": "fail", "state": "shadow"},  # reports, never convicts
+        ],
+        {**harness, "input_tokens": 100, "output_tokens": 20},
+    )
+    _append_attempt(
+        tmp_path,
+        "T-0001",
+        [
+            {"name": "acceptance", "outcome": "fail", "state": "blocking"},
+            {
+                "name": "acceptance",
+                "outcome": "error",
+                "state": "blocking",
+            },  # a broken fence is not a conviction
+            {"name": "ghost-gate", "outcome": "fail"},  # no state: reads as blocking
+        ],
+        {**harness, "cache_read_tokens": 500},
+    )
+    _append_attempt(
+        tmp_path,
+        "T-0001",
+        [{"name": "acceptance", "outcome": "fail", "state": "blocking"}],
+        kind="shadow",  # a replay measures regimes, it convicts nobody
+    )
+    _append_attempt(
+        tmp_path,
+        "T-0001",
+        [{"name": "acceptance", "outcome": "fail", "state": "blocking"}],
+        {"adapter": "fake"},  # simulation is not spend either
+    )
+
+    # A declaration earns a row with a clean profile; a conviction earns one
+    # undeclared; neither, and the task belongs in no row at all.
+    _write_task(tmp_path, "T-0002", rfc=None, character="routine")
+    _write_task(tmp_path, "T-0003", rfc=None)
+    _append_attempt(
+        tmp_path, "T-0003", [{"name": "acceptance", "outcome": "pass", "state": "blocking"}], harness
+    )
+    _write_task(tmp_path, "T-0004", rfc=None)
+    _append_attempt(
+        tmp_path,
+        "T-0004",
+        [{"name": "decisions-reported", "outcome": "fail", "state": "blocking"}],
+        harness,
+    )
+
+    rows = _calibration_rows(tmp_path)
+
+    assert rows["T-0001"] == {
+        "task": "T-0001",
+        "character": "structural",
+        "convictions": {"functional": 3, "compliance": 1},
+        "attempts": 3,
+        "tokens": {"input_tokens": 100, "cache_read_tokens": 500, "output_tokens": 20},
+    }
+    # Vocabulary order, deterministically, for every reader of the report.
+    assert list(rows["T-0001"]["convictions"]) == ["functional", "compliance"]
+    assert list(rows["T-0001"]["tokens"]) == ["input_tokens", "cache_read_tokens", "output_tokens"]
+    assert rows["T-0002"] == {
+        "task": "T-0002",
+        "character": "routine",
+        "convictions": {},
+        "attempts": 0,
+        "tokens": {},
+    }
+    assert rows["T-0004"]["character"] == "undeclared"
+    assert rows["T-0004"]["convictions"] == {"compliance": 1}
+    assert "T-0003" not in rows
+
+
+def test_a_missing_gates_manifest_reads_every_conviction_functional(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc=None, character="routine")
+    _append_attempt(
+        tmp_path,
+        "T-0001",
+        [{"name": "decisions-reported", "outcome": "fail", "state": "blocking"}],
+    )
+    row = _calibration_rows(tmp_path)["T-0001"]
+    assert row["convictions"] == {"functional": 1}  # unlabeled reads functional
+    assert row["attempts"] == 0
+
+
+def test_character_calibration_reads_the_configured_telemetry_stream(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc=None)
+    _write_gates(tmp_path, [], telemetry=".torve/other.jsonl")
+    _append_attempt(
+        tmp_path,
+        "T-0001",
+        [{"name": "acceptance", "outcome": "fail", "state": "blocking"}],
+        stream=".torve/other.jsonl",
+    )
+    assert _calibration_rows(tmp_path)["T-0001"]["convictions"] == {"functional": 1}
+
+
+def test_character_calibration_renders_in_all_three_formats(tmp_path):
+    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md", character="structural")
+    _ready_state(tmp_path, "T-0001", attempts=2)
+    _write_gates(tmp_path, _LABELED_GATES)
+    _append_attempt(
+        tmp_path,
+        "T-0001",
+        [
+            {"name": "acceptance", "outcome": "fail", "state": "blocking"},
+            {"name": "decisions-reported", "outcome": "fail", "state": "blocking"},
+        ],
+        {"adapter": "harness", "input_tokens": 100, "output_tokens": 20},
+    )
+
+    markdown = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "markdown"])
+    assert markdown.exit_code == 0, markdown.output
+    assert "## Character calibration" in markdown.output
+    assert (
+        "- **T-0001** structural — convictions: functional 1, compliance 1 — "
+        "2 attempt(s), tokens: input 100, output 20" in markdown.output
+    )
+
+    text = CliRunner().invoke(app, ["context", "--root", str(tmp_path)])
+    assert text.exit_code == 0, text.output
+    assert "Character calibration" in text.output
+    assert "T-0001" in text.output
+    assert "structural" in text.output
+
+    raw = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "json"])
+    assert raw.exit_code == 0, raw.output
+    parsed = json.loads(raw.output)
+    assert parsed["character"][0]["character"] == "structural"
+    # The JSON payload — what serve re-exposes verbatim — round-trips through
+    # the markdown renderer with its section intact.
+    assert "## Character calibration" in render_markdown(parsed)
 
 
 def test_status_report_is_the_status_json_envelope(plan_repo):  # noqa: F811

@@ -58,10 +58,11 @@ def context_cmd(
     """Project accumulated facts for a planning session: tasks
     by state, escalations by reason, proposals awaiting the author,
     findings awaiting the operator, gate health, cost against config_hash,
-    the programme view, and the document-level specification-quality
-    signals."""
-    # The document-signals section is RFC 0022 §5.3; the docstring is help
-    # text and carries no corpus coordinates.
+    the programme view, declared task character against realized gate
+    convictions, and the document-level specification-quality signals."""
+    # The document-signals section is RFC 0022 §5.3 and the character
+    # calibration is RFC 0034 §5.5 (D-34.8); the docstring is help text and
+    # carries no corpus coordinates.
 
     from torve.application.projections import context_report, render_markdown
 
@@ -99,6 +100,8 @@ def _age(seconds: float) -> str:
 
 
 def _render_rich(report: dict[str, Any]) -> None:
+    from torve.application.projections import conviction_profile_text, token_shape_text
+
     console = out()
     header(console, "context", f"projected {report['at']}")
     console.print()
@@ -288,6 +291,37 @@ def _render_rich(report: dict[str, Any]) -> None:
             )
 
         console.print(gates)
+
+    if report["character"]:
+        # The cell prose is the projection's own formatters — one join, the
+        # same reading in every rendering and in serve's verbatim re-exposure.
+        calibration = make_table(
+            "task",
+            "declared",
+            "convictions",
+            "attempts",
+            "tokens",
+            title="Character calibration",
+            lines=True,
+            last_max_width=44,
+        )
+
+        calibration_rows: list[tuple[Any, ...]] = [
+            (
+                Text(str(row["task"]), STYLE_ID),
+                str(row["character"]),
+                conviction_profile_text(row["convictions"]),
+                str(row["attempts"]) if row["attempts"] is not None else "—",
+                token_shape_text(row["tokens"]),
+            )
+            for row in report["character"]
+        ]
+
+        withheld = add_rows_truncated(calibration, calibration_rows, limit=40)
+        console.print(calibration)
+
+        if withheld:
+            footer(console, f"… {withheld} more task(s) (see JSON)")
 
     if report["costs"]:
         costs = make_table(

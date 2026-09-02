@@ -1,0 +1,60 @@
+schema_version: 1
+task: T-0215
+repo: morzecrew/torve
+base_sha: d2dba7510f7fa8108f6d4bd96c642532057898f9
+drift_count: 0
+entries:
+  - decision: D-34.4
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: 2026-09-02T06:40:00Z
+    attempt: 2
+    claim: >-
+      the decision's second path, this repository's own gates.yaml, cannot be
+      honored by this task: the battery is evaluated by the host engine, whose
+      manifest model predates the axis field and forbids unknown keys, so
+      labeling it here would break the very gates that certify the task
+      carrying the labels. The first attempt of this task died proving exactly
+      that. The contract was re-issued with the labeling half removed — this
+      attempt ships the schema half (the optional `axis` on the Gate model,
+      the four-word vocabulary, unlabeled reading as functional) and nothing
+      else touches this repository's manifest.
+    evidence: >-
+      .torve/tasks/T-0215/contract.yaml:10-13 — the re-issued intent dropping
+      .torve/gates.yaml from scope; the labeling itself is a hand-minted
+      follow-up whose header names this task as its precondition:
+      .torve/tasks/T-0229/contract.yaml:1-4; the forbid that makes labeling
+      fatal under the pre-axis model is src/torve/config/manifest.py:49 —
+      `extra="forbid"` on Gate
+    action: departed
+    proposal: >-
+      amend D-34.4's paths to record the self-hosting boundary: the manifest
+      model and the battery labeling cannot land in one task while the engine
+      evaluating the gates is the pre-schema host — the labeling consequence
+      belongs to T-0229, dispatched after this task's engine is the one
+      gating.
+    notes: |
+      Not drift: the decision is satisfied in two dispatches by the contract's
+      own re-issue, not built otherwise in silence.
+  - decision: D-34.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-02T07:05:00Z
+    attempt: 2
+    claim: >-
+      the character calibration section added to the context projection is
+      measurement, not a declaration path. It reads whatever `character` a
+      committed contract carries and reports absence as undeclared — it never
+      infers a character, and the declarable vocabulary is validated where
+      character is declared, upstream of this section. Compliance, the axis
+      nobody may declare, appears here only as a measured count: conviction
+      totals grouped by gate axis.
+    evidence: >-
+      src/torve/application/projections.py:737-747 — the declared character is
+      read verbatim from the contract, never inferred; absence renders as
+      undeclared at src/torve/application/projections.py:812
+    action: decided
+    notes: |
+      projections.py is one of D-34.1's declared paths, so the touched LOCKED
+      area owes this attestation.

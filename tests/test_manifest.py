@@ -73,3 +73,33 @@ def test_config_hash_tracks_manifest_and_skill_lock(tmp_path):
     path = write_manifest(tmp_path, BASE_MANIFEST)
     (tmp_path / "skills-lock.json").write_text("{}", encoding="utf-8")
     assert config_hash(path, tmp_path) != first  # the skill set is part of the regime
+
+
+# D-34.4: the axis vocabulary classifies what a conviction from a gate means.
+# The four words load; anything else is refused at load; an unlabeled entry
+# reads as functional once `resolved_gates()` fills the default.
+
+
+def _one_gate(axis=None):
+    gate = {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
+    if axis is not None:
+        gate["axis"] = axis
+    return dict(BASE_MANIFEST, gates=[gate])
+
+
+@pytest.mark.parametrize("axis", ["functional", "boundary", "compliance", "form"])
+def test_a_gate_declaration_may_carry_an_axis(tmp_path, axis):
+    manifest = load_manifest(write_manifest(tmp_path, _one_gate(axis)))
+    assert manifest.resolved_gates()[0].axis == axis  # verbatim through resolution
+
+
+def test_an_unlabeled_gate_reads_as_functional(tmp_path):
+    manifest = load_manifest(write_manifest(tmp_path, _one_gate()))
+    gate = next(g for g in manifest.gates if g.name == "scope")
+    assert gate.axis is None  # the declaration stays absent...
+    assert manifest.resolved_gates()[0].axis == "functional"  # ...the reading is functional
+
+
+def test_an_axis_outside_the_vocabulary_is_a_load_error(tmp_path):
+    with pytest.raises(ValueError, match="axis"):
+        load_manifest(write_manifest(tmp_path, _one_gate("philosophical")))
