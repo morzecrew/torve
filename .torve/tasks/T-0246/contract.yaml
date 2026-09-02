@@ -1,0 +1,77 @@
+# Minted by `torve plan 0042` — phase 3: the tracker outbox investigation
+schema_version: 1
+id: T-0246
+rfc: rfcs/0042-the-composition-root-and-the-substrate-runtime.md
+phase: 3
+role: implement
+title: the tracker outbox investigation
+intent: 'The timeboxed D-42.5 investigation: map D-8.2''s staged-effect semantics onto forze_kits.integrations.outbox
+  and record the verdict in the task log. On fit, the follow-up migration replaces the hand-rolled
+  staging under the same Tracker port with the tracker suite passing unchanged as the acceptance
+  bar; on no-fit, the hand-rolled outbox stays and the decision row gains the finding. This
+  phase is the investigation; the migration mints only from its verdict.'
+depends_on:
+- T-0244
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/tracker.py
+  - tests/test_tracker.py
+  - tests/test_outbox.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_tracker.py tests/test_outbox.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-42.1
+  grade: LOCKED
+  text: One composition root in `src/torve/cli/assembly.py` produces every dep bundle; verbs
+    consume it and no verb builds adapters inline again
+  paths:
+  - src/torve/cli/assembly.py
+  - src/torve/cli/run.py
+  - src/torve/cli/tick.py
+  - src/torve/cli/fleet.py
+- id: D-42.2
+  grade: LOCKED
+  text: 'The extraction is behaviour-preserving and layering-preserving: same bundles, same
+    ports, no `lint-imports` change, front-door policy stays in the verbs'
+  paths:
+  - src/torve/cli/assembly.py
+- id: D-42.3
+  grade: ASSUMED
+  text: Tick shutdown runs forze's quiesce plane over what the tick started; recovery becomes
+    the substrate's step at tick start, replacing the ad hoc invocation with identical semantics
+  paths:
+  - src/torve/application/loop.py
+  - src/torve/application/taskstore.py
+- id: D-42.4
+  grade: ASSUMED
+  text: Substrate machinery is adopted only where it displaces a hand-rolled equivalent behind
+    an existing port; adoption without displacement is refused
+  paths:
+  - src/torve/application/taskstore.py
+- id: D-42.5
+  grade: OPEN
+  text: Whether forze's outbox integration fits D-8.2's staging semantics — settled by a timeboxed
+    investigation task; fit → migration under the unchanged tracker suite, no fit → the finding
+    and the hand-rolled outbox stay, recorded
+  paths:
+  - src/torve/application/tracker.py
+- id: D-42.6
+  grade: OPEN
+  text: The resident engine (a long-lived process owning cadence via the substrate scheduler
+    — the home for off-peak windows and the serve write path) contradicts RFC 0019 §2; building
+    it requires the owner amending that doctrine first. This row is the reopening's address
+  paths:
+  - src/torve/application/loop.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: null
