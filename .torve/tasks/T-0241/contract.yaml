@@ -1,0 +1,33 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0241
+rfc: rfcs/0032-the-serve-surface.md
+role: review
+intent: Review T-0228's diff against its contract and inherited decisions.
+targets:
+- T-0228
+decisions:
+- id: D-32.1
+  grade: LOCKED
+  text: The serve surface re-exposes the existing projections verbatim; no endpoint
+    derives, filters or reshapes what a projection already answers
+  paths:
+  - src/torve/cli/serve.py
+  - src/torve/application/projections.py
+- id: D-32.4
+  grade: ASSUMED
+  text: The web bundle ships as wheel package data under src/torve/_web, built from
+    web/
+  paths:
+  - src/torve/_web/**
+  - web/**
+- id: D-32.5
+  grade: ASSUMED
+  text: 'The bundle is vendored and checked: a deterministic Vite build, CI rebuilding
+    and diffing src/torve/_web against a fresh build'
+  paths:
+  - .github/workflows/serve-bundle.yml
+  - src/torve/_web/**
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1

@@ -121,8 +121,9 @@ def build_review_prompt(
 
     # A-79: the prompt points at the staged diff instead of embedding it —
     # a diff carrying vendored bulk exceeds any context, and a reviewer with
-    # tools reads lazily. A short head rides along as orientation only.
-    head_lines = diff_text.splitlines()[:80]
+    # tools reads lazily. A short head rides along as orientation only,
+    # elided the same way the staged file is.
+    head_lines = elide_diff_bulk(diff_text).splitlines()[:80]
     diff_head = "\n".join(head_lines)
     diff_head_lines = len(head_lines)
 
@@ -196,6 +197,39 @@ Your final output must be exactly one JSON document, nothing after it:
 
 An empty list is a valid, complete review: {{"findings": []}}
 """
+
+
+# ....................... #
+
+# Vendored and generated paths whose diff sections are unreviewable bulk: a
+# minified bundle line is bigger than the model's whole context, and reading
+# it destroyed a review from inside the session (T-0241). The section is
+# replaced with a one-line marker naming the path; the actual bytes sit in
+# the copy's tree for a reviewer that truly needs them.
+ELIDED_DIFF_PATHS = ("src/torve/_web/", "uv.lock", "package-lock.json")
+
+
+def elide_diff_bulk(diff_text: str) -> str:
+    """Every per-file section of a unified diff whose path starts with an
+    elided prefix collapses to a marker line; all other sections pass through
+    byte-for-byte. Deterministic, path-keyed, content-blind."""
+
+    kept: list[str] = []
+    eliding = False
+
+    for line in diff_text.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            path = line.split(" b/")[-1].strip()
+            eliding = any(path.startswith(prefix) for prefix in ELIDED_DIFF_PATHS)
+
+            if eliding:
+                kept.append(f"[vendored/generated: {path} — section elided; the file is in the tree]\n")
+                continue
+
+        if not eliding:
+            kept.append(line)
+
+    return "".join(kept)
 
 
 # ....................... #
@@ -378,10 +412,12 @@ def run_review(
 
     # A-79: the diff rides the copy as a file, not the prompt — composed
     # above, before the copy existed, so the guarantee is unchanged; the
-    # prompt names the path and the reviewer reads what it needs.
+    # prompt names the path and the reviewer reads what it needs. Vendored
+    # bulk is elided even here: reading a minified bundle killed a review
+    # from inside the session, and the real bytes sit in the tree anyway.
     diff_path = copy / ".torve" / "tmp" / "review.diff"
     diff_path.parent.mkdir(parents=True, exist_ok=True)
-    diff_path.write_text(diff_text, encoding="utf-8")
+    diff_path.write_text(elide_diff_bulk(diff_text), encoding="utf-8")
 
     spec = SandboxSpec(
         name=naming.sandbox_name(review.id, state.run_id) + "-a1",
