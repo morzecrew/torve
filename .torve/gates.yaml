@@ -4,6 +4,10 @@
 # Every entry carries `state` and `origin` (D-2.19, A-8): state is the
 # activation lifecycle (shadow | blocking | quarantined — RFC 0002 §7.3),
 # origin answers "why do we have this" for as long as the gate exists.
+#
+# `axis` labels what a red from this gate means (RFC 0034 §5.3):
+# functional | boundary | compliance | form. An unlabeled gate reads as
+# functional, so a label appears only where that default is wrong (D-34.4).
 schema_version: 1
 
 # Repository-level scope, used on runs with no task contract. Unconstrained:
@@ -17,6 +21,7 @@ gates:
     run: "@scope"
     state: blocking
     origin: structural
+    axis: boundary
     added: 2026-08-21
   - name: secrets
     run: "@secrets"
@@ -32,6 +37,7 @@ gates:
     run: "@decisions-reported"
     state: blocking
     origin: structural
+    axis: compliance
     added: 2026-08-21
   # The one gate that was non-blocking, which is what shadow is (A-8): it
   # runs, reports, and is measured before it may ever block.
@@ -39,6 +45,7 @@ gates:
     run: "@self-audit"
     state: shadow
     origin: structural
+    axis: compliance
     added: 2026-08-21
   # The corpus validator, the product gate of RFC 0007 §3a (D-7.14):
   # `torve rfc check` covers format, graph and index drift in one run, from
@@ -51,6 +58,7 @@ gates:
     input: worktree
     state: blocking
     origin: rfc/0007
+    axis: form
     added: 2026-08-22
     timeout: 20
   # The checkable half of RFC 0014 (D-14.11), entering at shadow per D-2.18
@@ -59,6 +67,7 @@ gates:
     run: "@source-layout"
     state: shadow
     origin: rfc/0014
+    axis: form
     added: 2026-08-21
   # The audience rule of RFC 0011 §5a (D-11.11, A-23): no corpus identifiers
   # in user-facing strings. Entered at shadow, whole-tree report read clean
@@ -69,6 +78,7 @@ gates:
     run: "@user-facing-text"
     state: blocking
     origin: rfc/0011
+    axis: compliance
     added: 2026-08-22
   # RFC 0015 §6 (D-15.8): the layer contracts, checked by import-linter over
   # the whole package — a self-development gate (D-15.10), meaningful only in
