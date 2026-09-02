@@ -12,13 +12,28 @@
         api: openai-completions
         baseURL: !!js process.env.TORVE_BROKER_URL
         apiKeyEnv: TORVE_BROKER_TOKEN
+        # 2026-09-02: same hardening as the ModelStudio family — hard
+        # request cap, idle backstop, and reasoning restored (false had
+        # stripped thinking from a reasoning model; the API honors
+        # reasoning_effort, 13 reasoning tokens on the probe). Reasoning
+        # bills at the output rate here — the incumbent's costs tick up.
+        timeoutMs: 600000
+        streamIdleTimeoutMs: 120000
+        reasoning: medium
+        compat:
+          supportsDeveloperRole: false
+          thinkingFormat: deepseek
         models:
           - id: deepseek-v4-flash
             name: DeepSeek V4 Flash
             contextWindow: 128000
             maxTokens: 8192
             input: [text]
-            reasoningEfforts: false
+            reasoningEfforts:
+              off:
+              low: low
+              medium: medium
+              high: high
 - id: agent-default-model
   config:
     provider: torve-broker
