@@ -228,22 +228,33 @@ def _toolkit_check(name: str) -> str:
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 @pytest.mark.parametrize("name", ["claude", "dsh"])
-def test_toolkit_contract_answers_in_the_container(name):
+def test_toolkit_contract_answers_in_the_container(name, tmp_path):
     # What CI publishes is what the battery built (D-33.5): the definition
-    # builds through the same command as an operator's, then answers.
+    # builds through the same command as an operator's, then answers. The
+    # definition bytes are the repo's, the TAG is a throwaway: building
+    # under the production tag and rmi-ing it in cleanup deleted the
+    # host's live agent images from inside the acceptance battery — three
+    # mid-queue dispatch failures before the phantom was caught.
+    root = seed_repo(tmp_path, {})
+    probe_name = f"{name}-probe"
+    definition = root / ".torve" / "sandbox" / probe_name
+    shutil.copytree(REPO_ROOT / ".torve" / "sandbox" / name, definition)
+
     built = CliRunner().invoke(
-        app, ["sandbox", "build", name, "--root", str(REPO_ROOT), "--format", "json"]
+        app, ["sandbox", "build", probe_name, "--root", str(root), "--format", "json"]
     )
     assert built.exit_code == 0, built.output
     try:
         probe = subprocess.run(
-            ["docker", "run", "--rm", f"torve-agent:{name}", "sh", "-c", _toolkit_check(name)],
+            ["docker", "run", "--rm", f"torve-agent:{probe_name}", "sh", "-c", _toolkit_check(name)],
             capture_output=True,
             text=True,
         )
         assert probe.returncode == 0, probe.stderr
     finally:
-        subprocess.run(["docker", "rmi", "-f", f"torve-agent:{name}"], capture_output=True, check=False)
+        subprocess.run(
+            ["docker", "rmi", "-f", f"torve-agent:{probe_name}"], capture_output=True, check=False
+        )
 
 
 # ....................... #
@@ -370,15 +381,19 @@ def test_the_layer_is_keyed_to_the_lockfile_bytes(tmp_path):
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 @pytest.mark.timeout(1800)
-def test_the_bare_definition_builds_thin_as_before():
+def test_the_bare_definition_builds_thin_as_before(tmp_path):
     # The layer is a convenience, never a requirement: the path the engine
-    # itself takes — `torve sandbox build battery`, the definition
-    # directory as the only context — still produces today's thin image.
-    # The build succeeds, the uv the battery needs is there, and no baked
-    # venv exists to go stale. Deleting the layer changes nothing but wall
-    # clock, which is exactly this image at boot.
+    # itself takes — `torve sandbox build`, the definition directory as
+    # the only context — still produces today's thin image. The build
+    # succeeds, the uv the battery needs is there, and no baked venv
+    # exists to go stale. A throwaway tag, never the production one: this
+    # cleanup used to rmi the host's live battery image.
+    root = seed_repo(tmp_path, {})
+    definition = root / ".torve" / "sandbox" / "battery-probe"
+    shutil.copytree(REPO_ROOT / ".torve" / "sandbox" / "battery", definition)
+
     built = CliRunner().invoke(
-        app, ["sandbox", "build", "battery", "--root", str(REPO_ROOT), "--format", "json"]
+        app, ["sandbox", "build", "battery-probe", "--root", str(root), "--format", "json"]
     )
     assert built.exit_code == 0, built.output
     try:
@@ -387,7 +402,7 @@ def test_the_bare_definition_builds_thin_as_before():
                 "docker",
                 "run",
                 "--rm",
-                "torve-agent:battery",
+                "torve-agent:battery-probe",
                 "sh",
                 "-c",
                 "uv --version >/dev/null && test ! -d /opt/torve/project/.venv",
@@ -398,7 +413,7 @@ def test_the_bare_definition_builds_thin_as_before():
         assert probe.returncode == 0, probe.stderr
     finally:
         subprocess.run(
-            ["docker", "rmi", "-f", "torve-agent:battery"], capture_output=True, check=False
+            ["docker", "rmi", "-f", "torve-agent:battery-probe"], capture_output=True, check=False
         )
 
 
