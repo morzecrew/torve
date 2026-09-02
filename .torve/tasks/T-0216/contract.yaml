@@ -11,7 +11,9 @@ intent: 'retry_variants keyed by axis with the scalar form kept as sugar for fun
   the chosen rung from telemetry records alone. Every rung in retry_variants — every axis, not only
   the scalar mirror''s functional one — joins the run''s broker routing derivation and the dispatch-time
   per-repository provider check (D-4.8), exactly as include_retry routes the single rung today: no
-  retry may run under a provider the repository denies, on any axis.'
+  retry may run under a provider the repository denies, on any axis Every reader of the scalar retry_variant
+  — the runner''s routing, the CLI dispatch check in run, tick and fleet — reads the full retry_variants
+  mapping through one resolution, so no surface sees only the functional rung.'
 depends_on:
 - T-0215
 parent: null
@@ -22,6 +24,12 @@ scope:
   - src/torve/application/runner.py
   - tests/test_runner.py
   - tests/test_runconfig.py
+  - src/torve/cli/run.py
+  - src/torve/cli/tick.py
+  - src/torve/cli/fleet.py
+  - tests/test_cli.py
+  - tests/test_tick.py
+  - tests/test_fleet.py
   deny: []
 acceptance:
 - uv run pytest tests/test_runner.py
@@ -29,6 +37,7 @@ acceptance:
 - uv run basedpyright src
 - uv run ruff check .
 - uv run pytest tests/test_runconfig.py
+- uv run pytest tests/test_cli.py tests/test_tick.py tests/test_fleet.py
 decisions:
 - id: D-34.1
   grade: LOCKED
