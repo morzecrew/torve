@@ -119,6 +119,13 @@ def build_review_prompt(
     # reviewer can run that same battery rather than guess at it (D-5.16).
     acceptance = "\n".join(f"- {command}" for command in target.acceptance) or "- none declared"
 
+    # A-79: the prompt points at the staged diff instead of embedding it —
+    # a diff carrying vendored bulk exceeds any context, and a reviewer with
+    # tools reads lazily. A short head rides along as orientation only.
+    head_lines = diff_text.splitlines()[:80]
+    diff_head = "\n".join(head_lines)
+    diff_head_lines = len(head_lines)
+
     spec_block = (
         "No task contract exists for this change: you are reviewing in "
         "degraded mode. You have no scope and no inherited decisions — do "
@@ -154,8 +161,17 @@ you did not get to run.
 
 ## The diff
 
+The complete diff under review is staged at `.torve/tmp/review.diff` in
+this workspace. Read it before judging anything — every finding must be
+grounded in it. Pull surrounding context from the tree where a hunk
+alone is ambiguous. Generated or vendored bulk in the diff (minified
+bundles, lockfiles) may be skimmed by filename; the source-side hunks
+carry the reviewable substance.
+
+The first {diff_head_lines} lines, as orientation:
+
 ```diff
-{diff_text}
+{diff_head}
 ```
 
 ## What to produce
@@ -343,7 +359,9 @@ def run_review(
 
     # The reviewer's whole input, composed first (D-5.3: no author trace,
     # ever) — after this line the diff under judgment is text in a string, and
-    # no state the copy can reach has any part in it.
+    # no state the copy can reach has any part in it. The diff itself is
+    # staged as a file in the copy below (A-79): a diff carrying a vendored
+    # bundle exceeds any prompt, and a reviewer with tools reads lazily.
     prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded)
 
     # T-0172: the harness names the session trace after the workspace it is
@@ -357,6 +375,13 @@ def run_review(
     # the review's own conventional address (D-3.4), writable, and destroyed
     # with its sandbox.
     copy = stage_review_copy(worktree, naming.worktree(root, review.id))
+
+    # A-79: the diff rides the copy as a file, not the prompt — composed
+    # above, before the copy existed, so the guarantee is unchanged; the
+    # prompt names the path and the reviewer reads what it needs.
+    diff_path = copy / ".torve" / "tmp" / "review.diff"
+    diff_path.parent.mkdir(parents=True, exist_ok=True)
+    diff_path.write_text(diff_text, encoding="utf-8")
 
     spec = SandboxSpec(
         name=naming.sandbox_name(review.id, state.run_id) + "-a1",

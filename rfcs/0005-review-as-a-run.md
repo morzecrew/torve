@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32", "A-41", "A-75", "A-78"]
+amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -346,7 +346,6 @@ this outbound record; and the human acts — approve, revise — that
 create the relationship the reply reports.
 
 ### A-78 — 2026-09-01 — The reviewer may execute — in a copy nothing survives
-
 A reviewer that can only read judges tests by their text; the operator
 asked for representative feedback — the reviewer running the battery it
 is judging. The separation D-5.2 exists for ("an agent that can
@@ -373,3 +372,27 @@ moves from the filesystem to the lifecycle:
 Deliberately unchanged: D-5.3 (no author trace), D-5.4 (unlocatable
 evidence discarded), the runner-posts-comments half of D-5.2, and the
 reviewer's lack of any forge credential.
+
+### A-79 — 2026-09-02 — The staged diff — the reviewer reads, the prompt points
+
+The original prompt embedded the whole diff — the right shape for a
+tool-less reviewer, and a bomb once diffs carry vendored bulk: T-0228's
+pagination diff (a rebuilt 270KB bundle) first blew the executing
+shell's argument limit and then, piped, the model's own context —
+"Prompt is too long", two unparseable-review escalations on a green
+change. A-78 removed the design's premise: a reviewer with tools and a
+workspace copy does not need its input pre-chewed.
+
+So the diff moves from the prompt to the copy: `run_review` writes the
+composed diff to `.torve/tmp/review.diff` inside the staged copy —
+after composition, before the sandbox, so D-5.2's order guarantee is
+untouched (the judgment input predates anything the reviewer can
+write). The prompt keeps the contract, decisions, gate results and
+acceptance commands, names the staged path as the thing to read first,
+and carries only a short head of the diff as orientation. The reviewer
+pulls hunks and surrounding tree context lazily — something the inline
+shape could never offer — and skims vendored or generated bulk by
+filename instead of paying context for it. The evidence rule (D-5.4)
+is the guard against a reviewer that skips the reading: findings that
+do not locate are discarded, and the reviewer measurement corpus
+watches for empty-handed reviews of substantial diffs.
