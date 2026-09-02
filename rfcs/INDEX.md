@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0037**.
+number is **0038**.
 
 ## Design
 
@@ -45,6 +45,7 @@ number is **0037**.
 | [0034](0034-task-character-and-conviction-routed-retries.md) | Task character and conviction-routed retries | accepted | complete | 0007, 0027, 0029 | — | Three task-character axes — structural and routine declared per phase, compliance measured from gate convictions — routing equipment at mint and retries at the failing gate, calibrated by a projection. |
 | [0035](0035-warm-starts.md) | Warm starts | accepted | partial | 0017, 0027 | — | The cold-start tax priced and removed where it is safe: a lockfile-keyed baked venv layer, per-slot derived-cache volumes that never enter replays, and the attempt clock scaled per tier. |
 | [0036](0036-test-evidence.md) | Test evidence | draft | none | 0002, 0005 | — | Evidence that the tests test: a changed-lines coverage gate entering through the shadow lifecycle, a manifest lint refusing gates without sabotage twins, and post-merge escapes minting review-corpus entries. |
+| [0037](0037-attempt-state.md) | Attempt state | draft | none | 0002, 0004, 0026 | — | An agent-authored working-state snapshot (state.yaml) carried by the worktree across continuations: what a dying attempt knew, for the next attempt and for triage — never for routing. |
 
 ## Conventions
 
