@@ -4,10 +4,14 @@ rfc: rfcs/0036-test-evidence.md
 phase: 1
 role: implement
 title: the coverage delta gate
-intent: pytest-cov and diff-cover join the dev dependencies; the coverage-delta shell gate enters
-  the manifest in shadow (D-36.1), judging the attempt's changed lines against the gate base; the
+intent: 'pytest-cov and diff-cover join the dev dependencies; the coverage-delta shell gate enters
+  the manifest in shadow (D-36.1), judging the attempt''s changed lines against the gate base; the
   executor measures and settles the threshold and invocation (D-36.2) and logs the choice; sabotage
   twins ship with it — untested new branch red, tested twin green, untouched legacy file unconvicted.
+  A shell gate''s run command receives the battery''s own computed base as a substitution ({base},
+  resolved from the same context every builtin judges against) — the coverage command uses it, and
+  no gate ever resolves a ref in shell: the battery''s base and the gate''s base cannot disagree,
+  in live runs and replays alike.'
 depends_on: []
 parent: null
 targets: []
@@ -19,6 +23,7 @@ scope:
   - src/torve/gates/sabotage.py
   - tests/test_gates.py
   - tests/test_sabotage.py
+  - src/torve/gates/runner.py
   deny: []
 acceptance:
 - uv run pytest tests/test_gates.py
