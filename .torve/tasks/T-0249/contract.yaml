@@ -1,0 +1,74 @@
+# Minted by `torve plan 0039` — phase 2: the burn profile
+schema_version: 1
+id: T-0249
+rfc: rfcs/0039-durable-traces-and-the-burn-profile.md
+phase: 2
+role: implement
+title: the burn profile
+intent: A sibling of parse_metadata scans every JSON line of the harness output and derives
+  the burn block — turns, tool calls, top turns by output tokens — when per-turn facts are
+  present, absent otherwise, never zeroed (D-39.4, D-39.5); the runner carries it into the
+  agent block beside the token totals. Fixture streams cover a per-turn stream, an envelope-only
+  output, and garbage lines.
+depends_on:
+- T-0248
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/adapters/agent/harness.py
+  - src/torve/application/runner.py
+  - src/torve/application/telemetry.py
+  - tests/test_tiering.py
+  - tests/test_runner.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_tiering.py tests/test_runner.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-39.1
+  grade: LOCKED
+  text: Traces live under `<root>/.torve/traces/` from the first byte, referenced root-relative;
+    the reaper's terminal sweep never deletes them — only the retention pass does
+  paths:
+  - src/torve/base/naming.py
+  - src/torve/application/reaper.py
+  - src/torve/adapters/agent/harness.py
+- id: D-39.2
+  grade: LOCKED
+  text: 'The trace store is local: torve never commits, uploads or transmits a trace; trace
+    content never enters a prompt (D-5.3) and never drives control flow'
+  paths:
+  - src/torve/application/reaper.py
+  - src/torve/adapters/agent/harness.py
+- id: D-39.3
+  grade: ASSUMED
+  text: Retention is `traces.keep_days` and `traces.max_mb` in runner configuration, enforced
+    oldest-first at the reaper's existing pass; defaults 30 and 512 pending the owner's read
+    of dogfood volume
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/application/reaper.py
+- id: D-39.4
+  grade: ASSUMED
+  text: The burn profile is derived by the harness adapter from all JSON lines of the output
+    it already holds — turns, tool calls, top turns by output tokens — riding the agent block
+    under D-4.6's absent-stays-absent regime; no stream, no block
+  paths:
+  - src/torve/adapters/agent/harness.py
+  - src/torve/application/telemetry.py
+- id: D-39.5
+  grade: ASSUMED
+  text: 'Torve imposes no trace format: the store keeps profile output verbatim, and the burn
+    scanner extracts only facts with cross-harness meaning'
+  paths:
+  - src/torve/adapters/agent/harness.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: null

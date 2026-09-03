@@ -235,8 +235,9 @@ the verb. The rfc-writer template's battery examples gain the
 
 ## 12. Phasing
 
-Phase 1's units are disjoint and parallel; the corpus verb waits for
-neither.
+The coverage gate goes first alone — the lint shares gates.yaml with
+it, so they cannot share a phase; the lint and the corpus verb run as
+phase 2's disjoint pair.
 
 ```yaml
 - phase: 1
@@ -259,7 +260,7 @@ neither.
     - uv run torve gates check
     - uv run torve rfc check
     - uv run ruff check .
-- phase: 1
+- phase: 2
   title: the sabotage-pair lint
   intent: >-
     Gate declarations carry `sabotage:` naming a CASES family or a test

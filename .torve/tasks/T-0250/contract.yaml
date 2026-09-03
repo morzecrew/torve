@@ -1,0 +1,83 @@
+# Minted by `torve plan 0040` — phase 1: the why projection
+schema_version: 1
+id: T-0250
+rfc: rfcs/0040-the-why-projection.md
+phase: 1
+role: implement
+title: the why projection
+intent: 'why_report in projections.py assembles the per-task envelope from the telemetry stream,
+  feedback stream and contract head (D-40.1, D-40.2): attempts grouped by the 0038 stamp with
+  the pre_verdict fallback (D-40.3), chronological events and reviews, totals, and the same-regime
+  cost comparator carrying the quasi-experiment caveat in-envelope (D-40.4, D-40.5). Three
+  renderers re-expose it verbatim: torve why <task-id> per the presentation contract with
+  json format and the D-40.6 exit codes, the why(task_id) MCP tool beside context and show,
+  and a serve endpoint. Tests pin grouping, fallback marking, totals, comparator scoping,
+  trace_present, the found:false envelope, and byte-identical parity across the three surfaces.'
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/projections.py
+  - src/torve/cli/why.py
+  - src/torve/cli/main.py
+  - src/torve/cli/mcp.py
+  - src/torve/cli/serve.py
+  - tests/test_context.py
+  - tests/test_mcp.py
+  - tests/test_serve.py
+  - tests/test_cli.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_context.py tests/test_mcp.py tests/test_serve.py tests/test_cli.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-40.1
+  grade: LOCKED
+  text: 'One reader, every renderer: `why_report` computes the envelope and CLI, MCP and serve
+    re-expose it verbatim (D-32.1''s doctrine applied to the per-task question)'
+  paths:
+  - src/torve/application/projections.py
+  - src/torve/cli/why.py
+  - src/torve/cli/mcp.py
+  - src/torve/cli/serve.py
+- id: D-40.2
+  grade: LOCKED
+  text: The projection reads durable streams only — telemetry, feedback, the contract — never
+    run-state files or trace content; computed on demand, stored nowhere (D-A.12)
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.3
+  grade: ASSUMED
+  text: 'Attempts group by the 0038 `attempt` stamp; unstamped history groups by timestamp
+    order and is marked `pre_verdict: true` — rendered as partial, never retrofitted'
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.4
+  grade: ASSUMED
+  text: The regime block compares the task against same-`config_hash` attempt rows only and
+    carries `QUASI_EXPERIMENT_CAVEAT` in the envelope itself — a comparator, never a verdict
+    or threshold
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.5
+  grade: ASSUMED
+  text: 'The envelope emits data without judgement: no severity ranking, no advice, no anomaly
+    flags; a detector is a separate document that consumes this surface'
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.6
+  grade: ASSUMED
+  text: 'Unknown task id: `found: false` envelope, CLI exit 3; a readable red history exits
+    0'
+  paths:
+  - src/torve/cli/why.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: null

@@ -1,0 +1,83 @@
+# Minted by `torve plan 0041` — phase 1: the image push path
+schema_version: 1
+id: T-0252
+rfc: rfcs/0041-remote-sandboxes.md
+phase: 1
+role: implement
+title: the image push path
+intent: 'torve sandbox build --push (D-41.4): build via the Docker runtime as today, push
+  to the named registry reference, print the digest-pinned reference for the run config. The
+  docs stop calling digest-only resolution a stopgap: on a pull platform the pinned reference
+  is the resolution.'
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/cli/sandbox.py
+  - tests/test_cli.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_cli.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-41.1
+  grade: LOCKED
+  text: The orchestrator stays one host-local process with per-root file authority; this document
+    scales compute by moving sandboxes, never by moving the engine
+  paths:
+  - src/torve/adapters/runtime/opensandbox.py
+- id: D-41.2
+  grade: LOCKED
+  text: 'Provider keys never enter a sandbox, local or remote: remote runs reach providers
+    only through the broker''s token-authenticated routes'
+  paths:
+  - src/torve/adapters/broker/local.py
+- id: D-41.3
+  grade: ASSUMED
+  text: Live conformance is a third env-gated leg (`TORVE_OPENSANDBOX_TEST_DOMAIN`) asserting
+    the stub's contract plus platform timeout collection and label-scoped enumeration; a live/stub
+    disagreement is a stub defect
+  paths:
+  - tests/opensandbox_stub.py
+  - tests/test_sandbox_images.py
+- id: D-41.4
+  grade: ASSUMED
+  text: '`torve sandbox build --push` publishes the battery image and prints the digest-pinned
+    reference; the OpenSandbox runtime resolves digest-pinned references and records bare
+    tags as unresolved (D-17.1)'
+  paths:
+  - src/torve/cli/sandbox.py
+  - src/torve/adapters/runtime/opensandbox.py
+- id: D-41.5
+  grade: ASSUMED
+  text: Seed and sync-out cost (bytes, seconds) are recorded per attempt for transferring
+    runtimes, absent for mounting ones; seed optimization is demand-gated on these numbers
+    under RFC 0035's paired-measurement discipline
+  paths:
+  - src/torve/adapters/runtime/opensandbox.py
+  - src/torve/application/telemetry.py
+- id: D-41.6
+  grade: ASSUMED
+  text: 'Remote endpoint mode: `broker.bind` and `broker.advertise` replace the Docker-gateway
+    derivation for OpenSandbox runs; the pass-through leg is refused in remote endpoint mode
+    until a token-authenticated design exists; transport security is the operator''s deployment
+    choice, documented plainly'
+  paths:
+  - src/torve/adapters/broker/local.py
+  - src/torve/config/runconfig.py
+- id: D-41.7
+  grade: ASSUMED
+  text: Subscription-billed tiers stay Docker-only (the volume refusal stands); remote capacity
+    serves metered tiers
+  paths:
+  - src/torve/adapters/runtime/opensandbox.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: null

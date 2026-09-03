@@ -1,0 +1,78 @@
+# Minted by `torve plan 0038` — phase 1: the attempt verdict
+schema_version: 1
+id: T-0247
+rfc: rfcs/0038-the-attempt-verdict.md
+phase: 1
+role: implement
+title: the attempt verdict
+intent: 'The agent block stamps its attempt number (D-38.4); every path out of the attempt
+  hook appends exactly one row (D-38.1) carrying an engine-derived verdict from the closed
+  vocabulary (D-38.2, D-38.3), subsuming the inline red-agent append; RunState.escalate appends
+  the durable escalation engine event best-effort from its single call site (D-38.5). All
+  keys additive (D-38.6). Tests: one per verdict value, the one-attempt-one-row invariant,
+  the broker-refused row that today does not exist, the escalate append and its best-effort
+  failure mode, and the replay test deriving each verdict from the row''s other fields.'
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/runner.py
+  - src/torve/application/runstate.py
+  - src/torve/application/telemetry.py
+  - tests/test_runner.py
+  - tests/test_run_loop.py
+  - tests/test_reaper.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_runner.py tests/test_run_loop.py tests/test_reaper.py
+- uv run mypy src
+- uv run basedpyright src
+- uv run ruff check .
+decisions:
+- id: D-38.1
+  grade: LOCKED
+  text: 'Every attempt ends in exactly one telemetry row, whatever the ending: the endings
+    that today append nothing (broker refusal, halt, gates-hook failure) append the red-agent
+    shape'
+  paths:
+  - src/torve/application/runner.py
+- id: D-38.2
+  grade: LOCKED
+  text: The verdict is engine-derived from facts the runner already recorded or observed —
+    exec results, gate report, escalation state — never from model output, and no router reads
+    it (D-34.5 untouched)
+  paths:
+  - src/torve/application/runner.py
+  - src/torve/application/telemetry.py
+- id: D-38.3
+  grade: ASSUMED
+  text: The vocabulary is `green`, `gates_red`, `agent_timeout`, `agent_error`, `broker_refused`,
+    `halted`, `gate_infrastructure`, carried top-level beside `exit_code`; it grows by amendment
+  paths:
+  - src/torve/application/telemetry.py
+- id: D-38.4
+  grade: ASSUMED
+  text: The agent block stamps `attempt`, restamped where tier/adapter/model already are,
+    on every record the attempt appends
+  paths:
+  - src/torve/application/runner.py
+- id: D-38.5
+  grade: ASSUMED
+  text: '`RunState.escalate` appends one `kind: engine, event: escalation` record (task, reason
+    verbatim from `EscalationReason`, detail, run_id when known), best-effort, root derived
+    structurally from the state-file location — one call site, not twenty-two'
+  paths:
+  - src/torve/application/runstate.py
+- id: D-38.6
+  grade: ASSUMED
+  text: All keys are additive; no schema_version bump; readers treat absence as pre-0038
+  paths:
+  - src/torve/application/telemetry.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: null
