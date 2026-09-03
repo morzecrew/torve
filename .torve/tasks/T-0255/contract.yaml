@@ -11,7 +11,12 @@ intent: 'Gate declarations carry `sabotage:` naming a CASES family or a test pat
   gates run under the host engine, whose manifest model predates this task''s sabotage field (the
   self-hosting boundary, T-0215''s class; attempt 1 died proving it again): the schema and the refusal
   land with scratch-manifest tests, and the battery''s backfill follows as its own task once the schema-bearing
-  engine is the one evaluating it.'
+  engine is the one evaluating it D-36.3''s zero-exceptions refusal cannot land in one step across
+  the self-hosting boundary (a load-time refusal against the still-twinless shipped battery bricks
+  the engine''s own manifest — T-0260''s blocker): the lint lands as a load-time WARNING here, and
+  T-0259 backfills the battery and hardens warning to refusal in the same landing — the warn-then-harden
+  path every gate and check in this corpus has walked (D-2.18, D-A.10 precedents). Log the D-36.3
+  divergence.'
 depends_on: []
 parent: null
 targets: []
