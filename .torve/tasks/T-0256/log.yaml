@@ -1,0 +1,95 @@
+schema_version: 1
+task: T-0256
+repo: morzecrew/torve
+base_sha: 889ccbb1a0f88d78c603c855f4959dd1c7de524d
+drift_count: 0
+entries:
+  - decision: D-36.5
+    grade: ASSUMED
+    kind: resolved
+    at: '2026-09-03T11:30:00Z'
+    attempt: 1
+    claim: 'the verb lands as the decision states — defective landing located by its Torve-Task
+      trailer restricted to the fixing commit''s ancestry, the fixing commit''s parent extracted
+      as tree/, refusal with an instructive message when no shipped defective ancestor resolves;
+      two details the decision row leaves open are carried by the unlisted rows below, and the
+      replay path''s behavior is preserved by serving `corpus <case>` through a routing group
+      rather than redefining it'
+    evidence: 'rfcs/0036-test-evidence.md:152-156 — "defective landing found by trailer, fix
+      commit''s parent as the tree, and the operator writes the one paragraph a scaffold cannot"'
+    action: decided
+    notes: |
+      `torve review corpus` is today a leaf command whose optional positional
+      is a case name; `corpus add` cannot join it as a subcommand without the
+      leaf becoming a group. A custom group class resolves any unknown
+      non-option token as the case for a replay subcommand, so the existing
+      spellings — `corpus`, `corpus <case>`, with every existing flag in either
+      position — keep their names, flags, exit codes and output; `add` joins
+      beside them, and `pr` is untouched.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T11:31:00Z'
+    attempt: 1
+    claim: 'the contract pins "defective landing found by trailer" but never says how the
+      fixing commit names the defective task, and the trailer vocabulary the runner writes
+      carries no fix-to-defect link; chosen: the fixing commit''s message may carry a
+      `Torve-Fixes: T-NNNN` trailer naming the task whose landing shipped the defect, and
+      `--defect T-NNNN` overrides it for commits already written without one — the
+      instruction goes into the refusal message itself'
+    evidence: 'src/torve/application/runner.py:749-758 — the trailer block a landing writes
+      (Task, Attempt, Agent, Config, Decisions): nothing links a fix to what it fixes, so the
+      verb must define the spelling'
+    action: decided
+    proposal: 'OPEN — a fix task dispatched through the engine can carry the cited task id in
+      its contract so the runner writes the Torve-Fixes trailer itself; until then the trailer
+      is operator-written, which suits a duty that already binds the operator (D-36.4)'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T11:32:00Z'
+    attempt: 1
+    claim: 'the contract requires "a refusing placeholder the loader rejects until written"
+      without naming the mechanism; chosen: a sentinel phrase (FINDING UNWRITTEN) written by
+      the scaffold into the case document, and the shared case loader rejects any case whose
+      parsed document contains it anywhere — deleting the sentinel is the write, so a
+      half-written case cannot reach replay'
+    evidence: 'rfcs/0036-test-evidence.md:286-288 — "the finding paragraph left explicitly for
+      the operator with a refusing placeholder the loader rejects until written"'
+    action: decided
+    proposal: 'OPEN — if future entry formats grow more operator-authored fields, the
+      sentinel can move to a declared `finding_written: true` marker checked by the loader'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T11:33:00Z'
+    attempt: 1
+    claim: 'the phase intent says "the review page documents the duty", but this repository
+      has no review documentation page inside the task''s allowed scope; chosen: the duty is
+      stated in the help text of the verbs themselves — the corpus group, the add verb, and
+      the refusal messages — which is the surface whoever runs the command reads'
+    evidence: 'README.md:70-72 — the closest prose about torve review is a README paragraph,
+      and the task''s scope.allow names only src/torve/cli/review.py and
+      tests/test_review_corpus.py'
+    action: decided
+    proposal: 'OPEN — a docs landing should carry the duty prose into the README section (or a
+      review page when one exists); the help text can then point at it'
+  - decision: D-36.4
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T11:58:00Z'
+    attempt: 1
+    claim: 'close-out over the touched LOCKED area: the duty lands intact — the entry carries the
+      defective landing''s own diff from history, the fixing commit''s parent as the tree, and a
+      finding the scaffold cannot write (the placeholder refuses the loader until a person
+      completes it); the corpus grows only through the verb, no seeded case was deleted or
+      rewritten, and no finding is ever generated — the loader rejection makes an unjust entry
+      unreplayable rather than silently replayable'
+    evidence: 'src/torve/cli/review.py:141-157 — the loader raising UnwrittenFinding on any case
+      document still carrying the placeholder; src/torve/cli/review.py:508 — the add verb;
+      tests/test_review_corpus.py:214 — the written scaffold replays, the unwritten one refuses'
+    action: decided
