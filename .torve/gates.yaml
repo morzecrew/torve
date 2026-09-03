@@ -8,6 +8,13 @@
 # `axis` labels what a red from this gate means (RFC 0034 §5.3):
 # functional | boundary | compliance | form. An unlabeled gate reads as
 # functional, so a label appears only where that default is wrong (D-34.4).
+#
+# `sabotage` names the twin that proves the entry can convict (RFC 0036 §5.2,
+# D-36.3): a CASES family in the shipped sabotage suite or a repository test
+# path that reddens when the gate stops working. Builtins name their shipped
+# family; shell gates name their test file. The load refuses a twinless
+# entry in a manifest that names any twin, so the battery carries zero
+# grandfather exceptions — deleting one line below bricks `torve gates run`.
 schema_version: 1
 
 # Repository-level scope, used on runs with no task contract. Unconstrained:
@@ -23,22 +30,26 @@ gates:
     origin: structural
     axis: boundary
     added: 2026-08-21
+    sabotage: scope
   - name: secrets
     run: "@secrets"
     state: blocking
     origin: structural
     added: 2026-08-21
+    sabotage: secrets
   - name: no-test-tampering
     run: "@no-test-tampering"
     state: blocking
     origin: structural
     added: 2026-08-21
+    sabotage: no-test-tampering
   - name: decisions-reported
     run: "@decisions-reported"
     state: blocking
     origin: structural
     axis: compliance
     added: 2026-08-21
+    sabotage: decisions-reported
   # The one gate that was non-blocking, which is what shadow is (A-8): it
   # runs, reports, and is measured before it may ever block.
   - name: self-audit
@@ -47,6 +58,7 @@ gates:
     origin: structural
     axis: compliance
     added: 2026-08-21
+    sabotage: self-audit
   # The corpus validator, the product gate of RFC 0007 §3a (D-7.14):
   # `torve rfc check` covers format, graph and index drift in one run, from
   # the package alone (D-7.12) — no store, no skill. Promoted out of its
@@ -61,6 +73,7 @@ gates:
     axis: form
     added: 2026-08-22
     timeout: 20
+    sabotage: tests/test_rfc_check.py
   # The checkable half of RFC 0014 (D-14.11), entering at shadow per D-2.18
   # after the one-time repository sweep (D-14.12).
   - name: source-layout
@@ -69,6 +82,7 @@ gates:
     origin: rfc/0014
     axis: form
     added: 2026-08-21
+    sabotage: source-layout
   # The audience rule of RFC 0011 §5a (D-11.11, A-23): no corpus identifiers
   # in user-facing strings. Entered at shadow, whole-tree report read clean
   # after the one-time rewrite, sabotage red on demand (including the
@@ -80,6 +94,7 @@ gates:
     origin: rfc/0011
     axis: compliance
     added: 2026-08-22
+    sabotage: user-facing-text
   # RFC 0015 §6 (D-15.8): the layer contracts, checked by import-linter over
   # the whole package — a self-development gate (D-15.10), meaningful only in
   # this repository; the tool is a dev dependency and never ships. Entered at
@@ -93,6 +108,7 @@ gates:
     added: 2026-08-22
     input: worktree
     timeout: 60
+    sabotage: tests/test_layering.py
   # RFC 0036 §5.1 (D-36.1): does the suite meet the attempt's changed lines?
   # diff-cover intersects the coverage report with the diff against {base} —
   # the merge-base the battery itself computed, substituted by the runner from
@@ -112,12 +128,14 @@ gates:
     origin: rfc/0036
     added: 2026-09-03
     input: worktree
+    sabotage: coverage-delta
   - name: acceptance
     run: "@task.acceptance"
     state: blocking
     origin: structural
     added: 2026-08-21
     timeout: 900
+    sabotage: acceptance
     # Fallback for runs with no task contract (human pull requests).
     commands:
       - "uv run ruff check src tests"

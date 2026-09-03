@@ -48,10 +48,12 @@ class Gate(BaseModel):
 
     `sabotage` names this gate's twin — a CASES family in the sabotage suite
     or a repository test path — the evidence that the gate can convict (D-36.3).
-    An entry without it is flagged by `twinless_gates()` at load time. The
-    value must be a non-blank reference; resolving it against the CASES
-    families or the tree belongs to whoever hardens the lint, not this model,
-    which the sabotage suite itself imports.
+    The load refuses a twinless entry once the manifest names a twin for any
+    gate; a manifest naming none at all predates the field and is only voiced
+    by `twinless_gates()`. The value must be a non-blank reference; resolving
+    it against the CASES families and the tree cannot happen here — the
+    sabotage suite imports this model, so the cross-check lives in the
+    repository test that pins the shipped battery.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -117,11 +119,15 @@ class Gate(BaseModel):
 
 
 class TwinlessGateWarning(UserWarning):
-    """A gate entry declares no sabotage twin (D-36.3).
+    """A gate entry declares no sabotage twin (D-36.3), in a manifest that
+    declares none at all.
 
-    The load-time lint's warn stage: the shipped battery predates the field,
-    and a refusal would brick the engine's own manifest load until every
-    entry is backfilled — the warning becomes refusal in the backfill landing.
+    The voice on the pre-field side of the refusal: a manifest where no
+    entry names a twin — scenario data in the shipped suites, a repository
+    that has not adopted the field yet — loads with its twinless entries
+    named. The moment any entry names one, the manifest has adopted the
+    field and the load refuses the rest; the shipped battery is fully
+    twinned, so this warning names only data that cannot backfill itself.
     """
 
 
@@ -255,18 +261,31 @@ def load_manifest(path: Path) -> Manifest:
     manifest = Manifest.model_validate(raw)
     manifest.resolved_gates()  # surface builtin/name errors at load time
 
-    # D-36.3, warn stage: the shipped battery predates the field, so a
-    # twinless entry is voiced here until the backfill landing hardens this
-    # to a refusal. The warning text carries no decision coordinate — it
-    # surfaces on whoever's terminal is running the command.
+    # D-36.3, refusal stage: a manifest that names the twin for any gate has
+    # adopted the field, and every remaining twinless entry is a load error —
+    # a gate that cannot prove it convicts cannot be declared. A manifest
+    # naming no twins at all predates the field and is voiced, not refused:
+    # the shipped scenario data builds one twinless manifest per case, and
+    # the refusal must not reach through the self-hosting boundary into it.
+    # The strings carry no decision coordinate — they surface on whoever's
+    # terminal is running the command.
     twinless = manifest.twinless_gates()
 
     if twinless:
+        names = ", ".join(twinless)
+
+        if any(gate.sabotage is not None for gate in manifest.gates):
+            raise ValueError(
+                f"{path}: gate entries without a declared sabotage twin: {names} — "
+                "a manifest that names the twin for one gate must name it for every "
+                "gate: a CASES family in the shipped sabotage suite, or the path of "
+                "the test file that reddens when the gate stops working"
+            )
+
         warnings.warn(
             f"{path}: gate entries without a declared sabotage twin "
-            f"(a CASES family or a test path): {', '.join(twinless)} — "
-            "a gate that cannot prove it convicts cannot be declared; "
-            "this warning becomes a load error once every entry is backfilled",
+            f"(a CASES family or a test path): {names} — "
+            "a manifest that names the twin for any gate refuses these outright",
             TwinlessGateWarning,
             stacklevel=2,
         )

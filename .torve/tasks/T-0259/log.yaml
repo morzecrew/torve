@@ -1,0 +1,102 @@
+schema_version: 1
+task: T-0259
+repo: morzecrew/torve
+base_sha: cb81d52dfbaeaab04ba0234523e85ab8f6bc94cb  # the engine's pin (D-A.7), verbatim from the prompt
+drift_count: 0
+entries:
+  - decision: D-36.3
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-03T10:19:16Z'
+    attempt: 1
+    claim: 'the row read literally — manifest load refuses every twinless gate, zero
+      exceptions — cannot cross this landing''s scope: the shipped scratch scenario
+      battery carries no twins and is loaded through load_manifest by `torve gates
+      check`, this task''s first acceptance command, and by the gate suite''s context
+      fixture, and src/torve/gates/sabotage.py is not a path this task may touch, so
+      a blanket refusal reddens the scenario suite before any gate runs; landed: the
+      load refuses twinless entries once the manifest names a twin anywhere (the
+      shipped battery is fully twinned, so it ships under the refusal with zero
+      grandfather exceptions), while a manifest naming no twins at all is pre-field
+      data — voiced by the retained warning and loaded'
+    evidence: 'src/torve/gates/sabotage.py:715 — run_case loads every scratch repo''s
+      manifest through load_manifest, and the BASE_MANIFEST it seeds
+      (src/torve/gates/sabotage.py:32-64) declares no sabotage twin;
+      tests/conftest.py:21 is the same load in the gate suite''s context fixture;
+      `uv run torve gates check` → 29/29 sabotage cases behaved, exit 0, with the
+      refusal gated on adoption and the twinless scratch battery still loading quiet
+      enough to pass'
+    action: departed
+    proposal: 'amend the row to "manifest load refuses a twinless gate once the
+      manifest names any twin" — the zero-exception claim then stands over every
+      battery that adopts the field — or land a task scoped over
+      src/torve/gates/sabotage.py giving every scratch manifest its twin, after
+      which the pre-field branch and TwinlessGateWarning both retire'
+    notes: |
+      The same boundary T-0255 logged from the warn side (its departure entry):
+      refusal and the battery's backfill are one change, and the engine's
+      evaluation crosses it — the host evaluates this landing by running the
+      shipped suite, whose scenario data cannot backfill itself inside three
+      allowed paths. The task's own frame — the engine "runs warn-mode against
+      compliant data, so the boundary is never crossed" — is read here as the
+      pre-field branch kept for data that is not the battery: the shipped
+      gates.yaml is compliant under the refusal itself, not under a mode.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T10:19:45Z'
+    attempt: 1
+    claim: 'how the load tells an adopted manifest from a pre-field one was unsettled;
+      chosen: content, not a flag or a version bump — a manifest that declares any
+      sabotage: has adopted the field for all of its entries, so a partially twinned
+      battery is one aggregated ValueError at load and a wholly twinless one is one
+      warning, the refusal shape joining the existing load-error taxonomy the CLI
+      already renders as a configuration error'
+    evidence: 'src/torve/config/manifest.py:264-293 — the twinless list meets the
+      any(gate.sabotage is not None ...) adoption test: raise at line 278, warn at
+      line 285'
+    action: decided
+    proposal: 'OPEN — an explicit adoption marker (a schema_version bump, or a
+      twins: required key) once the pre-field population is real consuming
+      repositories rather than shipped scenario data'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T10:20:05Z'
+    attempt: 1
+    claim: 'T-0255 proposed the refusal landing cross-check each sabotage: value
+      against the CASES families and the repository tree at load; chosen: the
+      cross-check lives in the repository test that pins the shipped battery,
+      because the load cannot do it — the shipped suite imports the manifest model,
+      so the model importing the suite back is a cycle, and the layering contracts
+      keep config out of gates; the load keeps shape (non-blank), the test keeps
+      truth: every shipped twin is a CASES family shipping a red case, or a file
+      that exists'
+    evidence: 'src/torve/gates/sabotage.py:23 — the suite does
+      `from torve.config.manifest import load_manifest` at module top;
+      tests/test_manifest.py:217 is test_every_shipped_twin_resolves, the pin'
+    action: decided
+    proposal: 'OPEN — inject a twin resolver into the load from the composition
+      root, so a consuming repository refuses an unresolvable twin at load too, not
+      only the battery this test covers'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T10:20:30Z'
+    attempt: 1
+    claim: 'which twin each shell gate names: rfc-valid and layering point at their
+      repository sabotage suites (tests/test_rfc_check.py, tests/test_layering.py),
+      but coverage-delta names the CASES family T-0254 shipped rather than a test
+      file, because its twins are scenario data inside the shipped suite and no
+      tests/ file reddens for it separately'
+    evidence: 'src/torve/gates/sabotage.py:672-692 — the three coverage-delta cases
+      in CASES (untested branch fail, tested twin pass, legacy unconvicted pass);
+      .torve/gates.yaml:131 declares sabotage: coverage-delta for the shell gate'
+    action: decided
+    proposal: 'OPEN — 0036 §5.2 could record which twin kind a shell gate names when
+      its proof ships inside the sabotage suite, so the next manifest author does
+      not have to read CASES to find out'

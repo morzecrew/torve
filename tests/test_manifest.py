@@ -8,7 +8,7 @@ import yaml
 
 from torve.application.telemetry import config_hash
 from torve.config.manifest import TwinlessGateWarning, load_manifest
-from torve.gates.sabotage import BASE_MANIFEST
+from torve.gates.sabotage import BASE_MANIFEST, CASES
 
 
 def write_manifest(tmp_path, data):
@@ -108,17 +108,42 @@ def test_an_axis_outside_the_vocabulary_is_a_load_error(tmp_path):
         load_manifest(write_manifest(tmp_path, _one_gate("philosophical")))
 
 
-# The sabotage-pair lint: every gate entry names the twin that proves the gate
-# convicts — a CASES family or a test path. The refusal is not loadable yet
-# (the shipped battery predates the field, and a refusal against it would
-# brick the engine's own manifest load), so a twinless entry is voiced at
-# load; the backfill landing flips the warn cases to raises.
+# The sabotage-pair lint at refusal stage (D-36.3): every gate entry names the
+# twin that proves it convicts — a CASES family or a test path. A manifest
+# that names a twin anywhere refuses its twinless entries at load; a manifest
+# naming none at all predates the field — the shipped scenario data builds
+# one per case — and is voiced, not bricked. The shipped battery is fully
+# twinned: the red cases pin the refusal, this repository's own manifest pins
+# green.
 
 
 def _gate(**fields):
     gate = {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
     gate.update(fields)
     return dict(BASE_MANIFEST, gates=[gate])
+
+
+def _partial_battery():
+    # Adopted (b names its twin) but incomplete: a and c must not load.
+    return dict(
+        BASE_MANIFEST,
+        gates=[
+            {"name": "a", "run": "@scope", "state": "blocking", "origin": "structural"},
+            {
+                "name": "b",
+                "run": "@secrets",
+                "state": "blocking",
+                "origin": "structural",
+                "sabotage": "b",
+            },
+            {
+                "name": "c",
+                "run": "@no-test-tampering",
+                "state": "shadow",
+                "origin": "structural",
+            },
+        ],
+    )
 
 
 def test_a_gate_declaration_carries_its_sabotage_twin(tmp_path):
@@ -139,71 +164,83 @@ def test_a_twinned_load_is_quiet(tmp_path):
         load_manifest(path)
 
 
-def test_a_twinless_gate_warns_at_load(tmp_path):
+def test_a_second_twin_refuses_the_twinless_gate(tmp_path):
+    # The refusal (D-36.3): adopting the field is adopting it wholly — one
+    # declared twin turns every twinless sibling from a warning into a load
+    # error, before any gate runs.
+    with pytest.raises(ValueError, match="without a declared sabotage twin"):
+        load_manifest(write_manifest(tmp_path, _partial_battery()))
+
+
+def test_the_refusal_names_every_twinless_gate(tmp_path):
+    # One aggregated error naming exactly the offenders, in order: the
+    # twinned entry must not read as guilty.
+    with pytest.raises(ValueError, match="twin: a, c —"):
+        load_manifest(write_manifest(tmp_path, _partial_battery()))
+
+
+def test_a_pre_field_manifest_warns_and_loads(tmp_path):
+    # The self-hosting boundary, held: a manifest naming no twin at all is
+    # pre-field data — scenario batteries the shipped suite seeds per case —
+    # and the refusal must not reach through it. Voiced, never bricked.
     with pytest.warns(TwinlessGateWarning, match="scope"):
         manifest = load_manifest(write_manifest(tmp_path, _gate()))
 
-    assert manifest.gates[0].name == "scope"  # voiced, not refused
+    assert manifest.gates[0].name == "scope"
     assert manifest.twinless_gates() == ["scope"]
 
 
-def test_the_warning_names_every_twinless_gate(tmp_path):
-    manifest = dict(
-        BASE_MANIFEST,
-        gates=[
-            {"name": "a", "run": "@scope", "state": "blocking", "origin": "structural"},
-            {
-                "name": "b",
-                "run": "@secrets",
-                "state": "blocking",
-                "origin": "structural",
-                "sabotage": "b",
-            },
-            {
-                "name": "c",
-                "run": "@no-test-tampering",
-                "state": "shadow",
-                "origin": "structural",
-            },
-        ],
-    )
-
-    with pytest.warns(TwinlessGateWarning, match="a, c") as caught:
-        loaded = load_manifest(write_manifest(tmp_path, manifest))
-
-    assert len(caught) == 1  # one aggregated warning, not a spam per entry
-    assert loaded.twinless_gates() == ["a", "c"]  # the twinned entry is not named
-
-
 def test_the_scratch_battery_is_caught_and_still_loads(tmp_path):
-    # The self-hosting boundary: a manifest where no entry carries the field
-    # must warn for all of them and remain loadable — refusal arrives with
-    # the battery's backfill, in the same landing that makes it zero-exception.
-    with pytest.warns(TwinlessGateWarning):
+    # Same rule at battery scale: no entry carries the field, so all are
+    # named in one warning and the load stands — the scenario suite the
+    # engine runs against these manifests cannot refuse itself into nothing.
+    with pytest.warns(TwinlessGateWarning, match="acceptance"):
         manifest = load_manifest(write_manifest(tmp_path, BASE_MANIFEST))
 
     assert manifest.twinless_gates() == [g["name"] for g in BASE_MANIFEST["gates"]]
 
 
-def test_the_shipped_manifest_loads_under_the_lint():
-    # The green pin on this repository's own manifest, warn stage: the
-    # backfill has not landed yet, so the only contract this file can honour
-    # is that the lint never bricks the engine's manifest load. It passes now
-    # (entries warn) and after the hardening (entries are quiet), so it pins
-    # the loadability itself — the departure's real claim — not the debt.
-    # catch_warnings with an explicit filter keeps the case indifferent to any
-    # warning-filter configuration.
+def test_the_shipped_battery_loads_quiet_with_zero_exceptions():
+    # The green pin, hardened with the backfill (T-0255's proposal): this
+    # repository's own manifest loads under warnings-as-errors — no entry is
+    # voiced — and no entry is twinless. Grandfathering has nowhere to hide.
     shipped = Path(__file__).resolve().parents[1] / ".torve" / "gates.yaml"
 
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", TwinlessGateWarning)
+        warnings.simplefilter("error")
         manifest = load_manifest(shipped)
 
-    assert manifest.gates  # the shipped battery loads: voiced, never bricked
+    assert manifest.gates
+    assert manifest.twinless_gates() == []
+
+
+def test_every_shipped_twin_resolves():
+    # A gate cannot satisfy the lint with a twin that does not exist
+    # (T-0255's proposal, landed at the refusal): a family must ship in the
+    # sabotage suite with a red case; a test path must name a file in the
+    # tree. The cross-check lives here, not in the model — the suite imports
+    # the model, so the load cannot import the suite back.
+    root = Path(__file__).resolve().parents[1]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        manifest = load_manifest(root / ".torve" / "gates.yaml")
+
+    families = {case.gate for case in CASES}
+    reddened = {case.gate for case in CASES if case.expected == "fail"}
+
+    for gate in manifest.gates:
+        twin = gate.sabotage
+        assert twin is not None, f"gate {gate.name} declares no twin"
+
+        if twin in families:
+            assert twin in reddened, f"gate {gate.name}: family {twin} ships no red case"
+        else:
+            assert (root / twin).is_file(), f"gate {gate.name} names a missing twin {twin}"
 
 
 def test_a_blank_twin_is_refused(tmp_path):
     # A present-but-empty sabotage: is a malformed declaration, not a twinless
-    # one — there is nothing for the hardening to resolve against.
+    # one — there is nothing for the resolution to check against.
     with pytest.raises(ValueError, match="non-blank"):
         load_manifest(write_manifest(tmp_path, _gate(sabotage="   ")))
