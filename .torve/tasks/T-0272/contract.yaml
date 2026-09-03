@@ -1,0 +1,53 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0272
+rfc: rfcs/0040-the-why-projection.md
+role: review
+intent: Review T-0250's diff against its contract and inherited decisions.
+targets:
+- T-0250
+decisions:
+- id: D-40.1
+  grade: LOCKED
+  text: 'One reader, every renderer: `why_report` computes the envelope and CLI, MCP
+    and serve re-expose it verbatim (D-32.1''s doctrine applied to the per-task question)'
+  paths:
+  - src/torve/application/projections.py
+  - src/torve/cli/why.py
+  - src/torve/cli/mcp.py
+  - src/torve/cli/serve.py
+- id: D-40.2
+  grade: LOCKED
+  text: "The projection reads durable streams only \u2014 telemetry, feedback, the\
+    \ contract \u2014 never run-state files or trace content; computed on demand,\
+    \ stored nowhere (D-A.12)"
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.3
+  grade: ASSUMED
+  text: "Attempts group by the 0038 `attempt` stamp; unstamped history groups by timestamp\
+    \ order and is marked `pre_verdict: true` \u2014 rendered as partial, never retrofitted"
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.4
+  grade: ASSUMED
+  text: "The regime block compares the task against same-`config_hash` attempt rows\
+    \ only and carries `QUASI_EXPERIMENT_CAVEAT` in the envelope itself \u2014 a comparator,\
+    \ never a verdict or threshold"
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.5
+  grade: ASSUMED
+  text: 'The envelope emits data without judgement: no severity ranking, no advice,
+    no anomaly flags; a detector is a separate document that consumes this surface'
+  paths:
+  - src/torve/application/projections.py
+- id: D-40.6
+  grade: ASSUMED
+  text: 'Unknown task id: `found: false` envelope, CLI exit 3; a readable red history
+    exits 0'
+  paths:
+  - src/torve/cli/why.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
