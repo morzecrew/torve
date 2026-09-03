@@ -1,7 +1,7 @@
 schema_version: 1
 task: T-0255
 repo: morzecrew/torve
-base_sha: 0cc23f9b3f57289a1cae949d02890edc40ab0d28
+base_sha: f24c4141baba45ffa810b13a97aa9da16d2eb007
 drift_count: 0
 entries:
   - decision: D-36.3
@@ -62,3 +62,75 @@ entries:
     proposal: 'OPEN — the T-0259 refusal landing should cross-check each sabotage: value against
       the CASES families and the repository tree, so a gate cannot satisfy the lint with a twin
       that does not exist'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T09:36:00Z'
+    attempt: 3
+    claim: 'the log''s base_sha scalar carried the previous attempt''s pin (0cc23f9b…) while this
+      run''s engine pin is f24c4141… — one scalar is shared by entries minted in different runs, so
+      a carried-forward log cannot hold every attempt''s pin; revised to this run''s pin as the
+      prompt instructs, and attempt 2''s path:line evidence still locates because the gate resolves
+      citations against the working tree, not the recorded commit'
+    evidence: 'src/torve/adapters/agent/harness.py:144 — the prompt''s pin line is generated per run
+      from the workspace head (src/torve/adapters/agent/harness.py:394), so each attempt is handed a
+      fresh pin and a log written by an earlier attempt keeps that attempt''s value;
+      src/torve/gates/evidence.py:52-55 resolves a citation against the root it is handed, not
+      against the recorded base_sha'
+    action: decided
+    proposal: 'OPEN — the format wants a per-entry base_sha, or the runner rewrites the scalar at
+      each attempt''s start, so every entry''s evidence resolves against the commit the attempt that
+      wrote it started from (D-A.7)'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T09:36:30Z'
+    attempt: 3
+    claim: 'the chosen mechanism writes to stderr, and click''s CliRunner mixes stderr into
+      result.output: a battery run with pytest''s warning capture switched off turns a CLI test that
+      parses its own JSON output red, while the battery as the gates invoke it is green; kept
+      warnings.warn — silencing the voice is the one option the departure entry rules out, and the
+      fixtures gain their twins with the hardening that refuses them without'
+    evidence: 'tests/test_context.py:977 — json.loads(raw.output) parses a typer CliRunner result, and
+      click 8.4 mixes the command''s stderr into that stream; `uv run pytest -q --tb=no -rf
+      -p no:randomly` → exit 0, no FAILED or ERROR line, and the run recorded 176 lines naming the
+      warning (pytest''s own capture keeps stderr out of the result)'
+    action: decided
+    proposal: 'OPEN — T-0259 carries a sabotage: twin on every scratch manifest the suite loads (or
+      registers a filterwarnings entry for the warning class), so the battery holds under any
+      warning-filter configuration and not only pytest''s default capture'
+    notes: |
+      Measured, not inferred. The fragility shows when the capture is off:
+      `uv run pytest -q -p no:warnings` fails
+      tests/test_context.py::test_character_calibration_renders_in_all_three_formats
+      with json.decoder.JSONDecodeError: Extra data: line 117 column 1 (char
+      2795) — the twinless warning, written after the JSON, inside the parsed
+      stream. The same test passes when run alone under the default
+      filters, which is what the battery uses.
+
+      The voice itself is confirmed working on the shipped repository:
+      `uv run torve context --root .` prints the twinless block naming all
+      eleven entries and exits 0, and `uv run torve gates check` behaves 29/29
+      with the still-twinless shipped manifest loaded — warn-voiced, not
+      bricked, which is the whole content of the D-36.3 departure above.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T09:55:42Z'
+    attempt: 4
+    claim: 'the contract pins a green case on the shipped manifest, but at the warn stage
+      no zero-exception state exists for it to pin — the shipped battery is twinless by
+      definition until T-0259 backfills it; chosen: the green pin asserts the repository''s
+      own gates.yaml loads without bricking, under warnings.catch_warnings so the case
+      holds under any filter configuration, and it stays green after the hardening removes
+      the warning'
+    evidence: 'rfcs/0036-test-evidence.md:270 — "a red case pins the refusal, a green one
+      pins the shipped manifest"; .torve/gates.yaml:21-27 — the shipped entries carry no
+      sabotage: key, so quietness is not pinnable there yet'
+    action: decided
+    proposal: 'OPEN — T-0259 strengthens this case to pin the zero-exception shipped
+      manifest: loads quiet AND twinless_gates() == [], the refusal shape the contract
+      always wanted'

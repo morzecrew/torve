@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import pytest
 import yaml
@@ -182,6 +183,23 @@ def test_the_scratch_battery_is_caught_and_still_loads(tmp_path):
         manifest = load_manifest(write_manifest(tmp_path, BASE_MANIFEST))
 
     assert manifest.twinless_gates() == [g["name"] for g in BASE_MANIFEST["gates"]]
+
+
+def test_the_shipped_manifest_loads_under_the_lint():
+    # The green pin on this repository's own manifest, warn stage: the
+    # backfill has not landed yet, so the only contract this file can honour
+    # is that the lint never bricks the engine's manifest load. It passes now
+    # (entries warn) and after the hardening (entries are quiet), so it pins
+    # the loadability itself — the departure's real claim — not the debt.
+    # catch_warnings with an explicit filter keeps the case indifferent to any
+    # warning-filter configuration.
+    shipped = Path(__file__).resolve().parents[1] / ".torve" / "gates.yaml"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", TwinlessGateWarning)
+        manifest = load_manifest(shipped)
+
+    assert manifest.gates  # the shipped battery loads: voiced, never bricked
 
 
 def test_a_blank_twin_is_refused(tmp_path):
