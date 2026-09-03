@@ -227,3 +227,4 @@ __marimo__/
 .wt/
 .torve/review-corpus/*/*.trace.log
 .repowise/
+.claude/CLAUDE.md
