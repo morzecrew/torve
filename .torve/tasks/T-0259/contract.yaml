@@ -1,0 +1,46 @@
+# Hand-minted by the operator against RFC 0036 §5.2 — the backfill half
+# T-0255 cannot carry across the self-hosting boundary: the battery's
+# sabotage declarations land only once the schema-bearing engine
+# (T-0255's landing) is the one evaluating the manifest. Dispatch
+# strictly after T-0255 ships.
+schema_version: 1
+id: T-0259
+rfc: rfcs/0036-test-evidence.md
+phase: 0
+role: implement
+title: the battery declares its twins
+intent: >-
+  Every gate entry in this repository's gates.yaml gains its sabotage:
+  declaration per 0036 §5.2 — builtins name their shipped CASES family,
+  shell gates name the test file that reddens them (rfc-valid and
+  layering point at their sabotage suites, coverage-delta at the twins
+  T-0254 shipped) — so the lint T-0255 landed holds with zero
+  grandfather exceptions. No schema change: manifest.py already
+  validates the field. torve gates check stays green.
+depends_on:
+- T-0255
+parent: null
+targets: []
+scope:
+  allow:
+  - .torve/gates.yaml
+  deny: []
+acceptance:
+- uv run torve gates check
+- uv run pytest tests/test_manifest.py tests/test_gates.py
+- uv run torve rfc check
+decisions:
+- id: D-36.3
+  grade: ASSUMED
+  text: A manifest gate entry names its sabotage twin (`sabotage:` — a CASES family or a test
+    path); manifest load refuses a twinless gate, with existing entries backfilled in the landing
+    so the lint ships with zero exceptions
+  paths:
+  - src/torve/config/manifest.py
+  - .torve/gates.yaml
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
