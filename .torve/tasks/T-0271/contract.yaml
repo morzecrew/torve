@@ -1,0 +1,51 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0271
+rfc: rfcs/0039-durable-traces-and-the-burn-profile.md
+role: review
+intent: Review T-0249's diff against its contract and inherited decisions.
+targets:
+- T-0249
+decisions:
+- id: D-39.1
+  grade: LOCKED
+  text: "Traces live under `<root>/.torve/traces/` from the first byte, referenced\
+    \ root-relative; the reaper's terminal sweep never deletes them \u2014 only the\
+    \ retention pass does"
+  paths:
+  - src/torve/base/naming.py
+  - src/torve/application/reaper.py
+  - src/torve/adapters/agent/harness.py
+- id: D-39.2
+  grade: LOCKED
+  text: 'The trace store is local: torve never commits, uploads or transmits a trace;
+    trace content never enters a prompt (D-5.3) and never drives control flow'
+  paths:
+  - src/torve/application/reaper.py
+  - src/torve/adapters/agent/harness.py
+- id: D-39.3
+  grade: ASSUMED
+  text: Retention is `traces.keep_days` and `traces.max_mb` in runner configuration,
+    enforced oldest-first at the reaper's existing pass; defaults 30 and 512 pending
+    the owner's read of dogfood volume
+  paths:
+  - src/torve/config/runconfig.py
+  - src/torve/application/reaper.py
+- id: D-39.4
+  grade: ASSUMED
+  text: "The burn profile is derived by the harness adapter from all JSON lines of\
+    \ the output it already holds \u2014 turns, tool calls, top turns by output tokens\
+    \ \u2014 riding the agent block under D-4.6's absent-stays-absent regime; no stream,\
+    \ no block"
+  paths:
+  - src/torve/adapters/agent/harness.py
+  - src/torve/application/telemetry.py
+- id: D-39.5
+  grade: ASSUMED
+  text: 'Torve imposes no trace format: the store keeps profile output verbatim, and
+    the burn scanner extracts only facts with cross-harness meaning'
+  paths:
+  - src/torve/adapters/agent/harness.py
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1
