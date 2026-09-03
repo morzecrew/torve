@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import load_runner_config
 
@@ -53,3 +54,38 @@ def test_runner_config_rejects_unknown_keys(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError):
         load_runner_config(tmp_path)
+
+
+# ....................... #
+# The trace store's home: one directory of the engine root, referenced
+# root-relative, and one path helper every writer reaches.
+
+
+def test_trace_store_home_is_under_the_root(tmp_path: Path) -> None:
+    assert naming.traces_dir(tmp_path) == tmp_path / ".torve" / "traces"
+    assert naming.trace_file(naming.worktree(tmp_path, "T-1"), 4) == (
+        tmp_path / ".torve" / "traces" / "T-1.a4.trace.log"
+    )
+
+
+def test_trace_ref_is_root_relative(tmp_path: Path) -> None:
+    expected = ".torve/traces/T-1.a4.trace.log"
+    assert naming.trace_ref(naming.worktree(tmp_path, "T-1"), 4) == expected
+
+
+def test_the_trace_path_helper_ensures_the_store_directory(tmp_path: Path) -> None:
+    # The one path helper creates the home, so no writer of the store —
+    # the harness adapter or the review lane's relocation — can depend on
+    # another having run first.
+
+    assert not (tmp_path / ".torve" / "traces").exists()
+
+    trace = naming.trace_file(naming.worktree(tmp_path, "T-1"), 1)
+
+    assert trace.parent.is_dir()
+
+    # And it is idempotent: the helper serves a second writer into a home
+    # the first one already made.
+    assert naming.trace_file(naming.worktree(tmp_path, "T-2"), 1) == (
+        tmp_path / ".torve" / "traces" / "T-2.a1.trace.log"
+    )

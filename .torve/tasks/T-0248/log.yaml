@@ -1,0 +1,89 @@
+schema_version: 1
+task: T-0248
+repo: morzecrew/torve
+base_sha: 6f4a04dcc4318313961245c4cb0d8f950e62aafb
+drift_count: 0
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T17:01:00Z'
+    attempt: 1
+    claim: 'the contract lists five test files to pin the move, but a sixth file asserts the
+      old trace home — `tests/test_run_integration.py` checks the harness-tier end-to-end run
+      leaves `<root>/.wt/<task>.a1.trace.log`, which D-39.1 moves to the durable store; that
+      path is outside this task''s allowed scope, so the choice here is to leave the file
+      untouched and report it — the contract''s own acceptance commands never select it, and
+      the one-line assertion update is the re-mint''s to carry'
+    evidence: 'tests/test_run_integration.py:241 — the assertion pinning the pre-move home;
+      the task''s scope allow-list names only tests/test_reaper.py, tests/test_tiering.py,
+      tests/test_layout.py, tests/test_runconfig.py and tests/test_review_run.py'
+    action: decided
+    proposal: 'OPEN — extend the phase-1 contract''s scope with tests/test_run_integration.py
+      and amend its trace-home assertion to `<root>/.torve/traces/<task>.a1.trace.log`; the
+      assertion text is fully determined by D-39.1, nothing new is being decided'
+  - decision: D-39.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T17:21:00Z'
+    attempt: 1
+    claim: 'close-out over the touched LOCKED area: the store is one home from the first byte —
+      naming.trace_file returns <root>/.torve/traces/<task>.a<attempt>.trace.log, and the two
+      writers of that home, the harness adapter and the review lane''s relocation, both write
+      through this one helper, which creates the directory, so neither can depend on the other
+      having run first; trace_ref is recorded root-relative by naming.trace_ref; and the
+      reaper''s terminal sweep now deletes no trace at all — the sweep loop is gone, and the
+      retention pass is the store''s only remover'
+    evidence: 'src/torve/base/naming.py:71-86 — the writer helper that ensures the home;
+      src/torve/application/reaper.py:137-171 is the state sweep with the trace unlink removed
+      and :175-213 the retention pass; src/torve/adapters/agent/harness.py:407-424 and
+      src/torve/application/review.py:521-531 are the two writers; tests/test_reaper.py:184
+      pins the sweep''s restraint, tests/test_tiering.py:307-313 the relative ref'
+    action: decided
+    notes: |
+      Age and home are pinned in tests/test_layout.py:64-91 (path, relative ref, and the
+      helper's directory-ensuring for a first writer into an absent store). The review lane
+      additionally switched its recorded trace_ref from absolute to root-relative
+      (tests/test_review_run.py:541-588). The docker-gated integration suite skips on this
+      host; its stale assertion is the out-of-scope matter the first entry reports.
+  - decision: D-39.2
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T17:22:00Z'
+    attempt: 1
+    claim: 'close-out over the touched LOCKED area: the store stays local — the retention pass
+      deletes and nothing else, reading only stat metadata and never a trace''s content; no
+      torve mechanism in the changed code commits, uploads or transmits a trace, and the
+      recorded trace_ref is a path string on the local telemetry stream, not a body; trace
+      content still enters no prompt and drives no control flow — the adapter''s prompt
+      builder is untouched and it writes the captured output verbatim'
+    evidence: 'src/torve/application/reaper.py:175-213 — the pass stats and unlinks files by
+      name, opening no body; src/torve/adapters/agent/harness.py:411-412 writes result.output
+      verbatim into the store, and build_prompt above it never reads the store'
+    action: decided
+    notes: |
+      The repository-level .gitignore is the operator's own call (the RFC words it as such);
+      this task deliberately neither ignores nor stages the store, and .gitignore sits
+      outside the allowed scope.
+  - decision: D-39.3
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T17:23:00Z'
+    attempt: 1
+    claim: 'close-out over the touched ASSUMED area: the block lands as the row states —
+      traces.keep_days and traces.max_mb in runner configuration, defaults 30 and 512,
+      enforced oldest-first at the reaper''s existing pass in both regimes (the heartbeat
+      reap and the durable reap call it); details the row leaves open are decided here:
+      age is the filesystem''s modification time, a bound of zero is a literal bound
+      (keep nothing) and not a disabled sentinel, a dry-run reap reports retention
+      candidates without deleting, and the reviewer''s relocated trace shares the single
+      store and so the same retention as the author''s — the shorter-window alternative
+      the RFC leaves unresolved is declined because nothing distinguishes them today'
+    evidence: 'src/torve/config/runconfig.py:749-763 — TracesConfig with the drafting defaults;
+      src/torve/application/reaper.py:282 and :373 are the two pass sites;
+      tests/test_reaper.py:213-262 pin both bounds, the within-bounds restraint and the dry run'
+    action: decided

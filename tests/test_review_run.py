@@ -525,9 +525,10 @@ def test_parse_findings_survives_ansi_and_multiline_documents():
 
 
 class HarnessLikeReviewer:
-    """Mimics the harness's trace behaviour: writes the session trace
-    beside the workspace it is given — which for a review is the target's
-    worktree (the collision T-0172 fixes) — and returns that trace_ref."""
+    """Mimics the harness's trace behaviour: writes the session trace into
+    the durable store named after the workspace it is given — which for a
+    review is the review's own worktree address (the collision T-0172
+    fixes) — and returns that trace_ref."""
 
     def __init__(self, output):
         self.output = output
@@ -539,15 +540,15 @@ class HarnessLikeReviewer:
 
 
 def test_the_review_trace_lands_under_the_review_id_and_spares_the_executors(review_rig):
-    # T-0172: the reviewer's session used to overwrite the executor's trace
-    # at .wt/<target>.a1.trace.log — the review's own trace must land at
-    # .wt/<review-id>.a1.trace.log and the executor's evidence must survive
-    # byte-for-byte (its record still cites it).
+    # T-0172: the reviewer's session used to overwrite the executor's trace —
+    # the review's own trace must land under the review id in the durable
+    # store (D-39.1) and the executor's evidence must survive byte-for-byte
+    # (its record still cites it).
     repo, _runtime, deps_for = review_rig
 
-    # The executor's trace, as its own record cites it (RFC 0004 §4).
+    # The executor's trace, as its own record cites it (RFC 0004 §4) —
+    # written through the store's one path helper, which creates the home.
     executor_trace = naming.trace_file(repo.root / ".wt" / "T-9001", 1)
-    executor_trace.parent.mkdir(parents=True, exist_ok=True)
     executor_trace.write_bytes(b"the executor's session, verbatim\n")
 
     # The review's record rides the worktree's manifest telemetry path.
@@ -574,14 +575,18 @@ def test_the_review_trace_lands_under_the_review_id_and_spares_the_executors(rev
     assert review_trace.is_file()
     assert review_trace.read_text(encoding="utf-8") == output
 
-    # And the review's record cites it — the evidence telemetry points at
-    # actually exists, and it is never the executor's path.
+    # And the review's record cites it — root-relative (D-39.1), so the
+    # pointer resolves from the stream alone on the host that owns the
+    # store — and it is never the executor's path.
     telemetry = repo.root / ".torve" / "telemetry.jsonl"
     records = [json.loads(line) for line in telemetry.read_text().splitlines()]
     review_records = [r for r in records if r.get("kind") == "review"]
     assert len(review_records) == 1
     assert review_records[0]["task_id"] == review_id
-    assert review_records[0]["agent"]["trace_ref"] == str(review_trace)
+    assert review_records[0]["agent"]["trace_ref"] == (
+        naming.trace_ref(repo.root / ".wt" / review_id, 1)
+    )
+    assert review_records[0]["agent"]["trace_ref"] == f".torve/traces/{review_id}.a1.trace.log"
 
 
 def test_a_reviewer_that_wrote_no_trace_records_none(review_rig):
@@ -620,8 +625,8 @@ def test_a_reviewer_that_wrote_no_trace_records_none(review_rig):
 
 def test_a_review_session_never_leaks_onto_the_executors_trace_path(review_rig):
     # T-0172: without a pre-existing executor trace, the reviewer's session
-    # must not remain at .wt/<target>.a1.trace.log under the executor's name
-    # — an evidence file in the wrong place is as misleading as a missing one.
+    # must not remain under the executor's name in the trace store — an
+    # evidence file in the wrong place is as misleading as a missing one.
     repo, _runtime, deps_for = review_rig
     output = reviewer_output([])
 

@@ -10,9 +10,12 @@ prompt points at the role's materialized skills and the execution log the
 `decisions-reported` gate reads; everything else the harness learns from the
 workspace itself (`AGENTS.md`, `SKILL.md` — §1).
 
-The session trace is captured beside the worktree and referenced from the
-attempt record (`trace_ref`). A trace is not gate evidence (§4): it records
-what the model saw, not what the code did.
+The session trace is captured verbatim into the durable store under the
+engine root and referenced root-relative from the attempt record
+(`trace_ref`). A trace is not gate evidence (§4): it records what the
+model saw, not what the code did. The store is local (D-39.2): the
+adapter never commits, uploads or transmits a trace, and its content
+enters no prompt and drives no control flow.
 """
 
 from __future__ import annotations
@@ -401,6 +404,10 @@ class HarnessAgent:
         command = self._command(ctx)
         result = ctx.runtime.exec(ctx.handle, command, ctx.timeout_s)
 
+        # The trace goes to the durable store verbatim (D-39.5) through the
+        # one helper that owns the home (D-39.1), and is recorded from there
+        # root-relative — an absolute path is machine-specific while it lives
+        # and dangling once retention takes the file, the ref is neither.
         trace = naming.trace_file(ctx.workspace, ctx.attempt)
         trace.write_text(result.output, encoding="utf-8")
         meta = parse_metadata(result.output)
@@ -414,5 +421,5 @@ class HarnessAgent:
             cache_read_tokens=meta.cache_read_tokens,
             cache_creation_tokens=meta.cache_creation_tokens,
             output_tokens=meta.output_tokens,
-            trace_ref=str(trace),
+            trace_ref=naming.trace_ref(ctx.workspace, ctx.attempt),
         )

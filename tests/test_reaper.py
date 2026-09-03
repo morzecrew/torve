@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from datetime import UTC, datetime, timedelta
 
 from test_run_loop import MockRuntime
@@ -8,7 +10,8 @@ from test_run_loop import MockRuntime
 from torve.application.ports import SandboxInfo
 from torve.application.reaper import reap
 from torve.application.runstate import RunState
-from torve.config.runconfig import RunnerConfig
+from torve.base import naming
+from torve.config.runconfig import RunnerConfig, TracesConfig
 from torve.domain.states import TaskState
 
 
@@ -43,6 +46,22 @@ def sandbox_for(run):
         name=f"torve-{run.task_id}",
         labels={"torve.task": run.task_id, "torve.run": run.run_id},
     )
+
+
+def put_trace(root, name, *, age_days=0.0, body="trace"):
+    """One trace written into the durable store with its modification time
+    back-dated — retention's clock is the filesystem's."""
+
+    store = naming.traces_dir(root)
+    store.mkdir(parents=True, exist_ok=True)
+    trace = store / name
+    trace.write_text(body, encoding="utf-8")
+
+    if age_days:
+        moment = time.time() - age_days * 86_400
+        os.utime(trace, (moment, moment))
+
+    return trace
 
 
 def test_stale_run_is_expired_and_its_sandbox_destroyed(tmp_path):
@@ -163,12 +182,14 @@ def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):
 
 
 def test_terminal_run_footprint_is_swept_whole(tmp_path):
-    # RFC 0003 §4.2: the sweep destroys anything without a live lease — for a
-    # terminal run that is the worktree, the state file AND the trace logs.
+    # RFC 0003 §4.2: the sweep destroys anything without a live lease — for
+    # a terminal run that is the worktree and the state file. The trace is
+    # not (D-39.1): it lives in the durable store, which the retention pass
+    # alone empties — triage now really does outlive the workspace.
     ready = state_at(tmp_path, "T-9401", TaskState.READY)
     escalated = state_at(tmp_path, "T-9402", TaskState.ESCALATED)
-    (tmp_path / ".wt" / "T-9401.a1.trace.log").write_text("trace")
-    (tmp_path / ".wt" / "T-9402.a1.trace.log").write_text("trace")
+    terminal_trace = put_trace(tmp_path, "T-9401.a1.trace.log")
+    escalated_trace = put_trace(tmp_path, "T-9402.a1.trace.log")
     workspace = ListingWorkspace([("T-9401", tmp_path / ".wt" / "T-9401")])
 
     report = reap(tmp_path, RunnerConfig(), MockRuntime(), workspace)
@@ -176,10 +197,66 @@ def test_terminal_run_footprint_is_swept_whole(tmp_path):
     assert report.worktrees_removed == ["T-9401"]
     assert report.states_removed == ["T-9401"]
     assert not ready.path.exists()
-    assert not (tmp_path / ".wt" / "T-9401.a1.trace.log").exists()
-    # An escalated run is triage evidence: state file and trace stay.
+    # The sweep leaves every trace alone, terminal or escalated — inside
+    # both retention bounds it touches nothing.
+    assert report.traces_removed == []
+    assert terminal_trace.is_file()
     assert escalated.path.exists()
-    assert (tmp_path / ".wt" / "T-9402.a1.trace.log").exists()
+    assert escalated_trace.is_file()
+
+
+# ....................... #
+# The store's retention (D-39.3): the reaper's pass is the trace's only
+# remover, and it sheds oldest-first past either bound.
+
+
+def test_retention_sheds_past_keep_days_oldest_first(tmp_path):
+    config = RunnerConfig(traces=TracesConfig(keep_days=30, max_mb=512))
+    expired = put_trace(tmp_path, "T-9501.a1.trace.log", age_days=31)
+    kept = put_trace(tmp_path, "T-9502.a1.trace.log", age_days=29)
+
+    report = reap(tmp_path, config, MockRuntime(), ListingWorkspace([]))
+
+    assert report.traces_removed == [expired.name]
+    assert not expired.exists()
+    assert kept.is_file()
+
+
+def test_retention_sheds_past_max_mb_oldest_first(tmp_path):
+    # Every trace is young: only the size bound bites. Three 400KB traces
+    # against a 1MB cap breach it, and exactly the oldest goes — the two
+    # remaining fit, so the pass sheds no further.
+    config = RunnerConfig(traces=TracesConfig(keep_days=365, max_mb=1))
+    bulk = "x" * 400_000
+    oldest = put_trace(tmp_path, "T-9511.a1.trace.log", age_days=3, body=bulk)
+    middle = put_trace(tmp_path, "T-9512.a1.trace.log", age_days=2, body=bulk)
+    newest = put_trace(tmp_path, "T-9513.a1.trace.log", age_days=1, body=bulk)
+
+    report = reap(tmp_path, config, MockRuntime(), ListingWorkspace([]))
+
+    assert report.traces_removed == [oldest.name]
+    assert not oldest.exists()
+    assert middle.is_file()
+    assert newest.is_file()
+
+
+def test_retention_touches_nothing_within_both_bounds(tmp_path):
+    recent = put_trace(tmp_path, "T-9521.a1.trace.log", age_days=1)
+
+    report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]))
+
+    assert report.traces_removed == []
+    assert recent.is_file()
+
+
+def test_retention_reports_candidates_on_a_dry_run_without_deleting(tmp_path):
+    config = RunnerConfig(traces=TracesConfig(keep_days=7, max_mb=512))
+    expired = put_trace(tmp_path, "T-9531.a1.trace.log", age_days=8)
+
+    report = reap(tmp_path, config, MockRuntime(), ListingWorkspace([]), dry_run=True)
+
+    assert report.traces_removed == [expired.name]
+    assert expired.is_file()
 
 
 def test_terminal_state_whose_worktree_is_already_gone_is_still_swept(tmp_path):

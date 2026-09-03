@@ -24,6 +24,10 @@ WORKTREE_DIR = ".wt"
 # the ordinary one under a distinct name, so a bare task id and its
 # drafting-run worktree never collide during adoption.
 INTAKE_SUFFIX = ".intake"
+# The durable trace store's directory (RFC 0039 §5.1, D-39.1), spelled from
+# the engine root. One string, so the root-relative `trace_ref` recorded in
+# telemetry is literally this text.
+TRACES_DIR = ".torve/traces"
 
 
 # ....................... #
@@ -53,11 +57,41 @@ def state_file(root: Path, task_id: str) -> Path:
 # ....................... #
 
 
-def trace_file(worktree: Path, attempt: int) -> Path:
-    """Session trace, one per attempt (RFC 0004 §4) — beside the worktree for
-    the same reason as the state file: triage outlives the workspace."""
+def traces_dir(root: Path) -> Path:
+    """The durable trace store's home (RFC 0039 §5.1, D-39.1): a directory of
+    the host root, retention-capped and never swept by the reaper's terminal
+    pass. Read-only lookup — writers enter the store through `trace_file`."""
 
-    return worktree.parent / f"{worktree.name}.a{attempt}.trace.log"
+    return root / TRACES_DIR
+
+
+# ....................... #
+
+
+def trace_file(worktree: Path, attempt: int) -> Path:
+    """Session trace, one per attempt (RFC 0004 §4), in the durable store
+    under the root the worktree sits in (RFC 0039 §5.1, D-39.1): triage
+    outlives the workspace because the reap leaves traces to the retention
+    pass. This is the one path helper every writer of the store reaches —
+    it ensures the directory exists, so no writer can depend on another
+    having run first (T-0269). Record the result root-relative with
+    `trace_ref`, never this machine-specific absolute path."""
+
+    home = traces_dir(worktree.parent.parent)
+    home.mkdir(parents=True, exist_ok=True)
+
+    return home / f"{worktree.name}.a{attempt}.trace.log"
+
+
+# ....................... #
+
+
+def trace_ref(worktree: Path, attempt: int) -> str:
+    """The trace's root-relative reference (D-39.1): resolves against the
+    root that owns the store for as long as retention keeps the file, and
+    says so plainly once it no longer does."""
+
+    return f"{TRACES_DIR}/{worktree.name}.a{attempt}.trace.log"
 
 
 # ....................... #

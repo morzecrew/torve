@@ -16,6 +16,7 @@ from torve.application.telemetry import config_hash
 from torve.config.runconfig import (
     RunnerConfig,
     TierConfig,
+    TracesConfig,
     agent_timeout_for,
     load_runner_config,
     profiles_dir,
@@ -660,3 +661,33 @@ def test_an_explicit_tier_variant_wins_over_a_mapped_character():
     task = _executor_task(character="structural", tier_variant="pinned")
     resolved = resolve_character_tier(config, task)
     assert resolved.tier_variant == "pinned"
+
+
+# ....................... #
+# The trace store's retention block: `traces.keep_days` and `traces.max_mb`,
+# enforced by the reaper's pass, defaulting to the drafting values.
+
+
+def test_traces_retention_defaults():
+    config = RunnerConfig()
+    assert config.traces.keep_days == 30
+    assert config.traces.max_mb == 512
+
+
+def test_traces_block_loads_from_yaml(tmp_path: Path):
+    config = load(tmp_path, "traces:\n  keep_days: 7\n  max_mb: 64\n")
+    assert config.traces == TracesConfig(keep_days=7, max_mb=64)
+
+
+def test_traces_block_rejects_unknown_keys(tmp_path: Path):
+    # D-13.5 again: a typo under traces must not silently drop a knob.
+    with pytest.raises(ValidationError):
+        load(tmp_path, "traces:\n  keep_weeks: 4\n")
+
+
+def test_traces_bounds_refuse_non_numbers():
+    # Keep days and max megabytes: the pass enforces numbers, and a bound
+    # that cannot be read as one is a refusal at load, never a surprise
+    # at sweep time.
+    with pytest.raises(ValidationError):
+        TracesConfig(keep_days="a month")  # type: ignore[arg-type]

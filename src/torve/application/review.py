@@ -512,17 +512,22 @@ def run_review(
     # The review's session lives under its own id — which, since the copy sits
     # at the review's own worktree address, is the name the harness gives it
     # here. The write keeps that true for an adapter that named its trace
-    # somewhere else, and the record's trace_ref then points at evidence that
-    # survives the review. Only an adapter that actually wrote a trace gets the
-    # relocation (T-0176): an adapter that wrote none left no file, and a
-    # record citing a harness-shaped path nothing produced is a fabricated
-    # coordinate — as misleading as a missing one.
+    # somewhere else, and the record's root-relative trace_ref (D-39.1) then
+    # points at evidence that survives the review and the reap alike, until
+    # the store's own retention takes it. This writer reaches the store
+    # through `trace_file`, the one helper that ensures the directory exists
+    # — as the harness does; neither may depend on the other having run
+    # first. Only an adapter that actually wrote a trace gets the relocation
+    # (T-0176): an adapter that wrote none left no file, and a record citing
+    # a harness-shaped path nothing produced is a fabricated coordinate — as
+    # misleading as a missing one.
     review_trace_ref = None
 
     if result.trace_ref is not None:
-        review_trace = naming.trace_file(naming.worktree(root, review.id), 1)
+        review_worktree = naming.worktree(root, review.id)
+        review_trace = naming.trace_file(review_worktree, 1)
         review_trace.write_text(result.output, encoding="utf-8")
-        review_trace_ref = str(review_trace)
+        review_trace_ref = naming.trace_ref(review_worktree, 1)
 
     # T-0186: the reviewer's self-reported token counts must survive the
     # rebuild below — the rebuilt AgentResult is the base shape and carries

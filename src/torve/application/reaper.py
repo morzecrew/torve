@@ -16,17 +16,23 @@ torve labels and are invisible here by design: cleanup-by-convention must
 not pretend to cover what it cannot see. The battery that starts them owns
 their lifecycle, exactly as it does on an operator's machine.
 
-A terminal run's state file and trace logs are swept with its worktree — the
-durable record of what happened is the task log and telemetry, and a state
-file that outlives the sweep shows up in `torve status` forever. What remains
-in `.wt/` after a reap is only live and escalated runs. The state sweep is
-driven by the state files themselves, not the worktree listing, so a footprint
-whose worktree is already gone is still collected.
+A terminal run's state file is swept with its worktree — the durable
+record of what happened is the task log and telemetry, and a state
+file that outlives the sweep shows up in `torve status` forever. What
+remains in `.wt/` after a reap is only live and escalated runs. The
+state sweep is driven by the state files themselves, not the worktree
+listing, so a footprint whose worktree is already gone is still
+collected. Traces are gone from that sweep (D-39.1): they live in the
+retention-capped store under `.torve/traces/`, and the only deletion
+there is this reaper's retention pass, enforcing the `traces:` bounds
+oldest-first (D-39.3). The store is local — a sweep deletes files on
+this host and never moves, copies or sends one (D-39.2).
 """
 
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -57,6 +63,7 @@ class ReapReport:
     worktrees_removed: list[str] = field(default_factory=list)
     runs_expired: list[str] = field(default_factory=list)
     states_removed: list[str] = field(default_factory=list)
+    traces_removed: list[str] = field(default_factory=list)
 
 
 # ....................... #
@@ -135,11 +142,11 @@ def _sweep_states(
     landed: LandedOracle | None = None,
     escalated: bool = False,
 ) -> None:
-    """A terminal run's remaining footprint: state file and trace logs, named
-    by convention (D-3.4) beside the worktree. Driven by the state files, not
-    the worktree listing — the worktree may already be gone."""
-
-    wt_dir = root / naming.WORKTREE_DIR
+    """A terminal run's remaining footprint: the state file, named by
+    convention (D-3.4) beside the worktree. Driven by the state files, not
+    the worktree listing — the worktree may already be gone. Traces are not
+    part of this sweep (D-39.1): they live in the durable store, and the
+    retention pass below is their only remover."""
 
     for state in states:
         collectable = state.state in TERMINAL or (
@@ -157,12 +164,55 @@ def _sweep_states(
             continue
 
         if not dry_run:
-            for trace in sorted(wt_dir.glob(f"{state.task_id}.a*.trace.log")):
-                trace.unlink()
-
             state.path.unlink(missing_ok=True)
 
         report.states_removed.append(state.task_id)
+
+
+# ....................... #
+
+
+def _retain_traces(root: Path, config: RunnerConfig, report: ReapReport, dry_run: bool) -> None:
+    """The trace store's retention (D-39.3): past either bound of the
+    `traces:` block — `keep_days` of age, `max_mb` of size — the store sheds
+    oldest first. This is the store's only remover (D-39.1): the terminal
+    sweep leaves traces to this pass. Age is measured by modification time;
+    a trace deleted here while its `trace_ref` still names it is the defined
+    outcome of retention, which every reader renders as a reaped pointer,
+    never an error. The store is local: this deletes, and nothing else —
+    no copy, no upload, no transmission of a trace (D-39.2)."""
+
+    store = naming.traces_dir(root)
+
+    stamped: list[tuple[float, int, Path]] = []
+
+    for trace in store.glob("*.trace.log"):
+        if not trace.is_file():
+            continue  # only the helpers' own files are the store's contents
+
+        try:
+            stat = trace.stat()
+        except OSError:
+            continue  # vanished between glob and stat: already gone is retained
+
+        stamped.append((stat.st_mtime, stat.st_size, trace))
+
+    stamped.sort(key=lambda entry: entry[0])  # oldest first, both bounds
+
+    horizon = time.time() - config.traces.keep_days * 86_400
+    budget = config.traces.max_mb * 1_048_576
+    total = sum(size for _mtime, size, _trace in stamped)
+
+    for mtime, size, trace in stamped:
+        if mtime >= horizon and total <= budget:
+            break  # this one and everything after it (younger) is inside both bounds
+
+        total -= size
+
+        if not dry_run:
+            trace.unlink(missing_ok=True)
+
+        report.traces_removed.append(trace.name)
 
 
 # ....................... #
@@ -229,6 +279,7 @@ def _heartbeat_reap(
 
     _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run)
     _sweep_states(root, states, report, dry_run, landed, escalated=escalated)
+    _retain_traces(root, config, report, dry_run)
 
     return report
 
@@ -319,6 +370,7 @@ async def _durable_reap(
 
     _sweep_worktrees(workspace, by_task, report, dry_run)
     _sweep_states(root, states, report, dry_run, landed)
+    _retain_traces(root, config, report, dry_run)
 
     return report
 

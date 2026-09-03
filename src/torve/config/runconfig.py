@@ -746,6 +746,24 @@ class ReapConfig(BaseModel):
 # ....................... #
 
 
+class TracesConfig(BaseModel):
+    """Retention bounds for the durable trace store (RFC 0039 §5.2, D-39.3):
+    the reaper's pass sheds traces oldest-first past either bound. Both
+    knobs are operator's — trace volume is a property of the fleet, not the
+    engine — and the defaults are the drafting values, pending the owner's
+    read of dogfood volume. A bound set to zero is kept literal, not taken
+    as "disabled": zero days or zero megabytes means keep nothing, and the
+    pass reports every trace it shed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    keep_days: int = 30
+    max_mb: int = 512
+
+
+# ....................... #
+
+
 class VcsConfig(BaseModel):
     """Local git at the runner boundary (RFC 0010 §4). The signing key is a
     path to an SSH private key the RUNNER holds — it is never mounted into a
@@ -951,6 +969,7 @@ class RunnerConfig(BaseModel):
     poison_ceiling: int = 3  # checked before dispatch; ceiling reached -> escalated, never retry
     base: str | None = None  # base ref for worktrees; None -> origin/main, then main
     reap: ReapConfig = Field(default_factory=ReapConfig)
+    traces: TracesConfig = Field(default_factory=TracesConfig)
     vcs: VcsConfig = Field(default_factory=VcsConfig)
     scm: ScmConfig = Field(default_factory=ScmConfig)
     tracker: TrackerConfig = Field(default_factory=TrackerConfig)

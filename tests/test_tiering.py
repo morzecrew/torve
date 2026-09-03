@@ -304,11 +304,13 @@ def test_harness_agent_stages_prompt_and_captures_trace(tmp_path):
     # Metadata parsed from the trailing JSON line (D-4.6).
     assert result.cost_usd == 0.12
     assert result.model_version == "test-model-1"
-    # The trace lives beside the worktree and is referenced, not embedded.
-    assert result.trace_ref is not None
-    trace = ctx.workspace.parent / "T-9010.a1.trace.log"
+    # The trace lives in the durable store — the worktree's root, under
+    # `.torve/traces/` — and is referenced root-relative from the record,
+    # never embedded (D-39.1). Nothing created the store before the run:
+    # the one path helper the adapter writes through ensures the directory.
+    assert result.trace_ref == ".torve/traces/T-9010.a1.trace.log"
+    trace = tmp_path / ".torve" / "traces" / "T-9010.a1.trace.log"
     assert trace.read_text(encoding="utf-8") == result.output
-    assert result.trace_ref == str(trace)
 
 
 def test_harness_without_metadata_is_an_uncontrolled_regime(tmp_path):
