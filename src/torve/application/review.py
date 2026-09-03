@@ -235,6 +235,33 @@ def elide_diff_bulk(diff_text: str) -> str:
 # ....................... #
 
 
+def transient_api_failure(output: str) -> bool:
+    """A harness result that is a provider-side 5xx and nothing else — the
+    envelope says is_error and the result text names an API Error in the 500s.
+    Judged from the recorded output alone so the retry is auditable."""
+
+    for line in reversed(output.strip().splitlines()):
+        try:
+            document: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(document, dict):
+            return False
+
+        envelope = cast("dict[str, Any]", document)
+
+        return bool(envelope.get("is_error")) and bool(
+            re.search(r"API Error: 5\d\d", str(envelope.get("result", "")))
+        )
+
+    return False
+
+
+# ....................... #
+
+
 def stage_review_copy(worktree: Path, copy: Path) -> Path:
     """The reviewer's workspace: a copy of the target worktree it may write in
     and run (D-5.2 as reworded by A-78), destroyed with its sandbox.
@@ -443,19 +470,26 @@ def run_review(
     review_clock = _time.monotonic()
 
     try:
-        result = agent.run(
-            AgentContext(
-                task=review,
-                attempt=1,
-                workspace=copy,
-                handle=handle,
-                runtime=runtime,
-                workdir=spec.workdir,
-                timeout_s=agent_timeout_for(config, tier),
-                prompt=prompt,
-                broker=broker_handle,
-            )
+        # A transient provider failure (500/529 through the gateway) is not
+        # a verdict: two green-gated runs died as gate_infrastructure_failure
+        # over upstream blips, each costing the whole task a restart. One
+        # in-run retry absorbs the blip; a second failure escalates as before.
+        context = AgentContext(
+            task=review,
+            attempt=1,
+            workspace=copy,
+            handle=handle,
+            runtime=runtime,
+            workdir=spec.workdir,
+            timeout_s=agent_timeout_for(config, tier),
+            prompt=prompt,
+            broker=broker_handle,
         )
+        result = agent.run(context)
+
+        if transient_api_failure(result.output):
+            _time.sleep(15)
+            result = agent.run(context)
 
     finally:
         runtime.destroy(handle)
