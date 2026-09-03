@@ -239,4 +239,4 @@ def test_harness_tier_end_to_end(repo):
     # wrote for the role, so cohorts group by skill regime.
     assert agent_block["skills"] == ["flag-dont-flip", "ratchet-what-you-build"]
     trace = agent_block["trace_ref"]
-    assert trace and (repo.root / ".wt" / f"{TASK_ID}.a1.trace.log").is_file()
+    assert trace and (repo.root / trace).is_file()
