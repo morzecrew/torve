@@ -59,6 +59,7 @@ from torve.application.sizing import has_children
 from torve.application.skills import materialize
 from torve.application.taskstore import TaskStore
 from torve.application.telemetry import (
+    agent_burn,
     agent_token_counts,
     append_record,
     broker_block,
@@ -703,8 +704,7 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
     bookkeeping = _task_bookkeeping(task.id)
 
     return all(
-        entry.path in bookkeeping
-        and (entry.old_path is None or entry.old_path in bookkeeping)
+        entry.path in bookkeeping and (entry.old_path is None or entry.old_path in bookkeeping)
         for entry in ctx.diff
     )
 
@@ -927,7 +927,10 @@ def run_routing(
 
         routes.append(
             BrokerRoute(
-                provider=tier.provider, upstream=provider.upstream, key_env=provider.key_env, via_proxy=provider.via_proxy
+                provider=tier.provider,
+                upstream=provider.upstream,
+                key_env=provider.key_env,
+                via_proxy=provider.via_proxy,
             )
         )
 
@@ -1289,6 +1292,11 @@ def real_hooks(
             # (T-0186): only the counts the adapter reported — absent keys
             # stay absent, never zeroed (D-4.6's self-reported regime).
             agent_meta.update(agent_token_counts(result))
+            # The burn profile rides the block beside those totals (RFC 0039
+            # §5.3): what the adapter derived at capture time from the
+            # store's full bytes; a stream with no per-turn facts contributes
+            # no key at all — no stream, no block (D-39.4).
+            agent_meta.update(agent_burn(result))
 
             # The broker's live counts ride the attempt record beside the
             # adapter's self-report (D-21.5). A budget refusal escalates in

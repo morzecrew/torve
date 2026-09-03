@@ -14,7 +14,7 @@ import json
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torve
 from torve.application.ports import AgentResult, BrokerUsage
@@ -196,6 +196,23 @@ def agent_token_counts(result: AgentResult) -> dict[str, int]:
             counts[name] = int(value)
 
     return counts
+
+
+def agent_burn(result: AgentResult) -> dict[str, Any]:
+    """The burn profile a harness adapter derived at capture time from the
+    durable store's own bytes, as the agent block's one nested key beside the
+    token totals (RFC 0039 §5.3) — present only when the stream carried
+    per-turn facts. No stream, no block: absence stays visible and is never
+    zeroed or inferred (D-4.6). A plain AgentResult carries no burn attribute
+    and contributes nothing; the block is recorded data, read by no control
+    flow."""
+
+    profile: Any = getattr(result, "burn", None)
+
+    if profile is None:
+        return {}
+
+    return {"burn": cast("dict[str, Any]", profile.as_block())}
 
 
 # ....................... #

@@ -15,7 +15,9 @@ engine root and referenced root-relative from the attempt record
 (`trace_ref`). A trace is not gate evidence (§4): it records what the
 model saw, not what the code did. The store is local (D-39.2): the
 adapter never commits, uploads or transmits a trace, and its content
-enters no prompt and drives no control flow.
+enters no prompt and drives no control flow — the capture-time burn
+profile `parse_burn` derives from the store's own bytes is telemetry
+material and nothing more.
 """
 
 from __future__ import annotations
@@ -306,16 +308,231 @@ def parse_metadata(output: str) -> AgentMetadata:
 
 
 @dataclass(frozen=True)
+class TurnBurn:
+    """One turn of the stream with its output-token count, as the burn
+    block's `top_turns` entry spells it."""
+
+    turn: int
+    output_tokens: int
+
+
+@dataclass(frozen=True)
+class BurnProfile:
+    """What a per-turn stream says about where the tokens went (RFC 0039 §5.3):
+    how many turns produced output, how many tool calls ran beside them, and
+    the heaviest turns by output tokens. Best-effort by grade — the block
+    exists only when the stream carried per-turn facts at all (D-4.6's regime:
+    absent, never zeroed or inferred)."""
+
+    turns: int
+    tool_calls: int
+    top_turns: tuple[TurnBurn, ...]
+
+    def as_block(self) -> dict[str, Any]:
+        return {
+            "turns": self.turns,
+            "tool_calls": self.tool_calls,
+            "top_turns": [
+                {"turn": top.turn, "output_tokens": top.output_tokens} for top in self.top_turns
+            ],
+        }
+
+
+# The burn scanner's closed vocabulary (D-39.5: only facts with cross-harness
+# meaning; which lines those facts ride is a naming question, and the answer
+# is deliberately small). A turn is a typed stream event carrying a numeric
+# output-token count at one of the usage positions seen in the wild: the
+# claude stream-json assistant event nests `message.usage` in snake_case,
+# a per-turn dsh line spells its usage in camelCase, opencode's step-finish
+# part carries `part.tokens.output`. Untyped envelope lines — the final
+# result object the same harnesses emit — hold the run's totals, not a
+# turn's usage, and the type filter keeps them out of the count. Tool calls
+# are `tool_use`/`tool-call` content blocks (a `tool_result` answers a call,
+# it is not one), tool-event lines, and opencode tool parts. A line that
+# names no numeric count contributes nothing: nothing is ever inferred.
+_TURN_EVENT_TYPES = frozenset({"assistant", "message", "turn", "step_finish", "step-finish"})
+_TOOL_EVENT_TYPES = frozenset({"tool_use", "tool_call", "tool-call"})
+_TOOL_PART_TYPES = _TOOL_EVENT_TYPES | frozenset({"tool"})
+
+# The example block in the RFC shows two entries; nothing binds the bound.
+# Three heaviest turns answer "where did the output go" for one more turn
+# of context at the same size cost.
+_TOP_TURNS = 3
+
+
+def _int_at(container: Any, names: tuple[str, ...]) -> int | None:
+    """One numeric count from a container that may not be an object; a
+    non-numeric value is ignored, never invented."""
+
+    if not isinstance(container, dict):
+        return None
+
+    for name in names:
+        value: Any = cast("dict[str, Any]", container).get(name)
+
+        if isinstance(value, (int, float)):
+            return int(value)
+
+    return None
+
+
+def _turn_output_tokens(record: dict[str, Any]) -> int | None:
+    """The output-token count of a typed turn event, from any of the usage
+    positions; None when the line names none, which keeps it out of the
+    profile's turns."""
+
+    candidates: list[Any] = [record.get("usage"), record.get("tokens")]
+
+    for nest in (record.get("message"), record.get("part")):
+        if isinstance(nest, dict):
+            inner = cast("dict[str, Any]", nest)
+            candidates += [inner.get("usage"), inner.get("tokens")]
+
+    for candidate in candidates:
+        count = _int_at(candidate, ("output_tokens", "outputTokens", "output"))
+
+        if count is not None:
+            return count
+
+    return None
+
+
+def _tool_events(record: dict[str, Any]) -> int:
+    """How many tool calls one stream line carries."""
+
+    count = 0
+    contents = record.get("content")
+    message = record.get("message")
+
+    if contents is None and isinstance(message, dict):
+        contents = cast("dict[str, Any]", message).get("content")
+
+    if isinstance(contents, list):
+        count += sum(
+            1
+            for block in cast("list[object]", contents)
+            if isinstance(block, dict)
+            and cast("dict[str, Any]", block).get("type") in _TOOL_EVENT_TYPES
+        )
+
+    part = record.get("part")
+
+    if isinstance(part, dict) and cast("dict[str, Any]", part).get("type") in _TOOL_PART_TYPES:
+        count += 1
+
+    if record.get("type") in _TOOL_EVENT_TYPES:
+        count += 1
+
+    return count
+
+
+def parse_burn(trace: Path) -> BurnProfile | None:
+    """The burn profile of the session trace the durable store holds (RFC 0039
+    §5.3), scanned from the file's own bytes — never `result.output`, which
+    every runtime clips at the exec boundary before it reaches the adapter:
+    a profile read off a clipped stream is silently wrong counts, while the
+    store keeps the whole verbatim output (D-39.5).
+
+    Sibling of `parse_metadata` in everything but reach: where that scans the
+    last JSON line for the envelope's totals, this scans every line for
+    per-turn usage and tool events. A stream with no per-turn facts — an
+    envelope-only output, garbage lines, a file retention already took —
+    yields no profile, and the record says so by silence (D-4.6's regime,
+    D-39.4's no-stream-no-block)."""
+
+    turn_outputs: list[int] = []
+    tool_calls = 0
+
+    try:
+        handle = trace.open(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+    with handle:
+        for line in handle:
+            line = line.strip()
+
+            if not (line.startswith("{") and line.endswith("}")):
+                continue
+
+            try:
+                data: Any = json.loads(line)
+            except ValueError:
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            record = cast("dict[str, Any]", data)
+            tool_calls += _tool_events(record)
+            event_type = record.get("type")
+
+            if isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
+                output = _turn_output_tokens(record)
+
+                if output is not None:
+                    turn_outputs.append(output)
+
+    if not turn_outputs:
+        return None
+
+    # Heaviest first, earlier turn wins a tie; `turn` is the 1-based ordinal
+    # of the turn-bearing lines in stream order, the only numbering that
+    # means the same thing across harnesses that count events and harnesses
+    # that count steps.
+    heaviest = sorted(range(len(turn_outputs)), key=lambda i: (-turn_outputs[i], i))
+
+    return BurnProfile(
+        turns=len(turn_outputs),
+        tool_calls=tool_calls,
+        top_turns=tuple(
+            TurnBurn(turn=i + 1, output_tokens=turn_outputs[i]) for i in heaviest[:_TOP_TURNS]
+        ),
+    )
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
 class HarnessResult(AgentResult):
     """AgentResult plus the token counts `parse_metadata` read off the
     harness output. The token fields live on the harness result, not on
     ports.AgentResult, because the application surface predates them; the
-    runner reads whichever are present by attribute (T-0186)."""
+    runner reads whichever are present by attribute (T-0186). The burn
+    profile rides the same attribute discipline (T-0249): None means the
+    stream carried no per-turn facts, and the record omits the block."""
 
     input_tokens: int | None = None
     cache_read_tokens: int | None = None
     cache_creation_tokens: int | None = None
     output_tokens: int | None = None
+    burn: BurnProfile | None = None
+
+
+# ....................... #
+
+
+RAW_TRACE_RELPATH = ".torve/tmp/harness-output.a{attempt}.raw"
+
+
+def _capture(command: str, raw_relpath: str) -> str:
+    """The tier command with its complete stdout+stderr landing in a worktree
+    file, then emitted unchanged on the exec's own stdout: the runtimes clip
+    the exec result to 8000 characters, so this is the one route by which the
+    durable store can hold the bytes the burn profile counts (the clip is what
+    T-0271 blocked on — a burn profile of a clipped stream is silently wrong
+    counts). The exit code is the command's own, and the group redirect keeps
+    pipes and `&&` legs intact. A command that does not run as a real shell
+    line simply leaves no raw file, and the adapter falls back to the exec
+    output exactly as before."""
+
+    quoted = f"'{raw_relpath}'"
+
+    return (
+        f"{{\n{command}\n}} > {quoted} 2>&1\n"
+        f"_torve_capture_rc=$?\ncat {quoted}\nexit $_torve_capture_rc\n"
+    )
 
 
 # ....................... #
@@ -402,15 +619,39 @@ class HarnessAgent:
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")
 
         command = self._command(ctx)
-        result = ctx.runtime.exec(ctx.handle, command, ctx.timeout_s)
+        raw_relpath = RAW_TRACE_RELPATH.replace("{attempt}", str(ctx.attempt))
+        result = ctx.runtime.exec(ctx.handle, _capture(command, raw_relpath), ctx.timeout_s)
 
         # The trace goes to the durable store verbatim (D-39.5) through the
         # one helper that owns the home (D-39.1), and is recorded from there
         # root-relative — an absolute path is machine-specific while it lives
         # and dangling once retention takes the file, the ref is neither.
+        # The verbatim bytes are the captured stream when the sandbox wrote
+        # one (the wrapper's raw file, synced back for runtimes that copy
+        # rather than mount); only a runtime that never ran the wrapper
+        # leaves the adapter the exec output, clipped like every exec result.
         trace = naming.trace_file(ctx.workspace, ctx.attempt)
-        trace.write_text(result.output, encoding="utf-8")
+        raw = ctx.workspace / raw_relpath
+
+        if not raw.is_file():
+            # Docker binds the worktree and the file is already here; a
+            # copying runtime only surfaces it after the sync the runner
+            # would otherwise do lines later (T-0249's read point).
+            ctx.runtime.sync_out(ctx.handle, ctx.workspace)
+
+        if raw.is_file():
+            trace.write_bytes(raw.read_bytes())
+            raw.unlink()
+        else:
+            trace.write_text(result.output, encoding="utf-8")
+
         meta = parse_metadata(result.output)
+        # The burn profile is derived from the store's own file, never from
+        # result.output: every runtime clips the exec string mid-stream, and
+        # a profile of a clipped stream is silently wrong counts (D-39.4's
+        # departure, logged). This reads bytes for telemetry only — the
+        # profile drives no branch (D-39.2).
+        burn = parse_burn(trace)
 
         return HarnessResult(
             exit_code=result.exit_code,
@@ -421,5 +662,6 @@ class HarnessAgent:
             cache_read_tokens=meta.cache_read_tokens,
             cache_creation_tokens=meta.cache_creation_tokens,
             output_tokens=meta.output_tokens,
+            burn=burn,
             trace_ref=naming.trace_ref(ctx.workspace, ctx.attempt),
         )

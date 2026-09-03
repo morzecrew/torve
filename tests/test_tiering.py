@@ -16,15 +16,19 @@ from typer.testing import CliRunner
 
 from torve.adapters.agent.harness import (
     AgentMetadata,
+    BurnProfile,
     HarnessAgent,
     HarnessResult,
+    TurnBurn,
     build_prompt,
+    parse_burn,
     parse_metadata,
 )
 from torve.adapters.vcs.git import repository_name
 from torve.application.ports import AgentContext, AgentResult, ExecResult, SandboxHandle
 from torve.application.runner import _restore_never_send, _sandbox_auth, _withhold_never_send
 from torve.application.skills import materialize
+from torve.base.shell import truncate
 from torve.cli import app
 from torve.config.runconfig import (
     ProviderDenied,
@@ -647,9 +651,7 @@ def test_two_variants_are_provably_two_regimes_in_the_config_hash(tmp_path):
 
 def test_retry_variant_must_name_a_configured_tier():
     with pytest.raises(ValidationError, match="retry_variant names no configured tier"):
-        RunnerConfig(
-            tiers={"executor": TierConfig(retry_variant="executor.ghost")}
-        )
+        RunnerConfig(tiers={"executor": TierConfig(retry_variant="executor.ghost")})
 
 
 def test_retry_variant_naming_a_real_configured_tier_is_accepted():
@@ -801,10 +803,251 @@ def test_agent_token_counts_records_only_what_was_reported():
     assert agent_token_counts(AgentResult(exit_code=0, output="")) == {}
 
 
+# ....................... #
+# The burn profile (RFC 0039 phase 2): a sibling scanner of every JSON line,
+# reading the durable store's own bytes — never the clipped exec output.
+
+CLAUDE_STREAM = "\n".join(
+    [
+        '{"type":"system","subtype":"init","tools":["Bash"]}',
+        (
+            '{"type":"assistant","message":{"content":[{"type":"text"}],'
+            '"usage":{"input_tokens":10,"cache_read_input_tokens":50,"output_tokens":120}}}'
+        ),
+        (
+            '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"1"},'
+            '{"type":"tool_use","id":"2"}],'
+            '"usage":{"input_tokens":60,"output_tokens":9120}}}'
+        ),
+        (
+            '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"1"},'
+            '{"type":"tool_result","tool_use_id":"2"}]}}'
+        ),
+        (
+            '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"3"}],'
+            '"usage":{"output_tokens":7004}}}'
+        ),
+        "narration line — the dsh reporter emits these between events",
+        "{not json at all",
+        (
+            '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}],'
+            '"usage":{"output_tokens":40}}}'
+        ),
+        (
+            '{"type":"result","subtype":"success","total_cost_usd":0.9,'
+            '"usage":{"input_tokens":99,"output_tokens":16284}}'
+        ),
+    ]
+)
+
+
+def burn_trace(tmp_path, text):
+    trace = tmp_path / "T-9010.a1.trace.log"
+    trace.write_text(text, encoding="utf-8")
+
+    return trace
+
+
+def test_parse_burn_scans_every_json_line_of_a_per_turn_stream(tmp_path):
+    # turns counts the output-bearing turn events, tool_calls the calls the
+    # stream carried (a tool_result answers a call, it is not one), and the
+    # final result envelope — the run's totals — never reads as a turn.
+    burn = parse_burn(burn_trace(tmp_path, CLAUDE_STREAM))
+
+    assert burn is not None
+    assert burn.turns == 4
+    assert burn.tool_calls == 3
+    assert burn.top_turns == (TurnBurn(2, 9120), TurnBurn(3, 7004), TurnBurn(1, 120))
+    assert burn.as_block() == {
+        "turns": 4,
+        "tool_calls": 3,
+        "top_turns": [
+            {"turn": 2, "output_tokens": 9120},
+            {"turn": 3, "output_tokens": 7004},
+            {"turn": 1, "output_tokens": 120},
+        ],
+    }
+
+
+def test_parse_burn_reads_the_other_harness_spellings(tmp_path):
+    # camelCase per-turn usage (the dsh reporter's naming) and opencode's
+    # step-finish part.tokens.output are the same cross-harness facts in
+    # different clothes; a reasoning count is a breakdown, never a turn.
+    stream = "\n".join(
+        [
+            '{"type":"turn","usage":{"inputTokens":7,"outputTokens":250,"reasoningTokens":20}}',
+            (
+                '{"type":"step_finish","part":{"type":"step-finish","cost":0.01,'
+                '"tokens":{"input":5,"output":310,"reasoning":10}}}'
+            ),
+            '{"type":"tool","part":{"type":"tool","tool":"bash"}}',
+        ]
+    )
+    burn = parse_burn(burn_trace(tmp_path, stream))
+
+    assert burn is not None
+    assert burn.turns == 2
+    assert burn.tool_calls == 1
+    assert burn.top_turns == (TurnBurn(2, 310), TurnBurn(1, 250))
+
+
+def test_parse_burn_absent_for_an_envelope_only_output(tmp_path):
+    # claude -p --output-format json: one envelope line, totals only — no
+    # per-turn facts, so no block (D-39.4's no-stream-no-block regime),
+    # never a turns:1 read off the totals.
+    envelope = (
+        '{"type":"result","total_cost_usd":0.09,"usage":{"input_tokens":500,'
+        '"output_tokens":88},"modelUsage":{"claude-sonnet-5":{}}}'
+    )
+    assert parse_metadata(envelope).output_tokens == 88  # the sibling still reads it
+    assert parse_burn(burn_trace(tmp_path, envelope)) is None
+
+    # ...and the same envelope with no type at all (the dsh reporter's shape)
+    # is equally unprofiled: absence is recorded by the missing block.
+    assert parse_burn(burn_trace(tmp_path, '{"usage":{"outputTokens":88}}')) is None
+
+
+def test_parse_burn_absent_without_error_for_garbage_lines(tmp_path):
+    # Garbage never raises and never zeroes: a stream torve cannot read stays
+    # visibly unprofiled (D-4.6), exactly like an absent file.
+    garbage = 'plain text\n{\x7f broken\n[]\n5\n{}\n{"usage":{"output_tokens":"NaN"}}'
+    assert parse_burn(burn_trace(tmp_path, garbage)) is None
+    assert parse_burn(burn_trace(tmp_path, "")) is None
+    assert parse_burn(tmp_path / "never-written.trace.log") is None
+
+
+def test_agent_burn_carries_only_a_present_profile():
+    from torve.application.telemetry import agent_burn
+
+    # A plain AgentResult — and a harness result whose stream held no
+    # per-turn facts — contribute no key at all (D-4.6's absent regime).
+    assert agent_burn(AgentResult(exit_code=0, output="")) == {}
+    assert agent_burn(HarnessResult(exit_code=0, output="")) == {}
+
+    profile = BurnProfile(turns=41, tool_calls=87, top_turns=(TurnBurn(12, 9120),))
+
+    assert agent_burn(HarnessResult(exit_code=0, output="", burn=profile)) == {
+        "burn": {
+            "turns": 41,
+            "tool_calls": 87,
+            "top_turns": [{"turn": 12, "output_tokens": 9120}],
+        }
+    }
+
+
+def test_harness_agent_derives_the_burn_from_the_captured_stream(tmp_path):
+    tier = TierConfig(adapter="harness", provider="p", command="cat {prompt}")
+    ctx, agent = harness_ctx(tmp_path, tier)
+    result = agent.run(dataclasses.replace(ctx, prompt=CLAUDE_STREAM))
+
+    assert isinstance(result, HarnessResult)
+    assert result.burn is not None
+    assert result.burn.turns == 4
+    assert result.burn.tool_calls == 3
+    # The envelope's totals still ride the sibling parse unchanged.
+    assert result.cost_usd == 0.9
+    assert result.output_tokens == 16284
+    # The store keeps the stream verbatim — same bytes, same relative ref.
+    trace = tmp_path / ".torve" / "traces" / "T-9010.a1.trace.log"
+    assert result.trace_ref == ".torve/traces/T-9010.a1.trace.log"
+    assert trace.read_text(encoding="utf-8") == CLAUDE_STREAM
+    # The raw capture is the adapter's transit, not a kept artifact.
+    assert not (ctx.workspace / ".torve" / "tmp" / "harness-output.a1.raw").exists()
+
+
+class ClippingRuntime(HostShellRuntime):
+    """The exec boundary every real runtime enforces: the output string the
+    adapter holds comes back clipped (src/torve/base/shell.py's OUTPUT_LIMIT),
+    whatever the process itself wrote."""
+
+    def exec(self, handle, command, timeout_s):
+        result = super().exec(handle, command, timeout_s)
+
+        return dataclasses.replace(result, output=truncate(result.output))
+
+
+def test_burn_counts_the_full_stream_a_clipped_result_output_cannot_see(tmp_path):
+    # T-0271's blocker, pinned: the heaviest turn sits inside the clip's
+    # hole. Scanning result.output would silently drop it — so the scanner
+    # reads the store's full bytes, and the store's file holds them.
+    def turn(n: int) -> str:
+        return f'{{"type":"assistant","message":{{"usage":{{"output_tokens":{n}}}}}}}'
+
+    def filler(tag: str, n: int) -> str:
+        return "\n".join(f"narration line {tag}-{j} — padded padding padding" for j in range(n))
+
+    stream = "\n".join(
+        [
+            turn(5),
+            filler("a", 120),
+            turn(20000),  # inside the clip's hole: gone from the exec string
+            filler("b", 200),
+            turn(9120),
+            turn(7004),
+            '{"type":"result","total_cost_usd":1.0,"usage":{"output_tokens":36129}}',
+        ]
+    )
+    assert len(stream) > 8000  # and the tail's preserved 6000 chars start far after it
+
+    tier = TierConfig(adapter="harness", provider="p", command="cat {prompt}")
+    ctx, agent = harness_ctx(tmp_path, tier)
+    clipped = ClippingRuntime(ctx.workspace)
+    result = agent.run(dataclasses.replace(ctx, prompt=stream, runtime=clipped))
+
+    assert "truncated" in result.output  # the in-memory string is clipped...
+    assert "20000" not in result.output  # ...its heaviest turn is gone from it
+    assert result.burn is not None
+    assert result.burn.turns == 4  # ...but the profile counted the whole stream.
+    assert result.burn.top_turns == (TurnBurn(2, 20000), TurnBurn(3, 9120), TurnBurn(4, 7004))
+    trace = tmp_path / ".torve" / "traces" / "T-9010.a1.trace.log"
+    assert trace.read_text(encoding="utf-8") == stream  # the store holds full bytes
+    # The envelope still rides the metadata parse from the clipped tail.
+    assert result.cost_usd == 1.0
+    assert result.output_tokens == 36129
+
+
+def test_harness_capture_keeps_the_commands_own_exit_code(tmp_path):
+    # The wrapper moves bytes without touching the verdict the loop reads.
+    tier = TierConfig(
+        adapter="harness",
+        provider="p",
+        command='echo \'{"type":"turn","usage":{"outputTokens":5}}\'; exit 3',
+    )
+    ctx, agent = harness_ctx(tmp_path, tier)
+    result = agent.run(ctx)
+
+    assert result.exit_code == 3
+    assert result.burn is not None
+    assert result.burn.turns == 1
+    trace = tmp_path / ".torve" / "traces" / "T-9010.a1.trace.log"
+    assert trace.read_text(encoding="utf-8").startswith('{"type":"turn"')
+
+
+def test_harness_without_a_stream_profile_yields_no_block(tmp_path):
+    # Envelope-only output through the whole capture path: cost rides,
+    # burn is absent — not zeroed (D-39.4), and the trace stays verbatim.
+    tier = TierConfig(
+        adapter="harness",
+        provider="p",
+        command='echo \'{"total_cost_usd": 0.5, "usage": {"output_tokens": 88}}\'',
+    )
+    ctx, agent = harness_ctx(tmp_path, tier)
+    result = agent.run(ctx)
+
+    assert isinstance(result, HarnessResult)
+    assert result.burn is None
+    assert result.cost_usd == 0.5
+    assert result.output_tokens == 88
+    trace = tmp_path / ".torve" / "traces" / "T-9010.a1.trace.log"
+    assert "total_cost_usd" in trace.read_text(encoding="utf-8")
+
+
 def test_attempt_record_carries_reported_token_counts(tmp_path):
     """T-0186 end to end: the token counts an adapter reports ride the agent
     block of the attempt record, and a silent adapter leaves the keys absent
-    — absent stays absent, never zeroed (D-4.6's self-reported regime)."""
+    — absent stays absent, never zeroed (D-4.6's self-reported regime). The
+    burn profile rides the same block beside the totals (RFC 0039 §5.3),
+    with the same absence discipline."""
     import asyncio
     import subprocess
 
@@ -827,6 +1070,11 @@ def test_attempt_record_carries_reported_token_counts(tmp_path):
                 cache_read_tokens=9000,
                 cache_creation_tokens=100,
                 output_tokens=400,
+                burn=BurnProfile(
+                    turns=41,
+                    tool_calls=87,
+                    top_turns=(TurnBurn(12, 9120), TurnBurn(33, 7004)),
+                ),
             )
 
     class SilentAgent:
@@ -892,11 +1140,22 @@ def test_attempt_record_carries_reported_token_counts(tmp_path):
     assert agent_block["cache_read_tokens"] == 9000
     assert agent_block["cache_creation_tokens"] == 100
     assert agent_block["output_tokens"] == 400
+    # RFC 0039 §5.3: the burn profile rides the block beside the totals.
+    assert agent_block["burn"] == {
+        "turns": 41,
+        "tool_calls": 87,
+        "top_turns": [
+            {"turn": 12, "output_tokens": 9120},
+            {"turn": 33, "output_tokens": 7004},
+        ],
+    }
 
     silent_block = run_once(tmp_path / "silent", SilentAgent())
     assert silent_block["cost_usd"] is None
     for key in ("input_tokens", "cache_read_tokens", "cache_creation_tokens", "output_tokens"):
         assert key not in silent_block
+    # No stream, no block: absence stays visible, never a zeros-shaped lie.
+    assert "burn" not in silent_block
 
 
 def test_review_record_carries_reported_token_counts(repo, monkeypatch):

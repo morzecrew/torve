@@ -1,0 +1,136 @@
+schema_version: 1
+task: T-0249
+repo: morzecrew/torve
+base_sha: 59b0548833a757e656a10f5a90d4016cf12b4cde
+drift_count: 0
+entries:
+  - decision: D-39.4
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-03T18:06:35Z'
+    attempt: 1
+    claim: 'the row derives the profile "from all JSON lines of the output it already
+      holds", but what the adapter holds in memory is not the output: every runtime
+      clips `result.output` to 8000 characters at the exec boundary, so scanning the
+      in-memory string yields silently wrong turn counts and top turns — the row''s
+      premise that the adapter holds the whole stream is false; the burn is instead
+      derived from the durable store''s file, and the adapter arranges for that file
+      to actually hold the full bytes (the write today, `trace.write_text(result.output)`,
+      persists the already-clipped string)'
+    evidence: 'src/torve/base/shell.py:18 — `OUTPUT_LIMIT = 8000`;
+      src/torve/adapters/runtime/docker.py:272 and
+      src/torve/adapters/runtime/opensandbox.py:128 — both runtimes return
+      `truncate(...)`ed output; src/torve/adapters/agent/harness.py:633-646 — where
+      the base store write consumed that clipped string, now consuming the
+      capture file instead; .torve/tasks/T-0249/contract.yaml:11-13 —
+      the task intent names the same fact as T-0271''s blocker'
+    action: departed
+    proposal: 'amend the row''s words to "from all JSON lines of the full output it
+      captured to the durable store" — the derivation stays in the harness adapter
+      and rides the agent block exactly as decided; only the byte source moves from
+      the clipped in-memory string to the store file the row''s own reference points at'
+    notes: |
+      absent-stays-absent (D-4.6) beats wrong, but a scanner that can only see
+      clipped streams would answer "absent" on every real attempt — the RFC's §1
+      goal ("the attempt row answers the first burn question") requires the full
+      bytes, so this task makes the store's file honest as well as the scanner's
+      source. The store write path is inside the row's declared paths
+      (src/torve/adapters/agent/harness.py), so no scope is crossed.
+  - decision: D-39.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T18:06:35Z'
+    attempt: 1
+    claim: 'close-out over the touched LOCKED area: the one home and the one writer
+      helper are preserved — the burn work changes which bytes flow through
+      `naming.trace_file` (the full captured stream instead of the clipped exec
+      string), never where they land or how the row references them; the reference
+      stays root-relative and the reaper is untouched by this task'
+    evidence: 'src/torve/base/naming.py:71-95 — the store helper and the relative
+      ref, both unchanged; src/torve/adapters/agent/harness.py:633 — the write still
+      goes through trace_file; tests/test_tiering.py:315 — the relative-ref
+      assertion there is untouched'
+    action: decided
+  - decision: D-39.2
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T18:06:35Z'
+    attempt: 1
+    claim: 'close-out over the touched LOCKED area: the store stays local and inert
+      — the adapter reads back the bytes it itself wrote for the burn derivation,
+      which is capture-time telemetry material, not input to any decision: the burn
+      block drives no branch, reaches no prompt, and controls no transition; the
+      runner stamps it onto the agent dict exactly beside the token totals and stops
+      there; nothing commits, uploads or transmits a trace'
+    evidence: 'src/torve/adapters/agent/harness.py:633-654 — the write and the
+      parse_burn read of the same store file;
+      src/torve/application/runner.py:1299 — where the
+      profile is merged into agent_meta (data only; no reader of agent_meta branches
+      on burn); rfcs/0039-durable-traces-and-the-burn-profile.md:123-125 — the
+      non-goal''s fence: derivation at capture time by the parsing adapter'
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T18:06:35Z'
+    attempt: 1
+    claim: 'the burn scanner''s detector vocabulary is unsettled by the contract,
+      which names the block''s fields but never says which JSON lines are turns, how
+      turns are numbered, what counts as a tool event, how many top turns ride, or
+      what makes the block present at all; any implementation must settle these five'
+    evidence: 'rfcs/0039-durable-traces-and-the-burn-profile.md:160-180 — §5.3 gives
+      the block example and the absent-regime but no detector rules; §6 line 219-220
+      declares the block best-effort by grade, "Not tested: any assertion about real
+      harness stream schemas beyond the fixtures"'
+    action: decided
+    proposal: 'a row spelling the closed vocabulary, or one explicitly delegating
+      it to the scanner''s docstring; decided here: a turn is a JSON line whose
+      "type" is in {assistant, message, turn, step_finish, step-finish} and which
+      carries a numeric output-token count at a known usage position (record/part
+      usage in either harness spelling, opencode part.tokens.output); turn numbers
+      are 1-based ordinals over those lines in stream order; tool calls count
+      tool_use/tool-call content blocks and tool-event lines; the block exists only
+      when at least one turn was seen — a stream with tool events but no per-turn
+      usage answers no burn question, so absent beats partial (D-4.6, D-39.4''s
+      never-zeroed rule); top_turns holds the three heaviest, ties by lower turn
+      number first — the example shows two but fixes no bound; a truncated-by-timeout
+      stream is scanned as it stands: its counts describe the events the stream
+      recorded, and the verdict field already names the timeout'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T18:06:35Z'
+    attempt: 1
+    claim: 'how the durable store comes to hold the full bytes is unsettled: the
+      RFCs never mention the runtime clip at all, and within this task''s allowed
+      scope the only lever is the harness adapter — the mechanism (wrap the tier
+      command so the sandbox itself writes the stream to the mounted worktree, then
+      move those bytes into the store) is an invention the contract does not name'
+    evidence: 'src/torve/base/shell.py:36 — the OUTPUT_LIMIT clip there is applied
+      by the runtime adapters (docker.py:272, opensandbox.py:128), neither of which
+      is in this task''s scope, so the harness adapter''s durable trace file is the
+      only unclipped source parse_burn can read'
+    action: decided
+    proposal: 'an RFC 0039 amendment row on capture-side completeness (or a runtime
+      row keeping the full stream beside the clipped exec output) — decided here:
+      the adapter runs the substituted tier command wrapped as a POSIX group whose
+      stdout+stderr land in `.torve/tmp/harness-output.a<attempt>.raw` inside the
+      mounted workspace, preserving the command''s exit code and still emitting the
+      same bytes to exec''s stdout; the adapter then moves the file''s bytes into
+      the store verbatim and removes it, falling back to today''s write (and hence
+      to an absent or clipped-stream profile) for any runtime that does not execute
+      the wrapper as a real shell line; the runtime adapters and the ExecResult port
+      are deliberately untouched'
+    notes: |
+      The reviewer lane reaches HarnessAgent too, so the executor's own trace in
+      the store now holds full bytes under a review run as well; the review lane's
+      own relocation still rewrites the reviewer's file from result.output
+      (src/torve/application/review.py:529) — review.py sits outside this task's
+      scope and the row's reference is not a lie about the executor's trace, so
+      the reviewer's clipped-trace asymmetry is left as an open finding rather
+      than silently fixed here.
