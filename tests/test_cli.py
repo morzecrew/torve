@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 
+from test_context import seed_why_facts
+from test_plan import plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
 from torve.application import sizing
+from torve.application.projections import why_report
 from torve.cli import app
 from torve.gates.sabotage import TASK_ID, base_task, log_document
 
@@ -440,3 +443,76 @@ def test_run_refuses_a_form_rung_the_repository_denies(repo):
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
     assert result.exit_code == 3
     assert "not permitted" in result.stderr
+
+
+# ----------------------- #
+# `torve why` — the per-task history renderer. Content asserted, never
+# layout; the json format emits the projection's envelope unchanged; the
+# exit code reports the read, not history's fortunes.
+
+
+def test_why_json_emits_the_envelope_verbatim(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+
+    result = CliRunner().invoke(app, ["why", "T-0001", "--root", str(root), "--format", "json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == why_report(root, "T-0001")
+
+
+def test_why_reads_a_red_history_successfully(plan_repo):  # noqa: F811
+    """A red history read successfully is a successful read: exit 0
+    whatever the history says."""
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+
+    result = CliRunner().invoke(app, ["why", "T-0001", "--root", str(root)])
+
+    assert result.exit_code == 0, result.output
+    for content in (
+        "T-0001",
+        "gates_red",
+        "agent_timeout",
+        "decisions-reported",
+        "pre-verdict record",
+        "poison_ceiling",
+        "oversize_dispatch",
+        "T-7001",
+        "quasi-experiment",
+    ):
+        assert content in result.output
+
+
+def test_why_unknown_task_exits_3(plan_repo):  # noqa: F811
+    """3 is the configuration family: a typo must not read as a task with
+    no history."""
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+
+    result = CliRunner().invoke(app, ["why", "T-9999", "--root", str(root)])
+
+    assert result.exit_code == 3
+    assert "no task T-9999" in result.stderr
+
+
+def test_why_unknown_task_json_still_emits_its_envelope(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+
+    result = CliRunner().invoke(app, ["why", "T-9999", "--root", str(root), "--format", "json"])
+
+    assert result.exit_code == 3
+    assert json.loads(result.stdout) == {
+        "schema_version": 1,
+        "task": "T-9999",
+        "found": False,
+    }
+
+
+def test_why_help_carries_no_corpus_coordinates():
+    result = CliRunner().invoke(app, ["why", "--help"])
+
+    assert result.exit_code == 0
+    assert "D-40" not in result.output
+    assert "RFC" not in result.output.upper()

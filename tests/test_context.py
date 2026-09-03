@@ -12,7 +12,13 @@ from test_plan import PHASING, TABLE, plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
 from torve.application.planner import plan_document, write_contracts
-from torve.application.projections import context_report, render_markdown, status_report
+from torve.application.projections import (
+    QUASI_EXPERIMENT_CAVEAT,
+    context_report,
+    render_markdown,
+    status_report,
+    why_report,
+)
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli import app
@@ -1004,3 +1010,327 @@ def test_status_cli_json_consumes_the_projection(plan_repo):  # noqa: F811
 
     assert cli.exit_code == 0, cli.output
     assert json.loads(cli.output) == status_report(root)
+
+
+# ----------------------- #
+# The why projection: one task's history joined from the durable streams —
+# the attempt stamp's grouping and the pre-stamp fallback, the engine's
+# events and the reviews of the task, totals, and the same-regime cost
+# comparator with its caveat in-envelope. `seed_why_facts` is the fixture
+# stream: mixed record kinds over three minted tasks, shared with the CLI,
+# MCP and serve surface tests so all four pin the same envelope.
+
+WHY_ROWS = [
+    # Pre-0038 history: no attempt stamp, no verdict.
+    {
+        "schema_version": 1,
+        "at": "2026-08-01T10:00:00Z",
+        "task_id": "T-0001",
+        "config_hash": "hashA",
+        "agent": {"adapter": "harness", "tier": "executor", "model": "old-m", "cost_usd": 0.5},
+        "results": [{"name": "scope", "outcome": "fail", "duration_s": 1.0}],
+        "exit_code": 1,
+    },
+    {
+        "schema_version": 1,
+        "at": "2026-09-01T10:00:00Z",
+        "task_id": "T-0001",
+        "config_hash": "hashA",
+        "agent": {
+            "attempt": 1,
+            "adapter": "harness",
+            "tier": "executor",
+            "model": "deepseek-v4-flash",
+            "cost_usd": 0.348,
+            "input_tokens": 392421,
+            "output_tokens": 74099,
+            "wall_time_s": 897.3,
+            "trace_ref": ".torve/traces/T-0001.a1.trace.log",
+        },
+        "results": [
+            {"name": "decisions-reported", "outcome": "fail", "state": "blocking"},
+            {"name": "self-audit", "outcome": "fail", "state": "blocking"},
+            {"name": "scope", "outcome": "pass", "state": "blocking"},
+        ],
+        "exit_code": 1,
+        "verdict": "gates_red",
+    },
+    # A red-path row: gates never ran, no config_hash, the escalation
+    # reason rides the row, and the trace file actually exists.
+    {
+        "schema_version": 1,
+        "at": "2026-09-01T11:00:00Z",
+        "task_id": "T-0001",
+        "config_hash": None,
+        "agent": {
+            "attempt": 2,
+            "adapter": "harness",
+            "tier": "executor",
+            "model": "deepseek-v4-flash",
+            "cost_usd": 0.2,
+            "wall_time_s": 1200.0,
+            "trace_ref": ".torve/traces/T-0001.a2.trace.log",
+        },
+        "results": [],
+        "exit_code": None,
+        "gates_run": False,
+        "timed_out": True,
+        "verdict": "agent_timeout",
+        "escalation": "poison_ceiling",
+    },
+    # The same regime under another task — comparator population.
+    {
+        "schema_version": 1,
+        "at": "2026-09-01T10:30:00Z",
+        "task_id": "T-0002",
+        "config_hash": "hashA",
+        "agent": {"attempt": 1, "adapter": "harness", "tier": "executor", "cost_usd": 0.9},
+        "results": [],
+        "exit_code": 0,
+        "verdict": "green",
+    },
+    # Another regime: its price must never leak into the comparator.
+    {
+        "schema_version": 1,
+        "at": "2026-09-01T10:40:00Z",
+        "task_id": "T-0400",
+        "config_hash": "hashB",
+        "agent": {"attempt": 1, "adapter": "harness", "tier": "executor", "cost_usd": 99.0},
+        "results": [],
+        "exit_code": 1,
+        "verdict": "gates_red",
+    },
+    # Noise every stream carries: a fake run, a shadow replay, and a
+    # review — of T-0001 but recorded under its own task id.
+    {
+        "schema_version": 1,
+        "at": "2026-09-01T10:50:00Z",
+        "task_id": "T-0001",
+        "config_hash": "hashA",
+        "agent": {"attempt": 9, "adapter": "fake", "cost_usd": 500.0},
+        "results": [],
+    },
+    {
+        "schema_version": 1,
+        "kind": "shadow",
+        "at": "2026-09-01T10:55:00Z",
+        "task_id": "T-0001",
+        "config_hash": "hashA",
+        "cost_usd_total": 1.0,
+    },
+    {
+        "schema_version": 1,
+        "kind": "review",
+        "at": "2026-09-01T13:00:00Z",
+        "task_id": "T-7001",
+        "target": "T-0001",
+        "config_hash": "hashA",
+        "unparseable": False,
+        "findings": [{"severity": "major", "claim": "c"}, {"severity": "blocker", "claim": "b"}],
+        "agent": {"adapter": "harness", "cost_usd": 0.1},
+    },
+    {
+        "schema_version": 1,
+        "kind": "engine",
+        "at": "2026-09-01T10:15:00Z",
+        "event": "oversize_dispatch",
+        "task": "T-0001",
+        "reasons": ["tokens over"],
+    },
+    {
+        "schema_version": 1,
+        "kind": "engine",
+        "at": "2026-09-01T12:00:00Z",
+        "event": "escalation",
+        "task": "T-0001",
+        "reason": "poison_ceiling",
+        "detail": "repeated identical failure",
+        "run_id": "6fdbe1a8",
+    },
+    # Another task's escalation must not join this timeline.
+    {
+        "schema_version": 1,
+        "kind": "engine",
+        "at": "2026-09-01T11:30:00Z",
+        "event": "escalation",
+        "task": "T-0400",
+        "reason": "underspecified",
+        "detail": "elsewhere",
+    },
+]
+
+
+def seed_why_facts(root):
+    """Contracts for T-0001..3 (the plan's own minting), the fixture stream,
+    one present trace file, and one feedback record. Idempotent: a root can
+    be read through as often as a test likes."""
+    if not (root / ".torve" / "tasks" / "T-0001" / "contract.yaml").exists():
+        write_contracts(root, plan_document(root, root / "rfcs", "0090"))
+
+    (root / ".torve" / "telemetry.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in WHY_ROWS) + "\n", encoding="utf-8"
+    )
+    traces = root / ".torve" / "traces"
+    traces.mkdir(exist_ok=True)
+    (traces / "T-0001.a2.trace.log").write_text("attempt two, timed out", encoding="utf-8")
+    (root / ".torve" / "feedback.jsonl").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "at": "2026-09-02T10:00:00Z",
+                "task_id": "T-0001",
+                "human_minutes": 30,
+                "rework_after_review": False,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _why_env(root):
+    seed_why_facts(root)
+    return why_report(root, "T-0001")
+
+
+def test_why_groups_attempts_by_the_attempt_stamp(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    envelope = _why_env(root)
+
+    assert envelope["found"] is True
+    assert envelope["task"] == "T-0001"
+    assert envelope["rfc"] == "rfcs/0090-widgets.md"
+
+    attempts = envelope["attempts"]
+    assert [a["attempt"] for a in attempts] == [None, 1, 2]  # chronological
+
+    first, second, third = attempts
+
+    assert first["attempt"] is None  # the 2026-08-01 row leads, chronologically
+
+    # The stamped rows carry what the engine recorded: verdict, the tier
+    # that actually ran, convictions, cost, clock, tokens.
+    assert second["verdict"] == "gates_red"
+    assert second["tier"] == "executor"
+    assert second["model"] == "deepseek-v4-flash"
+    assert second["convictions"] == ["decisions-reported", "self-audit"]
+    assert second["cost_usd"] == 0.348
+    assert second["input_tokens"] == 392421
+    assert second["output_tokens"] == 74099
+    assert second["wall_time_s"] == 897.3
+
+    # The red-path row: gates never ran, the escalation reason rides along.
+    assert third["verdict"] == "agent_timeout"
+    assert third["gates_run"] is False
+    assert third["escalation"] == "poison_ceiling"
+
+
+def test_why_marks_unstamped_history_pre_verdict_and_never_retrofits(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    attempts = _why_env(root)["attempts"]
+    pre_verdict, stamped = attempts[0], attempts[1]
+
+    # The unstamped row keeps its own place in timestamp order and says what
+    # it is; the stamped rows beside it are marked by their number only.
+    assert pre_verdict["attempt"] is None
+    assert pre_verdict["pre_verdict"] is True
+    assert "verdict" not in pre_verdict  # nothing to retrofit it from
+    assert pre_verdict["convictions"] == ["scope"]
+    assert pre_verdict["cost_usd"] == 0.5
+    assert "pre_verdict" not in stamped
+    assert stamped["attempt"] == 1
+
+def test_why_reports_trace_presence_per_attempt(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    attempts = _why_env(root)["attempts"]
+
+    assert attempts[1]["trace_ref"] == ".torve/traces/T-0001.a1.trace.log"
+    assert attempts[1]["trace_present"] is False  # the stream outlived the file
+    assert attempts[2]["trace_present"] is True  # seeded present
+    assert attempts[0]["trace_ref"] is None
+    assert attempts[0]["trace_present"] is False
+
+
+def test_why_events_and_reviews_join_the_task_chronologically(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    envelope = _why_env(root)
+
+    assert [(e["event"], e["at"]) for e in envelope["events"]] == [
+        ("oversize_dispatch", "2026-09-01T10:15:00Z"),
+        ("escalation", "2026-09-01T12:00:00Z"),
+    ]
+    escalation = envelope["events"][1]
+    assert escalation["reason"] == "poison_ceiling"
+    assert escalation["detail"] == "repeated identical failure"
+    assert envelope["events"][0]["reasons"] == ["tokens over"]
+
+    assert envelope["reviews"] == [
+        {
+            "at": "2026-09-01T13:00:00Z",
+            "review": "T-7001",
+            "verdict_findings": 2,
+            "blockers": 1,
+        }
+    ]
+
+
+def test_why_totals_sum_only_what_was_reported(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    totals = _why_env(root)["totals"]
+
+    assert totals == {
+        "attempts": 3,
+        "cost_usd": 1.048,  # 0.5 + 0.348 + 0.2 — the fake and shadow rows stay out
+        "input_tokens": 392421,
+        "output_tokens": 74099,
+        "wall_time_s": 2097.3,
+        "human_minutes": 30,
+    }
+
+
+def test_why_regime_compares_only_same_hash_rows_and_carries_the_caveat(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    regime = _why_env(root)["regime"]
+
+    # The anchor is the task's newest attempt row that recorded a hash: the
+    # red-path row has none, so attempt 1's hashA governs. The population is
+    # that regime's attempt rows across tasks — 0.5, 0.348 and T-0002's 0.9 —
+    # and the $99 hashB row must not move the numbers.
+    assert regime["config_hash"] == "hashA"
+    assert regime["attempt_cost_median_usd"] == 0.5
+    assert regime["attempt_cost_p90_usd"] == 0.9
+    assert regime["attempt_cost_n"] == 3
+    assert regime["caveat"] == QUASI_EXPERIMENT_CAVEAT
+
+
+def test_why_state_is_only_what_the_stream_proves(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+
+    # T-0001: escalated last (the event follows its final attempt row).
+    assert why_report(root, "T-0001")["state"] == "escalated"
+    # T-0002: its only row is green — ready.
+    assert why_report(root, "T-0002")["state"] == "ready"
+    # T-0003: a contract and no stream — unstarted.
+    assert why_report(root, "T-0003")["state"] == "unstarted"
+    # T-0002 totals prove absence reads as absence, not zero.
+    assert why_report(root, "T-0002")["totals"]["input_tokens"] is None
+
+
+def test_why_unknown_task_is_a_found_false_envelope(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+
+    assert why_report(root, "T-9999") == {
+        "schema_version": 1,
+        "task": "T-9999",
+        "found": False,
+    }
+
+
+def test_why_envelope_is_deterministic_across_reads(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+
+    assert why_report(root, "T-0001") == why_report(root, "T-0001")
+

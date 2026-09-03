@@ -40,6 +40,7 @@ from torve.cli import (
     survey,
     tick,
     tracker,
+    why,
 )
 from torve.domain.states import EXIT_OK
 
@@ -117,6 +118,7 @@ app.command("feedback")(feedback.feedback)
 app.command("status")(status.status)
 app.command("reap")(status.reap_cmd)
 app.command("tick")(tick.tick_cmd)
+app.command("why")(why.why_cmd)
 
 
 # ....................... #

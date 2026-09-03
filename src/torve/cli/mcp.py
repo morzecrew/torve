@@ -21,7 +21,8 @@ from torve.domain.states import EXIT_CONFIG
 
 
 def build_server(root: Path, rfc_dir: Path) -> Any:
-    """A server exposing queries over the projections and nothing else."""
+    """A server exposing the projections — context, show and why — as
+    read-only queries, and nothing else."""
 
     try:
         mcpserver = import_module("mcp.server.mcpserver")
@@ -72,6 +73,23 @@ def build_server(root: Path, rfc_dir: Path) -> Any:
             raise ValueError(f"nothing defines {identifier!r} in this corpus")
 
         return found
+
+    @server.tool(annotations=types.ToolAnnotations(readOnlyHint=True))  # type: ignore[untyped-decorator]
+    def why(task_id: str) -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
+        """Why one task ended where it did: its execution history in one
+        envelope — per-attempt verdict, tier, gate convictions, cost, clock
+        and trace, the engine events and reviews around them, totals, and
+        its cost against its own regime's attempt distribution — verbatim
+        the envelope `torve why` renders, so a planning session reads
+        exactly the facts the operator does."""
+
+        from torve.application.projections import why_report
+
+        # The projection verbatim: this tool derives nothing of its own, and
+        # an unknown id is the found:false envelope, not an error — the exit
+        # code that distinguishes a typo lives on the CLI, not the read
+        # surface (D-40.1, D-40.6).
+        return why_report(root, task_id)
 
     return server
 

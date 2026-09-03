@@ -19,6 +19,7 @@ emits data; judgement stays with the human reading it.
 from __future__ import annotations
 
 import json
+import math
 import re
 import statistics
 import subprocess
@@ -1202,6 +1203,382 @@ def status_report(root: Path) -> dict[str, Any]:
 
     states = RunState.load_all(root.resolve() / naming.WORKTREE_DIR)
     return {"schema_version": 1, "runs": [s.to_record() for s in states]}
+
+
+# ....................... #
+
+# The attempt population: real agent rows only. Shadow replays measure a
+# regime, reviews are the reviewer's spend under another task id, engine
+# events carry no agent block, and a fake adapter is simulation, neither
+# spend nor conviction (D-4.6) — the same exclusions the harness
+# populations and the costs section already draw.
+_ATTEMPT_EXCLUDED_KINDS = _HARNESS_EXCLUDED_KINDS | {"review"}
+
+
+def _stream_rows(root: Path) -> list[dict[str, Any]]:
+    """The telemetry stream, parsed. Unparseable and non-object lines are
+    skipped as everywhere else in this module: the stream is append-only and
+    a projection reader is not a repair shop."""
+
+    found: list[dict[str, Any]] = []
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
+    if not telemetry.is_file():
+        return found
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(record, dict):
+            found.append(cast("dict[str, Any]", record))
+
+    return found
+
+
+def _is_attempt_row(row: dict[str, Any]) -> bool:
+    """One attempt of this task as the engine recorded it: an agent block
+    from a real adapter, not one of the measured or narrating kinds."""
+
+    if str(row.get("kind", "")) in _ATTEMPT_EXCLUDED_KINDS:
+        return False
+
+    agent = row.get("agent")
+
+    return isinstance(agent, dict) and cast("dict[str, Any]", agent).get("adapter") != "fake"
+
+
+def _row_agent(row: dict[str, Any]) -> dict[str, Any]:
+    agent: Any = row.get("agent")
+
+    return cast("dict[str, Any]", agent) if isinstance(agent, dict) else {}
+
+
+def _attempt_entry(rows: list[dict[str, Any]], attempt: int | None, root: Path) -> dict[str, Any]:
+    """One attempt's envelope entry, folded from the rows carrying its stamp.
+    D-38.1 guarantees exactly one row per attempt, so the fold is defensive
+    shape only: scalars take the later row's value, gate convictions
+    accumulate. Absent stays absent — a harness that reported nothing reads
+    unreported, never zero (D-4.6)."""
+
+    entry: dict[str, Any] = {"attempt": attempt, "at": rows[0].get("at")}
+
+    if attempt is None:
+        # Unstamped history (pre-0038) is rendered as what it is and never
+        # retrofitted with a number the stream does not hold.
+        entry["pre_verdict"] = True
+
+    verdicts = [row.get("verdict") for row in rows if row.get("verdict")]
+
+    if verdicts:
+        entry["verdict"] = str(verdicts[-1])
+
+    convictions: list[str] = []
+
+    for row in rows:
+        results = row.get("results")
+
+        if isinstance(results, list):
+            for result in cast("list[object]", results):
+                if not isinstance(result, dict):
+                    continue
+
+                gate = cast("dict[str, Any]", result)
+
+                if (
+                    str(gate.get("outcome", "")) in _CONVICTION_OUTCOMES
+                    and str(gate.get("state", "")) in _CONVICTION_STATES
+                ):
+                    name = str(gate.get("name", "?"))
+
+                    if name not in convictions:
+                        convictions.append(name)
+
+    entry["convictions"] = convictions
+
+    agent: dict[str, Any] = {}
+
+    for row in rows:
+        agent = {**agent, **_row_agent(row)}
+
+    for key in ("tier", "model", "cost_usd"):
+        if agent.get(key) is not None:
+            entry[key] = agent[key]
+
+    for key in TOKEN_FIELDS:
+        if key in agent:
+            entry[key] = agent[key]
+
+    # Wall clock, estimated where the attempt's own span was never recorded
+    # — the same fallback and the same honesty flag the costs section uses.
+    wall_time_s = agent.get("wall_time_s")
+    broker: Any = agent.get("broker")
+
+    if wall_time_s is None and isinstance(broker, dict):
+        wall_time_s = cast("dict[str, Any]", broker).get("wall_time_s")
+
+        if wall_time_s is not None:
+            entry["wall_est"] = True
+
+    if wall_time_s is not None:
+        entry["wall_time_s"] = wall_time_s
+
+    if any(row.get("gates_run") is False for row in rows):
+        entry["gates_run"] = False
+
+    escalation = next((row["escalation"] for row in reversed(rows) if row.get("escalation")), None)
+
+    if escalation is not None:
+        entry["escalation"] = escalation
+
+    # The trace is displayed, never opened (D-40.2): the ref rides as
+    # recorded and presence is a stat, not a read.
+    trace_ref = agent.get("trace_ref")
+
+    if isinstance(trace_ref, str) and trace_ref:
+        entry["trace_ref"] = trace_ref
+        entry["trace_present"] = (root / trace_ref).is_file()
+    else:
+        entry["trace_ref"] = None
+        entry["trace_present"] = False
+
+    return entry
+
+
+def _group_attempts(rows: list[dict[str, Any]], root: Path) -> list[dict[str, Any]]:
+    """Attempts grouped by the 0038 `attempt` stamp; unstamped rows each keep
+    their own place in timestamp order (the fallback grouping, never a
+    retrofitted number). The list runs chronologically — the timeline's own
+    order."""
+
+    by_stamp: dict[int, list[dict[str, Any]]] = {}
+    unstamped: list[dict[str, Any]] = []
+
+    for row in sorted(rows, key=lambda r: str(r.get("at") or "")):
+        stamp = _row_agent(row).get("attempt")
+
+        if isinstance(stamp, int) and not isinstance(stamp, bool):
+            by_stamp.setdefault(stamp, []).append(row)
+        else:
+            unstamped.append(row)
+
+    groups: list[tuple[int | None, list[dict[str, Any]]]] = [
+        *(
+            (stamp, group)
+            for stamp, group in by_stamp.items()
+        ),
+        *((None, [row]) for row in unstamped),
+    ]
+
+    entries = [_attempt_entry(group, stamp, root) for stamp, group in groups]
+
+    return sorted(entries, key=lambda entry: str(entry.get("at") or ""))
+
+
+def _why_events(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any]]:
+    """The engine's own words about this task — escalations, blocked and
+    oversize dispatches, lane outcomes — chronologically. The record's
+    payload passes through verbatim (the join keys excepted): the projection
+    adds no interpretation (the envelope is data, never judgement)."""
+
+    found: list[dict[str, Any]] = []
+
+    for row in rows:
+        if row.get("kind") != "engine" or row.get("task") != task_id:
+            continue
+
+        entry: dict[str, Any] = {"at": row.get("at"), "event": row.get("event")}
+        entry.update(
+            {
+                key: value
+                for key, value in row.items()
+                if key not in {"schema_version", "kind", "at", "event"}
+            }
+        )
+        found.append(entry)
+
+    return sorted(found, key=lambda entry: str(entry.get("at") or ""))
+
+
+def _why_reviews(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any]]:
+    """Reviews conducted *of* this task, by their durable records: how many
+    findings the review kept and how many of them were blockers. The review's
+    contract is a different task; its id rides along so a reader can open
+    the record."""
+
+    found: list[dict[str, Any]] = []
+
+    for row in rows:
+        if row.get("kind") != "review" or row.get("target") != task_id:
+            continue
+
+        raw_findings: Any = row.get("findings")
+        findings = cast("list[object]", raw_findings) if isinstance(raw_findings, list) else []
+        kept = [cast("dict[str, Any]", f) for f in findings if isinstance(f, dict)]
+
+        entry: dict[str, Any] = {
+            "at": row.get("at"),
+            "review": row.get("task_id"),
+            "verdict_findings": len(kept),
+            "blockers": sum(1 for f in kept if f.get("severity") == "blocker"),
+        }
+
+        if row.get("unparseable"):
+            entry["unparseable"] = True
+
+        found.append(entry)
+
+    return sorted(found, key=lambda entry: str(entry.get("at") or ""))
+
+
+def _why_totals(attempts: list[dict[str, Any]], human_minutes: int | None) -> dict[str, Any]:
+    """Arithmetic, nothing else: sums over the attempts that reported, None
+    where nothing did — an unreported total reads unreported."""
+
+    def reported(key: str) -> list[float]:
+        return [
+            float(entry[key])
+            for entry in attempts
+            if isinstance(entry.get(key), int | float)
+        ]
+
+    def summed(key: str) -> float | int | None:
+        values = reported(key)
+
+        if not values:
+            return None
+
+        total = sum(values)
+        return int(total) if key.endswith("_tokens") else round(total, 3)
+
+    return {
+        "attempts": len(attempts),
+        "cost_usd": summed("cost_usd"),
+        "input_tokens": summed("input_tokens"),
+        "output_tokens": summed("output_tokens"),
+        "wall_time_s": summed("wall_time_s"),
+        "human_minutes": human_minutes,
+    }
+
+
+def _why_regime(task_rows: list[dict[str, Any]], all_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """The same-regime cost comparator. The anchor is the task's newest
+    attempt row that recorded a config_hash — red-path rows record none, the
+    gates never ran under a manifest for them — and the population is every
+    real attempt row in the stream carrying that hash, this task's included.
+    A comparator, never a verdict: the quasi-experiment caveat rides inside
+    the envelope itself so no renderer can shed it."""
+
+    anchor = next(
+        (
+            row["config_hash"]
+            for row in sorted(task_rows, key=lambda r: str(r.get("at") or ""), reverse=True)
+            if row.get("config_hash")
+        ),
+        None,
+    )
+
+    costs: list[float] = []
+
+    if anchor:
+        for row in all_rows:
+            if not _is_attempt_row(row) or row.get("config_hash") != anchor:
+                continue
+
+            cost = _row_agent(row).get("cost_usd")
+
+            if isinstance(cost, int | float):
+                costs.append(float(cost))
+
+    if costs:
+        costs.sort()
+        median: float | None = round(statistics.median(costs), 3)
+        p90: float | None = round(costs[math.ceil(0.9 * len(costs)) - 1], 3)
+        n: int | None = len(costs)
+    else:
+        median = None
+        p90 = None
+        n = len(costs) if anchor else None
+
+    return {
+        "config_hash": anchor,
+        "attempt_cost_median_usd": median,
+        "attempt_cost_p90_usd": p90,
+        "attempt_cost_n": n,
+        "caveat": QUASI_EXPERIMENT_CAVEAT,
+    }
+
+
+def _stream_state(attempts: list[dict[str, Any]], events: list[dict[str, Any]]) -> str | None:
+    """Where the durable record leaves the task — not the engine's live
+    state, which lives in run-state files this projection must never read.
+    None is the honest answer for a history that ended red without
+    escalating: the stream says nothing about where such a task sits now,
+    and a guess dressed as a state would say more."""
+
+    if not attempts:
+        return "unstarted"
+
+    last_at = str(attempts[-1].get("at") or "")
+
+    if any(
+        event.get("event") == "escalation" and str(event.get("at") or "") >= last_at
+        for event in events
+    ):
+        return str(TaskState.ESCALATED)
+
+    if attempts[-1].get("verdict") == "green":
+        return str(TaskState.READY)
+
+    return None
+
+
+def why_report(root: Path, task_id: str) -> dict[str, Any]:
+    """The per-task history envelope (the whole point of this projection):
+    one task's attempts, the engine's events around them, the reviews of it,
+    its totals and its regime comparator — joined from the durable streams
+    on demand and stored nowhere. The CLI, the MCP tool and the serve
+    endpoint all re-expose this one envelope verbatim, so the three surfaces
+    can never disagree.
+
+    The sources are the telemetry stream, the feedback stream and the task's
+    contract head — never run-state files (overwritten per dispatch and
+    swept at reap) and never trace content (the ref is displayed, not
+    opened). An unknown task id is a `found: false` envelope, not a taskless
+    history a typo could fake."""
+
+    contract = _load_yaml_dict(layout.task_file(root, task_id))
+
+    if contract is None:
+        return {"schema_version": SCHEMA_VERSION, "task": task_id, "found": False}
+
+    rows = _stream_rows(root)
+    task_rows = [row for row in rows if row.get("task_id") == task_id and _is_attempt_row(row)]
+    attempts = _group_attempts(task_rows, root)
+    events = _why_events(rows, task_id)
+    feedback = feedback_records(root).get(task_id)
+    human_minutes = (
+        feedback.get("human_minutes")
+        if isinstance(feedback, dict) and isinstance(feedback.get("human_minutes"), int)
+        else None
+    )
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "task": task_id,
+        "found": True,
+        "rfc": contract.get("rfc"),
+        "state": _stream_state(attempts, events),
+        "attempts": attempts,
+        "events": events,
+        "reviews": _why_reviews(rows, task_id),
+        "totals": _why_totals(attempts, human_minutes),
+        "regime": _why_regime(task_rows, rows),
+    }
+
 
 
 # ....................... #

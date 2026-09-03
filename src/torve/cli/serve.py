@@ -1,7 +1,7 @@
 """`torve serve` — a loopback, read-only HTTP surface over the projections
 the CLI already renders (RFC 0032 §5): starlette and uvicorn behind the
 `torve[serve]` extra, lazily imported and refused without it exactly like
-the mcp and migrate extras (D-32.3). Two JSON endpoints re-expose the
+the mcp and migrate extras (D-32.3). Three JSON endpoints re-expose the
 projection functions verbatim (D-32.1) and / serves the shipped bundle
 (D-32.4); the bind is 127.0.0.1 unconditionally — there is no host flag to
 get wrong (D-32.2).
@@ -136,9 +136,19 @@ def build_app(root: Path, rfc_dir: Path) -> Any:
 
         return http.JSONResponse(status_report(root))
 
+    def api_why(request: Request) -> Any:
+        from torve.application.projections import why_report
+
+        # The same re-exposure rule as the other endpoints: the per-task
+        # envelope arrives byte-identical to the CLI's --format json, and an
+        # unknown id is the found:false envelope over HTTP 200 — the exit
+        # code that catches a typo is the CLI's, not the wire's.
+        return http.JSONResponse(why_report(root, str(request.path_params["task_id"])))
+
     routes: list[BaseRoute] = [
         http.Route("/api/context", api_context, methods=["GET"]),
         http.Route("/api/status", api_status, methods=["GET"]),
+        http.Route("/api/why/{task_id}", api_why, methods=["GET"]),
     ]
 
     bundle = _bundle_root()

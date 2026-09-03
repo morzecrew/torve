@@ -1,7 +1,8 @@
 """RFC 0007 §5: the read surface. Read-only by construction (D-7.3) — the
 registered tool list is pinned so a write tool appearing reddens; the mcp
 package stays an optional extra, its absence a config error (migrate-extra
-precedent)."""
+precedent). The `why` tool is pinned to the projection's envelope verbatim:
+one reader, every renderer (D-40.1)."""
 
 from __future__ import annotations
 
@@ -9,22 +10,24 @@ import asyncio
 import json
 
 import pytest
+from test_context import seed_why_facts
 from test_plan import PHASING, TABLE, plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
+from torve.application.projections import why_report
 from torve.cli import app
 from torve.cli import mcp as mcp_cli
 
 # ----------------------- #
 
 
-def test_surface_is_one_read_only_query(plan_repo):  # noqa: F811
+def test_surface_is_three_read_only_queries(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     server = mcp_cli.build_server(root, root / "rfcs")
 
     tools = asyncio.run(server.list_tools())
 
-    assert [t.name for t in tools] == ["context", "show"]
+    assert [t.name for t in tools] == ["context", "show", "why"]
     assert all(t.annotations.read_only_hint for t in tools)
 
 
@@ -69,3 +72,29 @@ def test_missing_package_is_a_config_error(plan_repo, monkeypatch):  # noqa: F81
 
     assert result.exit_code == 3
     assert "torve[mcp]" in result.output
+
+
+def test_why_tool_serves_the_envelope_verbatim(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+    server = mcp_cli.build_server(root, root / "rfcs")
+
+    called = asyncio.run(server.call_tool("why", {"task_id": "T-0001"}))
+
+    assert json.loads(called.content[0].text) == why_report(root, "T-0001")
+
+
+def test_why_tool_answers_an_unknown_id_with_its_envelope(plan_repo):  # noqa: F811
+    """The exit code that catches a typo is the CLI's; the read surface
+    answers with the same `found: false` envelope it always re-exposes."""
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+    server = mcp_cli.build_server(root, root / "rfcs")
+
+    called = asyncio.run(server.call_tool("why", {"task_id": "T-9999"}))
+
+    assert json.loads(called.content[0].text) == {
+        "schema_version": 1,
+        "task": "T-9999",
+        "found": False,
+    }

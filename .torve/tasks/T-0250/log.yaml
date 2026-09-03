@@ -1,0 +1,99 @@
+schema_version: 1
+task: T-0250
+repo: morzecrew/torve
+base_sha: 6b8dd146d013c0194cb2b25a456e8e3b382a56e8  # the engine's pin (D-A.7)
+drift_count: 0
+entries:
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: 2026-09-03T20:03:22Z
+  attempt: 1
+  claim: >-
+    the sample envelope carries a task-level `state` key, but the locked
+    source list (telemetry, feedback, contract) cannot supply the engine's
+    current state — contracts have no state key and run-state files are ruled
+    out by D-40.2; no decision settles how `state` is derived
+  evidence: >-
+    rfcs/0040-the-why-projection.md:137 — the sample envelope's state line;
+    rfcs/0040-the-why-projection.md:128-130 — D-40.2's durable-source list; a
+    minted contract (`.torve/tasks/T-0250/contract.yaml`) carries no state
+    field
+  action: decided
+  notes: |
+    Decided: `state` is what the durable stream can prove, never a guess
+    about liveness. A contract with no attempt rows: `unstarted` (the same
+    contract-derived pseudo-state the context projection assigns without a
+    run state). An escalation event at or after the last attempt row:
+    `escalated`. The last attempt row's verdict green: `ready`. Otherwise
+    null — the rendered form shows that plainly rather than fabricating a
+    position the stream does not hold.
+  proposal: >-
+    an RFC 0040 row settling that the why envelope's `state` is the
+    stream-derived value (unstarted / escalated / ready / null), since no
+    durable source holds the engine's live state
+- decision: unlisted
+  grade: UNLISTED
+  kind: resolved
+  class: spec-gap
+  at: 2026-09-03T20:03:22Z
+  attempt: 1
+  claim: >-
+    D-40.4 scopes the comparator to same-`config_hash` attempt rows, but a
+    task spans regimes when a regime changes mid-history and the sample
+    shows exactly one hash; which row's hash anchors the comparison, and how
+    p90 is computed, are unsettled
+  evidence: >-
+    rfcs/0040-the-why-projection.md:272 — D-40.4's same-`config_hash` scope;
+    rfcs/0040-the-why-projection.md:161-164 — the single `config_hash` in the
+    sample regime block
+  action: decided
+  notes: |
+    Decided: the anchor is the newest attempt row of this task that carries
+    a non-null config_hash (red-path rows record none — the gates never ran
+    under a manifest for them), so the comparator answers "how does this
+    task's spend read against the regime it most recently ran under". The
+    population is every real (non-fake, non-shadow, non-review, non-engine)
+    attempt row in the stream with that hash, this task's included. p90 is
+    the nearest-rank quantile (index ceil(0.9n)-1), the median via
+    statistics.median; a population with no recorded costs yields nulls.
+    `attempt_cost_n` rides the block because a comparator median without its
+    denominator invites the misreading RFC 0040 §9 warns about.
+  proposal: >-
+    an RFC 0040 row pinning the regime anchor (newest hashed attempt row)
+    and the nearest-rank p90 convention, or naming a different convention
+    the anomaly-detector document will have to share
+- decision: D-40.1
+  grade: LOCKED
+  kind: resolved
+  class: discovery
+  at: 2026-09-03T20:18:57Z
+  attempt: 1
+  claim: >-
+    close-out of the touched lock: one reader computed the envelope and all
+    three renderers re-exposed it verbatim — no renderer derives a fact of
+    its own, and the text timeline renders only envelope fields
+  evidence: >-
+    src/torve/application/projections.py:1539 — why_report, the single
+    reader; its CLI, MCP tool and /api/why endpoint emit the identical
+    envelope, pinned by the byte-parity test
+    (tests/test_serve.py::test_the_three_surfaces_render_one_envelope_byte_identical)
+  action: decided
+- decision: D-40.2
+  grade: LOCKED
+  kind: resolved
+  class: discovery
+  at: 2026-09-03T20:18:57Z
+  attempt: 1
+  claim: >-
+    close-out of the touched lock: the projection reads the telemetry
+    stream, the feedback stream and the contract head only — no RunState,
+    no .wt file, no trace content; trace presence is a stat on the
+    root-relative ref, and the envelope is computed per call and stored
+    nowhere
+  evidence: >-
+    src/torve/application/projections.py:1218 — the stream reader;
+    src/torve/application/projections.py:1343 — the trace-presence stat;
+    why_report's imports and calls touch no run-state helper
+  action: decided

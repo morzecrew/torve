@@ -7,15 +7,18 @@ precedent, D-32.3)."""
 
 from __future__ import annotations
 
+import asyncio
+import json
 from types import SimpleNamespace
 
 from starlette.testclient import TestClient
-from test_context import seed_facts
+from test_context import seed_facts, seed_why_facts
 from test_plan import plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
-from torve.application.projections import context_report, status_report
+from torve.application.projections import context_report, status_report, why_report
 from torve.cli import app
+from torve.cli import mcp as mcp_cli
 from torve.cli import serve as serve_cli
 
 # ----------------------- #
@@ -129,3 +132,57 @@ def test_serve_has_no_host_flag():
     assert result.exit_code == 0
     assert "--port" in result.output
     assert "--host" not in result.output
+
+
+# ----------------------- #
+# The why endpoint (RFC 0040): serve re-exposes the per-task envelope
+# verbatim, and all three surfaces — CLI, MCP, endpoint — are byte-identical
+# renderings of the one projection (D-40.1).
+
+
+def test_api_why_re_exposes_the_projection_verbatim(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+    server = serve_cli.build_app(root, root / "rfcs")
+
+    with TestClient(server) as client:
+        response = client.get("/api/why/T-0001")
+
+    assert response.status_code == 200
+    assert response.json() == why_report(root, "T-0001")
+
+
+def test_api_why_answers_an_unknown_id_with_its_envelope(plan_repo):  # noqa: F811
+    """HTTP has no exit code: the found:false envelope is the wire's answer
+    — the typo-catching 3 lives on the CLI."""
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+    server = serve_cli.build_app(root, root / "rfcs")
+
+    with TestClient(server) as client:
+        response = client.get("/api/why/T-9999")
+
+    assert response.status_code == 200
+    assert response.json() == {"schema_version": 1, "task": "T-9999", "found": False}
+
+
+def test_the_three_surfaces_render_one_envelope_byte_identical(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    seed_why_facts(root)
+    envelope = why_report(root, "T-0001")
+
+    cli = CliRunner().invoke(app, ["why", "T-0001", "--root", str(root), "--format", "json"])
+    assert cli.exit_code == 0, cli.output
+    cli_doc = json.loads(cli.stdout)
+
+    server = mcp_cli.build_server(root, root / "rfcs")
+    mcp_doc = json.loads(
+        asyncio.run(server.call_tool("why", {"task_id": "T-0001"})).content[0].text
+    )
+
+    with TestClient(serve_cli.build_app(root, root / "rfcs")) as client:
+        serve_doc = client.get("/api/why/T-0001").json()
+
+    canonical = [json.dumps(doc, sort_keys=True) for doc in (envelope, cli_doc, mcp_doc, serve_doc)]
+
+    assert canonical[0] == canonical[1] == canonical[2] == canonical[3]
