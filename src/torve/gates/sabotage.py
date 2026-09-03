@@ -9,6 +9,7 @@ that never fires because the code is clean.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
@@ -204,6 +205,12 @@ class Case:
     gate: str
     expected: str
     build: Callable[[Repo], None]
+    # Executables the gate command shells out to; when one is absent — a
+    # consuming repository's `torve gates check` runs without the dev tools a
+    # repository-specific gate needs — the case reports skipped instead of
+    # falsely convicting the environment (the layering suite's skipif, moved
+    # into the shipped set's data).
+    requires: tuple[str, ...] = ()
 
 
 # ----------------------- #
@@ -532,6 +539,79 @@ def _text_module_docstring_passes(repo: Repo) -> None:
 
 # ....................... #
 
+# The `coverage-delta` shell gate, sabotaged for real: the scratch scenarios
+# run pytest-cov and diff-cover exactly as the shipped manifest does, with
+# `uv run` unwrapped — the scratch repository is not a uv project, and these
+# cases already execute inside one. The `{base}` placeholder is the point of
+# the wiring: it must arrive at diff-cover as the merge-base the battery
+# computed, and every twin below depends on that substitution working. The
+# scratch entry is blocking so a conviction is load-bearing; the shipped gate
+# enters shadow (D-36.1, D-2.18).
+
+COVERAGE_GATE_MANIFEST: dict[str, Any] = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "gates": [
+        {
+            "name": "coverage-delta",
+            "run": (
+                "PYTHONPATH=src pytest --cov=src --cov-report=xml -q"
+                " && diff-cover coverage.xml --compare-branch {base} --fail-under 80"
+            ),
+            "state": "blocking",
+            "origin": "rfc/0036",
+            "input": "worktree",
+            "timeout": 120,
+        }
+    ],
+}
+
+# An `if` whose else-arm no test reaches — the archetypal unexercised branch.
+COVERAGE_UNTESTED_APP = "def sign(x):\n    if x >= 0:\n        return 1\n    return -1\n"
+COVERAGE_IMPORT_ONLY_TEST = (
+    "from app import sign  # noqa: F401\n\n\ndef test_app():\n    assert True\n"
+)
+COVERAGE_TESTED_TWIN_TEST = (
+    "from app import sign\n\n\n"
+    "def test_sign():\n    assert sign(1) == 1\n    assert sign(-1) == -1\n"
+)
+
+
+def _coverage_untested_branch(repo: Repo) -> None:
+    # The change the suite never meets: new lines ship red.
+    repo.seed(COVERAGE_GATE_MANIFEST)
+    repo.write("src/app.py", COVERAGE_UNTESTED_APP)
+    repo.write("tests/test_app.py", COVERAGE_IMPORT_ONLY_TEST)
+    repo.commit("untested branch")
+
+
+def _coverage_tested_twin(repo: Repo) -> None:
+    # The identical change, met by the suite: the gate must let it through.
+    repo.seed(COVERAGE_GATE_MANIFEST)
+    repo.write("src/app.py", COVERAGE_UNTESTED_APP)
+    repo.write("tests/test_app.py", COVERAGE_TESTED_TWIN_TEST)
+    repo.commit("tested branch")
+
+
+def _coverage_legacy_unconvicted(repo: Repo) -> None:
+    # The ratchet rule (D-36.1: changed lines only): an inherited tree of
+    # untested legacy code beside a fully tested change convicts nobody.
+    repo.seed(COVERAGE_GATE_MANIFEST)
+    repo.git("checkout", "-q", "main")
+    repo.write(
+        "src/legacy.py",
+        "def untouched(i):\n" + "".join(f"    i += {n}\n" for n in range(2, 42)),
+    )
+    repo.commit("inherited legacy module")
+    repo.git("checkout", "-q", f"torve/{TASK_ID}")
+    repo.git("merge", "-q", "main")
+    repo.write("src/app.py", COVERAGE_UNTESTED_APP)
+    repo.write("tests/test_app.py", COVERAGE_TESTED_TWIN_TEST)
+    repo.commit("tested branch beside legacy")
+
+
+# ....................... #
+
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
@@ -589,6 +669,27 @@ CASES: list[Case] = [
         "pass",
         _text_module_docstring_passes,
     ),
+    Case(
+        "coverage-delta: untested new branch",
+        "coverage-delta",
+        "fail",
+        _coverage_untested_branch,
+        requires=("pytest", "diff-cover"),
+    ),
+    Case(
+        "coverage-delta: tested twin",
+        "coverage-delta",
+        "pass",
+        _coverage_tested_twin,
+        requires=("pytest", "diff-cover"),
+    ),
+    Case(
+        "coverage-delta: untouched legacy unconvicted",
+        "coverage-delta",
+        "pass",
+        _coverage_legacy_unconvicted,
+        requires=("pytest", "diff-cover"),
+    ),
 ]
 
 
@@ -596,6 +697,18 @@ CASES: list[Case] = [
 
 
 def run_case(case: Case) -> CaseOutcome:
+    missing = [tool for tool in case.requires if shutil.which(tool) is None]
+
+    if missing:
+        return CaseOutcome(
+            name=case.name,
+            gate=case.gate,
+            expected=case.expected,
+            got="skipped",
+            ok=True,
+            detail="absent from this environment: " + ", ".join(missing),
+        )
+
     with tempfile.TemporaryDirectory(prefix="torve-sabotage-") as tmp:
         repo = Repo(Path(tmp))
         case.build(repo)

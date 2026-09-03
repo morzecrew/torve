@@ -1,0 +1,77 @@
+schema_version: 1
+task: T-0254
+repo: morzecrew/torve
+base_sha: cf66212a9e83b5f381c9da7229322952d8b09870
+drift_count: 0
+entries:
+  - decision: D-36.1
+    grade: LOCKED
+    kind: resolved
+    at: '2026-09-03T07:24:00Z'
+    attempt: 1
+    claim: 'the gate judges changed lines only and enters shadow; sabotage twins ship with it — untested new branch red, tested twin green, untouched legacy file unconvicted'
+    evidence: '.torve/gates.yaml:96-114 — the coverage-delta entry: state shadow, run judged on diff lines against {base}; the twins ship in the shipped CASES list'
+    action: decided
+    notes: |
+      The twins are live, not mocked: each scratch scenario runs the settled
+      pytest-cov + diff-cover command against a synthetic landing, so the
+      {base} substitution and the changed-line judgment are proven end to
+      end. The scratch manifest marks the gate blocking — a sabotage
+      conviction must be load-bearing — while the shipped entry is shadow
+      (D-2.18). The legacy twin commits an untested src/legacy.py into the
+      base and asserts the untouched file carries no weight: diff-cover sees
+      it at zero in the report and convicts nobody, which is the ratchet
+      doctrine under measurement. Cases declare their dev tools
+      (pytest, diff-cover) and skip in an environment without them, so the
+      shipped suite stays honest in a consuming repository.
+  - decision: D-36.2
+    grade: OPEN
+    kind: resolved
+    at: '2026-09-03T07:25:00Z'
+    attempt: 1
+    claim: 'threshold settled at 80; invocation settled at: uv run pytest --cov=src --cov-report=xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80'
+    evidence: '`uv run diff-cover coverage.xml --compare-branch 84a080158664bfcd8cab6a4f4f18b4cdec184e14 --fail-under 0` — Total: 37 lines, Missing: 0 lines, Coverage: 100% over the reconstructed landing; the untested-branch sabotage twin reads src/app.py (25.0%): Missing lines 2-4 under the same command'
+    action: decided
+    notes: |
+      Candidates 100 / 90 / 80 / 70 weighed against the measurements: this
+      landing covers 100% of its changed src lines and the archetypal defect
+      25%, so anything in (25, 100] separates the pair; 100 is brittle
+      against the flaky-coverage genre RFC 0036 names as the reason for
+      shadow entry (async partial coverage), and 80 keeps the draft figure
+      now measured. Line-level judgment only in v1: the question is "were
+      the new lines met"; diff-cover keeps --branch-coverage in reserve for
+      a later tightening once branch data is wanted. Full suite under
+      coverage: ~50 s wall clock against the 600 s shell-gate default, so
+      no explicit timeout. Measurement caveat: this sandbox cannot resolve
+      the engine pin or any repository history (git objects unreachable),
+      so "recent landings" reduced to the one landing available — this
+      attempt, reconstructed in a scratch repository whose base commit
+      carries a pre-change snapshot of the tree.
+  - decision: D-36.3
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-03T07:26:00Z'
+    attempt: 1
+    claim: 'the sabotage-pair lint is not this phase and cannot be: manifest.py sits outside the task scope, and until the Gate model owns the sabotage: key a manifest carrying it is a fatal load error — the gates.yaml backfill must not precede the lint'
+    evidence: 'src/torve/config/manifest.py:49 — Gate declares extra="forbid"; field, refusal and backfill are one change, and that change governs a file this task may not touch'
+    action: departed
+    proposal: 'land D-36.3 in the phase whose scope covers src/torve/config/manifest.py: sabotage: names a CASES family or a test path, manifest load refuses a twinless gate, shipped entries backfill in the same change (zero exceptions)'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    at: '2026-09-03T07:27:00Z'
+    attempt: 1
+    claim: 'the contract pins {base} to the battery-computed base but not what a base-citing gate does when none is resolvable; chosen: the gate errors, so a shadow run reports the gap instead of measuring an invented surface'
+    evidence: 'src/torve/gates/runner.py:54-73 — _substitute_base raises before the command can run when the context has no merge-base'
+    action: decided
+    proposal: 'OPEN — whether a base-citing gate should error (the current behavior) or skip when the repository has no resolvable base'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    at: '2026-09-03T07:28:00Z'
+    attempt: 1
+    claim: 'diff-cover judges tracked diffs only while the battery diff also counts untracked files — new untracked source lines sit outside the gate; --include-untracked was rejected because the gate own coverage.xml artifact lands in that set'
+    evidence: 'src/torve/gates/context.py:144-146 — the battery enumerates untracked paths into its diff; the shell command has no matching input'
+    action: decided
+    proposal: 'OPEN — close the untracked blind spot (hand diff-cover the battery untracked list, or rest on the scope gate covering it) with numbers from the shadow soak'

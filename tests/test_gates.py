@@ -220,3 +220,82 @@ def test_run_gates_reports_progress_by_gate_name(repo):
     assert seen == announced  # every gate that ran announced itself, in order
     # (a degraded-mode gate runs and reports skipped — it still announces)
     assert "scope" in seen and "secrets" in seen
+
+
+# ....................... #
+# The {base} substitution: a shell command receives the battery's own
+# computed base — the same context every builtin judges against — and never
+# resolves a ref in shell itself.
+
+ECHO_BASE_COMMAND = 'printf "%s" "{base}"'
+
+
+def _single_gate_manifest(run: str) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "gates": [{"name": "g", "run": run, "state": "blocking", "origin": "rfc/0036"}],
+    }
+
+
+def test_a_shell_gate_receives_the_batterys_computed_base(repo):
+    from torve.gates.runner import run_gates
+
+    repo.seed(_single_gate_manifest(ECHO_BASE_COMMAND))
+    repo.write("src/app.py", "print('substituted')\n")
+    repo.commit("change")
+    ctx = context_for(repo)
+    report = run_gates(ctx, only={"g"})
+    result = report.results[0]
+    assert result.outcome == "pass", result.output
+    # The SHA of the merge-base — the value every diff-input builtin judges
+    # against — not the ref name it was resolved from.
+    assert result.output.strip() == ctx.merge_base
+    assert ctx.merge_base != ctx.base
+
+
+def test_the_flaky_record_keeps_the_declared_command(repo):
+    # An embedded SHA would make each run's flaky identity unique and
+    # unquarantinable; the record is the declared command, placeholder intact.
+    from torve.gates.runner import run_gates
+
+    flaky = '[ -e .seen ] || { touch .seen; printf "%s" "{base}" > .base-leak; exit 1; }'
+    repo.seed(_single_gate_manifest(flaky))
+    report = run_gates(context_for(repo), only={"g"})
+    result = report.results[0]
+    assert result.outcome == "flaky", result.output
+    assert result.flaky_commands == [flaky]
+    assert report.flaky_count_by_command == {flaky: 1}
+
+
+def test_a_base_requesting_gate_on_an_unresolvable_base_errors(tmp_path):
+    # A fresh repository has no computed base; `{base}` has nothing honest to
+    # stand for, and the gate errors instead of inventing a ref.
+    from torve.config.manifest import Manifest
+    from torve.gates.context import GateContext
+    from torve.gates.runner import run_gates
+
+    gate = Gate(name="g", run=ECHO_BASE_COMMAND, state="blocking", origin="rfc/0036")
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=[gate]),
+        head_sha="0" * 40,
+        base=None,
+        merge_base=None,
+    )
+    report = run_gates(ctx, only={"g"})
+    assert report.results[0].outcome == "error"
+    assert "no base is resolvable" in report.results[0].output
+
+
+def test_the_shipped_coverage_gate_judges_changed_lines_from_the_battery_base():
+    # The manifest is configuration the battery reads; its shape is checked
+    # here so a later edit cannot silently widen the judgment surface.
+    from torve.config.manifest import load_manifest
+
+    root = Path(__file__).resolve().parent.parent
+    gates = {g.name: g for g in load_manifest(root / ".torve" / "gates.yaml").resolved_gates()}
+    gate = gates["coverage-delta"]
+    assert gate.state == "shadow"  # every gate enters shadow (D-2.18)
+    assert "{base}" in gate.run  # the battery's base, never a shell-resolved ref
+    for ref_resolver in ("merge-base", "rev-parse", "origin/", "git diff"):
+        assert ref_resolver not in gate.run

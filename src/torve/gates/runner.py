@@ -51,13 +51,39 @@ class RunReport:
 # ....................... #
 
 
+def _substitute_base(gate: Gate, ctx: GateContext) -> str:
+    """Hand the shell the base the battery itself computed (D-36.1's judgment
+    surface depends on it): every `{base}` in a shell gate's command is
+    replaced with the merge-base the context was built from — the exact value
+    every diff-input builtin judges against, so the battery's base and a
+    gate's base cannot disagree, in live runs and replays alike. No gate ever
+    resolves a ref in shell; if none was resolvable (a fresh repository), the
+    command's `{base}` has nothing honest to stand for and the gate errors
+    rather than inventing one."""
+
+    if "{base}" not in gate.run:
+        return gate.run
+
+    if ctx.merge_base is None:
+        raise ValueError(
+            f"gate {gate.name!r}: its command asks for the battery's base, "
+            "but no base is resolvable against this repository"
+        )
+
+    return gate.run.replace("{base}", ctx.merge_base)
+
+
+# ....................... #
+
+
 def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     builtin = gate.builtin
 
     if builtin is not None:
         return BUILTINS[builtin](gate, ctx)
 
-    result = run_command(gate.run, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
+    command = _substitute_base(gate, ctx)
+    result = run_command(command, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
 
     if result.exit_code == 0:
         outcome: GateOutcome = "flaky" if result.flaky else "pass"

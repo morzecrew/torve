@@ -50,6 +50,11 @@ dev = [
     "bandit>=1.9.4",
     "zizmor>=1.29.0",
     "pre-commit>=4.6.2",
+    # Back the coverage-delta gate (RFC 0036 §5.1). Dev-only like
+    # import-linter: a check on this repository's own test evidence never
+    # ships to consumers.
+    "pytest-cov>=7.1.0",
+    "diff-cover>=10.5.1",
 ]
 
 [build-system]

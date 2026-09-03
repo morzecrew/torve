@@ -93,6 +93,25 @@ gates:
     added: 2026-08-22
     input: worktree
     timeout: 60
+  # RFC 0036 §5.1 (D-36.1): does the suite meet the attempt's changed lines?
+  # diff-cover intersects the coverage report with the diff against {base} —
+  # the merge-base the battery itself computed, substituted by the runner from
+  # the same context every builtin judges against. The command never resolves
+  # a ref in shell, so live runs and replays measure an identical surface. The
+  # judgment is the attempt's added and changed lines only — never the
+  # inherited tree, never a whole-repo threshold (0031's ratchet doctrine).
+  # Entering shadow per D-2.18; promotion is a separate act on soak evidence.
+  # The threshold and this exact invocation are settled by measurement over
+  # the landing (D-36.2, numbers in this task's execution log): 100% on the
+  # landing's 37 changed src lines, 25% on the sabotage defect, ~50 s for
+  # the full suite under coverage against the 600 s shell default; a later
+  # branch-level tightening has `--branch-coverage` in reserve.
+  - name: coverage-delta
+    run: "uv run pytest --cov=src --cov-report=xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
+    state: shadow
+    origin: rfc/0036
+    added: 2026-09-03
+    input: worktree
   - name: acceptance
     run: "@task.acceptance"
     state: blocking
