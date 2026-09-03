@@ -8,7 +8,10 @@ intent: 'Traces move home to .torve/traces/ with a root-relative trace_ref (D-39
   returns the new path, the harness adapter records the relative reference, the reaper''s terminal
   sweep stops unlinking traces, and the retention pass enforces traces.keep_days / traces.max_mb oldest-first
   (D-39.3) from the new configuration block. Tests pin the path, the relative ref, the sweep''s new
-  restraint, and both retention bounds.'
+  restraint, and both retention bounds Every writer of the trace home — the harness adapter and the
+  review lane''s relocation alike — reaches it through one path helper that ensures the directory
+  exists, so no writer can depend on another having run first (T-0269''s blocker: only HarnessAgent
+  got the mkdir).'
 depends_on: []
 parent: null
 targets: []
@@ -22,6 +25,8 @@ scope:
   - tests/test_tiering.py
   - tests/test_layout.py
   - tests/test_runconfig.py
+  - src/torve/application/review.py
+  - tests/test_review_run.py
   deny: []
 acceptance:
 - uv run pytest tests/test_reaper.py tests/test_tiering.py tests/test_layout.py
@@ -29,6 +34,7 @@ acceptance:
 - uv run basedpyright src
 - uv run ruff check .
 - uv run pytest tests/test_runconfig.py
+- uv run pytest tests/test_review_run.py
 decisions:
 - id: D-39.1
   grade: LOCKED
