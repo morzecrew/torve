@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import warnings
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -44,6 +45,13 @@ class Gate(BaseModel):
     this gate means. An entry without it reads as `functional` once
     `resolved_gates()` fills the default; the declaration itself stays absent
     so the manifest diff shows only labels the operator chose.
+
+    `sabotage` names this gate's twin — a CASES family in the sabotage suite
+    or a repository test path — the evidence that the gate can convict (D-36.3).
+    An entry without it is flagged by `twinless_gates()` at load time. The
+    value must be a non-blank reference; resolving it against the CASES
+    families or the tree belongs to whoever hardens the lint, not this model,
+    which the sabotage suite itself imports.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -55,6 +63,7 @@ class Gate(BaseModel):
     input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
     timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
     axis: GateAxis | None = None  # derived for unlabeled entries, functional
+    sabotage: str | None = None  # the twin's CASES family or test path (D-36.3)
     commands: list[str] = Field(default_factory=list)
 
     # ....................... #
@@ -68,6 +77,19 @@ class Gate(BaseModel):
         raise ValueError(
             f"origin {value!r} must be 'structural', 'leak/<task>' or 'rfc/<id>' (D-2.19)"
         )
+
+    # ....................... #
+
+    @field_validator("sabotage")
+    @classmethod
+    def _sabotage_shape(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+
+        if not value.strip():
+            raise ValueError("gate sabotage twin must be a non-blank reference (D-36.3)")
+
+        return value
 
     # ....................... #
 
@@ -89,6 +111,18 @@ class Gate(BaseModel):
             raise ValueError(f"gate {self.name!r}: 'commands' only applies to @acceptance")
 
         return self
+
+
+# ....................... #
+
+
+class TwinlessGateWarning(UserWarning):
+    """A gate entry declares no sabotage twin (D-36.3).
+
+    The load-time lint's warn stage: the shipped battery predates the field,
+    and a refusal would brick the engine's own manifest load until every
+    entry is backfilled — the warning becomes refusal in the backfill landing.
+    """
 
 
 # ....................... #
@@ -169,6 +203,13 @@ class Manifest(BaseModel):
 
     # ....................... #
 
+    def twinless_gates(self) -> list[str]:
+        """Names of entries declaring no sabotage twin (D-36.3)."""
+
+        return [gate.name for gate in self.gates if gate.sabotage is None]
+
+    # ....................... #
+
     def resolved_gates(self) -> list[Gate]:
         """Gates with input, timeout and axis filled in from builtin defaults
         and the unlabeled default."""
@@ -213,5 +254,21 @@ def load_manifest(path: Path) -> Manifest:
 
     manifest = Manifest.model_validate(raw)
     manifest.resolved_gates()  # surface builtin/name errors at load time
+
+    # D-36.3, warn stage: the shipped battery predates the field, so a
+    # twinless entry is voiced here until the backfill landing hardens this
+    # to a refusal. The warning text carries no decision coordinate — it
+    # surfaces on whoever's terminal is running the command.
+    twinless = manifest.twinless_gates()
+
+    if twinless:
+        warnings.warn(
+            f"{path}: gate entries without a declared sabotage twin "
+            f"(a CASES family or a test path): {', '.join(twinless)} — "
+            "a gate that cannot prove it convicts cannot be declared; "
+            "this warning becomes a load error once every entry is backfilled",
+            TwinlessGateWarning,
+            stacklevel=2,
+        )
 
     return manifest

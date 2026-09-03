@@ -1,0 +1,64 @@
+schema_version: 1
+task: T-0255
+repo: morzecrew/torve
+base_sha: 0cc23f9b3f57289a1cae949d02890edc40ab0d28
+drift_count: 0
+entries:
+  - decision: D-36.3
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-03T09:10:00Z'
+    attempt: 2
+    claim: 'D-36.3 as written — load-time refusal plus same-landing backfill of every existing
+      entry, zero grandfather exceptions — cannot land across the self-hosting boundary: the
+      gates run under the host engine, whose manifest model predates the sabotage field, so the
+      repository''s own gates.yaml cannot be backfilled here and a refusal against the still-twinless
+      shipped battery would brick the engine''s own manifest load'
+    evidence: 'rfcs/0036-test-evidence.md:232 — D-36.3 requires refusal and same-landing backfill;
+      .torve/gates.yaml:21-27 — the shipped entries carry no sabotage: key, and T-0254 left the
+      field itself unbuilt, so refusal and backfill are one change over a file this task may not
+      touch'
+    action: departed
+    proposal: 'land the lint as a load-time WARNING now (schema: sabotage: names a CASES family or
+      a test path; twinless gate warns, never bricks), and let T-0259 backfill the battery and
+      harden warning to refusal in the same landing — zero exceptions ships then; the
+      warn-then-harden path every gate in this corpus walked (shadow before blocking)'
+    notes: |
+      Attempt 1 died proving the boundary again: a refusal landing that also
+      edits .torve/gates.yaml must be evaluated by the engine whose model
+      carries the field — which is the landing itself, before it lands. This
+      is T-0215's class, not a defect of this attempt. The warning names
+      every twinless gate at every load, so the debt is voiced, not silent;
+      the shipped scratch battery in tests/test_manifest.py pins the warning
+      red (twinless warns) and green (fully twinned is quiet), and T-0259
+      flips the same two cases to refusal and the shipped manifest.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    at: '2026-09-03T09:10:30Z'
+    attempt: 2
+    claim: 'the contract says load-time WARNING without naming the mechanism; chosen: Python
+      warnings.warn with a dedicated warning class — the config layer keeps no console dependency,
+      the default filter renders it to stderr for whoever runs any command, and tests pin it with
+      pytest.warns'
+    evidence: 'src/torve/config/manifest.py:249-274 — load_manifest is the load-time choke point and
+      the config package imports no CLI/console module'
+    action: decided
+    proposal: 'OPEN — whether the CLI should catch and render the twinless warning in its own style
+      once the warn stage has soak evidence behind it'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    at: '2026-09-03T09:11:00Z'
+    attempt: 2
+    claim: 'what a sabotage: value must satisfy at load; chosen: any non-blank reference, with a
+      blank/whitespace value refused as malformed — resolving a reference against the CASES
+      families or the filesystem is impossible from the manifest model, which the sabotage suite
+      itself imports'
+    evidence: 'src/torve/gates/sabotage.py:23 — the gates suite imports the manifest model, so the
+      load cannot import the other direction; the CASES cross-check belongs with the hardening'
+    action: decided
+    proposal: 'OPEN — the T-0259 refusal landing should cross-check each sabotage: value against
+      the CASES families and the repository tree, so a gate cannot satisfy the lint with a twin
+      that does not exist'
