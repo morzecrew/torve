@@ -1,0 +1,207 @@
+schema_version: 1
+task: T-0251
+repo: morzecrew/torve
+base_sha: 9ab218a76029db7f107b3f9f66b52328b6431a6e  # the engine's pin (D-A.7)
+drift_count: 0
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T20:39:04Z'
+    attempt: 1
+    claim: >-
+      the contract settles that seed and sync-out bytes/seconds ride the
+      attempt row "beside wall_time_s", but the only code that assembles
+      that row — the run loop — is outside this phase's scope, and the
+      phase-1 file list leaves no third way to carry per-attempt numbers
+      from the runtime adapter into the row builders; the invented join is
+      an in-process pending ledger in the telemetry module that the
+      adapter writes (keyed by the `torve.task` label the sandbox spec
+      already carries) and that `build_record`/`build_attempt_row` drain
+      when they build a row for that task
+    evidence: >-
+      rfcs/0041-remote-sandboxes.md:316-320 — the phase-1 scope lists only
+      opensandbox.py, telemetry.py and the two test files;
+      src/torve/application/runner.py:1258-1290 — create/sync_out are the
+      adapter's only callsites and agent_meta (the block beside which the
+      numbers must land) is assembled exclusively in the run loop
+    action: decided
+    proposal: >-
+      amend RFC 0041 §5.3 with a row naming the channel — transferring
+      runtimes report per-leg cost through `application.telemetry.
+      record_transfer(task_id, ...)`, keyed by the task label of the spec
+      they were created from; the attempt-row builders drain it and emit a
+      `transfer` block, absent-stays-absent (D-4.6) when the runtime
+      transfers nothing; the ledger is process-local and dies with the
+      orchestrator (consistent with D-41.1's single host-local process)
+    notes: |
+      Two consequences are recorded with the decision rather than hidden
+      in it. The drain pops both the plain task id and its shadow-id
+      spelling (naming.shadow_id), because sandbox labels key on the
+      infrastructure id while attempt rows key on the task id; and every
+      leg of one attempt's task accumulates into one block, so the agent
+      sandbox and the -gates sandbox of D-3.8 sum their bytes and seconds
+      rather than competing for the key. Concurrent attempts of the same
+      task within one process would blur per-attribution between them —
+      the totals stay correct for the row that drains.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T20:39:05Z'
+    attempt: 1
+    claim: >-
+      §10 leaves the transfer-telemetry field names and the agent-block
+      question to the implementation ("aligns them with RFC 0038's layout
+      when both land, and logs") — the block is emitted as a sibling of
+      `agent` named `transfer`, with flat keys `seed_bytes`,
+      `seed_seconds`, `sync_out_bytes`, `sync_out_seconds`, so a
+      reader can distinguish an attempt that synced nothing from one that
+      synced out into nothing
+    evidence: >-
+      rfcs/0041-remote-sandboxes.md:282-285 — the open question this entry
+      answers; src/torve/application/telemetry.py:250-281 — build_record,
+      the row the block joins beside its `agent` key
+    action: decided
+    proposal: >-
+      close §10's second bullet once RFC 0038's layout exists to align
+      against; until then the sibling placement is the conservative choice
+      — the agent block is defined as what the agent adapter reported, and
+      a runtime's numbers are not the agent's self-report
+    notes: |
+      Bytes are the wire bytes each leg actually moved — the base64
+      payload written into the sandbox at create, and the base64 the
+      sync-out pipe returned — because the transfer tax this measures is
+      the API round trip, not the workspace size.
+  - decision: D-41.3
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T20:39:06Z'
+    attempt: 1
+    claim: >-
+      close-out over the touched ASSUMED area: the third leg exists exactly
+      as decided — the existing battery functions are imported and driven
+      through a live runtime fixture gated on TORVE_OPENSANDBOX_TEST_DOMAIN
+      (skipped when unset, the test_postgres_integration.py pattern), plus
+      the two live-only assertions the stub cannot vouch for; no live
+      server is reachable from this sandbox, so the stub carries no
+      correction yet and none was invented
+    evidence: >-
+      tests/test_sandbox_images.py:593 — the file's pre-task end, after
+      which the leg is appended; tests/test_runtime_conformance.py:66-109 —
+      the three battery cases the live leg reuses unchanged
+    action: decided
+    notes: |
+      Reuse-by-call, not re-translation: the live wrappers pass a
+      (runtime, spec, workspace) triple into the very functions the stub
+      and Docker legs run, so a live/stub disagreement can only mean the
+      adapter or the server lies — never a second paraphrase of the
+      contract that itself drifts.
+  - decision: D-41.5
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T20:39:07Z'
+    attempt: 1
+    claim: >-
+      close-out over the touched ASSUMED area: the OpenSandbox runtime
+      records both legs per attempt (the seed at create, whether or not a
+      sync-out ever follows; the sync-out at sync_out), the Docker runtime
+      records nothing — it mounts — and a row drains to no `transfer` key
+      when nothing was recorded; no seed optimization is attempted, the
+      numbers exist first
+    evidence: >-
+      src/torve/adapters/runtime/opensandbox.py:201-214 — the seed leg
+      being timed; src/torve/adapters/runtime/opensandbox.py:247-255 — the
+      sync-out leg; src/torve/adapters/runtime/docker.py:224-227 — the
+      bind-mount create that transfers nothing
+    action: decided
+  - decision: D-41.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T20:39:08Z'
+    attempt: 1
+    claim: >-
+      close-out over the touched LOCKED area: the engine stays one
+      host-local process — this task moves no orchestrator state anywhere;
+      the transfer ledger is in-process module state of the same
+      interpreter that builds the row, and the live leg is a pytest file
+      that talks to a server only through the adapter's existing port
+      calls
+    evidence: >-
+      src/torve/application/telemetry.py:30-31 — the module already holds
+      process-wide locks, the new ledger joins them; the live leg's only
+      new dependencies are the SDK the optional extra ships
+    action: decided
+  - decision: D-41.4
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T20:39:09Z'
+    attempt: 1
+    claim: >-
+      close-out over the touched half: resolve_image keeps its behavior —
+      digest-pinned references resolve, bare tags record as unresolved
+      (D-17.1, never invented) — and only the stale stopgap wording goes,
+      since this task is the live-server integration the comment waited
+      on; `--push` itself belongs to the phase's parallel unit and
+      src/torve/cli/sandbox.py is outside this scope
+    evidence: >-
+      src/torve/adapters/runtime/opensandbox.py:275-283 — the unchanged
+      resolution, comment-only edit; rfcs/0041-remote-sandboxes.md:171-176
+      — §5.2's "the pinned reference is the resolution"
+    action: decided
+  - decision: D-41.7
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: '2026-09-03T20:39:10Z'
+    attempt: 1
+    claim: >-
+      close-out over the touched ASSUMED area: the volume refusals stand
+      untouched — the cache_volume refusal and the auth-volume refusal in
+      create both survive this task byte-for-byte, and neither the live
+      leg nor the telemetry drives a subscription tier anywhere near
+      OpenSandbox
+    evidence: >-
+      src/torve/adapters/runtime/opensandbox.py:156-174 — the two
+      refusals, unmodified
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: '2026-09-03T21:27:40Z'
+    attempt: 1
+    claim: >-
+      the full suite carries one failure outside this task's scope that
+      this task's diff can neither cause nor cure —
+      test_character_calibration_renders_in_all_three_formats parses
+      CliRunner's merged output with a strict json.loads, and the manifest
+      loads under it warn (TwinlessGateWarning), landing warning prose
+      after the JSON document; the failing file is not in the allow-list,
+      so the choice is to leave it untouched and report — this task's own
+      acceptance battery is green
+    evidence: >-
+      tests/test_context.py:983 — the strict json.loads over raw.output;
+      src/torve/config/manifest.py:289 — the TwinlessGateWarning emitted
+      at manifest load; the test fails run alone and at 13% of a full
+      suite run, with none of this task's changed code on the path (the
+      scratch root's gates.yaml carries no twins, and the warning's text
+      embeds the per-test tmp path, so the once-per-location dedup never
+      fires across tests)
+    action: decided
+    proposal: >-
+      a task scoped over tests/test_context.py or the twin-warning
+      boundary (see T-0259's retirement proposal) should filter the
+      warning in that test or assert against CliRunner's stdout channel
+      only — the same shape the sibling battery already dodges by reading
+      structured results rather than raw output
+    notes: |
+      The shipped manifest of this repository is compliant under the
+      refusal branch T-0259 logs; the scratch manifests projections and
+      specquality read during this test are the pre-field branch's
+      population, and they warn.

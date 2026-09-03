@@ -22,10 +22,19 @@ without a reachable server, construction fails with an instructive error
 rather than a stack trace. Verified live against a self-hosted
 opensandbox-server: `create`'s tar-seed round-trip worked against the real
 server first try, and the platform-enforced sandbox timeout collected a
-probe sandbox on schedule. Full integration is otherwise deferred until a
-server is routinely available — the conformance battery runs this adapter
-against an in-process SDK emulation (see tests/opensandbox_stub.py) and
-Docker against the real daemon, asserting the same contract for both.
+probe sandbox on schedule. The conformance battery asserts this adapter's
+contract on three legs: against an in-process SDK emulation (see
+tests/opensandbox_stub.py), against the Docker daemon for the twin
+adapter, and — when TORVE_OPENSANDBOX_TEST_DOMAIN names a server —
+against that real one, where the two assertions the stub cannot vouch for
+join the contract: platform timeout collecting a sandbox, and label-scoped
+enumeration with destroy-by-id across connections (RFC 0041 §5.1). A
+live/stub disagreement is a stub defect, never a relaxed assertion.
+
+Both legs of the sync round trip book their bytes and seconds to the
+attempt's transfer ledger (RFC 0041 §5.3) — the seed at `create`, the pipe
+at `sync_out` — so the remote tax is a measured number before anyone
+optimizes it.
 """
 
 from __future__ import annotations
@@ -47,6 +56,7 @@ from torve.application.ports import (
     SandboxInfo,
     SandboxSpec,
 )
+from torve.application.telemetry import record_transfer
 from torve.base import naming
 from torve.base.shell import truncate
 from torve.config.runconfig import CACHE_MOUNT, OpenSandboxConfig
@@ -138,8 +148,9 @@ class OpenSandboxRuntime:
         self, config: OpenSandboxConfig, sdk: Any | None = None, docker_mode: str = ""
     ) -> None:
         if docker_mode:
-            # RFC 0017 §2a, D-17.10: refused in any mode until the
-            # live-server integration decides what the server can offer.
+            # RFC 0017 §2a, D-17.10: the refusal stands — the live-server
+            # integration (RFC 0041) weighed it and kept docker-in-sandbox a
+            # non-goal; a battery driving containers uses the Docker runtime.
             raise ValueError(
                 "the opensandbox runtime refuses docker access in any mode — "
                 "use the docker runtime for a repository whose battery "
@@ -148,8 +159,13 @@ class OpenSandboxRuntime:
 
         self._sdk = sdk or _sdk()
         api_key = os.environ.get(config.api_key_env, "")
-        self._connection = self._sdk.config.ConnectionConfigSync(domain=config.domain, api_key=api_key)
+        self._connection = self._sdk.config.ConnectionConfigSync(
+            domain=config.domain, api_key=api_key
+        )
         self._live: dict[str, tuple[Any, str]] = {}  # handle id -> (sdk sandbox, workdir)
+        # handle id -> task the sandbox is labelled with, the key both of the
+        # attempt's transfer legs book their ledger entry under.
+        self._transfer_tasks: dict[str, str] = {}
 
     # ....................... #
 
@@ -198,6 +214,12 @@ class OpenSandboxRuntime:
             metadata={**spec.labels, "torve.name": spec.name},
         )
 
+        # The seed leg, timed and counted (D-41.5): host-side tar, the
+        # base64 payload through the files API, and the in-sandbox unpack
+        # are one cost with one number. A spec with no task label cannot be
+        # attributed to any attempt row, so it books nothing — visibly.
+        task_id = spec.labels.get(naming.LABEL_TASK)
+        seed_started = time.monotonic()
         payload = base64.b64encode(_workspace_tar(workspace)).decode()
         # A path inside the freshly created sandbox container, not on this
         # host — there is no local tempdir race to have.
@@ -208,6 +230,12 @@ class OpenSandboxRuntime:
             f"mkdir -p {spec.workdir} && base64 -d {staging} "
             f"| tar xzf - -C {spec.workdir} && rm {staging}"
         )
+        seed_seconds = time.monotonic() - seed_started
+
+        if task_id is not None:
+            # The money and seconds spent moving bytes are spent even when
+            # the unpack fails; book before the failure branch destroys.
+            record_transfer(task_id, seed_bytes=len(payload), seed_seconds=seed_seconds)
 
         if getattr(seed, "exit_code", 0) not in (0, None):
             sandbox.destroy()
@@ -215,6 +243,9 @@ class OpenSandboxRuntime:
 
         handle = SandboxHandle(id=str(sandbox.id), name=spec.name)
         self._live[handle.id] = (sandbox, spec.workdir)
+
+        if task_id is not None:
+            self._transfer_tasks[handle.id] = task_id
 
         return handle
 
@@ -246,18 +277,32 @@ class OpenSandboxRuntime:
 
     def sync_out(self, handle: SandboxHandle, workspace: Path) -> None:
         sandbox, workdir = self._sandbox(handle)
+        leg_started = time.monotonic()
         execution = sandbox.commands.run(f"tar czf - -C {workdir} . | base64 -w0")
-        result = _exec_result(execution, time.monotonic())
+        result = _exec_result(execution, leg_started)
 
         if result.exit_code not in (0, None):
             raise RuntimeError(f"workspace sync_out failed: {result.output}")
 
-        _extract_tar(base64.b64decode(result.output.strip()), workspace)
+        raw = result.output.strip()
+        _extract_tar(base64.b64decode(raw), workspace)
+
+        task_id = self._transfer_tasks.pop(handle.id, None)
+
+        if task_id is not None:
+            # Wire bytes of the base64 pipe out, seconds through the local
+            # unpack — the same leg the run loop will pay for on the row.
+            record_transfer(
+                task_id,
+                sync_out_bytes=len(raw),
+                sync_out_seconds=time.monotonic() - leg_started,
+            )
 
     # ....................... #
 
     def destroy(self, handle: SandboxHandle) -> None:
         entry = self._live.pop(handle.id, None)
+        self._transfer_tasks.pop(handle.id, None)
 
         if entry is not None:
             entry[0].destroy()
@@ -273,10 +318,11 @@ class OpenSandboxRuntime:
     # ....................... #
 
     def resolve_image(self, image: str) -> str | None:
-        # The server pulls from a registry; a digest-pinned reference carries
-        # its identity in the name. Anything else is honestly unresolved
-        # until the live-server integration teaches this adapter to ask the
-        # registry.
+        # The server pulls from a registry, so a digest-pinned reference
+        # carries its identity in the name — on a pull platform the pinned
+        # reference is the resolution, not a stand-in for one (RFC 0041
+        # §5.2). Anything else resolves to nothing and records as an
+        # unresolved regime: never invented (D-17.1).
         if "@sha256:" in image:
             return "sha256:" + image.rsplit("@sha256:", 1)[1]
 

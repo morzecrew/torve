@@ -18,7 +18,7 @@ from typing import Any, cast
 
 import torve
 from torve.application.ports import AgentResult, BrokerUsage
-from torve.base.naming import WORKTREE_DIR
+from torve.base.naming import WORKTREE_DIR, shadow_id
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.task import SCHEMA_VERSION, Task
@@ -246,6 +246,76 @@ def gate_verdict(report_exit_code: int) -> str:
 
 # ....................... #
 
+# The transfer ledger (RFC 0041 §5.3, D-41.5). A runtime that carries a
+# workspace over the wire — the OpenSandbox adapter's tar seed in and base64
+# pipe out — books each leg's bytes and seconds against the task its sandbox
+# spec is labelled with; the attempt-row builders drain the booking into a
+# `transfer` block beside the agent block. A runtime that mounts and transfers
+# nothing never writes here, so its rows lack the key outright — absent stays
+# absent (D-4.6), and an attempt that synced nothing is told apart from one
+# whose sync-out moved zero bytes. The ledger is process-local and dies with
+# the orchestrator's one process (D-41.1).
+
+_TRANSFER_LOCK = threading.Lock()
+_pending_transfers: dict[str, dict[str, float]] = {}
+
+
+def record_transfer(
+    task_id: str,
+    *,
+    seed_bytes: int | None = None,
+    seed_seconds: float | None = None,
+    sync_out_bytes: int | None = None,
+    sync_out_seconds: float | None = None,
+) -> None:
+    """Book one transfer leg's cost against a task. Legs accumulate, because
+    an attempt moves two sandboxes (the agent's and its `-gates` battery,
+    D-3.8) and the row wants their sum; seconds are wall-clock cost of the
+    leg including host-side packing, bytes are the wire bytes that crossed
+    the API."""
+
+    legs = {
+        key: value
+        for key, value in {
+            "seed_bytes": seed_bytes,
+            "seed_seconds": seed_seconds,
+            "sync_out_bytes": sync_out_bytes,
+            "sync_out_seconds": sync_out_seconds,
+        }.items()
+        if value is not None
+    }
+
+    with _TRANSFER_LOCK:
+        booked = _pending_transfers.setdefault(task_id, {})
+
+        for key, value in legs.items():
+            booked[key] = booked.get(key, 0.0) + value
+
+
+def _drain_transfer(task_id: str | None) -> dict[str, Any]:
+    """Pop the booking for a task as the row's `transfer` block — once only,
+    which is what makes it per-attempt. Attempt rows key by task id while
+    sandbox labels key by the infrastructure id, so a shadow replay's booking
+    (whose label reads `shadow-<task id>`) drains into the row of the task it
+    shadows."""
+
+    if task_id is None:
+        return {}
+
+    with _TRANSFER_LOCK:
+        booked = _pending_transfers.pop(task_id, {})
+
+        for key, value in _pending_transfers.pop(shadow_id(task_id), {}).items():
+            booked[key] = booked.get(key, 0.0) + value
+
+    return {
+        key: round(value, 3) if key.endswith("_seconds") else int(value)
+        for key, value in sorted(booked.items())
+    }
+
+
+# ....................... #
+
 
 def build_record(
     ctx: GateContext,
@@ -253,6 +323,8 @@ def build_record(
     config_hash: str,
     agent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    transfer = _drain_transfer(ctx.task.id if ctx.task else None)
+
     return {
         "schema_version": SCHEMA_VERSION,
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -267,6 +339,10 @@ def build_record(
         # bare `torve gates run`). model_version None inside the block marks
         # an uncontrolled regime.
         "agent": agent,
+        # The workspace transfer's cost, booked by a transferring runtime for
+        # this attempt (RFC 0041 §5.3) — a sibling of the agent block because
+        # it is the runtime's measurement, not the agent's self-report.
+        **({} if not transfer else {"transfer": transfer}),
         "decisions": [d.model_dump() for d in ctx.task.decisions] if ctx.task else [],
         "results": [r.model_dump() for r in report.results],
         "exit_code": report.exit_code,
@@ -306,6 +382,8 @@ def build_attempt_row(
     the row's own fields — the vocabulary adds convenience, never
     information (D-38.2's determinism argument)."""
 
+    transfer = _drain_transfer(task.id)
+
     return {
         "schema_version": SCHEMA_VERSION,
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -313,6 +391,10 @@ def build_attempt_row(
         "torve_version": torve.__version__,
         "task_id": task.id,
         "agent": dict(agent),
+        # The runtime's booked transfer legs ride beside the agent block
+        # exactly as on the gate-pass row (RFC 0041 §5.3): the spend on
+        # moving the workspace happened even if nothing else did.
+        **({} if not transfer else {"transfer": transfer}),
         "decisions": [d.model_dump() for d in task.decisions],
         "results": [],
         "exit_code": exit_code,

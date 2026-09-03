@@ -1,24 +1,42 @@
 """The image-as-input mechanism (RFC 0017): digest identity into config_hash
 and the attempt record, tier images, `torve sandbox build`, and the doctor's
 image checks. Docker-backed cases skip without a daemon, like the runtime
-conformance battery."""
+conformance battery.
+
+Carries two sections of its own since RFC 0041: the transfer ledger the
+OpenSandbox adapter books per attempt (D-41.5), and the live conformance leg
+that runs the runtime battery a third time against a real server named by
+TORVE_OPENSANDBOX_TEST_DOMAIN, plus the two assertions only a live server
+can answer (D-41.3)."""
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
 import shutil
 import subprocess
+import time
+import uuid
 from pathlib import Path
 
 import opensandbox_stub
 import pytest
+import test_runtime_conformance as battery
 import yaml
 from test_run_loop import MockRuntime
 from typer.testing import CliRunner
 
 from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
-from torve.application.telemetry import config_hash
+from torve.application.telemetry import (
+    build_attempt_row,
+    build_record,
+    config_hash,
+    record_transfer,
+)
+from torve.base import naming
 from torve.cli.main import app
+from torve.config.manifest import Manifest
 from torve.config.runconfig import (
     OpenSandboxConfig,
     RunnerConfig,
@@ -26,6 +44,9 @@ from torve.config.runconfig import (
     configured_images,
     image_for,
 )
+from torve.domain.task import Task
+from torve.gates.context import GateContext
+from torve.gates.runner import RunReport
 
 
 def docker_available() -> bool:
@@ -246,7 +267,15 @@ def test_toolkit_contract_answers_in_the_container(name, tmp_path):
     assert built.exit_code == 0, built.output
     try:
         probe = subprocess.run(
-            ["docker", "run", "--rm", f"torve-agent:{probe_name}", "sh", "-c", _toolkit_check(name)],
+            [
+                "docker",
+                "run",
+                "--rm",
+                f"torve-agent:{probe_name}",
+                "sh",
+                "-c",
+                _toolkit_check(name),
+            ],
             capture_output=True,
             text=True,
         )
@@ -591,3 +620,342 @@ def test_deleting_the_cache_volume_changes_nothing_but_wall_clock(tmp_path):
     finally:
         delete_volume()
         _remove_battery(LAYER_IMAGE)
+
+
+# ....................... #
+# The transfer ledger (RFC 0041 §5.3, D-41.5): a transferring runtime books
+# each leg's wire bytes and seconds against the task its sandbox is labelled
+# with, and the attempt-row builders drain the booking into a `transfer`
+# block beside the agent block. A mounting runtime — Docker — transfers
+# nothing and its rows lack the key outright: absent stays absent (D-4.6),
+# which is also how an attempt that synced nothing tells itself apart from
+# one whose sync-out moved zero bytes.
+
+
+def attempt_task(task_id: str) -> Task:
+    return Task(id=task_id, decisions=[])
+
+
+def ledger_spec(tmp_path: Path, task_id: str, labels: dict[str, str] | None = None):
+    from torve.application.ports import SandboxSpec
+
+    return SandboxSpec(
+        name=f"torve-ledger-{uuid.uuid4().hex[:8]}",
+        image=LAYER_IMAGE,
+        labels=naming.labels(task_id, uuid.uuid4().hex, Path.cwd()) if labels is None else labels,
+        timeout_s=60,
+        workdir=str(tmp_path / "remote"),
+    )
+
+
+def _ledger_workspace(tmp_path: Path) -> Path:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "f.py").write_text("payload" * 400, encoding="utf-8")
+    return workspace
+
+
+def test_seed_and_sync_out_costs_ride_the_attempt_row(tmp_path):
+    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
+    workspace = _ledger_workspace(tmp_path)
+
+    handle = runtime.create(ledger_spec(tmp_path, "T-9920"), workspace)
+
+    try:
+        wrote = runtime.exec(handle, "echo produced > out.txt", 30)
+        assert wrote.exit_code == 0
+        runtime.sync_out(handle, workspace)
+    finally:
+        runtime.destroy(handle)
+        opensandbox_stub.REGISTRY.clear()
+
+    assert (workspace / "out.txt").read_text().strip() == "produced"  # bytes really moved
+
+    row = build_attempt_row(
+        attempt_task("T-9920"),
+        {"adapter": "fake"},
+        verdict="agent_timeout",
+        exit_code=None,
+        timed_out=True,
+    )
+    transfer = row["transfer"]
+    assert set(transfer) == {
+        "seed_bytes",
+        "seed_seconds",
+        "sync_out_bytes",
+        "sync_out_seconds",
+    }
+    assert transfer["seed_bytes"] > 0 and transfer["sync_out_bytes"] > 0
+    assert transfer["seed_seconds"] > 0 and transfer["sync_out_seconds"] > 0
+
+    # Draining is consuming: the booking belongs to the one row that ended
+    # the attempt, and a second row for the same task sees nothing.
+    again = build_attempt_row(
+        attempt_task("T-9920"),
+        {"adapter": "fake"},
+        verdict="agent_timeout",
+        exit_code=None,
+        timed_out=True,
+    )
+    assert "transfer" not in again
+
+
+def test_a_sandbox_never_synced_out_reports_its_seed_only(tmp_path):
+    # The timed-out agent never reaches sync_out, but the seed leg spent
+    # its bytes and seconds — the row must show the half it owes.
+    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
+    workspace = _ledger_workspace(tmp_path)
+
+    handle = runtime.create(ledger_spec(tmp_path, "T-9921"), workspace)
+    runtime.destroy(handle)
+    opensandbox_stub.REGISTRY.clear()
+
+    row = build_attempt_row(
+        attempt_task("T-9921"),
+        {"adapter": "fake"},
+        verdict="agent_timeout",
+        exit_code=None,
+        timed_out=True,
+    )
+    assert set(row["transfer"]) == {"seed_bytes", "seed_seconds"}
+
+
+def test_both_sandboxes_of_an_attempt_sum_into_one_block():
+    # The agent's sandbox and its -gates battery (D-3.8) move the same tree
+    # twice; the attempt paid for both trips, so the block carries the sum.
+    record_transfer("T-9924", seed_bytes=100, seed_seconds=1.0)
+    record_transfer("T-9924", seed_bytes=50, sync_out_bytes=60, sync_out_seconds=2.0)
+
+    row = build_attempt_row(
+        attempt_task("T-9924"),
+        {"adapter": "fake"},
+        verdict="gates_red",
+        exit_code=1,
+        timed_out=False,
+    )
+    assert row["transfer"] == {
+        "seed_bytes": 150,
+        "seed_seconds": 1.0,
+        "sync_out_bytes": 60,
+        "sync_out_seconds": 2.0,
+    }
+
+
+def test_the_gate_pass_row_carries_the_block_beside_the_agent():
+    record_transfer("T-9926", seed_bytes=3, seed_seconds=0.25)
+
+    ctx = GateContext(
+        root=Path("."),
+        manifest=Manifest(gates=[]),
+        head_sha="x",
+        base=None,
+        merge_base=None,
+        task=attempt_task("T-9926"),
+    )
+    row = build_record(ctx, RunReport(exit_code=0), "hash", agent={"adapter": "fake"})
+
+    assert row["transfer"] == {"seed_bytes": 3, "seed_seconds": 0.25}
+    # A sibling of the agent block, not inside it: the runtime measured the
+    # transfer, the agent did not report it.
+    assert row["agent"] == {"adapter": "fake"}
+
+
+def test_a_shadow_replays_legs_drain_into_its_tasks_row():
+    # Sandbox labels key on the infrastructure id, attempt rows on the task
+    # id — the join drains both spellings.
+    record_transfer(naming.shadow_id("T-9925"), seed_bytes=7, seed_seconds=0.5)
+
+    row = build_attempt_row(
+        attempt_task("T-9925"),
+        {"adapter": "fake"},
+        verdict="agent_timeout",
+        exit_code=None,
+        timed_out=True,
+    )
+    assert row["transfer"] == {"seed_bytes": 7, "seed_seconds": 0.5}
+
+
+def test_a_mounting_runtime_books_nothing(tmp_path):
+    # Absence for Docker is structural: the bind-mount adapter never calls
+    # the ledger, so a row over a runtime that transferred nothing lacks the
+    # key. The text check is the ratchet — a future transfer path in the
+    # Docker adapter must pass through the ledger and show up on rows.
+    import inspect
+
+    from torve.adapters.runtime.docker import DockerRuntime
+
+    assert "record_transfer" not in inspect.getsource(DockerRuntime)
+
+    row = build_attempt_row(
+        attempt_task("T-9927"),
+        {"adapter": "docker"},
+        verdict="agent_error",
+        exit_code=1,
+        timed_out=False,
+    )
+    assert "transfer" not in row
+
+    # And an OpenSandbox spec that carries no task label cannot be
+    # attributed to any row, so it books nothing — visibly.
+    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
+    workspace = _ledger_workspace(tmp_path)
+
+    handle = runtime.create(ledger_spec(tmp_path, "T-9928", labels={}), workspace)
+    try:
+        runtime.sync_out(handle, workspace)
+    finally:
+        runtime.destroy(handle)
+        opensandbox_stub.REGISTRY.clear()
+
+    orphan = build_attempt_row(
+        attempt_task("T-9928"),
+        {"adapter": "fake"},
+        verdict="agent_error",
+        exit_code=1,
+        timed_out=False,
+    )
+    assert "transfer" not in orphan
+
+
+# ....................... #
+# The live leg (RFC 0041 §5.1, D-41.3): the same conformance battery, a
+# third time, against a real server — one environment variable away,
+# skipped when unset, like the Postgres leg. It additionally asserts the
+# two behaviours the stub structurally cannot vouch for: the platform's own
+# timeout collecting a sandbox, and the reaper's enumeration and
+# destroy-by-id working over a connection that never created the sandbox.
+# A red live leg with a green stub leg is a stub defect — fix the stub,
+# never the assertion.
+
+LIVE_DOMAIN_ENV = "TORVE_OPENSANDBOX_TEST_DOMAIN"
+
+
+def live_domain() -> str:
+    return os.environ.get(LIVE_DOMAIN_ENV, "").strip()
+
+
+@pytest.fixture
+def live() -> str:
+    domain = live_domain()
+    if not domain:
+        pytest.skip(
+            "no live OpenSandbox server named — "
+            f"set {LIVE_DOMAIN_ENV} to run this leg against a real one"
+        )
+    return domain
+
+
+def live_runtime(domain: str) -> OpenSandboxRuntime:
+    return OpenSandboxRuntime(OpenSandboxConfig(domain=domain))
+
+
+def live_spec(task_id: str, timeout_s: float, prefix: str):
+    from torve.application.ports import SandboxSpec
+
+    return SandboxSpec(
+        name=f"{prefix}-{uuid.uuid4().hex[:8]}",
+        image=battery.TEST_IMAGE,
+        labels=naming.labels(task_id, uuid.uuid4().hex, Path.cwd()),
+        timeout_s=timeout_s,
+        workdir="/work",
+    )
+
+
+@pytest.fixture
+def live_runtime_case(live, tmp_path):
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "seeded.txt").write_text("from the host\n", encoding="utf-8")
+    # The battery's (runtime, spec, workspace) triple, with a server-side
+    # workdir — the files live in the sandbox, not on this host.
+    return live_runtime(live), live_spec("T-9902", 120, "torve-conf"), workspace
+
+
+def test_live_exec_and_workspace_roundtrip(live_runtime_case):
+    battery.test_exec_and_workspace_roundtrip(live_runtime_case)
+
+
+def test_live_exec_timeout_is_not_an_exit_code(live_runtime_case):
+    battery.test_exec_timeout_is_not_an_exit_code(live_runtime_case)
+
+
+def test_live_listing_and_destroy_by_id(live_runtime_case):
+    battery.test_listing_and_destroy_by_id(live_runtime_case)
+
+
+@pytest.mark.timeout(600)
+def test_live_platform_timeout_collects_sandbox(live, tmp_path):
+    # The reaper's backstop on every other platform: a sandbox whose host
+    # process died anyway is collected by the server, on the timeout the
+    # spec asked for. The stub cannot fake this — collection is the
+    # platform's own scheduler, not our code.
+    runtime = live_runtime(live)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "seeded.txt").write_text("from the host\n", encoding="utf-8")
+
+    handle = runtime.create(live_spec("T-9912", 20, "torve-timeout"), workspace)
+
+    def visible() -> bool:
+        return any(
+            info.id == handle.id
+            for info in runtime.list_torve_sandboxes()
+            if info.labels.get(naming.LABEL_TASK) == "T-9912"
+        )
+
+    try:
+        assert visible(), "the created sandbox never surfaced to a label-scoped listing"
+
+        deadline = time.monotonic() + 300
+        while visible() and time.monotonic() < deadline:
+            time.sleep(5)
+
+        assert not visible(), (
+            "the platform's 20-second timeout did not collect "
+            f"sandbox {handle.id} within 300 seconds"
+        )
+    finally:
+        with contextlib.suppress(
+            Exception
+        ):  # a sandbox the platform collected may refuse a second destroy
+            runtime.destroy(handle)
+
+
+def test_live_destroy_by_id_across_connections(live, tmp_path):
+    # The reaper's whole remote story: an enumeration opened on a fresh
+    # connection sees the sandbox by its label, and killing it by id from
+    # that connection actually kills it — the creating process' state is
+    # not required.
+    creator = live_runtime(live)
+    reaper = live_runtime(live)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "seeded.txt").write_text("from the host\n", encoding="utf-8")
+
+    handle = creator.create(live_spec("T-9913", 300, "torve-xconn"), workspace)
+
+    def visible_via_reaper() -> bool:
+        return any(
+            info.id == handle.id
+            for info in reaper.list_torve_sandboxes()
+            if info.labels.get(naming.LABEL_TASK) == "T-9913"
+        )
+
+    try:
+        assert visible_via_reaper(), "a second connection's enumeration did not see the sandbox"
+        # Enumeration is label-scoped: every row it returns carries the task
+        # label, so a reaper pass can never sweep what it did not label.
+        assert all(naming.LABEL_TASK in info.labels for info in reaper.list_torve_sandboxes())
+
+        reaper.destroy_by_id(handle.id)
+
+        deadline = time.monotonic() + 60
+        while visible_via_reaper() and time.monotonic() < deadline:
+            time.sleep(2)
+
+        assert not visible_via_reaper(), (
+            f"destroy_by_id over a second connection did not collect sandbox {handle.id}"
+        )
+    finally:
+        with contextlib.suppress(Exception):  # the handle outlived its sandbox on a green pass
+            creator.destroy(handle)
