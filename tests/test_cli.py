@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 
 from test_context import seed_why_facts
 from test_plan import plan_repo  # noqa: F401  (fixture)
@@ -9,6 +10,7 @@ from typer.testing import CliRunner
 from torve.application import sizing
 from torve.application.projections import why_report
 from torve.cli import app
+from torve.cli import sandbox as sandbox_cli
 from torve.gates.sabotage import TASK_ID, base_task, log_document
 
 
@@ -515,4 +517,177 @@ def test_why_help_carries_no_corpus_coordinates():
 
     assert result.exit_code == 0
     assert "D-40" not in result.output
+    assert "RFC" not in result.output.upper()
+
+
+# ....................... #
+# `torve sandbox build --push` — publishing an image and printing its pin
+
+
+def _push_repo(tmp_path, names):
+    root = tmp_path / "repo"
+
+    for name in names:
+        definition = root / ".torve" / "sandbox" / name
+        definition.mkdir(parents=True)
+        definition.joinpath("Dockerfile").write_text("FROM python:3.13-slim\n", encoding="utf-8")
+
+    (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
+    return root
+
+
+class _FakeRuntime:
+    """The build is recorded, not executed: the push path's contract is
+    that the runtime still builds and the CLI still pushes."""
+
+    def __init__(self):
+        self.builds = []
+
+    def build_image(self, context, tag):
+        self.builds.append((str(context), tag))
+        return "sha256:locallayer"
+
+
+class _FakeDocker:
+    """Records every docker call; the daemon answers a push by recording
+    the manifest digest for the reference that was pushed."""
+
+    def __init__(self, fail_on=""):
+        self.calls = []
+        self.fail_on = fail_on
+
+    def __call__(self, *args, timeout):
+        self.calls.append(list(args))
+
+        if self.fail_on and args[0] == self.fail_on:
+            return subprocess.CompletedProcess(
+                list(args), 1, "", "denied: requested access to the resource is denied"
+            )
+
+        if args[:2] == ("image", "inspect"):
+            repository = args[-1].partition(":")[0]
+            return subprocess.CompletedProcess(list(args), 0, f"{repository}@sha256:cafe\n", "")
+
+        return subprocess.CompletedProcess(list(args), 0, "", "")
+
+
+def _invoke_push(root, *extra):
+    return CliRunner().invoke(
+        app, ["sandbox", "build", *extra, "--root", str(root), "--format", "json"]
+    )
+
+
+def test_sandbox_build_push_publishes_and_prints_the_pinned_reference(tmp_path, monkeypatch):
+    root = _push_repo(tmp_path, ["probe"])
+    runtime, docker = _FakeRuntime(), _FakeDocker()
+    monkeypatch.setattr(sandbox_cli, "runtime_for", lambda config, override: runtime)
+    monkeypatch.setattr(sandbox_cli, "_docker", docker)
+
+    result = _invoke_push(root, "probe", "--push", "registry.example.com/org/torve-agent")
+    assert result.exit_code == 0, result.output
+
+    image = json.loads(result.stdout)["images"][0]
+    assert image["digest"] == "sha256:locallayer"
+    # The pin carries the registry's manifest digest — what a pull platform
+    # resolves — and the repository, not the tag.
+    assert image["pinned"] == "registry.example.com/org/torve-agent@sha256:cafe"
+    assert runtime.builds == [(str(root / ".torve" / "sandbox" / "probe"), "torve-agent:probe")]
+    assert docker.calls == [
+        ["tag", "torve-agent:probe", "registry.example.com/org/torve-agent:probe"],
+        ["push", "registry.example.com/org/torve-agent:probe"],
+        [
+            "image",
+            "inspect",
+            "--format",
+            "{{index .RepoDigests 0}}",
+            "registry.example.com/org/torve-agent:probe",
+        ],
+    ]
+
+
+def test_sandbox_build_without_push_never_talks_to_the_registry(tmp_path, monkeypatch):
+    root = _push_repo(tmp_path, ["probe"])
+    runtime = _FakeRuntime()
+    monkeypatch.setattr(sandbox_cli, "runtime_for", lambda config, override: runtime)
+
+    def never_called(*args, timeout):
+        raise AssertionError(f"docker called without --push: {args}")
+
+    monkeypatch.setattr(sandbox_cli, "_docker", never_called)
+
+    result = _invoke_push(root, "probe")
+    assert result.exit_code == 0, result.output
+
+    image = json.loads(result.stdout)["images"][0]
+    assert image == {"name": "probe", "tag": "torve-agent:probe", "digest": "sha256:locallayer"}
+
+
+def test_sandbox_build_push_tags_each_definition_by_name(tmp_path, monkeypatch):
+    root = _push_repo(tmp_path, ["agent", "gates"])
+    docker = _FakeDocker()
+    monkeypatch.setattr(sandbox_cli, "runtime_for", lambda config, override: _FakeRuntime())
+    monkeypatch.setattr(sandbox_cli, "_docker", docker)
+
+    result = _invoke_push(root, "--push", "registry.example.com/org/torve-agent")
+    assert result.exit_code == 0, result.output
+
+    images = json.loads(result.stdout)["images"]
+    assert [image["pinned"] for image in images] == [
+        "registry.example.com/org/torve-agent@sha256:cafe",
+        "registry.example.com/org/torve-agent@sha256:cafe",
+    ]
+    pushed = [call[1] for call in docker.calls if call[0] == "push"]
+    assert pushed == [
+        "registry.example.com/org/torve-agent:agent",
+        "registry.example.com/org/torve-agent:gates",
+    ]
+
+
+def test_sandbox_build_push_refuses_a_reference_that_already_carries_a_tag(tmp_path, monkeypatch):
+    root = _push_repo(tmp_path, ["probe"])
+    runtime, docker = _FakeRuntime(), _FakeDocker()
+    monkeypatch.setattr(sandbox_cli, "runtime_for", lambda config, override: runtime)
+    monkeypatch.setattr(sandbox_cli, "_docker", docker)
+
+    for bad in ("registry.example.com/org/torve-agent:latest", "registry.example.com/x@sha256:ab"):
+        result = _invoke_push(root, "probe", "--push", bad)
+        assert result.exit_code == 3, result.output
+        assert "not a registry repository" in result.stderr
+
+    # The refusal comes before the build burns anything.
+    assert runtime.builds == []
+    assert docker.calls == []
+
+
+def test_sandbox_build_push_failure_is_an_infrastructure_error(tmp_path, monkeypatch):
+    root = _push_repo(tmp_path, ["probe"])
+    monkeypatch.setattr(sandbox_cli, "runtime_for", lambda config, override: _FakeRuntime())
+    monkeypatch.setattr(sandbox_cli, "_docker", _FakeDocker(fail_on="push"))
+
+    result = _invoke_push(root, "probe", "--push", "registry.example.com/org/torve-agent")
+    assert result.exit_code == 4, result.output
+    # The build succeeded; the message names the leg that failed, and the
+    # registry's own denial survives verbatim.
+    assert "push failed for 'probe'" in result.stderr
+    assert "denied: requested access to the resource is denied" in result.stderr
+
+
+def test_sandbox_build_push_prints_the_pinned_reference_as_text(tmp_path, monkeypatch):
+    root = _push_repo(tmp_path, ["probe"])
+    monkeypatch.setattr(sandbox_cli, "runtime_for", lambda config, override: _FakeRuntime())
+    monkeypatch.setattr(sandbox_cli, "_docker", _FakeDocker())
+
+    result = CliRunner().invoke(
+        app,
+        ["sandbox", "build", "probe", "--root", str(root), "--push", "reg/to"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "pinned reference" in result.output
+    assert "reg/to@sha256:cafe" in result.output
+
+
+def test_sandbox_build_help_carries_no_corpus_coordinates():
+    result = CliRunner().invoke(app, ["sandbox", "build", "--help"])
+    assert result.exit_code == 0
+    assert "D-41" not in result.output
     assert "RFC" not in result.output.upper()

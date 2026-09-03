@@ -1,0 +1,63 @@
+schema_version: 1
+task: T-0252
+repo: morzecrew/torve
+base_sha: aafee53943fb68b4405baf420f90ae296e35d4ef  # the engine's pin (D-A.7)
+drift_count: 0
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-03T21:11:58Z
+    attempt: 1
+    claim: >-
+      `--push <registry-ref>` names a reference grammar no row settles: the
+      CLI must build every definition it was asked for (name argument
+      optional, several images per invocation), so a single full reference
+      cannot address the set; no decision says how the pushed tag relates
+      to the definition name or what a reference carrying a tag or digest
+      means
+    evidence: >-
+      rfcs/0041-remote-sandboxes.md:169-176 — §5.2 gives the flag and the
+      print, not the grammar; src/torve/cli/sandbox.py:100-113 — the same
+      command already loops over every definition when the name argument is
+      omitted
+    action: decided
+    proposal: >-
+      amend RFC 0041 §5.2 with a row settling that `--push` takes a registry
+      repository (no tag, no digest — a reference carrying one is a
+      configuration error), each built definition is pushed as
+      `<repository>:<definition>`, mirroring the local `torve-agent:<name>`
+      convention, so one flag value addresses a multi-definition build
+    notes: |
+      Decided as proposed: validate the value, derive the tag from the
+      definition name, let the plain repo ride the printed digest pin.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-03T21:11:58Z
+    attempt: 1
+    claim: >-
+      "print the digest-pinned reference" does not settle which digest: a
+      locally built image's `.Id` (what today's build output prints) is not
+      the digest a registry names after a push, and the reference shape the
+      run config should carry (repository@sha256:... vs tag@digest) has no
+      row
+    evidence: >-
+      src/torve/adapters/runtime/docker.py:294-302 — build_image returns the
+      local `.Id`, "which have no RepoDigest until pushed";
+      rfcs/0041-remote-sandboxes.md:171-172 — the printed reference is what
+      the run config carries, and the config's image string is what a pull
+      platform resolves
+    action: decided
+    proposal: >-
+      amend RFC 0041 §5.2 with a row settling that the printed pin carries
+      the registry manifest digest (the RepoDigest docker records on push),
+      in the canonical `<repository>@sha256:...` form docker itself prints
+      for a pushed image — the local content id stays in its own output
+      column
+    notes: |
+      Decided as proposed: JSON gains a `pinned` key (absent-stays-absent
+      when not pushing), text gains a "pinned" column; both ride the
+      schema_version 1 document unchanged otherwise.
