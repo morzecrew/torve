@@ -1,0 +1,20 @@
+# Minted by the runner at gated — review follows execution.
+id: T-0263
+rfc: rfcs/0036-test-evidence.md
+role: review
+intent: Review T-0259's diff against its contract and inherited decisions.
+targets:
+- T-0259
+decisions:
+- id: D-36.3
+  grade: ASSUMED
+  text: "A manifest gate entry names its sabotage twin (`sabotage:` \u2014 a CASES\
+    \ family or a test path); manifest load refuses a twinless gate, with existing\
+    \ entries backfilled in the landing so the lint ships with zero exceptions"
+  paths:
+  - src/torve/config/manifest.py
+  - .torve/gates.yaml
+budget:
+  iterations: 1
+tier: reviewer
+schema_version: 1

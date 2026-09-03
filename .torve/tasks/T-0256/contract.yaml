@@ -1,15 +1,16 @@
-# Minted by `torve plan 0036` — phase 2: escapes mint corpus entries
 schema_version: 1
 id: T-0256
 rfc: rfcs/0036-test-evidence.md
 phase: 2
 role: implement
 title: escapes mint corpus entries
-intent: 'The corpus duty (D-36.4) lands as mechanism: torve review corpus add <fixing-commit>
-  scaffolds an entry from the commit pair (D-36.5) — defective landing located by its task
-  trailer, fix parent as the tree, the finding paragraph left explicitly for the operator
-  with a refusing placeholder the loader rejects until written. A commit with no shipped defective
-  ancestor is refused with an instructive message. The review page documents the duty.'
+intent: 'The corpus duty (D-36.4) lands as mechanism: torve review corpus add <fixing-commit> scaffolds
+  an entry from the commit pair (D-36.5) — defective landing located by its task trailer, fix parent
+  as the tree, the finding paragraph left explicitly for the operator with a refusing placeholder
+  the loader rejects until written. A commit with no shipped defective ancestor is refused with an
+  instructive message. The review page documents the duty Strictly additive to the review CLI: every
+  existing verb — torve review pr above all, the forge trigger''s only entry point (RFC 0005 §4) —
+  keeps its name, flags and behavior; the corpus verb joins beside them, deleting nothing.'
 depends_on: []
 parent: null
 targets: []
@@ -26,9 +27,9 @@ acceptance:
 decisions:
 - id: D-36.1
   grade: LOCKED
-  text: The coverage-delta gate judges the attempt's changed lines only — never the inherited
-    tree, never a whole-repo threshold — and enters shadow like every gate (D-2.18); promotion
-    to blocking is a separate act on soak evidence
+  text: The coverage-delta gate judges the attempt's changed lines only — never the inherited tree,
+    never a whole-repo threshold — and enters shadow like every gate (D-2.18); promotion to blocking
+    is a separate act on soak evidence
   paths:
   - .torve/gates.yaml
   - src/torve/gates/sabotage.py
@@ -40,26 +41,26 @@ decisions:
   - .torve/gates.yaml
 - id: D-36.3
   grade: ASSUMED
-  text: A manifest gate entry names its sabotage twin (`sabotage:` — a CASES family or a test
-    path); manifest load refuses a twinless gate, with existing entries backfilled in the
-    landing so the lint ships with zero exceptions
+  text: A manifest gate entry names its sabotage twin (`sabotage:` — a CASES family or a test path);
+    manifest load refuses a twinless gate, with existing entries backfilled in the landing so the
+    lint ships with zero exceptions
   paths:
   - src/torve/config/manifest.py
   - .torve/gates.yaml
 - id: D-36.4
   grade: LOCKED
-  text: 'A fix for an escaped defect owes a review-corpus entry beside the fix: the defective
-    diff from history, the finding a reviewer should have produced (written by a person, never
-    generated), and the fixed tree — the corpus grows at the rate defects escape (0002''s
-    accumulate-from-leaks doctrine applied to the reviewer)'
+  text: 'A fix for an escaped defect owes a review-corpus entry beside the fix: the defective diff
+    from history, the finding a reviewer should have produced (written by a person, never generated),
+    and the fixed tree — the corpus grows at the rate defects escape (0002''s accumulate-from-leaks
+    doctrine applied to the reviewer)'
   paths:
   - .torve/review-corpus/**
   - src/torve/cli/review.py
 - id: D-36.5
   grade: ASSUMED
-  text: '`torve review corpus add <fixing-commit>` scaffolds the entry from the commit pair
-    (defective landing by trailer, fix parent as tree); a commit with no shipped defective
-    ancestor is refused with an instructive message'
+  text: '`torve review corpus add <fixing-commit>` scaffolds the entry from the commit pair (defective
+    landing by trailer, fix parent as tree); a commit with no shipped defective ancestor is refused
+    with an instructive message'
   paths:
   - src/torve/cli/review.py
 budget:
