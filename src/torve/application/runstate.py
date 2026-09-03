@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from torve.base.naming import WORKTREE_DIR
 from torve.domain.states import EscalationReason, TaskState, check_transition
 from torve.domain.task import SCHEMA_VERSION
 
@@ -94,6 +95,60 @@ class RunState:
         self.transition(TaskState.ESCALATED, f"{reason}: {detail}")
         self.escalation = Escalation(reason=str(reason), detail=detail)
         self.save()
+        # The durable landing of the fact, after the state-file write that
+        # gates correctness (RFC 0038 §5.3, D-38.5).
+        self._append_escalation_event(str(reason), detail)
+
+    # ....................... #
+
+    def _host_root(self) -> Path:
+        """The repository root the escalation event rides, derived
+        structurally from the state-file location: a state file lives at
+        `<host>/.wt/<task>.state.json` (naming.state_file), so the parent
+        of the `.wt` directory is the host root — the same worktree-parent
+        walk `_write_regime_preimage` performs. A state file outside any
+        `.wt` names its own directory's root: best-effort is all this
+        claims."""
+
+        for parent in self.path.parents:
+            if parent.name == WORKTREE_DIR:
+                return parent.parent
+
+        return self.path.parent
+
+    # ....................... #
+
+    def _append_escalation_event(self, reason: str, detail: str) -> None:
+        """One durable record of the escalation, from the single place the
+        field is set — one call site, not twenty-two (D-38.5): the state
+        file is overwritten by the next dispatch and deleted at the
+        terminal sweep, and without this the reason a task needed a human
+        is unrecoverable precisely after the human is done with it
+        (RFC 0038 §2). `reason` is the existing EscalationReason value
+        verbatim — no new taxonomy.
+
+        Best-effort: an unwritable stream must not turn an escalation into
+        a crash — the state-file write above is the one that gates
+        correctness, this one records a fact."""
+
+        from torve.application.telemetry import engine_event  # local: keep runstate light on import
+
+        try:
+            engine_event(
+                self._host_root(),
+                "escalation",
+                {
+                    "task": self.task_id,
+                    "reason": reason,
+                    "detail": detail,
+                    "run_id": self.run_id,
+                },
+            )
+
+        # Best-effort by contract: a lost event must never escalate itself
+        # into a crash, so nothing an unwritable stream can raise escapes.
+        except Exception:
+            return
 
     # ....................... #
 

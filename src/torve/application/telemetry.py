@@ -21,7 +21,7 @@ from torve.application.ports import AgentResult, BrokerUsage
 from torve.base.naming import WORKTREE_DIR
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
-from torve.domain.task import SCHEMA_VERSION
+from torve.domain.task import SCHEMA_VERSION, Task
 from torve.gates.context import GateContext
 from torve.gates.runner import RunReport
 
@@ -201,6 +201,35 @@ def agent_token_counts(result: AgentResult) -> dict[str, int]:
 # ....................... #
 
 
+# The closed vocabulary of attempt verdicts (RFC 0038 §5.2, D-38.3): one
+# word per way an attempt can end, derived by the engine from facts it
+# already holds at attempt end — exec results, gate report, escalation
+# state — never from model output (D-38.2). It grows by amendment when a
+# reader needs a distinction; no router reads it (D-34.5 stands).
+ATTEMPT_VERDICTS: frozenset[str] = frozenset(
+    {
+        "green",
+        "gates_red",
+        "agent_timeout",
+        "agent_error",
+        "broker_refused",
+        "halted",
+        "gate_infrastructure",
+    }
+)
+
+
+def gate_verdict(report_exit_code: int) -> str:
+    """The verdict of an attempt whose gates ran: the agent exited 0 (the
+    loop reaches the gate pass no other way), the report's exit code
+    settles green against gates_red."""
+
+    return "green" if report_exit_code == 0 else "gates_red"
+
+
+# ....................... #
+
+
 def build_record(
     ctx: GateContext,
     report: RunReport,
@@ -224,8 +253,56 @@ def build_record(
         "decisions": [d.model_dump() for d in ctx.task.decisions] if ctx.task else [],
         "results": [r.model_dump() for r in report.results],
         "exit_code": report.exit_code,
+        # The engine's one-word ending beside the gate report's exit code
+        # (D-38.2, D-38.3) — present only on rows that recorded an agent: a
+        # bare gate run over a human PR is not an attempt, and absence reads
+        # as pre-0038 exactly as it does for every other additive key
+        # (D-38.6).
+        **({} if agent is None else {"verdict": gate_verdict(report.exit_code)}),
         "bypass_count_by_gate": report.bypass_count_by_gate,
         "flaky_count_by_command": report.flaky_count_by_command,
+    }
+
+
+# ....................... #
+
+
+def build_attempt_row(
+    task: Task,
+    agent: dict[str, Any],
+    *,
+    verdict: str,
+    exit_code: int | None,
+    timed_out: bool,
+    escalation: str | None = None,
+) -> dict[str, Any]:
+    """The record of an attempt that ended without a gate pass (D-38.1) —
+    the shape the red-path record has carried since RFC 0004 §6 (the spend
+    happened even though the gates will never run for this attempt; without
+    a record here, a budget-killed or timed-out attempt's cost vanishes from
+    every projection — four ~$4 first attempts were missing from
+    cost-and-iterations when this was found), now the one shape for every
+    such ending: `results: []`, `gates_run: false`, the agent block with
+    whatever the adapter reported, and the engine-derived verdict naming
+    how it ended. `escalation` carries the escalation reason verbatim on
+    the endings the loop stops on, so a reader re-derives the verdict from
+    the row's own fields — the vocabulary adds convenience, never
+    information (D-38.2's determinism argument)."""
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "config_hash": None,  # gates never ran; no manifest pass
+        "torve_version": torve.__version__,
+        "task_id": task.id,
+        "agent": dict(agent),
+        "decisions": [d.model_dump() for d in task.decisions],
+        "results": [],
+        "exit_code": exit_code,
+        "gates_run": False,
+        "timed_out": timed_out,
+        "verdict": verdict,
+        **({} if escalation is None else {"escalation": escalation}),
     }
 
 

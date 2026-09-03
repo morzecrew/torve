@@ -7,10 +7,13 @@ import pytest
 import yaml
 from conftest import context_for
 
+from torve.application.ports import BrokerHandle, BrokerUsage
 from torve.application.telemetry import append_record, build_record, config_hash
+from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, TierConfig
 from torve.domain.attempt import GateResult
+from torve.domain.task import Scope
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 
@@ -440,6 +443,9 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
     assert failed and failed[0]["agent"]["cost_usd"] == 4.05
     assert failed[0]["task_id"] == "T-9020"
     assert failed[0]["exit_code"] == 1
+    # RFC 0038: the ending names itself, and the row knows its attempt.
+    assert failed[0]["verdict"] == "agent_error"
+    assert failed[0]["agent"]["attempt"] == 1
 
 
 # ....................... #
@@ -826,6 +832,347 @@ def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
     assert len(records) == 1
     assert records[0]["exit_code"] == 0
 
+
+# ....................... #
+# RFC 0038 — the attempt verdict (T-0247). Every attempt ends in exactly
+# one row (D-38.1) carrying an engine-derived verdict from the closed
+# vocabulary (D-38.2, D-38.3), and every row the attempt appends is stamped
+# with its attempt number (D-38.4). One test per ending, driven through the
+# real attempt hook over the real gate pass.
+
+
+def _stream(root: Path) -> tuple[list[dict], list[dict]]:
+    """(attempt rows, engine events) — the split every 0038 reader makes:
+    a `kind: engine` record names no attempt and carries no agent block;
+    absence of the additive keys reads as pre-0038 (D-38.6)."""
+    path = root / ".torve" / "telemetry.jsonl"
+    lines = (
+        [json.loads(line) for line in path.read_text().splitlines()] if path.is_file() else []
+    )
+    return (
+        [r for r in lines if r.get("kind") != "engine"],
+        [r for r in lines if r.get("kind") == "engine"],
+    )
+
+
+class RefusingBroker:
+    """The budget refusal mid-attempt (D-21.6): the run's agent succeeds,
+    the broker says the next request would be refused too."""
+
+    name = "local"
+
+    def __init__(self) -> None:
+        self.usage_seen = BrokerUsage(requests=4, refusals={"budget": 2})
+
+    def open(self, run, routing, budget):
+        return BrokerHandle(token="t-1")
+
+    def usage(self, handle):
+        return self.usage_seen
+
+    def close(self, handle):
+        return self.usage_seen
+
+
+class _EndingsAgent:
+    """A fake agent scripted to a different ending per attempt: the result
+    at index attempt-1; optionally writing a candidate file (so a gate pass
+    sees a real diff) or a halted divergence entry (RFC 0001 §4)."""
+
+    kind = "fake"
+
+    def __init__(self, results, write_on: int | None = None, halted_on: int | None = None):
+        self.results = results
+        self.write_on = write_on
+        self.halted_on = halted_on
+
+    def run(self, ctx):
+        if self.write_on == ctx.attempt:
+            target = ctx.workspace / "src" / "feature.py"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("FEATURE = True\n", encoding="utf-8")
+        if self.halted_on == ctx.attempt:
+            log_dir = ctx.workspace / ".torve" / "tasks" / ctx.task.id
+            log_dir.mkdir(parents=True, exist_ok=True)
+            (log_dir / "log.yaml").write_text(
+                "schema_version: 1\ntask: " + ctx.task.id + "\ndrift_count: 0\n"
+                "entries:\n  - decision: D-1\n    grade: LOCKED\n"
+                "    kind: contradicted\n    action: halted\n",
+                encoding="utf-8",
+            )
+        return self.results[min(ctx.attempt - 1, len(self.results) - 1)]
+
+
+def _drive_endings(repo, results, *, write_on=None, halted_on=None, broker=None, ceiling=6):
+    """Cut a worktree on a seeded repository (an empty battery: these
+    verdicts are about how attempts end, not what any particular gate
+    says) and drive `drive_attempts` over the real hooks. Returns
+    (final state, (rows, events)) split from the one stream."""
+    import asyncio
+
+    from test_run_loop import MockRuntime, MockScm, MockVcs
+
+    from torve.application.runner import RunDeps, drive_attempts, real_hooks
+    from torve.application.runstate import RunState
+    from torve.domain.states import TaskState
+    from torve.domain.task import Task
+
+    repo.seed()
+    worktree = _cut_worktree(repo, manifest_with([]), base_task(allow=["src/**"]))
+    task = Task(id=TASK_ID, role="implement", scope=Scope(allow=["src/**"]), decisions=[])
+
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]
+        runtime=MockRuntime(),
+        agent=_EndingsAgent(results, write_on=write_on, halted_on=halted_on),
+        vcs=MockVcs(),  # a continuable escalation checkpoints through it
+        scm=MockScm(),
+        store=None,  # type: ignore[arg-type]
+        broker=RefusingBroker() if broker else None,
+    )
+    config = RunnerConfig(poison_ceiling=ceiling)
+    state = RunState(task_id=task.id, path=repo.root / ".wt" / f"{task.id}.state.json")
+    state.transition(TaskState.CLAIMED, "test claim")
+    final = asyncio.run(
+        drive_attempts(state, task, config, real_hooks(repo.root, task, config, deps, worktree))
+    )
+    return final, _stream(repo.root)
+
+
+def test_each_attempt_ending_appends_exactly_one_row_with_its_verdict(repo):
+    """The one-attempt-one-row invariant (D-38.1) over a single run that
+    ends four attempts four different ways: a timeout, an agent error, a
+    refused empty diff (the gate report went red), and a green landing.
+    Four attempts, four rows, one verdict each, every row stamped
+    (D-38.4)."""
+    from test_run_loop import CRASH, TIMEOUT
+
+    from torve.application.ports import AgentResult
+    from torve.application.telemetry import ATTEMPT_VERDICTS
+    from torve.domain.states import TaskState
+
+    ok = AgentResult(exit_code=0, output="")
+    final, (rows, _events) = _drive_endings(repo, [TIMEOUT, CRASH, ok, ok], write_on=4)
+    assert final.state is TaskState.READY
+
+    assert [r["verdict"] for r in rows] == [
+        "agent_timeout",
+        "agent_error",
+        "gates_red",
+        "green",
+    ]
+    assert [r["agent"]["attempt"] for r in rows] == [1, 2, 3, 4]
+    assert all(r["verdict"] in ATTEMPT_VERDICTS for r in rows)
+    # The red-agent shape for every gates-less ending; the gate-row shape
+    # for the two that reached the battery (D-38.1 subsumes the inline
+    # append rather than duplicating it).
+    assert rows[0]["gates_run"] is False and rows[0]["timed_out"] is True
+    assert rows[0]["exit_code"] is None and rows[1]["exit_code"] == 137
+    assert "gates_run" not in rows[2] and rows[2]["results"] == []
+    assert rows[2]["verdict"] == "gates_red" and rows[3]["exit_code"] == 0
+
+
+def test_a_broker_refusal_appends_the_row_that_today_leaves_no_record(repo):
+    """D-21.6's hole (RFC 0038 §2): an agent that exits 0 into a refused
+    budget stops the loop before the gates — an ending that appends nothing
+    at all today. It now lands the red-agent shape with the
+    `broker_refused` verdict, and the refusal itself is in the record
+    beside it: the spend of the refused attempt stops being invisible."""
+    from torve.application.ports import AgentResult
+
+    ok = AgentResult(exit_code=0, output="")
+    final, (rows, events) = _drive_endings(repo, [ok], broker=True)
+    assert final.escalation is not None and final.escalation.reason == "cost_anomaly"
+
+    assert [r["verdict"] for r in rows] == ["broker_refused"]  # one row, not zero
+    row = rows[0]
+    assert row["gates_run"] is False
+    assert row["exit_code"] == 0
+    assert row["timed_out"] is False
+    assert row["escalation"] == "cost_anomaly"
+    assert row["agent"]["attempt"] == 1
+    assert row["agent"]["broker"]["refusals"] == {"budget": 2}
+    # D-38.5: the escalation itself is durable too, beside the row.
+    escalations = [e for e in events if e["event"] == "escalation"]
+    assert [e["reason"] for e in escalations] == ["cost_anomaly"]
+    assert [e["task"] for e in escalations] == [TASK_ID]
+
+
+def test_a_halted_attempt_appends_its_verdict_row(repo):
+    """The halt (RFC 0001 §4) is terminal by design and used to end the
+    attempt with no row: now the red-agent shape carries `halted`, with
+    the escalation reason the loop will act on beside it."""
+    from torve.application.ports import AgentResult
+
+    ok = AgentResult(exit_code=0, output="")
+    final, (rows, _events) = _drive_endings(repo, [ok], halted_on=1)
+    assert final.escalation is not None and final.escalation.reason == "locked_conflict"
+
+    assert [r["verdict"] for r in rows] == ["halted"]
+    assert rows[0]["escalation"] == "locked_conflict"
+    assert rows[0]["agent"]["attempt"] == 1
+    assert rows[0]["exit_code"] == 0
+    assert rows[0]["gates_run"] is False
+
+
+def test_a_gates_hook_failure_appends_its_verdict_row(repo, monkeypatch):
+    """The third ending that used to append nothing: the gates hook
+    raising. The row says the agent exited 0, the battery never reported,
+    and the escalation is the infrastructure failure the loop lands on."""
+    import torve.application.runner as run_module
+    from torve.application.ports import AgentResult
+
+    def broken_gates(*args, **kwargs):
+        raise OSError("gate machinery down")
+
+    monkeypatch.setattr(run_module, "_run_gates_in_worktree", broken_gates)
+
+    ok = AgentResult(exit_code=0, output="")
+    final, (rows, _events) = _drive_endings(repo, [ok])
+    assert final.escalation is not None
+    assert final.escalation.reason == "gate_infrastructure_failure"
+
+    assert [r["verdict"] for r in rows] == ["gate_infrastructure"]
+    assert rows[0]["escalation"] == "gate_infrastructure_failure"
+    assert rows[0]["gates_run"] is False
+    assert rows[0]["exit_code"] == 0
+    assert rows[0]["agent"]["attempt"] == 1
+
+
+# ....................... #
+# D-38.2's determinism argument made testable: the verdict adds no
+# information the row does not already imply. Re-derive it from the other
+# recorded fields — the same facts, inspected in the order the loop
+# inspects them — over every ending.
+
+
+def derive_verdict_from_row(row: dict) -> str:
+    """A reader's replay: engine facts on the row alone — the agent's exec
+    result, the gate report's exit code, the escalation state, the
+    broker's counts — never the verdict field itself."""
+    if row.get("gates_run") is False:
+        escalation = row.get("escalation")
+        if escalation == "locked_conflict":
+            return "halted"
+        if escalation == "gate_infrastructure_failure":
+            return "gate_infrastructure"
+        broker = row.get("agent", {}).get("broker", {})
+        if escalation == "cost_anomaly" or broker.get("refusals", {}).get("budget"):
+            return "broker_refused"
+        if row.get("timed_out"):
+            return "agent_timeout"
+        return "agent_error"
+    return "green" if row.get("exit_code") == 0 else "gates_red"
+
+
+def test_the_verdict_is_derivable_from_the_rows_other_fields(tmp_path, monkeypatch):
+    """Replay over rows carrying every verdict value: each row's verdict
+    equals what its other fields already say — the vocabulary adds
+    convenience, never information (keeps D-34.5's determinism argument
+    honest with the verdict in the stream)."""
+    from test_run_loop import CRASH, TIMEOUT
+
+    from torve.application.ports import AgentResult
+    from torve.application.telemetry import ATTEMPT_VERDICTS
+    from torve.gates.sabotage import Repo
+
+    def repo_at(name: str) -> Repo:
+        root = tmp_path / name
+        root.mkdir(parents=True, exist_ok=True)
+        return Repo(root)
+
+    ok = AgentResult(exit_code=0, output="")
+
+    # agent_timeout, agent_error, gates_red, green — one run, four rows.
+    _final, (rows, _events) = _drive_endings(repo_at("replay"), [TIMEOUT, CRASH, ok, ok], write_on=4)
+    all_rows = list(rows)
+
+    _final, (rows, _events) = _drive_endings(repo_at("broker"), [ok], broker=True)
+    all_rows += rows
+
+    _final, (rows, _events) = _drive_endings(repo_at("halted"), [ok], halted_on=1)
+    all_rows += rows
+
+    # gate_infrastructure — patch the battery last: the other three
+    # scenarios never reach it after their endings.
+    def broken_gates(*args, **kwargs):
+        raise OSError("gate machinery down")
+
+    monkeypatch.setattr("torve.application.runner._run_gates_in_worktree", broken_gates)
+    _final, (rows, _events) = _drive_endings(repo_at("infra"), [ok])
+    all_rows += rows
+
+    assert {r["verdict"] for r in all_rows} == set(ATTEMPT_VERDICTS)
+    for row in all_rows:
+        assert derive_verdict_from_row(row) == row["verdict"], row
+
+
+# ....................... #
+# D-38.5 — RunState.escalate is the single place an escalation is set, so
+# it is the single place the durable event lands (one call site, not
+# twenty-two). The state-file write is the one that gates correctness:
+# the stream append rides after it, and never turns an escalation into a
+# crash.
+
+
+def test_escalate_appends_a_durable_engine_event(tmp_path):
+    from torve.application.runstate import RunState
+    from torve.domain.states import EscalationReason, TaskState
+
+    state = RunState(task_id="T-0213", path=tmp_path / ".wt" / "T-0213.state.json")
+    state.transition(TaskState.CLAIMED, "claim")
+    state.transition(TaskState.RUNNING, "dispatch")
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts, ceiling 3")
+
+    _rows, events = _stream(tmp_path)
+    escalations = [e for e in events if e["event"] == "escalation"]
+    assert len(escalations) == 1
+    record = escalations[0]
+    assert record["kind"] == "engine"
+    assert record["task"] == "T-0213"
+    assert record["reason"] == "poison_ceiling"  # EscalationReason, verbatim
+    assert record["detail"] == "3 attempts, ceiling 3"
+    assert record["run_id"] == state.run_id
+    # The record is additive: same schema version, old readers unaffected.
+    assert record["schema_version"] == 1
+    # The state file still says the same thing — the field was set first.
+    reloaded = RunState.load(state.path)
+    assert reloaded.escalation is not None and reloaded.escalation.reason == "poison_ceiling"
+
+
+def test_the_escalation_append_is_best_effort(tmp_path):
+    """An unwritable stream must not turn an escalation into a crash: the
+    default telemetry path collides with a plain file standing where
+    `.torve` wants to be, and the escalation must stand anyway — the
+    state-file write is the one that gates correctness."""
+    from torve.application.runstate import RunState
+    from torve.domain.states import EscalationReason, TaskState
+
+    (tmp_path / ".torve").write_text("not a directory", encoding="utf-8")
+
+    state = RunState(task_id="T-0214", path=tmp_path / ".wt" / "T-0214.state.json")
+    state.transition(TaskState.CLAIMED, "claim")
+    state.escalate(EscalationReason.LEASE_EXPIRED, "heartbeat stale (3600s) at reap")
+
+    assert state.escalation is not None
+    assert state.escalation.reason == "lease_expired"
+    assert RunState.load(state.path).state is TaskState.ESCALATED
+
+
+def test_the_escalation_event_derives_its_root_from_the_state_file(tmp_path):
+    """The root is structural, not a caller argument: a state file beside
+    its worktree under `.wt` names the host root the stream lives under —
+    the walk `_write_regime_preimage` already performs."""
+    from torve.application.runstate import RunState
+    from torve.domain.states import EscalationReason, TaskState
+
+    deep = tmp_path / "elsewhere" / naming.WORKTREE_DIR
+    state = RunState(task_id="T-0215", path=deep / "T-0215.state.json")
+    state.transition(TaskState.CLAIMED, "claim")
+    state.escalate(EscalationReason.KILLED, "operator kill")
+
+    _rows, events = _stream(tmp_path / "elsewhere")
+    assert [e["reason"] for e in events if e["event"] == "escalation"] == ["killed"]
 
 
 # ....................... #

@@ -6,6 +6,8 @@ the real gate integration is exercised in test_run_integration.py.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 import yaml
 
@@ -142,6 +144,17 @@ def task_for(repo, iterations=None):
     return Task(id="T-9001", scope=Scope(), decisions=[], budget=Budget(iterations=iterations))
 
 
+def _telemetry(repo):
+    """The stream split the way RFC 0038 says readers split it: attempt
+    rows (each one an attempt's ending and verdict) and engine records,
+    which carry no agent block. Absent keys read as pre-0038 (D-38.6)."""
+    path = repo.root / ".torve" / "telemetry.jsonl"
+    lines = [json.loads(line) for line in path.read_text().splitlines()] if path.is_file() else []
+    rows = [r for r in lines if r.get("kind") != "engine"]
+    events = [r for r in lines if r.get("kind") == "engine"]
+    return rows, events
+
+
 def _active_run(root, task_id: str, *, role: str, allow: list[str]) -> RunState:
     """Seed an in-flight run's contract and state file — the fence
     `_blocking_overlap` refuses dispatches against. A review contract
@@ -221,6 +234,15 @@ def test_poison_ceiling_never_retries_past_the_ceiling(rig):
     assert state.escalation.reason == "poison_ceiling"
     assert state.attempts == 3
     assert len(runtime.created) == 3
+    # RFC 0038 D-38.1: each crashed attempt ended in exactly one row, and
+    # D-38.5: the ceiling escalation itself lands a durable engine event —
+    # the reason a task needed a human outlives the state file.
+    rows, events = _telemetry(repo)
+    assert [r["verdict"] for r in rows] == ["agent_error"] * 3
+    assert [r["agent"]["attempt"] for r in rows] == [1, 2, 3]
+    escalations = [e for e in events if e["event"] == "escalation"]
+    assert [e["reason"] for e in escalations] == ["poison_ceiling"]
+    assert escalations[0]["task"] == "T-9001"
 
 
 def test_iteration_budget_escalates_as_budget_exhausted(rig):
@@ -395,6 +417,15 @@ def test_agent_timeout_is_a_failed_attempt_not_a_crash(rig):
     assert state.state is TaskState.READY
     assert state.attempts == 2
     assert any("hard timeout" in event["fact"] for event in state.history)
+    # RFC 0038 D-38.1/D-38.3: the timed-out attempt's row names its own
+    # ending — the `timed_out` flag that used to be the only clue is now
+    # beside a verdict, stamped with the attempt number (D-38.4).
+    rows, _events = _telemetry(repo)
+    timed = rows[0]
+    assert timed["verdict"] == "agent_timeout"
+    assert timed["agent"]["attempt"] == 1
+    assert timed["gates_run"] is False
+    assert timed["timed_out"] is True
 
 
 def test_locked_conflict_is_terminal_by_design(rig):
@@ -404,6 +435,14 @@ def test_locked_conflict_is_terminal_by_design(rig):
     assert state.state is TaskState.ESCALATED
     assert state.escalation.reason == "locked_conflict"
     assert not vcs.commits  # stopped on working code, nothing landed
+    # RFC 0038 D-38.1: the halt used to end the attempt with no row at
+    # all — the spend vanished. It now lands the red-agent shape, with the
+    # `halted` verdict and the escalation reason beside it.
+    rows, _events = _telemetry(repo)
+    assert [r["verdict"] for r in rows] == ["halted"]
+    assert rows[0]["escalation"] == "locked_conflict"
+    assert rows[0]["agent"]["attempt"] == 1
+    assert rows[0]["exit_code"] == 0
 
 
 def test_gate_infrastructure_failure_escalates(rig, monkeypatch):
@@ -415,6 +454,14 @@ def test_gate_infrastructure_failure_escalates(rig, monkeypatch):
     monkeypatch.setattr(run_module, "_run_gates_in_worktree", broken_gates)
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
     assert state.escalation.reason == "gate_infrastructure_failure"
+    # D-38.1: the gates-hook exception is an attempt ending too — the row
+    # says the agent exited 0 and the gate report never completed.
+    rows, _events = _telemetry(repo)
+    assert [r["verdict"] for r in rows] == ["gate_infrastructure"]
+    assert rows[0]["escalation"] == "gate_infrastructure_failure"
+    assert rows[0]["gates_run"] is False
+    assert rows[0]["exit_code"] == 0
+    assert rows[0]["agent"]["attempt"] == 1
 
 
 def test_existing_non_terminal_run_refuses_a_second_claim(rig):
@@ -728,8 +775,6 @@ def test_an_empty_implement_diff_is_a_red_attempt_retried_to_the_ceiling(repo):
     the real gate pass (not a scripted one), so the refusal exercised is
     the shipped one. The contract sits on `main`: the worktree is cut
     there, and an untracked contract copy would itself read as a change."""
-    import json
-
     from torve.adapters.workspace.git import GitWorkspace
     from torve.gates.sabotage import base_task
 
@@ -757,11 +802,15 @@ def test_an_empty_implement_diff_is_a_red_attempt_retried_to_the_ceiling(repo):
     assert facts.count("gates red: empty diff against base — no changes produced") == 2
 
     # RFC 0004 §6: the spend of each refused attempt survives as a red
-    # record — two attempts, two red gate records.
-    telemetry = repo.root / ".torve" / "telemetry.jsonl"
-    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
-    assert len(records) == 2
-    assert all(r["task_id"] == "T-9001" and r["exit_code"] == 1 for r in records)
+    # record — two attempts, two red gate records, each stamped with its
+    # attempt number and verdict (RFC 0038). The ceiling escalation rides
+    # the same stream as an engine event (D-38.5).
+    rows, events = _telemetry(repo)
+    assert len(rows) == 2
+    assert all(r["task_id"] == "T-9001" and r["exit_code"] == 1 for r in rows)
+    assert [r["verdict"] for r in rows] == ["gates_red", "gates_red"]
+    assert [r["agent"]["attempt"] for r in rows] == [1, 2]
+    assert [e["event"] for e in events] == ["escalation"]
 
 
 def test_a_noop_whose_only_trace_is_the_contract_copy_is_red_to_the_ceiling(repo):
@@ -771,8 +820,6 @@ def test_a_noop_whose_only_trace_is_the_contract_copy_is_red_to_the_ceiling(repo
     bookkeeping file, implicitly in scope. It must not read as candidate
     work: the no-op is still a red attempt, retried toward the poison
     ceiling, exactly like the empty-diff case with a tracked contract."""
-    import json
-
     from torve.adapters.workspace.git import GitWorkspace
     from torve.gates.sabotage import base_task
 
@@ -800,7 +847,10 @@ def test_a_noop_whose_only_trace_is_the_contract_copy_is_red_to_the_ceiling(repo
     facts = [event["fact"] for event in state.history]
     assert facts.count("gates red: empty diff against base — no changes produced") == 2
 
-    telemetry = repo.root / ".torve" / "telemetry.jsonl"
-    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
-    assert len(records) == 2
-    assert all(r["task_id"] == "T-9001" and r["exit_code"] == 1 for r in records)
+    rows, events = _telemetry(repo)
+    assert len(rows) == 2
+    assert all(r["task_id"] == "T-9001" and r["exit_code"] == 1 for r in rows)
+    assert [r["verdict"] for r in rows] == ["gates_red", "gates_red"]
+    assert [r["agent"]["attempt"] for r in rows] == [1, 2]
+    assert [e["event"] for e in events] == ["escalation"]
+    assert events[0]["reason"] == "poison_ceiling"

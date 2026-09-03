@@ -1,0 +1,114 @@
+schema_version: 1
+task: T-0247
+repo: morzecrew/torve
+base_sha: e1fa59c21524dd347a2464eda6311e1768aec2ce
+drift_count: 0
+entries:
+  - decision: D-38.1
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-03T16:03:05Z
+    attempt: 1
+    claim: >-
+      every path out of the attempt hook ends in exactly one row; the three
+      endings that appended nothing (broker refusal, halt, gates-hook
+      failure) now append the red-agent shape, and the inline red-agent
+      append was subsumed into the same code path rather than duplicated
+    evidence: >-
+      src/torve/application/runner.py:1306-1340 — the endings chain inside
+      the attempt hook (escalation, halted, timeout/error), sharing
+      `_append_attempt_row` with the gates-hook failure path; the subsumed
+      inline append is gone, and
+      `test_each_attempt_ending_appends_exactly_one_row_with_its_verdict`
+      pins the four-endings-one-run invariant
+    action: decided
+    notes: |
+      Close-out attestation: the LOCKED one-row area was implemented as
+      decided, no contradiction found. The replay test derives each verdict
+      from the row's own fields, including the rows this decision newly
+      creates.
+  - decision: D-38.2
+    grade: LOCKED
+    kind: resolved
+    at: 2026-09-03T16:03:05Z
+    attempt: 1
+    claim: >-
+      the verdict is engine-derived from exec results, the gate report and
+      escalation state only, and no router reads it — D-34.5's selection
+      input set is untouched
+    evidence: >-
+      src/torve/application/telemetry.py:255-261 — the verdict is computed
+      in `build_record` from `report.exit_code` with the agent block as the
+      only gate; `retry_rung_for` in runner.py still reads the recorded
+      gate outcomes alone
+    action: decided
+    notes: |
+      Close-out attestation. The escalation reason stamped beside the
+      verdict is the engine's own `EscalationReason` string, never model
+      output.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    at: 2026-09-03T16:03:05Z
+    attempt: 1
+    claim: >-
+      §10's open question (whether the reaper's lease_expired sweep of an
+      orphaned run also stamps a verdict row) is settled by the reaper's
+      actual knowledge at sweep time — it has none, no exec result, no
+      gate report, no escalation from the attempt itself; the only fact in
+      hand is the lease expiry, and it lands through RunState.escalate,
+      i.e. as the D-38.5 engine event. Inventing a verdict row from a
+      state-file field would also collide with the one-row-per-attempt
+      invariant, since the crashed attempt may already have appended rows
+      earlier in the run
+    evidence: >-
+      src/torve/application/reaper.py:195-204 — the heartbeat sweep
+      escalates `lease_expired` on the state and nothing else;
+      tests/test_reaper.py:62-79 pins event-lands-row-does-not
+    action: decided
+    proposal: >-
+      RFC 0038 §10 closes as decided — the sweep lands the escalation
+      event only; if 0040's timeline later needs the orphaned attempt's
+      verdict, it needs a new vocabulary value (e.g. `died`), which the
+      D-38.3 amendment route exists for
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: 2026-09-03T16:03:05Z
+    attempt: 1
+    claim: >-
+      §7 asks RFC 0004 §6's record documentation to gain the `attempt` and
+      `verdict` keys and the escalation-event shape, but no file under
+      `rfcs/` is in this task's declared scope — writing there would trip
+      the scope gate, so the documentation follow-up remains open
+    evidence: >-
+      rfcs/0038-the-attempt-verdict.md:220-223 — §7's docs task names RFC
+      0004 §6, outside the task's allow list
+    action: decided
+    notes: the same reasoning covers CHANGELOG.md — a notable telemetry
+      change, but not in scope
+    proposal: >-
+      mint the docs chore (or fold it into RFC 0040's phase, which renders
+      these keys), carrying the record-shape note and the changelog entry;
+      no code change implied
+  - decision: D-38.4
+    grade: ASSUMED
+    kind: departed
+    at: 2026-09-03T16:03:05Z
+    attempt: 1
+    claim: >-
+      D-38.4 says the agent block is restamped where tier/adapter/model
+      already are — the mechanical revert attempt restamps none of those
+      (it sets `adapter="revert"` once, at hook build, not per attempt), so
+      "already are" names an empty set for it; the attempt number is
+      stamped explicitly in `revert_attempt` instead, so the gate record a
+      revert attempt appends still carries it
+    evidence: >-
+      src/torve/application/runner.py:1486-1489 — the explicit stamp inside
+      `revert_attempt`; src/torve/application/runner.py:1178-1183 — the
+      per-attempt restamp for agent attempts
+    action: departed
+    proposal: >-
+      D-38.4's wording stands as an ASSUMED approximation; this entry
+      records where reality needed a second line, not an amendment

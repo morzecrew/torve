@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 from test_run_loop import MockRuntime
@@ -58,6 +59,22 @@ def test_stale_run_is_expired_and_its_sandbox_destroyed(tmp_path):
     assert reloaded.state is TaskState.ESCALATED
     assert reloaded.escalation.reason == "lease_expired"
     assert RunState.load(tmp_path / ".wt" / "T-9102.state.json").state is TaskState.RUNNING
+
+    # RFC 0038 §10's open question, decided by the reaper's actual knowledge
+    # at sweep time: the sweep escalates through RunState.escalate, so the
+    # durable engine event lands (D-38.5) — but the reaper holds no exec
+    # result, no gate report, nothing from which a verdict could be
+    # *derived*, and D-38.2 forbids inventing one. It stamps no verdict row
+    # for the orphaned attempt; the event is the record.
+    lines = [
+        json.loads(line)
+        for line in (tmp_path / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    events = [e for e in lines if e.get("kind") == "engine" and e.get("event") == "escalation"]
+    assert [(e["task"], e["reason"], e["run_id"]) for e in events] == [
+        ("T-9101", "lease_expired", stale.run_id)
+    ]
+    assert all("verdict" not in line for line in lines)
 
 
 def test_orphaned_sandbox_with_no_state_at_all_is_destroyed(tmp_path):

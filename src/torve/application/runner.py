@@ -62,13 +62,14 @@ from torve.application.telemetry import (
     agent_token_counts,
     append_record,
     broker_block,
+    build_attempt_row,
     build_record,
     config_hash,
     engine_event,
 )
 from torve.base import naming
 from torve.config import layout
-from torve.config.manifest import UNLABELED_AXIS, GateAxis, load_manifest
+from torve.config.manifest import UNLABELED_AXIS, GateAxis, Manifest, load_manifest
 from torve.config.runconfig import (
     CACHE_MOUNT,
     RunnerConfig,
@@ -1070,9 +1071,14 @@ def real_hooks(
     # adapter and model did the work cannot be reconstructed later. Shadow
     # gate passes are marked so the measurement population stays separable
     # from live attempts in one stream. `attempt()` restamps tier/adapter/
-    # provider/model/image_digest every call — this is only the shape.
+    # provider/model/image_digest every call — this is only the shape. The
+    # attempt number (RFC 0038 §5.1, D-38.4) rides the same restamp, so
+    # every record the attempt appends joins deterministically to its trace
+    # file (`<task>.a<attempt>.trace.log`) and RFC 0026's continuation
+    # chain.
     agent_meta: dict[str, Any] = {
         "tier": tier_name,
+        "attempt": None,
         "adapter": kind,
         "provider": (tier.provider or None) if real else None,
         "model": (tier.model or None) if real else None,
@@ -1089,6 +1095,45 @@ def real_hooks(
         # alone.
         "skills": None,
     }
+
+    def _telemetry_target() -> Path:
+        """The stream for records this run appends outside a gate pass. The
+        record must never depend on the manifest existing — a worktree with
+        no gates.yaml still burned the money."""
+
+        manifest_file = layout.gates_file(worktree)
+        telemetry_rel = (
+            load_manifest(manifest_file).telemetry
+            if manifest_file.is_file()
+            else Manifest().telemetry
+        )
+
+        return root / telemetry_rel
+
+    def _append_attempt_row(
+        verdict: str,
+        *,
+        exit_code: int | None,
+        timed_out: bool,
+        escalation: str | None = None,
+    ) -> None:
+        """One row for one ending of an attempt that produces no gate record
+        (D-38.1): the red-agent shape — the spend survives even though the
+        gates never ran — with the engine-derived verdict naming how the
+        attempt ended. The attempt's facts, not its prose: exec results,
+        escalation state, whatever the adapter reported (D-38.2)."""
+
+        append_record(
+            _telemetry_target(),
+            build_attempt_row(
+                task,
+                agent_meta,
+                verdict=verdict,
+                exit_code=exit_code,
+                timed_out=timed_out,
+                escalation=escalation,
+            ),
+        )
 
     async def attempt(state: RunState) -> AgentResult:
         # D-27.11's one rung, routed by the conviction: the attempt after a
@@ -1132,6 +1177,10 @@ def real_hooks(
 
         agent_meta.update(
             tier=resolved_name,
+            # The attempt number, restamped where tier/adapter/model
+            # already are (D-38.4): `attempts` incremented on entry to
+            # running, so it names the attempt about to run.
+            attempt=state.attempts,
             adapter=run_kind,
             provider=(resolved_tier.provider or None) if run_real else None,
             model=(resolved_tier.model or None) if run_real else None,
@@ -1248,40 +1297,44 @@ def real_hooks(
             if broker is not None and broker_handle is not None:
                 _record_broker_usage(state, broker, broker_handle, agent_meta)
 
-            if result.timed_out or result.exit_code != 0:
+            # Every path out of this hook ends in exactly one row (D-38.1).
+            # The endings are inspected in the order the loop itself reads
+            # them — escalation first, then the halted divergence entry,
+            # then the agent's own failure — so the verdict on the row is
+            # the ending the loop acts on. A clean attempt appends no row
+            # here: the gates leg owns its verdict (green or gates_red).
+            if state.escalation is not None:
+                # The broker refused the run's budget mid-attempt (D-21.6):
+                # the spend happened, the gates will never run, and until
+                # now this was the ending that recorded nothing at all.
+                _append_attempt_row(
+                    "broker_refused",
+                    exit_code=result.exit_code,
+                    timed_out=result.timed_out,
+                    escalation=state.escalation.reason,
+                )
+
+            elif _log_has_halted_entry(worktree, task.id):
+                # The halted divergence entry (RFC 0001 §4): terminal by
+                # design, and today it ends the attempt silently.
+                _append_attempt_row(
+                    "halted",
+                    exit_code=result.exit_code,
+                    timed_out=result.timed_out,
+                    escalation=str(EscalationReason.LOCKED_CONFLICT),
+                )
+
+            elif result.timed_out or result.exit_code != 0:
                 # RFC 0004 §6: the spend happened even though the gates will
                 # never run for this attempt — without a record here, a
                 # budget-killed or timed-out attempt's cost vanishes from
                 # every projection (four ~$4 first attempts were missing
-                # from cost-and-iterations when this was found).
-                import torve as _torve
-                from torve.config.manifest import Manifest as _Manifest
-                from torve.domain.task import SCHEMA_VERSION as _TELEMETRY_SCHEMA
-
-                # The record must never depend on the manifest existing —
-                # a worktree with no gates.yaml still burned the money.
-                manifest_file = layout.gates_file(worktree)
-                telemetry_rel = (
-                    load_manifest(manifest_file).telemetry
-                    if manifest_file.is_file()
-                    else _Manifest().telemetry
-                )
-
-                append_record(
-                    root / telemetry_rel,
-                    {
-                        "schema_version": _TELEMETRY_SCHEMA,
-                        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        "config_hash": None,  # gates never ran; no manifest pass
-                        "torve_version": _torve.__version__,
-                        "task_id": task.id,
-                        "agent": dict(agent_meta),
-                        "decisions": [d.model_dump() for d in task.decisions],
-                        "results": [],
-                        "exit_code": result.exit_code,
-                        "gates_run": False,
-                        "timed_out": result.timed_out,
-                    },
+                # from cost-and-iterations when this was found). This is
+                # that record, now carrying its verdict (D-38.3).
+                _append_attempt_row(
+                    "agent_timeout" if result.timed_out else "agent_error",
+                    exit_code=result.exit_code,
+                    timed_out=result.timed_out,
                 )
 
             return result
@@ -1322,22 +1375,38 @@ def real_hooks(
     last_pass: dict[str, Any] = {"results": [], "patch": "", "digest": ""}
 
     async def gates(state: RunState) -> tuple[int, str, str]:
-        exit_code, summary, digest, results, patch = await asyncio.to_thread(
-            _run_gates_in_worktree,
-            worktree,
-            task.id,
-            config,
-            deps.runtime,
-            state.run_id,
-            root,
-            agent_meta,
-            gates_base,
-            current["image"],
-            current["image_digest"],
-            # Always empty under shadow: a replay's gate pass measures the
-            # cold truth even when the tier names a cache (D-35.3).
-            {} if shadow else _sandbox_cache(current["tier"], config.worker_slot),
-        )
+        try:
+            exit_code, summary, digest, results, patch = await asyncio.to_thread(
+                _run_gates_in_worktree,
+                worktree,
+                task.id,
+                config,
+                deps.runtime,
+                state.run_id,
+                root,
+                agent_meta,
+                gates_base,
+                current["image"],
+                current["image_digest"],
+                # Always empty under shadow: a replay's gate pass measures the
+                # cold truth even when the tier names a cache (D-35.3).
+                {} if shadow else _sandbox_cache(current["tier"], config.worker_slot),
+            )
+
+        except Exception:
+            # D-38.1: the gates hook raising is an attempt ending with no
+            # gate record — the loop escalates GATE_INFRASTRUCTURE_FAILURE
+            # from here and stops, so the row lands before the exception
+            # travels. The agent exited 0 by construction (the loop calls
+            # gates no other way) and the gate report never completed:
+            # exit_code carries the agent's 0, the row says gates_run false.
+            _append_attempt_row(
+                "gate_infrastructure",
+                exit_code=0,
+                timed_out=False,
+                escalation=str(EscalationReason.GATE_INFRASTRUCTURE_FAILURE),
+            )
+            raise
 
         last_convictions["results"] = list(results)
         last_pass.update(results=results, patch=patch, digest=digest)
@@ -1415,6 +1484,9 @@ def real_hooks(
         revert_shas = _revert_targets(task, deps.vcs, worktree)
 
         async def revert_attempt(state: RunState) -> AgentResult:
+            # The mechanical attempt still stamps its number (D-38.4): its
+            # gate record joins the trace convention like any other.
+            agent_meta["attempt"] = state.attempts
             done = await asyncio.to_thread(deps.vcs.revert, worktree, revert_shas)
 
             if not done:
