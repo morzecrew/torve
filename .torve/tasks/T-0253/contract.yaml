@@ -1,15 +1,14 @@
-# Minted by `torve plan 0041` — phase 2: the reachable broker
 schema_version: 1
 id: T-0253
 rfc: rfcs/0041-remote-sandboxes.md
 phase: 2
 role: implement
 title: the reachable broker
-intent: 'Remote endpoint mode (D-41.6): broker.bind and broker.advertise in configuration,
-  the runtime composing the sandbox proxy env from the advertised address instead of the Docker
-  gateway derivation, provider routes keeping the run token unchanged (D-41.2), and the pass-through
-  leg refused loudly in remote endpoint mode with the destination named. The deployment page
-  documents bind/advertise and the transport paragraph.'
+intent: 'Remote endpoint mode (D-41.6): broker.bind and broker.advertise in configuration, the runtime
+  composing the sandbox proxy env from the advertised address instead of the Docker gateway derivation,
+  provider routes keeping the run token unchanged (D-41.2), and the pass-through leg refused loudly
+  in remote endpoint mode with the destination named. The deployment page documents bind/advertise
+  and the transport paragraph.'
 depends_on:
 - T-0251
 - T-0252
@@ -22,12 +21,14 @@ scope:
   - src/torve/adapters/runtime/opensandbox.py
   - tests/test_broker.py
   - tests/test_broker_sealed.py
+  - tests/test_runconfig.py
   deny: []
 acceptance:
 - uv run pytest tests/test_broker.py tests/test_broker_sealed.py
 - uv run mypy src
 - uv run basedpyright src
 - uv run ruff check .
+- uv run pytest tests/test_runconfig.py
 decisions:
 - id: D-41.1
   grade: LOCKED
@@ -37,47 +38,46 @@ decisions:
   - src/torve/adapters/runtime/opensandbox.py
 - id: D-41.2
   grade: LOCKED
-  text: 'Provider keys never enter a sandbox, local or remote: remote runs reach providers
-    only through the broker''s token-authenticated routes'
+  text: 'Provider keys never enter a sandbox, local or remote: remote runs reach providers only through
+    the broker''s token-authenticated routes'
   paths:
   - src/torve/adapters/broker/local.py
 - id: D-41.3
   grade: ASSUMED
-  text: Live conformance is a third env-gated leg (`TORVE_OPENSANDBOX_TEST_DOMAIN`) asserting
-    the stub's contract plus platform timeout collection and label-scoped enumeration; a live/stub
-    disagreement is a stub defect
+  text: Live conformance is a third env-gated leg (`TORVE_OPENSANDBOX_TEST_DOMAIN`) asserting the
+    stub's contract plus platform timeout collection and label-scoped enumeration; a live/stub disagreement
+    is a stub defect
   paths:
   - tests/opensandbox_stub.py
   - tests/test_sandbox_images.py
 - id: D-41.4
   grade: ASSUMED
-  text: '`torve sandbox build --push` publishes the battery image and prints the digest-pinned
-    reference; the OpenSandbox runtime resolves digest-pinned references and records bare
-    tags as unresolved (D-17.1)'
+  text: '`torve sandbox build --push` publishes the battery image and prints the digest-pinned reference;
+    the OpenSandbox runtime resolves digest-pinned references and records bare tags as unresolved
+    (D-17.1)'
   paths:
   - src/torve/cli/sandbox.py
   - src/torve/adapters/runtime/opensandbox.py
 - id: D-41.5
   grade: ASSUMED
-  text: Seed and sync-out cost (bytes, seconds) are recorded per attempt for transferring
-    runtimes, absent for mounting ones; seed optimization is demand-gated on these numbers
-    under RFC 0035's paired-measurement discipline
+  text: Seed and sync-out cost (bytes, seconds) are recorded per attempt for transferring runtimes,
+    absent for mounting ones; seed optimization is demand-gated on these numbers under RFC 0035's
+    paired-measurement discipline
   paths:
   - src/torve/adapters/runtime/opensandbox.py
   - src/torve/application/telemetry.py
 - id: D-41.6
   grade: ASSUMED
-  text: 'Remote endpoint mode: `broker.bind` and `broker.advertise` replace the Docker-gateway
-    derivation for OpenSandbox runs; the pass-through leg is refused in remote endpoint mode
-    until a token-authenticated design exists; transport security is the operator''s deployment
-    choice, documented plainly'
+  text: 'Remote endpoint mode: `broker.bind` and `broker.advertise` replace the Docker-gateway derivation
+    for OpenSandbox runs; the pass-through leg is refused in remote endpoint mode until a token-authenticated
+    design exists; transport security is the operator''s deployment choice, documented plainly'
   paths:
   - src/torve/adapters/broker/local.py
   - src/torve/config/runconfig.py
 - id: D-41.7
   grade: ASSUMED
-  text: Subscription-billed tiers stay Docker-only (the volume refusal stands); remote capacity
-    serves metered tiers
+  text: Subscription-billed tiers stay Docker-only (the volume refusal stands); remote capacity serves
+    metered tiers
   paths:
   - src/torve/adapters/runtime/opensandbox.py
 budget:
