@@ -6,7 +6,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81"]
+amended_by: ["A-80", "A-81", "A-82"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -278,6 +278,13 @@ worker reads those entries host-side after the attempt and records one
 is dropped at dispatch into `.torve/tmp/pin.json`, because a sandbox's
 `.git` points into a host tree it cannot follow.
 
+The gate reads the same boundary from the other side (A-82). It runs in a
+sandbox too, so it cannot query the store either; instead the engine
+rewrites the worktree's log from the record before each gate pass. The
+battery reads a file whose provenance is checkable — an entry the store
+refused never reaches it, and one the store holds appears whether or not the
+sandbox's copy survived.
+
 ### 5.7 Ports and what binds first
 
 Two ports carry the substrate decisions:
@@ -415,7 +422,7 @@ alongside the existing architecture review. The corpus amendments listed in
 | D-44.7 | `LOCKED` | The repository is the partition key: landings serialize within a partition and run independently across partitions | `src/torve/application/manager.py` | The one v1 invariant that survives distribution unchanged; multi-repo scaling is partition count, and a single repository's landing throughput stays the ceiling it is today |
 | D-44.8 | `ASSUMED` | A source is any provenance — specification document, incident, audit, review finding, operator ask — carrying zero or more decisions; the task is the execution unit and cites its source for provenance, never for parsing | `src/torve/domain/source.py` `src/torve/application/intake.py` | RFC documents become one importer among several; RFC 0020's request-to-adoption seam generalizes rather than being replaced |
 | D-44.9 | `ASSUMED` | Decisions are first-class records — graded `LOCKED`/`ASSUMED`/`OPEN`, path-scoped, versioned, superseded by reference — and the decision graph is answered by query; a generated view may be written to the repository, marked generated, never parsed | `src/torve/application/decisions.py` | The grading discipline is preserved verbatim; the corpus becomes importable data and every existing decision id stays stable |
-| D-44.10 | `LOCKED` | Divergence is recorded through a validating intake that refuses at write time with the message the gate would have produced; the landed log file is a projection the engine writes, never an artifact the agent hand-authors. The intake has two halves — the agent-facing verb validates inside the sandbox, the worker records host-side after the attempt (split by amendment A-80 2026-09-04) | `src/torve/application/divergence.py` `src/torve/gates/decisions_reported.py` `src/torve/gates/evidence.py` | Deletes the unparseable-log, malformed-evidence and unstaged-log failure classes that produced every poison-ceiling in the current measurement window |
+| D-44.10 | `LOCKED` | Divergence is recorded through a validating intake that refuses at write time with the message the gate would have produced; the landed log file is a projection the engine writes, never an artifact the agent hand-authors. The intake has two halves — the agent-facing verb validates inside the sandbox, the worker records host-side after the attempt (split by amendment A-80 2026-09-04). The engine writes the file the gate reads from the record, before each gate pass (amendment A-82 2026-09-04) | `src/torve/application/divergence.py` `src/torve/gates/decisions_reported.py` `src/torve/gates/evidence.py` | Deletes the unparseable-log, malformed-evidence and unstaged-log failure classes that produced every poison-ceiling in the current measurement window |
 | D-44.11 | `ASSUMED` | Durable execution sits behind a port with forze bound first; the domain names no vendor, and the persistence schema is owned by torve in every binding | `src/torve/application/ports.py` | The Temporal question is answered by operational evidence later, at adapter cost only |
 | D-44.12 | `ASSUMED` | The gate battery, the review lane, sizing and the measurement regime port over as libraries with their contracts unchanged; they are services over inputs and know nothing of the store | `src/torve/gates/**` `src/torve/application/review.py` | The doctrine's proven parts are not rewritten; a v2 that changes their semantics has exceeded this RFC |
 | D-44.13 | `OPEN` | The identity and authorization model beyond a single operator — how operator identities are established, and whether workers authenticate as principals or as bearers of seats. Settled by the first deployment with two humans or a hosted seat | — | — |
@@ -512,10 +519,9 @@ serializes and stages it, and the three failure classes stay deleted.
 validating intake; this amendment says where the validation and the write
 each happen, not who may write what.
 
-**Still owed by phase 2:** `decisions-reported` reads the file, not the
-store. The store-reading gate was phase 2's stated end state and has not
-shipped, so the file remains the only carrier a gate consults and
-`implementation` stays `partial`.
+**Still owed by phase 2 at the time of writing:** `decisions-reported` reads
+the file, not the store. Settled by A-82, which found the same boundary on
+the reading side and answers it with a projection.
 
 ### A-81 — 2026-09-04 — message.sent admits the manager and the operator (amends D-44.4, required by RFC 0045 D-45.7)
 **Found drafting RFC 0045.** §5.2's table makes `message.sent` agent-only,
@@ -530,3 +536,39 @@ the manager or the operator. What the row protected is untouched: an agent
 still cannot write an acceptance, a landing, or another agent's record, and
 every inter-agent influence is still a reviewable record or it did not
 happen.
+
+### A-82 — 2026-09-04 — the gate judges the record through a projection (amends D-44.10, completes phase 2, extends A-80)
+**Found completing phase 2.** The phase says the `decisions-reported` gate
+reads the recorded entries. It cannot: the battery runs inside a sandbox,
+and a sandbox has no route to the store — the same boundary A-80 found on
+the writing side, met again on the reading side. A gate that could query the
+store would be a gate holding a store credential, which RFC 0045 D-45.1
+refuses outright.
+
+So the store is made authoritative the only way a sandboxed reader allows.
+Between an attempt and the gate pass that judges it, the engine records what
+the attempt wrote and then rewrites the worktree's log **from the record**.
+The battery still reads a file, and that file is now a projection with a
+checkable provenance: an entry the store refused never reaches the gate, and
+an entry the store holds appears whether or not the sandbox's copy survived.
+
+Two consequences worth naming. Recording moves inside the run rather than
+after it — a dispatch is several attempts, and a gate judging attempt two
+must see attempt two's entries — so the intake's offset is what keeps a
+cumulative file from being recorded twice. And a task with nothing recorded
+still leaves no file: writing an empty log would turn "nothing to report"
+into a claim somebody made (A-13, D-3.21).
+
+**Changed:** D-44.10 — the landed log file is a projection the engine writes
+from the record, written before each gate pass rather than only at landing,
+and the gate reads it. The sync is fail-closed: it may block and may raise,
+and a failure escalates `gate_infrastructure_failure` rather than letting a
+battery judge a log nobody vouched for.
+
+**Deliberately unchanged:** the gate's own checks. It validates what it is
+given, exactly as before — this amendment changes where the given file comes
+from, not what makes an entry legal.
+
+**Phase 2 is now complete.** The remaining carrier question — whether the
+file survives at all once nothing but the engine writes it — belongs to the
+projection set, not here.

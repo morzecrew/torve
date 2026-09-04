@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from torve.application import divergence
-from torve.application.eventlog import burn_sink
+from torve.application.eventlog import RunLogChannel, attempt_sink, burn_sink
 from torve.application.runner import run_task
 from torve.application.worker import Execute, Outcome
 from torve.domain.states import EscalationReason, TaskState
@@ -103,39 +103,42 @@ def runner_execute(
     """An `Execute` the worker can call: the runner in a thread, because it
     is synchronous and the worker's loop is not.
 
-    With a log, the attempt is also observed. The burn sink goes in before
-    the run so the broker's metering lands as it happens (RFC 0045 D-45.4),
-    and the worktree's divergences are ingested after it, host-side, because
-    the sandbox that wrote them has no route to the store (D-44.10). Without
-    a log the runner behaves exactly as v1 does — the observation is wiring,
-    not a dependency of execution.
+    With a log, the run is also observed. Three things go in before it
+    starts: each attempt reports itself as it happens, under the tier that
+    actually ran it (D-44.3); the broker's metering lands per response (RFC
+    0045 D-45.4); and the journal sync records the attempt's divergences and
+    rewrites the worktree's log from the record before each gate pass reads
+    it (A-82) — host-side, because the sandbox that wrote them has no route
+    to the store. Without a log the runner behaves exactly as v1 does: the
+    observation is wiring, not a dependency of execution.
     """
 
     async def execute(task: Task) -> Outcome:
         task, bound = prepare(task)
+        journal = None
 
         if log is not None:
+            loop = asyncio.get_running_loop()
+            journal = divergence.journal_sync(
+                log, loop, partition=partition, task_id=task.id, seat=seat
+            )
             bound = replace(
                 bound,
-                sink=burn_sink(
-                    log,
-                    asyncio.get_running_loop(),
-                    partition=partition,
-                    task_id=task.id,
-                    seat=seat,
+                sink=burn_sink(log, loop, partition=partition, task_id=task.id, seat=seat),
+                facts=attempt_sink(log, loop, partition=partition, task_id=task.id, seat=seat),
+                journal=journal,
+                channel=RunLogChannel(
+                    log=log, loop=loop, partition=partition, task_id=task.id, seat=seat
                 ),
             )
 
         state = await asyncio.to_thread(run_task, root, task, config, bound)
 
-        if log is not None:
-            await divergence.ingest(
-                log,
-                _log_root(state, root),
-                task.id,
-                partition=partition,
-                actor_id=seat,
-            )
+        if journal is not None:
+            # One more, for whatever the last attempt wrote after its gate
+            # pass — or wrote without ever reaching one, which is the case a
+            # per-gate sync alone would lose.
+            await asyncio.to_thread(journal, _log_root(state, root))
 
         return outcome_of(state)
 

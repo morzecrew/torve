@@ -86,12 +86,13 @@ def test_a_green_pass_claims_runs_and_lands():
         history = await log.history("T-1")
 
         assert handled == "T-1"
+        # The lifecycle and nothing else: what happened inside the run is
+        # reported by the run itself (D-44.3), and an injected execute
+        # reports nothing — a worker that filled the gap here would be
+        # writing a summary that claims to be a history.
         assert [event.kind for event in history] == [
             EventKind.TASK_MINTED,
             EventKind.TASK_CLAIMED,
-            EventKind.ATTEMPT_STARTED,
-            EventKind.ATTEMPT_FINISHED,
-            EventKind.GATES_EVALUATED,
             EventKind.LANDING_RECORDED,
         ]
 
@@ -169,9 +170,11 @@ def test_a_worker_killed_mid_attempt_leaves_a_log_that_says_where_it_stopped():
         assert [event.kind for event in await log.history("T-1")] == [
             EventKind.TASK_MINTED,
             EventKind.TASK_CLAIMED,
-            EventKind.ATTEMPT_STARTED,
         ]
-        assert board.tasks["T-1"].state is TaskState.RUNNING
+        # Claimed and no further: the death produced no fact, and none is
+        # invented for it. The task waits out its lease rather than being
+        # released by a process that is no longer running.
+        assert board.tasks["T-1"].state is TaskState.CLAIMED
         assert board.tasks["T-1"].claimed_by == "w-1"
 
     run(scenario)

@@ -63,6 +63,7 @@ from torve.application.ports import (
     BrokerUsage,
     BurnEvent,
     BurnSink,
+    RunChannel,
 )
 from torve.config.runconfig import (
     BrokerConfig,
@@ -79,6 +80,14 @@ CAUSE_ROUTING = "routing"
 CAUSE_BUDGET = "budget"
 CAUSE_CONTAINMENT = "containment"
 CAUSE_PASS_THROUGH = "pass_through"
+CAUSE_AUTHORITY = "authority"
+
+# The intake route's path prefix (RFC 0045 §5.2). One segment, reserved: a
+# provider named this would collide, which is why it carries a leading
+# underscore no provider name does.
+CHANNEL_PREFIX = "/_torve"
+CHANNEL_RECORDS = f"{CHANNEL_PREFIX}/records"
+CHANNEL_NOTES = f"{CHANNEL_PREFIX}/notes"
 
 # What the remote-mode refusal says on the wire: the rule, in the sandbox's
 # own terms — no corpus coordinates in strings read outside this repository.
@@ -214,8 +223,14 @@ class _BrokerState:
         pass_through: tuple[str, ...],
         remote: bool = False,
         sink: BurnSink | None = None,
+        channel: RunChannel | None = None,
     ) -> None:
         self.sink = sink
+        # RFC 0045 §5.2: the run's route into the record. None means the run
+        # has no channel and the intake path 404s like any unrouted path —
+        # the sandbox then writes its worktree file, which is v1's behaviour
+        # and stays correct (D-45.6).
+        self.channel = channel
         self.routes = {route.provider: route for route in routing.routes}
         self.budget = budget
         self.token = secrets.token_urlsafe(32)
@@ -594,6 +609,54 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
 
         # ....................... #
 
+        def _serve_channel(self, path: str) -> None:
+            """The run's route into the record (RFC 0045 §5.2).
+
+            The request carries content and nothing else. Who is writing,
+            which partition, and which task are the channel's own — it was
+            built for this run — so a caller cannot state them and therefore
+            cannot forge them (D-45.2). The authority table is checked here,
+            at the boundary the untrusted side reaches, before anything is
+            appended (D-45.5).
+            """
+
+            if state.channel is None:
+                self._refuse(CAUSE_ROUTING, 404, "", message="this run has no channel")
+                return
+
+            if path == CHANNEL_NOTES and self.command == "GET":
+                self._reply(200, json.dumps({"notes": state.channel.notes()}).encode("utf-8"))
+                return
+
+            if path != CHANNEL_RECORDS or self.command != "POST":
+                self._refuse(CAUSE_ROUTING, 404, "", destination=path)
+                return
+
+            length = int(self.headers.get("Content-Length") or 0)
+
+            try:
+                sent = json.loads(self.rfile.read(length) or b"{}")
+                kind = str(sent["kind"])
+                payload = dict(sent["payload"])
+
+            except (ValueError, KeyError, TypeError):
+                self._refuse(CAUSE_ROUTING, 400, "", message="expected {kind, payload} as JSON")
+                return
+
+            try:
+                state.channel.record(kind, payload)
+
+            except Exception as exc:
+                # A kind an agent may not write, or a payload its kind
+                # rejects: refused before anything is appended, and the
+                # refusal is counted like any other.
+                self._refuse(CAUSE_AUTHORITY, 403, "", message=str(exc)[:300])
+                return
+
+            self._reply(201, b'{"recorded": true}')
+
+        # ....................... #
+
         def _serve(self) -> None:
             # Sealed mode's forward-proxy forms: a CONNECT authority or an
             # absolute-URI request line. The pass-through leg authenticates
@@ -613,6 +676,11 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
                 return
 
             parsed = urlsplit(self.path)
+
+            if parsed.path.startswith(CHANNEL_PREFIX):
+                self._serve_channel(parsed.path)
+                return
+
             segments = parsed.path.strip("/").split("/", 1)
             provider = segments[0] if segments and segments[0] else ""
             route = state.routes.get(provider)
@@ -776,6 +844,7 @@ class LocalBroker:
         routing: BrokerRouting,
         budget: BrokerBudget,
         sink: BurnSink | None = None,
+        channel: RunChannel | None = None,
     ) -> BrokerHandle:
         missing = [
             route.key_env for route in routing.routes if os.environ.get(route.key_env) is None
@@ -823,6 +892,7 @@ class LocalBroker:
             pass_through=tuple(self._config.pass_through),
             remote=bool(advertised),
             sink=sink,
+            channel=channel,
         )
         server = ThreadingHTTPServer((host, port), _handler_for(state))
         thread = threading.Thread(
@@ -833,7 +903,11 @@ class LocalBroker:
         bound_port = server.server_address[1]
         route_base = advertised or f"http://{host}:{bound_port}"
         base_urls = {provider: f"{route_base}/{provider}" for provider in state.routes}
-        handle = BrokerHandle(token=state.token, base_urls=base_urls)
+        handle = BrokerHandle(
+            token=state.token,
+            base_urls=base_urls,
+            channel_url=f"{route_base}{CHANNEL_PREFIX}" if channel is not None else "",
+        )
         self._live[state.token] = (server, state)
 
         return handle

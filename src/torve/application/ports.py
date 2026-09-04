@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
     from forze.application.contracts.durable.function import DurableRunStorePort
@@ -259,6 +259,11 @@ class BrokerHandle:
 
     token: str
     base_urls: dict[str, str] = field(default_factory=dict)
+    # The intake route's base URL (RFC 0045 §5.2), empty when the run has no
+    # channel. The same server and the same token: what separates this from
+    # a provider route is the path, and what separates it from a store
+    # credential is that the sandbox can only ask, never write directly.
+    channel_url: str = ""
 
     def url_for(self, provider: str) -> str | None:
         return self.base_urls.get(provider)
@@ -308,6 +313,68 @@ BurnSink = Callable[[BurnEvent], None]
 # ....................... #
 
 
+@dataclass(frozen=True)
+class AttemptFact:
+    """One thing that became true inside a run, carried out at the moment it
+    did (RFC 0044 D-44.3).
+
+    The runner loops attempts internally: one dispatch can be three attempts
+    under three tiers with three gate verdicts. Summarising that afterwards
+    loses the only question worth asking of a poison ceiling — what changed
+    between the tries — so each attempt reports itself as it happens. The
+    runner knows nothing about who is listening; `kind` names the fact and
+    `payload` carries the fact's own fields.
+    """
+
+    kind: Literal["attempt_started", "attempt_finished", "gates_evaluated"]
+    attempt: int
+    payload: dict[str, Any]
+
+
+# Same contract as the burn sink above: called on the runner's thread, must
+# not raise, must not block.
+AttemptSink = Callable[[AttemptFact], None]
+
+
+# ....................... #
+
+# Called host-side between an attempt and the gate pass that judges it: it
+# records whatever the attempt wrote into the system of record and rewrites
+# the worktree's log from what the record then holds (RFC 0044 A-82). Unlike
+# the sinks above this one may raise and may block — the gate is fail-closed,
+# and a battery that cannot verify what it is judging must not run.
+JournalSync = Callable[[Path], None]
+
+
+# ....................... #
+
+
+class RunChannel(Protocol):
+    """The run's own route into the system of record (RFC 0045 §5.2).
+
+    Built host-side for one run and handed to the broker, which is why
+    identity cannot be forged: the channel already knows whose run it is, so
+    a request never states its actor, partition or subject and could not be
+    believed if it did (D-45.2). The broker calls this on behalf of a
+    sandbox that holds no store credential of its own (D-45.1).
+    """
+
+    def record(self, kind: str, payload: dict[str, Any]) -> None:
+        """Append one record the agent is authorized to write. Raises for a
+        kind outside that set, or a payload its kind rejects."""
+
+        ...
+
+    def notes(self) -> list[dict[str, Any]]:
+        """The notes addressed to this run, oldest first (D-45.7). A poll —
+        nothing here interrupts an agent."""
+
+        ...
+
+
+# ....................... #
+
+
 class Broker(Protocol):
     """The egress broker port (RFC 0021 §5.1): holds every provider
     credential the run needs, exposes one loopback route per routed
@@ -328,6 +395,7 @@ class Broker(Protocol):
         routing: BrokerRouting,
         budget: BrokerBudget,
         sink: BurnSink | None = None,
+        channel: RunChannel | None = None,
     ) -> BrokerHandle: ...
 
     def usage(self, handle: BrokerHandle) -> BrokerUsage:

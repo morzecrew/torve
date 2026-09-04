@@ -82,7 +82,14 @@ just pg-up                       # postgres on 127.0.0.1:15433, its own volume
 just migrate                     # apply every target's pending steps
 torve manager board <repo>       # what a partition's recorded facts add up to
 torve manager serve <repo>       # mint, claim, execute, record — until stopped
+torve manager note <repo> T-1 "the flake in test_x is known"   # say it mid-run
 ```
+
+The board shows what each task has burned and how long since it last spent
+anything: liveness is read from the wire the broker already meters, never
+reported by the agent. A note is a recorded fact the agent polls for with
+`torve log notes` — nothing interrupts an attempt, and what the engine tried
+to say is auditable whether or not it was read.
 
 `TORVE_PG_DSN` names the database; `TORVE_PG_PASSWORD` is what compose
 starts it with. Neither value belongs in a committed file. `store.adapter:

@@ -16,6 +16,7 @@ ships (RFC 0003 §6).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
@@ -41,12 +42,16 @@ from torve.application.ports import (
     Agent,
     AgentContext,
     AgentResult,
+    AttemptFact,
+    AttemptSink,
     Broker,
     BrokerBudget,
     BrokerHandle,
     BrokerRoute,
     BrokerRouting,
     BurnSink,
+    JournalSync,
+    RunChannel,
     Runtime,
     SandboxHandle,
     SandboxSpec,
@@ -127,6 +132,19 @@ class RunDeps:
     # — record it, count it, drop it — is the caller's, and None is the
     # unobserved run every test and simulation already assumes.
     sink: BurnSink | None = None
+    # RFC 0044 D-44.3: where each attempt's own facts go, as they become
+    # true. A dispatch is up to `poison_ceiling` attempts, and the summary
+    # of one is not the record of three.
+    facts: AttemptSink | None = None
+    # RFC 0044 A-82: brings the store and the worktree's divergence log into
+    # agreement before the gates read it, so the battery judges the record
+    # rather than whatever the sandbox left behind. None keeps v1's
+    # behaviour — the file the agent's intake wrote is the only carrier.
+    journal: JournalSync | None = None
+    # RFC 0045 §5.2: the run's route into the record, handed to the broker
+    # at open. The sandbox reaches the record through the broker or not at
+    # all — it never holds a store credential (D-45.1).
+    channel: RunChannel | None = None
 
 
 # ....................... #
@@ -178,6 +196,25 @@ def _continuable(escalation: Escalation) -> bool:
     return escalation.reason == str(
         EscalationReason.BUDGET_EXHAUSTED
     ) and escalation.detail.startswith(_WALLCLOCK_MARKER)
+
+
+# ....................... #
+
+
+def _emit(sink: AttemptSink | None, kind: str, attempt: int, **payload: object) -> None:
+    """Hand one attempt fact to whoever is observing this run.
+
+    Failures are swallowed on purpose, the same rule the burn sink follows:
+    an observer that can break a run is not an observer. There is no
+    ordering guarantee to protect either — each fact is emitted where it
+    becomes true, so the sequence is the run's own.
+    """
+
+    if sink is None:
+        return
+
+    with contextlib.suppress(Exception):
+        sink(AttemptFact(kind=kind, attempt=attempt, payload=dict(payload)))  # type: ignore[arg-type]
 
 
 # ....................... #
@@ -1197,6 +1234,18 @@ def real_hooks(
             image_digest=current["image_digest"],
         )
 
+        # The attempt's identity is settled here and nowhere earlier: the
+        # tier a conviction routed to (D-27.11) is resolved above, so this
+        # is the first moment the record would be true.
+        _emit(
+            deps.facts,
+            "attempt_started",
+            state.attempts,
+            tier=resolved_name,
+            agent=run_kind,
+            image_digest=current["image_digest"],
+        )
+
         # The runner composes the sandbox's context: the role's skill set is
         # written from package data at dispatch (A-3) — the agent does not
         # "have skills installed", and nothing is checked into the repository.
@@ -1351,6 +1400,16 @@ def real_hooks(
                     timed_out=result.timed_out,
                 )
 
+            _emit(
+                deps.facts,
+                "attempt_finished",
+                state.attempts,
+                exit_code=result.exit_code,
+                timed_out=result.timed_out,
+                wall_time_s=agent_meta.get("wall_time_s"),
+                cost_usd=result.cost_usd,
+            )
+
             return result
 
         finally:
@@ -1389,6 +1448,13 @@ def real_hooks(
     last_pass: dict[str, Any] = {"results": [], "patch": "", "digest": ""}
 
     async def gates(state: RunState) -> tuple[int, str, str]:
+        # Deliberately not guarded: a sync that fails leaves the battery
+        # judging a log nobody vouched for, and the gates are fail-closed.
+        # The raise lands as GATE_INFRASTRUCTURE_FAILURE, which is what this
+        # is.
+        if deps.journal is not None:
+            await asyncio.to_thread(deps.journal, worktree)
+
         try:
             exit_code, summary, digest, results, patch = await asyncio.to_thread(
                 _run_gates_in_worktree,
@@ -1424,6 +1490,15 @@ def real_hooks(
 
         last_convictions["results"] = list(results)
         last_pass.update(results=results, patch=patch, digest=digest)
+
+        _emit(
+            deps.facts,
+            "gates_evaluated",
+            state.attempts,
+            exit_code=exit_code,
+            outcomes={one.name: str(one.outcome) for one in results},
+            digest=digest,
+        )
 
         return exit_code, summary, digest
 
@@ -1607,7 +1682,11 @@ def real_hooks(
     if broker is not None:
         routing = run_routing(config, task, review_on, include_retry=deps.retry_agent is not None)
         broker_handle = broker.open(
-            task.id, routing, BrokerBudget(tokens=task.budget.tokens), sink=deps.sink
+            task.id,
+            routing,
+            BrokerBudget(tokens=task.budget.tokens),
+            sink=deps.sink,
+            channel=deps.channel,
         )
 
     def close() -> None:

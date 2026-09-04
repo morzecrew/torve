@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from asyncio import run_coroutine_threadsafe
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -36,7 +37,10 @@ from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.gates.decisions_reported import check_entry, check_pin
 
 if TYPE_CHECKING:
+    from asyncio import AbstractEventLoop
+
     from torve.application.eventlog import EventLog
+    from torve.application.ports import JournalSync
     from torve.domain.events import EventRecord
 
 # ----------------------- #
@@ -225,9 +229,8 @@ def stage(root: Path, path: Path) -> bool:
 # ....................... #
 
 
-def record(
+def compose(
     root: Path,
-    task_id: str,
     *,
     decision: str,
     grade: str,
@@ -239,11 +242,11 @@ def record(
     klass: str = "",
     proposal: str = "",
     notes: str = "",
-) -> tuple[Path, dict[str, Any], bool]:
-    """Check, append, serialize, stage — one call, because a write the
-    caller must remember to stage is the failure this verb exists to
-    remove. Refuses before it writes anything: a rejected entry leaves the
-    log exactly as it was."""
+) -> dict[str, Any]:
+    """One entry, checked. Refuses before anything is written or sent: the
+    checks are the gate's own, so a refusal here is the conviction the
+    battery would have produced, delivered while the agent can still act on
+    it."""
 
     entry: dict[str, Any] = {
         "decision": decision,
@@ -263,6 +266,40 @@ def record(
 
     if problems:
         raise IntakeRefused(problems)
+
+    return entry
+
+
+# ....................... #
+
+
+def payload_of(entry: dict[str, Any]) -> dict[str, Any]:
+    """The entry as the `divergence.recorded` payload — the shape the store
+    holds, and what the channel posts. The record carries no timestamp of
+    its own: the store stamps when it accepted the entry, which is the only
+    clock anybody can check."""
+
+    return {
+        "attempt": int(entry["attempt"]),
+        "decision_id": str(entry["decision"]),
+        "grade": str(entry["grade"]),
+        "entry_kind": str(entry.get("kind") or "resolved"),
+        "entry_class": str(entry.get("class") or "discovery"),
+        "claim": str(entry["claim"]),
+        "evidence": str(entry["evidence"]),
+        "action": str(entry["action"]),
+        "proposal": str(entry.get("proposal") or ""),
+        "notes": str(entry.get("notes") or ""),
+    }
+
+
+# ....................... #
+
+
+def append(root: Path, task_id: str, entry: dict[str, Any]) -> tuple[Path, dict[str, Any], bool]:
+    """Serialize the entry into the worktree's log and stage it — because a
+    write the caller must remember to stage is the failure this verb exists
+    to remove."""
 
     document = open_log(root, task_id)
 
@@ -296,6 +333,47 @@ def record(
 # ....................... #
 
 
+def record(
+    root: Path,
+    task_id: str,
+    *,
+    decision: str,
+    grade: str,
+    claim: str,
+    evidence: str,
+    action: str,
+    attempt: int,
+    kind: str = "",
+    klass: str = "",
+    proposal: str = "",
+    notes: str = "",
+) -> tuple[Path, dict[str, Any], bool]:
+    """Check, append, serialize, stage — the file path, for a run with no
+    channel to post through (D-45.6). A rejected entry leaves the log
+    exactly as it was."""
+
+    return append(
+        root,
+        task_id,
+        compose(
+            root,
+            decision=decision,
+            grade=grade,
+            claim=claim,
+            evidence=evidence,
+            action=action,
+            attempt=attempt,
+            kind=kind,
+            klass=klass,
+            proposal=proposal,
+            notes=notes,
+        ),
+    )
+
+
+# ....................... #
+
+
 async def ingest(
     log: EventLog,
     root: Path,
@@ -304,6 +382,7 @@ async def ingest(
     partition: str,
     actor_id: str,
     correlation_id: str | None = None,
+    after: int = 0,
 ) -> list[EventRecord]:
     """Record the worktree's entries into the system of record — the
     worker's half of the intake, run where the store is reachable.
@@ -311,25 +390,16 @@ async def ingest(
     Entries already in the log are recorded as they stand: they passed the
     same checks on the way in, and re-validating a landed fact would only
     let a later schema refuse history it cannot change.
+
+    `after` is how many of this log's entries are already recorded. A run
+    ingests between attempts, and the file is cumulative, so without it
+    attempt three would record attempt one's entries for the third time.
     """
 
     document = open_log(root, task_id)
     recorded: list[EventRecord] = []
 
-    for entry in document["entries"]:
-        payload = {
-            "attempt": int(entry["attempt"]),
-            "decision_id": str(entry["decision"]),
-            "grade": str(entry["grade"]),
-            "entry_kind": str(entry.get("kind") or "resolved"),
-            "entry_class": str(entry.get("class") or "discovery"),
-            "claim": str(entry["claim"]),
-            "evidence": str(entry["evidence"]),
-            "action": str(entry["action"]),
-            "proposal": str(entry.get("proposal") or ""),
-            "notes": str(entry.get("notes") or ""),
-        }
-
+    for entry in document["entries"][after:]:
         recorded.append(
             await log.record(
                 EventKind.DIVERGENCE_RECORDED,
@@ -338,9 +408,155 @@ async def ingest(
                 subject_id=task_id,
                 actor_kind=ActorKind.AGENT,
                 actor_id=actor_id,
-                payload=payload,
+                payload=payload_of(entry),
                 correlation_id=correlation_id,
             )
         )
 
     return recorded
+
+
+# ....................... #
+
+
+def _entry_of(event: EventRecord) -> dict[str, Any]:
+    """One recorded divergence as the log format writes it. The event's own
+    clock supplies `at`: the record's time is when the engine accepted it,
+    which is the only timestamp anybody can check."""
+
+    payload = event.payload
+    entry: dict[str, Any] = {
+        "decision": str(payload.get("decision_id") or ""),
+        "grade": str(payload.get("grade") or ""),
+        "at": event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "attempt": int(payload.get("attempt") or 1),
+        "claim": str(payload.get("claim") or ""),
+        "evidence": str(payload.get("evidence") or ""),
+        "action": str(payload.get("action") or ""),
+    }
+
+    for key, source in (("kind", "entry_kind"), ("class", "entry_class")):
+        if value := str(payload.get(source) or ""):
+            entry[key] = value
+
+    for key in ("proposal", "notes"):
+        if value := str(payload.get(key) or ""):
+            entry[key] = value
+
+    return entry
+
+
+# ....................... #
+
+
+async def recorded_entries(
+    log: EventLog, task_id: str, *, partition: str | None = None
+) -> list[EventRecord]:
+    """Every divergence the record holds for this task, oldest first."""
+
+    return [
+        event
+        for event in await log.history(task_id, partition=partition)
+        if event.kind is EventKind.DIVERGENCE_RECORDED
+    ]
+
+
+# ....................... #
+
+
+async def project(log: EventLog, root: Path, task_id: str, *, partition: str | None = None) -> int:
+    """Rewrite the worktree's log from what the store holds (RFC 0044
+    D-44.10, A-82).
+
+    The gate runs inside a sandbox and cannot reach the store, so the store
+    is made authoritative the only way it can be: the engine writes the file
+    the gate reads, from the record, before the gate reads it. An entry the
+    store refused is an entry the gate never sees, and one the store holds
+    appears whether or not the worktree's copy survived.
+
+    A task with nothing recorded leaves no file — a missing log is an empty
+    log (A-13, D-3.21), and writing an empty one would turn that into a
+    claim nobody made.
+    """
+
+    recorded = await recorded_entries(log, task_id, partition=partition)
+
+    if not recorded:
+        return 0
+
+    document = open_log(root, task_id)
+
+    # The pin is the worktree's, not the record's: whatever the file carried
+    # is kept, and anything missing is derived here rather than left for the
+    # gate to convict — the same repair the intake performs on write.
+    for key, value in _pin(root).items():
+        if not str(document.get(key) or "").strip():
+            document[key] = value
+
+    document["entries"] = [_entry_of(event) for event in recorded]
+    document["drift_count"] = sum(
+        1 for one in document["entries"] if str(one.get("class") or "") == "drift"
+    )
+
+    path = layout.log_file(root, task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render(document))
+    stage(root, path)
+
+    return len(recorded)
+
+
+# ....................... #
+
+
+def journal_sync(
+    log: EventLog,
+    loop: AbstractEventLoop,
+    *,
+    partition: str,
+    task_id: str,
+    seat: str,
+) -> JournalSync:
+    """The runner's hook between an attempt and its gate pass (A-82).
+
+    Two halves in one call, and the order matters: record what the attempt
+    wrote, then rewrite the file from the record. After it, the log in the
+    worktree is what the store holds and nothing else — an entry the store
+    refused never reaches the battery, and one it accepted survives whatever
+    the sandbox did to the file afterwards.
+
+    The runner is synchronous and lives on another thread, so this blocks on
+    the loop that owns the store rather than starting one of its own. It is
+    allowed to block, and allowed to raise: the gates are fail-closed, and a
+    battery that cannot verify what it judges must not run.
+    """
+
+    ingested = -1
+
+    def sync(worktree: Path) -> None:
+        nonlocal ingested
+
+        async def once() -> None:
+            nonlocal ingested
+
+            if ingested < 0:
+                # What the record already holds for this task. A re-dispatch
+                # cuts a fresh worktree from base, and base may carry a log
+                # landed by an earlier dispatch — starting the offset at zero
+                # would record every one of those entries a second time.
+                ingested = len(await recorded_entries(log, task_id, partition=partition))
+
+            fresh = await ingest(
+                log,
+                worktree,
+                task_id,
+                partition=partition,
+                actor_id=seat,
+                after=ingested,
+            )
+            ingested += len(fresh)
+            await project(log, worktree, task_id, partition=partition)
+
+        run_coroutine_threadsafe(once(), loop).result()
+
+    return sync

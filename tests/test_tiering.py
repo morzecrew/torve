@@ -350,6 +350,9 @@ def test_prompt_sends_divergences_through_the_intake():
     assert "torve log divergence T-1" in prompt
     assert "never edit `.torve/tasks/T-1/log.yaml` by hand" in prompt
     assert "base_sha" not in prompt
+    # And the other direction of the channel: a note is a poll the agent
+    # runs, never a prompt the engine rewrote underneath it (D-45.7).
+    assert "torve log notes" in prompt
 
 
 def test_prompt_extras_are_absent_by_default():

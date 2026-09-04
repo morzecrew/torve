@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
 from torve.application.ports import AgentContext, AgentResult
 from torve.base import naming
@@ -145,6 +146,12 @@ def build_prompt(
             f" pins the log; never edit `.torve/tasks/{task.id}/log.yaml` by"
             f" hand. A malformed entry is refused on the spot, with what to"
             f" repair — fix it and run the command again."
+        ),
+        (
+            "- `torve log notes` prints anything the engine has to say about"
+            " this run — a known flake, a constraint that arrived after you"
+            " started. It is a poll: nothing interrupts you, so read it when"
+            " you are stuck or about to commit. No notes is the normal case."
         ),
         (
             "- User-facing strings — help text, docstrings typer renders, printed"
@@ -602,6 +609,15 @@ class HarnessAgent:
         # host tree the sandbox cannot follow. The intake reads it back, so
         # the agent is never asked to copy a commit it cannot verify.
         seed_log(ctx.workspace, ctx.task.id, base_sha=_workspace_head(ctx.workspace))
+        # The run's channel, for the same reason and by the same route (RFC
+        # 0045 §5.2): nothing inside the sandbox can discover the broker's
+        # intake, so the engine names it here. No channel writes no file,
+        # and the intake verb then writes the worktree log as it always did.
+        seed_channel(
+            ctx.workspace,
+            ctx.broker.channel_url if ctx.broker is not None else "",
+            ctx.broker.token if ctx.broker is not None else "",
+        )
         prompt = (
             ctx.prompt
             if ctx.prompt is not None

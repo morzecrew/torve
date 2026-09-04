@@ -41,7 +41,7 @@ from forze.application.contracts.document import (
     DocumentSpec,
 )
 
-from torve.application.ports import BurnEvent, BurnSink
+from torve.application.ports import AttemptFact, AttemptSink, BurnEvent, BurnSink, RunChannel
 from torve.domain.events import (
     ActorKind,
     CreateEventCmd,
@@ -251,3 +251,120 @@ def burn_sink(
         )
 
     return sink
+
+
+# ....................... #
+
+# The runner's fact names, as the log's kinds. Written out rather than
+# derived from the string, because a vocabulary that maps itself is a
+# vocabulary nobody notices going wrong.
+ATTEMPT_KINDS: Mapping[str, EventKind] = {
+    "attempt_started": EventKind.ATTEMPT_STARTED,
+    "attempt_finished": EventKind.ATTEMPT_FINISHED,
+    "gates_evaluated": EventKind.GATES_EVALUATED,
+}
+
+
+# ....................... #
+
+
+def attempt_sink(
+    log: EventLog,
+    loop: AbstractEventLoop,
+    *,
+    partition: str,
+    task_id: str,
+    seat: str,
+    correlation_id: str | None = None,
+) -> AttemptSink:
+    """Record each attempt as the runner reports it (RFC 0044 D-44.3).
+
+    One dispatch is up to `poison_ceiling` attempts, each possibly under a
+    different tier, each with its own gate verdict. The worker cannot know
+    any of that — it hands the runner a task and gets one outcome back — so
+    the facts come from where they happen, and the worker records only the
+    lifecycle around them.
+
+    The runner is synchronous and runs in a thread, so the append is handed
+    to the loop rather than awaited, and the result is deliberately not
+    collected: losing an observation is better than losing the run to an
+    observer.
+    """
+
+    def sink(fact: AttemptFact) -> None:
+        kind = ATTEMPT_KINDS[fact.kind]
+
+        run_coroutine_threadsafe(
+            log.record(
+                kind,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.WORKER,
+                actor_id=seat,
+                payload={"attempt": fact.attempt, **fact.payload},
+                correlation_id=correlation_id,
+            ),
+            loop,
+        )
+
+    return sink
+
+
+# ....................... #
+
+
+@attrs.define(slots=True, kw_only=True, frozen=True)
+class RunLogChannel(RunChannel):
+    """One run's route into the record, host-side (RFC 0045 §5.2).
+
+    The broker hands untrusted content to this object and nothing else. Who
+    is writing, which partition and which task are fields of the channel,
+    fixed when it was built for the run, so an agent's request cannot state
+    them — forging is unexpressible rather than refused (D-45.2). Authority
+    is the log's own check, over an actor this object supplies.
+
+    The broker calls from its request thread, so each call blocks on the
+    loop that owns the store. That is the right trade here and the opposite
+    of the burn sink's: a record the sandbox believes it wrote must actually
+    be written, and the caller is one HTTP request, not the run's egress.
+    """
+
+    log: EventLog
+    loop: AbstractEventLoop
+    partition: str
+    task_id: str
+    seat: str
+    timeout_s: float = 30.0
+
+    # ....................... #
+
+    def record(self, kind: str, payload: dict[str, Any]) -> None:
+        event_kind = EventKind(kind)
+
+        run_coroutine_threadsafe(
+            self.log.record(
+                event_kind,
+                partition=self.partition,
+                subject_type=SubjectType.TASK,
+                subject_id=self.task_id,
+                actor_kind=ActorKind.AGENT,
+                actor_id=self.seat,
+                payload=payload,
+            ),
+            self.loop,
+        ).result(self.timeout_s)
+
+    # ....................... #
+
+    def notes(self) -> list[dict[str, Any]]:
+        events = run_coroutine_threadsafe(
+            self.log.history(self.task_id, partition=self.partition),
+            self.loop,
+        ).result(self.timeout_s)
+
+        return [
+            {"at": event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"), **event.payload}
+            for event in events
+            if event.kind is EventKind.MESSAGE_SENT
+        ]

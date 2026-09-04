@@ -15,6 +15,7 @@ from torve.application.ports import (
     BrokerRouting,
     BrokerUsage,
     BurnSink,
+    RunChannel,
 )
 
 # ....................... #
@@ -37,9 +38,12 @@ class NoneBroker:
         routing: BrokerRouting,
         budget: BrokerBudget,
         sink: BurnSink | None = None,
+        channel: RunChannel | None = None,
     ) -> BrokerHandle:
         # No wire, no metering, so nothing to emit: a run opting out of the
-        # broker opts out of the burn stream with it (D-21.9).
+        # broker opts out of the burn stream with it (D-21.9) — and of the
+        # channel, since the channel is a route on the wire that is not
+        # there. The intake writes the worktree log instead (D-45.6).
         return BrokerHandle(token="", base_urls={})
 
     # ....................... #

@@ -15,38 +15,32 @@ import subprocess
 
 import pytest
 import yaml
-from conftest import context_for
+from conftest import HOSTILE, context_for
 from forze.application.execution import DepsRegistry, ExecutionRuntime
 from typer.testing import CliRunner
 
 from torve.adapters.eventstore.document import mock_module
-from torve.application.divergence import IntakeRefused, ingest, open_log, record, seed, stage
+from torve.application.divergence import (
+    IntakeRefused,
+    ingest,
+    journal_sync,
+    open_log,
+    project,
+    record,
+    seed,
+    stage,
+)
 from torve.application.eventlog import event_log
 from torve.cli.main import app
 from torve.config import layout
 from torve.config.manifest import Gate
-from torve.domain.events import EventKind
+from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 from torve.gates.decisions_reported import check_decisions_reported, check_entry
 from torve.gates.sabotage import LOCKED_D1, TASK_ID, base_task
 
 GATE = Gate(name="test", run="@decisions-reported", state="blocking", origin="structural")
-
-# The scalar that ended three attempts of T-0245: backticked `key: value`
-# text, which a hand-written log carries unquoted and YAML then reads as a
-# nested mapping — or refuses outright.
-HOSTILE = "src/app.py:1 — the call is `timeout: 600` here, and the overlay names it too"
-
-
-@pytest.fixture()
-def worktree(repo):
-    repo.seed()
-    repo.git("remote", "add", "origin", "git@github.com:morzecrew/torve.git")
-    repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), None)
-    repo.write("src/app.py", "print('changed')\n")
-    repo.commit("the work")
-
-    return repo
+PARTITION = "morzecrew/torve"
 
 
 def one_entry(worktree, **overrides):
@@ -262,6 +256,9 @@ def test_the_verb_reports_what_it_wrote(worktree):
     assert result.exit_code == EXIT_OK
     assert reported == {
         "accepted": True,
+        # No broker in this worktree, so no channel: the file is the carrier
+        # and the report says which one (D-45.6).
+        "channel": False,
         "log": f".torve/tasks/{TASK_ID}/log.yaml",
         "entries": 1,
         "staged": True,
@@ -309,3 +306,203 @@ def test_the_dropped_pin_serves_a_worktree_git_cannot_read(tmp_path):
     assert document["repo"] == "morzecrew/torve"
     assert document["base_sha"] == "a" * 40
     assert staged is False
+
+
+# ....................... #
+
+# The store as the carrier the gate actually reads (A-82): the engine
+# records what the attempt wrote, then writes the file back from the record.
+
+
+def test_a_second_ingest_records_only_what_is_new(worktree):
+    one_entry(worktree)
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            first = await ingest(
+                log, worktree.root, TASK_ID, partition=PARTITION, actor_id="agent-1"
+            )
+
+            one_entry(worktree, claim="the second attempt found something else")
+
+            # The log file is cumulative and a run ingests between attempts,
+            # so without the offset attempt two records attempt one again.
+            second = await ingest(
+                log,
+                worktree.root,
+                TASK_ID,
+                partition=PARTITION,
+                actor_id="agent-1",
+                after=len(first),
+            )
+
+            assert len(first) == 1
+            assert len(second) == 1
+            assert len(await log.history(TASK_ID)) == 2
+
+    asyncio.run(scenario())
+
+
+def test_the_projection_rewrites_the_log_from_the_record(worktree):
+    one_entry(worktree)
+    path = layout.log_file(worktree.root, TASK_ID)
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            await ingest(log, worktree.root, TASK_ID, partition=PARTITION, actor_id="agent-1")
+
+            # Whatever the sandbox left behind is not what the gate reads.
+            path.write_text("entries: []\n", encoding="utf-8")
+
+            assert await project(log, worktree.root, TASK_ID, partition=PARTITION) == 1
+
+            document = yaml.safe_load(path.read_text())
+
+            assert len(document["entries"]) == 1
+            assert document["entries"][0]["evidence"] == HOSTILE
+            assert document["entries"][0]["decision"] == "D-1"
+            # The pin survives, and the count stays derived.
+            assert document["base_sha"]
+            assert document["drift_count"] == 0
+            # And it is staged, because a log outside the diff is a log the
+            # gate cannot see.
+            staged = await asyncio.to_thread(
+                subprocess.run,
+                ["git", "-C", str(worktree.root), "diff", "--cached", "--name-only"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert "log.yaml" in staged.stdout
+
+    asyncio.run(scenario())
+
+
+def test_a_task_with_nothing_recorded_gets_no_log(worktree):
+    path = layout.log_file(worktree.root, TASK_ID)
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+
+            assert await project(log, worktree.root, TASK_ID, partition=PARTITION) == 0
+            # A missing log is an empty log (A-13, D-3.21): writing an empty
+            # one turns "nothing to report" into a claim somebody made.
+            assert not path.exists()
+
+    asyncio.run(scenario())
+
+
+def test_the_journal_sync_runs_from_the_runner_thread(worktree):
+    one_entry(worktree)
+    path = layout.log_file(worktree.root, TASK_ID)
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            sync = journal_sync(
+                log,
+                asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=TASK_ID,
+                seat="worker-1",
+            )
+
+            # The runner is synchronous and lives on another thread; the
+            # store's loop is this one.
+            await asyncio.to_thread(sync, worktree.root)
+
+            assert len(await log.history(TASK_ID)) == 1
+
+            # Idempotent across attempts: the same worktree synced twice
+            # records once, because the file is cumulative and the offset
+            # is not.
+            path.write_text(path.read_text(), encoding="utf-8")
+            await asyncio.to_thread(sync, worktree.root)
+
+            assert len(await log.history(TASK_ID)) == 1
+
+    asyncio.run(scenario())
+
+
+def test_the_gate_judges_what_the_record_holds(worktree):
+    """The point of the projection (A-82): the sandbox cannot reach the
+    store, so the store is made authoritative by the engine writing the file
+    the battery reads — from the record, before it reads it."""
+
+    path = layout.log_file(worktree.root, TASK_ID)
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            await log.record(
+                EventKind.DIVERGENCE_RECORDED,
+                partition=PARTITION,
+                subject_type=SubjectType.TASK,
+                subject_id=TASK_ID,
+                actor_kind=ActorKind.AGENT,
+                actor_id="agent-1",
+                payload={
+                    "attempt": 1,
+                    "decision_id": "D-1",
+                    "grade": "LOCKED",
+                    "entry_kind": "resolved",
+                    "entry_class": "spec-gap",
+                    "claim": "the locked area was touched and this says why",
+                    "evidence": HOSTILE,
+                    "action": "decided",
+                },
+            )
+
+            # Nothing in the worktree at all: the record is the only carrier.
+            assert not path.exists()
+            await project(log, worktree.root, TASK_ID, partition=PARTITION)
+
+    asyncio.run(scenario())
+    worktree.commit("the projected log")
+    result = check_decisions_reported(GATE, context_for(worktree))
+
+    assert result.outcome == "pass", result.output
+
+
+def test_a_redispatch_does_not_record_a_landed_log_twice(worktree):
+    """The worktree a re-dispatch cuts may already carry a log an earlier
+    dispatch landed. The offset starts from what the record holds, not from
+    zero, or every one of those entries is recorded a second time."""
+
+    one_entry(worktree)
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+
+            # The first dispatch recorded it and landed.
+            await ingest(log, worktree.root, TASK_ID, partition=PARTITION, actor_id="agent-1")
+
+            # A second dispatch, a fresh sync, the same file on disk.
+            sync = journal_sync(
+                log,
+                asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=TASK_ID,
+                seat="worker-1",
+            )
+            await asyncio.to_thread(sync, worktree.root)
+
+            assert len(await log.history(TASK_ID)) == 1
+
+    asyncio.run(scenario())

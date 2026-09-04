@@ -241,12 +241,12 @@ def test_the_pass_records_the_facts_in_the_order_they_became_true(tmp_path):
     async def scenario(log):
         await once(log, worker_over(log, []), tmp_path, PARTITION)
 
+        # The pass's own facts. What happened inside the run is the run's to
+        # report (D-44.3) and this execute is a stub, so nothing between the
+        # claim and the landing is invented here.
         assert [event.kind for event in await log.history("T-0001")] == [
             EventKind.TASK_MINTED,
             EventKind.TASK_CLAIMED,
-            EventKind.ATTEMPT_STARTED,
-            EventKind.ATTEMPT_FINISHED,
-            EventKind.GATES_EVALUATED,
             EventKind.LANDING_RECORDED,
         ]
 
@@ -263,10 +263,13 @@ def test_the_pass_records_the_facts_in_the_order_they_became_true(tmp_path):
 
 @dataclass
 class StubDeps:
-    """The one field this seam touches. The real bundle is the CLI's to
-    build; what `runner_execute` does to it is replace exactly this."""
+    """The four fields this seam touches. The real bundle is the CLI's to
+    build; what `runner_execute` does to it is replace exactly these."""
 
     sink: object = None
+    facts: object = None
+    journal: object = None
+    channel: object = None
 
 
 def prepared(deps):
@@ -315,9 +318,20 @@ def test_the_attempt_burns_into_the_log_and_its_divergences_land_after(tmp_path,
     )
 
     def fake_run_task(root, task, config, deps):
+        from torve.application.ports import AttemptFact
+
         # The broker meters on the request thread, which is this one: the
         # sink must cross back to the loop without the run waiting on it.
         deps.sink(BurnEvent(provider="anthropic", tokens=1200, cost_usd=0.03))
+        # And the run reports its own attempts, which is the only place the
+        # tier that actually ran one is known.
+        deps.facts(
+            AttemptFact(
+                kind="attempt_started",
+                attempt=2,
+                payload={"tier": "executor.heavy", "agent": "claude"},
+            )
+        )
 
         return SimpleNamespace(
             state=TaskState.READY,
@@ -349,9 +363,17 @@ def test_the_attempt_burns_into_the_log_and_its_divergences_land_after(tmp_path,
         # to run the append the sink scheduled.
         await asyncio.sleep(0.05)
 
-        kinds = [event.kind for event in await log.history("T-0001")]
+        recorded = await log.history("T-0001")
+        kinds = [event.kind for event in recorded]
         assert EventKind.SEAT_CONSUMED in kinds
         assert EventKind.DIVERGENCE_RECORDED in kinds
+        assert EventKind.ATTEMPT_STARTED in kinds
+
+        started = next(one for one in recorded if one.kind is EventKind.ATTEMPT_STARTED)
+        # The attempt number and the tier are the run's, not the worker's
+        # guess: a worker that never saw attempt 2 cannot report it.
+        assert started.payload["attempt"] == 2
+        assert started.payload["tier"] == "executor.heavy"
 
     run(scenario)
 

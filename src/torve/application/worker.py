@@ -73,7 +73,6 @@ class Worker:
     log: EventLog
     name: str
     execute: Execute
-    tier: str = "executor"
 
     # ....................... #
 
@@ -108,54 +107,18 @@ class Worker:
     # ....................... #
 
     async def run(self, task: Task, partition: str) -> Outcome:
-        """Execute one attempt and record what it did. Every fact is written
-        as it becomes true, so a worker killed anywhere in here leaves a log
-        that says exactly how far it got."""
+        """Execute the task and hand back what it produced.
 
-        await self.log.record(
-            EventKind.ATTEMPT_STARTED,
-            partition=partition,
-            subject_type=SubjectType.TASK,
-            subject_id=task.id,
-            actor_kind=ActorKind.WORKER,
-            actor_id=self.name,
-            payload={"attempt": 1, "tier": self.tier, "agent": self.name},
-        )
+        Nothing about the attempts is recorded here, deliberately. One
+        dispatch is up to `poison_ceiling` attempts, each possibly under a
+        different tier and each with its own gate verdict, and the worker
+        sees one outcome — so a record written from here would be a summary
+        claiming to be a history. The attempts report themselves from where
+        they happen (`executors.runner_execute`, D-44.3); this method owns
+        the boundary around them and nothing inside it.
+        """
 
-        outcome = await self.execute(task)
-
-        await self.log.record(
-            EventKind.ATTEMPT_FINISHED,
-            partition=partition,
-            subject_type=SubjectType.TASK,
-            subject_id=task.id,
-            actor_kind=ActorKind.WORKER,
-            actor_id=self.name,
-            payload={
-                "attempt": outcome.attempt,
-                "exit_code": outcome.exit_code,
-                "timed_out": outcome.timed_out,
-                "wall_time_s": outcome.wall_time_s,
-                "cost_usd": outcome.cost_usd,
-            },
-        )
-
-        await self.log.record(
-            EventKind.GATES_EVALUATED,
-            partition=partition,
-            subject_type=SubjectType.TASK,
-            subject_id=task.id,
-            actor_kind=ActorKind.WORKER,
-            actor_id=self.name,
-            payload={
-                "attempt": outcome.attempt,
-                "exit_code": outcome.gates_exit_code,
-                "outcomes": outcome.gate_outcomes,
-                "digest": outcome.digest,
-            },
-        )
-
-        return outcome
+        return await self.execute(task)
 
     # ....................... #
 

@@ -6,12 +6,10 @@ depends_on: ["0044"]
 informed_by: ["0021", "0039", "0041"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-83"]
 owner: misery7100
 description: >-
-  A run becomes observable while it runs: the broker meters liveness from the
-  burn it already sees, carries the sandbox's records to the store without
-  ever handing it a credential, and gives the manager a way to speak back.
+  A run becomes observable while it runs: the broker meters liveness from the burn it already sees, carries the sandbox's records to the store without ever handing it a credential, and gives the manager a way to speak back.
 schema_version: 1
 ---
 
@@ -275,7 +273,7 @@ deliberately cannot. The RFC 0044 amendment in §5.4 ships with acceptance.
 | D-45.3 | `ASSUMED` | The broker emits one `seat.consumed` event per metered provider response, and the aggregate it reports at close equals their sum | `src/torve/adapters/broker/local.py` | Burn becomes a rate rather than a total; one event per call is accepted volume |
 | D-45.4 | `LOCKED` | Liveness is derived from the burn stream, never reported by the agent: an attempt with no recent burn is not working, whatever it would say about itself | `src/torve/application/manager.py` | A wedged agent cannot report itself healthy, because it is not asked |
 | D-45.5 | `ASSUMED` | The intake route carries records the agent may write and nothing else; a kind outside the authority table is refused before anything is appended | `src/torve/adapters/broker/local.py` | The authority table is enforced at the boundary the untrusted side reaches, not only at the service behind it |
-| D-45.6 | `ASSUMED` | `torve log divergence` posts through the route when the run has a broker and writes the worktree file when it does not; the landed log is the same projection either way | `src/torve/application/divergence.py`, `src/torve/cli/log.py` | A run without a broker behaves exactly as it does today, so the channel is an addition and never a dependency |
+| D-45.6 | `ASSUMED` | `torve log divergence` posts through the route when the run has a broker and writes the worktree file when it does not; the landed log is the same projection either way | `src/torve/application/divergence.py` `src/torve/cli/log.py` | A run without a broker behaves exactly as it does today, so the channel is an addition and never a dependency |
 | D-45.7 | `ASSUMED` | The manager addresses a run by writing a note the harness may read; it is a poll, never a push, and never a prompt edit | `src/torve/application/manager.py` | Mid-run guidance is auditable because it is an event; nothing steers an agent invisibly |
 | D-45.8 | `OPEN` | Whether a stalled burn stream ends an attempt automatically or only surfaces it. Settled by the first weeks of recorded burn, not by argument | — | — |
 
@@ -285,48 +283,30 @@ deliberately cannot. The RFC 0044 amendment in §5.4 ships with acceptance.
 - phase: 1
   title: burn as liveness
   intent: >-
-    The broker emits one `seat.consumed` event per metered provider response
-    — the seat, the provider's own token counts, and its reported cost where
-    there is one — as it meters, instead of only aggregating for the run's
-    close. The actor is the worker, because the broker is the run's own
-    host-side machinery and no agent is involved; the aggregate reported at
-    close must equal the sum of the events, so the two views of one run's
-    spending cannot disagree. This phase alone answers whether an attempt is
-    alive and working, for every run, with no sandbox change and no agent
-    cooperation.
-  character: structural
+    The broker emits one `seat.consumed` event per metered provider response — the seat, the provider's own token counts, and its reported cost where there is one — as it meters, instead of only aggregating for the run's close. The actor is the worker, because the broker is the run's own host-side machinery and no agent is involved; the aggregate reported at close must equal the sum of the events, so the two views of one run's spending cannot disagree. This phase alone answers whether an attempt is alive and working, for every run, with no sandbox change and no agent cooperation.
   scope:
-    - src/torve/adapters/broker/local.py
-    - src/torve/application/ports.py
-    - tests/test_broker.py
+    - "src/torve/adapters/broker/local.py"
+    - "src/torve/application/ports.py"
+    - "tests/test_broker.py"
   acceptance:
-    - uv run pytest tests/test_broker.py
-    - uv run lint-imports
-    - uv run torve rfc check
+    - "uv run pytest tests/test_broker.py"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
   depends_on: []
-
 - phase: 2
   title: the intake route
   intent: >-
-    The broker serves an authenticated route the sandbox posts records to,
-    stamping actor kind, partition and subject from the run-scoped token so
-    a caller cannot state — and therefore cannot forge — any of them, and
-    refusing a kind the authority table does not give an agent before
-    anything is appended. `torve log divergence` posts through the route
-    when the run has a broker and writes the worktree file when it does
-    not, checking the entry before either, so the landed log is the same
-    projection in both cases and a run without a broker is unchanged.
-  character: structural
+    The broker serves an authenticated route the sandbox posts records to, stamping actor kind, partition and subject from the run-scoped token so a caller cannot state — and therefore cannot forge — any of them, and refusing a kind the authority table does not give an agent before anything is appended. `torve log divergence` posts through the route when the run has a broker and writes the worktree file when it does not, checking the entry before either, so the landed log is the same projection in both cases and a run without a broker is unchanged.
   scope:
-    - src/torve/adapters/broker/local.py
-    - src/torve/application/divergence.py
-    - src/torve/cli/log.py
-    - tests/test_broker_sealed.py
-    - tests/test_divergence.py
+    - "src/torve/adapters/broker/local.py"
+    - "src/torve/application/divergence.py"
+    - "src/torve/cli/log.py"
+    - "tests/test_broker_sealed.py"
+    - "tests/test_divergence.py"
   acceptance:
-    - uv run pytest tests/test_divergence.py tests/test_broker_sealed.py
-    - uv run torve gates check
-    - uv run torve rfc check
+    - "uv run pytest tests/test_divergence.py tests/test_broker_sealed.py"
+    - "uv run torve gates check"
+    - "uv run torve rfc check"
   depends_on: [1]
 ```
 
@@ -334,3 +314,35 @@ Phase 3 — notes, and stopping an attempt on evidence — waits on the manager
 RFC 0044 declares, because there is no actor to write a note or weigh a
 stalled stream until it exists. Its decisions (D-45.4, D-45.7) name
 `src/torve/application/manager.py` for that reason.
+
+## Amendments
+
+### A-83 — 2026-09-04 — phase 3 lands as surfacing, not stopping (records D-45.7, defers D-45.8)
+**Found executing phase 3.** §12 leaves phase 3 unphased because there was
+no actor to write a note or weigh a stalled stream. The manager exists now,
+so both halves ship — but they ship as different kinds of thing, and the
+difference is worth stating rather than discovering later.
+
+**Notes are complete.** `torve manager note <partition> <task> <body>`
+records a `message.sent` addressed to the run; `torve log notes` reads it
+back through the same broker route the records travel, and the harness
+prompt tells the agent it is a poll. Nothing interrupts an attempt, and a
+note the agent never reads is still a recorded fact about what the engine
+tried to say (D-45.7).
+
+**Stopping is deliberately not built.** The board now carries what the burn
+stream says — when a task last spent anything, what it has spent, and
+whether an in-flight attempt has gone quiet longer than the reading's window
+— which is D-45.4 in full: liveness is derived, never reported, and a wedged
+agent is not asked. What the engine does *not* do is act on it. D-45.8 says
+the auto-stop question is settled by recorded burn rather than by argument,
+and there is no recorded burn yet: this is the instrument, and the decision
+waits for its readings.
+
+The window itself is a guess with a stated shape — long enough that a slow
+model, a long gate pass or a sandbox build is not an accusation, short
+enough that a wedged attempt is visible within a coffee break — and it is a
+constant in one place precisely so the first weeks of data can move it.
+
+**Changed:** nothing in the decision table. §12's note that phase 3 waits on
+the manager is spent; what replaces it is this entry.

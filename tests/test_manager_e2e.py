@@ -41,10 +41,19 @@ pytestmark = [
 ]
 
 
-def test_one_task_from_mint_to_landing_over_postgres(repo):
+def test_two_attempts_from_mint_to_landing_over_postgres(repo):
     seed_run_repo(repo)
     partition = f"lab/e2e-{uuid.uuid4().hex[:8]}"
-    agent = FakeAgent([{"writes": {"src/feature.py": "FEATURE = True\n"}, "exit": 0}])
+    # Two attempts on purpose: the first writes the wrong file and the
+    # acceptance gate convicts it, the second writes the right one. One
+    # dispatch, two attempts, and the log has to say so — a summary written
+    # once per dispatch is the defect this asserts against (D-44.3).
+    agent = FakeAgent(
+        [
+            {"writes": {"src/other.py": "WRONG = True\n"}, "exit": 0},
+            {"writes": {"src/feature.py": "FEATURE = True\n"}, "exit": 0},
+        ]
+    )
     deps = deps_for(repo, agent)
 
     async def main():
@@ -86,8 +95,21 @@ def test_one_task_from_mint_to_landing_over_postgres(repo):
         EventKind.ATTEMPT_STARTED,
         EventKind.ATTEMPT_FINISHED,
         EventKind.GATES_EVALUATED,
+        EventKind.ATTEMPT_STARTED,
+        EventKind.ATTEMPT_FINISHED,
+        EventKind.GATES_EVALUATED,
         EventKind.LANDING_RECORDED,
     ]
+
+    gates = [event for event in events if event.kind is EventKind.GATES_EVALUATED]
+
+    # Each attempt is numbered, and the verdicts differ — which is the whole
+    # point: "this dispatch took two tries and here is what changed" is only
+    # answerable if both are on record.
+    assert [event.payload["attempt"] for event in gates] == [1, 2]
+    assert [event.payload["exit_code"] != 0 for event in gates] == [True, False]
+    assert gates[0].payload["outcomes"]["acceptance"] == "fail"
+    assert gates[1].payload["outcomes"]["acceptance"] == "pass"
 
     # The board is a fold over what Postgres returned — the same projection
     # a restarted manager would build, from rows it did not write.

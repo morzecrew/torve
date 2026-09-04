@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from torve.application.planner import globs_intersect
@@ -48,6 +49,12 @@ class TaskView:
     claimed_by: str | None = None
     landed_sha: str | None = None
     escalation: str | None = None
+    # RFC 0045 D-45.4: when this task last burned a seat, and what it has
+    # burned. Liveness is read from here and never from the agent — an
+    # attempt with no recent burn is not working, whatever it would say
+    # about itself, and it is not asked.
+    last_burn: datetime | None = None
+    burned_usd: float = 0.0
 
 
 # ....................... #
@@ -118,6 +125,12 @@ def project(events: Iterable[EventRecord]) -> Board:
             view = replace(view, landed_sha=str(payload.get("sha") or ""), claimed_by=None)
         elif event.kind is EventKind.ESCALATION_RAISED:
             view = replace(view, escalation=str(payload.get("reason") or ""), claimed_by=None)
+        elif event.kind is EventKind.SEAT_CONSUMED:
+            view = replace(
+                view,
+                last_burn=event.created_at,
+                burned_usd=view.burned_usd + float(payload.get("cost_usd") or 0.0),
+            )
         elif event.kind is EventKind.ESCALATION_RESOLVED:
             resolution = str(payload.get("resolution") or "")
             view = replace(
@@ -201,3 +214,32 @@ def dispatchable(tasks: dict[str, Task], board: Board, partition: str) -> list[s
         ready.append(task_id)
 
     return ready
+
+
+# ....................... #
+
+# How long an in-flight task may burn nothing before the board calls it
+# stalled. Long enough that a slow model, a long gate pass or a sandbox
+# build is not an accusation; short enough that a wedged attempt is visible
+# within one coffee break. Whether a stall should also *end* the attempt is
+# D-45.8, and deliberately unanswered until there is recorded burn to argue
+# from — this reading surfaces it, and stops nothing.
+STALL_AFTER = timedelta(minutes=20)
+
+
+# ....................... #
+
+
+def stalled(view: TaskView, *, now: datetime | None = None, after: timedelta = STALL_AFTER) -> bool:
+    """Whether this task looks wedged, from the burn stream alone (D-45.4).
+
+    A task nobody is running cannot be stalled, and a task that has burned
+    nothing at all is not yet evidence of anything: a sandbox is still being
+    built, or the tier is a fake that never calls a provider. What counts is
+    an attempt that burned and then stopped.
+    """
+
+    if view.state not in IN_FLIGHT or view.last_burn is None:
+        return False
+
+    return (now or datetime.now(UTC)) - view.last_burn > after

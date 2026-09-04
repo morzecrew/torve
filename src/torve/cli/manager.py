@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
 
-from torve.application.manager import Board
+from torve.application.manager import Board, TaskView, stalled
 from torve.application.residency import IDLE_SECONDS
 from torve.cli.console import (
     STYLE_DIM,
@@ -128,6 +129,22 @@ async def _serve(
 # ....................... #
 
 
+def _burn(view: TaskView) -> str:
+    """What the burn stream says about this task: how long since it last
+    spent anything, and how much. `stalled` is the reading, not a verdict —
+    nothing acts on it (D-45.8 is open)."""
+
+    if view.last_burn is None:
+        return "—"
+
+    age = (datetime.now(UTC) - view.last_burn).total_seconds() / 60
+
+    return f"{age:.0f}m ago ${view.burned_usd:.2f}" + (" · stalled" if stalled(view) else "")
+
+
+# ....................... #
+
+
 @manager_app.command("board")
 def board_cmd(
     partition: Annotated[str, typer.Argument(help="The repository this board is for.")],
@@ -159,6 +176,9 @@ def board_cmd(
                         "claimed_by": view.claimed_by,
                         "landed_sha": view.landed_sha,
                         "escalation": view.escalation,
+                        "last_burn": view.last_burn.isoformat() if view.last_burn else None,
+                        "burned_usd": round(view.burned_usd, 4),
+                        "stalled": stalled(view),
                     }
                     for view in sorted(result.tasks.values(), key=lambda one: one.task_id)
                 ],
@@ -168,7 +188,7 @@ def board_cmd(
 
     console = out(fmt)
     header(console, "manager board", partition)
-    table = make_table("task", "state", "attempts", "held by", "landing")
+    table = make_table("task", "state", "attempts", "held by", "burn", "landing")
     withheld = add_rows_truncated(
         table,
         [
@@ -177,6 +197,7 @@ def board_cmd(
                 view.escalation or str(view.state),
                 str(view.attempts),
                 view.claimed_by or "—",
+                _burn(view),
                 (view.landed_sha or "")[:12] or "—",
             )
             for view in sorted(result.tasks.values(), key=lambda one: one.task_id)
@@ -263,4 +284,54 @@ def serve_cmd(
         "interrupted — the log holds the pass" if interrupted else f"{handled} task(s) handled",
         STYLE_DIM if interrupted or not handled else "",
     )
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+async def _note(dsn: str | None, partition: str, task_id: str, topic: str, body: str) -> None:
+    from torve.application.eventlog import event_log
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+
+    async with _runtime(dsn) as runtime:
+        await event_log(runtime.get_context()).record(
+            EventKind.MESSAGE_SENT,
+            partition=partition,
+            subject_type=SubjectType.TASK,
+            subject_id=task_id,
+            actor_kind=ActorKind.OPERATOR,
+            actor_id="operator",
+            payload={"to_role": "implement", "topic": topic, "body": body},
+        )
+
+
+# ....................... #
+
+
+@manager_app.command("note")
+def note_cmd(
+    partition: Annotated[str, typer.Argument(help="The repository the task belongs to.")],
+    task_id: Annotated[str, typer.Argument(help="The task to address.")],
+    body: Annotated[str, typer.Argument(help="What the agent should know.")],
+    topic: Annotated[str, typer.Option("--topic", help="One word naming what this is about.")] = (
+        "note"
+    ),
+    dsn: Annotated[str, typer.Option("--dsn", help="Postgres DSN holding the log.")] = "",
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Say something to a running attempt (RFC 0045 §5.3, D-45.7).
+
+    A note is a recorded fact, not a prompt edit: the agent polls for it
+    with `torve log notes`, nothing interrupts it mid-thought, and what the
+    engine tried to say is auditable afterwards whether or not it was read.
+    """
+
+    asyncio.run(_note(dsn or None, partition, task_id, topic, body))
+
+    if fmt is Format.JSON:
+        emit_json({"partition": partition, "task": task_id, "topic": topic, "sent": True})
+        raise typer.Exit(EXIT_OK)
+
+    closing(out(fmt), f"note sent to {task_id} — the agent reads it when it polls")
     raise typer.Exit(EXIT_OK)

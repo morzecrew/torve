@@ -15,9 +15,7 @@ import json
 import re
 import socket
 import subprocess
-import threading
 import uuid
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -86,53 +84,6 @@ def routing_for(upstream: str) -> BrokerRouting:
     return BrokerRouting(
         routes=(BrokerRoute(provider=PROVIDER, upstream=upstream, key_env=KEY_ENV),)
     )
-
-
-@pytest.fixture
-def upstream():
-    """(state, base_url) — a fake provider on loopback: reports a usage block
-    and a cost, and records what it saw (authorization, path, request count)."""
-
-    state: dict[str, object] = {
-        "auth": [],
-        "paths": [],
-        "requests": 0,
-        "usage": {"total_tokens": 5},
-        "cost": 0.01,
-        "body": None,
-    }
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_POST(self) -> None:
-            length = int(self.headers.get("Content-Length") or 0)
-            body = self.rfile.read(length)
-            state["body"] = body.decode("utf-8", errors="replace")
-            state["auth"].append(self.headers.get("Authorization", ""))
-            state["paths"].append(self.path)
-            state["requests"] = int(state["requests"]) + 1
-            payload = json.dumps(
-                {
-                    "usage": state["usage"],
-                    "total_cost_usd": state["cost"],
-                    "model": "fake-model-9",
-                }
-            ).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-
-        def log_message(self, format: str, *args: object) -> None:
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-
-    yield state, f"http://127.0.0.1:{server.server_address[1]}"
-
-    server.shutdown()
-    server.server_close()
 
 
 def broker_post(url: str, token: str, body: bytes = b"{}") -> tuple[int, str]:
