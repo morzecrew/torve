@@ -273,7 +273,9 @@ async def serve(
 
     while passes is None or seen < passes:
         seen += 1
-        task_id = await once(log, worker, root, partition, lease=lease, landed=landed, ran=ran)
+        task_id = await once(
+            log, worker, root, partition, lease=lease, landed=landed, ran=ran, only=only
+        )
 
         if task_id is not None:
             handled += 1

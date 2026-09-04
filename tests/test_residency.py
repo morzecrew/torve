@@ -604,3 +604,29 @@ def test_naming_one_task_runs_that_one_and_no_other(tmp_path):
         assert "T-0001" not in board.tasks
 
     run(scenario)
+
+
+def test_serve_honours_the_named_task_too(tmp_path):
+    """The loop and the pass are different functions, and the pass having
+    the filter is not the loop having it — which is exactly how a real
+    dispatch went to the wrong task."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+
+    async def scenario(log):
+        executed: list[str] = []
+        handled = await serve(
+            log,
+            worker_over(log, executed),
+            tmp_path,
+            PARTITION,
+            passes=1,
+            idle_seconds=0,
+            only="T-0002",
+        )
+
+        assert handled == 1
+        assert executed == ["T-0002"]
+
+    run(scenario)

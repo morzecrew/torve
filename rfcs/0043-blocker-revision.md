@@ -6,12 +6,10 @@ depends_on: ["0005"]
 informed_by: ["0038"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-87"]
 owner: misery7100
 description: >-
-  A surviving review blocker feeds a bounded in-run revision attempt in the
-  same worktree — carried by the RFC 0005 §4a feedback record — before it
-  escalates the run.
+  A surviving review blocker feeds a bounded in-run revision attempt in the same worktree — carried by the RFC 0005 §4a feedback record — before it escalates the run.
 schema_version: 1
 ---
 
@@ -230,7 +228,7 @@ gains a dated cross-reference note (amendment on acceptance, not an edit).
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
 | D-43.1 | `LOCKED` | A surviving review blocker spends the run's `blocker_revisions` budget (default 1) as in-run attempts in the same worktree before escalating `blocker_finding`; the poison ceiling and task budgets count every revision, unchanged | `src/torve/application/runner.py` | Escalation timing changes; anything watching for `blocker_finding` on first conviction now sees it one attempt later by default |
-| D-43.2 | `LOCKED` | The revision's critique travels only in the RFC 0005 §4a feedback record — blockers rendered as threads (review id as author, claim + evidence as body), the convicted diff as the superseded diff, cap and truncation honesty unchanged | `src/torve/application/feedback.py`, `src/torve/application/review.py` | One carrier for all revision context; a second channel (prompt injection, env) is a design violation, not an option |
+| D-43.2 | `LOCKED` | The revision's critique travels only in the RFC 0005 §4a feedback record — blockers rendered as threads (review id as author, claim + evidence as body), the convicted diff as the superseded diff, cap and truncation honesty unchanged | `src/torve/application/feedback.py` `src/torve/application/review.py` | One carrier for all revision context; a second channel (prompt injection, env) is a design violation, not an option |
 | D-43.3 | `ASSUMED` | `blocker_revisions: 0` restores the pre-0043 transition sequence exactly — configuration decides the consequence (D-2), and the conservative setting is always reachable | `src/torve/config/runconfig.py` | — |
 | D-43.4 | `ASSUMED` | Unparseable verdicts and broker budget refusals keep immediate escalation — infrastructure and cost are not revisable defects | `src/torve/application/runner.py` | — |
 | D-43.5 | `ASSUMED` | The record is written root-side (`.torve/tasks/<id>/feedback.md`) so a post-escalation re-dispatch inherits the accumulated critique with zero new mechanism | `src/torve/application/feedback.py` | — |
@@ -242,28 +240,23 @@ gains a dated cross-reference note (amendment on acceptance, not an edit).
 - phase: 1
   title: the blocker revision loop
   intent: >-
-    A surviving review blocker no longer escalates while the run has
-    revision budget: the runner renders the blockers and the convicted
-    candidate diff into the RFC 0005 §4a feedback record at the task's
-    root-side feedback path, appends a revision history fact, and continues
-    the attempt loop in the same worktree; the record is planted and framed
-    by the existing D-5.13 mechanics, the poison ceiling and task budgets
-    count revisions unchanged, and a blocker surviving the spent budget —
-    or an unparseable verdict or broker budget refusal at any point —
-    escalates exactly as today. ReviewConfig gains `blocker_revisions`
-    (default 1; 0 restores the pre-0043 sequence byte-for-byte).
-  character: structural
+    A surviving review blocker no longer escalates while the run has revision budget: the runner renders the blockers and the convicted candidate diff into the RFC 0005 §4a feedback record at the task's root-side feedback path, appends a revision history fact, and continues the attempt loop in the same worktree; the record is planted and framed by the existing D-5.13 mechanics, the poison ceiling and task budgets count revisions unchanged, and a blocker surviving the spent budget — or an unparseable verdict or broker budget refusal at any point — escalates exactly as today. ReviewConfig gains `blocker_revisions` (default 1; 0 restores the pre-0043 sequence byte-for-byte).
   scope:
-    - src/torve/application/runner.py
-    - src/torve/application/review.py
-    - src/torve/application/feedback.py
-    - src/torve/config/runconfig.py
-    - tests/test_runner.py
-    - tests/test_review_run.py
-    - tests/test_feedback.py
+    - "src/torve/application/runner.py"
+    - "src/torve/application/review.py"
+    - "src/torve/application/feedback.py"
+    - "src/torve/config/runconfig.py"
+    - "tests/test_runconfig.py"
+    - "tests/test_runner.py"
+    - "tests/test_review_run.py"
+    - "tests/test_feedback.py"
   acceptance:
-    - uv run pytest tests/test_runner.py tests/test_review_run.py tests/test_feedback.py
-    - uv run torve gates check
-    - uv run torve rfc check
+    - "uv run pytest tests/test_runner.py tests/test_review_run.py tests/test_feedback.py"
+    - "uv run torve gates check"
+    - "uv run torve rfc check"
   depends_on: []
 ```
+
+## Amendments
+
+### A-87 — 2026-09-04 — the phase scope owes runconfig its test file
