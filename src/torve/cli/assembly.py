@@ -22,12 +22,14 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from torve.adapters.vcs.git import GitVcs
+    from torve.application.executors import Prepare
     from torve.application.intake import IntakeDeps
     from torve.application.loop import TickDeps
     from torve.application.ports import Agent, Vcs, WorkspacePort
     from torve.application.runner import RunDeps
     from torve.cli.options import RuntimeName
     from torve.config.runconfig import RunnerConfig, TierConfig
+    from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -163,6 +165,41 @@ def build_run_deps(
         # rule that built the tier that dispatched.
         retry_agent=retry_agent,
     )
+
+
+# ....................... #
+
+
+def build_dispatch_prepare(
+    root: Path, config: RunnerConfig, *, runtime_name: RuntimeName | None = None
+) -> Prepare:
+    """The per-task half of a dispatch, as one callable (RFC 0044 D-44.12).
+
+    A worker runs whatever the board hands it, and what a task needs
+    resolved is a fact about that task: the tier its character routes to
+    (D-34.3), the provider routing that tier must pass (D-4.8), and the
+    agent built for it. Building a dep bundle once per manager would pin
+    every task to whichever tier happened to be first.
+    """
+
+    def prepare(task: Task) -> tuple[Task, RunDeps]:
+        from torve.config.runconfig import resolve_character_tier, tier_for, tier_name_for
+
+        make_agent = dispatch_agent_factory()
+        task = resolve_character_tier(config, task)
+        tier = tier_for(config, tier_name_for(task))
+        route_dispatch_providers(config, root, tier)
+
+        return task, build_run_deps(
+            root,
+            config,
+            agent=make_agent(tier),
+            review_agent=review_agent_for(config, root),
+            retry_agent=make_agent,
+            runtime_name=runtime_name,
+        )
+
+    return prepare
 
 
 # ....................... #

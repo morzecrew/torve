@@ -972,7 +972,7 @@ class RefusingBroker:
     def __init__(self) -> None:
         self.usage_seen = BrokerUsage(requests=4, refusals={"budget": 2})
 
-    def open(self, run, routing, budget):
+    def open(self, run, routing, budget, sink=None):
         return BrokerHandle(token="t-1")
 
     def usage(self, handle):

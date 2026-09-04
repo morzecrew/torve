@@ -16,15 +16,19 @@ produce always has a fact the log can hold.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
+from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from torve.application import divergence
+from torve.application.eventlog import burn_sink
 from torve.application.runner import run_task
 from torve.application.worker import Execute, Outcome
 from torve.domain.states import EscalationReason, TaskState
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
+    from torve.application.eventlog import EventLog
     from torve.application.runner import RunDeps
     from torve.application.runstate import RunState
     from torve.config.runconfig import RunnerConfig
@@ -81,12 +85,74 @@ def _last_fact(state: RunState) -> str:
 # ....................... #
 
 
-def runner_execute(root: Path, config: RunnerConfig, deps: RunDeps) -> Execute:
+def _log_root(state: RunState, root: Path) -> Path:
+    """Where this run's divergence log ended up. The worktree is the run's
+    own tree and holds the log whether or not the work landed — which is the
+    case that matters, because a run that failed is exactly the one whose
+    account of why is worth reading. A run that never got a worktree leaves
+    the host root, where a landed log lives."""
+
+    return Path(state.worktree) if state.worktree else root
+
+
+# ....................... #
+
+
+# What a dispatch needs resolved per task rather than per root: the tier a
+# character routes to (D-34.3), the providers that tier is permitted, and
+# the agent built for it. The worker holds one of these, not a dep bundle,
+# because a bundle built once would pin every task to one tier's agent.
+Prepare = Callable[["Task"], "tuple[Task, RunDeps]"]
+
+
+# ....................... #
+
+
+def runner_execute(
+    root: Path,
+    config: RunnerConfig,
+    prepare: Prepare,
+    *,
+    log: EventLog | None = None,
+    partition: str = "",
+    seat: str = "worker",
+) -> Execute:
     """An `Execute` the worker can call: the runner in a thread, because it
-    is synchronous and the worker's loop is not."""
+    is synchronous and the worker's loop is not.
+
+    With a log, the attempt is also observed. The burn sink goes in before
+    the run so the broker's metering lands as it happens (RFC 0045 D-45.4),
+    and the worktree's divergences are ingested after it, host-side, because
+    the sandbox that wrote them has no route to the store (D-44.10). Without
+    a log the runner behaves exactly as v1 does — the observation is wiring,
+    not a dependency of execution.
+    """
 
     async def execute(task: Task) -> Outcome:
-        state = await asyncio.to_thread(run_task, root, task, config, deps)
+        task, bound = prepare(task)
+
+        if log is not None:
+            bound = replace(
+                bound,
+                sink=burn_sink(
+                    log,
+                    asyncio.get_running_loop(),
+                    partition=partition,
+                    task_id=task.id,
+                    seat=seat,
+                ),
+            )
+
+        state = await asyncio.to_thread(run_task, root, task, config, bound)
+
+        if log is not None:
+            await divergence.ingest(
+                log,
+                _log_root(state, root),
+                task.id,
+                partition=partition,
+                actor_id=seat,
+            )
 
         return outcome_of(state)
 

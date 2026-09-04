@@ -182,7 +182,16 @@ def parse_bypasses(root: Path, merge_base: str, head: str) -> list[BypassRecord]
 
 
 def load_task(path: Path) -> Task:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    # An unparseable contract and a contract that violates the schema are
+    # the same kind of problem to every caller — a file that is not a task —
+    # so both leave here as ValueError. Callers that skip a bad contract
+    # rather than dying on it (the dispatch scan, the manager's mint) can
+    # then say so in one clause.
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    except yaml.YAMLError as exc:
+        raise ValueError(f"{path}: unparseable task file: {exc}") from exc
 
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: task file must be a mapping")

@@ -46,6 +46,7 @@ from torve.application.ports import (
     BrokerHandle,
     BrokerRoute,
     BrokerRouting,
+    BurnSink,
     Runtime,
     SandboxHandle,
     SandboxSpec,
@@ -121,6 +122,11 @@ class RunDeps:
     # running every attempt, and telemetry never stamps a tier that did not
     # actually produce the work.
     retry_agent: Callable[[TierConfig], Agent] | None = None
+    # RFC 0045 D-45.4: where the broker's per-response metering goes. The
+    # runner only hands it to the broker at open; what it does with a burn
+    # — record it, count it, drop it — is the caller's, and None is the
+    # unobserved run every test and simulation already assumes.
+    sink: BurnSink | None = None
 
 
 # ....................... #
@@ -1599,7 +1605,9 @@ def real_hooks(
 
     if broker is not None:
         routing = run_routing(config, task, review_on, include_retry=deps.retry_agent is not None)
-        broker_handle = broker.open(task.id, routing, BrokerBudget(tokens=task.budget.tokens))
+        broker_handle = broker.open(
+            task.id, routing, BrokerBudget(tokens=task.budget.tokens), sink=deps.sink
+        )
 
     def close() -> None:
         # The run's one close: the broker revokes the run-scoped token and
