@@ -186,6 +186,9 @@ that keeps the proof while replacing the vehicle:
    the event schema, the authority rule, the typed-communication invariant,
    the per-repo landing partition). This is where the graded-decision
    discipline gets applied to its own successor.
+   *Done 2026-09-04 — RFC 0044 "The manager domain", 13 decisions, three
+   mintable phases (event log → divergence intake → manager and worker),
+   awaiting acceptance.*
 2. **Stand up the persistence schema** behind a durable-execution port;
    bind forze. Import the v1 evidence (telemetry, verdicts, the review
    corpus) as the first data.
