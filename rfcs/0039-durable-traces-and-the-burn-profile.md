@@ -2,6 +2,7 @@
 id: "0039"
 title: Durable traces and the burn profile
 status: accepted
+implementation: complete
 depends_on: ["0002", "0004"]
 informed_by: ["0005", "0017", "0021", "0023"]
 supersedes: []

@@ -2,6 +2,7 @@
 id: "0042"
 title: The composition root and the substrate runtime
 status: accepted
+implementation: complete
 depends_on: ["0008", "0015", "0019"]
 informed_by: ["0003", "0012", "0024", "0032", "0041"]
 supersedes: []
