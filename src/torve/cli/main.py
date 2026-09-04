@@ -27,6 +27,7 @@ from torve.cli import (
     gates,
     intake,
     log,
+    manager,
     mcp,
     merge,
     migrate,
@@ -60,6 +61,7 @@ app.add_typer(review.review_app, name="review")
 app.add_typer(tracker.tracker_app, name="tracker")
 app.add_typer(fleet.fleet_app, name="fleet")
 app.add_typer(log.log_app, name="log")
+app.add_typer(manager.manager_app, name="manager")
 
 
 # ....................... #
