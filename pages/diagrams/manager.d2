@@ -1,0 +1,47 @@
+direction: right
+
+operator: "operator" {
+  style.fill: "#f5f0e8"
+  signs: "accepts decisions\nadopts tasks\nresolves escalations"
+}
+
+manager: "manager (per repository)" {
+  style.fill: "#e8eef5"
+  holds: "holds nothing between passes"
+  does: "mint · claim · reclaim\nescalate · land"
+}
+
+worker: "worker" {
+  style.fill: "#e8eef5"
+  lease: "holds a lease, nothing else"
+  runs: "runs one attempt at a time"
+}
+
+agent: "agent (sandbox)" {
+  style.fill: "#f0e8ee"
+  no: "no store credential\nno git\nno keys"
+}
+
+record: "the record — append-only, typed" {
+  style.fill: "#e8f5ea"
+  facts: "task.minted · task.claimed\nattempt.* · gates.evaluated\ndivergence.recorded · seat.consumed\nlanding.recorded · escalation.*"
+}
+
+broker: "broker" {
+  style.fill: "#f5f0e8"
+  wire: "injects keys at the wire\nmeters every response"
+}
+
+git: "git" {
+  style.fill: "#f5f0e8"
+  src: "source, contracts,\nlanding trailers"
+}
+
+operator -> record: "signs"
+manager -> record: "reads the whole board,\nwrites what it decides"
+worker -> record: "claim · release · landing"
+worker -> agent: "one attempt"
+agent -> broker: "every request"
+broker -> record: "burn · records,\nidentity stamped"
+worker -> git: "the commit is the engine's"
+record -> manager: "the board is a fold"

@@ -1,20 +1,24 @@
 direction: right
 
-claim: "claimed" {shape: oval}
-run: "running\n(agent in sandbox,\nsame worktree every attempt)"
-gated: "gated\n(battery runs)"
-reviewed: "reviewed\n(reviewer in disposable copy)"
-ready: "ready\n(landing commit)" {shape: oval; style.fill: "#e8f5e9"}
-esc: "escalated\n(operator triage)" {shape: oval; style.fill: "#fdecea"}
+queued: "queued\n(on the board)" {shape: oval}
+claim: "claimed\n(a lease, nothing else)" {shape: oval}
+run: "running\n(agent in a sandbox,\nsame worktree every attempt)"
+gated: "gated\n(battery, over the record's log)"
+reviewed: "reviewed\n(a second agent, without the author's trace)"
+ready: "ready\n(landing commit, Torve-Task trailer)" {shape: oval; style.fill: "#e8f5e9"}
+esc: "escalated\n(a person's turn)" {shape: oval; style.fill: "#fdecea"}
 
+queued -> claim: "dispatchable: deps landed,\nscope disjoint"
 claim -> run: "attempt n+1\n(ceiling checked first)"
+claim -> queued: "lease expires —\nthe holder went quiet" {style.stroke-dash: 3}
 run -> gated: "agent exits"
 gated -> run: "gates red — retry,\nworktree kept" {style.stroke-dash: 3}
 gated -> reviewed: "gates green"
-reviewed -> run: "RFC 0043 (accepted, unbuilt):\nblocker → bounded revision,\ncritique via feedback record" {
+reviewed -> run: "RFC 0043: a surviving blocker\nfeeds a bounded revision" {
   style.stroke-dash: 3
   style.stroke: "#b26a00"
 }
 reviewed -> ready: "no blockers"
-reviewed -> esc: "blocker survives\nrevision budget"
-run -> esc: "poison ceiling ·\nbudget · locked conflict"
+reviewed -> esc: "blocker survives\nthe revision budget"
+run -> esc: "poison ceiling · budget ·\nhalted divergence · infrastructure"
+esc -> queued: "torve manager resolve\n--resolution requeued" {style.stroke-dash: 3}

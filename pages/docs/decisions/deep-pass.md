@@ -1,5 +1,17 @@
 # The deep pass — meaningful or garbage?
 
+!!! info "A record, not documentation — 2026-09-03"
+
+    This is the external review that produced RFC 0044. It describes the
+    engine as it stood on 2026-09-03 and argues for replacing part of it;
+    both the description and the argument are kept unedited, because the
+    rebuild rests on them, and an argument revised after it won is not
+    evidence of anything.
+
+    What the engine does now is [the architecture
+    section](../architecture/overview.md). What was decided here is
+    [RFC 0044](https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md).
+
 Written 2026-09-04, after the thirteen-contract queue closed, in response to
 the owner's challenge: *"persistence can hold the truth, repo can project
 it... we need yet another deep pass to see from an external point what we
@@ -72,7 +84,7 @@ is dropped.**
   context contamination) while dropping the blanket ban. Typed messages in
   the event log are reviewable artifacts; two agents sharing a context
   window are not. Keep the invariant, drop the prohibition.
-- The single-node inventory (the [fault line](architecture/distribution.md)
+- The single-node inventory (the [fault line](../architecture/distribution.md)
   table) dissolves almost entirely under manager/workers-over-persistence.
   The one item that survives any architecture: landings serialize *per
   repo*. Multi-repo scaling turns that from a wall into a partition key.
@@ -113,7 +125,7 @@ tenant.
 
 Agreed on both halves. In the v2 shape the tracker becomes an ordinary
 projection consumer of the event log and the current pain (including the
-whole [outbox debate](architecture/tracker-outbox.md)) evaporates as a
+whole [outbox debate](tracker-outbox.md)) evaporates as a
 side effect. Park it.
 
 ## What the telemetry says survives

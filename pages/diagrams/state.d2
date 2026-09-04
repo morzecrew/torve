@@ -1,29 +1,27 @@
 direction: right
 
-git: "git — what SHOULD be" {
+repo: "the repository — what SHOULD be" {
   style.fill: "#f5f0e8"
-  rfcs: "rfcs/ decision tables\n+ phasing"
+  rfcs: "rfcs/ — graded decisions,\nphasing"
   contracts: ".torve/tasks/<id>/contract.yaml"
-  logs: ".torve/tasks/<id>/log.yaml\n(divergence journal)"
+  source: "source code"
   landings: "landing commits\n(Torve-Task trailers)"
 }
 
-store: "store — what HAPPENED" {
+record: "the record — what HAPPENED" {
+  style.fill: "#e8f5ea"
+  events: "append-only, typed events\none partition per repository"
+}
+
+carriers: "carriers — projections of the record" {
   style.fill: "#e8eef5"
-  runs: "run states\n(leases, fences, history)"
-  telemetry: "telemetry records\n(gates, agent, cost)"
-  verdicts: "attempt verdict rows\n(RFC 0038)"
-  traces: "durable traces\n(RFC 0039)"
-  events: "escalation events"
+  telemetry: "telemetry.jsonl\n(rendered from the event payload)"
+  log: ".torve/tasks/<id>/log.yaml\n(written before each gate pass)"
+  state: ".wt/<task>.state.json\n(the attempt loop's aggregate)"
+  board: "the board\n(a fold, never stored)"
 }
 
-projections: "read models" {
-  context: "torve context"
-  why: "why projection (0040)"
-  board: "tracker board\n(GitHub issues/labels)"
-}
-
-git -> store: "one-way projection\n(D-27 LOCKED)"
-store -> projections
-git -> projections
-projections -> board: "outbox relay\n(at-least-once)"
+repo -> record: "minting places a contract\non a partition"
+record -> carriers: "rendered"
+record -> repo: "the landing commit\nis the engine's own"
+carriers -> board: "nothing is edited;\nrebuilding is reading again"

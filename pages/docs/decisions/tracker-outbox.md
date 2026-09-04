@@ -1,5 +1,15 @@
 # The tracker outbox — the contested design
 
+!!! info "A record, not documentation — 2026-09-03"
+
+    The contest this page sets out is over. Derive-don't-record (D-8.2) was
+    retired by D-44.3: facts are recorded when they become true, and rebuild
+    is replay. The page is kept as the argument that produced that decision,
+    including the counters that turned out to be right.
+
+    The tracker itself has not been rebuilt on the record yet — RFC 0044 §12
+    names it as later work.
+
 The tracker projects engine state onto GitHub (issue comments, labels,
 notifications). Effects must survive a crash between "decided to comment"
 and "commented", and must not double-post on replay. That is the whole
@@ -89,4 +99,4 @@ worker is one more, and the store-document regime is the natural shape. If
 D-19.1 stays LOCKED as charter, D-8.2 stays — and distribution of the
 *tracker* specifically is off the table while everything else distributes.
 
-That question is taken up in [The fault line](distribution.md).
+That question is taken up in [The fault line](../architecture/distribution.md).

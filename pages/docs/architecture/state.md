@@ -1,49 +1,56 @@
 # State and truth
 
-One boundary organizes everything: **git holds what SHOULD be, the store
-holds what HAPPENED** (D-27, LOCKED). Projection across it is one-way,
-git → store; nothing in the store ever becomes an input to planning without
-a human moving it through a reviewed commit.
+Two questions, two answers, and the second one changed.
 
-![State boundary](../assets/diagrams/state.svg)
+**What should be?** The repository. Specifications with graded decision
+tables, task contracts, source code. A human writes it, a human reviews it,
+and nothing an agent does becomes intent without passing through a commit
+somebody signed off.
 
-## The git side
+**What happened?** [The record](record.md). Attempts, verdicts, landings,
+escalations, divergences, spend. It used to be a durable store holding run
+rows beside a git history holding trailers, with each answering part of the
+question and neither answering it whole.
 
-- `rfcs/` — decision tables and phasing; the only planning input.
-- `.torve/tasks/<id>/contract.yaml` — the minted contract, committed.
-- `.torve/tasks/<id>/log.yaml` — the agent's divergence journal, landed
-  *with* the work. The log is part of the deliverable: `decisions-reported`
-  convicts work whose journal does not account for the decisions it touched.
-- Landing commits with `Torve-Task` trailers — **the** record of completion.
-  A dependency is satisfied only by a landing on `main` (A-29/A-31); run
-  states saying "ready" count for nothing across tasks.
+![What holds what](../assets/diagrams/state.svg)
 
-## The store side
+## The carriers
 
-- Run states: leases, fences, attempt history — the durable-function
-  substrate (forze) underneath `torve run`, mock (JSONL) or Postgres.
-- Telemetry records per gate run and per attempt, attempt verdict rows
-  (RFC 0038), durable escalation events, durable traces (RFC 0039) — the
-  full agent stream, kept because the exec boundary clips output at 8KB.
-- Everything here is *derived record*: droppable in principle, rebuildable
-  in aggregate, never authoritative for what the repo should contain.
+Several files still hold execution state. They are not competing answers —
+each is a projection of the record with a reason to exist:
 
-## Read models
+| Carrier | Holds | Why it exists |
+| --- | --- | --- |
+| the event log | every fact, append-only | the record itself |
+| `.torve/telemetry.jsonl` | one row per attempt | what the cost, regime and quality projections read; **rendered from the event payload**, so it cannot disagree |
+| `.wt/<task>.state.json` | the run the attempt loop is driving | the loop's own aggregate, and the only carrier a run without a store has |
+| `.torve/tasks/<id>/log.yaml` | the task's divergences | written into the worktree from the record before each gate pass, and landed with the work so the diff carries its own account |
+| landing commits | `Torve-Task` trailers | git's own record of completion — the one thing that survives a fresh clone with no store at all |
 
-Projections (`torve context`, the why projection, `torve serve`'s tables)
-join both sides read-only. The tracker board is the one projection with
-side effects — it writes GitHub issues and labels, which is why it goes
-through the [outbox](tracker-outbox.md) rather than calling GitHub directly
-from the sweep.
+The rule that keeps them honest: **one record, rendered into carriers**.
+Where two carriers hold the same fact, one of them is generated from the
+other, and a test says so.
 
-## Two honest gaps
+## What outranks what
 
-- **Continuation ceilings** (RFC 0026 §5.5 vs code): each dispatch builds a
-  fresh `RunState`, so attempts and budgets reset across re-dispatches of
-  the same task. Recorded in 0037 §3; unreconciled.
-- **Ready-without-ancestry**: a run can record `ready` while the landing
-  never reached `main` (the merge lane declines fast-forward over a dirty
-  tree). The dirty-tree *cause* was retired on 2026-09-04 (the index file
-  that a post-commit hook kept rewriting is untracked now), but the engine
-  still does not verify ancestry before recording `ready` — the operator
-  chain cherry-picks as a fallback.
+- **A landing outranks everything.** A dependency is satisfied by a landing
+  and by nothing else (A-29, A-31). A run that reached `ready` without
+  landing has told the board nothing it can act on, and a fresh clone with
+  no store still knows what landed because git does.
+- **The board outranks the host.** Once a task is on the board, its state is
+  the record's. The host's own run record decides only whether a contract is
+  *minted* — a contract that ran and never landed stays off the board, since
+  there is nothing true to record about it. After that, a person who
+  requeues an escalation has said the thing that matters, and a file on one
+  machine is not entitled to overrule it.
+- **The contract outranks the corpus, at mint time.** A task inherits its
+  decisions with the grades they had when it was minted. The corpus moving
+  under a running task changes nothing about what that task was asked to do.
+
+## What is not in the record yet
+
+The tracker's outbox, the corpus itself as importable sources and decisions,
+and the projections that answer planning questions — `torve context`, the
+why report, the specification-quality readings — still read files. They are
+named as later work in RFC 0044 §12, and they are the reason
+[what does not distribute](distribution.md) is still worth reading.

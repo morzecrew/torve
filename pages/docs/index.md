@@ -1,41 +1,49 @@
-# Torve — architecture review
+# Torve — how the engine works
 
-This site documents the architecture that **emerged** from executing RFCs
-0001–0043, written for one purpose: to let the owner judge whether the design
-that grew is the design we want — especially where the local-regime
-assumptions meet the distributed future.
+Torve runs a standing team of coding agents against a specification corpus:
+RFCs with graded decision tables are the input, sandboxed task execution
+under a gate battery is the machine, and landed commits are the only output
+that counts.
 
-It is written independently of the corpus (it links to RFCs, it never
-restates their decision tables) and it is deliberately opinionated in one
-place only: [The fault line](architecture/distribution.md) names the
-assumptions that do not survive distribution and the decisions that pin them.
+This site is documentation for whoever operates or extends the engine. It
+explains shape and reasons — what the parts are, why they are separated the
+way they are, and which failures each separation exists to prevent.
+
+!!! note "What this site never does"
+
+    It never restates a decision. Every graded decision lives in the corpus
+    under [`rfcs/`](https://github.com/morzecrew/torve/tree/main/rfcs), with
+    an id, a grade and the paths it governs; this site links to them and
+    stops there. A third copy of a decision is a third thing that can
+    disagree with the other two, and the engine has spent a lot of its life
+    removing exactly that.
 
 ## Reading order
 
-1. [System overview](architecture/overview.md) — the layers and who talks to
-   whom. Five minutes.
-2. [The execution model](architecture/execution.md) — a task's life: attempt
-   loop, gates, review, landing, escalation.
-3. [State and truth](architecture/state.md) — the git/store boundary (D-27)
-   and what lives on each side.
-4. [The tracker outbox](architecture/tracker-outbox.md) — the contested
-   design. The D-42.5 no-fit verdict, the owner's three counters, and what
-   each would actually change.
-5. [The fault line](architecture/distribution.md) — every single-node
-   assumption in the engine today, and the three-regime picture.
+1. [System overview](architecture/overview.md) — the layers, the actors, and
+   who talks to whom. Five minutes.
+2. [The record](architecture/record.md) — the event log that is the system
+   of record: its vocabulary, who may write what, and what is projected from
+   it.
+3. [The execution model](architecture/execution.md) — a task's life from
+   mint to landing, and what each step writes down.
+4. [The live channel](architecture/channel.md) — what the engine can see
+   while a run is in progress, and what it deliberately cannot.
+5. [State and truth](architecture/state.md) — which carrier holds what, and
+   which ones are projections of another.
+6. [What does not distribute](architecture/distribution.md) — the
+   assumptions that are still single-node, and what each would cost.
 
-## How to view
+Two older pages are kept as [records of decisions](decisions/deep-pass.md):
+the external review that produced RFC 0044, and the tracker-outbox argument
+it settled. They are dated and marked; they are not documentation of what
+the engine does now.
+
+## Running the site
 
 ```bash
-uvx zensical serve pages/   # live at http://localhost:8000
-uvx zensical build pages/   # static site into pages/site/
+just docs             # live at http://localhost:8000
+just docs-diagrams    # re-render the D2 sources to SVG
 ```
 
-Diagrams are [D2](https://d2lang.com) sources in `pages/diagrams/`, rendered
-to SVG by:
-
-```bash
-cd pages && for f in diagrams/*.d2; do
-  d2 --theme 0 --dark-theme 200 --pad 12 "$f" "docs/assets/diagrams/$(basename "$f" .d2).svg"
-done
-```
+Diagrams are [D2](https://d2lang.com) sources under `pages/diagrams/`.

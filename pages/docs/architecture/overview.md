@@ -1,46 +1,66 @@
 # System overview
 
-Torve is a spec-and-gate engine: RFCs with graded decision tables are the
-input, autonomous task execution under a gate battery is the machine, and
-landing commits on `main` are the only output that counts. Everything else —
-run states, telemetry, traces, the board — is derived record.
+Three things run: a **manager** that owns a repository's queue, **workers**
+that execute one task at a time, and a **record** that both of them read and
+write. Everything else — the board, the telemetry stream, the projections,
+the tracker — is derived from the record.
 
-![Layer map](../assets/diagrams/layers.svg)
+![Actors and the record](../assets/diagrams/manager.svg)
+
+## The actors
+
+| Actor | Holds | Rule |
+| --- | --- | --- |
+| manager | nothing between passes | Rebuilds its whole view from the record on every pass. Mints, claims, reclaims expired leases, escalates. |
+| worker | a lease, and nothing else | Claims one task, executes it, records the outcome, releases. A killed worker costs its lease and nothing more. |
+| agent | a sandbox and a worktree | Runs inside a container with no store credential and no route to the record except the broker. |
+| operator | the signature | Accepts decisions, adopts tasks, resolves escalations. These events have no other author. |
+
+The separation is not decoration. A worker that remembered its assignment
+would be a worker whose memory could disagree with the record, and a manager
+that carried state between passes would be a manager whose restart is a
+recovery procedure rather than a re-read.
 
 ## The layers (RFC 0015)
 
 | Layer | Contents | Rule |
 | --- | --- | --- |
 | `base/` | shell, naming | imports nothing above it |
-| `domain/` | task contracts, states, attempt vocabulary | pure; transitions executed by the runner from facts, never by a model |
-| `application/` | planner, runner, review, tracker, outbox, loop, projections | depends on ports only, never on adapters |
+| `domain/` | task contracts, states, the event vocabulary and its authority table | pure; transitions are executed from facts, never by a model |
+| `application/` | manager, worker, runner, review, planner, projections, the event log service | depends on ports only, never on adapters |
 | `gates/` | the battery and its context builder | stands alone |
-| `adapters/` | one directory per port: runtime, agent, store, vcs, workspace, broker | independent of each other |
-| `config/` | manifest, runconfig, rfc format | the RFC format terminates at the planner (D-7.17) |
-| `cli/` | Typer verbs, Rich presentation | presentation never crosses inward (D-18.2) |
+| `adapters/` | one directory per port: runtime, agent, event store, durable store, vcs, workspace, broker | independent of each other |
+| `config/` | manifest, run configuration, the RFC format | the RFC format terminates at the planner (D-7.17) |
+| `cli/` | Typer verbs, Rich presentation, the composition root | presentation never crosses inward (D-18.2) |
 
-Five import-linter contracts enforce this mechanically; the `layering` gate
-runs them on every attempt. This part of the architecture is settled and
-earning its keep — agents violate it regularly and the gate catches it.
+Five import-linter contracts enforce this mechanically and the `layering`
+gate runs them on every attempt. It earns its keep: agents violate it
+regularly and the gate catches it every time.
 
-## Who does what
+## Two engines, one repository
 
-- **The planner** (`torve plan`) mints task contracts from an accepted RFC's
-  phasing — deterministically, with inherited decision grades and declared
-  scopes. Humans accept RFCs; the machine derives the work.
-- **The runner** (`torve run`) drives one task: agent in a sandbox, gate
-  battery, reviewer lane, landing. See [execution](execution.md).
-- **The tick** (`torve tick`) is the standing loop's single step: poll,
-  recover, dispatch, merge, standing legs — then *exit*. There is no daemon
-  (D-19.1, LOCKED). Scheduling ticks is the operator's (or cron's) job.
-- **The tracker** projects engine state onto a GitHub board through the
-  [outbox](tracker-outbox.md).
-- **Gates** decide consequences; models only produce facts. Configuration —
-  never the model — decides what a red gate or a review blocker does (D-2).
+The manager is new. The machinery it drives — the attempt loop, the gate
+battery, the review lane, the landing — is the original engine, kept as
+libraries rather than rewritten (D-44.12), because those parts were never
+the problem. The whole of the seam between them is one module,
+`application/executors.py`: it hands the runner a task and turns the run
+back into the facts the record holds.
 
-## What is deliberately absent
+The consequence worth knowing when reading the code: **most things still
+have two callers.** The standing loop (`torve tick`) dispatches from a
+filesystem scan; the manager dispatches from the record. They share the
+rules — one scope-disjointness test, one in-flight set, one attempt record —
+and differ only in where the state they read comes from. That is deliberate
+and temporary, and [what does not distribute](distribution.md) says what
+retires it.
 
-- No resident process of any kind (D-19.1, D-42.6).
-- No agent-to-agent communication (D-31).
-- No engine reads of agent-authored content for control flow — routing keys
-  on gate outcomes only (D-37.1, D-34.5).
+## Where to start reading the code
+
+| You want | Start at |
+| --- | --- |
+| what a fact looks like | `src/torve/domain/events.py` |
+| how a fact is written | `src/torve/application/eventlog.py` |
+| what the manager decides | `src/torve/application/manager.py` |
+| what a worker does | `src/torve/application/worker.py` |
+| how an attempt runs | `src/torve/application/runner.py` |
+| what an agent may do | `src/torve/adapters/agent/harness.py` and `skills/` |

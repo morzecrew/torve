@@ -1,6 +1,6 @@
 [project]
 site_url = "https://morzecrew.github.io/torve/"
-site_name = "Torve — architecture review"
+site_name = "Torve — engine documentation"
 # site_description = "Your project description"
 # site_author = "Your name"
 
@@ -12,13 +12,17 @@ repo_name = "morzecrew/torve"
 
 nav = [
   { "Start here" = "index.md" },
-  { "The deep pass" = "deep-pass.md" },
   { "Architecture" = [
     { "System overview" = "architecture/overview.md" },
+    { "The record" = "architecture/record.md" },
     { "The execution model" = "architecture/execution.md" },
+    { "The live channel" = "architecture/channel.md" },
     { "State and truth" = "architecture/state.md" },
-    { "The tracker outbox" = "architecture/tracker-outbox.md" },
-    { "The fault line" = "architecture/distribution.md" },
+    { "What does not distribute" = "architecture/distribution.md" },
+  ] },
+  { "Records of decisions" = [
+    { "The deep pass" = "decisions/deep-pass.md" },
+    { "The tracker outbox" = "decisions/tracker-outbox.md" },
   ] },
 ]
 

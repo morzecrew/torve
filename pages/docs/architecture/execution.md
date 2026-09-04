@@ -1,72 +1,111 @@
 # The execution model
 
-One task, one run, one worktree. The runner claims the task, cuts a worktree
-from `main`, and drives attempts until the work lands, a budget runs out, or
-a human is needed.
+A task's life, and what each step writes down.
 
-![Run lifecycle](../assets/diagrams/run.svg)
+![One task, from mint to landing](../assets/diagrams/run.svg)
 
-## The attempt loop
+## Mint — the task joins a partition
 
-Ceilings are checked **before** dispatch (poison ceiling, iteration budget,
-wallclock). Each attempt runs the tier's agent in a fresh sandbox over the
-**same worktree** — a gate-red attempt leaves its diff in place, so the next
-attempt revises rather than rebuilds. The agent exits, the battery runs, and
-the outcome routes:
+`torve plan <rfc>` turns one accepted, committed specification into task
+contracts, deterministically: no model is called at any point. The contract
+carries the scope it may touch, the decisions it inherits with the grades
+they had at mint time, the acceptance commands, and the seat it runs on.
 
-- **Gates red** → history fact, next attempt, same worktree. The tier may
-  name `retry_variants` per gate axis (RFC 0034): a conviction on a
-  `functional` gate can re-dispatch on a heavier rung.
-- **Gates green** → the reviewer lane (below).
-- **Three convictions** → `poison_ceiling`, operator triage.
+Minting onto a board is the manager's act. A contract the repository already
+landed is minted *and* recorded as landed, from git's own trailer — a
+repository carries every contract it ever executed, and a board that called
+those queued would hand a worker somebody's finished work.
 
-The sandbox is disposable and identical per attempt (image digest is part of
-the measured regime, D-17.1); the worktree is the only continuity. Warm
-starts come from a baked dependency layer and a per-slot cache volume
-(RFC 0035) — never shared across slots, never present in replays.
+## Claim — one task, one worker, one lease
 
-## The reviewer lane
+A task is dispatchable when this partition's board carries it as queued, its
+dependencies have **landed** (a run that reached `ready` without landing
+satisfies nothing — A-29, A-31), and nothing sharing its scope is in flight
+(A-39). Scope disjointness is conservative: what is provably shared
+serializes, and an unconstrained allow-set clashes with everything, because
+a task that may touch anything can prove itself disjoint from nothing.
 
-When gates go green the runner mints a review task (D-5.11) and drives one
-reviewer attempt in a **disposable copy** of the worktree (A-78) — the
-reviewer executes the battery itself, reads the staged diff (A-79), and
-returns findings as data. Unlocatable evidence is discarded before anyone
-sees it (D-5.4).
+The claim is a lease and nothing more. If the worker dies, the manager
+notices the claim has gone quiet past its lease and releases it with the
+reason recorded — activity means any recorded fact, never a heartbeat the
+holder sends, because a wedged process can report itself healthy.
 
-- **No blockers** → the landing commit, with the task trailer and the
-  decisions it inherited.
-- **A surviving blocker** → today: immediate `blocker_finding` escalation.
-  RFC 0043 (accepted 2026-09-04, unbuilt) changes this to a bounded in-run
-  revision: the blockers and the convicted diff travel in the RFC 0005 §4a
-  feedback record, the loop continues in the same worktree, and only a
-  blocker that survives the revision budget escalates.
+## Attempt — the agent in a sandbox
 
-## Escalation is the interface to humans
+Each attempt gets a fresh container over the task's worktree. What the agent
+receives is composed by the engine: the prompt, the role's skills written
+from package data, the decisions it inherits, and — when a previous attempt
+was reviewed — the feedback record.
 
-The escalation vocabulary is a closed enum — extending it is an RFC
-amendment, because an extensible enum makes telemetry incomparable across
-time. An escalated run keeps *everything* (worktree, state, traces) for
-triage; terminal runs are swept by `torve reap`.
+What it does **not** receive is a credential. Under the broker the sandbox
+holds no provider key and no store credential; it reaches models through one
+loopback route per routed provider, with the key injected at the wire and
+every response metered.
 
-Operator triage landings are a recognized pattern with a paper trail: the
-operator repairs a *form* defect (a log's YAML quoting, an unstaged file the
-reviewer named), re-runs the battery, and lands with a disclosed
-`— operator triage landing` commit carrying the task trailer. Content is
-never changed under this signature.
+Two things an agent is expected to do from inside:
 
-## What the last queue taught (2026-09-04)
+```bash
+torve log divergence T-0142 --decision D-3 --grade LOCKED \
+    --kind contradicted --class spec-gap \
+    --claim "..." --evidence "path:line — what that line shows" --action halted
 
-Thirteen contracts landed; every escalation in the final stretch was a
-*form* failure on green work:
+torve log owed T-0142 --touched src/app/session.py
+```
 
-| Task | Conviction | Repair |
-| --- | --- | --- |
-| T-0244 | central new file written, never staged — reviewed diff imported a module it did not contain | operator staged it |
-| T-0245 | one unquoted YAML scalar made the whole log unparseable; three sonnet attempts convicted identically | operator quoted it |
-| T-0246 | investigation task: only artifact is the log, agent never staged it, diff judged empty | operator staged it |
+The first records a divergence through the channel; the engine writes the
+log file, so unparseable YAML and unstaged logs are not reachable states.
+The second answers which LOCKED decisions the changed files touch with no
+entry citing them — the same check the gate convicts on, asked while the
+agent can still answer it. Silence over a governed file is the single most
+common way an attempt is thrown away.
 
-Two engine lessons pinned by these: the reviewed diff counts tracked changes
-only (an investigation task **cannot** land unless its log is staged), and
-the compliance-grammar gates are now the dominant poison-ceiling cause —
-six form convictions against zero functional ones in the measurement window
-(D-34.9).
+## Gates — the battery judges the diff
+
+The battery runs in its own sandbox over the worktree, against the config
+hash of the regime it ran under. Before it reads anything, the engine
+rewrites the worktree's divergence log from the record, so what the gate
+judges is what the store holds and not whatever the sandbox left behind.
+
+A red battery does not end the run. The loop retries under the poison
+ceiling and the task's own budgets, and a gate-red conviction can route the
+next attempt to a different tier. What ends a run is the ceiling, a budget,
+a halted divergence entry, a surviving review blocker, or an infrastructure
+failure — each with its own escalation reason.
+
+## Review — a second run over the candidate
+
+With review configured, green gates mint a review task: a different agent,
+isolated from the executor, judging the candidate diff without the author's
+trace. Its findings gate the merge lane. A surviving blocker escalates the
+target rather than landing it.
+
+## Landing — the commit is the engine's
+
+The runner composes the commit, not the agent: the author is the agent
+identity, the trailers carry task, attempt, agent, config hash and the
+decisions inherited, and the signing key never enters a sandbox. That
+trailer is what makes a landing findable years later by anything that can
+read git.
+
+## Escalation — the engine hands it to a person
+
+Every ending that is not a landing is an escalation with a reason from a
+closed vocabulary. The board shows it, the worktree is kept for triage, and
+`torve manager resolve` is how a person hands the task back: requeued,
+abandoned, or landed by hand. Only an operator may write that.
+
+## What one dispatch records
+
+For a task that took two attempts and landed:
+
+```text
+task.minted → task.claimed
+  → attempt.started(1) → seat.consumed × n → attempt.finished(1) → gates.evaluated(1, red)
+  → attempt.started(2) → seat.consumed × n → divergence.recorded × k
+    → attempt.finished(2) → gates.evaluated(2, green)
+  → landing.recorded
+```
+
+Each attempt carries the tier that actually ran it, its own gate verdict and
+its own spend. That is the difference between "this dispatch took two tries"
+and "here is what changed between them".
