@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 from test_context import seed_why_facts
@@ -424,9 +425,7 @@ def test_run_dispatches_when_a_nonfunctional_rungs_provider_is_allowed(repo):
     repo.task(base_task(allow=["src/**"]), None)
     repo.write(
         ".torve/config.yaml",
-        _rung_routing_config(
-            "compliance: executor.deep", "providers: {default: [deepseek]}"
-        ),
+        _rung_routing_config("compliance: executor.deep", "providers: {default: [deepseek]}"),
     )
 
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
@@ -440,7 +439,9 @@ def test_run_refuses_a_form_rung_the_repository_denies(repo):
     repo.task(base_task(allow=["src/**"]), None)
     repo.write(
         ".torve/config.yaml",
-        _rung_routing_config("functional: executor, form: executor.deep", "providers: {default: []}"),
+        _rung_routing_config(
+            "functional: executor, form: executor.deep", "providers: {default: []}"
+        ),
     )
 
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
@@ -534,6 +535,12 @@ def _push_repo(tmp_path, names):
         definition.joinpath("Dockerfile").write_text("FROM python:3.13-slim\n", encoding="utf-8")
 
     (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
+    # The project the build stages into every context (A-84): without it the
+    # definitions build without the engine's CLI, which is legal but is not
+    # what this repository is asserting about.
+    (root / "pyproject.toml").write_text("[project]\nname = 'probe'\n", encoding="utf-8")
+    (root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+
     return root
 
 
@@ -545,7 +552,10 @@ class _FakeRuntime:
         self.builds = []
 
     def build_image(self, context, tag):
-        self.builds.append((str(context), tag))
+        # What the runtime is handed is a staged context, not the definition
+        # directory, and it is gone by the time the assertion runs — so what
+        # it carried is recorded here, while it exists.
+        self.builds.append((sorted(one.name for one in Path(context).iterdir()), tag))
         return "sha256:locallayer"
 
 
@@ -592,7 +602,12 @@ def test_sandbox_build_push_publishes_and_prints_the_pinned_reference(tmp_path, 
     # The pin carries the registry's manifest digest — what a pull platform
     # resolves — and the repository, not the tag.
     assert image["pinned"] == "registry.example.com/org/torve-agent@sha256:cafe"
-    assert runtime.builds == [(str(root / ".torve" / "sandbox" / "probe"), "torve-agent:probe")]
+    # The context carries the definition's own files and the project the
+    # image installs the engine's CLI from.
+    staged, tag = runtime.builds[0]
+    assert tag == "torve-agent:probe"
+    assert "Dockerfile" in staged
+    assert "pyproject.toml" in staged
     assert docker.calls == [
         ["tag", "torve-agent:probe", "registry.example.com/org/torve-agent:probe"],
         ["push", "registry.example.com/org/torve-agent:probe"],

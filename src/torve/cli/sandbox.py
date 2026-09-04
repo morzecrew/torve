@@ -17,9 +17,12 @@ a stand-in for one.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.text import Text
@@ -43,6 +46,9 @@ from torve.cli.options import (
 )
 from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 # ----------------------- #
 
 sandbox_app = typer.Typer(
@@ -50,6 +56,18 @@ sandbox_app = typer.Typer(
 )
 
 DEFINITIONS_DIR = "sandbox"
+
+# What every build context carries beside the definition's own files: the
+# project the engine is built from. An agent calls the engine's own verbs
+# from inside its sandbox — the divergence intake, the notes poll — so the
+# image needs `torve` installed, and installing it needs the project.
+#
+# The definitions guard on these being present, so a bare `docker build` of
+# a definition directory still produces a working image without them; what
+# staging changes is that the supported path no longer asks an operator to
+# assemble a context by hand.
+# The files an install always needs, whatever the wheel is made of.
+PROJECT_FILES = ("pyproject.toml", "uv.lock", "README.md", "LICENSE")
 
 
 # ....................... #
@@ -75,6 +93,68 @@ def definition_names(root: Path) -> list[str]:
         for entry in base.iterdir()
         if entry.is_dir() and (entry / "Dockerfile").is_file()
     )
+
+
+# ....................... #
+
+
+def project_inputs(root: Path) -> list[str]:
+    """What the context must carry for the project to build inside an image.
+
+    The packages and forced includes are read from `pyproject.toml` rather
+    than listed here: a wheel that ships migrations or skills as package
+    data fails to build without them, and a hand-kept list is a list that
+    goes stale the first time one is added. It went stale once already —
+    that is why this reads.
+    """
+
+    import tomllib
+
+    manifest = root / "pyproject.toml"
+
+    if not manifest.is_file():
+        return list(PROJECT_FILES)
+
+    wheel = (
+        tomllib.loads(manifest.read_text(encoding="utf-8"))
+        .get("tool", {})
+        .get("hatch", {})
+        .get("build", {})
+        .get("targets", {})
+        .get("wheel", {})
+    )
+    packages = [str(one).split("/", 1)[0] for one in wheel.get("packages", ["src"])]
+    included = [str(one) for one in wheel.get("force-include", {})]
+
+    return [*PROJECT_FILES, *dict.fromkeys([*packages, *included])]
+
+
+# ....................... #
+
+
+@contextmanager
+def staged_context(definition: Path, root: Path) -> Generator[Path]:
+    """The definition's files plus the project, in a directory of their own.
+
+    The build context is a copy rather than the repository: an image should
+    see the inputs it bakes and nothing else, and a context rooted at the
+    repository would send the worktree, the venv and every artefact in it.
+    """
+
+    with tempfile.TemporaryDirectory(prefix="torve-image-") as scratch:
+        staged = Path(scratch)
+        shutil.copytree(definition, staged, dirs_exist_ok=True)
+
+        for name in project_inputs(root):
+            source = root / name
+
+            if source.is_dir():
+                shutil.copytree(source, staged / name, ignore=shutil.ignore_patterns("__pycache__"))
+
+            elif source.is_file():
+                shutil.copy2(source, staged / name)
+
+        yield staged
 
 
 # ....................... #
@@ -164,6 +244,54 @@ def push_image(local_tag: str, repository: str, name: str) -> str:
 # ....................... #
 
 
+@sandbox_app.command("stage")
+def stage(
+    name: Annotated[str, typer.Argument(help="The definition whose context to assemble.")],
+    into: Annotated[Path, typer.Argument(help="Directory to write the context into.")],
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Assemble one definition's build context in a directory.
+
+    `build` does this in scratch and throws it away; this is the same
+    assembly for a builder that is not this process — CI hands a context
+    directory to a build action, and it must be the same context, by the
+    same rule, or the published image differs from the local one in a way
+    nothing checks.
+    """
+
+    root = root.resolve()
+
+    if name not in definition_names(root):
+        listed = ", ".join(definition_names(root)) or "none"
+
+        raise fail(
+            f"configuration error: no definition directory with a Dockerfile for "
+            f"{name!r} under {definitions_root(root)} (defined: {listed})",
+            EXIT_CONFIG,
+        )
+
+    into = into.resolve()
+    into.mkdir(parents=True, exist_ok=True)
+
+    with staged_context(definitions_root(root) / name, root) as context:
+        shutil.copytree(context, into, dirs_exist_ok=True)
+
+    staged = sorted(one.name for one in into.iterdir())
+
+    if fmt is Format.JSON:
+        emit_json({"name": name, "context": str(into), "entries": staged})
+        return
+
+    console = out(fmt)
+    header(console, "sandbox stage", name)
+    console.print(Text(str(into), STYLE_ID))
+    console.print(Text(", ".join(staged), STYLE_ID))
+
+
+# ....................... #
+
+
 @sandbox_app.command("build")
 def build(
     name: Annotated[
@@ -228,7 +356,8 @@ def build(
 
     for entry in names:
         try:
-            digest = runtime.build_image(definitions_root(root) / entry, image_tag(entry))
+            with staged_context(definitions_root(root) / entry, root) as context:
+                digest = runtime.build_image(context, image_tag(entry))
 
         except Exception as error:  # the build tool's failure is the message
             raise fail(f"build failed for {entry!r}: {error}", EXIT_INFRASTRUCTURE) from None

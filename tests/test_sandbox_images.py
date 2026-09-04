@@ -287,6 +287,72 @@ def test_toolkit_contract_answers_in_the_container(name, tmp_path):
 
 
 # ....................... #
+# The engine's CLI inside the image (A-84): the prompt tells an attempt to
+# record divergence and to poll for notes with `torve`, so the image has to
+# have it — installed in an environment of its own, and readable by the uid
+# the sandbox actually runs as, which is the host's, never root's.
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+def test_the_engine_cli_answers_in_the_container_as_a_sandbox_uid(tmp_path):
+    from torve.cli.sandbox import project_inputs
+
+    root = seed_repo(tmp_path, {})
+    probe_name = "mimo-cli-probe"
+    shutil.copytree(
+        REPO_ROOT / ".torve" / "sandbox" / "mimo", root / ".torve" / "sandbox" / probe_name
+    )
+
+    # The project the build stages into the context. Copied rather than
+    # listed, from the same rule the build uses: this test found the gap
+    # once already, when the wheel's forced includes were not staged.
+    for name in project_inputs(REPO_ROOT):
+        source = REPO_ROOT / name
+
+        if source.is_dir():
+            shutil.copytree(source, root / name, ignore=shutil.ignore_patterns("__pycache__"))
+
+        elif source.is_file():
+            shutil.copy2(source, root / name)
+
+    built = CliRunner().invoke(
+        app, ["sandbox", "build", probe_name, "--root", str(root), "--format", "json"]
+    )
+    assert built.exit_code == 0, built.output
+
+    try:
+        probe = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                # Not root: `docker run --user <host uid>` is how every
+                # sandbox starts, and uv installs its interpreter under
+                # root's home by default — which reads as "permission
+                # denied" on the first verb an agent tries.
+                "--user",
+                "65534:65534",
+                "-e",
+                "HOME=/tmp",
+                f"torve-agent:{probe_name}",
+                "sh",
+                "-c",
+                "torve --version && torve log notes --root /tmp --format json",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert probe.returncode == 0, probe.stderr
+        # A sandbox with no channel says so and exits clean: the verb is
+        # usable before anything is wired.
+        assert '"channel": false' in probe.stdout
+    finally:
+        subprocess.run(
+            ["docker", "rmi", "-f", f"torve-agent:{probe_name}"], capture_output=True, check=False
+        )
+
+
+# ....................... #
 # The battery's dependency layer (D-35.2): pyproject.toml and uv.lock baked
 # by `uv sync --all-extras --no-install-project` into a fixed
 # UV_PROJECT_ENVIRONMENT, keyed to the lock's bytes so an attempt with an

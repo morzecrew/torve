@@ -7,12 +7,10 @@ depends_on: ["0003", "0004"]
 informed_by: ["0013", "0016"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-24"]
+amended_by: ["A-24", "A-84"]
 owner: Lev Litvinov
 description: >-
-  How a sandbox image comes to exist and how a harness's configuration reaches
-  it: images as digest-pinned inputs to the run, five configuration channels
-  routed by nature, and the policy lines for MCP servers and persistent memory.
+  How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory.
 schema_version: 1
 ---
 
@@ -192,8 +190,8 @@ way:
 | D-17.5 | `ASSUMED` | `tier.home` is the per-tier file channel, materialized at dispatch like skills; deferred until a harness needs it | `src/torve/config/runconfig.py` `src/torve/application/skills.py` | Specified now so the first need does not improvise |
 | D-17.6 | `LOCKED` | stdio MCP servers are image content; remote MCP endpoints are egress destinations under provider routing (D-4.8), never configured from the repository under work | `src/torve/config/runconfig.py` | Repository contents flow to MCP endpoints exactly as to providers |
 | D-17.7 | `LOCKED` | Memory is off for executor tiers by default; enabled memory is per-slot on the slot's volume, never shared between slots (D-31), and never mounted in a shadow run | `src/torve/application/shadow.py` `src/torve/config/runconfig.py` | Shared memory is agent communication; remembered shadow runs are incomparable numbers |
-| D-17.8 | `ASSUMED` | Images are thin: base runtime, harness, `git`, `uv`; everything task-specific arrives via the workspace | `.torve/sandbox/**` | What is baked deeper is invisible to review and to the hash of the work |
-| D-17.9 | `ASSUMED` | `runtime.docker: "" \| "socket"` — socket mounts the host daemon into every sandbox of the run, attempt and gates alike; the image supplies the docker CLI; off by default. A nested daemon is the named, deferred stronger mode. Added by amendment A-24 2026-08-22 | `src/torve/config/runconfig.py` `src/torve/adapters/runtime/docker.py` | A battery that drives containers cannot replay without a daemon |
+| D-17.8 | `ASSUMED` | Images are thin: base runtime, harness, `git`, `uv`, and the engine's own CLI in an environment of its own; everything task-specific arrives via the workspace (the CLI added by amendment A-84 2026-09-04) | `.torve/sandbox/**` | What is baked deeper is invisible to review and to the hash of the work |
+| D-17.9 | `ASSUMED` | `runtime.docker: "" \ | `"socket"` `—` `socket` `mounts` `the` `host` `daemon` `into` `every` `sandbox` `of` `the` `run` `attempt` `and` `gates` `alike` `the` `image` `supplies` `the` `docker` `CLI` `off` `by` `default.` `A` `nested` `daemon` `is` `the` `named` `deferred` `stronger` `mode.` `Added` `by` `amendment` `A-24` `2026-08-22` | `src/torve/config/runconfig.py` `src/torve/adapters/runtime/docker.py` |
 | D-17.10 | `LOCKED` | Socket mode is host-equivalent capability: an explicit per-repository opt-in, never a code default, never combined with repositories the operator does not trust as their own shell; OpenSandbox refuses docker access in any mode until the live-server integration. Added by amendment A-24 2026-08-22 | `src/torve/adapters/runtime/**` | A container started over the host socket can mount any host path |
 | D-17.11 | `ASSUMED` | Containers the sandbox starts carry no torve labels and the reaper does not chase them; the battery that starts them owns their lifecycle. Added by amendment A-24 2026-08-22 | `src/torve/application/reaper.py` | Cleanup-by-convention must not pretend to cover what it cannot see |
 
@@ -210,7 +208,6 @@ way:
 ## Amendments
 
 ### A-24 — 2026-08-22 — docker inside the sandbox (adds §2a, D-17.9–D-17.11)
-
 **Found planning the replay campaign.** A repository whose acceptance
 battery drives containers — Torve itself — cannot replay its own tasks in a
 daemonless sandbox, so the roster's most important consumer was excluded
@@ -223,3 +220,41 @@ the trade plainly — socket mode is host-equivalent capability, the
 deferred stronger mode, and records that sandbox-started containers are
 outside the reaper's convention. One exit criterion added: a Torve task
 replayed green inside a socket-mode sandbox.
+
+### A-84 — 2026-09-04 — the engine's CLI is part of the base, not the task (amends D-17.8, D-17.2)
+**Found wiring RFC 0045's channel.** D-17.8 lists what a thin image carries
+— base runtime, harness, `git`, `uv` — and that list was written when the
+only thing an attempt ran was its harness. It no longer is: the prompt tells
+an attempt to record divergence with `torve log divergence` and to read the
+engine's notes with `torve log notes`, and no agent image installed `torve`.
+The instructions named commands the sandbox did not have.
+
+The engine's own CLI is not task-specific. It is the other half of the
+harness — the channel through which an attempt reports what it found and
+learns what the engine knows — and it belongs in the base for the same
+reason the harness does: baked, reviewed, and part of the digest that joins
+`config_hash`, rather than injected from the host at run time.
+
+**Changed:** D-17.8's list gains the engine's CLI, installed into its own
+environment (`/opt/torve/cli`) with its own interpreter, so an image's
+`torve` never depends on what the repository under work installs — or on
+that repository being a Python project. D-17.2's build verb now stages the
+project into the context it sends, because installing the CLI needs the
+project and asking an operator to assemble a context by hand was the reason
+the battery's dependency layer stayed unused. What the context carries is
+read from the wheel's own declaration rather than listed, since a hand-kept
+list goes stale the first time the wheel gains package data — it did, during
+this change. `torve sandbox stage` writes the same context for a builder
+that is not this process, so what CI publishes is assembled by the same rule
+as what an operator builds. The definitions still guard on the project's
+presence, so a bare `docker build` of a definition directory produces a
+working image without it.
+
+**Deliberately unchanged:** D-17.3. The engine still never builds mid-run;
+this makes a build carry more, not happen more often.
+
+**Known duplication.** The install block is byte-identical in five agent
+definitions, copied from `.torve/sandbox/_torve-cli.dockerfile` and pinned
+against it by a test. That is a seam, not a solution: a shared base image is
+what removes it, and belongs to the sandbox rework rather than to the change
+that found the gap.
