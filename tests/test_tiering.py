@@ -341,12 +341,15 @@ def test_prompt_states_explicit_emptiness():
     assert "no corpus coordinates" in prompt
 
 
-def test_prompt_carries_the_engine_base_sha_pin():
-    """D-A.7: the sandbox cannot resolve the host .git pointer, so the pin
-    travels in the prompt — and only when the engine actually has it."""
-    sha = "83ceeaeaf29d7aa189f7e7d308cce698079af624"
-    assert f"`base_sha` is `{sha}`" in build_prompt(Task(id="T-1", decisions=[]), base_sha=sha)
-    assert "base_sha" not in build_prompt(Task(id="T-1", decisions=[]))
+def test_prompt_sends_divergences_through_the_intake():
+    """The agent states an entry and the engine writes the log, so the
+    prompt names the verb rather than the file — and never asks for a pin
+    the sandbox cannot resolve (D-A.7, D-44.10)."""
+    prompt = build_prompt(Task(id="T-1", decisions=[]))
+
+    assert "torve log divergence T-1" in prompt
+    assert "never edit `.torve/tasks/T-1/log.yaml` by hand" in prompt
+    assert "base_sha" not in prompt
 
 
 def test_prompt_extras_are_absent_by_default():

@@ -23,6 +23,7 @@ the agent-facing half, and the worker holds the other.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,6 +58,8 @@ ENTRY_ORDER = (
     "notes",
 )
 DOCUMENT_ORDER = ("schema_version", "task", "repo", "base_sha", "drift_count", "entries")
+# Engine scratch, generated and never committed (RFC 0013 §5).
+PIN_FILE = "pin.json"
 SCHEMA_VERSION = 1
 
 
@@ -91,7 +94,24 @@ def _git(root: Path, *args: str) -> str:
 def _pin(root: Path) -> dict[str, str]:
     """The log's opening pin (D-A.7): the repository its evidence resolves
     against, and the commit the work started from. Derived here because an
-    agent transcribing it is one more thing that can be wrong — and was."""
+    agent transcribing it is one more thing that can be wrong — and was.
+
+    A pin the engine left in the worktree wins over derivation: inside a
+    sandbox git resolves nothing, and the dropped file is the only source
+    there is."""
+
+    dropped = root / layout.TORVE_DIR / "tmp" / PIN_FILE
+
+    if dropped.is_file():
+        loaded = json.loads(dropped.read_text() or "{}")
+
+        if isinstance(loaded, dict):
+            carried = cast(dict[str, Any], loaded)
+
+            return {
+                "repo": str(carried.get("repo") or ""),
+                "base_sha": str(carried.get("base_sha") or ""),
+            }
 
     remote = _git(root, "config", "--get", "remote.origin.url")
     repo = ""
@@ -132,9 +152,6 @@ def open_log(root: Path, task_id: str) -> dict[str, Any]:
     }
 
 
-# ....................... #
-
-
 def render(document: dict[str, Any]) -> str:
     """The document as YAML the gate can read back. `safe_dump` decides the
     quoting, which is the whole point: the scalar that ended three attempts
@@ -150,6 +167,36 @@ def render(document: dict[str, Any]) -> str:
     ]
 
     return yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True, width=88)
+
+
+# ....................... #
+
+
+def seed(root: Path, task_id: str, *, base_sha: str | None = None) -> Path:
+    """Write the log's pin where the intake can read it, before the agent
+    runs.
+
+    A sandbox sees a `.git` pointer into a host tree it cannot follow, so
+    nothing inside it can resolve the commit its evidence must cite. The
+    engine knows it, drops it here, and the intake reads it back — which is
+    why the agent is no longer asked to copy a pin it has no way to check.
+
+    It is a pin, not a log: an empty log is not the same as no log (A-13,
+    D-3.21), and a run with nothing to report must still leave no file
+    behind. The pin lives under the engine's own scratch directory, which
+    is generated and never committed.
+    """
+
+    pin = dict(_pin(root))
+
+    if base_sha:
+        pin["base_sha"] = base_sha
+
+    path = root / layout.TORVE_DIR / "tmp" / PIN_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(pin, indent=2) + "\n")
+
+    return path
 
 
 # ....................... #

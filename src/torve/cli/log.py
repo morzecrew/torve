@@ -112,6 +112,6 @@ def divergence_cmd(
     closing(
         out(fmt),
         f"entry {entries} recorded in {path.relative_to(root)}"
-        + (" and staged" if staged else " — not staged, this is no git checkout"),
+        + (" and staged" if staged else " — the engine stages it host-side"),
     )
     raise typer.Exit(EXIT_OK)

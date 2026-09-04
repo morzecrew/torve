@@ -69,61 +69,64 @@ outcome, not a failure to complete. The halt escalates as `underspecified`
 (charter A-21): it indicts the contract, not the code, and the fix is an
 amendment and a re-mint, never a retry.
 
-## The log: `.torve/tasks/<task-id>/log.yaml`
+## The log: `torve log divergence`
 
-One file per task, created by its first entry — a run with nothing to report
-owes no file. Append-only: items are never removed or edited — a wrong
-entry gets a later entry saying so. Write the entry **before** you act; an
-entry written afterwards is a rationalisation. `grade` is copied from the task
-as it stands now, never re-read from the current spec.
+You state an entry; the engine writes the log. One call per entry:
 
-```yaml
-schema_version: 1
-task: T-0142
-repo: morzecrew/torve
-base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7):
-                                 # copy it from the prompt's "engine's pin" line —
-                                 # git cannot resolve it inside the sandbox, and
-                                 # another task's log is never the source
-drift_count: 0            # the declared claim; the gate checks it against entries classed drift
-entries:
-  - decision: D-3         # the spec's identifier, or `unlisted`
-    grade: LOCKED
-    kind: contradicted    # contradicted | departed | resolved | blocked
-    class: spec-gap       # discovery | spec-gap | drift | irreducible (one of kind/class required)
-    at: 2026-08-20T11:04:12Z
-    attempt: 2
-    claim: sessions cannot live in Redis; no Redis service in this deployment
-    evidence: infra/compose.yaml:1-40 — no redis service defined
-    action: halted
-    proposal: LOCKED — sessions live in Postgres until Redis is provisioned
-    notes: |
-      Prose lives here, inside the entry — never in a sibling document.
+```console
+$ torve log divergence T-0142 --attempt 2 \
+    --decision D-3 --grade LOCKED \
+    --kind contradicted --class spec-gap \
+    --claim "sessions cannot live in Redis; no Redis service in this deployment" \
+    --evidence "infra/compose.yaml:1 — no redis service is defined" \
+    --action halted \
+    --proposal "LOCKED — sessions live in Postgres until Redis is provisioned"
 ```
 
-- **`evidence` must be locatable by someone else**: `path:line`, `path:start-end`,
-  or a backticked command with its output. A sentence is a claim, and `claim`
-  is where claims go; unlocatable evidence is discarded, and a discarded entry
-  counts as none.
-- **The citation LEADS, prose follows after ` — `.** The gate reads everything
-  before the first ` — ` as the citation and nothing else. Extra citations go
-  in the prose. Parentheses after the path break the parse, and a path
-  without `:line` is not a citation:
+Everything mechanical belongs to the engine: the file and its YAML quoting,
+the timestamp, the pin your evidence resolves against, the drift count, and
+staging the log so the gate that judges the diff can see it. You supply the
+judgement, which is the part no one else can.
+
+**The entry is checked before anything is written.** A refused entry leaves
+the log exactly as it was and prints what to repair — in the same words the
+gate would use hours later, which is the point of being told now. Fix the
+line and run the command again.
+
+**Never write or edit `.torve/tasks/<task-id>/log.yaml` yourself.** The
+engine owns that file. A hand-written log is the failure this verb exists to
+remove: it has ended three-attempt runs over a stray character, an evidence
+line in the wrong shape, and a file nobody staged.
+
+Write the entry **before** you act; an entry written afterwards is a
+rationalisation. Entries are append-only — a wrong entry gets a later entry
+saying so, never an edit of the old one. `--grade` is the grade the task
+carries now, never re-read from the current spec.
+
+- **`--evidence` must be locatable by someone else**: `path:line`,
+  `path:start-end`, or a backticked command with its output. A sentence is a
+  claim, and `--claim` is where claims go; unlocatable evidence is discarded,
+  and a discarded entry counts as none.
+- **The citation LEADS, prose follows after ` — `.** Everything before the
+  first ` — ` is read as the citation and nothing else. Extra citations go in
+  the prose. Parentheses after the path break the parse, and a path without
+  `:line` is not a citation:
   - wrong: `src/a.py:10-20 (the guard); src/b.py:5 (its caller)`
   - wrong: `src/a.py — the guard` (no line number)
   - wrong: `src/a.py:10-20; src/b.py:5 — the guard` (semicolon-joined citations where prose belongs — one citation leads)
   - right: `src/a.py:10-20 — the guard; src/b.py:5 is its caller`
-- **`class` answers: could this have been known before code existed?**
+- **`--class` answers: could this have been known before code existed?**
   `discovery` no (healthy) · `spec-gap` yes, spec was silent · `drift` yes, spec
   covered it and it was built otherwise (**a defect** — should be zero) ·
   `irreducible` neither: stop and spike.
-- **`kind: resolved` with `action: decided` is the close-out** — the legal
+- **`--kind resolved` with `--action decided` is the close-out** — the legal
   attestation of compliance in a touched `LOCKED` area, which the silence check
-  demands an entry for. `kind: blocked` licenses only `halted`.
-- **`drift_count` is a claim.** Revising it edits the scalar (git history keeps
-  prior claims); `entries` stays append-only.
-- Bypass records (RFC 0002 §6a) live in a separate top-level `bypasses:` list
-  in the same file, written by the runner from a human's signed trailer.
+  demands an entry for. `--kind blocked` licenses only `--action halted`.
+- **`--decision unlisted` owes a `--proposal`**, and takes `--grade UNLISTED`.
+- **`--notes` carries prose that belongs beside the entry** — never a sibling
+  document.
+- Bypass records (RFC 0002 §6a) live in a separate `bypasses:` list in the
+  same file, written by the runner from a human's signed trailer. Not yours.
 
 ## Silence is what gets caught
 

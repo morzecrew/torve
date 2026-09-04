@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from torve.application.divergence import seed as seed_log
 from torve.application.ports import AgentContext, AgentResult
 from torve.base import naming
 
@@ -70,7 +71,6 @@ def _workspace_head(workspace: Path) -> str | None:
 def build_prompt(
     task: Task,
     revision: bool = False,
-    base_sha: str | None = None,
     continuation: bool = False,
     prompt_extras: list[str] | None = None,
 ) -> str:
@@ -139,20 +139,12 @@ def build_prompt(
             " `SKILL.md` there before writing code."
         ),
         (
-            f"- Divergences from the decisions above go to"
-            f" `.torve/tasks/{task.id}/log.yaml` as the `flag-dont-flip` skill"
-            f" specifies; the `decisions-reported` gate reads that file."
-        ),
-        *(
-            [
-                (
-                    f"- The log's `base_sha` is `{base_sha}` — the engine's pin"
-                    " (D-A.7). Copy it verbatim; `git` cannot resolve it inside"
-                    " this sandbox."
-                )
-            ]
-            if base_sha
-            else []
+            f"- Divergences from the decisions above are recorded with"
+            f" `torve log divergence {task.id} --decision ... --evidence ...`,"
+            f" as the `flag-dont-flip` skill specifies. The engine writes and"
+            f" pins the log; never edit `.torve/tasks/{task.id}/log.yaml` by"
+            f" hand. A malformed entry is refused on the spot, with what to"
+            f" repair — fix it and run the command again."
         ),
         (
             "- User-facing strings — help text, docstrings typer renders, printed"
@@ -605,13 +597,17 @@ class HarnessAgent:
         stage = ctx.workspace / ".torve" / "tmp"
         stage.mkdir(parents=True, exist_ok=True)
         revision = (ctx.workspace / ".torve" / "feedback.md").is_file()
+        # The log's pin is written here, host-side, because nothing inside
+        # the sandbox can resolve it: the worktree's `.git` points into a
+        # host tree the sandbox cannot follow. The intake reads it back, so
+        # the agent is never asked to copy a commit it cannot verify.
+        seed_log(ctx.workspace, ctx.task.id, base_sha=_workspace_head(ctx.workspace))
         prompt = (
             ctx.prompt
             if ctx.prompt is not None
             else build_prompt(
                 ctx.task,
                 revision=revision,
-                base_sha=_workspace_head(ctx.workspace),
                 continuation=ctx.resume,
                 prompt_extras=self.tier.prompt_extras,
             )

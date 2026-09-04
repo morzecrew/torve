@@ -20,7 +20,7 @@ from forze.application.execution import DepsRegistry, ExecutionRuntime
 from typer.testing import CliRunner
 
 from torve.adapters.eventstore.document import mock_module
-from torve.application.divergence import IntakeRefused, ingest, open_log, record, stage
+from torve.application.divergence import IntakeRefused, ingest, open_log, record, seed, stage
 from torve.application.eventlog import event_log
 from torve.cli.main import app
 from torve.config import layout
@@ -266,3 +266,46 @@ def test_the_verb_reports_what_it_wrote(worktree):
         "entries": 1,
         "staged": True,
     }
+
+
+def test_the_pin_is_dropped_before_the_agent_runs_and_leaves_no_log(worktree):
+    """A sandbox cannot resolve the commit its evidence cites: the worktree's
+    `.git` points into a host tree it never sees. The engine drops the pin
+    host-side, at dispatch, so the intake reads it back instead of the agent
+    copying it — and an untouched run still leaves no log behind."""
+
+    seed(worktree.root, TASK_ID, base_sha="0" * 40)
+
+    assert not layout.log_file(worktree.root, TASK_ID).exists()
+
+    _, document, _ = one_entry(worktree)
+
+    assert document["base_sha"] == "0" * 40
+    assert document["repo"] == "morzecrew/torve"
+
+
+def test_the_dropped_pin_serves_a_worktree_git_cannot_read(tmp_path):
+    """The sandbox case, without a sandbox: no git at all, and the intake
+    still writes a log the gate's pin check accepts."""
+
+    (tmp_path / ".torve" / "tasks" / TASK_ID).mkdir(parents=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('hello')\n")
+    seeded = seed(tmp_path, TASK_ID, base_sha="a" * 40)
+    seeded.write_text(json.dumps({"repo": "morzecrew/torve", "base_sha": "a" * 40}))
+    _, document, staged = record(
+        tmp_path,
+        TASK_ID,
+        decision="D-1",
+        grade="ASSUMED",
+        kind="departed",
+        klass="discovery",
+        claim="the pin came from the engine",
+        evidence="src/app.py:1 — a line the worktree carries",
+        action="departed",
+        attempt=1,
+    )
+
+    assert document["repo"] == "morzecrew/torve"
+    assert document["base_sha"] == "a" * 40
+    assert staged is False
