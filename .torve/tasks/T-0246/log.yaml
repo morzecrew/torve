@@ -1,0 +1,131 @@
+schema_version: 1
+task: T-0246
+repo: morzecrew/torve
+base_sha: 78c8ea19a951a6e547f1448c9047fc8c8b7bb8b8
+drift_count: 0
+entries:
+  - decision: D-42.5
+    grade: OPEN
+    kind: resolved
+    class: discovery
+    at: 2026-09-04T08:01:37Z
+    attempt: 1
+    claim: >-
+      Verdict on the D-42.5 investigation: NO FIT — forze's outbox integration
+      does not match D-8.2's staged-effect semantics, and the hand-rolled
+      outbox stays. Four load-bearing mismatches: (1) staging model — forze
+      stages at write time, from aggregate domain events bridged onto an
+      in-transaction flush hook, while D-8.2's effects are DERIVED from the
+      run state by a projection sweep that re-derives and re-stages
+      idempotently, so a lost outbox is rebuilt from the states, never
+      invented (the local-regime contract of RFC 0008 §2's execution note);
+      the outbox table is the durable truth in forze's design and cannot be
+      re-derived. (2) key model — forze's idempotency key is an opaque UUID
+      event_id and its query port is claim/mark-only, with no read API over
+      the keys ever staged; D-8.2's keys are structured facts
+      (task_id, state, attempt, transitions) that the projection itself
+      queries — the D-8.17/A-36 clear rules are prefix tests over the
+      full staged-key set ("was this task ever prompted"), which forces
+      either an added read model or the hand-rolled staged_keys kept beside
+      the new store, i.e. supplementation, not displacement, which D-42.4
+      refuses. (3) relay destination — forze relays claimed rows to a
+      queue/stream/pubsub transport for a downstream consumer to apply; the
+      tracker's destination is the Tracker port's own method calls (reflect,
+      comment, notify, unlabel), synchronous, inside the tick, with
+      at-least-once carried by deliver-then-mark-ledger; routing tracker
+      effects through a broker adds two infrastructure legs to replace one
+      function call, and the lossless choices (queue/stream) require a
+      resident consumer, colliding with RFC 0019 §2 and D-42.6, while the
+      one-shot-callable pubsub destination is explicitly downgraded to
+      at-most-once past the broker — breaking the very survive-the-crash
+      property D-8.2 exists for. (4) acceptance bar — the migration's own
+      bar is the tracker suite passing unchanged, and it pins the
+      file-regime surface (stage/relay/pending over a filesystem root,
+      replay absorbing redelivery); a store-backed staging cannot pass it
+      as written, so "fit" would require rewriting the bar, not the staging.
+    evidence: |-
+      src/torve/application/outbox.py:7-12 — the re-derive-from-state,
+      rebuilt-never-invented contract; rfcs/0008-tracker-projection.md:42-44 —
+      §2 and its T-0049 execution note, the local-regime statement D-8.2 rides.
+      Emit-time staging on `.venv/lib/python3.14/site-packages/forze_kits/integrations/outbox/flush.py:20-33`
+      (tx-scoped flush hook; the module docstring names omitting it "a dual-write")
+      and `forze_kits/integrations/outbox/emit.py:206-222` (OutboxEmit =
+      domain-event → integration-event staging rules per aggregate write). Key
+      model on `.venv/lib/python3.14/site-packages/forze/application/contracts/outbox/value_objects.py:40-42`
+      (event_id: UUID, "Idempotency key for staging and relay deduplication") and
+      `forze/application/contracts/outbox/ports.py:91-160` (OutboxQueryPort is
+      claim_pending/mark_published/mark_failed/mark_retry/reclaim/requeue —
+      nothing enumerates staged keys); the torve read that needs one is
+      `src/torve/application/tracker.py:231` (`prompted = staged_keys(root)`)
+      consumed at `src/torve/application/tracker.py:277-289` (ever-prompted
+      prefix test gating the D-8.17 clear). Destination model on
+      `.venv/lib/python3.14/site-packages/forze_kits/integrations/outbox/relay.py:227-307`
+      (to_queue/to_stream/to_pubsub — the public relay publishes transports,
+      it never invokes an application callback; the per-row publish_one
+      callable lives in the private `_relay_core`) and
+      `forze/application/contracts/outbox/specs.py:53-63` (pubsub: "at-most-once
+      past the broker ... silently lost"); the torve destination is
+      `src/torve/application/tracker.py:455-471` (tracker.comment/notify taking
+      effect.key, refused reflections logged as divergence, tracker.py:424-427).
+      The bar on tests/test_outbox.py:10 and tests/test_tracker.py:497-502
+      (imports of stage/relay/pending over a Path root; the crash-replay that
+      re-derives and lets the ledger absorb the redelivery).
+    action: decided
+    proposal: >-
+      Close D-42.5 as no-fit; the decision row gains the finding: forze's
+      integrations.outbox is emit-at-write-time, store-transactional staging
+      keyed on opaque event UUIDs, relayed to message transports for a
+      consumer; D-8.2 is derive-from-state staging keyed on structured
+      facts, read back by prefix, relayed by direct port call inside the
+      tick. The two models answer different problems and neither displaces
+      the other. RFC 0042's outbox migration mints nothing; the hand-rolled
+      outbox (outbox.py + tracker.py's project/relay) is the durable
+      implementation. RFC 0008 §2's execution note hedge — "Store-
+      transactional staging joins with the durable-runner integration,
+      behind the same API" — is now answered for the tracker consumer: even
+      with the durable runner, the join does not happen through
+      forze_kits.integrations.outbox, because the key-prefix read
+      (D-8.17) and the port-call destination (D-8.2's at-least-once to
+      GitHub, not to a broker) survive any store move and the kit provides
+      neither. Revisit only if D-8.2's key semantics change.
+    notes: |
+      Investigation method: full read of both sides — torve's outbox.py
+      (stage/relay/pending, 179 lines) and tracker.py's project/
+      project_landings/relay_to_tracker — against the installed package's
+      public surface (emit.py bind_outbox/OutboxEmit/RelayBinding, flush.py,
+      relay.py OutboxRelay, lifecycle.py outbox_relay_background_lifecycle_step)
+      and the core contracts (ports.py, specs.py, value_objects.py), plus
+      the postgres adapter (ON CONFLICT (outbox_route, event_id) DO
+      NOTHING — the only staging dedupe, and note it keys the row's primary
+      key pair, not an author-visible read).
+
+      The closest fit considered and refused: deterministic uuid5(key) as
+      event_id would give key-idempotent staging inside a Postgres-backed
+      outbox (the table's publish rows persist, so re-staging a delivered
+      key is a no-op — matching torve's dedupe-including-delivered behavior).
+      That maps the STAGING half only. The relay half stays unmapped: the
+      public kit relays to brokers (see claim, mismatch 3), and the query
+      port cannot enumerate event_ids, so tracker.py:231's staged_keys
+      prefix read still needs the hand-rolled index — the migration would
+      add a table, a codec per effect kind (torve's payloads are
+      heterogeneous dicts across eight kinds), and a broker hop while
+      keeping the one property (rebuild from state) that makes today's
+      simple design correct. That is adoption with supplementation; D-42.4
+      is the standing refusal and this investigation honors it, the same
+      way T-0245 refused the quiesce plane for needing runtime machinery
+      with nothing hand-rolled to displace (.torve/tasks/T-0245/log.yaml).
+
+      Failure-model deltas worth recording for completeness, though each is
+      individually bridgeable and none is load-bearing on its own: forze
+      retries transient publish failures with exponential backoff to
+      max_attempts then parks rows failed awaiting operator requeue_failed,
+      while the tracker's contract is "refusal is a logged divergence and
+      the effect is DONE" (tracker.py:424-427) and "failure stays pending
+      and re-tries on the next tick forever" (outbox.py:161-166) — a
+      GitHub outage would dead-letter the board under forze's default
+      policy, adding an operator step D-8.2's consequence column disclaims.
+
+      No code changed: this phase is the investigation; the verdict
+      mints, or with this verdict, mints nothing. Tracker and outbox files
+      are byte-identical to base_sha; acceptance gates re-run clean against
+      the untouched tree.
