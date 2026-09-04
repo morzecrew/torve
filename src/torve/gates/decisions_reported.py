@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any, cast
 
 import yaml
@@ -225,7 +226,7 @@ def _grammar_rejection_message(evidence: str) -> str:
     )
 
 
-def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list[str]:
+def _check_evidence(index: int, entry: dict[str, Any], root: Path) -> list[str]:
     evidence = _norm(entry.get("evidence")).strip()
 
     if not evidence:
@@ -235,7 +236,7 @@ def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list
     # filter share the mechanism in gates/evidence.py. The judgement is the
     # locator's; when it rejects the grammar, the message here teaches the
     # repair instead of only naming the failure.
-    problem = locate(evidence, ctx.root)
+    problem = locate(evidence, root)
 
     if problem is None:
         return []
@@ -244,6 +245,26 @@ def _check_evidence(index: int, entry: dict[str, Any], ctx: GateContext) -> list
         problem = _grammar_rejection_message(evidence)
 
     return [f"entry {index + 1}: {problem}"]
+
+
+# ....................... #
+
+
+def check_entry(entry: dict[str, Any], root: Path, *, index: int = 0) -> list[str]:
+    """Every per-entry check this gate applies, for a caller holding one
+    entry rather than a log (RFC 0044 D-44.10).
+
+    The intake calls this before it writes, so an agent is refused while it
+    can still act, in the words the gate would have used hours later. Parity
+    is the function rather than a copy of its messages: there is one
+    implementation, and a test pins that both callers reach it.
+    """
+
+    return (
+        _check_schema(index, entry)
+        + _check_legality(index, entry)
+        + _check_evidence(index, entry, root)
+    )
 
 
 # ....................... #
@@ -328,9 +349,12 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
 SHA_SHAPE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
-def _check_pin(document: dict[str, Any]) -> list[str]:
+def check_pin(document: dict[str, Any]) -> list[str]:
     """D-A.7 (A-70): the log opens with `repo` and `base_sha`, so its
     path:line evidence resolves against the commit the work started from.
+    Public for the same reason `check_entry` is: the intake checks the
+    document it is about to write, so a pin this gate would convict is
+    reported while someone can still act on it.
     The pin has been part of the format since A-7 and voluntary in the
     gate; agent-written logs omitted it until the gate demanded it."""
 
@@ -398,12 +422,12 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         return BuiltinOutcome("fail", parse_error or "log did not parse")
 
     problems: list[str] = []
-    problems += _check_pin(document)
+    problems += check_pin(document)
 
     for index, entry in enumerate(document["entries"]):
         problems += _check_schema(index, entry)
         problems += _check_legality(index, entry)
-        problems += _check_evidence(index, entry, ctx)
+        problems += _check_evidence(index, entry, ctx.root)
 
     problems += _check_drift(document)
     problems += _check_bypasses(document)

@@ -1,0 +1,299 @@
+"""The divergence intake (RFC 0044 §5.6, D-44.10): the agent tells the
+engine, and the engine writes the log.
+
+Every poison ceiling in the measurement window that produced RFC 0044 was a
+defect in a hand-written file, not in the work it described — a scalar that
+made the YAML unparseable, an evidence line in the wrong grammar, a log
+never staged and so invisible to the gate that judged the diff. All three
+are artifacts of one arrangement: the agent authoring a machine-read file
+and learning hours later, from a gate, that it was malformed.
+
+So the agent stops writing the file. It states an entry; the intake checks
+it with the gate's own per-entry checks and refuses in the words the gate
+would have used, while the agent can still act; and on acceptance the
+engine serializes the document, keeps its bookkeeping true, and stages it.
+An unparseable log, a malformed evidence line and an unstaged log all stop
+being reachable states rather than becoming rarer ones.
+
+The recorded event is written host-side (`ingest`). An agent runs inside a
+sandbox and has no route to the store — nor should it, which is what D-44.2
+means by an agent writing only through a validating intake: this module is
+the agent-facing half, and the worker holds the other.
+"""
+
+from __future__ import annotations
+
+import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
+
+import yaml
+
+from torve.config import layout
+from torve.domain.events import ActorKind, EventKind, SubjectType
+from torve.gates.decisions_reported import check_entry, check_pin
+
+if TYPE_CHECKING:
+    from torve.application.eventlog import EventLog
+    from torve.domain.events import EventRecord
+
+# ----------------------- #
+
+# The order the format reads in (RFC 0001 §6), so a projected log looks like
+# the logs the corpus already carries rather than like a serializer's idea
+# of one.
+ENTRY_ORDER = (
+    "decision",
+    "grade",
+    "kind",
+    "class",
+    "at",
+    "attempt",
+    "claim",
+    "evidence",
+    "action",
+    "proposal",
+    "notes",
+)
+DOCUMENT_ORDER = ("schema_version", "task", "repo", "base_sha", "drift_count", "entries")
+SCHEMA_VERSION = 1
+
+
+# ....................... #
+
+
+class IntakeRefused(Exception):
+    """The entry is not one the gate would accept. Carries the gate's own
+    problems, unedited: the agent reads the same sentences it would have
+    read from a red battery, only sooner."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("\n".join(problems))
+
+        self.problems = problems
+
+
+# ....................... #
+
+
+def _git(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=False
+    )
+
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+# ....................... #
+
+
+def _pin(root: Path) -> dict[str, str]:
+    """The log's opening pin (D-A.7): the repository its evidence resolves
+    against, and the commit the work started from. Derived here because an
+    agent transcribing it is one more thing that can be wrong — and was."""
+
+    remote = _git(root, "config", "--get", "remote.origin.url")
+    repo = ""
+
+    if remote:
+        trimmed = remote.removesuffix(".git").rstrip("/")
+        parts = trimmed.replace(":", "/").split("/")
+        repo = "/".join(parts[-2:]) if len(parts) >= 2 else ""
+
+    return {"repo": repo, "base_sha": _git(root, "rev-parse", "HEAD")}
+
+
+# ....................... #
+
+
+def open_log(root: Path, task_id: str) -> dict[str, Any]:
+    """The task's log as a document — the file when it exists, an empty one
+    pinned to this worktree when it does not (A-13, D-3.21)."""
+
+    path = layout.log_file(root, task_id)
+
+    if path.is_file() and path.read_text().strip():
+        loaded = yaml.safe_load(path.read_text())
+
+        if isinstance(loaded, dict):
+            # The one boundary where a parsed document becomes typed.
+            document = cast(dict[str, Any], loaded)
+            document.setdefault("entries", [])
+
+            return document
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "task": task_id,
+        **_pin(root),
+        "drift_count": 0,
+        "entries": [],
+    }
+
+
+# ....................... #
+
+
+def render(document: dict[str, Any]) -> str:
+    """The document as YAML the gate can read back. `safe_dump` decides the
+    quoting, which is the whole point: the scalar that ended three attempts
+    of T-0245 was a hand-written one carrying `key: value` inside backticks,
+    and a serializer never writes that unquoted."""
+
+    ordered = {key: document[key] for key in DOCUMENT_ORDER if key in document}
+    ordered.update({key: value for key, value in document.items() if key not in ordered})
+    ordered["entries"] = [
+        {key: entry[key] for key in ENTRY_ORDER if key in entry}
+        | {key: value for key, value in entry.items() if key not in ENTRY_ORDER}
+        for entry in document["entries"]
+    ]
+
+    return yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True, width=88)
+
+
+# ....................... #
+
+
+def stage(root: Path, path: Path) -> bool:
+    """Stage the log the engine just wrote. The gate judges a diff, so a
+    log outside it is a log that does not exist — three escalations in one
+    week were exactly this, and no prompt fixes it as reliably as the
+    writer staging its own output."""
+
+    relative = path.relative_to(root)
+    result = subprocess.run(
+        ["git", "-C", str(root), "add", "--", str(relative)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return result.returncode == 0
+
+
+# ....................... #
+
+
+# ....................... #
+
+
+def record(
+    root: Path,
+    task_id: str,
+    *,
+    decision: str,
+    grade: str,
+    claim: str,
+    evidence: str,
+    action: str,
+    attempt: int,
+    kind: str = "",
+    klass: str = "",
+    proposal: str = "",
+    notes: str = "",
+) -> tuple[Path, dict[str, Any], bool]:
+    """Check, append, serialize, stage — one call, because a write the
+    caller must remember to stage is the failure this verb exists to
+    remove. Refuses before it writes anything: a rejected entry leaves the
+    log exactly as it was."""
+
+    entry: dict[str, Any] = {
+        "decision": decision,
+        "grade": grade,
+        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "attempt": attempt,
+        "claim": claim,
+        "evidence": evidence,
+        "action": action,
+    }
+
+    for key, value in (("kind", kind), ("class", klass), ("proposal", proposal), ("notes", notes)):
+        if value:
+            entry[key] = value
+
+    problems = check_entry(entry, root)
+
+    if problems:
+        raise IntakeRefused(problems)
+
+    document = open_log(root, task_id)
+
+    # A log written before the intake existed may carry no pin, and the
+    # worktree can supply what is missing — repair what is derivable, then
+    # report what is not, rather than letting the battery find it later.
+    for key, value in _pin(root).items():
+        if not str(document.get(key) or "").strip():
+            document[key] = value
+
+    pin_problems = check_pin(document)
+
+    if pin_problems:
+        raise IntakeRefused(pin_problems)
+
+    document["entries"].append(entry)
+    # The count the gate compares against is derived, never declared: an
+    # agent counting its own drift entries was a conviction waiting to
+    # happen, and nothing is learned by making it count.
+    document["drift_count"] = sum(
+        1 for one in document["entries"] if str(one.get("class") or "") == "drift"
+    )
+
+    path = layout.log_file(root, task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render(document))
+
+    return path, document, stage(root, path)
+
+
+# ....................... #
+
+
+async def ingest(
+    log: EventLog,
+    root: Path,
+    task_id: str,
+    *,
+    partition: str,
+    actor_id: str,
+    correlation_id: str | None = None,
+) -> list[EventRecord]:
+    """Record the worktree's entries into the system of record — the
+    worker's half of the intake, run where the store is reachable.
+
+    Entries already in the log are recorded as they stand: they passed the
+    same checks on the way in, and re-validating a landed fact would only
+    let a later schema refuse history it cannot change.
+    """
+
+    document = open_log(root, task_id)
+    recorded: list[EventRecord] = []
+
+    for entry in document["entries"]:
+        payload = {
+            "attempt": int(entry["attempt"]),
+            "decision_id": str(entry["decision"]),
+            "grade": str(entry["grade"]),
+            "entry_kind": str(entry.get("kind") or "resolved"),
+            "entry_class": str(entry.get("class") or "discovery"),
+            "claim": str(entry["claim"]),
+            "evidence": str(entry["evidence"]),
+            "action": str(entry["action"]),
+            "proposal": str(entry.get("proposal") or ""),
+            "notes": str(entry.get("notes") or ""),
+        }
+
+        recorded.append(
+            await log.record(
+                EventKind.DIVERGENCE_RECORDED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.AGENT,
+                actor_id=actor_id,
+                payload=payload,
+                correlation_id=correlation_id,
+            )
+        )
+
+    return recorded

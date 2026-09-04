@@ -26,6 +26,7 @@ from torve.cli import (
     fleet,
     gates,
     intake,
+    log,
     mcp,
     merge,
     migrate,
@@ -58,6 +59,7 @@ app.add_typer(sandbox.sandbox_app, name="sandbox")
 app.add_typer(review.review_app, name="review")
 app.add_typer(tracker.tracker_app, name="tracker")
 app.add_typer(fleet.fleet_app, name="fleet")
+app.add_typer(log.log_app, name="log")
 
 
 # ....................... #

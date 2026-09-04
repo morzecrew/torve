@@ -21,13 +21,14 @@ from torve.domain.events import (
     ActorKind,
     DivergenceAction,
     DivergenceClass,
+    DivergenceGrade,
     DivergenceKind,
     EventKind,
     UnauthorizedWrite,
     check_authority,
     validate_payload,
 )
-from torve.gates.decisions_reported import ACTIONS, CLASSES, KINDS
+from torve.gates.decisions_reported import ACTIONS, CLASSES, GRADES, KINDS
 
 
 def test_every_kind_has_an_authority_row_and_a_payload_model():
@@ -64,6 +65,7 @@ def test_an_agent_may_never_sign_for_a_human():
 
 
 def test_divergence_vocabulary_matches_the_gate():
+    assert set(get_args(DivergenceGrade)) == GRADES
     assert set(get_args(DivergenceKind)) == KINDS
     assert set(get_args(DivergenceClass)) == CLASSES
     assert set(get_args(DivergenceAction)) == ACTIONS

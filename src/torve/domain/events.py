@@ -235,6 +235,9 @@ class GatesEvaluated(BaseModel):
 # vocabulary the decisions-reported gate enforces). The intake validates an
 # entry against these same words at write time, and a parity test pins this
 # vocabulary against the gate's own sets so the two cannot drift apart.
+# The log grades a divergence against the corpus, so it carries one word the
+# corpus itself does not: an entry may be about a decision no document lists.
+DivergenceGrade = Literal["LOCKED", "ASSUMED", "OPEN", "UNLISTED"]
 DivergenceKind = Literal["contradicted", "departed", "resolved", "blocked"]
 DivergenceClass = Literal["discovery", "spec-gap", "drift", "irreducible"]
 DivergenceAction = Literal["halted", "departed", "decided"]
@@ -245,7 +248,7 @@ class DivergenceRecorded(BaseModel):
 
     attempt: int
     decision_id: str
-    grade: Grade
+    grade: DivergenceGrade
     entry_kind: DivergenceKind
     entry_class: DivergenceClass
     claim: str
