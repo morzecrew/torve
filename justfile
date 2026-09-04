@@ -70,6 +70,20 @@ quality strict="false":
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files
 
 # ----------------------- #
+# Docs
+
+# Serve the architecture docs locally with hot reload
+docs:
+    cd {{ _pwd }}/pages && uvx zensical serve
+
+# Re-render d2 diagram sources to SVG
+docs-diagrams:
+    cd {{ _pwd }}/pages && for f in diagrams/*.d2; do \
+        d2 --theme 0 --dark-theme 200 --pad 12 \
+            "$f" "docs/assets/diagrams/$(basename "$f" .d2).svg"; \
+    done
+
+# ----------------------- #
 # Utils
 
 _worktree_dir := join(_pwd, "..", "worktrees")
