@@ -26,6 +26,7 @@ from urllib.request import Request, urlopen
 import opensandbox_stub
 import pytest
 import yaml
+from forze.application.execution import DepsRegistry, ExecutionRuntime
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
@@ -33,7 +34,9 @@ from torve.adapters.agent.harness import HarnessAgent
 from torve.adapters.broker import build_broker
 from torve.adapters.broker.local import LocalBroker
 from torve.adapters.broker.none import NoneBroker
+from torve.adapters.eventstore.document import mock_module
 from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
+from torve.application.eventlog import burn_sink, event_log
 from torve.application.ports import (
     PROXY_ENV,
     AgentContext,
@@ -41,6 +44,7 @@ from torve.application.ports import (
     BrokerHandle,
     BrokerRoute,
     BrokerRouting,
+    BurnEvent,
     ExecResult,
     SandboxHandle,
     SandboxSpec,
@@ -57,6 +61,7 @@ from torve.config.runconfig import (
     RuntimeConfig,
     TierConfig,
 )
+from torve.domain.events import EventKind
 from torve.domain.states import TaskState
 from torve.domain.task import Budget, Scope, Task
 
@@ -1161,3 +1166,92 @@ def test_forward_strips_a_lowercase_authorization_header(upstream, monkeypatch):
         assert state["auth"][-1] == "Bearer real-provider-key", state["auth"]
     finally:
         broker.close(handle)
+
+
+def test_burn_is_emitted_per_call_and_sums_to_the_close_aggregate(upstream, monkeypatch):
+    """RFC 0045 D-45.3: the per-call events and the run's aggregate are the
+    same numbers seen twice, so a liveness read and a cost read cannot
+    disagree about one run."""
+
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _state, upstream_url = upstream
+    seen: list[BurnEvent] = []
+    broker = LocalBroker(broker_config(upstream_url), host="127.0.0.1")
+    handle = broker.open("run-1", routing_for(upstream_url), BrokerBudget(), seen.append)
+
+    for _ in range(3):
+        broker_post(handle.url_for(PROVIDER) + "/v1/chat/completions", handle.token)
+
+    usage = broker.close(handle)
+
+    assert len(seen) == 3
+    assert {event.provider for event in seen} == {PROVIDER}
+    assert sum(event.tokens for event in seen) == usage.tokens_per_provider[PROVIDER]
+    assert sum(event.cost_usd or 0 for event in seen) == pytest.approx(usage.cost_usd)
+
+
+def test_a_refused_call_burns_nothing(upstream, monkeypatch):
+    """Liveness must not read a refusal as work: nothing reached a provider,
+    so nothing was metered and nothing is emitted."""
+
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _state, upstream_url = upstream
+    seen: list[BurnEvent] = []
+    broker = LocalBroker(broker_config(upstream_url), host="127.0.0.1")
+    handle = broker.open("run-1", routing_for(upstream_url), BrokerBudget(), seen.append)
+
+    unrouted = handle.url_for(PROVIDER).replace(f"/{PROVIDER}", "/other-vendor") + "/v1/x"
+    broker_post(unrouted, handle.token)
+    broker.close(handle)
+
+    assert seen == []
+
+
+def test_a_sink_that_raises_never_breaks_the_wire(upstream, monkeypatch):
+    """An observer that can break a run is not an observer (D-45.3): the
+    request still succeeds and the aggregate is still right."""
+
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _state, upstream_url = upstream
+
+    def hostile(_event: BurnEvent) -> None:
+        raise RuntimeError("the observer is broken")
+
+    broker = LocalBroker(broker_config(upstream_url), host="127.0.0.1")
+    handle = broker.open("run-1", routing_for(upstream_url), BrokerBudget(), hostile)
+    status, _body = broker_post(handle.url_for(PROVIDER) + "/v1/chat/completions", handle.token)
+    usage = broker.close(handle)
+
+    assert status == 200
+    assert usage.requests == 1
+
+
+def test_the_burn_sink_records_seat_consumed_events():
+    """The bridge the manager wires: metering arrives in the log as the
+    worker's own record of what a seat cost."""
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            sink = burn_sink(
+                log,
+                asyncio.get_running_loop(),
+                partition="morzecrew/torve",
+                task_id="T-9500",
+                seat="executor",
+            )
+            sink(BurnEvent(provider="test-vendor", tokens=5, cost_usd=0.01))
+            await asyncio.sleep(0.05)
+
+            recorded = await log.history("T-9500")
+
+            assert [event.kind for event in recorded] == [EventKind.SEAT_CONSUMED]
+            assert recorded[0].typed_payload().model_dump() == {
+                "seat": "test-vendor",
+                "tokens": 5,
+                "cost_usd": 0.01,
+            }
+
+    asyncio.run(scenario())

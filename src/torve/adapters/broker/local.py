@@ -61,6 +61,8 @@ from torve.application.ports import (
     BrokerRoute,
     BrokerRouting,
     BrokerUsage,
+    BurnEvent,
+    BurnSink,
 )
 from torve.config.runconfig import (
     BrokerConfig,
@@ -211,7 +213,9 @@ class _BrokerState:
         sealed: bool,
         pass_through: tuple[str, ...],
         remote: bool = False,
+        sink: BurnSink | None = None,
     ) -> None:
+        self.sink = sink
         self.routes = {route.provider: route for route in routing.routes}
         self.budget = budget
         self.token = secrets.token_urlsafe(32)
@@ -269,6 +273,15 @@ class _BrokerState:
             if cost is not None:
                 self.cost += cost
                 self.cost_seen = True
+
+        # RFC 0045 D-45.3: emitted outside the lock, after the aggregate is
+        # updated, so the two views of one run's spending are the same
+        # numbers seen twice. A sink that raises is swallowed on purpose —
+        # an observer that can break the run's egress is not an observer,
+        # and this is the request path (D-45.3).
+        if self.sink is not None:
+            with contextlib.suppress(Exception):
+                self.sink(BurnEvent(provider=provider, tokens=tokens, cost_usd=cost))
 
     # ....................... #
 
@@ -757,7 +770,13 @@ class LocalBroker:
 
     # ....................... #
 
-    def open(self, run: str, routing: BrokerRouting, budget: BrokerBudget) -> BrokerHandle:
+    def open(
+        self,
+        run: str,
+        routing: BrokerRouting,
+        budget: BrokerBudget,
+        sink: BurnSink | None = None,
+    ) -> BrokerHandle:
         missing = [
             route.key_env for route in routing.routes if os.environ.get(route.key_env) is None
         ]
@@ -803,6 +822,7 @@ class LocalBroker:
             sealed=self._config.mode == "sealed",
             pass_through=tuple(self._config.pass_through),
             remote=bool(advertised),
+            sink=sink,
         )
         server = ThreadingHTTPServer((host, port), _handler_for(state))
         thread = threading.Thread(

@@ -29,6 +29,7 @@ that made it valid.
 
 from __future__ import annotations
 
+from asyncio import run_coroutine_threadsafe
 from collections.abc import Mapping
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
@@ -40,6 +41,7 @@ from forze.application.contracts.document import (
     DocumentSpec,
 )
 
+from torve.application.ports import BurnEvent, BurnSink
 from torve.domain.events import (
     ActorKind,
     CreateEventCmd,
@@ -52,6 +54,7 @@ from torve.domain.events import (
 )
 
 if TYPE_CHECKING:
+    from asyncio import AbstractEventLoop
     from datetime import datetime
 
     from forze.application.execution import ExecutionContext
@@ -204,3 +207,47 @@ def event_log(ctx: ExecutionContext) -> EventLog:
         reader=ctx.document.query(EVENT_SPEC),
         writer=ctx.document.command(EVENT_SPEC),
     )
+
+
+# ....................... #
+
+
+def burn_sink(
+    log: EventLog,
+    loop: AbstractEventLoop,
+    *,
+    partition: str,
+    task_id: str,
+    seat: str,
+    correlation_id: str | None = None,
+) -> BurnSink:
+    """A sink that records the broker's metering as it happens (RFC 0045
+    §5.1).
+
+    The broker calls this on the thread serving the run's egress, so the
+    append is handed to the loop rather than awaited: the wire must not wait
+    on a database, and a run must not stall because the log is slow. The
+    result is deliberately not collected — a failed append loses an
+    observation, and losing the run to an observer would be worse.
+    """
+
+    def sink(event: BurnEvent) -> None:
+        run_coroutine_threadsafe(
+            log.record(
+                EventKind.SEAT_CONSUMED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.WORKER,
+                actor_id=seat,
+                payload={
+                    "seat": event.provider,
+                    "tokens": event.tokens,
+                    "cost_usd": event.cost_usd,
+                },
+                correlation_id=correlation_id,
+            ),
+            loop,
+        )
+
+    return sink

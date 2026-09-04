@@ -286,6 +286,28 @@ class BrokerUsage:
 # ....................... #
 
 
+@dataclass(frozen=True)
+class BurnEvent:
+    """One metered provider response (RFC 0045 §5.1): the provider's own
+    numbers, as the wire reported them. Emitted per call rather than summed
+    at close, because a rate is the form the question "is this attempt
+    working?" is actually asked in — and an attempt with no recent burn is
+    not working, whatever it would say about itself (D-45.4)."""
+
+    provider: str
+    tokens: int
+    cost_usd: float | None
+
+
+# A sink the broker calls, in the request thread, once per metered response.
+# It must not raise and must not block: the run's egress path is not a place
+# to do I/O, and an observer that can break a run is not an observer.
+BurnSink = Callable[[BurnEvent], None]
+
+
+# ....................... #
+
+
 class Broker(Protocol):
     """The egress broker port (RFC 0021 §5.1): holds every provider
     credential the run needs, exposes one loopback route per routed
@@ -300,7 +322,13 @@ class Broker(Protocol):
 
     name: str  # "local" | "opensandbox" | "none"
 
-    def open(self, run: str, routing: BrokerRouting, budget: BrokerBudget) -> BrokerHandle: ...
+    def open(
+        self,
+        run: str,
+        routing: BrokerRouting,
+        budget: BrokerBudget,
+        sink: BurnSink | None = None,
+    ) -> BrokerHandle: ...
 
     def usage(self, handle: BrokerHandle) -> BrokerUsage:
         """Live counters, mid-run: the runner reads them to escalate

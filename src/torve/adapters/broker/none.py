@@ -14,6 +14,7 @@ from torve.application.ports import (
     BrokerHandle,
     BrokerRouting,
     BrokerUsage,
+    BurnSink,
 )
 
 # ....................... #
@@ -30,7 +31,15 @@ class NoneBroker:
 
     # ....................... #
 
-    def open(self, run: str, routing: BrokerRouting, budget: BrokerBudget) -> BrokerHandle:
+    def open(
+        self,
+        run: str,
+        routing: BrokerRouting,
+        budget: BrokerBudget,
+        sink: BurnSink | None = None,
+    ) -> BrokerHandle:
+        # No wire, no metering, so nothing to emit: a run opting out of the
+        # broker opts out of the burn stream with it (D-21.9).
         return BrokerHandle(token="", base_urls={})
 
     # ....................... #
