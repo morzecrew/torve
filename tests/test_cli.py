@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 
+import pytest
 from test_context import seed_why_facts
 from test_plan import plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
@@ -691,3 +692,254 @@ def test_sandbox_build_help_carries_no_corpus_coordinates():
     assert result.exit_code == 0
     assert "D-41" not in result.output
     assert "RFC" not in result.output.upper()
+
+
+# ----------------------- #
+# The composition root (RFC 0042 phase 1): one place turns `(root, config)`
+# into dep bundles. These builder tests assert each bundle's composition
+# against a fixture config — the tests the three old wiring copies never
+# had; the verb scenario tests above pin the behaviour unchanged.
+
+
+def _assembly_root(tmp_path):
+    root = tmp_path / "proj"
+    (root / ".torve").mkdir(parents=True)
+    (root / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+    return root
+
+
+def _write_config(root, body: str):
+    (root / ".torve" / "config.yaml").write_text(body, encoding="utf-8")
+
+
+def test_build_run_deps_bundles_the_configured_adapters(tmp_path):
+    from torve.adapters.broker.none import NoneBroker
+    from torve.adapters.runtime.docker import DockerRuntime
+    from torve.adapters.store.durable import open_store
+    from torve.adapters.vcs.git import GitVcs, NullScm
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.application.runner import RunDeps
+    from torve.cli.assembly import build_run_deps
+    from torve.config.runconfig import RunnerConfig
+
+    root = _assembly_root(tmp_path)
+    agent = object()
+    deps = build_run_deps(root, RunnerConfig(), agent=agent)
+
+    assert isinstance(deps, RunDeps)
+    assert isinstance(deps.workspace, GitWorkspace)
+    assert isinstance(deps.runtime, DockerRuntime)
+    assert isinstance(deps.vcs, GitVcs)
+    assert isinstance(deps.scm, NullScm)  # open_pr off: no forge leg
+    assert deps.store is open_store
+    assert isinstance(deps.broker, NoneBroker)
+    assert deps.agent is agent
+    assert deps.review_agent is None
+    assert deps.retry_agent is None
+
+
+def test_build_run_deps_opens_the_forge_and_keeps_shared_parts(tmp_path):
+    from torve.adapters.broker.local import LocalBroker
+    from torve.adapters.vcs.git import GhScm, GitVcs
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.cli.assembly import build_run_deps
+    from torve.config.runconfig import RunnerConfig
+
+    root = _assembly_root(tmp_path)
+    config = RunnerConfig.model_validate(
+        {"scm": {"open_pr": True, "repo": "o/r"}, "broker": {"adapter": "local"}}
+    )
+    workspace, vcs = GitWorkspace(root), GitVcs()
+    make_agent = object()
+    reviewer = object()
+    deps = build_run_deps(
+        root,
+        config,
+        agent=object(),
+        workspace=workspace,
+        vcs=vcs,
+        review_agent=reviewer,
+        retry_agent=make_agent,  # type: ignore[arg-type]
+    )
+
+    assert isinstance(deps.scm, GhScm)  # open_pr on: the forge leg is wired
+    assert isinstance(deps.broker, LocalBroker)
+    assert deps.workspace is workspace  # the tick's legs share one handle
+    assert deps.vcs is vcs
+    assert deps.review_agent is reviewer
+    assert deps.retry_agent is make_agent
+
+
+def test_dispatch_agent_factory_applies_the_run_verbs_rules(tmp_path):
+    from torve.adapters.agent.fake import FakeAgent
+    from torve.adapters.agent.harness import HarnessAgent
+    from torve.cli.assembly import dispatch_agent_factory
+    from torve.config.runconfig import TierConfig
+
+    fake = TierConfig(adapter="fake")
+    real = TierConfig(adapter="harness", command="c", provider="p", model="m")
+
+    plain = dispatch_agent_factory()
+    assert isinstance(plain(fake), FakeAgent)
+    assert isinstance(plain(real), HarnessAgent)
+
+    override = dispatch_agent_factory(agent_name="fake")
+    assert isinstance(override(real), FakeAgent)  # the door's override wins
+
+    scenario = tmp_path / "scenario.yaml"
+    scenario.write_text("attempts:\n  - exit_code: 0\n", encoding="utf-8")
+
+    replay = dispatch_agent_factory(agent_name="fake", scenario=scenario)
+    assert isinstance(replay(real), FakeAgent)
+
+    with pytest.raises(ValueError, match="FakeAgent-only"):
+        dispatch_agent_factory(scenario=scenario)(real)
+
+
+def test_route_dispatch_providers_refuses_a_rung_provider(tmp_path):
+    from torve.cli.assembly import route_dispatch_providers
+    from torve.config.runconfig import ProviderDenied, load_runner_config, tier_for
+
+    root = _assembly_root(tmp_path)
+    _write_config(
+        root,
+        "schema_version: 1\n"
+        "tiers:\n"
+        "  executor: {retry_variants: {compliance: executor.deep}}\n"
+        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        "providers: {default: []}\n",
+    )
+    config = load_runner_config(root)
+
+    with pytest.raises(ProviderDenied, match="deepseek"):
+        route_dispatch_providers(config, root, tier_for(config, "executor"))
+
+    _write_config(
+        root,
+        "schema_version: 1\n"
+        "tiers:\n"
+        "  executor: {retry_variants: {compliance: executor.deep}}\n"
+        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        "providers: {default: [deepseek]}\n",
+    )
+    config = load_runner_config(root)
+    route_dispatch_providers(config, root, tier_for(config, "executor"))  # must not raise
+
+
+def test_build_tick_deps_leg_shape_follows_the_configuration(tmp_path):
+    from torve.application.loop import TickDeps
+    from torve.cli.assembly import build_tick_deps
+    from torve.config.runconfig import RunnerConfig
+
+    root = _assembly_root(tmp_path)
+    bare = build_tick_deps(root, RunnerConfig())
+    assert isinstance(bare, TickDeps)
+    assert callable(bare.reap) and callable(bare.dispatch) and callable(bare.landed)
+    assert bare.poll is None and bare.sync is None  # no tracker configured
+    assert bare.intake is None
+    assert bare.lane is None  # auto_merge off
+
+    board = _assembly_root(tmp_path / "board")
+    _write_config(board, "schema_version: 1\ntracker: {kind: github-issues, repo: o/r}\n")
+    from torve.config.runconfig import load_runner_config
+
+    tracked = build_tick_deps(board, load_runner_config(board))
+    assert tracked.poll is not None and tracked.sync is not None
+    assert tracked.intake is not None
+
+    lane = _assembly_root(tmp_path / "lane")
+    _write_config(lane, "schema_version: 1\npromotion: {auto_merge: true}\n")
+    assert build_tick_deps(lane, load_runner_config(lane)).lane is not None
+
+
+def test_tick_wiring_refuses_a_ci_gate_with_no_remote_named(tmp_path):
+    # The assembly raises the plain configuration ValueError; each consumer
+    # maps it its own way — the solo verb fails the door with exit 3,
+    # a fleet root records the error and the pass continues.
+    from torve.cli.assembly import build_tick_deps
+    from torve.config.runconfig import load_runner_config
+
+    root = _assembly_root(tmp_path)
+    _write_config(root, "schema_version: 1\npromotion: {require_ci: true}\n")
+    config = load_runner_config(root)
+
+    with pytest.raises(ValueError, match=r"promotion\.require_ci"):
+        build_tick_deps(root, config)
+
+    result = CliRunner().invoke(app, ["tick", "--root", str(root)])
+    assert result.exit_code == 3
+    assert "configuration error" in result.stderr
+    assert "promotion.require_ci" in result.stderr
+
+
+def _dispatch_rig(tmp_path, monkeypatch, *, fleet: bool):
+    """Seed a fake-tier task, stub the attempt loop and the envelope, and
+    return the dispatch leg's line for one consumer or the other."""
+    from types import SimpleNamespace
+
+    import torve.application.runner as runner_module
+    import torve.application.specquality as specquality_module
+    from torve.cli.assembly import build_fleet_tick_deps, build_tick_deps
+    from torve.config.runconfig import load_runner_config
+
+    root = _assembly_root(tmp_path)
+    _write_config(
+        root,
+        "schema_version: 1\n"
+        "tiers:\n"
+        "  executor: {adapter: fake}\n"
+        "  planner: {adapter: fake}\n"
+        "  reviewer: {adapter: fake}\n",
+    )
+    task_dir = root / ".torve" / "tasks" / "T-9101"
+    task_dir.mkdir(parents=True)
+    (task_dir / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-9101\nrole: implement\nintent: work\n"
+        "scope: {allow: ['src/**']}\nacceptance: []\ndecisions: []\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        runner_module,
+        "run_task",
+        lambda *_a, **_k: SimpleNamespace(state="ready", attempts=1),
+    )
+    monkeypatch.setattr(specquality_module, "dispatch_envelope", lambda *_a, **_k: {"size": "ok"})
+    monkeypatch.setattr(specquality_module, "render_envelope", lambda _e: "envelope: ok (0 tasks)")
+
+    config = load_runner_config(root)
+    deps = build_fleet_tick_deps(root, config) if fleet else build_tick_deps(root, config)
+
+    return deps.dispatch(["T-9101"])
+
+
+def test_the_solo_dispatch_line_carries_the_envelope(tmp_path, monkeypatch):
+    line, moved = _dispatch_rig(tmp_path, monkeypatch, fleet=False)
+    assert moved is True
+    assert line == "T-9101: ready after 1 attempt(s) · envelope: ok (0 tasks)"
+
+
+def test_the_fleet_dispatch_line_stays_as_it_was(tmp_path, monkeypatch):
+    # D-42.2: extracting the wiring moves it, it does not change what a
+    # fleet root prints — the envelope line remains the solo tick's.
+    line, moved = _dispatch_rig(tmp_path, monkeypatch, fleet=True)
+    assert moved is True
+    assert line == "T-9101: ready after 1 attempt(s)"
+
+
+def test_build_intake_deps_wires_the_planner_and_the_board(tmp_path):
+    from torve.adapters.broker.none import NoneBroker
+    from torve.adapters.runtime.docker import DockerRuntime
+    from torve.adapters.vcs.git import GitVcs
+    from torve.cli.assembly import build_intake_deps
+    from torve.config.runconfig import RunnerConfig
+
+    root = _assembly_root(tmp_path)
+    board = object()
+    deps = build_intake_deps(root, RunnerConfig(), board=board, vcs=GitVcs())
+
+    assert deps.tracker is board
+    assert isinstance(deps.runtime, DockerRuntime)
+    assert isinstance(deps.broker, NoneBroker)
+    assert callable(deps.agent_factory) and callable(deps.base_tip)
+    assert deps.config_digest  # the gates file's digest rides along

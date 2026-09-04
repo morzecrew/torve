@@ -1,5 +1,7 @@
-"""`torve run` and `torve cancel` — parsing and rendering only (D-15.6); the
-attempt loop lives in `torve.application.runner` (RFC 0003). The task's tier
+"""`torve run` and `torve cancel` — parsing, front-door policy and
+rendering only (D-15.6); the attempt loop lives in
+`torve.application.runner` (RFC 0003) and every adapter it runs on is
+built by the composition root, `torve.cli.assembly`. The task's tier
 picks the adapter (RFC 0004 §1); the exit code projection is D-11.4.
 """
 
@@ -10,6 +12,15 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
+from torve.cli.assembly import (
+    # Re-exports: the drafting, corpus and eval verbs import these helpers
+    # from this module; the builders themselves live in the composition
+    # root.
+    build_reviewer_agent as build_reviewer_agent,
+)
+from torve.cli.assembly import (
+    build_tier_agent as build_tier_agent,
+)
 from torve.cli.console import Format, emit_json, fail, out
 from torve.cli.options import (
     ConfigOption,
@@ -23,7 +34,6 @@ from torve.config import layout
 
 if TYPE_CHECKING:
     from torve.application.ports import Agent
-    from torve.config.runconfig import RunnerConfig
 
 from torve.domain.states import (
     EXIT_BY_REASON,
@@ -35,37 +45,6 @@ from torve.domain.states import (
     TaskState,
 )
 from torve.gates.context import load_task
-
-# ----------------------- #
-
-
-def build_tier_agent(config: RunnerConfig, root: Path, tier_name: str) -> Agent:
-    """A named tier's agent, provider-routed before a sandbox exists —
-    shared by the run loop's review hook, the regression corpus, and the
-    drafting run."""
-
-    from torve.adapters.vcs.git import repository_name
-    from torve.config.runconfig import route_provider, tier_for
-
-    tier = tier_for(config, tier_name)
-    route_provider(config.providers, repository_name(root), tier.provider)
-
-    if tier.adapter == "fake":
-        from torve.adapters.agent.fake import FakeAgent
-
-        return FakeAgent(None)
-
-    from torve.adapters.agent.harness import HarnessAgent
-
-    return HarnessAgent(tier)
-
-
-# ....................... #
-
-
-def build_reviewer_agent(config: RunnerConfig, root: Path) -> Agent:
-    return build_tier_agent(config, root, "reviewer")
-
 
 # ....................... #
 
@@ -104,22 +83,15 @@ def run_cmd(
 ) -> None:
     """Run one task synchronously; the exit code carries the outcome."""
 
-    from torve.adapters.agent.fake import FakeAgent, load_scenario
-    from torve.adapters.broker import build_broker
-    from torve.adapters.store.durable import open_store
-    from torve.adapters.vcs.git import GhScm, GitVcs, NullScm, repository_name
-    from torve.adapters.workspace.git import GitWorkspace
     from torve.application.runner import (
         RoleNotDispatchable,
-        RunDeps,
         check_dispatch_role,
         run_task,
     )
+    from torve.cli import assembly
     from torve.config.runconfig import (
         ProviderDenied,
-        TierConfig,
         resolve_character_tier,
-        route_provider,
         tier_for,
         tier_name_for,
     )
@@ -171,36 +143,21 @@ def run_cmd(
     if blocked and oversize:
         engine_event(root, "oversize_dispatch", {"task": task.id, "reasons": verdict.reasons})
 
-    def _tier_agent(tier: TierConfig) -> Agent:
-        if agent_name == "fake" or tier.adapter == "fake":
-            return FakeAgent(load_scenario(scenario) if scenario else None)
-
-        from torve.adapters.agent.harness import HarnessAgent
-
-        if scenario is not None:
-            raise ValueError("--scenario is FakeAgent-only")
-
-        return HarnessAgent(tier)
+    # The `--agent fake` override and the `--scenario` file are this verb's
+    # front door; the composition root applies them to every tier rule.
+    make_agent = assembly.dispatch_agent_factory(agent_name=agent_name, scenario=scenario)
 
     try:
         tier = tier_for(config, tier_name_for(task))
 
         # Provider routing is enforced here — at dispatch, before a sandbox
-        # exists (D-4.8). A repository with no permitted provider for its
-        # tier is a configuration error, never a quiet fallback. The --agent
-        # fake override sends nothing anywhere, so it routes as fake does.
-        # Every retry rung routes too (D-27.11's scalar generalized by
-        # D-34.6): the run may reach any axis's rung after the matching
-        # conviction, and D-27.1 refuses to dispatch under a regime it has
-        # not already validated.
+        # exists (D-4.8). The --agent fake override sends nothing anywhere,
+        # so it routes as fake does; every retry rung routes too, which is
+        # the assembly's rule for every dispatching consumer.
         if agent_name is None:
-            route_provider(config.providers, repository_name(root), tier.provider)
+            assembly.route_dispatch_providers(config, root, tier)
 
-            for rung in tier.resolved_retry_variants().values():
-                retry_tier = tier_for(config, rung)
-                route_provider(config.providers, repository_name(root), retry_tier.provider)
-
-        agent = _tier_agent(tier)
+        agent = make_agent(tier)
 
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
@@ -214,20 +171,13 @@ def run_cmd(
         except ValueError as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-    deps = RunDeps(
-        workspace=GitWorkspace(root),
-        runtime=runtime_for(config, runtime_name),
+    deps = assembly.build_run_deps(
+        root,
+        config,
         agent=agent,
-        vcs=GitVcs(),
-        scm=(GhScm(config.scm.repo, config.scm.token_env) if config.scm.open_pr else NullScm()),
-        store=open_store,
+        retry_agent=make_agent,
         review_agent=review_agent,
-        # The egress broker in force (RFC 0021): `none` by default, `local`
-        # when configured — the run's keys never enter the sandbox either way.
-        broker=build_broker(config.broker),
-        # D-27.11: builds the tier a retry_variant names, mid-run — the same
-        # rule `_tier_agent` already applies to the tier that dispatched.
-        retry_agent=_tier_agent,
+        runtime_name=runtime_name,
     )
 
     from torve.application.runner import BlockedDispatch
