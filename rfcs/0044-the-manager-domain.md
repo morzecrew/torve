@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -691,3 +691,30 @@ the readers. When the manager is the thing that runs the work and every run
 has a log, the state file becomes a cache and the filesystem scan becomes
 dead code — and deleting them then is a smaller change than it would be
 now, because the rules they implement will already be shared.
+
+### A-89 — 2026-09-05 — the vocabulary admits a retirement (adds decision.retired, amends §5.2)
+**Found writing RFC 0047.** §5.2's vocabulary can say that a decision was
+recorded and that a human accepted it. It cannot say that one was retired,
+and `torve rfc retire` has been writing retirements into the corpus since
+RFC 0025 — six of them stand today.
+
+The importer RFC 0047 builds has to express that, and the only alternative
+is to infer it: a row present in the record and absent from the document has
+presumably been retired. That inference fails twice. It cannot distinguish a
+deliberate retirement from a table someone broke, and it does not generalise
+past a source that is a file — an incident does not stop containing a
+decision, so absence means nothing there. Deriving a fact the engine could
+record is exactly what D-44.3 exists to refuse.
+
+**Changed:** `decision.retired` joins the closed vocabulary with the payload
+`{reason, superseded_by}`, and the authority table gives it `operator` and
+`manager` — the same row `decision.recorded` carries, because retiring a
+decision is the same act as recording one, from the same two actors. An
+agent still cannot write it. Nothing else in §5.2 moves, and no existing
+payload gains a field: the kinds already there are written by RFC 0047's
+importer unchanged.
+
+The cost is deliberate and worth naming. The vocabulary is closed on purpose
+(§5.1) and the amendment is the price of adding to it. This is the first kind
+added since acceptance; it should read as evidence that the price was paid,
+not that it is small.

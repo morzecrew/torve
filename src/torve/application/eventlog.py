@@ -94,6 +94,22 @@ ORDER: Mapping[str, Literal["asc", "desc"]] = {"created_at": "asc", "id": "asc"}
 # ----------------------- #
 
 
+class TruncatedRead(RuntimeError):
+    """A read hit its row cap, so what came back is a prefix of the answer
+    rather than the answer."""
+
+    def __init__(self, subject_type: SubjectType, partition: str, limit: int) -> None:
+        super().__init__(
+            f"{partition}: more than {limit} {subject_type} records — the fold would be "
+            "built on part of the log; raise the limit or page"
+        )
+
+        self.subject_type, self.partition, self.limit = subject_type, partition, limit
+
+
+# ....................... #
+
+
 @attrs.define(slots=True, kw_only=True, frozen=True)
 class EventLog:
     """Append and read the system of record.
@@ -165,6 +181,38 @@ class EventLog:
         )
 
         return list(page.hits)
+
+    # ....................... #
+
+    async def of_subject_type(
+        self, subject_type: SubjectType, *, partition: str, limit: int = 5000
+    ) -> list[EventRecord]:
+        """One partition's records about one kind of subject, oldest first
+        (D-47.7).
+
+        Sources and decisions grow with the corpus; attempts, gates and burn
+        grow with execution. Folding the second to answer a question about
+        the first is the wrong read, and past the row cap it is also a wrong
+        answer — a truncated fold reports a decision graph missing whatever
+        the cap cut off, with nothing to say it did.
+        """
+
+        page = await self.reader.find_many(
+            filters={"$values": {"partition": partition, "subject_type": subject_type}},
+            pagination={"limit": limit, "offset": 0},
+            sorts=ORDER,
+        )
+        hits = list(page.hits)
+
+        if len(hits) >= limit:
+            # A fold over a truncated read is a wrong answer that looks like
+            # a right one — a decision graph missing whatever the cap cut
+            # off, with nothing to say it did. Raise instead: the caller
+            # raises the limit or pages, and either is better than a
+            # projection quietly built on part of the record.
+            raise TruncatedRead(subject_type, partition, limit)
+
+        return hits
 
     # ....................... #
 

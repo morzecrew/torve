@@ -44,6 +44,7 @@ executable intent without a human signature.**
 | `source.imported` | manager, operator |
 | `decision.recorded` | manager, operator |
 | `decision.accepted` | operator |
+| `decision.retired` | manager, operator |
 | `task.minted` | manager |
 | `task.adopted` | operator |
 | `task.claimed` | manager |

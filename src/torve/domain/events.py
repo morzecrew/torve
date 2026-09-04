@@ -69,6 +69,7 @@ class EventKind(StrEnum):
     SOURCE_IMPORTED = "source.imported"
     DECISION_RECORDED = "decision.recorded"
     DECISION_ACCEPTED = "decision.accepted"
+    DECISION_RETIRED = "decision.retired"
     TASK_MINTED = "task.minted"
     TASK_ADOPTED = "task.adopted"
     TASK_CLAIMED = "task.claimed"
@@ -98,6 +99,7 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     EventKind.SOURCE_IMPORTED: frozenset({ActorKind.OPERATOR, ActorKind.MANAGER}),
     EventKind.DECISION_RECORDED: frozenset({ActorKind.OPERATOR, ActorKind.MANAGER}),
     EventKind.DECISION_ACCEPTED: frozenset({ActorKind.OPERATOR}),
+    EventKind.DECISION_RETIRED: frozenset({ActorKind.OPERATOR, ActorKind.MANAGER}),
     EventKind.TASK_MINTED: frozenset({ActorKind.MANAGER}),
     EventKind.TASK_ADOPTED: frozenset({ActorKind.OPERATOR}),
     EventKind.TASK_CLAIMED: frozenset({ActorKind.MANAGER}),
@@ -153,6 +155,21 @@ class DecisionAccepted(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     note: str = ""
+
+
+# ....................... #
+
+
+class DecisionRetired(BaseModel):
+    """A-89: a decision leaving force is recorded, never inferred from a row
+    that stopped appearing. Absence cannot tell a deliberate retirement from
+    a table someone broke, and it means nothing at all for a source that is
+    an incident rather than a file."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = ""
+    superseded_by: str | None = None
 
 
 # ....................... #
@@ -404,6 +421,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.SOURCE_IMPORTED: SourceImported,
     EventKind.DECISION_RECORDED: DecisionRecorded,
     EventKind.DECISION_ACCEPTED: DecisionAccepted,
+    EventKind.DECISION_RETIRED: DecisionRetired,
     EventKind.TASK_MINTED: TaskMinted,
     EventKind.TASK_ADOPTED: TaskAdopted,
     EventKind.TASK_CLAIMED: TaskClaimed,
