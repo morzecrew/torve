@@ -21,7 +21,7 @@ from torve.application.eventlog import event_log
 from torve.application.manager import project
 from torve.application.residency import contracts, mint, once, reclaim, serve
 from torve.application.worker import Outcome, Worker
-from torve.domain.events import EventKind
+from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import TaskState
 
 PARTITION = "morzecrew/torve"
@@ -573,8 +573,6 @@ def test_a_contract_that_ran_and_never_landed_is_not_offered_again(tmp_path):
     contract(tmp_path, "T-0002", allow="docs/**")
     ran = {"T-0001"}.__contains__
 
-    assert list(contracts(tmp_path, ran=ran)) == ["T-0002"]
-
     async def scenario(log):
         executed: list[str] = []
         handled = await once(log, worker_over(log, executed), tmp_path, PARTITION, ran=ran)
@@ -584,6 +582,37 @@ def test_a_contract_that_ran_and_never_landed_is_not_offered_again(tmp_path):
         # row an operator has to learn to ignore.
         board = project(await log.since(partition=PARTITION))
         assert "T-0001" not in board.tasks
+
+    run(scenario)
+
+
+def test_the_board_outranks_the_host_once_a_task_is_on_it(tmp_path):
+    """A task that ran, escalated and was requeued by a human is queued —
+    however many times it ran before. The host's run record decides what
+    gets minted; after that the board is the state, and the board is what a
+    person acts on."""
+
+    contract(tmp_path, "T-0001")
+    ran = {"T-0001"}.__contains__
+
+    async def scenario(log):
+        executed: list[str] = []
+
+        # A human puts it on the board and requeues it.
+        await log.record(
+            EventKind.TASK_MINTED,
+            partition=PARTITION,
+            subject_type=SubjectType.TASK,
+            subject_id="T-0001",
+            actor_kind=ActorKind.MANAGER,
+            actor_id="manager-1",
+            payload={"title": "T-0001", "source_id": "operator"},
+        )
+
+        assert await once(log, worker_over(log, executed), tmp_path, PARTITION, ran=ran) == (
+            "T-0001"
+        )
+        assert executed == ["T-0001"]
 
     run(scenario)
 

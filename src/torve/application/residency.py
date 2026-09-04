@@ -57,18 +57,13 @@ DISPATCHABLE_ROLES = ("implement", "revert")
 # ....................... #
 
 
-def contracts(root: Path, *, ran: Ran | None = None) -> dict[str, Task]:
-    """Every executable contract this partition could still be asked to run.
+def contracts(root: Path) -> dict[str, Task]:
+    """Every executable contract the repository carries, by id.
 
     An unreadable contract is skipped rather than fatal: one malformed file
-    is not a reason for a manager to stop managing the rest.
-
-    A contract the host already has a run record for and no landing is
-    skipped too — the standing loop's rule, asked here for the same reason
-    (A-29). A repository carries every contract it has ever executed, and
-    most of the early ones landed before the trailer that proves it; without
-    this, a manager's first pass over a real repository offers a worker
-    work somebody finished a year ago.
+    is not a reason for a manager to stop managing the rest. Nothing else is
+    filtered here — what a task's state is belongs to the board, and the
+    board is what dispatch reads.
     """
 
     from torve.gates.context import load_task
@@ -82,13 +77,8 @@ def contracts(root: Path, *, ran: Ran | None = None) -> dict[str, Task]:
         except ValueError:
             continue
 
-        if task.role not in DISPATCHABLE_ROLES:
-            continue
-
-        if ran is not None and ran(task.id):
-            continue
-
-        tasks[task.id] = task
+        if task.role in DISPATCHABLE_ROLES:
+            tasks[task.id] = task
 
     return tasks
 
@@ -116,6 +106,7 @@ async def mint(
     partition: str,
     actor_id: str,
     landed: Landed | None = None,
+    ran: Ran | None = None,
 ) -> list[str]:
     """Place contracts this partition has never seen onto its board.
 
@@ -132,6 +123,12 @@ async def mint(
     Recording the landing rather than skipping the mint is what keeps the
     dependency rule honest — a task waiting on landed work must be able to
     find that landing on the board.
+
+    The host's own run record only decides whether a contract is *minted*.
+    Once a task is on the board its state is the record's, and a task a
+    human requeued after an escalation is queued however many times it has
+    run before — the board is what dispatch reads, and the board is what a
+    person acts on.
     """
 
     board = project(await log.since(partition=partition))
@@ -139,6 +136,16 @@ async def mint(
 
     for task_id, task in sorted(tasks.items()):
         if task_id in board.tasks:
+            continue
+
+        sha = landed(task_id) if landed is not None else None
+
+        if not sha and ran is not None and ran(task_id):
+            # It ran on this host and did not land. Whatever it produced,
+            # placing it on the board as queued would offer it to a worker
+            # again — and unlike a landing there is nothing to record about
+            # it that is true. It stays off the board until a human puts it
+            # there.
             continue
 
         await log.record(
@@ -156,8 +163,6 @@ async def mint(
             },
         )
         minted.append(task_id)
-
-        sha = landed(task_id) if landed is not None else None
 
         if sha:
             await log.record(
@@ -229,7 +234,7 @@ async def once(
     to notice.
     """
 
-    tasks = contracts(root, ran=ran)
+    tasks = contracts(root)
 
     if only is not None:
         # An operator naming one task means that task and no other: the
@@ -238,7 +243,7 @@ async def once(
         tasks = {task_id: task for task_id, task in tasks.items() if task_id == only}
 
     await reclaim(log, partition=partition, actor_id=worker.name, lease=lease)
-    await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed)
+    await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed, ran=ran)
 
     return await worker.once(tasks, partition)
 
