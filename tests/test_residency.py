@@ -324,7 +324,8 @@ def test_the_attempt_burns_into_the_log_and_its_divergences_land_after(tmp_path,
             attempts=1,
             escalation=None,
             worktree=str(worktree),
-            history=[{"fact": f"committed {'c' * 40}"}],
+            landed_sha="c" * 40,
+            history=[{"fact": f"committed {'c' * 10}"}],
         )
 
     monkeypatch.setattr(executors_module, "run_task", fake_run_task)
@@ -370,7 +371,12 @@ def test_an_unobserved_run_is_still_a_run(tmp_path, monkeypatch):
         seen.append(deps.sink)
 
         return SimpleNamespace(
-            state=TaskState.READY, attempts=1, escalation=None, worktree=None, history=[]
+            state=TaskState.READY,
+            attempts=1,
+            escalation=None,
+            worktree=None,
+            landed_sha=None,
+            history=[],
         )
 
     monkeypatch.setattr(executors_module, "run_task", fake_run_task)

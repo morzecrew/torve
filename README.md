@@ -72,6 +72,24 @@ whose findings gate the merge lane. `torve review pr` reviews forge pull
 requests; `torve review corpus` replays a seeded-defect corpus so reviewer
 regressions are measurable.
 
+### The store
+
+The durable run store and the manager's event log both live in Postgres.
+The repository ships a compose file for a local one:
+
+```bash
+just pg-up                       # postgres on 127.0.0.1:15433, its own volume
+just migrate                     # apply every target's pending steps
+torve manager board <repo>       # what a partition's recorded facts add up to
+torve manager serve <repo>       # mint, claim, execute, record — until stopped
+```
+
+`TORVE_PG_DSN` names the database; `TORVE_PG_PASSWORD` is what compose
+starts it with. Neither value belongs in a committed file. `store.adapter:
+mock` in `.torve/config.yaml` keeps the run store in-process instead, which
+is enough for a single process and not enough for a reaper that must see
+another runner's leases.
+
 ## Observing
 
 ```bash

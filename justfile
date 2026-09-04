@@ -70,6 +70,23 @@ quality strict="false":
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files
 
 # ----------------------- #
+# Store
+
+# Start the lab's Postgres and wait until it answers
+pg-up:
+    docker compose up -d --wait postgres
+
+# Stop it, keeping the data; `just pg-down -v` drops the volume too
+pg-down *args='':
+    docker compose down {{ args }}
+
+# Apply every migration target's pending steps against the lab store
+migrate *args='':
+    {{ _uv_sync }}
+
+    uv run torve migrate --all {{ args }}
+
+# ----------------------- #
 # Docs
 
 # Serve the architecture docs locally with hot reload

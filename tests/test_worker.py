@@ -214,10 +214,14 @@ def test_a_landed_run_state_maps_to_a_landing_fact():
     state = RunState(task_id="T-1", path=Path("/tmp/unused"))
     state.state = TaskState.READY
     state.attempts = 2
+    state.landed_sha = "3eeafb629e" + "0" * 30
+    # The history abbreviates for the human reading it; the record carries
+    # the whole sha, because a landing another system joins on cannot be a
+    # prefix that was never checked for collisions.
     state.history = [{"fact": "committed 3eeafb629e; pushed=False; pr deferred"}]
     outcome = outcome_of(state)
 
-    assert outcome.landed_sha == "3eeafb629e"
+    assert outcome.landed_sha == "3eeafb629e" + "0" * 30
     assert outcome.attempt == 2
     assert outcome.escalation is None
 

@@ -66,6 +66,12 @@ class RunState:
     # that has moved since — a repeat against this tip is a human's turn.
     conflict_base: str | None = None
 
+    # The commit this run landed, in full (RFC 0044 D-44.1). The history's
+    # `committed <sha>` fact abbreviates for a human reading it; a record
+    # another system joins on may not, so the sha is carried rather than
+    # parsed back out of prose.
+    landed_sha: str | None = None
+
     # The review task that concluded over this candidate without a
     # surviving blocker (D-6.14, A-43) — the lane's require_review
     # predicate. The unconfigured-review bridge never sets it.
@@ -203,6 +209,7 @@ class RunState:
             history=data.get("history", []),
             approvals=data.get("approvals", []),
             conflict_base=data.get("conflict_base"),
+            landed_sha=data.get("landed_sha"),
             reviewed_by=data.get("reviewed_by"),
         )
 

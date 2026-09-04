@@ -47,7 +47,7 @@ def outcome_of(state: RunState) -> Outcome:
         exit_code=0 if landed else 1,
         gates_exit_code=0 if landed else 1,
         gate_outcomes={},
-        landed_sha=_landing_sha(state) if landed else None,
+        landed_sha=state.landed_sha if landed else None,
         # The run state carries the reason as the string it recorded; the
         # vocabulary is closed either way, and reading it back through the
         # enum is what keeps an unknown word from reaching the log.
@@ -56,23 +56,6 @@ def outcome_of(state: RunState) -> Outcome:
         ),
         detail=state.escalation.detail if state.escalation is not None else _last_fact(state),
     )
-
-
-# ....................... #
-
-
-def _landing_sha(state: RunState) -> str | None:
-    """The landing's sha, as the run recorded it. The history is the run's
-    own account, so the sha comes from the fact that announced it rather
-    than from asking git afterwards — what happened is what was recorded."""
-
-    for entry in reversed(state.history):
-        fact = str(entry.get("fact") or "")
-
-        if fact.startswith("committed "):
-            return fact.split()[1].rstrip(";")
-
-    return None
 
 
 # ....................... #

@@ -1481,6 +1481,7 @@ def real_hooks(
                 deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body
             )
 
+        state.landed_sha = sha or None
         fact = f"committed {sha[:10]}" if sha else "nothing to commit"
         fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
 

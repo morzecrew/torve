@@ -169,7 +169,7 @@ def board_cmd(
     console = out(fmt)
     header(console, "manager board", partition)
     table = make_table("task", "state", "attempts", "held by", "landing")
-    shown = add_rows_truncated(
+    withheld = add_rows_truncated(
         table,
         [
             (
@@ -183,7 +183,11 @@ def board_cmd(
         ],
     )
     console.print(table)
-    footer(console, f"{shown} task(s) the log has mentioned")
+    footer(
+        console,
+        f"{len(result.tasks)} task(s) the log has mentioned"
+        + (f" — … {withheld} more (see JSON)" if withheld else ""),
+    )
     raise typer.Exit(EXIT_OK)
 
 

@@ -1,0 +1,36 @@
+# The lab's Postgres — the store `torve manager` reads and writes.
+#
+# Deliberately not the test container: `tests/test_postgres_integration.py`
+# spins its own throwaway server on 15544 and tears it down, because a test
+# that shares a database with a human's work is a test that fails for
+# reasons neither of them caused. This one persists.
+#
+#   just pg-up      start it and wait for health
+#   just migrate    apply every target's pending steps
+#   just pg-down    stop it, keeping the volume (add `-v` to drop the data)
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: torve-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: torve
+      POSTGRES_DB: torve_lab
+      # From .env, which also holds the DSN torve reads. Compose refuses to
+      # start rather than inventing a default: a password nobody chose is a
+      # password nobody rotates.
+      POSTGRES_PASSWORD: ${TORVE_PG_PASSWORD:?set TORVE_PG_PASSWORD in .env}
+    ports:
+      # Loopback only, and a port of its own: the host already runs other
+      # projects' databases on 5432.
+      - "127.0.0.1:15433:5432"
+    volumes:
+      - torve-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U torve -d torve_lab"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  torve-pg:
