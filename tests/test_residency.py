@@ -499,3 +499,108 @@ def test_the_next_pass_picks_up_what_the_lease_released(tmp_path):
         assert executed == ["T-0001"]
 
     run(scenario)
+
+
+def test_a_contract_that_already_landed_is_minted_as_landed(tmp_path):
+    """A partition's first pass sees every contract the tree carries,
+    including years of finished work. A board that called those queued
+    would hand a worker a task somebody finished long ago (A-29)."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+
+    async def scenario(log):
+        executed: list[str] = []
+        landed = {"T-0001": "a" * 40}.get
+
+        minted = await mint(
+            log,
+            contracts(tmp_path),
+            partition=PARTITION,
+            actor_id="manager-1",
+            landed=landed,
+        )
+
+        assert minted == ["T-0001", "T-0002"]
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].state is TaskState.READY
+        assert board.tasks["T-0001"].landed_sha == "a" * 40
+        assert board.tasks["T-0002"].state is TaskState.QUEUED
+
+        # And only the unfinished one is offered.
+        assert await once(log, worker_over(log, executed), tmp_path, PARTITION, landed=landed) == (
+            "T-0002"
+        )
+        assert executed == ["T-0002"]
+
+    run(scenario)
+
+
+def test_a_dependency_on_landed_work_is_satisfied_by_the_import(tmp_path):
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+    path = tmp_path / ".torve" / "tasks" / "T-0002" / "contract.yaml"
+    path.write_text(path.read_text() + "depends_on: [T-0001]\n", encoding="utf-8")
+
+    async def scenario(log):
+        executed: list[str] = []
+
+        # Recording the landing rather than skipping the mint is what keeps
+        # the dependency rule honest: a task waiting on finished work has to
+        # be able to find that landing on the board.
+        handled = await once(
+            log,
+            worker_over(log, executed),
+            tmp_path,
+            PARTITION,
+            landed={"T-0001": "a" * 40}.get,
+        )
+
+        assert handled == "T-0002"
+
+    run(scenario)
+
+
+def test_a_contract_that_ran_and_never_landed_is_not_offered_again(tmp_path):
+    """A repository carries every contract it has ever executed, and the
+    early ones landed before the trailer that proves it. The standing loop
+    excludes them by the host's own run record; the manager asks the same
+    question, or its first pass over a real repository offers a worker work
+    somebody finished a year ago (A-29)."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+    ran = {"T-0001"}.__contains__
+
+    assert list(contracts(tmp_path, ran=ran)) == ["T-0002"]
+
+    async def scenario(log):
+        executed: list[str] = []
+        handled = await once(log, worker_over(log, executed), tmp_path, PARTITION, ran=ran)
+
+        assert handled == "T-0002"
+        # And it is not on the board at all: a task nobody may run is not a
+        # row an operator has to learn to ignore.
+        board = project(await log.since(partition=PARTITION))
+        assert "T-0001" not in board.tasks
+
+    run(scenario)
+
+
+def test_naming_one_task_runs_that_one_and_no_other(tmp_path):
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+
+    async def scenario(log):
+        executed: list[str] = []
+        handled = await once(log, worker_over(log, executed), tmp_path, PARTITION, only="T-0002")
+
+        assert handled == "T-0002"
+        assert executed == ["T-0002"]
+        # The board's own order would have picked T-0001; an operator
+        # naming a task means that task.
+        board = project(await log.since(partition=PARTITION))
+        assert "T-0001" not in board.tasks
+
+    run(scenario)

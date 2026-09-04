@@ -17,6 +17,7 @@ mint exists no manager owns the task and no worker may claim it.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from torve.application.manager import expired, project
@@ -33,6 +34,16 @@ if TYPE_CHECKING:
 
 # ----------------------- #
 
+# Whether a task already landed, and at which commit — the repository's own
+# answer (D-10.4's trailer), asked by the composition root because reaching
+# git is an adapter's job and this is not one.
+Landed = Callable[[str], str | None]
+
+# Whether the host already has a record of this task having run — a
+# run-state file or a telemetry row. Asked by the composition root for the
+# same reason as `Landed`: it reads files, and this module decides.
+Ran = Callable[[str], bool]
+
 # How long an idle pass waits before looking again. Long enough that an idle
 # manager costs nothing, short enough that a freshly adopted contract does
 # not sit for a coffee break.
@@ -46,10 +57,19 @@ DISPATCHABLE_ROLES = ("implement", "revert")
 # ....................... #
 
 
-def contracts(root: Path) -> dict[str, Task]:
-    """Every executable contract the repository carries, by id. An
-    unreadable contract is skipped rather than fatal: one malformed file is
-    not a reason for a manager to stop managing the rest."""
+def contracts(root: Path, *, ran: Ran | None = None) -> dict[str, Task]:
+    """Every executable contract this partition could still be asked to run.
+
+    An unreadable contract is skipped rather than fatal: one malformed file
+    is not a reason for a manager to stop managing the rest.
+
+    A contract the host already has a run record for and no landing is
+    skipped too — the standing loop's rule, asked here for the same reason
+    (A-29). A repository carries every contract it has ever executed, and
+    most of the early ones landed before the trailer that proves it; without
+    this, a manager's first pass over a real repository offers a worker
+    work somebody finished a year ago.
+    """
 
     from torve.gates.context import load_task
 
@@ -62,8 +82,13 @@ def contracts(root: Path) -> dict[str, Task]:
         except ValueError:
             continue
 
-        if task.role in DISPATCHABLE_ROLES:
-            tasks[task.id] = task
+        if task.role not in DISPATCHABLE_ROLES:
+            continue
+
+        if ran is not None and ran(task.id):
+            continue
+
+        tasks[task.id] = task
 
     return tasks
 
@@ -85,7 +110,12 @@ def _title(task: Task) -> str:
 
 
 async def mint(
-    log: EventLog, tasks: dict[str, Task], *, partition: str, actor_id: str
+    log: EventLog,
+    tasks: dict[str, Task],
+    *,
+    partition: str,
+    actor_id: str,
+    landed: Landed | None = None,
 ) -> list[str]:
     """Place contracts this partition has never seen onto its board.
 
@@ -93,6 +123,15 @@ async def mint(
     board already carries is already minted, whatever state it has since
     reached, so a restart re-mints nothing and a re-adopted contract is not
     duplicated.
+
+    A contract that already landed is minted **and** recorded as landed, in
+    that order, from the repository's own trailer. The repository outranks
+    the host here (A-29): a partition's first pass sees every contract the
+    tree carries, including years of finished work, and a board that called
+    those queued would hand a worker a task somebody finished long ago.
+    Recording the landing rather than skipping the mint is what keeps the
+    dependency rule honest — a task waiting on landed work must be able to
+    find that landing on the board.
     """
 
     board = project(await log.since(partition=partition))
@@ -117,6 +156,19 @@ async def mint(
             },
         )
         minted.append(task_id)
+
+        sha = landed(task_id) if landed is not None else None
+
+        if sha:
+            await log.record(
+                EventKind.LANDING_RECORDED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id=actor_id,
+                payload={"sha": sha, "attempt": 0},
+            )
 
     return minted
 
@@ -164,6 +216,9 @@ async def once(
     partition: str,
     *,
     lease: timedelta | None = None,
+    landed: Landed | None = None,
+    ran: Ran | None = None,
+    only: str | None = None,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -174,9 +229,16 @@ async def once(
     to notice.
     """
 
-    tasks = contracts(root)
+    tasks = contracts(root, ran=ran)
+
+    if only is not None:
+        # An operator naming one task means that task and no other: the
+        # board's own order is the right default and the wrong answer when
+        # somebody is standing there asking for something specific.
+        tasks = {task_id: task for task_id, task in tasks.items() if task_id == only}
+
     await reclaim(log, partition=partition, actor_id=worker.name, lease=lease)
-    await mint(log, tasks, partition=partition, actor_id=worker.name)
+    await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed)
 
     return await worker.once(tasks, partition)
 
@@ -193,6 +255,9 @@ async def serve(
     idle_seconds: float = IDLE_SECONDS,
     passes: int | None = None,
     lease: timedelta | None = None,
+    landed: Landed | None = None,
+    ran: Ran | None = None,
+    only: str | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -208,7 +273,7 @@ async def serve(
 
     while passes is None or seen < passes:
         seen += 1
-        task_id = await once(log, worker, root, partition, lease=lease)
+        task_id = await once(log, worker, root, partition, lease=lease, landed=landed, ran=ran)
 
         if task_id is not None:
             handled += 1

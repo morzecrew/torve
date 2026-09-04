@@ -93,14 +93,27 @@ async def _serve(
     worker: str,
     passes: int | None,
     interval: float,
+    only: str | None,
 ) -> int:
+    from torve.adapters.vcs.git import GitVcs
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
+    from torve.application.loop import run_record_exists
     from torve.application.residency import serve
     from torve.application.worker import Worker
     from torve.cli import assembly
 
     config = load_config(root, config_path)
+    vcs = GitVcs()
+
+    def landed(task_id: str) -> str | None:
+        # The repository's own answer (A-29): a contract the tree already
+        # landed is minted onto the board as landed, so a first pass over a
+        # repository with history does not offer a worker somebody's
+        # finished work.
+        shas = vcs.landed_shas(root, task_id)
+
+        return shas[0] if shas else None
 
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
@@ -123,6 +136,9 @@ async def _serve(
             partition,
             idle_seconds=interval,
             passes=passes,
+            landed=landed,
+            ran=lambda task_id: run_record_exists(root, task_id),
+            only=only,
         )
 
 
@@ -225,6 +241,10 @@ def serve_cmd(
     worker: Annotated[
         str, typer.Option("--worker", help="This process's name in the log.")
     ] = "worker-1",
+    task: Annotated[
+        str,
+        typer.Option("--task", help="Run only this contract; omitted takes the board's order."),
+    ] = "",
     passes: Annotated[
         int,
         typer.Option("--passes", help="Stop after this many passes; 0 runs until interrupted."),
@@ -259,6 +279,7 @@ def serve_cmd(
                 worker=worker,
                 passes=passes or None,
                 interval=interval,
+                only=task or None,
             )
         )
 

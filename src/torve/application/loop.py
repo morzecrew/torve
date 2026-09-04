@@ -92,7 +92,12 @@ class TickReport:
 # ....................... #
 
 
-def _run_record_exists(root: Path, task_id: str) -> bool:
+def run_record_exists(root: Path, task_id: str) -> bool:
+    """Whether this host has a record of the task having run: a run-state
+    file, or a telemetry row. The dispatch scan and the manager's candidate
+    set ask the same question — a contract that already ran and did not land
+    is nobody's to offer again."""
+
     if naming.state_file(root, task_id).exists():
         return True
 
@@ -218,7 +223,7 @@ def queued_batch(root: Path, landed: Callable[[str], bool], limit: int = 1) -> l
             # is a run the loop must not touch.
             if RunState.load(state_path).state is not TaskState.QUEUED:
                 continue
-        elif _run_record_exists(root, task.id):
+        elif run_record_exists(root, task.id):
             continue
 
         # A-29: the repository outranks the host. A landed task is never

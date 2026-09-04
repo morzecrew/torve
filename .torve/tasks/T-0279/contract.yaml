@@ -1,0 +1,80 @@
+# Minted by `torve plan 0043` — phase 1: the blocker revision loop
+schema_version: 1
+id: T-0279
+rfc: rfcs/0043-blocker-revision.md
+phase: 1
+role: implement
+title: the blocker revision loop
+intent: 'A surviving review blocker no longer escalates while the run has revision budget:
+  the runner renders the blockers and the convicted candidate diff into the RFC 0005 §4a feedback
+  record at the task''s root-side feedback path, appends a revision history fact, and continues
+  the attempt loop in the same worktree; the record is planted and framed by the existing
+  D-5.13 mechanics, the poison ceiling and task budgets count revisions unchanged, and a blocker
+  surviving the spent budget — or an unparseable verdict or broker budget refusal at any point
+  — escalates exactly as today. ReviewConfig gains `blocker_revisions` (default 1; 0 restores
+  the pre-0043 sequence byte-for-byte).'
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/application/runner.py
+  - src/torve/application/review.py
+  - src/torve/application/feedback.py
+  - src/torve/config/runconfig.py
+  - tests/test_runner.py
+  - tests/test_review_run.py
+  - tests/test_feedback.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_runner.py tests/test_review_run.py tests/test_feedback.py
+- uv run torve gates check
+- uv run torve rfc check
+decisions:
+- id: D-43.1
+  grade: LOCKED
+  text: A surviving review blocker spends the run's `blocker_revisions` budget (default 1)
+    as in-run attempts in the same worktree before escalating `blocker_finding`; the poison
+    ceiling and task budgets count every revision, unchanged
+  paths:
+  - src/torve/application/runner.py
+- id: D-43.2
+  grade: LOCKED
+  text: The revision's critique travels only in the RFC 0005 §4a feedback record — blockers
+    rendered as threads (review id as author, claim + evidence as body), the convicted diff
+    as the superseded diff, cap and truncation honesty unchanged
+  paths:
+  - src/torve/application/feedback.py
+  - src/torve/application/review.py
+- id: D-43.3
+  grade: ASSUMED
+  text: '`blocker_revisions: 0` restores the pre-0043 transition sequence exactly — configuration
+    decides the consequence (D-2), and the conservative setting is always reachable'
+  paths:
+  - src/torve/config/runconfig.py
+- id: D-43.4
+  grade: ASSUMED
+  text: Unparseable verdicts and broker budget refusals keep immediate escalation — infrastructure
+    and cost are not revisable defects
+  paths:
+  - src/torve/application/runner.py
+- id: D-43.5
+  grade: ASSUMED
+  text: The record is written root-side (`.torve/tasks/<id>/feedback.md`) so a post-escalation
+    re-dispatch inherits the accumulated critique with zero new mechanism
+  paths:
+  - src/torve/application/feedback.py
+- id: D-43.6
+  grade: OPEN
+  text: Whether the revision attempt's history fact should carry a structured marker (for
+    the calibration projection to count revisions vs first attempts) or the prose fact suffices
+    — settled by whoever builds the first consumer
+  paths:
+  - src/torve/application/runner.py
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: structural
