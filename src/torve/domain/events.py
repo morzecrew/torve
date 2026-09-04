@@ -110,7 +110,9 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     EventKind.LANDING_RECORDED: frozenset({ActorKind.MANAGER}),
     EventKind.ESCALATION_RAISED: frozenset({ActorKind.MANAGER, ActorKind.WORKER}),
     EventKind.ESCALATION_RESOLVED: frozenset({ActorKind.OPERATOR}),
-    EventKind.MESSAGE_SENT: frozenset({ActorKind.AGENT}),
+    # A-81: a note from the manager or the operator is the same record with
+    # a different sender, and the sender is stamped rather than claimed.
+    EventKind.MESSAGE_SENT: frozenset({ActorKind.AGENT, ActorKind.MANAGER, ActorKind.OPERATOR}),
     EventKind.SEAT_CONSUMED: frozenset({ActorKind.WORKER}),
 }
 

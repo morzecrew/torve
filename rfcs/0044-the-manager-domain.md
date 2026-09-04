@@ -6,12 +6,10 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-80", "A-81"]
 owner: misery7100
 description: >-
-  The v2 domain: an append-only event log is the system of record for intent
-  and execution, a resident manager owns queues across repositories, workers
-  are stateless claim-pullers, and the repository becomes a projection.
+  The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
 schema_version: 1
 ---
 
@@ -186,7 +184,8 @@ write:
 | `decision.accepted`, `task.adopted` | operator only |
 | `task.minted`, `task.claimed`, `landing.recorded`, `escalation.*` | manager only |
 | `attempt.*`, `gates.evaluated`, `review.recorded`, `blocker.raised` | worker only |
-| `divergence.recorded`, `message.sent` | agent, through its worker's intake, validated |
+| `divergence.recorded` | agent, through its worker's intake, validated |
+| `message.sent` | agent, through its worker's intake, validated; manager or operator, stamped (A-81) |
 | `source.imported`, `decision.recorded` | operator or manager (never an agent) |
 
 A write outside the table is refused, and the refusal is itself
@@ -270,6 +269,14 @@ is generated at landing time for the human reading the diff.
 Three failure classes disappear outright: unparseable YAML (the agent never
 writes YAML), malformed evidence (refused at write), unstaged log (the
 engine writes the projection, not the agent).
+
+The intake has two halves, because they run in two places (A-80). The verb
+runs inside the sandbox, which has no route to the store and must not have
+one, so acceptance writes the entry into the worktree and stages it. The
+worker reads those entries host-side after the attempt and records one
+`divergence.recorded` each. The pin the entry carries (`repo`, `base_sha`)
+is dropped at dispatch into `.torve/tmp/pin.json`, because a sandbox's
+`.git` points into a host tree it cannot follow.
 
 ### 5.7 Ports and what binds first
 
@@ -399,18 +406,18 @@ alongside the existing architecture review. The corpus amendments listed in
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-44.1 | `LOCKED` | An append-only, typed, versioned event log is the system of record for intent and execution; every other view of engine state is a projection rebuildable from it. Source code remains git-truth — only intent and record move | `src/torve/domain/events.py`, `src/torve/adapters/eventstore/**` | Anything that cannot be expressed as an event is not engine state; questions become queries, and the repository stops being scanned to answer them |
+| D-44.1 | `LOCKED` | An append-only, typed, versioned event log is the system of record for intent and execution; every other view of engine state is a projection rebuildable from it. Source code remains git-truth — only intent and record move | `src/torve/domain/events.py` `src/torve/adapters/eventstore/**` | Anything that cannot be expressed as an event is not engine state; questions become queries, and the repository stops being scanned to answer them |
 | D-44.2 | `LOCKED` | Write authority is a table over (actor kind, event kind), enforced by the store: acceptance and adoption are operator-only events, queue and landing events are manager-only, execution events are worker-only, and agent-authored records pass through a validating intake | `src/torve/domain/events.py` | The human signature that D-27 protected survives without git holding truth; an agent can never write an acceptance, whatever its prompt says |
-| D-44.3 | `LOCKED` | Events are recorded at write time and never derived; rebuild is replay. Every event carries `schema_version`, and replay equality is a test, not a convention | `src/torve/domain/events.py`, `src/torve/adapters/eventstore/**` | Retires derive-don't-record (D-8.2) and the drift it carried; costs a migration discipline on the event schema |
-| D-44.4 | `LOCKED` | Agents communicate only as typed `message.sent` events through the store; shared context windows and unreviewable prose instruction paths stay forbidden | `src/torve/domain/events.py` | Retires D-31's blanket prohibition while keeping its core; every inter-agent influence is a reviewable record or it did not happen |
+| D-44.3 | `LOCKED` | Events are recorded at write time and never derived; rebuild is replay. Every event carries `schema_version`, and replay equality is a test, not a convention | `src/torve/domain/events.py` `src/torve/adapters/eventstore/**` | Retires derive-don't-record (D-8.2) and the drift it carried; costs a migration discipline on the event schema |
+| D-44.4 | `LOCKED` | Agents communicate only as typed `message.sent` events through the store; shared context windows and unreviewable prose instruction paths stay forbidden. A note from the manager or the operator is the same record with a stamped sender (widened by amendment A-81 2026-09-04) | `src/torve/domain/events.py` | Retires D-31's blanket prohibition while keeping its core; every inter-agent influence is a reviewable record or it did not happen |
 | D-44.5 | `LOCKED` | The manager is one resident, durable process owning queues, dispatch, routing and escalation across partitions; crash-correctness comes from the durable-execution port, not from process-per-step | `src/torve/application/manager.py` | Retires the tick doctrine (D-19.1, D-42.6); the manager's restart transparency becomes a tested property |
-| D-44.6 | `LOCKED` | Workers are stateless claim-pullers holding no assignment state; a killed worker loses nothing but its lease, and capability scales as workers × seats | `src/torve/application/manager.py`, `src/torve/application/worker.py` | Worker code may never accumulate local state; anything a worker learns is an event or is lost, deliberately |
+| D-44.6 | `LOCKED` | Workers are stateless claim-pullers holding no assignment state; a killed worker loses nothing but its lease, and capability scales as workers × seats | `src/torve/application/manager.py` `src/torve/application/worker.py` | Worker code may never accumulate local state; anything a worker learns is an event or is lost, deliberately |
 | D-44.7 | `LOCKED` | The repository is the partition key: landings serialize within a partition and run independently across partitions | `src/torve/application/manager.py` | The one v1 invariant that survives distribution unchanged; multi-repo scaling is partition count, and a single repository's landing throughput stays the ceiling it is today |
-| D-44.8 | `ASSUMED` | A source is any provenance — specification document, incident, audit, review finding, operator ask — carrying zero or more decisions; the task is the execution unit and cites its source for provenance, never for parsing | `src/torve/domain/source.py`, `src/torve/application/intake.py` | RFC documents become one importer among several; RFC 0020's request-to-adoption seam generalizes rather than being replaced |
+| D-44.8 | `ASSUMED` | A source is any provenance — specification document, incident, audit, review finding, operator ask — carrying zero or more decisions; the task is the execution unit and cites its source for provenance, never for parsing | `src/torve/domain/source.py` `src/torve/application/intake.py` | RFC documents become one importer among several; RFC 0020's request-to-adoption seam generalizes rather than being replaced |
 | D-44.9 | `ASSUMED` | Decisions are first-class records — graded `LOCKED`/`ASSUMED`/`OPEN`, path-scoped, versioned, superseded by reference — and the decision graph is answered by query; a generated view may be written to the repository, marked generated, never parsed | `src/torve/application/decisions.py` | The grading discipline is preserved verbatim; the corpus becomes importable data and every existing decision id stays stable |
-| D-44.10 | `LOCKED` | Divergence is recorded through a validating intake that refuses at write time with the message the gate would have produced; the landed log file is a projection the engine writes, never an artifact the agent hand-authors | `src/torve/application/divergence.py`, `src/torve/gates/decisions_reported.py`, `src/torve/gates/evidence.py` | Deletes the unparseable-log, malformed-evidence and unstaged-log failure classes that produced every poison-ceiling in the current measurement window |
+| D-44.10 | `LOCKED` | Divergence is recorded through a validating intake that refuses at write time with the message the gate would have produced; the landed log file is a projection the engine writes, never an artifact the agent hand-authors. The intake has two halves — the agent-facing verb validates inside the sandbox, the worker records host-side after the attempt (split by amendment A-80 2026-09-04) | `src/torve/application/divergence.py` `src/torve/gates/decisions_reported.py` `src/torve/gates/evidence.py` | Deletes the unparseable-log, malformed-evidence and unstaged-log failure classes that produced every poison-ceiling in the current measurement window |
 | D-44.11 | `ASSUMED` | Durable execution sits behind a port with forze bound first; the domain names no vendor, and the persistence schema is owned by torve in every binding | `src/torve/application/ports.py` | The Temporal question is answered by operational evidence later, at adapter cost only |
-| D-44.12 | `ASSUMED` | The gate battery, the review lane, sizing and the measurement regime port over as libraries with their contracts unchanged; they are services over inputs and know nothing of the store | `src/torve/gates/**`, `src/torve/application/review.py` | The doctrine's proven parts are not rewritten; a v2 that changes their semantics has exceeded this RFC |
+| D-44.12 | `ASSUMED` | The gate battery, the review lane, sizing and the measurement regime port over as libraries with their contracts unchanged; they are services over inputs and know nothing of the store | `src/torve/gates/**` `src/torve/application/review.py` | The doctrine's proven parts are not rewritten; a v2 that changes their semantics has exceeded this RFC |
 | D-44.13 | `OPEN` | The identity and authorization model beyond a single operator — how operator identities are established, and whether workers authenticate as principals or as bearers of seats. Settled by the first deployment with two humans or a hosted seat | — | — |
 
 ## 12. Phasing
@@ -419,81 +426,50 @@ alongside the existing architecture review. The corpus amendments listed in
 - phase: 1
   title: the event log
   intent: >-
-    The event vocabulary and its store: a closed kind vocabulary with one
-    typed payload model per kind, the envelope (time-ordered id, partition,
-    subject, actor, correlation and causation), `schema_version` on every
-    event, and the write-authority table enforced by the store rather than
-    by its callers. An EventStore port with an in-memory adapter for tests
-    and a Postgres adapter with torve-owned migrations; append,
-    read-by-subject, read-since and projection cursors are the whole
-    surface. Nothing in the running engine consumes it yet — this phase
-    ships the record and its guarantees, with replay equality and one
-    refusal case per authority row as the evidence.
-  character: structural
+    The event vocabulary and its store: a closed kind vocabulary with one typed payload model per kind, the envelope (time-ordered id, partition, subject, actor, correlation and causation), `schema_version` on every event, and the write-authority table enforced by the store rather than by its callers. An EventStore port with an in-memory adapter for tests and a Postgres adapter with torve-owned migrations; append, read-by-subject, read-since and projection cursors are the whole surface. Nothing in the running engine consumes it yet — this phase ships the record and its guarantees, with replay equality and one refusal case per authority row as the evidence.
   scope:
-    - src/torve/domain/events.py
-    - src/torve/application/ports.py
-    - src/torve/adapters/eventstore/**
-    - migrations/torve/postgres/**
-    - tests/test_events.py
-    - tests/test_eventstore.py
+    - "src/torve/domain/events.py"
+    - "src/torve/application/ports.py"
+    - "src/torve/adapters/eventstore/**"
+    - "migrations/torve/postgres/**"
+    - "tests/test_events.py"
+    - "tests/test_eventstore.py"
   acceptance:
-    - uv run pytest tests/test_events.py tests/test_eventstore.py
-    - uv run lint-imports
-    - uv run torve rfc check
+    - "uv run pytest tests/test_events.py tests/test_eventstore.py"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
   depends_on: []
-
 - phase: 2
   title: the divergence intake
   intent: >-
-    Divergence stops being hand-authored YAML. A `torve log divergence`
-    verb validates an entry at write time against the task's inherited
-    decisions and the shared evidence validators, refuses with the exact
-    message the gate would have produced, and on acceptance records a
-    `divergence.recorded` event. The decisions-reported gate reads the
-    recorded entries, falling back to the file while both carriers exist,
-    and the landed log file becomes a projection the engine writes at
-    landing time. The parity between a write-time refusal and a gate
-    conviction is pinned by a test that shares the validator, not the
-    string.
-  character: structural
+    Divergence stops being hand-authored YAML. A `torve log divergence` verb validates an entry at write time against the task's inherited decisions and the shared evidence validators, refuses with the exact message the gate would have produced, and on acceptance records a `divergence.recorded` event. The decisions-reported gate reads the recorded entries, falling back to the file while both carriers exist, and the landed log file becomes a projection the engine writes at landing time. The parity between a write-time refusal and a gate conviction is pinned by a test that shares the validator, not the string.
   scope:
-    - src/torve/application/divergence.py
-    - src/torve/cli/log.py
-    - src/torve/gates/decisions_reported.py
-    - src/torve/gates/evidence.py
-    - tests/test_divergence.py
-    - tests/test_decisions_reported.py
+    - "src/torve/application/divergence.py"
+    - "src/torve/cli/log.py"
+    - "src/torve/gates/decisions_reported.py"
+    - "src/torve/gates/evidence.py"
+    - "tests/test_divergence.py"
+    - "tests/test_decisions_reported.py"
   acceptance:
-    - uv run pytest tests/test_divergence.py tests/test_decisions_reported.py
-    - uv run torve gates check
-    - uv run torve rfc check
+    - "uv run pytest tests/test_divergence.py tests/test_decisions_reported.py"
+    - "uv run torve gates check"
+    - "uv run torve rfc check"
   depends_on: [1]
-
 - phase: 3
   title: the manager and the worker
   intent: >-
-    The resident manager and the stateless worker over the event log: the
-    manager owns per-partition queues, dispatch under scope-disjointness,
-    dependency-by-landing and serialized landings, routing and seat
-    allocation as RFC 0034 and RFC 0021 already define them, and escalation
-    to humans; the worker claims, materializes, executes, emits and
-    releases, holding no assignment state so that a kill costs only a
-    lease. Durability comes from the durable-execution port with forze
-    bound; the manager's restart transparency and the worker's kill safety
-    are both tested properties, not claims.
-  character: structural
-  tier_variant: heavy
+    The resident manager and the stateless worker over the event log: the manager owns per-partition queues, dispatch under scope-disjointness, dependency-by-landing and serialized landings, routing and seat allocation as RFC 0034 and RFC 0021 already define them, and escalation to humans; the worker claims, materializes, executes, emits and releases, holding no assignment state so that a kill costs only a lease. Durability comes from the durable-execution port with forze bound; the manager's restart transparency and the worker's kill safety are both tested properties, not claims.
   scope:
-    - src/torve/application/manager.py
-    - src/torve/application/worker.py
-    - src/torve/cli/manager.py
-    - tests/test_manager.py
-    - tests/test_worker.py
+    - "src/torve/application/manager.py"
+    - "src/torve/application/worker.py"
+    - "src/torve/cli/manager.py"
+    - "tests/test_manager.py"
+    - "tests/test_worker.py"
   acceptance:
-    - uv run pytest tests/test_manager.py tests/test_worker.py
-    - uv run lint-imports
-    - uv run torve rfc check
+    - "uv run pytest tests/test_manager.py tests/test_worker.py"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+  tier_variant: heavy
   depends_on: [2]
 ```
 
@@ -503,3 +479,54 @@ as importer (D-44.8, D-44.9), the projection set that replaces
 `torve context` and the served tables, the tracker as an ordinary
 projection consumer, and the multi-partition operation that makes
 multi-repo real.
+
+## Amendments
+
+### A-80 — 2026-09-04 — the intake has two halves (amends D-44.10, cites RFC 0045 D-45.1)
+**Found executing phase 2.** §5.6 describes the intake as one act:
+validate, refuse or record. It cannot be one act, because its two halves
+run in different places. The verb runs inside the sandbox, which has no
+route to the store and must never have one — the boundary RFC 0045 D-45.1
+states as a rule — and the recording runs host-side, in the worker that
+owns the run. The design assumed one process where the isolation contract
+guarantees two.
+
+The sandbox's `.git` is the same discovery in a second form: it is a
+pointer into a host tree the sandbox cannot follow, so the entry's pin
+(`repo`, `base_sha`) cannot be derived where the entry is written. The
+engine drops the pin into `.torve/tmp/pin.json` at dispatch and the verb
+reads it back. A seeded *log* was tried and reverted: a seeded log breaks
+"a missing log is an empty log" (A-13, D-3.21), and a run with nothing to
+report must leave no file.
+
+**Changed:** D-44.10 splits. The agent-facing half validates at write time
+and refuses in the gate's own words, unchanged. The recording half is the
+worker's: after the attempt it reads the worktree's entries and records one
+`divergence.recorded` each, from the host, under the agent's actor
+identity. `log.yaml` is therefore the carrier between the two halves and
+exists during the run, not only as a landing-time projection. What §5.6
+promised holds unchanged: the agent never writes YAML, the engine
+serializes and stages it, and the three failure classes stay deleted.
+
+**Deliberately unchanged:** D-44.2. An agent still writes only through a
+validating intake; this amendment says where the validation and the write
+each happen, not who may write what.
+
+**Still owed by phase 2:** `decisions-reported` reads the file, not the
+store. The store-reading gate was phase 2's stated end state and has not
+shipped, so the file remains the only carrier a gate consults and
+`implementation` stays `partial`.
+
+### A-81 — 2026-09-04 — message.sent admits the manager and the operator (amends D-44.4, required by RFC 0045 D-45.7)
+**Found drafting RFC 0045.** §5.2's table makes `message.sent` agent-only,
+which was written when the only sender imagined was an agent. RFC 0045's
+notes are the same record with a different sender: an operator or the
+manager puts a note into a running attempt, and the agent polls for it. The
+sender is stamped from the run token either way (D-45.2), so widening the
+row admits senders, never forgeries.
+
+**Changed:** D-44.4 and §5.2 — `message.sent` may be written by an agent,
+the manager or the operator. What the row protected is untouched: an agent
+still cannot write an acceptance, a landing, or another agent's record, and
+every inter-agent influence is still a reviewable record or it did not
+happen.

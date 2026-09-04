@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from torve.config.rfc_emit import emit, render_frontmatter
-from torve.config.rfc_parse import parse_frontmatter, parse_phasing, rfc_files
+from torve.config.rfc_parse import parse_frontmatter, parse_phasing, paths_globs, rfc_files
 
 DOC = """---
 id: "0001"
@@ -103,11 +103,7 @@ def test_body_prose_is_untouched() -> None:
 
 
 CONTRACT_EXAMPLE_FENCE = (
-    "## Contract example\n\n"
-    "```yaml contract-example\n"
-    "id: T-9999\n"
-    "decisions: []\n"
-    "```\n\n"
+    "## Contract example\n\n```yaml contract-example\nid: T-9999\ndecisions: []\n```\n\n"
 )
 
 DOC_WITH_CONTRACT_EXAMPLE = DOC.replace("## Phasing", CONTRACT_EXAMPLE_FENCE + "## Phasing")
@@ -227,7 +223,9 @@ def test_decision_row_paths_are_backtick_wrapped_and_consequence_dashed() -> Non
         "| D-T.1 | `ASSUMED` | Something is decided | src/thing/** src/other/** | — |",
     )
     once = emit(doc)
-    assert "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**` `src/other/**` | — |" in once
+    assert (
+        "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**` `src/other/**` | — |" in once
+    )
 
 
 def test_phasing_scope_renders_as_a_block_list() -> None:
@@ -243,3 +241,16 @@ def test_phasing_tier_variant_survives_parse_emit_parse() -> None:
     entries = parse_phasing(once)
     assert entries is not None
     assert entries[0].tier_variant == "copywriter"
+
+
+def test_a_comma_between_paths_is_a_separator_not_a_path() -> None:
+    # `a`, `b` leaves the comma standing alone once the backticks become
+    # spaces. Read as a path it gives the decoration check a glob matching
+    # nothing, and the emitter writes the comma back as its own path.
+    doc = DOC.replace(
+        "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**` | Nothing yet |",
+        "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**`, `src/other/**` | — |",
+    )
+
+    assert paths_globs("`src/thing/**`, `src/other/**`") == ["src/thing/**", "src/other/**"]
+    assert "`,`" not in emit(doc)

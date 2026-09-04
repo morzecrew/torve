@@ -281,7 +281,11 @@ def paths_globs(cell: str) -> list[str]:
     if not cleaned or set(cleaned) <= set("—- "):
         return []
 
-    return cleaned.split()
+    # A cell written `a`, `b` leaves the comma standing alone once the
+    # backticks become spaces. Punctuation between paths is separator, never
+    # path: reading it as one gives the decoration check a glob that matches
+    # nothing and the emitter a token to write back.
+    return [token for token in (one.strip(",;") for one in cleaned.split()) if token]
 
 
 # ....................... #
