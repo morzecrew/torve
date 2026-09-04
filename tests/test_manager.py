@@ -12,6 +12,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from forze.application.execution import DepsRegistry, ExecutionRuntime
 
 from torve.adapters.eventstore.document import mock_module
@@ -471,3 +472,37 @@ def test_the_scope_rule_is_the_one_the_standing_loop_asks():
         (["src/**"], ["docs/**"]),
     ):
         assert scopes_clash(left, right) == _scopes_clash(left, right)
+
+
+def test_resolving_an_escalation_returns_the_task_or_takes_it_off_the_board():
+    """An escalation is the engine handing a task to a person; resolving is
+    the person handing it back. Only an operator may write it (D-44.2)."""
+
+    def board_after(resolution: str):
+        return project(
+            [
+                event(EventKind.TASK_MINTED, "T-1"),
+                event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}),
+                event(EventKind.ESCALATION_RAISED, "T-1", {"reason": "poison_ceiling"}),
+                event(EventKind.ESCALATION_RESOLVED, "T-1", {"resolution": resolution}),
+            ]
+        ).tasks["T-1"]
+
+    requeued = board_after("requeued")
+    assert requeued.state is TaskState.QUEUED
+    assert requeued.escalation is None
+    assert requeued.claimed_by is None
+
+    assert board_after("abandoned").state is TaskState.ABANDONED
+
+
+def test_an_agent_may_not_close_its_own_escalation():
+    from torve.domain.events import AUTHORITY, UnauthorizedWrite, check_authority
+
+    assert AUTHORITY[EventKind.ESCALATION_RESOLVED] == frozenset({ActorKind.OPERATOR})
+
+    # An agent that could close its own escalation could escalate its way
+    # out of every rule it dislikes.
+    for actor in (ActorKind.AGENT, ActorKind.WORKER, ActorKind.MANAGER):
+        with pytest.raises(UnauthorizedWrite):
+            check_authority(actor, EventKind.ESCALATION_RESOLVED)

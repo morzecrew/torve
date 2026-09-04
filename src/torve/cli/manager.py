@@ -21,13 +21,14 @@ from torve.cli.console import (
     add_rows_truncated,
     closing,
     emit_json,
+    fail,
     footer,
     header,
     make_table,
     out,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
-from torve.domain.states import EXIT_OK
+from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -325,6 +326,68 @@ async def _note(dsn: str | None, partition: str, task_id: str, topic: str, body:
             actor_id="operator",
             payload={"to_role": "implement", "topic": topic, "body": body},
         )
+
+
+# ....................... #
+
+
+async def _resolve(
+    dsn: str | None, partition: str, task_id: str, resolution: str, note: str
+) -> None:
+    from torve.application.eventlog import event_log
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+
+    async with _runtime(dsn) as runtime:
+        await event_log(runtime.get_context()).record(
+            EventKind.ESCALATION_RESOLVED,
+            partition=partition,
+            subject_type=SubjectType.TASK,
+            subject_id=task_id,
+            actor_kind=ActorKind.OPERATOR,
+            actor_id="operator",
+            payload={"resolution": resolution, "note": note},
+        )
+
+
+# ....................... #
+
+
+@manager_app.command("resolve")
+def resolve_cmd(
+    partition: Annotated[str, typer.Argument(help="The repository the task belongs to.")],
+    task_id: Annotated[str, typer.Argument(help="The escalated task.")],
+    resolution: Annotated[
+        str,
+        typer.Option("--resolution", help="requeued, abandoned or landed."),
+    ] = "requeued",
+    note: Annotated[str, typer.Option("--note", help="Why, for whoever reads this later.")] = "",
+    dsn: Annotated[str, typer.Option("--dsn", help="Postgres DSN holding the log.")] = "",
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Close an escalation, and say how.
+
+    An escalation is the engine handing a task to a person; this is the
+    person handing it back. `requeued` returns it to the board, `abandoned`
+    takes it off, `landed` records that it was finished by hand. Only an
+    operator may write this — an agent that could close its own escalation
+    could escalate its way out of every rule it dislikes.
+    """
+
+    if resolution not in ("requeued", "abandoned", "landed"):
+        raise fail(
+            f"configuration error: resolution must be requeued, abandoned or landed, "
+            f"not {resolution!r}",
+            EXIT_CONFIG,
+        )
+
+    asyncio.run(_resolve(dsn or None, partition, task_id, resolution, note))
+
+    if fmt is Format.JSON:
+        emit_json({"partition": partition, "task": task_id, "resolution": resolution})
+        raise typer.Exit(EXIT_OK)
+
+    closing(out(fmt), f"{task_id}: {resolution}")
+    raise typer.Exit(EXIT_OK)
 
 
 # ....................... #
