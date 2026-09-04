@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -718,3 +718,28 @@ The cost is deliberate and worth naming. The vocabulary is closed on purpose
 (§5.1) and the amendment is the price of adding to it. This is the first kind
 added since acceptance; it should read as evidence that the price was paid,
 not that it is small.
+
+### A-90 — 2026-09-05 — three of the five unphased pieces landed; two are gated on tasks as records
+**Found finishing the unphased work.** §12's closing paragraph names five
+pieces left out of the phasing, and reads as if all five are pending. Three
+have their own documents and are complete:
+
+- the attempt loop as explicit steps — RFC 0046, which also names the naming
+  pass and the sandbox rework it was supposed to carry and defers both;
+- sources and decisions as records (D-44.8, D-44.9) — RFC 0047, which added
+  `decision.retired` to §5.2 by A-89;
+- multi-partition operation — RFC 0048, which found the fleet manifest was
+  already the multi-repository artefact and gave it the partition rather
+  than inventing a second one.
+
+**Still owed, and gated rather than merely unstarted:** the projection set
+that replaces `torve context` and the served tables, and the tracker as an
+ordinary projection consumer. Both are joins against *tasks*, and tasks are
+still files. Each would today read a record that holds decisions and
+execution but no task rows, so each would answer from a filesystem scan
+anyway with a store in the middle. They wait on tasks becoming records —
+which is also what RFC 0047 D-47.3 gates contract minting on, so the three
+land together or not at all.
+
+**Changed:** nothing normative. This records which of §12's tail is done and
+why the remainder is one prerequisite rather than three separate ones.
