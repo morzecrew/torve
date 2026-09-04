@@ -12,6 +12,7 @@ repo_name = "morzecrew/torve"
 
 nav = [
   { "Start here" = "index.md" },
+  { "The deep pass" = "deep-pass.md" },
   { "Architecture" = [
     { "System overview" = "architecture/overview.md" },
     { "The execution model" = "architecture/execution.md" },
