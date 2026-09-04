@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0048**.
+number is **0049**.
 
 ## Design
 
@@ -56,6 +56,7 @@ number is **0048**.
 | [0045](0045-the-live-channel.md) | The live channel | accepted | none | 0044 | A-83 | A run becomes observable while it runs: the broker meters liveness from the burn it already sees, carries the sandbox's records to the store without ever handing it a credential, and gives the manager a way to speak back. |
 | [0046](0046-the-dispatch-and-its-steps.md) | The dispatch and its steps | accepted | complete | — | — | The runner's 776-line hook factory becomes one typed dispatch object and a handful of steps over it, so a seam is a parameter and a step instead of another closure over another untyped dictionary. |
 | [0047](0047-sources-and-decisions-as-records.md) | Sources and decisions as records | accepted | complete | 0044 | — | The corpus becomes an importer rather than the only reader: a source is any provenance carrying zero or more decisions, a decision is a versioned subject in the record, and the decision graph is answered by query instead of by re-parsing every accepted document. |
+| [0048](0048-the-fleet-as-partitions.md) | The fleet as partitions | accepted | complete | 0024, 0044 | — | The resident manager runs the operator's whole fleet rather than one repository: the manifest that already names every root gains the partition each one's contracts are minted onto, and one process round-robins them under one shared attention budget. |
 
 ## Conventions
 

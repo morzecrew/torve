@@ -29,6 +29,18 @@ class FleetRepository(BaseModel):
     root: str
     trust: Literal["own", "reviewed", "untrusted"]
 
+    # Which board this root's contracts are minted onto (RFC 0048 D-48.1).
+    # Declared here and never derived: a partition from the git remote is
+    # convenient and wrong for a repository with no remote, with two, or
+    # with one that changed. Declared *here* rather than in the root for
+    # D-13.3's reason — a repository that chose its own partition could
+    # mint onto a board it was never given.
+    #
+    # Optional in the model because `torve fleet tick` neither reads nor
+    # needs it and a v1 fleet must keep working; required by the resident
+    # loop, which refuses an empty one before the root is served (D-48.2).
+    partition: str = ""
+
     # ....................... #
 
     @property

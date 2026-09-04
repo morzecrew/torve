@@ -38,6 +38,7 @@ from torve.config.fleet import default_manifest_path, load_fleet_manifest
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
+    from torve.application.fleet import FleetServeReport
     from torve.application.loop import TickReport
     from torve.config.fleet import FleetManifest, FleetRepository
 
@@ -181,3 +182,161 @@ def fleet_status_cmd(
         )
 
     console.print(table)
+
+
+# ....................... #
+
+
+async def _serve_fleet(
+    manifest: FleetManifest,
+    dsn: str | None,
+    *,
+    worker: str,
+    rounds: int | None,
+    interval: float,
+) -> FleetServeReport:
+    """One log for the fleet, one worker per repository.
+
+    One log because the partition column is what separates boards (D-44.1),
+    and one worker per repository because an executor is bound to a root and
+    a partition — a worker over several would have to rebind mid-pass.
+    """
+
+    import sys
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+    from forze.base.logging import configure_logging
+
+    from torve.adapters.eventstore.document import mock_module, postgres_module
+    from torve.adapters.vcs.git import GitVcs
+    from torve.application.eventlog import event_log
+    from torve.application.executors import runner_execute
+    from torve.application.fleet import serve_fleet
+    from torve.application.loop import run_record_exists
+    from torve.application.residency import once
+    from torve.application.worker import Worker
+    from torve.cli import assembly
+    from torve.config.runconfig import load_runner_config
+
+    # The runtime narrates itself on stdout, and stdout is where this verb's
+    # JSON goes. Warnings and worse, on stderr (D-15.6).
+    configure_logging(level="warning", stream=sys.stderr)
+
+    module = await postgres_module(dsn) if dsn else mock_module()
+    runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
+    vcs = GitVcs()
+
+    async with runtime.scope():
+        log = event_log(runtime.get_context())
+
+        async def run_pass(repo: FleetRepository, paused: bool) -> str | None:
+            # Built per pass rather than cached: the root's own configuration
+            # can change under a resident process, and the trust check the
+            # loop just ran read it from disk for the same reason.
+            root = repo.path
+            config = load_runner_config(root)
+            seat = f"{worker}:{repo.partition}"
+
+            def landed(task_id: str) -> str | None:
+                shas = vcs.landed_shas(root, task_id)
+
+                return shas[0] if shas else None
+
+            return await once(
+                log,
+                Worker(
+                    log=log,
+                    name=seat,
+                    execute=runner_execute(
+                        root,
+                        config,
+                        assembly.build_dispatch_prepare(root, config),
+                        log=log,
+                        partition=repo.partition,
+                        seat=seat,
+                    ),
+                ),
+                root,
+                repo.partition,
+                landed=landed,
+                ran=lambda task_id: run_record_exists(root, task_id),
+                paused=paused,
+            )
+
+        return await serve_fleet(manifest, run_pass, idle_seconds=interval, rounds=rounds)
+
+
+# ....................... #
+
+
+@fleet_app.command("serve")
+def fleet_serve_cmd(
+    manifest_path: ManifestOption = None,
+    dsn: Annotated[
+        str,
+        typer.Option("--dsn", help="Postgres DSN holding the log; omitted runs against the mock."),
+    ] = "",
+    worker: Annotated[
+        str, typer.Option("--worker", help="This process's name in the log.")
+    ] = "fleet-1",
+    rounds: Annotated[
+        int | None,
+        typer.Option(
+            "--rounds", min=1, help="Stop after this many rounds; omitted runs until killed."
+        ),
+    ] = None,
+    interval: Annotated[
+        float, typer.Option("--interval", min=0.0, help="Seconds an idle round waits.")
+    ] = 15.0,
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Run the manager over every repository the manifest names.
+
+    Each round surveys every queue, decides one pause for the whole fleet,
+    then gives each repository one pass in the manifest's order under its own
+    trust class. A repository with no partition declared is refused and the
+    round carries on; so is one whose configuration asks for more than its
+    class allows, and one that fails outright.
+
+    The process holds nothing. Every pass rebuilds its view from the log, so
+    interrupting this is safe at any moment.
+    """
+
+    import asyncio
+
+    manifest = _load_manifest(manifest_path)
+    report = asyncio.run(
+        _serve_fleet(manifest, dsn or None, worker=worker, rounds=rounds, interval=interval)
+    )
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "rounds": report.rounds,
+                "handled": report.handled,
+                "repositories": [asdict(one) for one in report.outcomes],
+            }
+        )
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    header(console, "fleet serve", f"{len(report.outcomes)} repository(ies)")
+    table = make_table("root", "partition", "trust", "last round")
+
+    for outcome in report.outcomes:
+        style = (
+            STYLE_FAIL
+            if outcome.outcome.startswith(("error", "refused"))
+            else (STYLE_DIM if outcome.outcome == "idle" else STYLE_PASS)
+        )
+        table.add_row(
+            outcome.root,
+            outcome.partition or "—",
+            outcome.trust,
+            Text(outcome.outcome, style),
+        )
+
+    console.print(table)
+    closing(console, f"{report.handled} task(s) handled over {report.rounds} round(s)")
+    raise typer.Exit(EXIT_OK)

@@ -18,6 +18,8 @@ list.
 | two writers tear the JSONL store | serial queues, by necessity | Postgres behind the document port; the mock stays for tests |
 | assignment state lives in the runner | a killed run needed a reaper to notice | a worker holds a lease and nothing else; the manager reclaims it from the record when it goes quiet (D-44.6) |
 | the tick's dispatch rules are the only ones | a filesystem scan | the same rules over the record — and the two now share one implementation |
+| one manager, one repository | a process and a hand-typed partition per repo | one resident process over the operator's fleet manifest, which now names the board each root mints onto |
+| the corpus is only readable by re-parsing it | every reader walked `rfcs/` and re-parsed each document | the corpus is imported into the record; decisions are versioned subjects answered by query |
 
 ## Still single-node
 
@@ -26,7 +28,7 @@ list.
 | 1 | worktrees on the local filesystem are the work surface | runner, workspace adapter | executors run on remote sandboxes with no shared filesystem |
 | 2 | landings serialize through one `main` on one clone | merge lane, operator chain | any second lander — and this is the throughput wall, not a bug |
 | 3 | the tracker outbox is a directory, relayed inside the tick | tracker, outbox | the tracker runs anywhere but the repository host |
-| 4 | run state, telemetry and the corpus are files on the host | reaper, lane, `torve status`, planning projections | a second node needs an answer the record can give and these cannot |
+| 4 | run state and telemetry are files on the host | reaper, lane, `torve status`, planning projections | a second node needs an answer the record can give and these cannot |
 | 5 | the broker binds loopback routes into local sandboxes | broker adapter | remote sandboxes — RFC 0041 added bind and advertise for exactly this |
 | 6 | host proxy and `.env` passthrough shape egress | run configuration, docker adapter | a fleet node with different egress |
 | 7 | attempt budgets reset per dispatch | runner | re-dispatch across nodes multiplies the reset |
@@ -37,12 +39,57 @@ design — RFC 0044 §12 names them — they are blocked on the migration, becau
 a reader moved onto the record today would find an empty one on any run the
 manager did not dispatch.
 
+## How a second repository gets served
+
+One process, one manifest, one log. The operator's fleet manifest already
+listed every repository, in a deterministic order, with a trust class each
+and one attention budget across all of them; it now also names the partition
+a repository's contracts are minted onto.
+
+```yaml
+# ~/.config/torve/fleet.yaml
+repositories:
+  - root: ~/GitLibrary/Morze/torve
+    trust: own
+    partition: morzecrew/torve
+  - root: ~/work/atlas
+    trust: reviewed
+    partition: acme/atlas
+```
+
+```console
+$ torve fleet serve --dsn "$TORVE_PG_DSN"
+```
+
+The partition is declared there and never derived, for the reason the trust
+class is: a repository under work configures nothing about the engine that
+works on it, and a repository that chose its own partition could mint onto a
+board it was never given. Deriving it from the git remote is convenient and
+wrong for a repository with no remote, with two, or with one that changed.
+
+A round surveys every queue, decides one pause for the fleet total, then
+gives each repository a single pass under its own trust class. A repository
+with no partition, or whose configuration asks for more than its class
+allows, or that fails outright, is recorded and the round carries on — a
+manager that stopped serving four healthy repositories because a fifth was
+broken would be worse than one that says so.
+
+**Rounds are serial.** One long attempt delays every other partition's next
+pass by its whole duration. Running partitions at once is the obvious next
+move and is deliberately not built: it needs a seat allocator that will not
+run two workers under one cache volume, a broker per worker, and a decision
+about how many attempts an operator wants running unattended. It is worth
+doing when someone feels the delay, not before.
+
 ## The wall that is not a file
 
 Landing throughput (item 2) is the one that does not dissolve by moving a
-reader. Landings serialize within a partition by design, and that is
-correct: two agents landing on one branch is a conflict the engine cannot
-resolve afterwards. Multi-repository scaling is partition count. A single
+reader, and it is now the *only* one. Landings serialize within a partition
+by design, and that is correct: two agents landing on one branch is a
+conflict the engine cannot resolve afterwards.
+
+Multi-repository scaling is partition count, and partitions are now
+something the engine actually runs rather than something it could. A single
 repository's landing rate stays what it is today, and any answer to that is
 a different design, not a refactor.
 

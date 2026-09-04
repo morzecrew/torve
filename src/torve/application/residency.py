@@ -224,6 +224,7 @@ async def once(
     landed: Landed | None = None,
     ran: Ran | None = None,
     only: str | None = None,
+    paused: bool = False,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -232,6 +233,12 @@ async def once(
     Reclaiming comes first because a task nobody is running is a task this
     pass could start, and the alternative is waiting a whole idle interval
     to notice.
+
+    `paused` skips the mint and nothing else (D-48.4): the queue may drain
+    during a pause, it may not grow (D-19.5). A pause is a statement about
+    the operator's capacity to triage, never about the safety of what is
+    already running, so an attempt in flight is not interrupted and a task
+    already on the board is still claimed.
     """
 
     tasks = contracts(root)
@@ -243,7 +250,9 @@ async def once(
         tasks = {task_id: task for task_id, task in tasks.items() if task_id == only}
 
     await reclaim(log, partition=partition, actor_id=worker.name, lease=lease)
-    await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed, ran=ran)
+
+    if not paused:
+        await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed, ran=ran)
 
     return await worker.once(tasks, partition)
 
@@ -263,6 +272,7 @@ async def serve(
     landed: Landed | None = None,
     ran: Ran | None = None,
     only: str | None = None,
+    paused: bool = False,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -279,7 +289,15 @@ async def serve(
     while passes is None or seen < passes:
         seen += 1
         task_id = await once(
-            log, worker, root, partition, lease=lease, landed=landed, ran=ran, only=only
+            log,
+            worker,
+            root,
+            partition,
+            lease=lease,
+            landed=landed,
+            ran=ran,
+            only=only,
+            paused=paused,
         )
 
         if task_id is not None:

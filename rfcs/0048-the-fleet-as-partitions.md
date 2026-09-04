@@ -1,0 +1,354 @@
+---
+id: "0048"
+title: The fleet as partitions
+status: accepted
+implementation: complete
+depends_on: ["0024", "0044"]
+informed_by: ["0013", "0019", "0035"]
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: misery7100
+description: >-
+  The resident manager runs the operator's whole fleet rather than one repository: the manifest that already names every root gains the partition each one's contracts are minted onto, and one process round-robins them under one shared attention budget.
+schema_version: 1
+---
+
+# RFC 0048 — The fleet as partitions
+
+- **Scope:** Multi-partition operation for the resident manager — the last of
+  RFC 0044 §12's unphased work. The fleet manifest gains a `partition` per
+  repository; `torve fleet serve` round-robins the manifest's roots through
+  the same `residency.once` a single-partition manager runs, under the
+  fleet's existing trust enforcement, deterministic order, failure isolation
+  and shared attention budget. It does **not** add concurrency across
+  partitions, does not introduce a second configuration artefact, and
+  changes nothing about how one partition behaves.
+- **Related:** RFC 0024 (the fleet manifest and every rule this reuses),
+  RFC 0044 §5.4 (the resident manager), RFC 0013 D-13.3 (why the manifest
+  lives outside every root), `src/torve/application/fleet.py`,
+  `src/torve/application/residency.py`.
+- **Origin:** The owner, 2026-09-05: *"then RFC 0044 remaining work."*
+  RFC 0044 §12 names "the multi-partition operation that makes multi-repo
+  real" as the last unphased piece; the tracker and the projection set are
+  both gated on tasks becoming records, and this one is not.
+
+---
+
+## 1. Summary
+
+A resident manager serves one partition. Running two repositories means two
+processes, two hand-typed partition names and two places to notice that one
+of them died.
+
+The engine already has the artefact this needs. RFC 0024's fleet manifest
+lists every repository the operator works, in a deterministic order, with a
+trust class per root and one attention budget across all of them — and
+`torve fleet tick` already loops it, isolating failures. What the manifest
+does not carry is the partition a repository's contracts belong to.
+
+This adds that field and the resident loop over it. One process, one
+manifest, one log, one attention budget; `residency.once` unchanged, called
+per repository in the manifest's order.
+
+## 2. Motivation
+
+**Multi-repo is designed and not operable.** RFC 0044 built the partition
+column, the per-partition board and a manager that reads one. Everything
+above that is a shell loop the operator writes themselves.
+
+**The root and the partition are two independent arguments.** `torve manager
+serve <partition> --root <root>` takes them separately and checks nothing.
+Getting them crossed mints one repository's contracts onto another's board —
+a wrong board, wrong dependencies, wrong scope-disjointness, and no error at
+any point. Nothing about the current interface makes that hard to do.
+
+**The attention budget is fleet-wide and the resident manager cannot see
+it.** D-24.2 decided that triage debt is measured once across every
+repository, because the operator triaging it exists once. `torve fleet tick`
+honours that. A resident manager per repository cannot: each one knows only
+its own queue, so the fleet pauses when no single root is over budget and
+five together are.
+
+**The trust classes do not reach v2 either.** D-24.6 refuses a root whose
+own configuration asks for more than its manifest class allows, checked from
+the operator's file where the repository cannot argue with it. A manager
+started by hand against a root skips that check entirely.
+
+## 3. Current state
+
+Verified against the tree at `592be1e`:
+
+- `FleetRepository` is `{root, trust}` — no partition. `FleetManifest` adds
+  `attention.pause_escalations` and `order`, whose values are `manifest` and
+  `alphabetical` and deliberately not a priority field (D-24.4).
+- `fleet_tick(manifest, tick)` is the loop this mirrors: survey every root's
+  queue, decide the pause once, then per root enforce trust, run, and record
+  the outcome — a `TrustRefused` or any other exception is recorded and the
+  pass continues (D-24.5).
+- `residency.once(log, worker, root, partition, …)` is one pass over one
+  partition: reclaim, mint, then let the worker take at most one task. It
+  has no way to skip minting.
+- `runner_execute(root, config, prepare, log=, partition=, seat=)` binds a
+  worker's `execute` to one root and one partition, so a fleet needs one
+  `Worker` per repository rather than one worker over many.
+- `escalated_count(root)` reads run-state files. For a partition the manager
+  serves, the escalations are in the log; during the migration a repository
+  can have both.
+- `Board` has `landed()` and `in_flight()`; it has no escalation set.
+
+## 4. Goals / Non-goals
+
+**Goals**
+
+- One resident process over every repository in the manifest.
+- The root-to-partition binding declared once, in a reviewed file, outside
+  every repository — so a crossed pair is a diff somebody reads rather than
+  a typo nobody sees.
+- RFC 0024's rules applied to v2 unchanged: deterministic order, trust
+  enforced before a root is touched, one failing repository never stopping
+  the pass, one attention budget for the fleet.
+- A partition with nothing to do costs one board read.
+
+**Non-goals**
+
+- **Not concurrency.** Serving N partitions in sequence is what makes
+  multi-repo operable; running them at once is what makes it fast, and it
+  needs worker slots, per-slot volumes and a broker story. §8 names it.
+- **Not a second configuration.** The manifest exists, is reviewed, and is
+  already the artefact that is about repositories rather than in one.
+- **Not a change to one partition's behaviour.** `residency.once` gains one
+  parameter and is otherwise untouched, so a single-partition manager keeps
+  running exactly as it does.
+- **Not deriving the partition.** §5.1.
+
+## 5. Design
+
+### 5.1 The manifest carries the partition
+
+```yaml
+# ~/.config/torve/fleet.yaml
+repositories:
+  - root: ~/GitLibrary/Morze/torve
+    trust: own
+    partition: morzecrew/torve
+  - root: ~/work/atlas
+    trust: reviewed
+    partition: acme/atlas
+attention:
+  pause_escalations: 3
+```
+
+`partition` is optional in the model and required by the resident loop: an
+empty one is refused before that repository is served, naming the manifest
+and the root. Optional in the model because `torve fleet tick` neither reads
+nor needs it, and a v1 fleet must keep working; required by the loop because
+a partition nobody wrote down is a board nobody chose.
+
+**Never derived.** A partition from the git remote is convenient and wrong in
+exactly the cases that matter — a repository with no remote, with two, or
+with one that changed. It is the same argument RFC 0024 made about trust:
+*"a class nobody wrote down is a grant nobody reviewed."*
+
+**Never read from the root.** D-13.3 keeps the manifest on the operator's
+machine because a repository under work configures nothing about the engine
+that works on it. A repository declaring its own partition is that failure
+exactly: it would let a checkout mint onto a board it was never given.
+
+### 5.2 One pass over the fleet
+
+```python
+PartitionPass = Callable[[FleetRepository, bool], Awaitable[str | None]]
+
+
+async def serve_fleet(
+    manifest: FleetManifest,
+    run_pass: PartitionPass,
+    *,
+    idle_seconds: float = IDLE_SECONDS,
+    rounds: int | None = None,
+) -> FleetServeReport: ...
+```
+
+One round is `fleet_tick`'s shape with `residency.once` where the tick was:
+
+1. survey every repository's escalation queue,
+2. decide the pause once for the fleet total (D-24.2),
+3. per repository, in the manifest's order: refuse a missing partition,
+   enforce its trust class against its own runner configuration, then run one
+   pass with the pause decision passed down,
+4. a round in which no repository took a task sleeps `idle_seconds`; a round
+   that did goes straight round again, because a landing may have unblocked
+   the next thing — the same rule `residency.serve` already applies within
+   one partition.
+
+`run_pass` is injected exactly as `TickRunner` is, and for the same reason:
+wiring one repository's worker needs adapters, and `torve.application` may
+not import `torve.adapters` (RFC 0015 §6).
+
+A repository that raises is recorded and the round continues (D-24.5). A
+manager that stops serving four healthy repositories because a fifth has a
+broken configuration is worse than one that says so and carries on.
+
+### 5.3 The pause is the absence of minting
+
+`residency.once` gains `paused: bool = False`, which skips the mint and
+nothing else. That is D-19.5's rule as it already stands — *the queue may
+drain during a pause; it may not grow* — expressed where v2 mints. Work
+already on the board still runs to completion; a worker mid-attempt is not
+interrupted, because a pause is a statement about the operator's capacity to
+triage, not about the safety of what is running.
+
+### 5.4 What counts as an escalation now
+
+`escalated_count` reads run-state files, and for a partition the manager
+serves the escalations are in the log instead. During the migration a
+repository can have both, so the survey is the union by task id:
+
+```python
+def escalated_tasks(root: Path, board: Board | None) -> set[str]: ...
+```
+
+`Board` gains `escalated()` beside `landed()` and `in_flight()`. The union
+rather than a sum, because a task escalated under v1 and re-escalated under
+v2 is one task the operator has to look at, and counting it twice would
+pause a fleet for work that does not exist.
+
+### Alternatives considered
+
+- **A second manifest for partitions.** A `partitions.yaml` beside
+  `fleet.yaml`. Two files listing the same roots is one file too many, and
+  the first time they disagree the engine has two answers to "which
+  repositories exist".
+- **`--partition` repeated on the command line.** Works, reviews nothing,
+  and puts the root-to-partition binding in a shell history rather than in a
+  file somebody reads.
+- **A manager process per repository, supervised.** systemd or a process
+  manager doing the round-robin. It cannot share the attention budget, which
+  is most of what a fleet decision is, and it turns "which repositories does
+  the engine work" into a question about unit files.
+- **Concurrency now.** The honest reason not to: landings serialize within a
+  partition and that is the throughput wall, so the first win of running
+  partitions at once is real but smaller than it looks, and it costs a seat
+  allocator, per-slot volumes and a broker per worker. Serial first, measured
+  after.
+
+## 6. Tests
+
+- **A missing partition is refused, and the round continues.** The other
+  repositories in the manifest are still served, and the refusal names the
+  root.
+- **Order is the manifest's**, under both `order` values, and no repository
+  is served twice in a round.
+- **The pause is fleet-wide**: two repositories under their own thresholds
+  and over the fleet's pause both; the round mints nothing and claims
+  nothing new, and work already on a board still runs.
+- **Trust is enforced before the pass**, not after: a `reviewed` root with
+  `runtime.docker: socket` never reaches `run_pass`.
+- **A repository that raises is recorded and skipped**, and the round's
+  remaining repositories run — asserted by making the first entry raise.
+- **An idle round sleeps and a productive one does not**, asserted on the
+  pass count rather than on a clock.
+- **The escalation union**: one task escalated in both carriers counts once.
+- Explicitly not tested: that two partitions cannot interfere. They share a
+  log and are separated by its partition column, which RFC 0044 phase 1
+  already tests; a second test here would be testing the store.
+
+## 7. Docs
+
+`pages/docs/architecture/distribution.md` is where this belongs: item 2 —
+landings serialize through one `main` — stays exactly as it is and is now
+the *only* wall that does not dissolve by moving a reader. The page gains
+the fleet loop as the answer to "how does a second repository get served",
+and the concurrency question is named as open rather than implied.
+
+## 8. Out of scope
+
+- **Concurrency across partitions.** What it needs: a seat allocator that
+  will not run two workers under one slot's cache volume (RFC 0035 D-35.4's
+  suffixing is already the mechanism), a broker per worker or a broker that
+  can hold several runs, and a decision about how many attempts an operator
+  wants running unattended. Named, measurable, and deliberately after this.
+- **Per-partition attention budgets.** D-24.2 decided the budget is shared
+  and this document does not reopen it.
+- **A fleet-wide board.** `torve manager board` reads one partition. A view
+  across all of them is a projection, and worth building once there is more
+  than one partition to look at.
+- **Retiring `torve manager serve`.** The single-partition verb stays: it is
+  what a repository with no fleet uses, and it is what this calls per
+  repository.
+
+## 9. Risks
+
+- **A crossed root and partition still possible on the first write.** The
+  manifest makes it reviewable, not impossible. Mitigated only by it being a
+  diff: nothing in the engine can tell that `~/work/atlas` should not mint
+  onto `morzecrew/torve`, because both are legitimate strings.
+- **One log for the whole fleet.** Every partition shares a store, so losing
+  it loses every board at once. That is already true of a single-partition
+  manager and is the trade the partition column exists to make; the
+  alternative is a store per repository and no fleet-wide question ever
+  being answerable.
+- **A slow repository starves the round.** Serving is serial, so one long
+  attempt delays every other partition's next pass by its whole duration.
+  Accepted for now and the strongest argument for the concurrency in §8 —
+  named here so the first person to feel it finds it written down.
+- **The trust check reads config on every round.** Deliberate: the file can
+  change under a resident process, and a class enforced once at startup is a
+  class that stops being enforced.
+
+## 10. Unresolved questions
+
+- Whether the resident loop should take the whole manifest or a filter
+  (`--only <root>`), for an operator who wants one repository served by a
+  fleet-configured process. Implementation may settle it; the argument
+  against is that it is `torve manager serve` with extra steps.
+- What a partition should be *called* when a repository has no forge — today
+  the convention is `owner/name` from the remote, and a local-only
+  repository has no such name. Any stable string works; nothing in the
+  engine parses it.
+
+## 11. Decisions
+
+| # | Grade | Decision | Paths | Consequence |
+| --- | --- | --- | --- | --- |
+| D-48.1 | `LOCKED` | The root-to-partition binding is declared in the fleet manifest, never derived and never read from the root under work | `src/torve/config/fleet.py` | A repository cannot choose its own board, which is D-13.3 applied to the one field that decides where its contracts are minted |
+| D-48.2 | `LOCKED` | The resident loop refuses a manifest entry with no partition, before that repository is served, and continues with the rest | `src/torve/application/fleet.py` | A partition nobody wrote down is a board nobody chose; the refusal is per repository so one missing field does not stop a fleet |
+| D-48.3 | `ASSUMED` | The fleet loop reuses RFC 0024's rules unchanged: the manifest's deterministic order, trust enforced before each pass, one failing repository recorded and skipped, one attention budget for the fleet | `src/torve/application/fleet.py` | v2 inherits every decision the fleet already made rather than making them again differently |
+| D-48.4 | `ASSUMED` | The pause skips minting and nothing else; work already on a board runs to completion | `src/torve/application/residency.py` | D-19.5's rule as it stands — the queue may drain during a pause, it may not grow — and a pause never interrupts an attempt |
+| D-48.5 | `ASSUMED` | Escalations are counted as the union by task id of the board's and the run-state files' | `src/torve/application/fleet.py` `src/torve/application/manager.py` | Correct across the migration, where a repository has both carriers, and a task in both is one task to triage |
+| D-48.6 | `ASSUMED` | Partitions are served in sequence, one pass each per round | `src/torve/application/fleet.py` | Multi-repo becomes operable now; a long attempt delays other partitions' next pass, which is the measurement that decides whether concurrency is worth its cost |
+| D-48.7 | `OPEN` | Whether the resident loop grows a single-repository filter. Settled by whether anyone reaches for it rather than by argument | `src/torve/cli/fleet.py` | — |
+
+## 12. Phasing
+
+```yaml
+- phase: 1
+  title: the manifest names a partition
+  intent: >-
+    `FleetRepository` gains an optional `partition`, and the resident loop refuses an entry without one before that repository is served — naming the manifest and the root, and continuing with the rest, because a fleet does not stop for one missing field. `Board` gains an escalation set beside its landed and in-flight ones, and the fleet's survey becomes the union by task id of what the board holds and what the run-state files hold, so a repository mid-migration is counted once rather than twice. `residency.once` gains a paused flag that skips minting and nothing else. Nothing loops yet: this phase is the vocabulary and the counting, with a single-partition manager behaving exactly as it does today.
+  scope:
+    - "src/torve/config/fleet.py"
+    - "src/torve/application/manager.py"
+    - "src/torve/application/residency.py"
+    - "tests/test_fleet_serve.py"
+  acceptance:
+    - "uv run pytest tests/test_fleet_serve.py tests/test_fleet.py tests/test_residency.py"
+    - "uv run lint-imports --config pyproject.toml"
+    - "uv run torve rfc check"
+  depends_on: []
+- phase: 2
+  title: the resident loop over the fleet
+  intent: >-
+    `serve_fleet` runs rounds over the manifest: survey every repository's queue, decide the fleet's pause once, then per repository in the manifest's order enforce its trust class against its own runner configuration and run one pass with that decision passed down, recording a refusal or a failure and carrying on. A round in which nobody took a task sleeps; a round that produced one goes straight round again. `torve fleet serve` wires it — one log for the fleet, one worker per repository, since an executor is bound to a root and a partition — and reports each repository's outcome the way `fleet tick` already does.
+  scope:
+    - "src/torve/application/fleet.py"
+    - "src/torve/cli/fleet.py"
+    - "pages/docs/architecture/distribution.md"
+    - "tests/test_fleet_serve.py"
+  acceptance:
+    - "uv run pytest tests/test_fleet_serve.py tests/test_fleet.py"
+    - "uv run torve gates run"
+    - "uv run torve rfc check"
+  depends_on: [1]
+```

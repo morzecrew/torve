@@ -85,6 +85,16 @@ class Board:
 
     # ....................... #
 
+    def escalated(self) -> set[str]:
+        """The tasks waiting on a person. What a fleet's attention budget is
+        measured from (RFC 0024 D-24.2) for a partition the manager serves —
+        the run-state files answer for whatever v1 still holds, and the two
+        are unioned rather than summed (D-48.5)."""
+
+        return {view.task_id for view in self.tasks.values() if view.state is TaskState.ESCALATED}
+
+    # ....................... #
+
     def landed(self) -> set[str]:
         return {view.task_id for view in self.tasks.values() if view.state is TaskState.READY}
 
