@@ -6,6 +6,11 @@ they do not build adapters inline. The bundles stay the application layer's
 contract, unchanged by this move (D-42.2); the root lives in `cli` because
 adapter imports belong to this layer and no other (RFC 0015 §2.1).
 
+`prepare_for` is the per-task half of a dispatch as one callable (RFC 0044
+D-44.12): a worker runs whatever the board hands it, so what a task needs
+is resolved from the task — its character's tier (D-34.3) and the provider
+routing that tier must pass (D-4.8).
+
 `build_tick_deps` is what `torve tick` consumes; `build_fleet_tick_deps` is
 what one fleet root consumes. They share every leg and differ in exactly
 the two corners the fleet loop has never run — the post-push forge
@@ -173,13 +178,13 @@ def build_run_deps(
 def build_dispatch_prepare(
     root: Path, config: RunnerConfig, *, runtime_name: RuntimeName | None = None
 ) -> Prepare:
-    """The per-task half of a dispatch, as one callable (RFC 0044 D-44.12).
+    """The per-task half of a dispatch, as one callable.
 
     A worker runs whatever the board hands it, and what a task needs
-    resolved is a fact about that task: the tier its character routes to
-    (D-34.3), the provider routing that tier must pass (D-4.8), and the
-    agent built for it. Building a dep bundle once per manager would pin
-    every task to whichever tier happened to be first.
+    resolved is a fact about that task: the tier its character routes to,
+    the provider routing that tier must pass, and the agent built for it.
+    Building a dep bundle once per manager would pin every task to
+    whichever tier happened to be first.
     """
 
     def prepare(task: Task) -> tuple[Task, RunDeps]:

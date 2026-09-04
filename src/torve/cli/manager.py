@@ -1,6 +1,9 @@
 """`torve manager` — the board a partition's event log adds up to (RFC 0044
 §5.4). Parsing and rendering only (D-15.6); the fold is
-`torve.application.manager`.
+`torve.application.manager`. `serve` rebuilds its whole view from the log
+every pass (D-44.5); `note` writes the manager's half of the live channel,
+which the run polls for rather than being interrupted by (RFC 0045 §5.3,
+D-45.7).
 """
 
 from __future__ import annotations
@@ -263,7 +266,7 @@ def serve_cmd(
     The process holds nothing. Every pass rebuilds its view from the log, so
     interrupting this is safe at any moment — the cost of a kill is the
     lease on whatever was in flight, and a restart reads back exactly what
-    the previous process knew (D-44.5).
+    the previous process knew.
     """
 
     root = root.resolve()
@@ -404,7 +407,7 @@ def note_cmd(
     dsn: Annotated[str, typer.Option("--dsn", help="Postgres DSN holding the log.")] = "",
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Say something to a running attempt (RFC 0045 §5.3, D-45.7).
+    """Say something to a running attempt.
 
     A note is a recorded fact, not a prompt edit: the agent polls for it
     with `torve log notes`, nothing interrupts it mid-thought, and what the

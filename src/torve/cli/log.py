@@ -1,7 +1,10 @@
 """`torve log` — the divergence intake, the verb an agent calls instead of
 writing the execution log by hand (RFC 0044 D-44.10). Parsing and rendering
 only (D-15.6); the checking, the serialization and the staging are
-`torve.application.divergence`.
+`torve.application.divergence`. The entry travels through the run's live
+channel when it has one and into the worktree's log when it does not, and
+the notes verb reads the other direction of that channel (RFC 0045 §5.2,
+§5.3).
 """
 
 from __future__ import annotations
@@ -74,7 +77,7 @@ def divergence_cmd(
 
     An accepted entry goes to the run's channel when it has one — the broker
     appends it to the record on this run's behalf, stamping who and what it
-    is about (RFC 0045 §5.2) — and into the worktree's log when it does not,
+    is about — and into the worktree's log when it does not,
     where the engine picks it up after the attempt. Either way the landed
     log is the same projection, so a run without a broker is unchanged.
     """
@@ -160,7 +163,7 @@ def notes_cmd(
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Read the notes addressed to this run (RFC 0045 §5.3).
+    """Read the notes addressed to this run.
 
     A poll, never a push: nothing here interrupts an attempt, and a note the
     agent never reads is still a recorded fact about what the engine tried
