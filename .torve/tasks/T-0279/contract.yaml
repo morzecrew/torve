@@ -22,6 +22,7 @@ scope:
   - src/torve/application/review.py
   - src/torve/application/feedback.py
   - src/torve/config/runconfig.py
+  - tests/test_runconfig.py
   - tests/test_runner.py
   - tests/test_review_run.py
   - tests/test_feedback.py
@@ -77,4 +78,4 @@ budget:
   tokens: null
 tier: executor
 tier_variant: heavy
-character: structural
+character: null
