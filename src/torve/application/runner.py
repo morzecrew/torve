@@ -11,63 +11,63 @@ decision logged in T-0003).
 real sandbox/gates/landing hooks, and the DST simulation supplies simulated
 ones — one loop, two harnesses, so the invariants exercise the code that
 ships (RFC 0003 §6).
+
+What the real hooks *do* is steps over a `Dispatch` (RFC 0046): the agent
+session and the revert leg in `session`, the review in `review`, and the
+three that stay here beside the loop that sequences them — the gate pass,
+the landing and the budget checkpoint. `real_hooks` binds them.
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import os
-import re
 import shutil
-import time
-from collections.abc import Awaitable, Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
-import yaml
 from forze.application.contracts.durable.function import (
     DurableRunStatus,
     current_durable_run,
 )
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
-from pathspec import GitIgnoreSpec
 
 from torve.application.dispatch import (
+    Dispatch,
     GatePass,
     RunDeps,
     attempt_row,
+    cache_volumes,
     close_dispatch,
+    emit,
     open_broker,
     open_dispatch,
     review_gated,
 )
 from torve.application.forge import compose_pr
 from torve.application.ports import (
-    AgentContext,
     AgentResult,
-    AttemptFact,
-    AttemptSink,
-    Broker,
-    BrokerHandle,
     Runtime,
     SandboxHandle,
     SandboxSpec,
-    Vcs,
 )
+from torve.application.review import review_step, reviewer_for
 from torve.application.runstate import Escalation, RunState
+from torve.application.session import (
+    RevertConflict,
+    halted,
+    revert_leg,
+    run_agent_session,
+)
 from torve.application.sizing import has_children
-from torve.application.skills import materialize
 from torve.application.taskstore import TaskStore
 from torve.application.telemetry import (
-    agent_burn,
-    agent_token_counts,
     append_record,
-    broker_block,
     build_record,
     config_hash,
     engine_event,
@@ -76,17 +76,8 @@ from torve.application.telemetry import (
 )
 from torve.base import naming
 from torve.config import layout
-from torve.config.manifest import UNLABELED_AXIS, GateAxis, load_manifest
-from torve.config.runconfig import (
-    CACHE_MOUNT,
-    RunnerConfig,
-    TierConfig,
-    agent_timeout_for,
-    effective_skill_sets,
-    image_for,
-    sandbox_timeout_for,
-    tier_for,
-)
+from torve.config.manifest import load_manifest
+from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
@@ -94,13 +85,6 @@ from torve.gates.context import GateContext, build_context, resolve_base
 from torve.gates.runner import RunReport, run_gates
 
 # ----------------------- #
-
-# A LOCKED conflict is written to the log as a halted entry; the runner reads
-# the fact from the file, the agent cannot cause the transition directly.
-# The A-1 YAML log is parsed, not pattern-matched.
-
-
-# ....................... #
 
 
 @dataclass
@@ -149,25 +133,6 @@ def _continuable(escalation: Escalation) -> bool:
     return escalation.reason == str(
         EscalationReason.BUDGET_EXHAUSTED
     ) and escalation.detail.startswith(_WALLCLOCK_MARKER)
-
-
-# ....................... #
-
-
-def _emit(sink: AttemptSink | None, kind: str, attempt: int, /, **payload: object) -> None:
-    """Hand one attempt fact to whoever is observing this run.
-
-    Failures are swallowed on purpose, the same rule the burn sink follows:
-    an observer that can break a run is not an observer. There is no
-    ordering guarantee to protect either — each fact is emitted where it
-    becomes true, so the sequence is the run's own.
-    """
-
-    if sink is None:
-        return
-
-    with contextlib.suppress(Exception):
-        sink(AttemptFact(kind=kind, attempt=attempt, payload=dict(payload)))  # type: ignore[arg-type]
 
 
 # ....................... #
@@ -350,210 +315,6 @@ async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool | None:
 # ....................... #
 
 
-def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
-    log = layout.log_file(worktree, task_id)
-
-    if not log.is_file():
-        return False
-
-    try:
-        document = yaml.safe_load(log.read_text(encoding="utf-8"))
-
-    except yaml.YAMLError:
-        return False  # an unreadable log is the decisions-reported gate's finding
-
-    if not isinstance(document, dict):
-        return False
-
-    entries: Any = cast(dict[str, Any], document).get("entries")
-
-    if not isinstance(entries, list):
-        return False
-
-    return any(
-        isinstance(e, dict) and str(cast(dict[str, Any], e).get("action", "")) == "halted"
-        for e in cast(list[object], entries)
-    )
-
-
-# ....................... #
-
-
-def _previous_attempt_gate_red(state: RunState) -> bool:
-    """D-27.11: whether the attempt about to dispatch follows a gate-red.
-    `_attempt_loop` appends a "gates red: ..." fact without a transition
-    (the state stays GATED, retried), so it sits one slot behind this
-    attempt's own "attempt N dispatched" entry — never the last one."""
-
-    return len(state.history) >= 2 and state.history[-2]["fact"].startswith("gates red:")
-
-
-# ....................... #
-
-# A surviving blocker's revision fact (RFC 0043 D-43.1) starts with this —
-# `_blocker_revisions_spent` is the only reader, so generation and counting
-# can never drift apart. Mirrors `_WALLCLOCK_MARKER` above.
-_BLOCKER_REVISION_MARKER = "review blocker (revision "
-
-
-def _blocker_revisions_spent(state: RunState) -> int:
-    """D-43.1: how much of the run's `blocker_revisions` budget a surviving
-    blocker has already spent — every revision fact `review_hook_fn` appends
-    without a transition (the state stays GATED, retried), counted across
-    the run's whole history, never just the last attempt."""
-
-    return sum(1 for h in state.history if h["fact"].startswith(_BLOCKER_REVISION_MARKER))
-
-
-# ....................... #
-
-# The fixed severity order of the gate axes, most severe first: retry
-# selection resolves the rung of the most severe axis present among a red
-# attempt's convictions (D-34.5). This order is this module's rule, not the
-# vocabulary's — the manifest lists the same words in corpus order, and
-# importing that list here would let a re-listing silently move the ladder.
-AXIS_SEVERITY: tuple[GateAxis, ...] = ("functional", "boundary", "compliance", "form")
-
-
-def retry_rung_for(
-    tier: TierConfig,
-    outcomes: Iterable[GateResult],
-    gate_axes: Mapping[str, GateAxis],
-) -> str:
-    """The rung the red attempt's recorded gate outcomes resolve to (D-34.5):
-    the seat's axis→rung mapping read at the most severe axis present among
-    the attempt's convictions — outcome and state, the two fields every
-    telemetry row carries; never a trace, a gate output or model text, so a
-    replay of the rows reproduces this choice exactly.
-
-    A conviction is a *blocking* fail or error: a shadow or quarantined
-    failure reported beside the red never routes the retry (gate runner,
-    §7.3 — measurement, not obstacle). A red whose record carries no
-    conviction at all — the empty-diff refusal, an attempt that produced
-    nothing — reads as functional, the fail-safe every unlabeled gate shares:
-    route the retry up, never sideways.
-
-    A boundary conviction resolves no rung (D-34.7), and its presence masks
-    the lighter axes below compliance: a broken fence outranks the work's
-    retry. The operator repairs it with a disclosed chore commit, not a
-    heavier model. An axis the mapping names nothing for resolves no rung
-    either — the attempt retries under the tier that just ran."""
-
-    convicted = {
-        gate_axes.get(result.name, UNLABELED_AXIS)
-        for result in outcomes
-        if result.outcome in ("fail", "error") and result.state == "blocking"
-    }
-
-    if not convicted:
-        convicted = {UNLABELED_AXIS}
-
-    rungs = tier.resolved_retry_variants()
-
-    for axis in AXIS_SEVERITY:
-        if axis in convicted:
-            return "" if axis == "boundary" else rungs.get(axis, "")
-
-    return ""  # unreachable: convicted holds only axes from the full AXIS_SEVERITY ladder
-
-
-def _retry_gate_axes(worktree: Path) -> Mapping[str, GateAxis]:
-    """Gate name → declared axis, read from the manifest of the tree that
-    convicted — the same file the gate pass loaded, so selection classifies
-    each conviction exactly as its declaration labels it. A missing or
-    unreadable manifest maps nothing: every failing gate then reads as the
-    unlabeled default, functional, the fail-safe that routes up (D-34.4)."""
-
-    manifest_path = layout.gates_file(worktree)
-
-    if not manifest_path.is_file():
-        return {}
-
-    try:
-        resolved = load_manifest(manifest_path).resolved_gates()
-
-    except (OSError, ValueError, yaml.YAMLError):
-        return {}
-
-    return {gate.name: gate.axis or UNLABELED_AXIS for gate in resolved}
-
-
-# ....................... #
-
-
-def _withhold_never_send(worktree: Path, globs: list[str]) -> dict[Path, bytes]:
-    """Lift `never_send` files out of the worktree for the attempt (RFC 0004
-    §6b): the sandbox mounts the worktree, so anything present may reach the
-    provider. A worktree's `.git` is a host-side pointer the sandbox cannot
-    follow, so removal here is removal from the sandbox's world. Contents are
-    restored from memory after `sync_out`; an agent edit to a withheld path is
-    discarded — the policy protects the file in both directions."""
-
-    if not globs:
-        return {}
-
-    spec = GitIgnoreSpec.from_lines(globs)
-    withheld: dict[Path, bytes] = {}
-
-    for path in sorted(worktree.rglob("*")):
-        rel = path.relative_to(worktree)
-
-        if rel.parts and rel.parts[0] == ".git":
-            continue
-
-        if path.is_file() and spec.match_file(str(rel)):
-            withheld[path] = path.read_bytes()
-            path.unlink()
-
-    return withheld
-
-
-# ....................... #
-
-
-def _restore_never_send(withheld: dict[Path, bytes]) -> None:
-    for path, content in withheld.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(content)
-
-
-# ....................... #
-
-
-def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
-    """(env_passthrough, volumes) for the tier's authentication route (RFC
-    0004 §1): key names for api and harness, a per-slot volume for
-    subscription (D-4.2), nothing for fake."""
-
-    if tier.adapter in ("api", "harness"):
-        return tuple(tier.api_key_env), {}
-
-    if tier.adapter == "subscription":
-        return (), {f"{tier.auth_volume}-{worker_slot}": tier.auth_mount}
-
-    return (), {}
-
-
-# ....................... #
-
-
-def _sandbox_cache(tier: TierConfig, worker_slot: int) -> dict[str, str]:
-    """The tier's derived-cache volume for this worker slot (RFC 0035 §5.2,
-    D-35.4): named exactly like the auth volume — base plus `-<slot>`, so
-    two concurrent workers never share a cache — mounted at the fixed
-    address outside the workspace. An unnamed cache is no volume at all:
-    cold exactly as before the field existed. The runtime adapter, not
-    this function, points the toolchain cache homes at the mount."""
-
-    if not tier.cache_volume:
-        return {}
-
-    return {f"{tier.cache_volume}-{worker_slot}": CACHE_MOUNT}
-
-
-# ....................... #
-
-
 class _SandboxExecutor:
     """ExecuteOnce over a fresh sandbox, created lazily so gate passes with no
     shell gates cost nothing, destroyed by the caller when the pass ends."""
@@ -584,51 +345,40 @@ class _SandboxExecutor:
 # ....................... #
 
 
-def _write_attempt_record(
-    telemetry: Path, record: dict[str, Any], sink: AttemptSink | None, attempt: int
-) -> None:
+def _write_attempt_record(run: Dispatch, record: dict[str, Any], attempt: int) -> None:
     """One record, both carriers (A-85). The stream is written from the
     record and the event is the same record with the envelope's fields
     removed, so a projection reading either one is reading the same
     numbers."""
 
     payload = record_payload(record, attempt)
+    manifest_rel = load_manifest(layout.gates_file(run.worktree)).telemetry
 
-    append_record(telemetry, record_row(payload, task_id=record["task_id"], at=record["at"]))
-    _emit(sink, "gates_evaluated", attempt, **payload)
+    append_record(
+        run.root / manifest_rel, record_row(payload, task_id=record["task_id"], at=record["at"])
+    )
+    emit(run, "gates_evaluated", attempt, **payload)
 
 
 # ....................... #
 
 
-def _run_gates_in_worktree(
-    worktree: Path,
-    task_id: str,
-    config: RunnerConfig,
-    runtime: Runtime,
-    run_id: str,
-    root: Path,
-    agent_meta: dict[str, Any] | None = None,
-    base: str | None = None,
-    image: str | None = None,
-    image_digest: str | None = None,
-    cache_volumes: dict[str, str] | None = None,
-    sink: AttemptSink | None = None,
-    attempt: int = 0,
-) -> tuple[int, str, str, list[GateResult], str]:
+def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[GateResult], str]:
     """(exit_code, summary, config_hash, results, patch) — the results and
     the patch feed the review's input when one is configured. Raises on
-    infrastructure failure. `cache_volumes` is the live run's derived-cache
-    mount — the battery is what pays the toolchain cold tax — empty for an
-    unnamed cache and always empty under shadow (D-35.3).
+    infrastructure failure.
+
+    The battery runs in a sandbox of its own over the same image the agent
+    ran under (D-3.8) and the same derived cache (D-35.3), because a pass
+    that judged a different regime than the attempt ran in is judging
+    something else.
 
     The attempt record is built once here and written to both carriers from
     that one object (A-85): the telemetry row every projection reads, and
-    the event the board folds. `sink` is None for a run nobody is
-    observing, and the row is written either way — the record exists before
-    either carrier does."""
+    the event the board folds. The row is written whether or not anything
+    is observing — the record exists before either carrier does."""
 
-    manifest_path = layout.gates_file(worktree)
+    manifest_path = layout.gates_file(run.worktree)
 
     if not manifest_path.is_file():
         raise FileNotFoundError(
@@ -637,43 +387,43 @@ def _run_gates_in_worktree(
 
     manifest = load_manifest(manifest_path)
 
-    task_file = layout.task_file(worktree, task_id)
-    source = layout.task_file(root, task_id)
+    task_file = layout.task_file(run.worktree, run.task.id)
+    source = layout.task_file(run.root, run.task.id)
 
     if not task_file.is_file() and source.is_file():
         task_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(source, task_file)
 
     executor = _SandboxExecutor(
-        runtime,
+        run.deps.runtime,
         SandboxSpec(
-            name=naming.sandbox_name(task_id, run_id) + "-gates",
+            name=naming.sandbox_name(run.task.id, state.run_id) + "-gates",
             # Shell gates run over the same image the agent ran under
             # (D-3.8) — an image swap between attempt and gates would be
             # its own regime change.
-            image=image or config.runtime.image,
-            labels=naming.labels(task_id, run_id, root),
-            timeout_s=config.runtime.sandbox_timeout,
+            image=run.image or run.config.runtime.image,
+            labels=naming.labels(run.task.id, state.run_id, run.root),
+            timeout_s=run.config.runtime.sandbox_timeout,
             # The battery pays the toolchain cold tax (mypy, ruff, uv all
             # run under these gates), so the live gates sandbox carries the
             # same derived-cache mount the attempt did — an empty dict here
             # is the cold pass, shadow's the exclusion (D-35.3).
-            volumes=dict(cache_volumes or {}),
+            volumes=cache_volumes(run),
         ),
-        worktree,
+        run.worktree,
     )
 
     try:
         ctx = build_context(
-            worktree,
+            run.worktree,
             manifest,
-            base=resolve_base(worktree, base or config.base),
+            base=resolve_base(run.worktree, run.gates_base or run.config.base),
             task_path=task_file if task_file.is_file() else None,
         )
 
         ctx.execute = executor
 
-        if _is_empty_implement_diff(ctx, root):
+        if _is_empty_implement_diff(ctx, run.root):
             # T-0172: an implement attempt that changed nothing against the
             # merge base is a no-op — refusing it here makes the loop read a
             # red gates fact and retry toward the poison ceiling, instead of
@@ -681,9 +431,11 @@ def _run_gates_in_worktree(
             # (RFC 0004 §6), so the red record carries that cost and names
             # the refusal; the battery itself would only repeat the same
             # verdicts over a tree the agent never touched.
-            digest = config_hash(manifest_path, worktree, config, image_digest=image_digest)
-            record = build_record(ctx, RunReport(exit_code=1), digest, agent=agent_meta)
-            _write_attempt_record(root / manifest.telemetry, record, sink, attempt)
+            digest = config_hash(
+                manifest_path, run.worktree, run.config, image_digest=run.image_digest
+            )
+            record = build_record(ctx, RunReport(exit_code=1), digest, agent=run.meta)
+            _write_attempt_record(run, record, state.attempts)
             summary = "empty diff against base — no changes produced"
 
             return 1, summary, digest, [], ctx.patch
@@ -693,9 +445,9 @@ def _run_gates_in_worktree(
     finally:
         executor.close()
 
-    digest = config_hash(manifest_path, worktree, config, image_digest=image_digest)
-    record = build_record(ctx, report, digest, agent=agent_meta)
-    _write_attempt_record(root / manifest.telemetry, record, sink, attempt)
+    digest = config_hash(manifest_path, run.worktree, run.config, image_digest=run.image_digest)
+    record = build_record(ctx, report, digest, agent=run.meta)
+    _write_attempt_record(run, record, state.attempts)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
     return report.exit_code, summary, digest, report.results, ctx.patch
@@ -810,104 +562,131 @@ def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, 
 # ....................... #
 
 
-class RevertConflict(RuntimeError):
-    """A dependent-commit conflict while reverting: escalates as
-    merge_conflict (RFC 0010 §7) — Torve does not resolve it."""
+async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
+    """One gate pass over the tree the attempt just left, and the two facts
+    the rest of the run reads off it: the convictions retry selection uses
+    (D-34.5) and the pass the reviewer is handed."""
+
+    # Deliberately not guarded: a sync that fails leaves the battery judging
+    # a log nobody vouched for, and the gates are fail-closed. The raise
+    # lands as GATE_INFRASTRUCTURE_FAILURE, which is what this is.
+    if run.deps.journal is not None:
+        await asyncio.to_thread(run.deps.journal, run.worktree)
+
+    try:
+        exit_code, summary, digest, results, patch = await asyncio.to_thread(
+            run_gate_pass, run, state
+        )
+
+    except Exception:
+        # D-38.1: the gates step raising is an attempt ending with no gate
+        # record — the loop escalates GATE_INFRASTRUCTURE_FAILURE from here
+        # and stops, so the row lands before the exception travels. The
+        # agent exited 0 by construction (the loop calls this no other way)
+        # and the gate report never completed: exit_code carries the
+        # agent's 0, the row says gates_run false.
+        attempt_row(
+            run,
+            "gate_infrastructure",
+            exit_code=0,
+            timed_out=False,
+            escalation=str(EscalationReason.GATE_INFRASTRUCTURE_FAILURE),
+        )
+        raise
+
+    run.convictions = list(results)
+    run.last_pass = GatePass(results=list(results), patch=patch, digest=digest)
+
+    return exit_code, summary, digest
 
 
 # ....................... #
 
-_SHA = re.compile(r"[0-9a-f]{7,40}")
 
+async def land(run: Dispatch, state: RunState, digest: str) -> str:
+    """The candidate commit, and its branch and pull request where the forge
+    leg is on. The commit is the runner's artefact (D-10.1), composed here
+    where the attempt's model_version is already known: author is the agent
+    identity (D-10.2), trailers complete (D-10.4), one commit per attempt
+    (D-10.8), signed outside the sandbox when a key is configured
+    (D-10.3)."""
 
-# ....................... #
+    deps, config, task, worktree = run.deps, run.config, run.task, run.worktree
 
+    message = _provenance_message(task, state.attempts, digest, run.meta)
+    author = f"{_agent_identity(run.meta)} <agents@torve.local>"
 
-def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
-    """Each target is a task id — resolved to its landed commits via the
-    Torve-Task trailer — or an explicit sha. An unresolvable target is a
-    contract error, raised before the first attempt dispatches."""
-
-    shas: list[str] = []
-
-    for target in task.targets:
-        if _SHA.fullmatch(target):
-            shas.append(target)
-            continue
-
-        landed = vcs.landed_shas(worktree, target)
-
-        if not landed:
-            raise ValueError(
-                f"revert target {target!r} has no landed commits in this "
-                "worktree's history — name a task that landed, or an "
-                "explicit commit sha"
-            )
-
-        shas.extend(landed)
-
-    return shas
-
-
-# ....................... #
-
-
-def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str]) -> None:
-    """Every revert emits resolved entries against the inherited decisions
-    (RFC 0010 §7): the reason work was undone reaches the next planning
-    session as data, not folklore. Machine-written — a mechanical revert has
-    no agent to write one."""
-
-    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    short = " ".join(sha[:10] for sha in shas)
-
-    entries: list[dict[str, Any]] = [
-        {
-            "decision": d.id,
-            "grade": str(d.grade),
-            "kind": "resolved",
-            "at": stamp,
-            "attempt": attempt,
-            "claim": f"the work under this decision was undone by {task.id}: "
-            f"{', '.join(task.targets)} reverted mechanically, "
-            "inverse tree staged for the landing commit",
-            "evidence": f"`git revert --no-commit {short}` — clean",
-            "action": "decided",
-        }
-        for d in task.decisions
-    ]
-
-    log_path = layout.log_file(worktree, task.id)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    log_path.write_text(
-        yaml.safe_dump(
-            {"schema_version": 1, "task": task.id, "drift_count": 0, "entries": entries},
-            sort_keys=False,
-        ),
-        encoding="utf-8",
+    sha = await asyncio.to_thread(
+        deps.vcs.commit_all, worktree, message, author, config.vcs.signing_key
     )
 
+    # The credential is resolved by NAME here, at the runner boundary
+    # (D-4b): the value lives only in this process and the subprocess
+    # environments the adapters compose.
+    token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
+
+    pushed = (
+        await asyncio.to_thread(
+            # supersede (D-10.10, A-37): the attempt owns the task's
+            # persistent branch — a prior candidate there is superseded
+            # under lease, its feedback captured at the requeue.
+            deps.vcs.push,
+            worktree,
+            naming.branch(task.id),
+            token,
+            True,
+        )
+        # Publication follows the forge leg (D-10.11, A-58): with open_pr
+        # off the candidate stays local — pushing a branch is publishing,
+        # and on a repository whose base was never pushed it publishes the
+        # entire history.
+        if sha and config.scm.open_pr
+        else False
+    )
+
+    pr_url = ""
+
+    if pushed and config.scm.open_pr:
+        title, pr_body = compose_pr(
+            task,
+            state.attempts,
+            digest,
+            run.meta,
+            list(run.last_pass.results),
+            worktree,
+            changed=deps.vcs.changed_names(worktree),
+        )
+
+        pr_url = await asyncio.to_thread(
+            deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body
+        )
+
+    state.landed_sha = sha or None
+    fact = f"committed {sha[:10]}" if sha else "nothing to commit"
+    fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
+
+    return fact
+
 
 # ....................... #
 
 
-def _record_broker_usage(
-    state: RunState, broker: Broker, broker_handle: BrokerHandle, agent_meta: dict[str, Any]
-) -> None:
-    """Stamps the attempt's broker usage into `agent_meta` and escalates on a
-    budget refusal (D-21.6) — observed in progress, on the run that
-    overspent, since the next request would be refused too."""
+def checkpoint(run: Dispatch, final: RunState) -> None:
+    """Commit whatever the worktree holds when a run ends on budget
+    exhaustion, so the next dispatch has a candidate tip to cut from
+    (D-26.9). Local only: the branch already lives in this repository, and
+    publishing a WIP tip is the eventual `land`'s job, unchanged.
 
-    usage = broker.usage(broker_handle)
-    agent_meta["broker"] = broker_block(broker.name, usage)
-    refused = usage.refusals.get("budget")
+    A trailer of its own (never Torve-Task) keeps this commit from ever
+    being mistaken for a landed candidate (D-10.4's grep, the revert leg's
+    `landed_shas`)."""
 
-    if refused:
-        state.escalate(
-            EscalationReason.COST_ANOMALY,
-            f"broker refused {refused} request(s) past the run's token budget",
-        )
+    message = (
+        f"torve checkpoint {run.task.id}: attempt {final.attempts} exhausted its budget"
+        f"\n\nTorve-Checkpoint: {run.task.id}\nTorve-Attempt: {final.attempts}"
+    )
+    author = f"{_agent_identity(run.meta)} <agents@torve.local>"
+    run.deps.vcs.commit_all(run.worktree, message, author, run.config.vcs.signing_key)
 
 
 # ....................... #
@@ -927,7 +706,9 @@ def real_hooks(
 
     The dispatch settles the regime and refuses what must be refused; this
     picks the attempt leg the role calls for and the review leg the
-    configuration calls for, and opens the broker last."""
+    configuration calls for, and opens the broker last — after every step
+    above it that can still fail (D-46.4).
+    """
 
     run = open_dispatch(
         root,
@@ -939,545 +720,33 @@ def real_hooks(
         gates_base=gates_base,
         resume=resume,
     )
-    # The task's own tier, kept beside the dispatch's current regime: the
-    # regime advances when a conviction routes a retry (D-27.11), and the
-    # decision to build a different Agent is taken against what the task
-    # asked for, never against what the last attempt happened to run.
-    task_tier_name, task_tier = run.tier_name, run.tier
 
-    async def attempt(state: RunState) -> AgentResult:
-        # D-27.11's one rung, routed by the conviction: the attempt after a
-        # gate-red resolves the tier the red attempt's recorded gate outcomes
-        # select — the seat's mapping at the most severe axis present, the
-        # scalar read as its functional sugar — instead of continuing under
-        # the tier that just ran; any other attempt resolves the task's own
-        # tier. Never fabricated — this only fires when the CLI wired an
-        # agent factory to actually build the resolved tier's Agent, so
-        # telemetry never stamps a tier that did not produce the work
-        # (D-27.1).
-        resolved_name, resolved_tier = task_tier_name, task_tier
-        retry_agent = deps.retry_agent
-        running_tier: TierConfig = run.tier
+    # Revert is mechanical (RFC 0010 §7, D-10.7): no agent, no attempt
+    # sandbox — but the gates still run in theirs and the landing carries
+    # the revert's own provenance. Its targets resolve now, so an
+    # unresolvable one fails here rather than at attempt three.
+    attempt = revert_leg(run) if task.role == "revert" else partial(run_agent_session, run)
 
-        if retry_agent is not None and _previous_attempt_gate_red(state):
-            rung = retry_rung_for(running_tier, run.convictions, _retry_gate_axes(worktree))
-
-            if rung:
-                resolved_name = rung
-                resolved_tier = tier_for(config, resolved_name)
-
-        if resolved_name != run.tier_name:
-            resolved_image = image_for(config, resolved_tier)
-            run.tier_name = resolved_name
-            run.tier = resolved_tier
-            run.image = resolved_image
-            run.image_digest = deps.runtime.resolve_image(resolved_image)
-
-        if resolved_name != task_tier_name and retry_agent is not None:
-            run_agent = retry_agent(resolved_tier)
-        else:
-            run_agent = deps.agent
-
-        run_kind = getattr(run_agent, "kind", resolved_tier.adapter)
-        run_real = run_kind != "fake"
-
-        run.meta.update(
-            tier=resolved_name,
-            # The attempt number, restamped where tier/adapter/model
-            # already are (D-38.4): `attempts` incremented on entry to
-            # running, so it names the attempt about to run.
-            attempt=state.attempts,
-            adapter=run_kind,
-            provider=(resolved_tier.provider or None) if run_real else None,
-            model=(resolved_tier.model or None) if run_real else None,
-            image=run.image,
-            image_digest=run.image_digest,
-        )
-
-        # The attempt's identity is settled here and nowhere earlier: the
-        # tier a conviction routed to (D-27.11) is resolved above, so this
-        # is the first moment the record would be true.
-        _emit(
-            deps.facts,
-            "attempt_started",
-            state.attempts,
-            tier=resolved_name,
-            agent=run_kind,
-            image_digest=run.image_digest,
-        )
-
-        # The runner composes the sandbox's context: the role's skill set is
-        # written from package data at dispatch (A-3) — the agent does not
-        # "have skills installed", and nothing is checked into the repository.
-        # Vendored skills resolve from the worktree's committed vendor
-        # directory beside package data (RFC 0009 §4a) — reviewed repository
-        # content instructing the agent about the work.
-        #
-        # RFC 0029 D-29.1/D-29.3: the resolved tier's `skills` — when set —
-        # overrides the role-scoped set wholesale, for this role only; the
-        # materializer's own resolution and refusals are untouched (D-29.2).
-        run.meta["skills"] = materialize(
-            task.role,
-            worktree / ".torve" / "skills",
-            effective_skill_sets(resolved_tier, task.role, config.skills.sets),
-            layout.skills_vendor_dir(worktree),
-        )
-
-        # The revision loop (RFC 0005 §4a, D-5.13): a retry's feedback
-        # record travels into the sandbox beside the skills; the prompt
-        # names it as untrusted review data.
-        from torve.application.feedback import feedback_file
-
-        captured = feedback_file(root, task.id)
-        planted = worktree / ".torve" / "feedback.md"
-
-        if captured.is_file():
-            import shutil as _shutil
-
-            planted.parent.mkdir(parents=True, exist_ok=True)
-            _shutil.copyfile(captured, planted)
-
-        env_passthrough, volumes = (
-            _sandbox_auth(resolved_tier, config.worker_slot) if run_real else ((), {})
-        )
-        # Shadow replays never see warm state (D-35.3): the tier's
-        # cache_volume is ignored under `shadow`, so a replay measures the
-        # cold truth and an eval comparing arms never compares caches. Live
-        # sandboxes of a warm tier mount the slot-suffixed derived cache —
-        # the runtime adapter, not the agent adapter, is what makes it
-        # warm, so a fake adapter's live sandbox carries it too.
-        if not shadow:
-            volumes = {**volumes, **_sandbox_cache(resolved_tier, config.worker_slot)}
-        infra_id = naming.shadow_id(task.id) if shadow else task.id
-
-        spec = SandboxSpec(
-            name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
-            image=run.image,
-            labels=naming.labels(infra_id, state.run_id, root),
-            # The resolved tier's clock when it names one (RFC 0035 §5.3,
-            # D-35.6): the heavy rung raises its own bound without touching
-            # the global the gate passes and every untiered lane keep.
-            timeout_s=sandbox_timeout_for(config, resolved_tier),
-            env_passthrough=env_passthrough,
-            volumes=volumes,
-        )
-
-        withheld = _withhold_never_send(worktree, config.providers.never_send)
-        # The attempt's own clock, sandbox creation included — the broker's
-        # wall_time_s spans the whole run and reads cumulative on retries.
-        from datetime import UTC as _UTC
-        from datetime import datetime as _datetime
-
-        attempt_started_at = _datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        attempt_clock = time.monotonic()
-        handle = deps.runtime.create(spec, worktree)
-        state.sandbox_id = handle.id
-        state.save()
-
-        try:
-            result = await asyncio.to_thread(
-                run_agent.run,
-                AgentContext(
-                    task=task,
-                    attempt=state.attempts,
-                    workspace=worktree,
-                    handle=handle,
-                    runtime=deps.runtime,
-                    workdir=spec.workdir,
-                    # Same resolution as the sandbox bound above: one tier,
-                    # one clock, for both the agent and the platform over it
-                    # (D-35.6).
-                    timeout_s=agent_timeout_for(config, resolved_tier),
-                    broker=run.broker_handle,
-                    resume=resume,
-                ),
-            )
-
-            deps.runtime.sync_out(handle, worktree)
-
-            run.meta.update(
-                model_version=result.model_version,
-                cost_usd=result.cost_usd,
-                trace_ref=result.trace_ref,
-                started_at=attempt_started_at,
-                ended_at=_datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                wall_time_s=round(time.monotonic() - attempt_clock, 3),
-            )
-            # The attempt's self-reported token counts ride the same block
-            # (T-0186): only the counts the adapter reported — absent keys
-            # stay absent, never zeroed (D-4.6's self-reported regime).
-            run.meta.update(agent_token_counts(result))
-            # The burn profile rides the block beside those totals (RFC 0039
-            # §5.3): what the adapter derived at capture time from the
-            # store's full bytes; a stream with no per-turn facts contributes
-            # no key at all — no stream, no block (D-39.4).
-            run.meta.update(agent_burn(result))
-
-            # The broker's live counts ride the attempt record beside the
-            # adapter's self-report (D-21.5). A budget refusal escalates in
-            # progress, on the run that overspent (D-21.6): the next request
-            # would be refused too, so the loop stops here.
-            broker, wire = deps.broker, run.broker_handle
-
-            if broker is not None and wire is not None:
-                _record_broker_usage(state, broker, wire, run.meta)
-
-            # Every path out of this hook ends in exactly one row (D-38.1).
-            # The endings are inspected in the order the loop itself reads
-            # them — escalation first, then the halted divergence entry,
-            # then the agent's own failure — so the verdict on the row is
-            # the ending the loop acts on. A clean attempt appends no row
-            # here: the gates leg owns its verdict (green or gates_red).
-            record: dict[str, Any] = {}
-
-            if state.escalation is not None:
-                # The broker refused the run's budget mid-attempt (D-21.6):
-                # the spend happened, the gates will never run, and until
-                # now this was the ending that recorded nothing at all.
-                record = attempt_row(
-                    run,
-                    "broker_refused",
-                    exit_code=result.exit_code,
-                    timed_out=result.timed_out,
-                    escalation=state.escalation.reason,
-                )
-
-            elif _log_has_halted_entry(worktree, task.id):
-                # The halted divergence entry (RFC 0001 §4): terminal by
-                # design, and today it ends the attempt silently.
-                record = attempt_row(
-                    run,
-                    "halted",
-                    exit_code=result.exit_code,
-                    timed_out=result.timed_out,
-                    escalation=str(EscalationReason.LOCKED_CONFLICT),
-                )
-
-            elif result.timed_out or result.exit_code != 0:
-                # RFC 0004 §6: the spend happened even though the gates will
-                # never run for this attempt — without a record here, a
-                # budget-killed or timed-out attempt's cost vanishes from
-                # every projection (four ~$4 first attempts were missing
-                # from cost-and-iterations when this was found). This is
-                # that record, now carrying its verdict (D-38.3).
-                record = attempt_row(
-                    run,
-                    "agent_timeout" if result.timed_out else "agent_error",
-                    exit_code=result.exit_code,
-                    timed_out=result.timed_out,
-                )
-
-            # One record, both carriers (A-85). An ending that produced a
-            # telemetry row emits that same row's content; an attempt that
-            # goes on to a gate pass has no ending of its own to describe,
-            # so it reports only what it spent and the gate's record is the
-            # one that describes it.
-            _emit(
-                deps.facts,
-                "attempt_finished",
-                state.attempts,
-                **(
-                    record_payload(record, state.attempts)
-                    if record
-                    else {
-                        "exit_code": result.exit_code,
-                        "timed_out": result.timed_out,
-                        "wall_time_s": run.meta.get("wall_time_s"),
-                        "cost_usd": result.cost_usd,
-                    }
-                ),
-            )
-
-            return result
-
-        finally:
-            # Synchronous on purpose: a cancelled task cannot await its own
-            # cleanup, and the sandbox must die regardless (D-4).
-            deps.runtime.destroy(handle)
-            _restore_never_send(withheld)
-            # The planted record was for this attempt's eyes (D-5.13,
-            # T-0076): it leaves the tree before the gates measure it —
-            # the feedback channel steers the attempt, never the candidate,
-            # and a planted file the scope gate can see would fail every
-            # revision against its own contract.
-            planted.unlink(missing_ok=True)
-            state.sandbox_id = None
-            state.save()
-
-    def halted() -> bool:
-        return _log_has_halted_entry(worktree, task.id)
-
-    def checkpoint(final: RunState) -> None:
-        # D-26.9: local only — the branch already lives in this repository,
-        # so a worktree cut on the next dispatch resolves it without a push;
-        # publishing a WIP tip is the eventual `land()`'s job, unchanged.
-        # A trailer of its own (never Torve-Task) keeps this commit from
-        # ever being mistaken for a landed candidate (D-10.4's grep, the
-        # revert leg's `landed_shas`).
-        message = (
-            f"torve checkpoint {task.id}: attempt {final.attempts} exhausted its budget"
-            f"\n\nTorve-Checkpoint: {task.id}\nTorve-Attempt: {final.attempts}"
-        )
-        author = f"{_agent_identity(run.meta)} <agents@torve.local>"
-        deps.vcs.commit_all(worktree, message, author, config.vcs.signing_key)
-
-    async def gates(state: RunState) -> tuple[int, str, str]:
-        # Deliberately not guarded: a sync that fails leaves the battery
-        # judging a log nobody vouched for, and the gates are fail-closed.
-        # The raise lands as GATE_INFRASTRUCTURE_FAILURE, which is what this
-        # is.
-        if deps.journal is not None:
-            await asyncio.to_thread(deps.journal, worktree)
-
-        try:
-            exit_code, summary, digest, results, patch = await asyncio.to_thread(
-                _run_gates_in_worktree,
-                worktree,
-                task.id,
-                config,
-                deps.runtime,
-                state.run_id,
-                root,
-                run.meta,
-                gates_base,
-                run.image,
-                run.image_digest,
-                # Always empty under shadow: a replay's gate pass measures the
-                # cold truth even when the tier names a cache (D-35.3).
-                {} if shadow else _sandbox_cache(run.tier, config.worker_slot),
-                deps.facts,
-                state.attempts,
-            )
-
-        except Exception:
-            # D-38.1: the gates hook raising is an attempt ending with no
-            # gate record — the loop escalates GATE_INFRASTRUCTURE_FAILURE
-            # from here and stops, so the row lands before the exception
-            # travels. The agent exited 0 by construction (the loop calls
-            # gates no other way) and the gate report never completed:
-            # exit_code carries the agent's 0, the row says gates_run false.
-            attempt_row(
-                run,
-                "gate_infrastructure",
-                exit_code=0,
-                timed_out=False,
-                escalation=str(EscalationReason.GATE_INFRASTRUCTURE_FAILURE),
-            )
-            raise
-
-        run.convictions = list(results)
-        run.last_pass = GatePass(results=list(results), patch=patch, digest=digest)
-
-        return exit_code, summary, digest
-
-    async def land(state: RunState, digest: str) -> str:
-        # The commit is the runner's artefact (D-10.1), composed here where
-        # the attempt's model_version is already known: author is the agent
-        # identity (D-10.2), trailers complete (D-10.4), one commit per
-        # attempt (D-10.8), signed outside the sandbox when a key is
-        # configured (D-10.3).
-        message = _provenance_message(task, state.attempts, digest, run.meta)
-        author = f"{_agent_identity(run.meta)} <agents@torve.local>"
-
-        sha = await asyncio.to_thread(
-            deps.vcs.commit_all, worktree, message, author, config.vcs.signing_key
-        )
-
-        # The credential is resolved by NAME here, at the runner boundary
-        # (D-4b): the value lives only in this process and the subprocess
-        # environments the adapters compose.
-        token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
-
-        pushed = (
-            await asyncio.to_thread(
-                # supersede (D-10.10, A-37): the attempt owns the task's
-                # persistent branch — a prior candidate there is superseded
-                # under lease, its feedback captured at the requeue.
-                deps.vcs.push,
-                worktree,
-                naming.branch(task.id),
-                token,
-                True,
-            )
-            # Publication follows the forge leg (D-10.11, A-58): with
-            # open_pr off the candidate stays local — pushing a branch is
-            # publishing, and on a repository whose base was never pushed
-            # it publishes the entire history.
-            if sha and config.scm.open_pr
-            else False
-        )
-
-        pr_url = ""
-
-        if pushed and config.scm.open_pr:
-            title, pr_body = compose_pr(
-                task,
-                state.attempts,
-                digest,
-                run.meta,
-                list(run.last_pass.results),
-                worktree,
-                changed=deps.vcs.changed_names(worktree),
-            )
-
-            pr_url = await asyncio.to_thread(
-                deps.scm.open_pr, worktree, naming.branch(task.id), title, pr_body
-            )
-
-        state.landed_sha = sha or None
-        fact = f"committed {sha[:10]}" if sha else "nothing to commit"
-        fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
-
-        return fact
-
-    attempt_hook = attempt
-
-    if task.role == "revert":
-        # Revert is mechanical (RFC 0010 §7, D-10.7): the runner executes
-        # git revert itself — no agent, no attempt sandbox; the gates still
-        # run in theirs and the landing carries the revert's own provenance.
-        # Targets resolve before the first dispatch so an unresolvable one
-        # fails loudly, like a misconfigured review.
-        run.meta.update(adapter="revert", provider=None, model=None)
-        revert_shas = _revert_targets(task, deps.vcs, worktree)
-
-        async def revert_attempt(state: RunState) -> AgentResult:
-            # The mechanical attempt still stamps its number (D-38.4): its
-            # gate record joins the trace convention like any other.
-            run.meta["attempt"] = state.attempts
-            done = await asyncio.to_thread(deps.vcs.revert, worktree, revert_shas)
-
-            if not done:
-                raise RevertConflict(
-                    f"dependent-commit conflict reverting "
-                    f"{', '.join(task.targets)} — revert aborted, worktree clean"
-                )
-
-            _write_revert_log(worktree, task, state.attempts, revert_shas)
-
-            return AgentResult(exit_code=0, output=f"reverted {len(revert_shas)} commit(s)")
-
-        attempt_hook = revert_attempt
-
-    review_hook = None
+    # Review follows execution (D-5.11): minted by the run, never by the
+    # planner, and never for a shadow replay — a replay measures the
+    # harness, not the reviewer. Resolving the reviewer here is the last
+    # thing that can fail before the broker opens.
+    review = None
 
     if review_gated(config, task, shadow):
-        # Review follows execution (D-5.11): minted here, never by the
-        # planner. A shadow replay measures the harness, not the reviewer.
-        if deps.review_agent is None:
-            raise ValueError(
-                "review is configured (review.on: task_gated) but no reviewer agent was provided"
-            )
-
-        reviewer_agent = deps.review_agent
-
-        async def review_hook_fn(state: RunState) -> str | None:
-            from torve.application.review import mint_review_task, run_review
-
-            review_task = mint_review_task(root, task)
-
-            outcome = await asyncio.to_thread(
-                run_review,
-                root,
-                worktree,
-                task,
-                review_task,
-                config,
-                deps.runtime,
-                reviewer_agent,
-                run.last_pass.patch,
-                list(run.last_pass.results),
-                run.last_pass.digest,
-                broker=deps.broker,
-                broker_handle=run.broker_handle,
-            )
-
-            # The reviewer spends the same run budget: a refusal there is the
-            # same cost_anomaly, stopped on the run that overspent (D-21.6).
-            broker, handle = deps.broker, run.broker_handle
-
-            if broker is not None and handle is not None:
-                usage = broker.usage(handle)
-
-                if usage.refusals.get("budget"):
-                    state.escalate(
-                        EscalationReason.COST_ANOMALY,
-                        f"broker refused {usage.refusals['budget']} request(s) "
-                        "past the run's token budget during review",
-                    )
-
-                    return None
-
-            if outcome.unparseable:
-                # Fail closed (D-5.4): a verdict that cannot be read must
-                # not promote — "no findings recorded" once waved a review
-                # carrying two blockers straight to ready.
-                state.escalate(
-                    EscalationReason.GATE_INFRASTRUCTURE_FAILURE,
-                    f"{outcome.review_id}: review output unparseable — an "
-                    "unreadable verdict is a review infrastructure failure, "
-                    "never a clean review",
-                )
-
-                return None
-
-            if outcome.blockers:
-                from torve.application.feedback import capture_feedback
-                from torve.application.review import blocker_threads
-
-                detail = "; ".join(f.claim for f in outcome.blockers)
-                spent = _blocker_revisions_spent(state)
-                budget = config.review.blocker_revisions
-
-                if spent < budget:
-                    # RFC 0043 D-43.1/D-43.2: the blockers and the convicted
-                    # candidate diff ride the RFC 0005 §4a feedback record —
-                    # the existing D-5.13 plant/frame mechanics carry it into
-                    # the next attempt with no new delivery path.
-                    capture_feedback(
-                        root,
-                        task.id,
-                        run.last_pass.patch,
-                        blocker_threads(outcome.blockers, outcome.review_id),
-                    )
-                    state.history.append(
-                        {
-                            "at": state.heartbeat,
-                            "from": str(state.state),
-                            "to": str(state.state),
-                            "fact": (
-                                f"{_BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
-                                f"{outcome.review_id}: {detail[:300]}"
-                            ),
-                        }
-                    )
-                    state.save()
-                    return None
-
-                state.escalate(
-                    EscalationReason.BLOCKER_FINDING, f"{outcome.review_id}: {detail[:300]}"
-                )
-
-                return None
-
-            # The verdict the lane's require_review predicate reads
-            # (D-6.14, A-43); cleared on the next entry to running.
-            state.reviewed_by = outcome.review_id
-
-            return f"{outcome.fact} ({outcome.review_id})"
-
-        review_hook = review_hook_fn
+        reviewer_for(run)  # raises here, not after an attempt has been paid for
+        review = partial(review_step, run)
 
     open_broker(run)
 
     return AttemptHooks(
-        attempt=attempt_hook,
-        halted=halted,
-        gates=gates,
-        land=land,
-        review=review_hook,
+        attempt=attempt,
+        halted=partial(halted, run),
+        gates=partial(judge, run),
+        land=partial(land, run),
+        review=review,
         close=partial(close_dispatch, run),
-        checkpoint=checkpoint,
+        checkpoint=partial(checkpoint, run),
     )
 
 

@@ -28,8 +28,8 @@ from torve.adapters.workspace.git import (
     parent_of,
     shipped_commit,
 )
-from torve.application.evals import candidate_config, run_config_eval, run_skill_eval, without_skill
 from torve.application.dispatch import RunDeps
+from torve.application.evals import candidate_config, run_config_eval, run_skill_eval, without_skill
 from torve.application.shadow import ShadowSource
 from torve.cli import app
 from torve.config import layout

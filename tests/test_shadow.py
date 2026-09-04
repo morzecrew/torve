@@ -344,30 +344,17 @@ def test_replay_never_mounts_the_cache_volume_even_when_the_tier_names_one(
 
     gate_caches: list[dict] = []
 
-    def scripted_gates(
-        _worktree,
-        _task_id,
-        _config,
-        _runtime,
-        _run_id,
-        _root,
-        _meta=None,
-        _base=None,
-        _image=None,
-        _image_digest=None,
-        cache_volumes=None,
-        _sink=None,
-        _attempt=0,
-    ):
-        # Named rather than counted from the end: the gate pass gained the
-        # attempt's observer, and a double reading its last argument reads
-        # whatever was added last.
-        gate_caches.append(dict(cache_volumes or {}))
+    def scripted_gates(run, _state):
+        # Read off the dispatch, not counted out of a positional list: the
+        # pass and the attempt derive the mount from one function, so this
+        # is the mount the battery would actually have carried.
+        gate_caches.append(cache_volumes(run))
         return 0, "scripted", "cafecafe1234", [], ""
 
     import torve.application.runner as run_module
+    from torve.application.dispatch import cache_volumes
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
 
     config, deps = _shadow_deps(repo, RecordingRuntime())
     shadow_ws = ShadowWorkspace(repo.root, depth=10)

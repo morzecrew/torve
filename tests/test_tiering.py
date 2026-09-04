@@ -26,7 +26,11 @@ from torve.adapters.agent.harness import (
 )
 from torve.adapters.vcs.git import repository_name
 from torve.application.ports import AgentContext, AgentResult, ExecResult, SandboxHandle
-from torve.application.runner import _restore_never_send, _sandbox_auth, _withhold_never_send
+from torve.application.session import (
+    _restore_never_send,
+    _sandbox_auth,
+    _withhold_never_send,
+)
 from torve.application.skills import materialize
 from torve.base.shell import truncate
 from torve.cli import app
@@ -1194,7 +1198,7 @@ def test_review_record_carries_reported_token_counts(repo, monkeypatch):
     def scripted_gates(*args, **kwargs):
         return 0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
 
     deps = RunDeps(
         workspace=MockWorkspace(repo.root),

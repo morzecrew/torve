@@ -62,7 +62,7 @@ def rig(repo, monkeypatch):
         code = verdicts.pop(0) if verdicts else 0
         return code, "scripted", "cafecafe1234", [], ""
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
 
     return repo, deps, verdicts
 

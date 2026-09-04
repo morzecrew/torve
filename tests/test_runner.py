@@ -13,7 +13,7 @@ from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, TierConfig
 from torve.domain.attempt import GateResult
-from torve.domain.task import Scope
+from torve.domain.task import Scope, Task
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 
@@ -359,7 +359,7 @@ def test_run_routing_includes_the_character_routed_variants_provider(tmp_path):
     """D-21.4 parity with include_retry: once resolve_character_tier has run
     upstream, the run's routing derivation sees the character-routed
     variant's provider, not the seat default's."""
-    from torve.application.runner import run_routing
+    from torve.application.dispatch import run_routing
     from torve.config.runconfig import (
         BrokerConfig,
         BrokerProvider,
@@ -821,26 +821,72 @@ def test_the_empty_implement_diff_predicate(tmp_path):
     assert not _is_empty_implement_diff(ctx(task=sequenced), adopted)
 
 
+def _gate_dispatch(
+    *,
+    root=None,
+    worktree=None,
+    tier=None,
+    worker_slot=0,
+    shadow=False,
+    base="main",
+):
+    """A dispatch with nothing running behind it — enough for the steps that
+    only read the regime off it (RFC 0046)."""
+
+    from pathlib import Path
+
+    from torve.application.dispatch import Dispatch, RunDeps
+
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]  # unreached: no sandbox is opened
+        runtime=_NoSandboxRuntime(),  # type: ignore[arg-type]
+        agent=object(),  # type: ignore[arg-type]
+        vcs=object(),  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+    )
+
+    return Dispatch(
+        root=root or Path("."),
+        task=Task(id=TASK_ID, decisions=[]),
+        config=RunnerConfig(worker_slot=worker_slot),
+        deps=deps,
+        worktree=worktree or Path("."),
+        shadow=shadow,
+        gates_base=base,
+        resume=False,
+        tier_name="executor",
+        tier=tier or TierConfig(),
+        image="",
+        image_digest=None,
+        meta={"adapter": "fake", "model": None},
+    )
+
+
+def _gate_pass(repo, worktree, *, base="main"):
+    """The shipped gate pass over a cut worktree (RFC 0046): the pass reads
+    its regime off a dispatch now, so the test builds one instead of
+    threading thirteen positional arguments and hoping the order held."""
+
+    from torve.application.runner import run_gate_pass
+    from torve.application.runstate import RunState
+
+    run = _gate_dispatch(root=repo.root, worktree=worktree, base=base)
+    state = RunState(task_id=TASK_ID, path=repo.root / "state.json", run_id="run-1")
+
+    return run_gate_pass(run, state)
+
+
 def test_an_empty_implement_diff_is_refused_before_the_battery(repo):
     """T-0172: end to end through the shipped gate pass — an implement
     attempt that changed nothing comes back red with a fact naming the
     empty diff, and the attempt's spend survives as a red record (RFC 0004
     §6). The battery is never blessed over a tree the agent never touched."""
-    from torve.application.runner import _run_gates_in_worktree
 
     repo.seed()
     worktree = _cut_worktree(repo, BASE_MANIFEST, base_task(allow=["src/**"]))
 
-    exit_code, summary, _digest, results, patch = _run_gates_in_worktree(
-        worktree,
-        TASK_ID,
-        RunnerConfig(),
-        _NoSandboxRuntime(),
-        "run-1",
-        repo.root,
-        agent_meta={"adapter": "fake", "model": None},
-        base="main",
-    )
+    exit_code, summary, _digest, results, patch = _gate_pass(repo, worktree)
 
     assert exit_code == 1
     assert summary == "empty diff against base — no changes produced"
@@ -861,7 +907,6 @@ def test_an_empty_implement_diff_is_refused_when_the_contract_was_minted_after_b
     of it is the only file a no-op attempt leaves behind. That copy must
     not read as candidate work — the refusal fires, before the battery."""
     from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.runner import _run_gates_in_worktree
 
     repo.seed()
     repo.git("checkout", "-q", "main")
@@ -871,16 +916,7 @@ def test_an_empty_implement_diff_is_refused_when_the_contract_was_minted_after_b
     repo.task(base_task(allow=["src/**"]), None)
     worktree = GitWorkspace(repo.root).create(TASK_ID, "main")
 
-    exit_code, summary, _digest, results, _patch = _run_gates_in_worktree(
-        worktree,
-        TASK_ID,
-        RunnerConfig(),
-        _NoSandboxRuntime(),
-        "run-1",
-        repo.root,
-        agent_meta={"adapter": "fake", "model": None},
-        base="main",
-    )
+    exit_code, summary, _digest, results, _patch = _gate_pass(repo, worktree)
 
     assert exit_code == 1
     assert summary == "empty diff against base — no changes produced"
@@ -902,7 +938,6 @@ def test_an_integration_tasks_empty_diff_stays_legal(repo):
     record of the adoption — a child contract naming it as parent — not
     the grown `depends_on`, which an ordinary phase-sequenced task carries
     too."""
-    from torve.application.runner import _run_gates_in_worktree
 
     repo.seed()
     task_doc = base_task(allow=["src/**"])
@@ -928,16 +963,7 @@ def test_an_integration_tasks_empty_diff_stays_legal(repo):
     )
     worktree = _cut_worktree(repo, {"schema_version": 1, "gates": []}, task_doc)
 
-    exit_code, summary, _digest, results, _patch = _run_gates_in_worktree(
-        worktree,
-        TASK_ID,
-        RunnerConfig(),
-        _NoSandboxRuntime(),
-        "run-1",
-        repo.root,
-        agent_meta={"adapter": "fake", "model": None},
-        base="main",
-    )
+    exit_code, summary, _digest, results, _patch = _gate_pass(repo, worktree)
 
     assert exit_code == 0
     assert summary == ""
@@ -947,22 +973,12 @@ def test_an_integration_tasks_empty_diff_stays_legal(repo):
 def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
     """An untracked-only candidate is a change, not a no-op — the pass must
     proceed and record a green verdict."""
-    from torve.application.runner import _run_gates_in_worktree
 
     repo.seed()
     worktree = _cut_worktree(repo, {"schema_version": 1, "gates": []}, base_task(allow=["src/**"]))
     (worktree / "notes.txt").write_text("agent's own notes\n", encoding="utf-8")
 
-    exit_code, _summary, _digest, results, _patch = _run_gates_in_worktree(
-        worktree,
-        TASK_ID,
-        RunnerConfig(),
-        _NoSandboxRuntime(),
-        "run-1",
-        repo.root,
-        agent_meta={"adapter": "fake", "model": None},
-        base="main",
-    )
+    exit_code, _summary, _digest, results, _patch = _gate_pass(repo, worktree)
 
     assert exit_code == 0
     assert results == []
@@ -1163,7 +1179,7 @@ def test_a_gates_hook_failure_appends_its_verdict_row(repo, monkeypatch):
     def broken_gates(*args, **kwargs):
         raise OSError("gate machinery down")
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", broken_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", broken_gates)
 
     ok = AgentResult(exit_code=0, output="")
     final, (rows, _events) = _drive_endings(repo, [ok])
@@ -1238,7 +1254,7 @@ def test_the_verdict_is_derivable_from_the_rows_other_fields(tmp_path, monkeypat
     def broken_gates(*args, **kwargs):
         raise OSError("gate machinery down")
 
-    monkeypatch.setattr("torve.application.runner._run_gates_in_worktree", broken_gates)
+    monkeypatch.setattr("torve.application.runner.run_gate_pass", broken_gates)
     _final, (rows, _events) = _drive_endings(repo_at("infra"), [ok])
     all_rows += rows
 
@@ -1344,7 +1360,7 @@ RUNGED = TierConfig(
 
 
 def test_the_most_severe_conviction_present_routes_the_retry():
-    from torve.application.runner import retry_rung_for
+    from torve.application.session import retry_rung_for
 
     both = [conviction("grammar"), conviction("acceptance")]
     assert retry_rung_for(RUNGED, both, AXES) == "executor.heavy"
@@ -1355,7 +1371,7 @@ def test_the_most_severe_conviction_present_routes_the_retry():
 
 
 def test_a_boundary_conviction_resolves_no_rung_and_masks_the_lighter_axes():
-    from torve.application.runner import retry_rung_for
+    from torve.application.session import retry_rung_for
 
     assert retry_rung_for(RUNGED, [conviction("fence")], AXES) == ""
 
@@ -1376,7 +1392,7 @@ def test_a_boundary_conviction_resolves_no_rung_and_masks_the_lighter_axes():
 
 
 def test_an_unlabeled_gate_and_an_empty_record_read_as_functional():
-    from torve.application.runner import retry_rung_for
+    from torve.application.session import retry_rung_for
 
     # A failing gate the manifest does not name (or does not label).
     assert retry_rung_for(RUNGED, [conviction("mystery")], AXES) == "executor.heavy"
@@ -1387,7 +1403,7 @@ def test_an_unlabeled_gate_and_an_empty_record_read_as_functional():
 
 
 def test_only_a_blocking_failure_convicts():
-    from torve.application.runner import retry_rung_for
+    from torve.application.session import retry_rung_for
 
     # A shadow or bypassed result beside a red attempt is not a conviction —
     # it did not drive the exit code, so it does not drive the routing.
@@ -1402,7 +1418,7 @@ def test_only_a_blocking_failure_convicts():
 
 
 def test_the_scalar_form_is_the_functional_rung_of_the_resolved_mapping():
-    from torve.application.runner import retry_rung_for
+    from torve.application.session import retry_rung_for
 
     scalar = TierConfig(retry_variant="executor.heavy")
     assert retry_rung_for(scalar, [conviction("acceptance")], AXES) == "executor.heavy"
@@ -1411,7 +1427,7 @@ def test_the_scalar_form_is_the_functional_rung_of_the_resolved_mapping():
 
 
 def test_run_routing_carries_the_provider_of_every_axis_rung():
-    from torve.application.runner import run_routing
+    from torve.application.dispatch import run_routing
     from torve.config.runconfig import BrokerConfig, BrokerProvider
     from torve.domain.task import Task
 
@@ -1453,7 +1469,7 @@ def test_run_routing_carries_the_provider_of_every_axis_rung():
 
 
 def test_a_rung_naming_the_seat_itself_is_never_routed_twice():
-    from torve.application.runner import run_routing
+    from torve.application.dispatch import run_routing
     from torve.config.runconfig import BrokerConfig, BrokerProvider
     from torve.domain.task import Task
 
@@ -1482,7 +1498,7 @@ def test_a_rung_naming_the_seat_itself_is_never_routed_twice():
 
 
 def test_an_axis_rung_the_broker_cannot_route_is_a_configuration_error():
-    from torve.application.runner import run_routing
+    from torve.application.dispatch import run_routing
     from torve.config.runconfig import BrokerConfig, BrokerProvider
     from torve.domain.task import Task
 
@@ -1598,23 +1614,23 @@ def _conviction_passes(monkeypatch, repo, passes, seen_metas, append_telemetry=F
 
     outcomes = list(passes)
 
-    def scripted(worktree, task_id, _config, _runtime, _run_id, root, agent_meta=None, *_args):
-        manifest_file = worktree / ".torve" / "gates.yaml"
+    def scripted(run, _state):
+        manifest_file = run.worktree / ".torve" / "gates.yaml"
         manifest_file.parent.mkdir(parents=True, exist_ok=True)
         manifest_file.write_text(yaml.safe_dump(RETRY_MANIFEST), encoding="utf-8")
 
         entry = outcomes.pop(0)
         results = [] if entry is None else entry
         code = 0 if entry == [] else 1
-        seen_metas.append(dict(agent_meta or {}))
+        seen_metas.append(dict(run.meta))
 
         if append_telemetry:
             append_record(
-                root / ".torve" / "telemetry.jsonl",
+                run.root / ".torve" / "telemetry.jsonl",
                 {
                     "schema_version": 1,
-                    "task_id": task_id,
-                    "agent": dict(agent_meta or {}),
+                    "task_id": run.task.id,
+                    "agent": dict(run.meta),
                     "results": [r.model_dump() for r in results],
                     "exit_code": code,
                 },
@@ -1623,7 +1639,7 @@ def _conviction_passes(monkeypatch, repo, passes, seen_metas, append_telemetry=F
         summary = ", ".join(f"{r.name}={r.outcome}" for r in results)
         return code, summary or "all green", "cafecafe1234", results, ""
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted)
 
 
 def _retry_config(**rungs) -> RunnerConfig:
@@ -1814,17 +1830,25 @@ def test_the_chosen_rung_is_derivable_from_telemetry_records_alone(repo, monkeyp
 
 
 def test_an_unnamed_cache_mounts_nothing_a_named_one_is_slot_suffixed():
+    from torve.application.dispatch import cache_volumes
     from torve.application.ports import SandboxSpec
-    from torve.application.runner import _sandbox_cache
     from torve.config.runconfig import CACHE_MOUNT
 
-    assert _sandbox_cache(TierConfig(), worker_slot=0) == {}  # cold as today
+    def mounts_for(tier: TierConfig, slot: int, *, shadow: bool = False) -> dict[str, str]:
+        run = _gate_dispatch(tier=tier, worker_slot=slot, shadow=shadow)
+        return cache_volumes(run)
 
-    mounts = _sandbox_cache(TierConfig(cache_volume="torve-cache"), worker_slot=2)
+    assert mounts_for(TierConfig(), 0) == {}  # cold as today
+
+    mounts = mounts_for(TierConfig(cache_volume="torve-cache"), 2)
     assert mounts == {"torve-cache-2": CACHE_MOUNT}
 
     # Slot-scoped like auth volumes: two concurrent workers share nothing.
-    assert _sandbox_cache(TierConfig(cache_volume="torve-cache"), 3) != mounts
+    assert mounts_for(TierConfig(cache_volume="torve-cache"), 3) != mounts
+
+    # D-35.3: a replay measures the cold truth even when the tier names a
+    # cache — one function, so the attempt and the battery cannot disagree.
+    assert mounts_for(TierConfig(cache_volume="torve-cache"), 2, shadow=True) == {}
 
     # The mount is fixed and outside the workspace bind — no attempt can
     # read the cache as project content.
@@ -1874,34 +1898,21 @@ def _recording_runtime():
 
 
 def _script_gates_capturing_cache(monkeypatch):
-    """Replace the gate pass with a recorder of the cache volumes it was
-    handed — the argument the gates sandbox spec would mount verbatim."""
+    """Replace the gate pass with a recorder of the cache volumes it would
+    mount — the same dispatch-derived set the gates sandbox spec carries."""
     import torve.application.runner as run_module
+    from torve.application.dispatch import cache_volumes
 
     seen: list[dict] = []
 
-    def scripted(
-        _worktree,
-        _task_id,
-        _config,
-        _runtime,
-        _run_id,
-        _root,
-        _meta=None,
-        _base=None,
-        _image=None,
-        _image_digest=None,
-        cache_volumes=None,
-        _sink=None,
-        _attempt=0,
-    ):
-        # Named rather than counted from the end: the gate pass gained the
-        # attempt's observer, and a double that reads its last argument
-        # reads whatever was added last.
-        seen.append(dict(cache_volumes or {}))
+    def scripted(run, _state):
+        # Read off the dispatch, not counted out of a positional list: the
+        # pass and the attempt derive the mount from the same function, so
+        # this is the mount the battery would actually have carried.
+        seen.append(cache_volumes(run))
         return 0, "scripted", "cafecafe1234", [], ""
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted)
     return seen
 
 

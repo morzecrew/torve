@@ -202,7 +202,7 @@ def engine_repo(tmp_path: Path, monkeypatch) -> Path:
     def scripted_gates(*args, **kwargs):
         return 0, "scripted", "cafecafe1234", [], ""
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
     return root
 
 

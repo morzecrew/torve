@@ -74,7 +74,7 @@ def review_rig(repo, monkeypatch):
     def scripted_gates(*args, **kwargs):
         return 0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
 
     def deps_with_reviewer(review_agent):
         return RunDeps(

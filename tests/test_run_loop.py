@@ -201,7 +201,7 @@ def rig(repo, monkeypatch):
         code = gate_outcomes.pop(0) if gate_outcomes else 0
         return code, "scripted", "cafecafe1234", [], ""
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
     return repo, deps, runtime, vcs, gate_outcomes
 
 
@@ -451,7 +451,7 @@ def test_gate_infrastructure_failure_escalates(rig, monkeypatch):
     def broken_gates(*args, **kwargs):
         raise OSError("gate machinery down")
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", broken_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", broken_gates)
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
     assert state.escalation.reason == "gate_infrastructure_failure"
     # D-38.1: the gates-hook exception is an attempt ending too — the row
@@ -609,12 +609,12 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
             seen["during_attempt"] = (ctx.workspace / ".torve" / "feedback.md").is_file()
             return OK
 
-    def peeking_gates(worktree, *args, **kwargs):
-        seen["at_gates"] = (worktree / ".torve" / "feedback.md").is_file()
+    def peeking_gates(run, _state):
+        seen["at_gates"] = (run.worktree / ".torve" / "feedback.md").is_file()
         return 0, "scripted", "cafecafe1234", [], ""
 
     deps.agent = PeekingAgent()
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", peeking_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", peeking_gates)
     state = run_task(repo.root, task, RunnerConfig(), deps)
 
     assert state.state is TaskState.READY
@@ -647,12 +647,12 @@ def test_retry_variant_resolves_after_a_gate_red_and_stamps_its_own_tier(rig, mo
 
     seen_agent_metas: list[dict] = []
 
-    def scripted_gates(*args, **kwargs):
-        seen_agent_metas.append(dict(args[6]))
+    def scripted_gates(run, _state):
+        seen_agent_metas.append(dict(run.meta))
         code = gate_outcomes.pop(0) if gate_outcomes else 0
         return code, "scripted", "cafecafe1234", [], ""
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
 
     class BuildAgent:
         def run(self, ctx):
@@ -722,12 +722,12 @@ def test_worktree_config_edits_never_reach_dispatch(rig, monkeypatch):
 
     seen_agent_metas: list[dict] = []
 
-    def scripted_gates(*args, **kwargs):
-        seen_agent_metas.append(dict(args[6]))
+    def scripted_gates(run, _state):
+        seen_agent_metas.append(dict(run.meta))
         code = gate_outcomes.pop(0) if gate_outcomes else 0
         return code, "scripted", "cafecafe1234", [], ""
 
-    monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted_gates)
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
 
     class HostileAgent:
         def run(self, ctx):

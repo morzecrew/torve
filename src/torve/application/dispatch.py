@@ -19,6 +19,7 @@ it opened would leak one.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -27,6 +28,7 @@ from typing import Any, cast
 
 from torve.application.ports import (
     Agent,
+    AttemptFact,
     AttemptSink,
     Broker,
     BrokerBudget,
@@ -53,6 +55,7 @@ from torve.application.telemetry import (
 from torve.config import layout
 from torve.config.manifest import Manifest, load_manifest
 from torve.config.runconfig import (
+    CACHE_MOUNT,
     RunnerConfig,
     TierConfig,
     broker_in_force,
@@ -526,6 +529,50 @@ def close_dispatch(run: Dispatch) -> None:
                     "tolerance": run.config.broker.cost_tolerance,
                 },
             )
+
+
+# ....................... #
+
+
+def emit(run: Dispatch, kind: str, attempt: int, /, **payload: object) -> None:
+    """Hand one attempt fact to whoever is observing this run.
+
+    Failures are swallowed on purpose, the same rule the burn sink follows:
+    an observer that can break a run is not an observer. There is no
+    ordering guarantee to protect either — each fact is emitted where it
+    becomes true, so the sequence is the run's own.
+    """
+
+    sink = run.deps.facts
+
+    if sink is None:
+        return
+
+    with contextlib.suppress(Exception):
+        sink(AttemptFact(kind=kind, attempt=attempt, payload=dict(payload)))  # type: ignore[arg-type]
+
+
+# ....................... #
+
+
+def cache_volumes(run: Dispatch) -> dict[str, str]:
+    """The derived-cache volume this run's current regime mounts (RFC 0035
+    §5.2, D-35.4): named like the auth volume — base plus `-<slot>`, so two
+    concurrent workers never share a cache — at the fixed address outside
+    the workspace. An unnamed cache is no volume at all: cold exactly as
+    before the field existed.
+
+    Always empty under shadow (D-35.3): a replay measures the cold truth
+    even when the tier names a cache, so an eval comparing arms never
+    compares caches. Both the agent's sandbox and the gate battery's read
+    it here, because a pass that judged a different cache than the attempt
+    ran under would be judging a different regime.
+    """
+
+    if run.shadow or not run.tier.cache_volume:
+        return {}
+
+    return {f"{run.tier.cache_volume}-{run.config.worker_slot}": CACHE_MOUNT}
 
 
 # ....................... #

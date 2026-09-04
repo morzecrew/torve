@@ -16,6 +16,7 @@ loop for reviews arrives when a reviewer earns retries.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import shutil
@@ -27,7 +28,7 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from torve.application.dispatch import run_routing
+from torve.application.dispatch import Dispatch, run_routing
 from torve.application.ports import (
     Agent,
     AgentContext,
@@ -51,7 +52,7 @@ from torve.config.runconfig import (
     tier_for,
 )
 from torve.domain.attempt import Finding, GateResult
-from torve.domain.states import TaskState
+from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import SCHEMA_VERSION, Budget, Task
 from torve.gates.evidence import CITATION, filter_findings
 
@@ -879,3 +880,137 @@ def review_pull_request(
     return PrReviewOutcome(
         "reviewed", outcome.fact, review.id, len(outcome.kept), len(outcome.blockers), url
     )
+
+
+# ....................... #
+
+
+# A surviving blocker's revision fact (RFC 0043 D-43.1) starts with this —
+# `_blocker_revisions_spent` is the only reader, so generation and counting
+# can never drift apart. Mirrors `_WALLCLOCK_MARKER` above.
+_BLOCKER_REVISION_MARKER = "review blocker (revision "
+
+
+def _blocker_revisions_spent(state: RunState) -> int:
+    """D-43.1: how much of the run's `blocker_revisions` budget a surviving
+    blocker has already spent — every revision fact `review_hook_fn` appends
+    without a transition (the state stays GATED, retried), counted across
+    the run's whole history, never just the last attempt."""
+
+    return sum(1 for h in state.history if h["fact"].startswith(_BLOCKER_REVISION_MARKER))
+
+
+# ....................... #
+
+
+def reviewer_for(run: Dispatch) -> Agent:
+    """The reviewer this run judges with (RFC 0005). Resolved before the
+    broker opens as well as at the step itself, so a run configured for
+    review with no reviewer wired fails at setup rather than after an
+    attempt has already been paid for."""
+
+    if run.deps.review_agent is None:
+        raise ValueError(
+            "review is configured (review.on: task_gated) but no reviewer agent was provided"
+        )
+
+    return run.deps.review_agent
+
+
+# ....................... #
+
+
+async def review_step(run: Dispatch, state: RunState) -> str | None:
+    """Judge the gate-green candidate (D-5.11). Returns the fact for the
+    reviewed transition, None when the run must not land — a blocker inside
+    its revision budget retries in place (D-43.1), and a spent budget, an
+    unparseable verdict or a broker refusal escalates the target."""
+
+    review_task = mint_review_task(run.root, run.task)
+
+    outcome = await asyncio.to_thread(
+        run_review,
+        run.root,
+        run.worktree,
+        run.task,
+        review_task,
+        run.config,
+        run.deps.runtime,
+        reviewer_for(run),
+        run.last_pass.patch,
+        list(run.last_pass.results),
+        run.last_pass.digest,
+        broker=run.deps.broker,
+        broker_handle=run.broker_handle,
+    )
+
+    # The reviewer spends the same run budget: a refusal there is the
+    # same cost_anomaly, stopped on the run that overspent (D-21.6).
+    broker, handle = run.deps.broker, run.broker_handle
+
+    if broker is not None and handle is not None:
+        usage = broker.usage(handle)
+
+        if usage.refusals.get("budget"):
+            state.escalate(
+                EscalationReason.COST_ANOMALY,
+                f"broker refused {usage.refusals['budget']} request(s) "
+                "past the run's token budget during review",
+            )
+
+            return None
+
+    if outcome.unparseable:
+        # Fail closed (D-5.4): a verdict that cannot be read must
+        # not promote — "no findings recorded" once waved a review
+        # carrying two blockers straight to ready.
+        state.escalate(
+            EscalationReason.GATE_INFRASTRUCTURE_FAILURE,
+            f"{outcome.review_id}: review output unparseable — an "
+            "unreadable verdict is a review infrastructure failure, "
+            "never a clean review",
+        )
+
+        return None
+
+    if outcome.blockers:
+        from torve.application.feedback import capture_feedback
+
+        detail = "; ".join(f.claim for f in outcome.blockers)
+        spent = _blocker_revisions_spent(state)
+        budget = run.config.review.blocker_revisions
+
+        if spent < budget:
+            # RFC 0043 D-43.1/D-43.2: the blockers and the convicted
+            # candidate diff ride the RFC 0005 §4a feedback record —
+            # the existing D-5.13 plant/frame mechanics carry it into
+            # the next attempt with no new delivery path.
+            capture_feedback(
+                run.root,
+                run.task.id,
+                run.last_pass.patch,
+                blocker_threads(outcome.blockers, outcome.review_id),
+            )
+            state.history.append(
+                {
+                    "at": state.heartbeat,
+                    "from": str(state.state),
+                    "to": str(state.state),
+                    "fact": (
+                        f"{_BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
+                        f"{outcome.review_id}: {detail[:300]}"
+                    ),
+                }
+            )
+            state.save()
+            return None
+
+        state.escalate(EscalationReason.BLOCKER_FINDING, f"{outcome.review_id}: {detail[:300]}")
+
+        return None
+
+    # The verdict the lane's require_review predicate reads
+    # (D-6.14, A-43); cleared on the next entry to running.
+    state.reviewed_by = outcome.review_id
+
+    return f"{outcome.fact} ({outcome.review_id})"
