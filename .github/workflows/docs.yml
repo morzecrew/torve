@@ -1,0 +1,47 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths: ["pages/**", ".github/workflows/docs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Render D2 diagrams
+        run: |
+          curl -fsSL https://d2lang.com/install.sh | sh -s --
+          cd pages
+          for f in diagrams/*.d2; do
+            ~/.local/bin/d2 --theme 0 --dark-theme 200 --pad 12 \
+              "$f" "docs/assets/diagrams/$(basename "$f" .d2).svg"
+          done
+      - name: Build site
+        working-directory: pages
+        run: uvx zensical build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

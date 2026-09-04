@@ -1,0 +1,20 @@
+direction: right
+
+claim: "claimed" {shape: oval}
+run: "running\n(agent in sandbox,\nsame worktree every attempt)"
+gated: "gated\n(battery runs)"
+reviewed: "reviewed\n(reviewer in disposable copy)"
+ready: "ready\n(landing commit)" {shape: oval; style.fill: "#e8f5e9"}
+esc: "escalated\n(operator triage)" {shape: oval; style.fill: "#fdecea"}
+
+claim -> run: "attempt n+1\n(ceiling checked first)"
+run -> gated: "agent exits"
+gated -> run: "gates red — retry,\nworktree kept" {style.stroke-dash: 3}
+gated -> reviewed: "gates green"
+reviewed -> run: "RFC 0043 (accepted, unbuilt):\nblocker → bounded revision,\ncritique via feedback record" {
+  style.stroke-dash: 3
+  style.stroke: "#b26a00"
+}
+reviewed -> ready: "no blockers"
+reviewed -> esc: "blocker survives\nrevision budget"
+run -> esc: "poison ceiling ·\nbudget · locked conflict"

@@ -1,0 +1,42 @@
+direction: down
+
+today: "today — file regime, one node" {
+  states: "run states + landings\n(persistent truth)"
+  sweep: "projection sweep\n(inside a tick)"
+  files: "staged effect files\n.torve/ filesystem root\nkey = task·state·attempt" {shape: page}
+  relay: "relay (same tick,\nsynchronous)"
+  tracker: "Tracker port\n→ GitHub API"
+  ledger: "delivered ledger\n(absorbs redelivery)" {shape: page}
+
+  states -> sweep: "re-derive\n(idempotent)"
+  sweep -> files: stage
+  files -> relay: pending
+  relay -> tracker: "comment · notify\n· reflect · unlabel"
+  relay -> ledger: mark
+}
+
+alt: "owner's counter — store-document regime" {
+  style.stroke-dash: 3
+  dstates: "state documents\n(store rows)"
+  dsweep: "sweep over\npersistent state"
+  doutbox: "outbox rows\nevent_id = uuid5(key)\n(deterministic)" {shape: cylinder}
+  dread: "read-model document\n(ever-prompted set,\nD-8.17 prefix reads)" {shape: cylinder}
+  dworker: "relay worker\n(RESIDENT consumer)" {style.fill: "#fdecea"}
+  dtracker: "Tracker port\n→ GitHub API"
+
+  dstates -> dsweep: rebuild
+  dsweep -> doutbox
+  dsweep -> dread
+  doutbox -> dworker: claim
+  dworker -> dtracker
+}
+
+today.files -> alt.doutbox: "mismatches 1+2 dissolve\nunder documents" {
+  style.stroke-dash: 3
+  style.stroke: "#b26a00"
+}
+alt.dworker -> collision
+collision: "collides with\nD-19.1 tick-not-daemon (LOCKED)\nD-42.6 no resident process" {
+  shape: diamond
+  style.fill: "#fdecea"
+}

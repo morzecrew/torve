@@ -228,3 +228,4 @@ __marimo__/
 .torve/review-corpus/*/*.trace.log
 .repowise/
 .claude/CLAUDE.md
+pages/site/

@@ -1,0 +1,53 @@
+direction: down
+
+corpus: "rfcs/ — the specification corpus" {
+  shape: page
+  style.fill: "#f5f0e8"
+}
+
+cli: "cli/ — Typer verbs, presentation only" {
+  run: "run · tick · fleet"
+  plan: "plan · rfc"
+  obs: "status · context · serve"
+}
+
+application: "application/ — the engine" {
+  planner: "planner\n(mints contracts)"
+  runner: "runner\n(attempt loop)"
+  review: "review\n(reviewer lane)"
+  tracker: "tracker\n(board projection)"
+  outbox: "outbox\n(staged effects)"
+  loop: "loop\n(tick legs)"
+  projections: "projections\n(read models)"
+}
+
+gates: "gates/ — the battery" {
+  builtins: "builtin gates\n(scope · decisions-reported · …)"
+  shell: "shell gates\n(acceptance · coverage-delta)"
+}
+
+ports: "application ports (Protocols)" {
+  shape: hexagon
+}
+
+adapters: "adapters/ — one directory per port" {
+  runtime: "runtime\ndocker · opensandbox"
+  agent: "agent\nharness · fake"
+  store: "store\nmock (jsonl) · postgres (forze)"
+  vcs: "vcs + workspace\ngit"
+  broker: "broker\nlocal credential broker"
+}
+
+substrate: "outside world" {
+  docker: Docker
+  github: GitHub
+  llm: "LLM providers"
+  pg: Postgres
+}
+
+corpus -> cli: "torve plan reads"
+cli -> application: assembles
+application -> gates: "runs battery"
+application -> ports: "depends on"
+ports -> adapters: "implemented by"
+adapters -> substrate
