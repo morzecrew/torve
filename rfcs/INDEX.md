@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0045**.
+number is **0046**.
 
 ## Design
 
@@ -53,6 +53,7 @@ number is **0045**.
 | [0042](0042-the-composition-root-and-the-substrate-runtime.md) | The composition root and the substrate runtime | accepted | complete | 0008, 0015, 0019 | — | One composition root instead of per-verb wiring, and the substrate's runtime machinery adopted where torve hand-rolls it — the enabling move for any deployment shape beyond "the operator's shell", with the resident-server question named and demand-gated, not smuggled. |
 | [0043](0043-blocker-revision.md) | Blocker revision | accepted | none | 0005 | — | A surviving review blocker feeds a bounded in-run revision attempt in the same worktree — carried by the RFC 0005 §4a feedback record — before it escalates the run. |
 | [0044](0044-the-manager-domain.md) | The manager domain | accepted | none | — | — | The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection. |
+| [0045](0045-the-live-channel.md) | The live channel | draft | none | 0044 | — | A run becomes observable while it runs: the broker meters liveness from the burn it already sees, carries the sandbox's records to the store without ever handing it a credential, and gives the manager a way to speak back. |
 
 ## Conventions
 
