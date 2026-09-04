@@ -28,8 +28,8 @@ from torve.application.worker import Execute, Outcome
 from torve.domain.states import EscalationReason, TaskState
 
 if TYPE_CHECKING:
+    from torve.application.dispatch import RunDeps
     from torve.application.eventlog import EventLog
-    from torve.application.runner import RunDeps
     from torve.application.runstate import RunState
     from torve.config.runconfig import RunnerConfig
     from torve.domain.task import Task

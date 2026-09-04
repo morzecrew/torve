@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import os
 import re
 import shutil
@@ -25,6 +24,7 @@ import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -37,28 +37,27 @@ from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 from pathspec import GitIgnoreSpec
 
+from torve.application.dispatch import (
+    GatePass,
+    RunDeps,
+    attempt_row,
+    close_dispatch,
+    open_broker,
+    open_dispatch,
+    review_gated,
+)
 from torve.application.forge import compose_pr
 from torve.application.ports import (
-    Agent,
     AgentContext,
     AgentResult,
     AttemptFact,
     AttemptSink,
     Broker,
-    BrokerBudget,
     BrokerHandle,
-    BrokerRoute,
-    BrokerRouting,
-    BurnSink,
-    JournalSync,
-    RunChannel,
     Runtime,
     SandboxHandle,
     SandboxSpec,
-    Scm,
-    StoreFactory,
     Vcs,
-    WorkspacePort,
 )
 from torve.application.runstate import Escalation, RunState
 from torve.application.sizing import has_children
@@ -69,7 +68,6 @@ from torve.application.telemetry import (
     agent_token_counts,
     append_record,
     broker_block,
-    build_attempt_row,
     build_record,
     config_hash,
     engine_event,
@@ -78,18 +76,16 @@ from torve.application.telemetry import (
 )
 from torve.base import naming
 from torve.config import layout
-from torve.config.manifest import UNLABELED_AXIS, GateAxis, Manifest, load_manifest
+from torve.config.manifest import UNLABELED_AXIS, GateAxis, load_manifest
 from torve.config.runconfig import (
     CACHE_MOUNT,
     RunnerConfig,
     TierConfig,
     agent_timeout_for,
-    broker_in_force,
     effective_skill_sets,
     image_for,
     sandbox_timeout_for,
     tier_for,
-    tier_name_for,
 )
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
@@ -102,51 +98,6 @@ from torve.gates.runner import RunReport, run_gates
 # A LOCKED conflict is written to the log as a halted entry; the runner reads
 # the fact from the file, the agent cannot cause the transition directly.
 # The A-1 YAML log is parsed, not pattern-matched.
-
-
-@dataclass
-class RunDeps:
-    workspace: WorkspacePort
-    runtime: Runtime
-    agent: Agent
-    vcs: Vcs
-    scm: Scm
-    store: StoreFactory
-    # The reviewer's agent (RFC 0005), built by the CLI from the reviewer
-    # tier when review is configured — cross-model by pointing the tier at
-    # a different vendor (D-5.1). None means review cannot run.
-    review_agent: Agent | None = None
-    # The egress broker adapter in force (RFC 0021): built by the CLI from
-    # the configuration; None means the port was never wired (tests,
-    # simulation). Under a configured broker the run opens it around the
-    # attempts and closes it when the loop ends.
-    broker: Broker | None = None
-    # D-27.11: builds the Agent for a tier resolved mid-run — the attempt
-    # after a gate-red, when the tier that just ran names a retry_variant.
-    # Building an Agent is a CLI-layer act (it reaches into adapters), so
-    # the runner is handed a factory rather than importing one; None means
-    # retry_variant never fires for this dispatch — `agent` above keeps
-    # running every attempt, and telemetry never stamps a tier that did not
-    # actually produce the work.
-    retry_agent: Callable[[TierConfig], Agent] | None = None
-    # RFC 0045 D-45.4: where the broker's per-response metering goes. The
-    # runner only hands it to the broker at open; what it does with a burn
-    # — record it, count it, drop it — is the caller's, and None is the
-    # unobserved run every test and simulation already assumes.
-    sink: BurnSink | None = None
-    # RFC 0044 D-44.3: where each attempt's own facts go, as they become
-    # true. A dispatch is up to `poison_ceiling` attempts, and the summary
-    # of one is not the record of three.
-    facts: AttemptSink | None = None
-    # RFC 0044 A-82: brings the store and the worktree's divergence log into
-    # agreement before the gates read it, so the battery judges the record
-    # rather than whatever the sandbox left behind. None keeps v1's
-    # behaviour — the file the agent's intake wrote is the only carrier.
-    journal: JournalSync | None = None
-    # RFC 0045 §5.2: the run's route into the record, handed to the broker
-    # at open. The sandbox reaches the record through the broker or not at
-    # all — it never holds a store credential (D-45.1).
-    channel: RunChannel | None = None
 
 
 # ....................... #
@@ -962,127 +913,6 @@ def _record_broker_usage(
 # ....................... #
 
 
-def _review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
-    """Review follows execution (D-5.11) only for live implement runs with
-    the task-gated trigger configured — one predicate, shared by the review
-    hook and the broker's routing derivation so they cannot disagree."""
-
-    return not shadow and task.role == "implement" and "task_gated" in config.review.on
-
-
-# ....................... #
-
-
-def run_routing(
-    config: RunnerConfig, task: Task, review_on: bool, include_retry: bool = False
-) -> BrokerRouting:
-    """The run's routing (D-21.4): every provider the run's agents will use,
-    resolved once and handed to the broker. Dispatch allowed them at the CLI;
-    the broker enforces them at the wire. A provider the broker configuration
-    does not route is a configuration error, never a quiet fallback.
-
-    `include_retry` (D-27.11, generalized by D-34.6) also routes every rung
-    the task's tier resolves for a retry — every axis of `retry_variants`,
-    not only the scalar's functional one: the broker opens once, before the
-    first attempt, so a provider only a later conviction-routed retry
-    reaches must already be on the route table.
-    """
-
-    routes: list[BrokerRoute] = []
-    base_name = tier_name_for(task)
-    base_tier = tier_for(config, base_name)
-    tier_names = [base_name]
-
-    if include_retry:
-        rung_names = base_tier.resolved_retry_variants().values()
-        tier_names = list(dict.fromkeys([*tier_names, *rung_names]))
-
-    if review_on and "reviewer" not in tier_names:
-        tier_names.append("reviewer")
-
-    for tier_name in tier_names:
-        tier = tier_for(config, tier_name)
-
-        if tier.adapter == "fake" or not tier.provider:
-            continue
-
-        provider = config.broker.providers.get(tier.provider)
-
-        if provider is None and not broker_in_force(config):
-            # The none adapter routes nothing at the wire: keys keep their
-            # existing channel and an empty provider table is the named
-            # default, not a configuration error (D-21.9).
-            continue
-
-        if provider is None:
-            raise ValueError(
-                f"tier {tier_name!r} uses provider {tier.provider!r} but the broker "
-                "configuration routes no such provider — add it under broker.providers"
-            )
-
-        routes.append(
-            BrokerRoute(
-                provider=tier.provider,
-                upstream=provider.upstream,
-                key_env=provider.key_env,
-                via_proxy=provider.via_proxy,
-            )
-        )
-
-    return BrokerRouting(routes=tuple(routes))
-
-
-# ....................... #
-
-
-def _measured_config_eval_digests(root: Path, tier_name: str) -> tuple[str, str] | None:
-    """(incumbent, candidate) digests the eval ledger's most recent
-    config-eval verdict citing `tier_name` measured (D-27.7), or None when no
-    verdict cites it — nothing has been measured, so nothing can have been
-    displaced from it. The ledger is append-only, so the last matching line
-    is the most recent."""
-
-    from torve.application.evals import EVAL_LEDGER
-
-    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
-
-    if not ledger.is_file():
-        return None
-
-    latest: tuple[str, str] | None = None
-
-    for line in ledger.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        row = cast(dict[str, Any], record)
-
-        if row.get("kind") != "config-eval" or row.get("tier") != tier_name:
-            continue
-
-        raw_digests: Any = row.get("digests")
-
-        if not isinstance(raw_digests, dict):
-            continue
-
-        digests = cast(dict[str, Any], raw_digests)
-        incumbent, candidate = digests.get("incumbent"), digests.get("candidate")
-
-        if isinstance(incumbent, str) and isinstance(candidate, str):
-            latest = (incumbent, candidate)
-
-    return latest
-
-
-# ....................... #
-
-
 def real_hooks(
     root: Path,
     task: Task,
@@ -1093,174 +923,27 @@ def real_hooks(
     gates_base: str | None = None,
     resume: bool = False,
 ) -> AttemptHooks:
-    tier_name = tier_name_for(task)
-    tier = tier_for(config, tier_name)
+    """Bind one dispatch's steps into the hooks the loop drives (RFC 0046).
 
-    def _refuse_credentialed_brokered_tier(name: str, candidate: TierConfig) -> None:
-        # D-21.1's second line: the configuration validator already refuses a
-        # brokered tier that names a credential; the runner refuses again so
-        # a programmatically-built configuration cannot slip a key name past
-        # the validator into the sandbox's env. Checked for every retry rung
-        # too (D-27.11, D-34.6) — a run never dispatches under a regime it
-        # hasn't already validated (D-27.1's spirit, applied ahead of time).
-        if broker_in_force(config) and candidate.api_key_env:
-            raise ValueError(
-                f"tier {name!r} names api_key_env {candidate.api_key_env} under broker "
-                f"{config.broker.adapter!r} — a brokered tier names no credential"
-            )
+    The dispatch settles the regime and refuses what must be refused; this
+    picks the attempt leg the role calls for and the review leg the
+    configuration calls for, and opens the broker last."""
 
-    _refuse_credentialed_brokered_tier(tier_name, tier)
-
-    if deps.retry_agent is not None:
-        for rung in tier.resolved_retry_variants().values():
-            _refuse_credentialed_brokered_tier(rung, tier_for(config, rung))
-
-    # What actually runs, not what the tier configured — an --agent fake
-    # override must not masquerade as a model in the telemetry.
-    kind = getattr(deps.agent, "kind", tier.adapter)
-    real = kind != "fake"
-    # The digest is the sandbox's identity (D-17.1): resolved once, at
-    # dispatch; None is recorded as unresolved, never invented.
-    image = image_for(config, tier)
-    image_digest = deps.runtime.resolve_image(image)
-
-    # D-27.7: a candidate configuration displaces the incumbent default only
-    # through a paired replay verdict recorded in the eval ledger citing both
-    # digests — never by a definition edit quietly changing what a tier's
-    # image tag resolves to. Scoped to the live (non-shadow) dispatch of the
-    # task's own seat, with no explicit tier_variant named: a variant is
-    # naming and running a candidate on purpose (free, per D-27.3), and the
-    # eval loop's own shadow arms (run_config_eval) must not trip on the very
-    # candidate they exist to measure.
-    if not shadow and not task.tier_variant and image_digest is not None:
-        measured = _measured_config_eval_digests(root, tier_name)
-
-        if measured is not None and image_digest not in measured:
-            incumbent, candidate = measured
-
-            if config.unmeasured_images == "allow":
-                # The rebuild escape hatch (A-88): dispatch proceeds and the
-                # unmeasured regime is recorded rather than assumed. What
-                # the rule protects — comparing numbers from regimes nobody
-                # measured — is protected by the record saying so, not by
-                # the refusal.
-                engine_event(
-                    root,
-                    "unmeasured_dispatch",
-                    {
-                        "task": task.id,
-                        "tier": tier_name,
-                        "digest": image_digest,
-                        "measured": [incumbent, candidate],
-                    },
-                )
-
-            else:
-                raise ValueError(
-                    f"tier {tier_name!r} now resolves image digest {image_digest!r}, "
-                    "which the most recent recorded verdict for this tier never "
-                    f"measured (it measured {incumbent!r} as the running default and "
-                    f"{candidate!r} as the candidate) — the configured image changed "
-                    "since that measurement with no new paired verdict backing it; "
-                    "record a fresh replay verdict before this task can dispatch, "
-                    "name an explicit tier_variant to run a named candidate freely, "
-                    "or set unmeasured_images: allow while the images are being "
-                    "rebuilt"
-                )
-
-    # What this run is actually under right now (D-27.11): seeded from the
-    # task's own tier, advanced by `attempt()` only when a gate-red hands off
-    # to a retry_variant. `gates()` reads it too — a gate pass judges the
-    # same image the agent just ran under (D-3.8).
-    current: dict[str, Any] = {
-        "name": tier_name,
-        "tier": tier,
-        "image": image,
-        "image_digest": image_digest,
-    }
-
-    # The most recent gate pass's recorded results (D-34.5): what retry
-    # selection reads after a red fact — the same `GateResult` records the
-    # telemetry row carries, never a re-reading of the trace or the model's
-    # output. The `gates` hook restamps it on every pass.
-    last_convictions: dict[str, Any] = {"results": []}
-
-    # Denormalised into every record this run appends (RFC 0004 §6): which
-    # adapter and model did the work cannot be reconstructed later. Shadow
-    # gate passes are marked so the measurement population stays separable
-    # from live attempts in one stream. `attempt()` restamps tier/adapter/
-    # provider/model/image_digest every call — this is only the shape. The
-    # attempt number (RFC 0038 §5.1, D-38.4) rides the same restamp, so
-    # every record the attempt appends joins deterministically to its trace
-    # file (`<task>.a<attempt>.trace.log`) and RFC 0026's continuation
-    # chain.
-    agent_meta: dict[str, Any] = {
-        "tier": tier_name,
-        "attempt": None,
-        "adapter": kind,
-        "provider": (tier.provider or None) if real else None,
-        "model": (tier.model or None) if real else None,
-        "model_version": None,
-        "cost_usd": None,
-        "trace_ref": None,
-        # The image tag beside its digest: harness identity is the image
-        # (D-17.4), and a projection labeling "which harness" reads the tag.
-        "image": image,
-        "image_digest": image_digest,
-        "shadow": shadow,
-        # Per-skill attribution (RFC 0009 §5): filled with what materialize
-        # actually wrote, so cohorts group by skill regime from the record
-        # alone.
-        "skills": None,
-    }
-
-    def _telemetry_target() -> Path:
-        """The stream for records this run appends outside a gate pass. The
-        record must never depend on the manifest existing — a worktree with
-        no gates.yaml still burned the money."""
-
-        manifest_file = layout.gates_file(worktree)
-        telemetry_rel = (
-            load_manifest(manifest_file).telemetry
-            if manifest_file.is_file()
-            else Manifest().telemetry
-        )
-
-        return root / telemetry_rel
-
-    def _append_attempt_row(
-        verdict: str,
-        *,
-        exit_code: int | None,
-        timed_out: bool,
-        escalation: str | None = None,
-    ) -> dict[str, Any]:
-        """One row for one ending of an attempt that produces no gate record
-        (D-38.1): the red-agent shape — the spend survives even though the
-        gates never ran — with the engine-derived verdict naming how the
-        attempt ended. The attempt's facts, not its prose: exec results,
-        escalation state, whatever the adapter reported (D-38.2)."""
-
-        record = build_attempt_row(
-            task,
-            agent_meta,
-            verdict=verdict,
-            exit_code=exit_code,
-            timed_out=timed_out,
-            escalation=escalation,
-        )
-        # Rendered rather than appended directly, so the stream is provably
-        # a view of the record the event carries (A-85) — the round trip is
-        # what a test can pin, and a field added to one carrier and not the
-        # other stops being possible.
-        payload = record_payload(record, int(agent_meta.get("attempt") or 0))
-
-        append_record(
-            _telemetry_target(),
-            record_row(payload, task_id=record["task_id"], at=record["at"]),
-        )
-
-        return record
+    run = open_dispatch(
+        root,
+        task,
+        config,
+        deps,
+        worktree,
+        shadow=shadow,
+        gates_base=gates_base,
+        resume=resume,
+    )
+    # The task's own tier, kept beside the dispatch's current regime: the
+    # regime advances when a conviction routes a retry (D-27.11), and the
+    # decision to build a different Agent is taken against what the task
+    # asked for, never against what the last attempt happened to run.
+    task_tier_name, task_tier = run.tier_name, run.tier
 
     async def attempt(state: RunState) -> AgentResult:
         # D-27.11's one rung, routed by the conviction: the attempt after a
@@ -1272,29 +955,25 @@ def real_hooks(
         # agent factory to actually build the resolved tier's Agent, so
         # telemetry never stamps a tier that did not produce the work
         # (D-27.1).
-        resolved_name, resolved_tier = tier_name, tier
+        resolved_name, resolved_tier = task_tier_name, task_tier
         retry_agent = deps.retry_agent
-        running_tier: TierConfig = current["tier"]
+        running_tier: TierConfig = run.tier
 
         if retry_agent is not None and _previous_attempt_gate_red(state):
-            rung = retry_rung_for(
-                running_tier, last_convictions["results"], _retry_gate_axes(worktree)
-            )
+            rung = retry_rung_for(running_tier, run.convictions, _retry_gate_axes(worktree))
 
             if rung:
                 resolved_name = rung
                 resolved_tier = tier_for(config, resolved_name)
 
-        if resolved_name != current["name"]:
+        if resolved_name != run.tier_name:
             resolved_image = image_for(config, resolved_tier)
-            current.update(
-                name=resolved_name,
-                tier=resolved_tier,
-                image=resolved_image,
-                image_digest=deps.runtime.resolve_image(resolved_image),
-            )
+            run.tier_name = resolved_name
+            run.tier = resolved_tier
+            run.image = resolved_image
+            run.image_digest = deps.runtime.resolve_image(resolved_image)
 
-        if resolved_name != tier_name and retry_agent is not None:
+        if resolved_name != task_tier_name and retry_agent is not None:
             run_agent = retry_agent(resolved_tier)
         else:
             run_agent = deps.agent
@@ -1302,7 +981,7 @@ def real_hooks(
         run_kind = getattr(run_agent, "kind", resolved_tier.adapter)
         run_real = run_kind != "fake"
 
-        agent_meta.update(
+        run.meta.update(
             tier=resolved_name,
             # The attempt number, restamped where tier/adapter/model
             # already are (D-38.4): `attempts` incremented on entry to
@@ -1311,8 +990,8 @@ def real_hooks(
             adapter=run_kind,
             provider=(resolved_tier.provider or None) if run_real else None,
             model=(resolved_tier.model or None) if run_real else None,
-            image=current["image"],
-            image_digest=current["image_digest"],
+            image=run.image,
+            image_digest=run.image_digest,
         )
 
         # The attempt's identity is settled here and nowhere earlier: the
@@ -1324,7 +1003,7 @@ def real_hooks(
             state.attempts,
             tier=resolved_name,
             agent=run_kind,
-            image_digest=current["image_digest"],
+            image_digest=run.image_digest,
         )
 
         # The runner composes the sandbox's context: the role's skill set is
@@ -1337,7 +1016,7 @@ def real_hooks(
         # RFC 0029 D-29.1/D-29.3: the resolved tier's `skills` — when set —
         # overrides the role-scoped set wholesale, for this role only; the
         # materializer's own resolution and refusals are untouched (D-29.2).
-        agent_meta["skills"] = materialize(
+        run.meta["skills"] = materialize(
             task.role,
             worktree / ".torve" / "skills",
             effective_skill_sets(resolved_tier, task.role, config.skills.sets),
@@ -1373,7 +1052,7 @@ def real_hooks(
 
         spec = SandboxSpec(
             name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
-            image=current["image"],
+            image=run.image,
             labels=naming.labels(infra_id, state.run_id, root),
             # The resolved tier's clock when it names one (RFC 0035 §5.3,
             # D-35.6): the heavy rung raises its own bound without touching
@@ -1409,14 +1088,14 @@ def real_hooks(
                     # one clock, for both the agent and the platform over it
                     # (D-35.6).
                     timeout_s=agent_timeout_for(config, resolved_tier),
-                    broker=broker_handle,
+                    broker=run.broker_handle,
                     resume=resume,
                 ),
             )
 
             deps.runtime.sync_out(handle, worktree)
 
-            agent_meta.update(
+            run.meta.update(
                 model_version=result.model_version,
                 cost_usd=result.cost_usd,
                 trace_ref=result.trace_ref,
@@ -1427,19 +1106,21 @@ def real_hooks(
             # The attempt's self-reported token counts ride the same block
             # (T-0186): only the counts the adapter reported — absent keys
             # stay absent, never zeroed (D-4.6's self-reported regime).
-            agent_meta.update(agent_token_counts(result))
+            run.meta.update(agent_token_counts(result))
             # The burn profile rides the block beside those totals (RFC 0039
             # §5.3): what the adapter derived at capture time from the
             # store's full bytes; a stream with no per-turn facts contributes
             # no key at all — no stream, no block (D-39.4).
-            agent_meta.update(agent_burn(result))
+            run.meta.update(agent_burn(result))
 
             # The broker's live counts ride the attempt record beside the
             # adapter's self-report (D-21.5). A budget refusal escalates in
             # progress, on the run that overspent (D-21.6): the next request
             # would be refused too, so the loop stops here.
-            if broker is not None and broker_handle is not None:
-                _record_broker_usage(state, broker, broker_handle, agent_meta)
+            broker, wire = deps.broker, run.broker_handle
+
+            if broker is not None and wire is not None:
+                _record_broker_usage(state, broker, wire, run.meta)
 
             # Every path out of this hook ends in exactly one row (D-38.1).
             # The endings are inspected in the order the loop itself reads
@@ -1453,7 +1134,8 @@ def real_hooks(
                 # The broker refused the run's budget mid-attempt (D-21.6):
                 # the spend happened, the gates will never run, and until
                 # now this was the ending that recorded nothing at all.
-                record = _append_attempt_row(
+                record = attempt_row(
+                    run,
                     "broker_refused",
                     exit_code=result.exit_code,
                     timed_out=result.timed_out,
@@ -1463,7 +1145,8 @@ def real_hooks(
             elif _log_has_halted_entry(worktree, task.id):
                 # The halted divergence entry (RFC 0001 §4): terminal by
                 # design, and today it ends the attempt silently.
-                record = _append_attempt_row(
+                record = attempt_row(
+                    run,
                     "halted",
                     exit_code=result.exit_code,
                     timed_out=result.timed_out,
@@ -1477,7 +1160,8 @@ def real_hooks(
                 # every projection (four ~$4 first attempts were missing
                 # from cost-and-iterations when this was found). This is
                 # that record, now carrying its verdict (D-38.3).
-                record = _append_attempt_row(
+                record = attempt_row(
+                    run,
                     "agent_timeout" if result.timed_out else "agent_error",
                     exit_code=result.exit_code,
                     timed_out=result.timed_out,
@@ -1498,7 +1182,7 @@ def real_hooks(
                     else {
                         "exit_code": result.exit_code,
                         "timed_out": result.timed_out,
-                        "wall_time_s": agent_meta.get("wall_time_s"),
+                        "wall_time_s": run.meta.get("wall_time_s"),
                         "cost_usd": result.cost_usd,
                     }
                 ),
@@ -1534,12 +1218,8 @@ def real_hooks(
             f"torve checkpoint {task.id}: attempt {final.attempts} exhausted its budget"
             f"\n\nTorve-Checkpoint: {task.id}\nTorve-Attempt: {final.attempts}"
         )
-        author = f"{_agent_identity(agent_meta)} <agents@torve.local>"
+        author = f"{_agent_identity(run.meta)} <agents@torve.local>"
         deps.vcs.commit_all(worktree, message, author, config.vcs.signing_key)
-
-    # The last gate pass's results and patch, kept for the review's input —
-    # the reviewer judges exactly what the gates judged.
-    last_pass: dict[str, Any] = {"results": [], "patch": "", "digest": ""}
 
     async def gates(state: RunState) -> tuple[int, str, str]:
         # Deliberately not guarded: a sync that fails leaves the battery
@@ -1558,13 +1238,13 @@ def real_hooks(
                 deps.runtime,
                 state.run_id,
                 root,
-                agent_meta,
+                run.meta,
                 gates_base,
-                current["image"],
-                current["image_digest"],
+                run.image,
+                run.image_digest,
                 # Always empty under shadow: a replay's gate pass measures the
                 # cold truth even when the tier names a cache (D-35.3).
-                {} if shadow else _sandbox_cache(current["tier"], config.worker_slot),
+                {} if shadow else _sandbox_cache(run.tier, config.worker_slot),
                 deps.facts,
                 state.attempts,
             )
@@ -1576,7 +1256,8 @@ def real_hooks(
             # travels. The agent exited 0 by construction (the loop calls
             # gates no other way) and the gate report never completed:
             # exit_code carries the agent's 0, the row says gates_run false.
-            _append_attempt_row(
+            attempt_row(
+                run,
                 "gate_infrastructure",
                 exit_code=0,
                 timed_out=False,
@@ -1584,8 +1265,8 @@ def real_hooks(
             )
             raise
 
-        last_convictions["results"] = list(results)
-        last_pass.update(results=results, patch=patch, digest=digest)
+        run.convictions = list(results)
+        run.last_pass = GatePass(results=list(results), patch=patch, digest=digest)
 
         return exit_code, summary, digest
 
@@ -1595,8 +1276,8 @@ def real_hooks(
         # identity (D-10.2), trailers complete (D-10.4), one commit per
         # attempt (D-10.8), signed outside the sandbox when a key is
         # configured (D-10.3).
-        message = _provenance_message(task, state.attempts, digest, agent_meta)
-        author = f"{_agent_identity(agent_meta)} <agents@torve.local>"
+        message = _provenance_message(task, state.attempts, digest, run.meta)
+        author = f"{_agent_identity(run.meta)} <agents@torve.local>"
 
         sha = await asyncio.to_thread(
             deps.vcs.commit_all, worktree, message, author, config.vcs.signing_key
@@ -1633,8 +1314,8 @@ def real_hooks(
                 task,
                 state.attempts,
                 digest,
-                agent_meta,
-                list(last_pass["results"]),
+                run.meta,
+                list(run.last_pass.results),
                 worktree,
                 changed=deps.vcs.changed_names(worktree),
             )
@@ -1657,13 +1338,13 @@ def real_hooks(
         # run in theirs and the landing carries the revert's own provenance.
         # Targets resolve before the first dispatch so an unresolvable one
         # fails loudly, like a misconfigured review.
-        agent_meta.update(adapter="revert", provider=None, model=None)
+        run.meta.update(adapter="revert", provider=None, model=None)
         revert_shas = _revert_targets(task, deps.vcs, worktree)
 
         async def revert_attempt(state: RunState) -> AgentResult:
             # The mechanical attempt still stamps its number (D-38.4): its
             # gate record joins the trace convention like any other.
-            agent_meta["attempt"] = state.attempts
+            run.meta["attempt"] = state.attempts
             done = await asyncio.to_thread(deps.vcs.revert, worktree, revert_shas)
 
             if not done:
@@ -1680,7 +1361,7 @@ def real_hooks(
 
     review_hook = None
 
-    if _review_gated(config, task, shadow):
+    if review_gated(config, task, shadow):
         # Review follows execution (D-5.11): minted here, never by the
         # planner. A shadow replay measures the harness, not the reviewer.
         if deps.review_agent is None:
@@ -1704,17 +1385,19 @@ def real_hooks(
                 config,
                 deps.runtime,
                 reviewer_agent,
-                str(last_pass["patch"]),
-                list(last_pass["results"]),
-                str(last_pass["digest"]),
-                broker=broker,
-                broker_handle=broker_handle,
+                run.last_pass.patch,
+                list(run.last_pass.results),
+                run.last_pass.digest,
+                broker=deps.broker,
+                broker_handle=run.broker_handle,
             )
 
             # The reviewer spends the same run budget: a refusal there is the
             # same cost_anomaly, stopped on the run that overspent (D-21.6).
-            if broker is not None and broker_handle is not None:
-                usage = broker.usage(broker_handle)
+            broker, handle = deps.broker, run.broker_handle
+
+            if broker is not None and handle is not None:
+                usage = broker.usage(handle)
 
                 if usage.refusals.get("budget"):
                     state.escalate(
@@ -1754,7 +1437,7 @@ def real_hooks(
                     capture_feedback(
                         root,
                         task.id,
-                        str(last_pass["patch"]),
+                        run.last_pass.patch,
                         blocker_threads(outcome.blockers, outcome.review_id),
                     )
                     state.history.append(
@@ -1785,68 +1468,7 @@ def real_hooks(
 
         review_hook = review_hook_fn
 
-    # The broker's life spans the run (RFC 0021 §5.1): one loopback route
-    # per routed provider, a run-scoped token, and the task's token budget
-    # held at the wire. `none` opens trivially and the record carries the
-    # adapter in force either way (D-21.9: opting out is explicit). Opened
-    # last — after every fallible step above — so a setup failure cannot
-    # leak a live broker; the close hook revokes it when the loop ends.
-    review_on = _review_gated(config, task, shadow)
-    broker = deps.broker
-    broker_handle: BrokerHandle | None = None
-    routing: BrokerRouting = BrokerRouting()
-
-    if broker is not None:
-        routing = run_routing(config, task, review_on, include_retry=deps.retry_agent is not None)
-        broker_handle = broker.open(
-            task.id,
-            routing,
-            BrokerBudget(tokens=task.budget.tokens),
-            sink=deps.sink,
-            channel=deps.channel,
-        )
-
-    def close() -> None:
-        # The run's one close: the broker revokes the run-scoped token and
-        # reports the authoritative usage (D-21.5). Wire refusals become
-        # engine events — a refusal for a provider the run's routing carried
-        # is a defect report about the configuration reader (D-21.4).
-        if broker is None or broker_handle is None:
-            return
-
-        usage = broker.close(broker_handle)
-        agent_meta["broker"] = broker_block(broker.name, usage)
-
-        for provider, count in sorted(usage.refused_providers.items()):
-            engine_event(
-                root,
-                "wire_routing_refusal",
-                {
-                    "task": task.id,
-                    "broker": broker.name,
-                    "provider": provider,
-                    "count": count,
-                    "routed": routing.route_for(provider) is not None,
-                },
-            )
-
-        adapter_cost = agent_meta.get("cost_usd")
-
-        if usage.cost_usd is not None and isinstance(adapter_cost, (int, float)):
-            scale = max(abs(usage.cost_usd), abs(adapter_cost)) or 1.0
-
-            if abs(usage.cost_usd - adapter_cost) / scale > config.broker.cost_tolerance:
-                engine_event(
-                    root,
-                    "cost_divergence",
-                    {
-                        "task": task.id,
-                        "broker": broker.name,
-                        "broker_cost_usd": usage.cost_usd,
-                        "adapter_cost_usd": adapter_cost,
-                        "tolerance": config.broker.cost_tolerance,
-                    },
-                )
+    open_broker(run)
 
     return AttemptHooks(
         attempt=attempt_hook,
@@ -1854,7 +1476,7 @@ def real_hooks(
         gates=gates,
         land=land,
         review=review_hook,
-        close=close,
+        close=partial(close_dispatch, run),
         checkpoint=checkpoint,
     )
 

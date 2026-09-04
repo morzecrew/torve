@@ -191,7 +191,7 @@ class _StubRuntime:
 
 
 def _dispatch_deps(runtime: _StubRuntime):
-    from torve.application.runner import RunDeps
+    from torve.application.dispatch import RunDeps
 
     return RunDeps(
         workspace=None,  # type: ignore[arg-type]  # unreached: the guard fires at real_hooks() construction
@@ -1646,7 +1646,7 @@ def _loop_deps(repo, retry_agent):
     from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace, ScriptedAgent
 
     from torve.adapters.store.durable import open_store
-    from torve.application.runner import RunDeps
+    from torve.application.dispatch import RunDeps
 
     return RunDeps(
         workspace=MockWorkspace(repo.root),
@@ -1846,7 +1846,7 @@ def _cache_deps(repo, runtime):
     from test_run_loop import OK, MockScm, MockVcs, MockWorkspace, ScriptedAgent
 
     from torve.adapters.store.durable import open_store
-    from torve.application.runner import RunDeps
+    from torve.application.dispatch import RunDeps
 
     return RunDeps(
         workspace=MockWorkspace(repo.root),

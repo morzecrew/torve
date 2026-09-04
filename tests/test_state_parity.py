@@ -30,11 +30,11 @@ from test_run_loop import (
 import torve.application.runner as run_module
 from torve.adapters.eventstore.document import mock_module
 from torve.adapters.store.durable import open_store
+from torve.application.dispatch import RunDeps
 from torve.application.eventlog import event_log
 from torve.application.executors import runner_execute
 from torve.application.manager import project
 from torve.application.residency import mint
-from torve.application.runner import RunDeps
 from torve.application.worker import Worker
 from torve.config.runconfig import RunnerConfig
 from torve.domain.states import TaskState

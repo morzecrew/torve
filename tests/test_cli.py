@@ -734,7 +734,7 @@ def test_build_run_deps_bundles_the_configured_adapters(tmp_path):
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GitVcs, NullScm
     from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.runner import RunDeps
+    from torve.application.dispatch import RunDeps
     from torve.cli.assembly import build_run_deps
     from torve.config.runconfig import RunnerConfig
 

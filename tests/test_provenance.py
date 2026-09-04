@@ -15,7 +15,8 @@ import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
 from torve.adapters.vcs.git import GitVcs
 from torve.adapters.workspace.git import GitWorkspace
-from torve.application.runner import RunDeps, run_task
+from torve.application.dispatch import RunDeps
+from torve.application.runner import run_task
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig
 from torve.domain.states import TaskState

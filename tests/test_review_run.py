@@ -23,10 +23,11 @@ from test_run_loop import (
 import torve.application.review as review_module
 import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
+from torve.application.dispatch import RunDeps
 from torve.application.feedback import feedback_file
 from torve.application.ports import AgentResult, BrokerHandle, BrokerUsage
 from torve.application.review import build_review_prompt, parse_findings, run_review
-from torve.application.runner import RunDeps, run_task
+from torve.application.runner import run_task
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.runconfig import ReviewConfig, RunnerConfig, RuntimeConfig, TierConfig

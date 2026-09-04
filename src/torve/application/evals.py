@@ -33,8 +33,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from torve.application.dispatch import RunDeps
 from torve.application.ports import Agent
-from torve.application.runner import RunDeps
 from torve.application.shadow import ShadowSource, run_shadow
 from torve.application.telemetry import append_record
 from torve.config import layout

@@ -26,7 +26,7 @@ from torve.adapters.workspace.git import (
     parent_of,
     shipped_commit,
 )
-from torve.application.runner import RunDeps
+from torve.application.dispatch import RunDeps
 from torve.application.shadow import ShadowSource, run_shadow
 from torve.cli import app
 from torve.config import layout

@@ -1060,7 +1060,8 @@ def test_attempt_record_carries_reported_token_counts(tmp_path):
     import asyncio
     import subprocess
 
-    from torve.application.runner import RunDeps, drive_attempts, real_hooks
+    from torve.application.dispatch import RunDeps
+    from torve.application.runner import drive_attempts, real_hooks
     from torve.application.runstate import RunState
     from torve.config.runconfig import RunnerConfig, TierConfig
     from torve.domain.states import TaskState
@@ -1184,7 +1185,8 @@ def test_review_record_carries_reported_token_counts(repo, monkeypatch):
 
     import torve.application.runner as run_module
     from torve.adapters.store.durable import open_store
-    from torve.application.runner import RunDeps, run_task
+    from torve.application.dispatch import RunDeps
+    from torve.application.runner import run_task
     from torve.domain.states import TaskState
 
     repo.seed()

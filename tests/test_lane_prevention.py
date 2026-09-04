@@ -12,8 +12,9 @@ from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace, Scri
 from typer.testing import CliRunner
 
 from torve.adapters.store.durable import open_store
+from torve.application.dispatch import RunDeps
 from torve.application.projections import context_report, escalation_route
-from torve.application.runner import BlockedDispatch, RunDeps, run_task
+from torve.application.runner import BlockedDispatch, run_task
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app

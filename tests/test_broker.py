@@ -780,7 +780,7 @@ class HostVcs:
 
 
 def _runner_deps(runtime, agent, broker):
-    from torve.application.runner import RunDeps
+    from torve.application.dispatch import RunDeps
 
     return RunDeps(
         workspace=None,  # type: ignore[arg-type]  # only attempt/gates/land hooks run
@@ -955,7 +955,8 @@ def test_brokered_docker_run_sandbox_holds_no_key(repo, upstream, monkeypatch):
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GitVcs, NullScm
     from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.runner import RunDeps, run_task
+    from torve.application.dispatch import RunDeps
+    from torve.application.runner import run_task
     from torve.config.runconfig import RuntimeConfig
     from torve.gates.context import load_task
     from torve.gates.sabotage import TASK_ID
@@ -1013,7 +1014,8 @@ def test_brokered_docker_budget_refusal_escalates_cost_anomaly(repo, upstream, m
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GitVcs, NullScm
     from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.runner import RunDeps, run_task
+    from torve.application.dispatch import RunDeps
+    from torve.application.runner import run_task
     from torve.config.runconfig import RuntimeConfig
     from torve.gates.context import load_task
     from torve.gates.sabotage import TASK_ID
@@ -1054,7 +1056,7 @@ def test_none_broker_dispatches_a_real_tier_with_no_provider_table():
     a real harness tier dispatches under `none` with an empty
     broker.providers — the regression that broke every shadow run the day
     phase 1 landed."""
-    from torve.application.runner import run_routing
+    from torve.application.dispatch import run_routing
     from torve.config.runconfig import RunnerConfig
     from torve.domain.task import Task
 

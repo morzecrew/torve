@@ -21,8 +21,9 @@ from torve.adapters.runtime.docker import DockerRuntime
 from torve.adapters.store.durable import open_store
 from torve.adapters.vcs.git import GitVcs, NullScm
 from torve.adapters.workspace.git import GitWorkspace
+from torve.application.dispatch import RunDeps
 from torve.application.reaper import reap
-from torve.application.runner import RunDeps, run_task
+from torve.application.runner import run_task
 from torve.application.runstate import RunState
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, RuntimeConfig

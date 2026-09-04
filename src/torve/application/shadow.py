@@ -24,8 +24,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from torve.application.dispatch import RunDeps
 from torve.application.ports import AgentResult
-from torve.application.runner import AttemptHooks, RunDeps, drive_attempts, real_hooks
+from torve.application.runner import AttemptHooks, drive_attempts, real_hooks
 from torve.application.runstate import RunState
 from torve.application.telemetry import append_record, config_hash
 from torve.base import naming

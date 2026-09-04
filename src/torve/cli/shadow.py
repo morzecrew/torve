@@ -88,8 +88,8 @@ def shadow_cmd(
         parent_of,
         shipped_commit,
     )
+    from torve.application.dispatch import RunDeps
     from torve.application.ports import Agent
-    from torve.application.runner import RunDeps
     from torve.application.shadow import ShadowSource, run_shadow
     from torve.config.runconfig import (
         ProviderDenied,

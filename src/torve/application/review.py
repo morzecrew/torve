@@ -27,6 +27,7 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from torve.application.dispatch import run_routing
 from torve.application.ports import (
     Agent,
     AgentContext,
@@ -401,9 +402,7 @@ def blocker_threads(blockers: list[Finding], review_id: str) -> list[dict[str, A
     for finding in blockers:
         citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
         thread: dict[str, Any] = {
-            "comments": [
-                {"author": review_id, "body": f"{finding.claim}\n\n{finding.evidence}"}
-            ]
+            "comments": [{"author": review_id, "body": f"{finding.claim}\n\n{finding.evidence}"}]
         }
 
         if citation:
@@ -809,8 +808,6 @@ def review_pull_request(
     broker_handle: BrokerHandle | None = None
 
     if broker is not None:
-        from torve.application.runner import run_routing
-
         broker_handle = broker.open(
             review.id,
             run_routing(config, review, review_on=False),

@@ -22,11 +22,11 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from torve.adapters.vcs.git import GitVcs
+    from torve.application.dispatch import RunDeps
     from torve.application.executors import Prepare
     from torve.application.intake import IntakeDeps
     from torve.application.loop import TickDeps
     from torve.application.ports import Agent, Vcs, WorkspacePort
-    from torve.application.runner import RunDeps
     from torve.cli.options import RuntimeName
     from torve.config.runconfig import RunnerConfig, TierConfig
     from torve.domain.task import Task
@@ -147,7 +147,7 @@ def build_run_deps(
     from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GhScm, GitVcs, NullScm
     from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.runner import RunDeps
+    from torve.application.dispatch import RunDeps
     from torve.cli.options import runtime_for
 
     return RunDeps(

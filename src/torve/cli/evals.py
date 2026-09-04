@@ -101,6 +101,7 @@ def eval_cmd(
         parent_of,
         shipped_commit,
     )
+    from torve.application.dispatch import RunDeps
     from torve.application.evals import (
         candidate_config,
         run_config_eval,
@@ -108,7 +109,6 @@ def eval_cmd(
         without_skill,
     )
     from torve.application.ports import Agent
-    from torve.application.runner import RunDeps
     from torve.application.shadow import ShadowSource
     from torve.cli.run import build_tier_agent
     from torve.config.runconfig import ProviderDenied, route_provider, tier_for
