@@ -397,6 +397,18 @@ def test_endpoint_refuses_sealed_only_fields():
         BrokerConfig(adapter="local", mode="endpoint", pass_through=["pypi.org"])
 
 
+def test_sealed_refuses_the_remote_endpoint_address_knobs():
+    # D-41.6: bind and advertise replace a derivation that exists for
+    # endpoint runs; sealed mode's address is the internal network's
+    # gateway at a name-derived port — a configured address would have a
+    # sealed run pretending a topology it does not have.
+    with pytest.raises(ValidationError, match="endpoint-mode knobs"):
+        sealed_config("http://localhost:1", bind="0.0.0.0:8321")
+
+    with pytest.raises(ValidationError, match="endpoint-mode knobs"):
+        sealed_config("http://localhost:1", advertise="broker.example.net:8321")
+
+
 def test_pass_through_entries_are_hosts_not_urls():
     for bad in ("https://pypi.org", "pypi.org/simple", "*.example.com", "pypi.org:99999", " "):
         with pytest.raises(ValidationError, match="pass_through entry"):

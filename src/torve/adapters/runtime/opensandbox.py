@@ -35,6 +35,17 @@ Both legs of the sync round trip book their bytes and seconds to the
 attempt's transfer ledger (RFC 0041 §5.3) — the seed at `create`, the pipe
 at `sync_out` — so the remote tax is a measured number before anyone
 optimizes it.
+
+Under remote endpoint mode (`broker.bind`, optionally `broker.advertise` —
+RFC 0041 §5.4) the sandbox's proxy env is composed from the broker's
+advertised address instead of forwarded from the runner: the host's loopback
+and bridge-gateway addresses mean nothing to a sandbox on another machine,
+so the configured address takes the derivation's place, the broker itself
+and loopback are excluded from proxying so the token-authenticated provider
+routes speak to the broker directly, and everything the proxy convention
+reaches is refused loudly at the broker — the pass-through leg is a
+sealed-mode mechanism, and this runtime's remote runs have no sealed
+topology to authenticate it.
 """
 
 from __future__ import annotations
@@ -48,6 +59,7 @@ from datetime import timedelta
 from importlib import import_module
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import urlsplit
 
 from torve.application.ports import (
     PROXY_ENV,
@@ -66,6 +78,35 @@ from torve.config.runconfig import CACHE_MOUNT, OpenSandboxConfig
 _IMPORT_HINT = (
     "the opensandbox SDK is not installed — install the extra: pip install 'torve[opensandbox]'"
 )
+
+# The proxy trio the broker's advertised address is composed into — the
+# explicit-proxy egress of a run is the broker's; the rest of PROXY_ENV
+# stays whatever the runner's environment says.
+BROKER_PROXY_ENV = ("http_proxy", "https_proxy", "all_proxy")
+
+
+def _advertised_proxy_env(proxy: str) -> dict[str, str]:
+    """The sandbox's proxy env in remote endpoint mode: egress that follows
+    the proxy convention travels to the broker at its advertised address,
+    and the broker's own host and loopback are excluded so the
+    token-authenticated provider routes — which dial the broker directly —
+    are not proxied through the broker itself. The same wiring sealed mode
+    composes from the internal network's gateway and the name-derived port;
+    here the configured address stands in for the two network facts."""
+
+    env: dict[str, str] = {}
+
+    for name in BROKER_PROXY_ENV:
+        for variant in (name, name.upper()):
+            env[variant] = proxy
+
+    broker_host = urlsplit(proxy).hostname or ""
+    excluded = "127.0.0.1,localhost" + (f",{broker_host}" if broker_host else "")
+
+    for variant in ("no_proxy", "NO_PROXY"):
+        env[variant] = excluded
+
+    return env
 
 
 # ....................... #
@@ -162,6 +203,10 @@ class OpenSandboxRuntime:
         self._connection = self._sdk.config.ConnectionConfigSync(
             domain=config.domain, api_key=api_key
         )
+        # Resolved once at configuration load from broker.bind/broker.advertise
+        # (remote endpoint mode); empty means no remote broker — the proxy
+        # env keeps being forwarded from the runner, as before.
+        self._broker_proxy = config.remote_broker_proxy
         self._live: dict[str, tuple[Any, str]] = {}  # handle id -> (sdk sandbox, workdir)
         # handle id -> task the sandbox is labelled with, the key both of the
         # attempt's transfer legs book their ledger entry under.
@@ -199,12 +244,19 @@ class OpenSandboxRuntime:
         # network opt-in — but whether the address is *reachable* from a
         # server-side sandbox is the server's networking, not ours: this
         # only guarantees the sandbox sees the same variables the runner did.
+        # Under remote endpoint mode the broker's advertised address
+        # replaces them for the proxy trio: the runner's loopback means
+        # nothing to a sandbox on another machine, and the broker is the
+        # address the run composed its routes against.
         proxies = {
             variant: os.environ[variant]
             for name in PROXY_ENV
             for variant in (name, name.upper())
             if variant in os.environ
         }
+
+        if self._broker_proxy:
+            proxies.update(_advertised_proxy_env(self._broker_proxy))
 
         sandbox = self._sdk.SandboxSync.create(
             spec.image,

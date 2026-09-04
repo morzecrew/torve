@@ -3,21 +3,27 @@ the runner's custody wiring — a brokered run's sandbox holds no provider
 key. The local adapter is exercised for real over loopback (a fake upstream
 provider on an ephemeral port); a sandbox reaching the broker over the
 Docker default bridge is integration-tested in the same skips the rest of
-the suite uses.
+the suite uses. RFC 0041 phase 2 joins it: remote endpoint mode — the
+configured bind, the advertised routes, and the pass-through refusal a
+remote run gets instead of sealed mode's topology.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import re
+import socket
 import subprocess
 import threading
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+import opensandbox_stub
 import pytest
 import yaml
 from pydantic import ValidationError
@@ -27,6 +33,7 @@ from torve.adapters.agent.harness import HarnessAgent
 from torve.adapters.broker import build_broker
 from torve.adapters.broker.local import LocalBroker
 from torve.adapters.broker.none import NoneBroker
+from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
 from torve.application.ports import (
     AgentContext,
     BrokerBudget,
@@ -35,14 +42,18 @@ from torve.application.ports import (
     BrokerRouting,
     ExecResult,
     SandboxHandle,
+    SandboxSpec,
 )
 from torve.application.telemetry import broker_block, config_hash
+from torve.base import naming
 from torve.cli import app
 from torve.config.runconfig import (
     BrokerConfig,
     BrokerProvider,
+    OpenSandboxConfig,
     ProvidersConfig,
     RunnerConfig,
+    RuntimeConfig,
     TierConfig,
 )
 from torve.domain.states import TaskState
@@ -335,6 +346,261 @@ def test_the_broker_keeps_counts_and_metadata_never_bodies(upstream, monkeypatch
         "wall_time_s",
         "refusals",
     }
+
+
+# ....................... #
+# Remote endpoint mode (D-41.6): `broker.bind` replaces the bridge-gateway
+# derivation, `broker.advertise` is the address the sandboxes are told, the
+# provider routes keep the run token across the hop, and the pass-through
+# leg — sealed mode's topology-authenticated relay — is refused loudly with
+# the destination named.
+
+
+def free_bind() -> str:
+    """A loopback port just released, to be taken by the broker."""
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return f"127.0.0.1:{probe.getsockname()[1]}"
+
+
+def connect_through(host: str, port: int, authority: str) -> tuple[str, bytes]:
+    """CONNECT through the broker and read the full refusal — status line
+    and Content-Length sized body — so the JSON naming the destination can
+    be asserted."""
+
+    sock = socket.create_connection((host, port), timeout=10)
+    sock.settimeout(10)
+    sock.sendall(f"CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n\r\n".encode("ascii"))
+    response = b""
+
+    while b"\r\n\r\n" not in response:
+        chunk = sock.recv(4096)
+
+        if not chunk:
+            break
+
+        response += chunk
+
+    head, _, rest = response.partition(b"\r\n\r\n")
+    match = re.search(rb"Content-Length: (\d+)", head, re.IGNORECASE)
+
+    if match is not None:
+        length = int(match.group(1))
+
+        while len(rest) < length:
+            chunk = sock.recv(4096)
+
+            if not chunk:
+                break
+
+            rest += chunk
+
+    sock.close()
+
+    return head.split(b"\r\n", 1)[0].decode("ascii", "replace"), rest
+
+
+def absolute_get(host: str, port: int, target: str, authority: str) -> tuple[str, bytes]:
+    """A plain-http absolute-URI request through the broker's proxy port,
+    read to close (the forward-proxy form a sandbox's http client sends)."""
+
+    sock = socket.create_connection((host, port), timeout=10)
+    sock.settimeout(10)
+    sock.sendall(
+        f"GET {target} HTTP/1.1\r\nHost: {authority}\r\nConnection: close\r\n\r\n".encode("ascii")
+    )
+    data = b""
+
+    while True:
+        chunk = sock.recv(4096)
+
+        if not chunk:
+            break
+
+        data += chunk
+
+    sock.close()
+    head, _, body = data.partition(b"\r\n\r\n")
+
+    return head.split(b"\r\n", 1)[0].decode("ascii", "replace"), body
+
+
+def test_remote_endpoint_publishes_routes_at_the_advertised_address(upstream, monkeypatch):
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    state, upstream_url = upstream
+    bind = free_bind()
+    broker = LocalBroker(
+        broker_config(upstream_url, bind=bind, advertise="broker.example.net:9443")
+    )
+    handle = broker.open("run-remote", routing_for(upstream_url), BrokerBudget())
+
+    # The route reaches the sandbox at the advertised address, verbatim —
+    # the NAT/hostname split is the whole point of the second knob.
+    assert handle.url_for(PROVIDER) == "http://broker.example.net:9443/test-vendor"
+
+    # Provider routes keep the run token unchanged (D-41.2): on the bind
+    # socket the broker is the same token-authenticated reverse proxy, the
+    # key injected from its own environment and never handed over.
+    status, body = broker_post(f"http://{bind}/{PROVIDER}/v1/chat/completions", handle.token)
+    assert status == 200
+    assert json.loads(body)["model"] == "fake-model-9"
+    assert state["auth"] == ["Bearer k-123-secret"]
+
+    assert broker_post(f"http://{bind}/{PROVIDER}/v1/x", token="forged")[0] == 401
+
+    usage = broker.close(handle)
+    assert usage.requests == 1
+    assert usage.refusals == {"auth": 1}
+
+
+def test_remote_endpoint_advertises_bind_verbatim_without_a_split(monkeypatch, upstream):
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _, upstream_url = upstream
+    bind = free_bind()
+    broker = LocalBroker(broker_config(upstream_url, bind=bind))
+    handle = broker.open("run-remote", routing_for(upstream_url), BrokerBudget())
+
+    assert handle.url_for(PROVIDER) == f"http://{bind}/{PROVIDER}"
+
+    broker.close(handle)
+
+
+def test_remote_endpoint_refuses_connect_naming_the_destination(monkeypatch, upstream):
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _, upstream_url = upstream
+    bind = free_bind()
+    host, _, port = bind.partition(":")
+    broker = LocalBroker(broker_config(upstream_url, bind=bind))
+    handle = broker.open("run-remote", routing_for(upstream_url), BrokerBudget())
+
+    status, body = connect_through(host, int(port), "pypi.org:443")
+    assert "403" in status
+
+    refusal = json.loads(body)["error"]
+    assert refusal["cause"] == "pass_through"
+    assert refusal["destination"] == "pypi.org:443"
+    # The rule travels with the refusal — no corpus coordinates on the wire.
+    assert "remote endpoint" in refusal["message"]
+    assert "token-authenticated" in refusal["message"]
+
+    usage = broker.close(handle)
+    assert usage.refusals == {"pass_through": 1}
+    assert usage.refused_providers == {"pypi.org:443": 1}
+
+
+def test_remote_endpoint_refuses_an_absolute_uri_naming_the_destination(monkeypatch, upstream):
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _, upstream_url = upstream
+    bind = free_bind()
+    host, _, port = bind.partition(":")
+    broker = LocalBroker(broker_config(upstream_url, bind=bind))
+    handle = broker.open("run-remote", routing_for(upstream_url), BrokerBudget())
+
+    status, body = absolute_get(host, int(port), "http://example.org/simple/", "example.org")
+    assert "403" in status
+
+    refusal = json.loads(body)["error"]
+    assert refusal["cause"] == "pass_through"
+    assert refusal["destination"] == "http://example.org/simple/"
+
+    usage = broker.close(handle)
+    assert usage.refusals == {"pass_through": 1}
+
+
+def test_local_endpoint_connect_refusal_stays_routing(upstream, monkeypatch):
+    # The no-bind endpoint behaviour is unchanged: a broker with a loopback
+    # host override is not in remote mode, and its CONNECT refusal keeps
+    # counting under routing.
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _, upstream_url = upstream
+    broker = LocalBroker(broker_config(upstream_url), host="127.0.0.1")
+    handle = broker.open("run-local", routing_for(upstream_url), BrokerBudget())
+
+    route = urlsplit(handle.url_for(PROVIDER))
+    status, body = connect_through("127.0.0.1", route.port or 0, "pypi.org:443")
+    assert "403" in status
+    assert json.loads(body)["error"]["cause"] == "routing"
+
+    usage = broker.close(handle)
+    assert usage.refusals == {"routing": 1}
+
+
+def test_the_remote_bind_joins_the_egress_regime(tmp_path):
+    # D-21.8: where the broker listens and what it advertises are part of
+    # what a number was measured under.
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    local = RunnerConfig(broker=broker_config("https://api.example.com"))
+    remote = RunnerConfig(
+        broker=broker_config(
+            "https://api.example.com", bind="0.0.0.0:8321", advertise="broker.example.net:8321"
+        )
+    )
+
+    assert config_hash(manifest, tmp_path, local) != config_hash(manifest, tmp_path, remote)
+
+
+def test_advertised_address_reaches_the_sandbox_proxy_env(tmp_path, monkeypatch):
+    # The runtime composes the proxy env from the advertised address
+    # instead of the Docker-gateway derivation — verbatim, and instead of
+    # the runner's own (loopback, meaningless out there) proxy.
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
+    config = RunnerConfig(
+        runtime=RuntimeConfig(adapter="opensandbox"),
+        broker=BrokerConfig(
+            adapter="local", bind="0.0.0.0:8321", advertise="broker.example.net:9443"
+        ),
+    )
+    runtime = OpenSandboxRuntime(config.runtime.opensandbox, sdk=opensandbox_stub)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    spec = SandboxSpec(
+        name="torve-remote-proxy",
+        image="python:3.13-slim",
+        labels=naming.labels("T-9253", "r", Path.cwd()),
+        timeout_s=60,
+        workdir=str(tmp_path / "remote"),
+    )
+    handle = runtime.create(spec, workspace)
+
+    try:
+        recorded = opensandbox_stub.REGISTRY[handle.id].env
+        assert recorded["http_proxy"] == "http://broker.example.net:9443"
+        assert recorded["HTTPS_PROXY"] == "http://broker.example.net:9443"
+        assert recorded["all_proxy"] == "http://broker.example.net:9443"
+        # The broker's own address is excluded: the provider routes speak
+        # to it directly, run token in hand.
+        assert recorded["NO_PROXY"] == "127.0.0.1,localhost,broker.example.net"
+    finally:
+        runtime.destroy(handle)
+
+    opensandbox_stub.REGISTRY.clear()
+
+
+def test_sandbox_proxy_env_stays_forwarded_without_a_bind(tmp_path, monkeypatch):
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9999")
+    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    spec = SandboxSpec(
+        name="torve-local-proxy",
+        image="python:3.13-slim",
+        labels=naming.labels("T-9254", "r", Path.cwd()),
+        timeout_s=60,
+        workdir=str(tmp_path / "remote"),
+    )
+    handle = runtime.create(spec, workspace)
+
+    try:
+        recorded = opensandbox_stub.REGISTRY[handle.id].env
+        assert recorded["HTTP_PROXY"] == "http://127.0.0.1:9999"
+        assert "http_proxy" not in recorded  # nothing composed without a remote endpoint
+        assert "no_proxy" not in recorded
+    finally:
+        runtime.destroy(handle)
+
+    opensandbox_stub.REGISTRY.clear()
 
 
 # ....................... #

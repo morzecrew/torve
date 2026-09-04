@@ -14,12 +14,14 @@ from pydantic import ValidationError
 
 from torve.application.telemetry import config_hash
 from torve.config.runconfig import (
+    BrokerConfig,
     RunnerConfig,
     TierConfig,
     TracesConfig,
     agent_timeout_for,
     load_runner_config,
     profiles_dir,
+    remote_broker_proxy,
     resolve_character_tier,
     sandbox_timeout_for,
 )
@@ -691,3 +693,109 @@ def test_traces_bounds_refuse_non_numbers():
     # at sweep time.
     with pytest.raises(ValidationError):
         TracesConfig(keep_days="a month")  # type: ignore[arg-type]
+
+
+# ....................... #
+# Remote endpoint mode (RFC 0041 §5.4): broker.bind and broker.advertise.
+# The advertised address is resolved once at load and published on the
+# opensandbox config — the runtime composes the sandbox's proxy env from
+# it with no channel to the broker, replacing the Docker-gateway
+# derivation for runs whose sandboxes are elsewhere.
+
+
+def test_load_resolves_the_advertised_broker_address_once(tmp_path: Path):
+    config = load(
+        tmp_path,
+        "runtime:\n"
+        "  adapter: opensandbox\n"
+        "broker:\n"
+        "  adapter: local\n"
+        "  bind: 0.0.0.0:8321\n"
+        "  advertise: broker.example.net:9443\n",
+    )
+    assert config.runtime.opensandbox.remote_broker_proxy == "http://broker.example.net:9443"
+
+
+def test_advertise_defaults_to_bind(tmp_path: Path):
+    config = load(
+        tmp_path,
+        "runtime:\n  adapter: opensandbox\nbroker:\n  adapter: local\n  bind: 203.0.113.7:8321\n",
+    )
+    assert config.runtime.opensandbox.remote_broker_proxy == "http://203.0.113.7:8321"
+
+    # A host-only advertise is the hostname split without the port split:
+    # the port is inherited from bind.
+    config = load(
+        tmp_path,
+        "runtime:\n  adapter: opensandbox\n"
+        "broker:\n  adapter: local\n  bind: 203.0.113.7:8321\n"
+        "  advertise: broker.example.net\n",
+    )
+    assert config.runtime.opensandbox.remote_broker_proxy == "http://broker.example.net:8321"
+
+
+def test_no_bind_publishes_no_remote_proxy(tmp_path: Path):
+    # Empty is today's behaviour: the broker keeps the loopback/bridge
+    # derivation and the runtime keeps forwarding the runner's proxy env.
+    config = load(tmp_path, "runtime:\n  adapter: opensandbox\nbroker:\n  adapter: local\n")
+    assert config.runtime.opensandbox.remote_broker_proxy == ""
+    assert RunnerConfig().runtime.opensandbox.remote_broker_proxy == ""
+    assert remote_broker_proxy(BrokerConfig(adapter="local")) == ""
+
+
+def test_direct_bind_needs_a_configured_port():
+    # The sandbox-side composition has no channel to learn an ephemeral
+    # port: the configured number is the shared derivation, so a bind
+    # without one is refused at load, never resolved to a guess.
+    with pytest.raises(ValidationError, match="names no port"):
+        BrokerConfig(adapter="local", bind="203.0.113.7")
+
+
+def test_advertise_needs_a_bind():
+    with pytest.raises(ValidationError, match="advertising an address nothing binds"):
+        BrokerConfig(adapter="local", advertise="broker.example.net:9443")
+
+
+def test_wildcard_bind_must_advertise():
+    # 0.0.0.0 listens everywhere and reaches no one: an in-sandbox client
+    # dialing the bind verbatim dials itself.
+    with pytest.raises(ValidationError, match="no reachable destination"):
+        BrokerConfig(adapter="local", bind="0.0.0.0:8321")
+
+
+def test_bind_needs_a_thread():
+    with pytest.raises(ValidationError, match="no thread to bind"):
+        BrokerConfig(adapter="none", bind="203.0.113.7:8321")
+
+
+def test_broker_addresses_are_hosts_not_urls():
+    for bad in (
+        "http://broker.example.net:1",
+        "broker.example.net/path",
+        "*.example.net",
+        "broker.example.net:99999",
+        " broker.example.net:1 ",
+    ):
+        with pytest.raises(ValidationError, match=r"broker\.bind"):
+            BrokerConfig(adapter="local", bind=bad)
+
+    with pytest.raises(ValidationError, match=r"broker\.advertise"):
+        BrokerConfig(adapter="local", bind="203.0.113.7:1", advertise="https://a.b:2")
+
+
+def test_the_remote_proxy_is_not_a_configured_key(tmp_path: Path):
+    # The advertised address has one location — the broker block. Setting
+    # the derived value directly under runtime.opensandbox is refused like
+    # any unknown key: there is no second channel.
+    with pytest.raises(ValidationError, match="remote_broker_proxy"):
+        RunnerConfig.model_validate(
+            {"runtime": {"opensandbox": {"remote_broker_proxy": "http://forged:1"}}}
+        )
+
+
+def test_remote_broker_proxy_is_silent_for_sealed():
+    # Sealed mode's address is the network's gateway at a name-derived
+    # port; the helper answers no remote endpoint rather than inventing
+    # an address the sealed wiring does not use.
+    sealed = BrokerConfig(adapter="local", mode="sealed", network="torve-sealed")
+    assert remote_broker_proxy(sealed) == ""

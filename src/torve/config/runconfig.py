@@ -18,7 +18,7 @@ from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, model_validator
 
 from torve.config import layout
 from torve.config.manifest import GateAxis
@@ -393,10 +393,38 @@ def configured_images(config: RunnerConfig) -> list[str]:
 
 
 class OpenSandboxConfig(BaseModel):
+    """The OpenSandbox server the runtime talks to. The advertised broker
+    proxy is not a configured key here (extra="forbid" refuses it in the
+    yaml): `RunnerConfig` resolves it once at load from `broker.bind` /
+    `broker.advertise` and publishes it on this instance — one location for
+    the address, the broker block, and one derived read, the runtime's
+    proxy-env composition (D-41.6: two adapters, no channel, one fact)."""
+
     model_config = ConfigDict(extra="forbid")
 
     domain: str = "localhost:5266"
     api_key_env: str = "OPENSANDBOX_API_KEY"
+
+    _remote_broker_proxy: str = PrivateAttr(default="")
+
+    # ....................... #
+
+    @property
+    def remote_broker_proxy(self) -> str:
+        """The URL of the run's broker at its advertised address in remote
+        endpoint mode — the address the sandbox's proxy env is composed
+        from; empty when the broker derives its address from the Docker
+        gateway as before."""
+
+        return self._remote_broker_proxy
+
+    # ....................... #
+
+    def publish_remote_broker_proxy(self, url: str) -> None:
+        """The load-time injection point, called by the `RunnerConfig`
+        validator; never a channel an operator writes through."""
+
+        self._remote_broker_proxy = url
 
 
 # ....................... #
@@ -476,31 +504,82 @@ def sealed_broker_port(network: str) -> int:
 # ....................... #
 
 
+# The bind-all-interfaces address: it listens everywhere and names no one,
+# so a remote endpoint whose broker binds it must advertise a real
+# destination (an in-sandbox client dialing 0.0.0.0 dials itself).
+WILDCARD_BIND_HOST = "0.0.0.0"
+
+
+def remote_broker_proxy(broker: BrokerConfig) -> str:
+    """The broker's advertised URL in remote endpoint mode (D-41.6): the
+    `broker.advertise` host — falling back to `broker.bind`'s — and the
+    advertised port, falling back to bind's. This replaces the
+    Docker-gateway derivation for runs whose sandboxes are elsewhere: the
+    broker binds this address and the opensandbox runtime composes the
+    sandbox's proxy env from it — the sealed doctrine with the configured
+    address standing in for the two network facts (the adapters share this
+    function, never a channel). Empty string is no remote endpoint: an
+    unconfigured bind keeps today's loopback/bridge behaviour, and a bind
+    without a usable port is a configuration the validators never admit,
+    answered here as no remote endpoint rather than a fabricated address.
+    Transport is http by configuration: whether the wire between sandbox
+    and broker crosses a trusted network is the operator's deployment
+    choice."""
+
+    if broker.mode != "endpoint" or not broker.bind:
+        return ""
+
+    host, port = split_host_port(broker.advertise or broker.bind)
+
+    if port is None:
+        port = split_host_port(broker.bind)[1]
+
+    if port is None or not host:
+        return ""
+
+    return f"http://{host}:{port}"
+
+
+# ....................... #
+
+
+def _validate_host_port_shape(value: str, label: str) -> tuple[str, int | None]:
+    """A named address — ``host``, optionally ``:port`` — never a URL, a
+    pattern or a wildcard, and never with surrounding whitespace."""
+
+    if not value or value != value.strip():
+        raise ValueError(
+            f"{label} must be a host, optionally :port — "
+            "no scheme, path, wildcard or surrounding whitespace"
+        )
+
+    if any(char in value for char in ("/", "\\", "?", "#", "*", " ")):
+        raise ValueError(
+            f"{label} must be a host, optionally :port — "
+            "no scheme, path, wildcard or surrounding whitespace"
+        )
+
+    host, port = split_host_port(value)
+
+    if not host or not all(char.isalnum() or char in ".-_" for char in host):
+        raise ValueError(f"{label} names no valid host")
+
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError(f"{label}: port out of range")
+
+    return host, port
+
+
+# ....................... #
+
+
 def _validate_pass_through_entry(entry: str) -> None:
     """A pass-through entry is a host, optionally :port — a named
     destination, never a URL, a pattern or a wildcard (D-21.3: every other
     destination is declared, and a declaration a machine cannot match is
     not a declaration)."""
 
-    if not entry or entry != entry.strip():
-        raise ValueError(
-            f"broker pass_through entry {entry!r} must be a host, optionally :port — "
-            "no scheme, path, wildcard or surrounding whitespace"
-        )
-
-    if any(char in entry for char in ("/", "\\", "?", "#", "*", " ")):
-        raise ValueError(
-            f"broker pass_through entry {entry!r} must be a host, optionally :port — "
-            "no scheme, path, wildcard or surrounding whitespace"
-        )
-
-    host, port = split_host_port(entry)
-
-    if not host or not all(char.isalnum() or char in ".-_" for char in host):
-        raise ValueError(f"broker pass_through entry {entry!r} names no valid host")
-
-    if port is not None and not 1 <= port <= 65535:
-        raise ValueError(f"broker pass_through entry {entry!r}: port out of range")
+    _validate_host_port_shape(entry, f"broker pass_through entry {entry!r}")
 
 
 # ....................... #
@@ -556,12 +635,34 @@ class BrokerConfig(BaseModel):
     `pass_through` and CONNECTed without inspection. The same network is
     named in `runtime.network` — egress policy (this block) and sandbox
     provisioning (`runtime`) are two views of one fact, and the runner
-    validator refuses them to disagree (D-21.11)."""
+    validator refuses them to disagree (D-21.11).
+
+    An endpoint whose sandboxes are remote — an OpenSandbox server on
+    another machine — configures `bind` and, across a NAT or a hostname
+    split, `advertise`: the loopback/bridge derivation reaches nobody out
+    there, and the remote broker answers non-provider requests only with
+    a refusal naming the destination — the pass-through leg is a
+    sealed-mode mechanism, authenticated by a topology a remote run does
+    not have."""
 
     model_config = ConfigDict(extra="forbid")
 
     adapter: Literal["none", "local", "opensandbox"] = "none"
     mode: Literal["endpoint", "sealed"] = "endpoint"
+    # Remote endpoint mode (D-41.6): `bind` is the host:port the broker
+    # thread listens on instead of the loopback/bridge-gateway derivation —
+    # a port is mandatory, because the sandbox-side composition of this
+    # address happens with no channel to the broker and cannot learn an
+    # ephemeral one. `advertise` is the host[:port] sandboxes are pointed
+    # at, for the NAT/hostname split; its port falls back to bind's, and
+    # an unset advertise speaks bind verbatim. Both are endpoint-only:
+    # sealed mode's address is the internal network's gateway and the
+    # name-derived port, a topology, not a configured address. The wire is
+    # plaintext http — prompts and diffs cross it exposed unless TLS or a
+    # private network is the operator's deployment; the engine ships
+    # plaintext-capable and says so plainly rather than pretend-default.
+    bind: str = ""
+    advertise: str = ""
     # The user-defined --internal Docker network sealed mode joins; the
     # broker attaches to it at its gateway, the sandboxes join it, and
     # nothing on it is reachable except the broker (D-21.3). Empty in
@@ -630,6 +731,14 @@ class BrokerConfig(BaseModel):
                     "(D-21.4's wire enforcement would be bypassable)"
                 )
 
+            if self.bind or self.advertise:
+                raise ValueError(
+                    "sealed mode's broker address is the internal network's gateway at "
+                    "a name-derived port — broker.bind and broker.advertise are "
+                    "endpoint-mode knobs; a configured address would have a sealed run "
+                    "pretending a topology it does not have"
+                )
+
         else:
             if self.network:
                 raise ValueError(
@@ -641,6 +750,43 @@ class BrokerConfig(BaseModel):
                 raise ValueError(
                     "broker.pass_through declares sealed-mode egress; endpoint mode "
                     "keeps the default bridge and declares nothing"
+                )
+
+            if self.bind:
+                if self.adapter == "none":
+                    raise ValueError(
+                        "broker.bind is the address the broker thread listens on; "
+                        "adapter 'none' has no thread to bind"
+                    )
+
+                bind_host, bind_port = _validate_host_port_shape(
+                    self.bind, f"broker.bind {self.bind!r}"
+                )
+
+                if bind_port is None:
+                    raise ValueError(
+                        f"broker.bind {self.bind!r} names no port — a sandbox learns "
+                        "this address with no channel to the broker, so the port must "
+                        "be configured, never ephemeral; set broker.bind to host:port"
+                    )
+
+                if bind_host == WILDCARD_BIND_HOST and not self.advertise:
+                    raise ValueError(
+                        "broker.bind '0.0.0.0' listens on every interface but names no "
+                        "reachable destination — an in-sandbox client dialing it dials "
+                        "itself; set broker.advertise to the address sandboxes reach"
+                    )
+
+            if self.advertise:
+                if not self.bind:
+                    raise ValueError(
+                        "broker.advertise publishes where broker.bind listens — set "
+                        "broker.bind too; advertising an address nothing binds is a "
+                        "destination to nowhere"
+                    )
+
+                _validate_host_port_shape(
+                    self.advertise, f"broker.advertise {self.advertise!r}"
                 )
 
         return self
@@ -1093,6 +1239,22 @@ class RunnerConfig(BaseModel):
                 f"({self.runtime.network!r}) and broker.network "
                 f"({self.broker.network!r}) must name the same network"
             )
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _remote_broker_shares_its_advertised_address(self) -> RunnerConfig:
+        """The one resolution point for remote endpoint mode: the address
+        `broker.bind`/`broker.advertise` name is decided once here and
+        published on the opensandbox config the composition hands the
+        runtime, which composes the sandbox's proxy env from it — the
+        broker thread and the runtime never talk, they read the one
+        resolved fact (the sealed name-derived-port doctrine with a
+        configured address in place of the gateway)."""
+
+        self.runtime.opensandbox.publish_remote_broker_proxy(remote_broker_proxy(self.broker))
 
         return self
 

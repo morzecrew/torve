@@ -23,6 +23,21 @@ destination named. The pass-through leg authenticates by topology — the
 network is the run's private envelope, and the run token has no in-scope
 channel into the sandbox's proxy env — while the provider routes keep the
 token (see the T-0106 execution log).
+
+Remote endpoint mode (D-41.6, built in RFC 0041 phase 2) serves sandboxes
+that live on another machine: `broker.bind` replaces the bridge-gateway
+derivation with a configured host:port the thread listens on, and the
+routes are published at `broker.advertise` — the address the sandboxes
+dial, for the NAT/hostname split — so a remote run reaches its providers
+over the same token-authenticated routes with the keys no closer to the
+sandbox than before. The pass-through leg has no remote form: it
+authenticates by a topology that does not exist across the open internet,
+so in remote endpoint mode a CONNECT or absolute-URI request is refused
+loudly, by its own cause, with the destination named — until someone
+designs the token-authenticated equivalent. What rides the wire between a
+remote sandbox and this broker is plaintext http: prompts and diffs cross
+it exposed unless the operator puts TLS or a private network under the
+deployment — the engine ships plaintext-capable and names that plainly.
 """
 
 from __future__ import annotations
@@ -50,6 +65,7 @@ from torve.application.ports import (
 from torve.config.runconfig import (
     BrokerConfig,
     pass_through_allows,
+    remote_broker_proxy,
     sealed_broker_port,
     split_host_port,
 )
@@ -60,6 +76,17 @@ CAUSE_AUTH = "auth"
 CAUSE_ROUTING = "routing"
 CAUSE_BUDGET = "budget"
 CAUSE_CONTAINMENT = "containment"
+CAUSE_PASS_THROUGH = "pass_through"
+
+# What the remote-mode refusal says on the wire: the rule, in the sandbox's
+# own terms — no corpus coordinates in strings read outside this repository.
+REMOTE_PASS_THROUGH_MESSAGE = (
+    "this broker runs in remote endpoint mode and serves only the routed "
+    "providers, each at its own route with the run token; non-provider "
+    "egress through a remote broker is refused until a token-authenticated "
+    "pass-through design exists — the destination is named above and the "
+    "refusal is counted"
+)
 
 # The network label naming the run a sealed network belongs to; cleanup at
 # close removes only torve-owned networks, never the operator's.
@@ -183,6 +210,7 @@ class _BrokerState:
         *,
         sealed: bool,
         pass_through: tuple[str, ...],
+        remote: bool = False,
     ) -> None:
         self.routes = {route.provider: route for route in routing.routes}
         self.budget = budget
@@ -201,6 +229,12 @@ class _BrokerState:
         # metered (D-21.4).
         self.sealed = sealed
         self.pass_through = pass_through
+        # Remote endpoint mode (D-41.6): a broker whose address was
+        # configured for sandboxes on another machine. The pass-through
+        # leg — sealed mode's topology-authenticated relay — has no
+        # remote form, so these refusals get their own cause and their
+        # own explanation on the wire.
+        self.remote = remote
         self.provider_hosts = frozenset(
             urlsplit(route.upstream).hostname for route in routing.routes
         )
@@ -275,13 +309,21 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
         # ....................... #
 
         def _refuse(
-            self, cause: str, status: int, provider: str, destination: str | None = None
+            self,
+            cause: str,
+            status: int,
+            provider: str,
+            destination: str | None = None,
+            message: str | None = None,
         ) -> None:
             state.refuse(cause, provider)
             error = {"error": {"cause": cause, "provider": provider}}
 
             if destination is not None:
                 error["error"]["destination"] = destination
+
+            if message is not None:
+                error["error"]["message"] = message
 
             self._reply(status, json.dumps(error).encode("utf-8"))
 
@@ -473,8 +515,32 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
 
         # ....................... #
 
+        def _refuse_pass_through(self, destination: str) -> None:
+            """The remote endpoint mode refusal (D-41.6): the pass-through
+            leg authenticates by network topology — the sealed network is
+            the run's private envelope — and that envelope does not exist
+            across the open internet. A non-provider request is refused
+            loudly: its own cause in the counters, the destination named
+            on the wire, and the rule spelled out, because a silent
+            connection reset would let a run limp past the one thing it
+            should stop on."""
+
+            self._refuse(
+                CAUSE_PASS_THROUGH,
+                403,
+                destination,
+                destination=destination,
+                message=REMOTE_PASS_THROUGH_MESSAGE,
+            )
+
+        # ....................... #
+
         def _serve_connect(self) -> None:
             if not state.sealed:
+                if state.remote:
+                    self._refuse_pass_through(self.path)
+                    return
+
                 # Endpoint mode has no pass-through function: the sandbox
                 # keeps the default bridge, and a CONNECT to the broker is
                 # a request for a destination this run is not routed to.
@@ -497,6 +563,10 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             port = parsed.port or (443 if parsed.scheme == "https" else 80)
 
             if not state.sealed:
+                if state.remote:
+                    self._refuse_pass_through(self.path)
+                    return
+
                 self._refuse(CAUSE_ROUTING, 403, self.path, destination=self.path)
                 return
 
@@ -568,9 +638,11 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
 
 class LocalBroker:
     """One reverse-proxy server per run: in endpoint mode on an ephemeral
-    loopback-facing port, in sealed mode on the internal network's gateway
-    at a port derived from the network's name. The keys live in the
-    runner's own environment; `open` starts the server and issues the
+    loopback-facing port — or, when `broker.bind` names one, on the
+    configured address with the routes published at `broker.advertise`
+    (remote endpoint mode) — in sealed mode on the internal network's
+    gateway at a port derived from the network's name. The keys live in
+    the runner's own environment; `open` starts the server and issues the
     run-scoped token; `close` stops the server, returns the run's usage,
     and removes the internal network it created once it is empty. A single
     instance serves sequential runs (a tick dispatch reuses the injected
@@ -699,8 +771,30 @@ class LocalBroker:
                 "its own environment"
             )
 
+        advertised = ""
+
         if self._config.mode == "sealed":
             host, port = self._sealed_bind(run)
+        elif self._config.bind:
+            # Remote endpoint mode (D-41.6): the configured listen address
+            # replaces the bridge-gateway derivation, and the routes are
+            # published at the advertised address — the bind host is often
+            # a wildcard the sandbox must not dial, and the bound port is
+            # configured, so the advertised URL is both sound and complete
+            # without asking the socket. The `host` override is a test hook
+            # for the old derivation; a configured bind is configuration,
+            # so it wins.
+            advertised = remote_broker_proxy(self._config)
+            host, bind_port = split_host_port(self._config.bind)
+
+            if bind_port is None or not advertised:
+                raise RuntimeError(
+                    f"broker.bind {self._config.bind!r} names no port — the listen "
+                    "port must be configured, never ephemeral: the sandbox-side "
+                    "composition learns this address with no channel to the broker"
+                )
+
+            port = bind_port
         else:
             host = self._host if self._host is not None else default_sandbox_host()
             port = 0
@@ -710,6 +804,7 @@ class LocalBroker:
             budget,
             sealed=self._config.mode == "sealed",
             pass_through=tuple(self._config.pass_through),
+            remote=bool(advertised),
         )
         server = ThreadingHTTPServer((host, port), _handler_for(state))
         thread = threading.Thread(
@@ -718,9 +813,8 @@ class LocalBroker:
         thread.start()
 
         bound_port = server.server_address[1]
-        base_urls = {
-            provider: f"http://{host}:{bound_port}/{provider}" for provider in state.routes
-        }
+        route_base = advertised or f"http://{host}:{bound_port}"
+        base_urls = {provider: f"{route_base}/{provider}" for provider in state.routes}
         handle = BrokerHandle(token=state.token, base_urls=base_urls)
         self._live[state.token] = (server, state)
 

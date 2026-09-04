@@ -1,0 +1,170 @@
+schema_version: 1
+task: T-0253
+repo: morzecrew/torve
+base_sha: ce5cf5010f44347ba69b512deb8b8f576512857f  # the engine's pin (D-A.7)
+drift_count: 0
+entries:
+  - decision: D-41.1
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-09-04T05:52:00Z
+    attempt: 1
+    claim: >-
+      close-out for the touched LOCKED area: the remote endpoint mode added
+      to the opensandbox runtime keeps the orchestrator one host-local
+      process — the adapter remains an HTTP client of the remote server,
+      the seed still reads the local worktree, and the one new runtime
+      fact (the advertised broker address) is a string resolved at
+      configuration load on this host; nothing about the engine's state
+      moves off-host
+    evidence: >-
+      src/torve/adapters/runtime/opensandbox.py:88-109 — the new
+      composition is a pure host-side string-to-env mapping;
+      src/torve/adapters/runtime/opensandbox.py:275 — the workspace seed
+      still tars the local worktree; src/torve/adapters/runtime/opensandbox.py:209 —
+      the runtime's only new knowledge is the resolved advertised URL
+    action: decided
+    proposal: none — compliance attested
+
+  - decision: D-41.2
+    grade: LOCKED
+    kind: resolved
+    class: discovery
+    at: 2026-09-04T05:52:00Z
+    attempt: 1
+    claim: >-
+      close-out for the touched LOCKED area: the remote endpoint broker
+      injects provider keys only at its own wire, and the routes keep the
+      run-scoped token across the hop — the executed tests assert the
+      upstream sees the injected key (never the sandbox's token), a forged
+      token is refused 401, and the sandbox's env gains the broker's
+      address but no credential of any kind
+    evidence: >-
+      src/torve/adapters/broker/local.py:816 — the handle's routes are
+      addresses and a token, the key stays in the broker's environment;
+      tests/test_broker.py:429-467 — the advertised-address test asserts
+      key injection on the wire and the 401 for a forged token
+    action: decided
+    proposal: none — compliance attested
+
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-04T05:52:00Z
+    attempt: 1
+    claim: >-
+      "the runtime composing the sandbox proxy env from the advertised
+      address" needs the broker's block inside OpenSandboxRuntime, but the
+      composition root that builds it hands it only the opensandbox
+      sub-config and is outside this task's scope; no decision names the
+      channel the two adapters share for the address
+    evidence: >-
+      src/torve/cli/options.py:82 — the only production construction
+      passes config.runtime.opensandbox alone; .torve/tasks/T-0253/contract.yaml:18-24 —
+      the scope allow list names neither options.py nor any docs path;
+      src/torve/config/runconfig.py:1248-1259 — the invented join: a
+      RunnerConfig validator resolves broker.bind/broker.advertise once at
+      load and publishes it on the opensandbox config instance
+    action: decided
+    proposal: >-
+      amend RFC 0041 §5.4 (or the phase's scope) with a row naming the
+      resolution channel — configuration load decides the advertised
+      address once and both adapters read that one resolution, the sealed
+      name-derived-port doctrine with a configured address in place of the
+      gateway facts — and grant the composition root (cli/options.py) to
+      any future unit that needs broker knowledge inside a runtime
+    notes: |
+      The publish point is a private attribute behind
+      OpenSandboxConfig.publish_remote_broker_proxy (runconfig.py:423) with a
+      read-only property (runconfig.py:413); extra="forbid" refuses the name
+      as an operator key, so the broker block stays the single configuration
+      location (the advertised address joins the hashed broker regime), and
+      the runtime keeps no other view of the broker.
+
+  - decision: unlisted
+    grade: UNLISTED
+    kind: resolved
+    class: spec-gap
+    at: 2026-09-04T05:52:00Z
+    attempt: 1
+    claim: >-
+      D-41.6 names two knobs but settles neither their grammar nor their
+      defaults, and three load-bearing details have no row: whether bind
+      may omit the port, what advertise defaults to, and what a wildcard
+      bind means to a sandbox — every answer is a refusal a run would
+      otherwise hit as a silent unreachability
+    evidence: >-
+      rfcs/0041-remote-sandboxes.md:296 — the D-41.6 row: two names, a
+      refusal and a documentation clause, no address grammar;
+      src/torve/config/runconfig.py:734-790 — the decided shape: sealed
+      mode refuses both knobs, bind must carry an explicit port (no
+      ephemeral: the sandbox side composes with no channel to the broker),
+      advertise's port falls back to bind's, advertise is legal only
+      beside bind, a 0.0.0.0 bind without an advertise is refused, and
+      adapter 'none' refuses bind
+    action: decided
+    proposal: >-
+      amend RFC 0041 with a row: broker.bind is a host:port literal (port
+      mandatory, the address is a shared derivation, never an ephemeral
+      discovery), broker.advertise is host[:port] defaulting to bind and
+      refused without a bind, and sealed mode refuses both — the sealed
+      address is a topology, not a knob
+
+  - decision: unlisted
+    grade: UNLISTED
+    kind: departed
+    class: spec-gap
+    at: 2026-09-04T05:52:00Z
+    attempt: 1
+    claim: >-
+      the intent's documentation deliverable — "the deployment page
+      documents bind/advertise and the transport paragraph" — has no
+      carrier inside this task's scope: the repository contains no
+      deployment page and no docs tree at all, and the scope allow list
+      covers three source files and three test files only
+    evidence: >-
+      .torve/tasks/T-0253/contract.yaml:18-24 — scope.allow, no docs path;
+      `find . -iname '*deploy*' -not -path './.git/*'` — no matches;
+      rfcs/0041-remote-sandboxes.md:236-243 — §7 asks for a deployment
+      page with the broker bind/advertise pair and the transport paragraph
+    action: decided
+    proposal: >-
+      mint the deployment page as a documentation unit of RFC 0041 (it is
+      §7's deliverable for the whole RFC, not this unit's code change), or
+      widen a future unit's scope to the docs carrier; meanwhile the
+      semantics and the transport paragraph — plaintext on an untrusted
+      network exposes prompts and diffs, choose TLS or a private link —
+      are written plainly into the consumed configuration and the broker's
+      own strings
+    notes: |
+      Written where the mechanism lives: the BrokerConfig field comments
+      and class docstring (runconfig.py, the bind/advertise block), the
+      broker adapter's module docstring remote-endpoint paragraph
+      (src/torve/adapters/broker/local.py:27-41), and the refusal message
+      on the wire itself states the pass-through rule with no corpus
+      coordinates.
+
+  - decision: D-41.6
+    grade: ASSUMED
+    kind: resolved
+    class: discovery
+    at: 2026-09-04T06:03:00Z
+    attempt: 2
+    claim: >-
+      the attempt-1 entry that records the deployment-page deliverable
+      having no carrier in scope was written with action "departed", which
+      its UNLISTED grade does not license — that grade decides with
+      "decided"; kind resolved alone licenses "departed" — so the action
+      field is repaired in place, and this entry says so: the record's
+      substance stands untouched (no docs carrier inside the scope, the
+      semantics and transport paragraph written into the configuration and
+      the broker's own strings, and the owed proposal naming the future
+      documentation unit), which this close-out re-attests
+    evidence: >-
+      src/torve/gates/decisions_reported.py:45 — the legality map: UNLISTED
+      licenses only decided; src/torve/gates/decisions_reported.py:153-154
+      — the kind-resolved exemption is what alone licenses departed
+    action: decided
+    proposal: none — a format repair of this log's own record, no spec row owed
