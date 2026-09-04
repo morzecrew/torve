@@ -2,6 +2,7 @@
 id: "0046"
 title: The dispatch and its steps
 status: accepted
+implementation: complete
 depends_on: []
 informed_by: ["0003", "0015", "0044", "0045"]
 supersedes: []

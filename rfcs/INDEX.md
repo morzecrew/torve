@@ -54,7 +54,7 @@ number is **0047**.
 | [0043](0043-blocker-revision.md) | Blocker revision | accepted | none | 0005 | A-87 | A surviving review blocker feeds a bounded in-run revision attempt in the same worktree — carried by the RFC 0005 §4a feedback record — before it escalates the run. |
 | [0044](0044-the-manager-domain.md) | The manager domain | accepted | partial | — | A-80, A-81, A-82, A-85, A-86 | The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection. |
 | [0045](0045-the-live-channel.md) | The live channel | accepted | none | 0044 | A-83 | A run becomes observable while it runs: the broker meters liveness from the burn it already sees, carries the sandbox's records to the store without ever handing it a credential, and gives the manager a way to speak back. |
-| [0046](0046-the-dispatch-and-its-steps.md) | The dispatch and its steps | accepted | none | — | — | The runner's 776-line hook factory becomes one typed dispatch object and a handful of steps over it, so a seam is a parameter and a step instead of another closure over another untyped dictionary. |
+| [0046](0046-the-dispatch-and-its-steps.md) | The dispatch and its steps | accepted | complete | — | — | The runner's 776-line hook factory becomes one typed dispatch object and a handful of steps over it, so a seam is a parameter and a step instead of another closure over another untyped dictionary. |
 
 ## Conventions
 
