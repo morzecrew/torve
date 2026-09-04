@@ -66,7 +66,10 @@ QUASI_EXPERIMENT_CAVEAT = (
 # The two escalation reasons that indict a document rather than the code
 # that executed it (charter A-21, A-22) — RFC 0022 §5.3 asks for these on
 # their own line even when a document has never triggered either.
-DOCUMENT_INDICTING_REASONS = (str(EscalationReason.UNDERSPECIFIED), str(EscalationReason.STALE_INHERITANCE))
+DOCUMENT_INDICTING_REASONS = (
+    str(EscalationReason.UNDERSPECIFIED),
+    str(EscalationReason.STALE_INHERITANCE),
+)
 
 # A table, not a dump — mirrors specquality's own bound on decided_claims.
 SPEC_DRIFT_FINDINGS_LIMIT = 10
@@ -151,11 +154,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             "state": (
                 "shipped"
                 if task_id in shipped
-                else (
-                    "consumed"
-                    if record.get("role") in ("draft", "review")
-                    else "unstarted"
-                )
+                else ("consumed" if record.get("role") in ("draft", "review") else "unstarted")
             ),
             "attempts": 0,
             "escalation": None,
@@ -536,7 +535,10 @@ def _costs(root: Path) -> list[dict[str, Any]]:
                     # Wall clock — time is spend too, and absent stays
                     # absent like the token shape.
                     **(
-                        {"wall_time_s": wall_time_s, **({"wall_est": True} if wall_estimated else {})}
+                        {
+                            "wall_time_s": wall_time_s,
+                            **({"wall_est": True} if wall_estimated else {}),
+                        }
                         if wall_time_s is not None
                         else {}
                     ),
@@ -626,7 +628,10 @@ def harness_populations(root: Path, config: RunnerConfig) -> list[dict[str, Any]
 
             agent = row.get("agent")
 
-            if not isinstance(agent, dict) or cast("dict[str, Any]", agent).get("adapter") == "fake":
+            if (
+                not isinstance(agent, dict)
+                or cast("dict[str, Any]", agent).get("adapter") == "fake"
+            ):
                 continue
 
             block = cast("dict[str, Any]", agent)
@@ -1366,10 +1371,7 @@ def _group_attempts(rows: list[dict[str, Any]], root: Path) -> list[dict[str, An
             unstamped.append(row)
 
     groups: list[tuple[int | None, list[dict[str, Any]]]] = [
-        *(
-            (stamp, group)
-            for stamp, group in by_stamp.items()
-        ),
+        *((stamp, group) for stamp, group in by_stamp.items()),
         *((None, [row]) for row in unstamped),
     ]
 
@@ -1439,11 +1441,7 @@ def _why_totals(attempts: list[dict[str, Any]], human_minutes: int | None) -> di
     where nothing did — an unreported total reads unreported."""
 
     def reported(key: str) -> list[float]:
-        return [
-            float(entry[key])
-            for entry in attempts
-            if isinstance(entry.get(key), int | float)
-        ]
+        return [float(entry[key]) for entry in attempts if isinstance(entry.get(key), int | float)]
 
     def summed(key: str) -> float | int | None:
         values = reported(key)
@@ -1578,7 +1576,6 @@ def why_report(root: Path, task_id: str) -> dict[str, Any]:
         "totals": _why_totals(attempts, human_minutes),
         "regime": _why_regime(task_rows, rows),
     }
-
 
 
 # ....................... #

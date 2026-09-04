@@ -662,7 +662,11 @@ def _apply_revise(
 
     if _role(root, task_id) == "review":
         return CommandOutcome(
-            verb, task_id, command.actor, False, "a review is never revised — it re-runs with its target"
+            verb,
+            task_id,
+            command.actor,
+            False,
+            "a review is never revised — it re-runs with its target",
         )
 
     if state.state is not TaskState.READY:

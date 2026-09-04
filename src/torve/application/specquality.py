@@ -169,7 +169,8 @@ class TaskFacts:
         return sum(
             1
             for e in self.history
-            if e.get("from") == _ESCALATED_STATE and e.get("to") in (_QUEUED_STATE, _ABANDONED_STATE)
+            if e.get("from") == _ESCALATED_STATE
+            and e.get("to") in (_QUEUED_STATE, _ABANDONED_STATE)
         )
 
 
@@ -216,7 +217,9 @@ def _contract_decisions(record: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "id": str(identifier),
                 "grade": str(entry.get("grade") or ""),
-                "paths": [str(p) for p in cast("list[object]", paths)] if isinstance(paths, list) else [],
+                "paths": [str(p) for p in cast("list[object]", paths)]
+                if isinstance(paths, list)
+                else [],
             }
         )
 
@@ -473,7 +476,7 @@ def _finish(bucket: dict[str, Any], floor: int, amended_ids: set[str]) -> dict[s
         detail = (
             f"{decided} task(s) decided this OPEN row independently — read the claims "
             "below for whether they agree; promote to a graded row if so (no automatic "
-            "judgement of \"identically\": D-22.1 invokes no model)"
+            'judgement of "identically": D-22.1 invokes no model)'
         )
     elif grade == "LOCKED" and halted >= floor:
         if amended:
@@ -514,7 +517,8 @@ def _finish(bucket: dict[str, Any], floor: int, amended_ids: set[str]) -> dict[s
         "amended": amended,
         "decided": decided,
         "decided_claims": [
-            {"task": t, "claim": c} for t, c in cast("list[tuple[str, str]]", bucket["decided_claims"])[:10]
+            {"task": t, "claim": c}
+            for t, c in cast("list[tuple[str, str]]", bucket["decided_claims"])[:10]
         ],
         "reading": reading,
         "reading_detail": detail,
@@ -749,7 +753,9 @@ def render_envelope(envelope: dict[str, Any]) -> str:
         parts: list[str] = []
 
         if envelope["attempts_median"] is not None:
-            parts.append(f"{envelope['attempts_median']:.1f} attempt(s) (n={envelope['attempts_n']})")
+            parts.append(
+                f"{envelope['attempts_median']:.1f} attempt(s) (n={envelope['attempts_n']})"
+            )
 
         if envelope["cost_usd_median"] is not None:
             parts.append(f"${envelope['cost_usd_median']:.2f} (n={envelope['cost_usd_n']})")
@@ -757,7 +763,9 @@ def render_envelope(envelope: dict[str, Any]) -> str:
         if envelope["wall_minutes_median"] is not None:
             parts.append(f"{envelope['wall_minutes_median']:.0f}m (n={envelope['wall_minutes_n']})")
 
-        body = f"n={n} — " + (", ".join(parts) if parts else "no attempt/cost/wall observations recorded")
+        body = f"n={n} — " + (
+            ", ".join(parts) if parts else "no attempt/cost/wall observations recorded"
+        )
 
     return f"size {size} envelope: {body} — {envelope['caveat']}"
 

@@ -193,9 +193,7 @@ def lint_job_body(root: Path, job: StandingContract) -> list[str]:
     from torve.application.intake import Draft, DraftsDocument, lint_drafts
 
     document = DraftsDocument(
-        drafts=[
-            Draft(ref="DRAFT-1", intent=job.intent, scope=job.scope, acceptance=job.acceptance)
-        ]
+        drafts=[Draft(ref="DRAFT-1", intent=job.intent, scope=job.scope, acceptance=job.acceptance)]
     )
 
     return [error.replace("DRAFT-1", job.name) for error in lint_drafts(root, document, 1)]

@@ -223,7 +223,9 @@ def elide_diff_bulk(diff_text: str) -> str:
             eliding = any(path.startswith(prefix) for prefix in ELIDED_DIFF_PATHS)
 
             if eliding:
-                kept.append(f"[vendored/generated: {path} — section elided; the file is in the tree]\n")
+                kept.append(
+                    f"[vendored/generated: {path} — section elided; the file is in the tree]\n"
+                )
                 continue
 
         if not eliding:

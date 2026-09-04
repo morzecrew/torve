@@ -59,7 +59,9 @@ class SurveySource:
     """Host-side git callables the CLI injects — the application layer
     orchestrates, the workspace adapter owns the history mechanics."""
 
-    landings: Callable[[str, int], list[tuple[str, str]]]  # branch, n -> [(sha, subject)] newest first
+    landings: Callable[
+        [str, int], list[tuple[str, str]]
+    ]  # branch, n -> [(sha, subject)] newest first
     parent_of: Callable[[str], str | None]  # sha -> first parent, None at the root commit
     create_workspace: Callable[[str, str], Path]  # (label, landing sha) -> clone path
     remove_workspace: Callable[[str], None]  # label
@@ -76,8 +78,18 @@ def default_battery() -> Manifest:
     gates = [
         Gate(name="scope", run="@scope", state="blocking", origin="structural"),
         Gate(name="secrets", run="@secrets", state="blocking", origin="structural"),
-        Gate(name="no-test-tampering", run="@no-test-tampering", state="blocking", origin="structural"),
-        Gate(name="decisions-reported", run="@decisions-reported", state="blocking", origin="structural"),
+        Gate(
+            name="no-test-tampering",
+            run="@no-test-tampering",
+            state="blocking",
+            origin="structural",
+        ),
+        Gate(
+            name="decisions-reported",
+            run="@decisions-reported",
+            state="blocking",
+            origin="structural",
+        ),
         Gate(name="self-audit", run="@self-audit", state="shadow", origin="structural"),
         Gate(name="acceptance", run="@task.acceptance", state="blocking", origin="structural"),
     ]
@@ -202,9 +214,7 @@ def run_survey(
     # What a corpus would add (D-31.4): the gates that never measured a
     # single landing and whose silence is the no-task skip — their silence
     # is the corpus's absence made visible.
-    corpus_adds = [
-        name for name in order if not ran[name] and no_task_skip[name] and surveyed > 0
-    ]
+    corpus_adds = [name for name in order if not ran[name] and no_task_skip[name] and surveyed > 0]
 
     return {
         "schema_version": SCHEMA_VERSION,

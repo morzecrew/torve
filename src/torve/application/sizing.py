@@ -45,9 +45,7 @@ def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
     # module count that includes them calls every task in the repository
     # too_large, which D-26.7's route turned from a wrong number into a
     # blocked dispatch.
-    modules = {
-        glob.split("/", 1)[0] for glob in scope.allow if "/" in glob
-    } - {"tests"}
+    modules = {glob.split("/", 1)[0] for glob in scope.allow if "/" in glob} - {"tests"}
 
     if len(modules) > MAX_MODULES:
         listed = ", ".join(sorted(modules))

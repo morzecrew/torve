@@ -346,9 +346,7 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
                 )
                 conn.set_tunnel(host, upstream.port or 443)
             elif upstream.scheme == "https":
-                conn = http.client.HTTPSConnection(
-                    host, upstream.port, timeout=UPSTREAM_TIMEOUT_S
-                )
+                conn = http.client.HTTPSConnection(host, upstream.port, timeout=UPSTREAM_TIMEOUT_S)
             else:
                 conn = http.client.HTTPConnection(host, upstream.port, timeout=UPSTREAM_TIMEOUT_S)
 

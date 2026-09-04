@@ -200,7 +200,9 @@ def _render(envelope: dict[str, Any]) -> None:
     )
 
     if not timeline:
-        console.print(Text("no recorded runs — the contract exists, the stream is silent", STYLE_DIM))
+        console.print(
+            Text("no recorded runs — the contract exists, the stream is silent", STYLE_DIM)
+        )
 
     for _, _, line in timeline:
         console.print(line)

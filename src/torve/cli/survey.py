@@ -131,7 +131,8 @@ def survey_cmd(
         int, typer.Option("--last", min=1, help="How many landings to walk, newest first.")
     ] = 20,
     branch: Annotated[
-        str | None, typer.Option("--branch", help="Branch to walk; the default branch when omitted.")
+        str | None,
+        typer.Option("--branch", help="Branch to walk; the default branch when omitted."),
     ] = None,
     output: Annotated[
         Path | None,
@@ -179,7 +180,9 @@ def survey_cmd(
     else:
         console = out(fmt)
         summary = report["summary"]
-        header(console, "survey", f"{branch} · last {report['last']} · battery {report['manifest']}")
+        header(
+            console, "survey", f"{branch} · last {report['last']} · battery {report['manifest']}"
+        )
 
         for landing in report["landings"]:
             if landing["parent"] is None:
@@ -223,7 +226,9 @@ def survey_cmd(
         table.title = f"summary · {summary['landings']} landing(s)"
 
         for name, counts in summary["by_gate"].items():
-            table.add_row(Text(name), *[str(counts[column]) for column in ("fired", "clean", "skipped")])
+            table.add_row(
+                Text(name), *[str(counts[column]) for column in ("fired", "clean", "skipped")]
+            )
 
         console.print(table)
 
@@ -232,6 +237,9 @@ def survey_cmd(
         if adds:
             console.print(Text("a corpus would add: " + ", ".join(adds), style=STYLE_DIM))
 
-        closing(console, "a survey is a measurement; a red history is a successful measurement of a red history — exit 0")
+        closing(
+            console,
+            "a survey is a measurement; a red history is a successful measurement of a red history — exit 0",
+        )
 
     raise typer.Exit(EXIT_OK)

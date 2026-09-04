@@ -334,7 +334,9 @@ def _registry_bearer_token(challenge: str) -> str | None:
 
     try:
         query = urlencode({"service": service, "scope": scope})
-        target = f"{parsed.path}?{parsed.query}&{query}" if parsed.query else f"{parsed.path}?{query}"
+        target = (
+            f"{parsed.path}?{parsed.query}&{query}" if parsed.query else f"{parsed.path}?{query}"
+        )
         connection.request("GET", target, headers={"Accept": "application/json"})
         response = connection.getresponse()
 

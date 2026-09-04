@@ -137,7 +137,9 @@ def run_shadow(
     manifest_path = layout.gates_file(workspace)
     # The replay's image identity, resolved the same way a live dispatch
     # resolves it (D-17.1) — a rebuild between two replays is two regimes.
-    image_digest = deps.runtime.resolve_image(image_for(config, tier_for(config, tier_name_for(task))))
+    image_digest = deps.runtime.resolve_image(
+        image_for(config, tier_for(config, tier_name_for(task)))
+    )
 
     record: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,

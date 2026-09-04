@@ -325,7 +325,13 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     if report["costs"]:
         costs = make_table(
-            "at", "task", "kind", "regime", "model", "cost", "harness",
+            "at",
+            "task",
+            "kind",
+            "regime",
+            "model",
+            "cost",
+            "harness",
             title="Cost and iterations",
         )
         rows: list[tuple[Any, ...]] = []
@@ -389,7 +395,9 @@ def _render_rich(report: dict[str, Any]) -> None:
                 else "—"
             )
             reasons = ", ".join(
-                f"{reason} ({count})" for reason, count in doc["escalations_by_reason"].items() if count
+                f"{reason} ({count})"
+                for reason, count in doc["escalations_by_reason"].items()
+                if count
             )
 
             table.add_row(

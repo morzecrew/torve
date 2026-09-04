@@ -33,8 +33,7 @@ BIND_HOST = "127.0.0.1"
 DEFAULT_PORT = 7433
 
 _IMPORT_HINT = (
-    "starlette and uvicorn are not installed — install the extra: "
-    "pip install 'torve[serve]'"
+    "starlette and uvicorn are not installed — install the extra: pip install 'torve[serve]'"
 )
 
 # A checkout with no bundle is a build gap the 404 names (D-32.4): the

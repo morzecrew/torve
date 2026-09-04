@@ -94,9 +94,7 @@ def candidate_config(
 
     if image is not None:
         if image_for(config, current) == image:
-            raise ValueError(
-                f"tier {tier!r} already resolves image {image!r} — nothing to measure"
-            )
+            raise ValueError(f"tier {tier!r} already resolves image {image!r} — nothing to measure")
 
         updated = current.model_copy(update={"image": image})
 

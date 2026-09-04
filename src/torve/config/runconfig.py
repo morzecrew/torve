@@ -467,9 +467,7 @@ def split_host_port(authority: str) -> tuple[str, int | None]:
 # ....................... #
 
 
-def pass_through_allows(
-    pass_through: list[str] | tuple[str, ...], host: str, port: int
-) -> bool:
+def pass_through_allows(pass_through: list[str] | tuple[str, ...], host: str, port: int) -> bool:
     """Whether the sealed broker may CONNECT to ``host:port`` without
     inspection (RFC 0021 §5.2): a declared entry matches its host on any
     port, and a ``host:port`` entry narrows to exactly that port — the
@@ -785,9 +783,7 @@ class BrokerConfig(BaseModel):
                         "destination to nowhere"
                     )
 
-                _validate_host_port_shape(
-                    self.advertise, f"broker.advertise {self.advertise!r}"
-                )
+                _validate_host_port_shape(self.advertise, f"broker.advertise {self.advertise!r}")
 
         return self
 
@@ -1312,9 +1308,7 @@ def _load_profile_body(name: str, key: str, agents_dir: Path) -> tuple[dict[str,
 # ....................... #
 
 
-def _resolve_profiles(
-    tiers: dict[str, Any], agents_dir: Path
-) -> dict[str, list[tuple[str, Path]]]:
+def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> dict[str, list[tuple[str, Path]]]:
     """D-28.2: a raw-mapping merge, on `raw["tiers"]`, before
     `RunnerConfig.model_validate` ever runs — locally-present keys win, and
     the merged mapping is all `TierConfig` sees. One merge level, no
@@ -1347,9 +1341,7 @@ def _resolve_profiles(
         if not names_field:
             continue
 
-        names = cast(
-            "list[str]", names_field if isinstance(names_field, list) else [names_field]
-        )
+        names = cast("list[str]", names_field if isinstance(names_field, list) else [names_field])
 
         merged_body: dict[str, Any] = {}
         chain: list[tuple[str, Path]] = []

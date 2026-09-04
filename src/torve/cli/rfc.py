@@ -399,9 +399,7 @@ def add_decision(
 
 @rfc_app.command("retire")
 def retire(
-    identifier: Annotated[
-        str, typer.Argument(help="The decision identifier to retire.")
-    ],
+    identifier: Annotated[str, typer.Argument(help="The decision identifier to retire.")],
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
@@ -885,7 +883,9 @@ def health(
     # D-22.12: the operator-attention line is a corpus-wide fact — a
     # single-document filter is a decision-level view and has no bearing
     # on it, so it prints only when the whole corpus is in view.
-    attention = specquality.operator_attention(root.resolve(), floor=floor) if document is None else None
+    attention = (
+        specquality.operator_attention(root.resolve(), floor=floor) if document is None else None
+    )
 
     if fmt is Format.JSON:
         emit_json(
