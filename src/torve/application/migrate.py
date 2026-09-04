@@ -124,6 +124,19 @@ def _yoyo_dsn(dsn: str) -> str:
 # ....................... #
 
 
+# One ledger for every owner's history, not one per target. yoyo decides
+# whether its own internal schema needs installing by looking for the
+# migration table and nothing else, so a second target — a second table —
+# reads as a fresh database and re-runs yoyo's first internal step, which
+# fails on the `_yoyo_log` the first target already created. Targets stay
+# separated by their directories and by the step names inside them; the
+# applied-hash ledger is shared, which is the shape yoyo is built for.
+MIGRATION_TABLE = "_torve_migrations"
+
+
+# ....................... #
+
+
 def apply(target: str, dsn: str) -> int:
     """Apply the target's pending steps; return how many were applied.
     Forward-only by construction (D-12.4): no rollback path exists here."""
@@ -134,7 +147,7 @@ def apply(target: str, dsn: str) -> int:
         return 0
 
     get_backend, read_migrations = _yoyo()
-    backend = get_backend(_yoyo_dsn(dsn), migration_table=f"_torve_migrations_{target}")
+    backend = get_backend(_yoyo_dsn(dsn), migration_table=MIGRATION_TABLE)
     migrations = read_migrations(str(steps[0].parent))
 
     with backend.lock():
@@ -158,7 +171,7 @@ def pending_count(target: str, dsn: str) -> int:
         return 0
 
     get_backend, read_migrations = _yoyo()
-    backend = get_backend(_yoyo_dsn(dsn), migration_table=f"_torve_migrations_{target}")
+    backend = get_backend(_yoyo_dsn(dsn), migration_table=MIGRATION_TABLE)
     migrations = read_migrations(str(steps[0].parent))
 
     return len(backend.to_apply(migrations))

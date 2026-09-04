@@ -23,7 +23,7 @@ from torve.gates.sabotage import BASE_MANIFEST
 
 def test_owner_grouped_layout():
     assert steps_for("substrate") and steps_for("substrate")[0].name == "0001_durable.sql"
-    assert steps_for("torve") == []  # history starts at the first document table
+    assert steps_for("torve") and steps_for("torve")[0].name == "0001_events.sql"
     assert steps_for("telemetry") == []  # stage 1: a file has no schema
     with pytest.raises(MigrateError, match="unknown target"):
         steps_for("everything")
@@ -69,7 +69,7 @@ def test_missing_extra_names_the_install_and_exit_code(monkeypatch):
 def test_status_reports_three_targets_and_the_pin():
     lines = status(dsn=None)
     assert len(lines) == 4
-    assert lines[0].startswith("torve") and "no migrations yet" in lines[0]
+    assert lines[0].startswith("torve") and "1 step(s)" in lines[0]
     assert lines[1].startswith("substrate") and "1 step(s)" in lines[1]
     assert lines[2].startswith("telemetry")
     assert "forze" in lines[3]
@@ -81,3 +81,16 @@ def test_config_hash_moves_with_the_forze_pin(tmp_path, monkeypatch):
     before = config_hash(path, tmp_path)
     monkeypatch.setattr("torve.application.migrate.forze_pin", lambda: "9.9.9")
     assert config_hash(path, tmp_path) != before  # the pin is part of the regime
+
+
+def test_step_names_are_unique_across_owners():
+    """One applied-hash ledger serves every owner (MIGRATION_TABLE), and
+    yoyo identifies a step by its file stem — so two owners shipping the
+    same stem would collide silently, one of them never applying."""
+
+    seen: dict[str, str] = {}
+
+    for target in ("substrate", "torve", "telemetry"):
+        for step in steps_for(target):
+            assert step.stem not in seen, f"{target}/{step.name} collides with {seen[step.stem]}"
+            seen[step.stem] = f"{target}/{step.name}"

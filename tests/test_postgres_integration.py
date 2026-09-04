@@ -21,6 +21,7 @@ from datetime import timedelta
 
 import pytest
 from forze.application.contracts.durable.function import DurableRunStatus
+from forze.application.execution import DepsRegistry, ExecutionRuntime
 from test_runtime_conformance import docker_available
 
 from torve.application.migrate import apply as migrate_apply
@@ -168,7 +169,7 @@ def test_migrated_database_passes_the_battery_fresh_and_populated(pg_dsn, monkey
 
     # Run 1 — from scratch: every step applied to a clean database.
     assert migrate_apply("substrate", pg_dsn) == 1
-    assert migrate_apply("torve", pg_dsn) == 0  # no document tables yet
+    assert migrate_apply("torve", pg_dsn) == 1  # the event log (RFC 0044)
     assert migrate_apply("telemetry", pg_dsn) == 0  # stage 1: a file has no schema
 
     async def scenario():
@@ -179,5 +180,42 @@ def test_migrated_database_passes_the_battery_fresh_and_populated(pg_dsn, monkey
         # battery holds over a database that already carries rows.
         assert migrate_apply("substrate", pg_dsn) == 0
         await battery(taskstore, "upgraded")
+
+    asyncio.run(scenario())
+
+
+def test_the_event_log_round_trips_through_the_migrated_relation(pg_dsn):
+    """The document spec and the DDL are two halves of one schema — column
+    names are field names — and only a real database can say they agree.
+    The mock proves the service's rules; this proves the relation."""
+
+    from torve.adapters.eventstore.document import postgres_module
+    from torve.application.eventlog import event_log
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+
+    migrate_apply("torve", pg_dsn)
+
+    async def scenario():
+        module = await postgres_module(pg_dsn)
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            recorded = await log.record(
+                EventKind.TASK_MINTED,
+                partition="morzecrew/torve",
+                subject_type=SubjectType.TASK,
+                subject_id="T-9100",
+                actor_kind=ActorKind.MANAGER,
+                actor_id="manager-1",
+                payload={"title": "the event log", "source_id": "0044", "phase": 1},
+            )
+
+            assert recorded.id is not None
+
+            history = await log.history("T-9100")
+
+            assert [event.kind for event in history] == [EventKind.TASK_MINTED]
+            assert history[0].typed_payload().model_dump()["source_id"] == "0044"
 
     asyncio.run(scenario())

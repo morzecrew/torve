@@ -26,12 +26,18 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Literal
 
+from forze.domain.models import CreateDocumentCmd, Document, ReadDocument
 from pydantic import BaseModel, ConfigDict, Field
 
 from torve.domain.rfc import Grade
 from torve.domain.states import EscalationReason
 
 # ----------------------- #
+
+SCHEMA_VERSION = 1
+
+
+# ....................... #
 
 
 class ActorKind(StrEnum):
@@ -347,6 +353,66 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.MESSAGE_SENT: MessageSent,
     EventKind.SEAT_CONSUMED: SeatConsumed,
 }
+
+
+# ----------------------- #
+
+# The aggregate (RFC 0044 §5.1). Identity, revision and timestamps come from
+# the document base — `created_at` is the event's own clock, so the record
+# carries no second one. There is deliberately no update command: a spec
+# without one exposes no update port at all, which is how "append-only" is
+# enforced here rather than by everyone remembering not to call it. A
+# correction is another event.
+
+
+class EventDoc(Document):
+    schema_version: int = SCHEMA_VERSION
+    kind: EventKind
+    partition: str
+    subject_type: SubjectType
+    subject_id: str
+    actor_kind: ActorKind
+    actor_id: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str | None = None
+    causation_id: str | None = None
+
+
+# ....................... #
+
+
+class CreateEventCmd(CreateDocumentCmd):
+    schema_version: int = SCHEMA_VERSION
+    kind: EventKind
+    partition: str
+    subject_type: SubjectType
+    subject_id: str
+    actor_kind: ActorKind
+    actor_id: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str | None = None
+    causation_id: str | None = None
+
+
+# ....................... #
+
+
+class EventRecord(ReadDocument):
+    schema_version: int = SCHEMA_VERSION
+    kind: EventKind
+    partition: str
+    subject_type: SubjectType
+    subject_id: str
+    actor_kind: ActorKind
+    actor_id: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str | None = None
+    causation_id: str | None = None
+
+    # ....................... #
+
+    def typed_payload(self) -> BaseModel:
+        return validate_payload(self.kind, self.payload)
 
 
 # ----------------------- #

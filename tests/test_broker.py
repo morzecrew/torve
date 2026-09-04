@@ -35,6 +35,7 @@ from torve.adapters.broker.local import LocalBroker
 from torve.adapters.broker.none import NoneBroker
 from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
 from torve.application.ports import (
+    PROXY_ENV,
     AgentContext,
     BrokerBudget,
     BrokerHandle,
@@ -579,6 +580,14 @@ def test_advertised_address_reaches_the_sandbox_proxy_env(tmp_path, monkeypatch)
 
 
 def test_sandbox_proxy_env_stays_forwarded_without_a_bind(tmp_path, monkeypatch):
+    # The adapter forwards the host's own proxy variables by name, so the
+    # test owns that environment rather than inheriting it: on a developer
+    # machine behind a proxy the lowercase names are set, and the assertion
+    # below would read the host's configuration as something torve composed.
+    for name in PROXY_ENV:
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name.upper(), raising=False)
+
     monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9999")
     runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
     workspace = tmp_path / "ws"
@@ -1121,7 +1130,6 @@ def test_none_handle_runs_a_placeholder_free_command_unchanged(tmp_path):
 
     command = agent._command(ctx)
     assert command == 'run "$(cat .torve/tmp/prompt.md)"'
-
 
 
 def test_forward_strips_a_lowercase_authorization_header(upstream, monkeypatch):
