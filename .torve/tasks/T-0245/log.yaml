@@ -1,0 +1,44 @@
+schema_version: 1
+task: T-0245
+repo: morzecrew/torve
+base_sha: 84b1a384fe72d9b9e357f3fb373b7c057433ea43
+drift_count: 0
+entries:
+  - decision: D-42.3
+    grade: ASSUMED
+    kind: departed
+    class: discovery
+    at: 2026-09-04T07:15:00Z
+    attempt: 1
+    claim: >-
+      the decision's two halves do not stand on equal ground. Recovery is
+      built as specified: the reap-embedded reclaim is extracted into a
+      standalone reaper.recover step and given tick-start order ahead of
+      poll (loop.py's new `recover` leg), with identical semantics —
+      claim_abandoned's fenced reclaim landing lease_expired without
+      invoking the body, the same verdict expire_abandoned always gave.
+      Quiesce cannot be built the same way: forze's only quiesce entry
+      point takes a full ExecutionRuntime (deps registry, lifecycle plan,
+      spec registry), and TaskStore builds only a plain ExecutionContext —
+      adopting it means building runtime machinery this facade has never
+      needed, with no hand-rolled tick-shutdown drain today for it to
+      displace, which D-42.4 (also ASSUMED, same paths) refuses outright.
+      A tick's dispatch is already synchronous per invocation (asyncio.run
+      blocks to completion before the leg returns), so there is nothing
+      left running for a quiesce sweep to find.
+    evidence: '.venv/lib/python3.13/site-packages/forze_kits/integrations/quiesce/quiesce.py:522-523
+      — `async def quiesce(runtime: ExecutionRuntime, ...)`, the only public entry
+      point; src/torve/application/taskstore.py:54-70 (base_sha) is context_for,
+      which builds only an ExecutionContext via context_from_deps, never an
+      ExecutionRuntime'
+    action: departed
+    notes: |
+      Built instead: src/torve/application/reaper.py:294-357 (_reclaim_abandoned,
+      _recover_durable, recover — the substrate's standalone recovery step,
+      postgres-only per D-3.6, called first by _durable_reap exactly as
+      before and independently by the new leg); src/torve/application/loop.py:78
+      (TickDeps.recover) and :372 (invoked first, ahead of poll). Quiesce's
+      refusal is also left as a comment at src/torve/application/taskstore.py:22-29
+      so the non-adoption is visible beside the port it did not touch.
+      Nothing here starts a resident process (D-42.6): recover() is a plain
+      function called and returned from within one tick, wired or not.

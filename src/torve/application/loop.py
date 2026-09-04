@@ -1,9 +1,12 @@
 """The standing loop (RFC 0019): one bounded tick over existing machinery
-— poll, the lane under its approval switch, reap, dispatch of at most one
-queued task, tracker sync last (D-19.3 as amended by A-27: the lane runs
-before the reaper, because READY is sweepable and a reap ahead of the
-lane destroys the lane's own input — merge-before-reap, A-26, applied
-inside the tick). Never a daemon: cadence is
+— recovery, poll, the lane under its approval switch, reap, dispatch of at
+most one queued task, tracker sync last (D-19.3 as amended by A-27: the
+lane runs before the reaper, because READY is sweepable and a reap ahead
+of the lane destroys the lane's own input — merge-before-reap, A-26,
+applied inside the tick). Recovery runs first of all (D-42.3): reclaiming
+an abandoned durable run is the substrate's own step, not the reap sweep's
+decision, so nothing later in the tick reads a lease this tick's own
+recovery would otherwise still call live. Never a daemon: cadence is
 delivered by the environment, and every invocation exits (D-19.1). One
 tick at a time per root, held by a lock whose stale break is loud
 (D-19.2); intake pauses while the escalation queue is non-empty so the
@@ -67,6 +70,12 @@ class TickDeps:
     # what is due, bounded by cooldown, max_open and
     # loop.standing_max_per_tick. None: no standing leg wired.
     standing: Leg | None = None
+    # D-42.3: the substrate's recovery step, moved out of the reap leg's
+    # sweep to run first — reclaiming an abandoned durable run is not
+    # itself a sweep decision, and nothing later in the tick should read a
+    # lease this tick still thinks is live. None: no durable store, or the
+    # leg not wired by the caller.
+    recover: Leg | None = None
 
 
 # ....................... #
@@ -357,6 +366,10 @@ def run_tick(
         moved = moved or did
 
     try:
+        # D-42.3: recovery first — before poll or intake can act on a
+        # lease this tick's own recovery step would otherwise reclaim out
+        # from under them.
+        leg("recover", deps.recover, "no durable store")
         leg("poll", deps.poll, "no tracker configured")
         # Intake after poll (RFC 0020 §5.4): a revise or adopt the poll
         # just applied is what this leg acts on — re-running a re-queued

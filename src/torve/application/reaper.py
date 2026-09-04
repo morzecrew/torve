@@ -36,12 +36,16 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from torve.application.ports import Runtime, StoreFactory, WorkspacePort
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
+
+if TYPE_CHECKING:
+    from torve.application.taskstore import TaskStore
 from torve.domain.states import EscalationReason, TaskState
 
 # Answers "has this task landed on the base?" — wired by the caller from
@@ -287,24 +291,20 @@ def _heartbeat_reap(
 # ....................... #
 
 
-async def _durable_reap(
-    root: Path,
-    config: RunnerConfig,
-    runtime: Runtime,
-    workspace: WorkspacePort,
+async def _reclaim_abandoned(
+    taskstore: TaskStore,
+    by_engine_run: dict[str, RunState],
+    report: ReapReport,
     force: bool,
     dry_run: bool,
-    store: StoreFactory,
-    landed: LandedOracle | None = None,
-) -> ReapReport:
-    from torve.application.taskstore import TaskStore
+) -> None:
+    """The substrate's recovery step (D-42.3): `claim_abandoned` decides
+    expiry and the reclaimed record's own fence lands `lease_expired` —
+    the same verdict `expire_abandoned` always gave (forze's `.recover()`
+    re-invokes the body instead, D-5's "own recovery" the reap sweep never
+    wanted). Standalone now so it is callable ahead of the sweep, not only
+    buried inside it — identical semantics, a first-class name."""
 
-    report = ReapReport()
-    states = RunState.load_all(root / naming.WORKTREE_DIR)
-    by_task = {s.task_id: s for s in states}
-    by_engine_run = {s.run_id: s for s in states}
-
-    taskstore = TaskStore(await store(config.store), config.store)
     # A dry run cannot predict lease expiry without claiming — claim_abandoned
     # IS the mutation — so runs_expired stays empty and only the read-only
     # sandbox/worktree candidates are reported.
@@ -323,6 +323,66 @@ async def _durable_reap(
             state, reason, f"durable run {record.run_id[:8]} reclaimed at reap"
         ):
             report.runs_expired.append(state.task_id)
+
+
+# ....................... #
+
+
+async def _recover_durable(
+    root: Path, config: RunnerConfig, force: bool, dry_run: bool, store: StoreFactory
+) -> ReapReport:
+    from torve.application.taskstore import TaskStore
+
+    report = ReapReport()
+    by_engine_run = {s.run_id: s for s in RunState.load_all(root / naming.WORKTREE_DIR)}
+    taskstore = TaskStore(await store(config.store), config.store)
+    await _reclaim_abandoned(taskstore, by_engine_run, report, force, dry_run)
+    return report
+
+
+def recover(
+    root: Path,
+    config: RunnerConfig,
+    store: StoreFactory,
+    force: bool = False,
+    dry_run: bool = False,
+) -> ReapReport:
+    """The substrate's recovery step at tick start (D-42.3): reclaims
+    abandoned durable runs on its own, ahead of and independent from the
+    reap sweep that used to be its only caller. The store factory travels
+    regardless of adapter (mirroring `reap`'s own dispatch below) — a
+    non-postgres regime has no durable lease authority to reclaim (D-3.6)
+    and this is a true no-op rather than a caller-side branch."""
+
+    if config.store.adapter != "postgres":
+        return ReapReport()
+
+    return asyncio.run(_recover_durable(root, config, force, dry_run, store))
+
+
+# ....................... #
+
+
+async def _durable_reap(
+    root: Path,
+    config: RunnerConfig,
+    runtime: Runtime,
+    workspace: WorkspacePort,
+    force: bool,
+    dry_run: bool,
+    store: StoreFactory,
+    landed: LandedOracle | None = None,
+) -> ReapReport:
+    from torve.application.taskstore import TaskStore
+
+    report = ReapReport()
+    states = RunState.load_all(root / naming.WORKTREE_DIR)
+    by_task = {s.task_id: s for s in states}
+    by_engine_run = {s.run_id: s for s in states}
+
+    taskstore = TaskStore(await store(config.store), config.store)
+    await _reclaim_abandoned(taskstore, by_engine_run, report, force, dry_run)
+    reason = EscalationReason.KILLED if force else EscalationReason.LEASE_EXPIRED
 
     live = await taskstore.live_records()
     live_engine_runs = {str((r.input_json or {}).get("engine_run_id", "")) for r in live}

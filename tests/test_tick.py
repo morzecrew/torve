@@ -121,6 +121,42 @@ def test_legs_run_in_the_fixed_order(root):
     assert report.noop is False  # dispatch moved
 
 
+def test_recovery_leg_runs_first_of_all(root):
+    # D-42.3: recovery is the tick's own first step, ahead of poll and
+    # everything the reap-driven baseline used to run before it.
+    rec = Recorder()
+    deps = TickDeps(
+        reap=rec.leg("reap"),
+        poll=rec.leg("poll"),
+        dispatch=rec.dispatch(),
+        lane=rec.leg("lane"),
+        sync=rec.leg("sync"),
+        landed=lambda _t: False,
+        recover=rec.leg("recover"),
+    )
+    run_tick(root, config(), deps)
+    assert rec.calls[0] == "recover"
+
+
+def test_recover_leg_defaults_to_none_and_is_skipped(root):
+    rec = Recorder()
+    report = run_tick(root, config(), deps_for(rec))
+    assert ("recover", "skipped: no durable store") in report.legs
+
+
+def test_the_tick_returns_only_after_dispatch_is_fully_drained(root):
+    # D-42.3's other half: no adopted quiesce plane (see
+    # .torve/tasks/T-0245/log.yaml) — dispatch is already synchronous per
+    # tick, so by the time run_tick returns, whatever it started has
+    # already finished. Pinned against the same fixed order the
+    # reaper-driven baseline always ran: dispatch strictly before sync.
+    contract(root, "T-9001")
+    rec = Recorder()
+    report = run_tick(root, config(), deps_for(rec))
+    assert rec.calls.index("dispatch:T-9001") < rec.calls.index("sync")
+    assert report.noop is False
+
+
 def test_a_held_lock_makes_the_tick_a_recorded_noop(root):
     lock = root / ".torve" / LOCK
     lock.write_text(json.dumps({"pid": 1, "at": "2126-01-01T00:00:00Z"}))

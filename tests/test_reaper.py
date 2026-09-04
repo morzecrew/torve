@@ -505,6 +505,60 @@ def test_durable_reap_dry_run_predicts_no_live_run_escalation_without_mutating(
     assert RunState.load(tmp_path / ".wt" / "T-9603.state.json").state is TaskState.RUNNING
 
 
+def test_recover_reclaims_an_abandoned_durable_run_before_reap_would(tmp_path):
+    """D-42.3: the substrate's recovery step is now standalone, callable
+    ahead of and independent from the reap sweep — the same claim_abandoned
+    + escalate verdict _durable_reap's embedded call always gave."""
+    import asyncio
+    from datetime import timedelta
+
+    from torve.adapters.store.durable import open_mock_store
+    from torve.application.reaper import recover
+    from torve.application.taskstore import TaskStore
+    from torve.config.runconfig import StoreConfig
+
+    store = open_mock_store()
+    store_config = StoreConfig(
+        adapter="postgres", lease_for=0.05, heartbeat_divisor=2, max_run_duration=10
+    )
+    config = RunnerConfig(store=store_config)
+    abandoned = state_at(tmp_path, "T-9701", TaskState.RUNNING)
+
+    async def seed():
+        async def body(_ctx, _input_json):
+            return {}
+
+        taskstore = TaskStore(store, store_config)
+        taskstore.register(body)
+        record = await taskstore.enqueue({"engine_run_id": abandoned.run_id})
+        await taskstore.store.begin(record.run_id, lease_for=timedelta(milliseconds=20))
+        await asyncio.sleep(0.05)  # let the lease go stale
+
+    asyncio.run(seed())
+
+    async def factory(_store_config):
+        return store
+
+    report = recover(tmp_path, config, factory)
+
+    assert report.runs_expired == ["T-9701"]
+    reloaded = RunState.load(tmp_path / ".wt" / "T-9701.state.json")
+    assert reloaded.state is TaskState.ESCALATED
+    assert reloaded.escalation.reason == "lease_expired"
+
+
+def test_recover_is_a_true_noop_without_a_postgres_store(tmp_path):
+    """D-3.6: the mock regime has no durable lease authority to reclaim —
+    recover() must not even call the store factory."""
+    from torve.application.reaper import recover
+
+    def factory(_store_config):
+        raise AssertionError("no durable store: the factory must not be called")
+
+    report = recover(tmp_path, RunnerConfig(), factory)
+    assert report.runs_expired == []
+
+
 def test_escalated_states_sweep_only_on_the_flag(tmp_path):
     """A-70: an escalation exists to be looked at — the default sweep keeps
     it; --escalated is the operator's explicit triage-discard."""

@@ -18,6 +18,14 @@ is direct port calls the store already made safe:
 The methods that remain bind the execution context and the function name;
 a plain read goes through `.store` directly rather than being wrapped for
 symmetry (A-49).
+
+Not adopted: `forze_kits.integrations.quiesce.quiesce`. Its only entry
+point takes a full `ExecutionRuntime` (deps registry, lifecycle plan,
+spec registry) — machinery this facade does not build and a tick has no
+hand-rolled equivalent for (D-42.4 refuses adoption without displacement;
+see .torve/tasks/T-0245/log.yaml). A tick's own dispatch is already
+synchronous per invocation, so nothing it started survives its return to
+drain.
 """
 
 from __future__ import annotations
