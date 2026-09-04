@@ -628,6 +628,14 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
                 self._reply(200, json.dumps({"notes": state.channel.notes()}).encode("utf-8"))
                 return
 
+            if path == CHANNEL_RECORDS and self.command == "GET":
+                # A sandbox posting through the channel never sees its own
+                # entries in the worktree: the engine writes that file at
+                # the next gate pass. Reading them back is how an attempt
+                # checks its own bookkeeping before it is judged on it.
+                self._reply(200, json.dumps({"records": state.channel.records()}).encode("utf-8"))
+                return
+
             if path != CHANNEL_RECORDS or self.command != "POST":
                 self._refuse(CAUSE_ROUTING, 404, "", destination=path)
                 return

@@ -506,3 +506,86 @@ def test_a_redispatch_does_not_record_a_landed_log_twice(worktree):
             assert len(await log.history(TASK_ID)) == 1
 
     asyncio.run(scenario())
+
+
+# ....................... #
+
+# `torve log owed`: the silence check, asked before the gate asks it.
+
+
+def test_owed_names_the_decisions_the_log_has_not_cited(worktree):
+    result = CliRunner().invoke(
+        app,
+        [
+            "log",
+            "owed",
+            TASK_ID,
+            "--root",
+            str(worktree.root),
+            "--touched",
+            "src/app.py",
+            "--format",
+            "json",
+        ],
+    )
+    reported = json.loads(result.stdout)
+
+    assert result.exit_code == EXIT_OK
+    assert reported["owed"], "a LOCKED decision governs src/app.py and nothing cites it"
+    assert "D-1" in reported["owed"][0]
+
+
+def test_owed_goes_quiet_once_the_entry_exists(worktree):
+    one_entry(worktree)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "log",
+            "owed",
+            TASK_ID,
+            "--root",
+            str(worktree.root),
+            "--touched",
+            "src/app.py",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert json.loads(result.stdout)["owed"] == []
+
+
+def test_owed_answers_exactly_what_the_gate_would_convict(worktree):
+    """The pre-check and the conviction share their implementation. A green
+    answer here and a red gate later would be worse than no pre-check."""
+
+    from torve.gates.decisions_reported import check_decisions_reported
+
+    # The fixture already committed the change; the log is what is missing.
+    gate = check_decisions_reported(GATE, context_for(worktree))
+    result = CliRunner().invoke(
+        app,
+        [
+            "log",
+            "owed",
+            TASK_ID,
+            "--root",
+            str(worktree.root),
+            "--touched",
+            "src/app.py",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert gate.outcome == "fail"
+    assert json.loads(result.stdout)["owed"][0] in gate.output
+
+
+def test_owed_refuses_a_task_with_no_contract(tmp_path):
+    result = CliRunner().invoke(
+        app, ["log", "owed", "T-9999", "--root", str(tmp_path), "--format", "json"]
+    )
+
+    assert result.exit_code == EXIT_CONFIG

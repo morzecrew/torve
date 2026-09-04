@@ -8,14 +8,11 @@ depends_on: ["0004", "0017", "0020", "0021"]
 informed_by: ["0009", "0022", "0023"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-65"]
+amended_by: ["A-65", "A-88"]
 retired: []
 owner: Lev Litvinov
 description: >-
-  Capturing the performance a well-configured harness offers without a
-  runtime configurator: contract-selected tier variants, a configuration
-  drafting run fed harness telemetry, and adoption gated on paired replay
-  measurement — configuration stays committed, hashed and human-signed.
+  Capturing the performance a well-configured harness offers without a runtime configurator: contract-selected tier variants, a configuration drafting run fed harness telemetry, and adoption gated on paired replay measurement — configuration stays committed, hashed and human-signed.
 schema_version: 1
 ---
 
@@ -333,7 +330,7 @@ is identity — is promoted from folklore to the page.
 | D-27.4 | `ASSUMED` | The configurator is a drafting run producing an ordinary task through intake and adoption; no configuration-specific adoption path exists | `src/torve/application/intake.py` | A configuration change as a task inherits gates, review, approval and provenance for free; a parallel path would maintain all four twice |
 | D-27.5 | `ASSUMED` | The fact feed widens `execution_facts` with per-tier populations — attempts, escalations by reason, cost with broker-measured spend preferred and self-reported labelled, unparseable-review counts, current digests — with the quasi-experiment caveat printed | `src/torve/application/intake.py` `src/torve/application/projections.py` | The noticing is the expensive part today; the populations exist in records nobody assembles, and an unlabelled self-reported cost would launder the measured subject's testimony |
 | D-27.6 | `ASSUMED` | Configuration-change lint is deterministic: diff confined to configuration surfaces, schema parse, changed images build clean, doctor green; building at lint is not a D-17.3 violation | `src/torve/application/intake.py` | Refusal by name at the drafting gate, and the mid-run-build prohibition stays about the dispatch path where it belongs |
-| D-27.7 | `LOCKED` | A candidate configuration displaces the incumbent default only through a paired replay verdict recorded in the eval ledger citing both digests; landing a change never silently changes the department's regime | `src/torve/application/evals.py` `.torve/sandbox/**` | The obligation sits at displacement so urgent fixes land freely — what is forbidden is the unmeasured default, not the unmeasured variant |
+| D-27.7 | `LOCKED` | A candidate configuration displaces the incumbent default only through a paired replay verdict recorded in the eval ledger citing both digests; landing a change never silently changes the department's regime. A repository rebuilding its own engine may set `unmeasured_images: allow`, which dispatches and records the unmeasured regime rather than refusing it (amendment A-88 2026-09-04) | `src/torve/application/evals.py` `src/torve/config/runconfig.py` `.torve/sandbox/**` | The obligation sits at displacement so urgent fixes land freely — what is forbidden is the unmeasured default, not the unmeasured variant |
 | D-27.8 | `OPEN` | The replay battery's composition and refresh cadence; execution proposes from the first live campaign | `src/torve/application/evals.py` | A battery too small proves nothing and too large never runs; the first campaign's cost is the only honest sizing input |
 | D-27.9 | `ASSUMED` | Prompt-side channels remain the per-task degree of freedom: skills and task context evolve under RFC 0009, and this document adds no per-task harness variation beyond variant selection | `src/torve/application/skills.py` | Most of a "configured harness" gain is prompt-side and already instrumented; duplicating that freedom on the harness side would split one question across two measurement systems |
 | D-27.11 | `ASSUMED` | A tier may name `retry_variant`, one rung: the attempt after a gate-red resolves the named variant; every attempt's telemetry row stamps the tier it actually ran under | `src/torve/config/runconfig.py` `src/torve/application/runner.py` | The build attempt and the feedback attempt are measurably different work; one committed rung keeps the regime enumerable where a free ladder would explode the hash space |
@@ -344,15 +341,8 @@ is identity — is promoted from folklore to the page.
 ```yaml
 - phase: 1
   title: tier-variants
-  intent: |
-    Variant entries under dotted names in the tiers mapping, an optional
-    contract field selecting one, loud refusal on an unknown variant, seat
-    semantics untouched, and the variant riding the existing tiers digest
-    into config_hash — two variants provably two regimes. The refusal rows
-    land here too: configuration resolves from the root at dispatch, never
-    from the worktree, pinned by test. retry_variant, one rung: the
-    attempt after a gate-red resolves the named variant, each attempt's
-    telemetry stamping the tier it actually ran under.
+  intent: >-
+    Variant entries under dotted names in the tiers mapping, an optional contract field selecting one, loud refusal on an unknown variant, seat semantics untouched, and the variant riding the existing tiers digest into config_hash — two variants provably two regimes. The refusal rows land here too: configuration resolves from the root at dispatch, never from the worktree, pinned by test. retry_variant, one rung: the attempt after a gate-red resolves the named variant, each attempt's telemetry stamping the tier it actually ran under.
   scope:
     - "src/torve/config/**"
     - "src/torve/domain/**"
@@ -369,13 +359,8 @@ is identity — is promoted from folklore to the page.
   depends_on: []
 - phase: 2
   title: configuration-drafting-run
-  intent: |
-    The drafting run over the configuration surfaces: execution_facts
-    widened with per-tier populations (broker-measured spend preferred,
-    self-reported labelled, caveat printed), configuration-change lint —
-    surface-confined diff, schema parse, images build, doctor green — and
-    the proposal flowing through intake and adoption as an ordinary task
-    with no configuration-specific path.
+  intent: >-
+    The drafting run over the configuration surfaces: execution_facts widened with per-tier populations (broker-measured spend preferred, self-reported labelled, caveat printed), configuration-change lint — surface-confined diff, schema parse, images build, doctor green — and the proposal flowing through intake and adoption as an ordinary task with no configuration-specific path.
   scope:
     - "src/torve/application/**"
     - "src/torve/cli/**"
@@ -389,13 +374,8 @@ is identity — is promoted from folklore to the page.
   depends_on: [1]
 - phase: 3
   title: displacement-and-the-paired-replay
-  intent: |
-    The measurement obligation: paired replays of the same tasks under
-    incumbent and candidate digests through the shadow machinery, verdicts
-    in the eval ledger citing both digests, and displacement of the
-    default refused without one — while landing and running a candidate as
-    a named variant stays free. Doctor learns to name the default's
-    verdict where recorded.
+  intent: >-
+    The measurement obligation: paired replays of the same tasks under incumbent and candidate digests through the shadow machinery, verdicts in the eval ledger citing both digests, and displacement of the default refused without one — while landing and running a candidate as a named variant stays free. Doctor learns to name the default's verdict where recorded.
   scope:
     - "src/torve/application/**"
     - "src/torve/cli/**"
@@ -425,7 +405,6 @@ is identity — is promoted from folklore to the page.
 ## Amendments
 
 ### A-65 — 2026-08-31 — execution's readings fold into the rows (amends D-27.5, D-27.6, D-27.7, D-27.10; records the restricted-scope CLI doctrine)
-
 **From T-0114, T-0120, T-0121 and T-0122's execution logs, approved.**
 
 - D-27.5's populations, as built: per-tier "attempts" counts every
@@ -451,3 +430,31 @@ is identity — is promoted from folklore to the page.
   "give X a CLI surface" is satisfied by widening an existing command's
   argument surface; a genuinely new top-level command must carry
   `main.py` in its scope.allow.
+
+### A-88 — 2026-09-04 — the rebuild hatch for the paired-verdict rule (amends D-27.7)
+**Found dispatching the first task through the v2 manager.** D-27.7 refuses
+to dispatch a seat whose image digest no recorded verdict has measured: a
+definition edit must not quietly change what a tier runs under. The rule is
+right, and it fired correctly — the agent images had just gained the
+engine's own CLI (RFC 0017 A-84), so every digest moved at once and no
+verdict cited any of them.
+
+What the rule does not distinguish is a repository *rebuilding its own
+engine*. Here the images change because the engine changed, several times a
+day, and recording a paired replay verdict for each move costs a full
+shadow arm — which measures a regime that will be replaced before the
+measurement is read. The refusal stops the work that would produce the
+evidence the refusal is asking for.
+
+**Changed:** `unmeasured_images` (`refuse` | `allow`, default `refuse`).
+Under `allow` the dispatch proceeds and writes an `unmeasured_dispatch`
+engine event naming the tier, the digest and the digests the last verdict
+did measure. What D-27.7 protects is comparing numbers from regimes nobody
+measured; a record saying "this run was unmeasured, and here is what the
+last verdict covered" protects that too, because the reader can exclude it.
+The same shape as the decomposition override (`--oversize`): explicit,
+recorded, never silent.
+
+**Deliberately unchanged:** the default. A repository that is not rebuilding
+its engine gets the refusal, and `allow` is a decision an operator makes in
+their own run configuration with the reason visible beside it.

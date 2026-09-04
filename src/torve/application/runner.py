@@ -1113,15 +1113,35 @@ def real_hooks(
         if measured is not None and image_digest not in measured:
             incumbent, candidate = measured
 
-            raise ValueError(
-                f"tier {tier_name!r} now resolves image digest {image_digest!r}, "
-                "which the most recent recorded verdict for this tier never "
-                f"measured (it measured {incumbent!r} as the running default and "
-                f"{candidate!r} as the candidate) — the configured image changed "
-                "since that measurement with no new paired verdict backing it; "
-                "record a fresh replay verdict before this task can dispatch, or "
-                "name an explicit tier_variant to run a named candidate freely"
-            )
+            if config.unmeasured_images == "allow":
+                # The rebuild escape hatch (A-88): dispatch proceeds and the
+                # unmeasured regime is recorded rather than assumed. What
+                # the rule protects — comparing numbers from regimes nobody
+                # measured — is protected by the record saying so, not by
+                # the refusal.
+                engine_event(
+                    root,
+                    "unmeasured_dispatch",
+                    {
+                        "task": task.id,
+                        "tier": tier_name,
+                        "digest": image_digest,
+                        "measured": [incumbent, candidate],
+                    },
+                )
+
+            else:
+                raise ValueError(
+                    f"tier {tier_name!r} now resolves image digest {image_digest!r}, "
+                    "which the most recent recorded verdict for this tier never "
+                    f"measured (it measured {incumbent!r} as the running default and "
+                    f"{candidate!r} as the candidate) — the configured image changed "
+                    "since that measurement with no new paired verdict backing it; "
+                    "record a fresh replay verdict before this task can dispatch, "
+                    "name an explicit tier_variant to run a named candidate freely, "
+                    "or set unmeasured_images: allow while the images are being "
+                    "rebuilt"
+                )
 
     # What this run is actually under right now (D-27.11): seeded from the
     # task's own tier, advanced by `attempt()` only when a gate-red hands off

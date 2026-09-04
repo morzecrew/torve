@@ -239,6 +239,36 @@ def test_real_dispatch_refuses_a_digest_no_citing_verdict_ever_measured(tmp_path
         real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt")
 
 
+def test_the_rebuild_hatch_dispatches_and_records_the_unmeasured_regime(tmp_path):
+    """A repository rebuilding its own engine changes images faster than
+    verdicts can be recorded (A-88). The hatch lets the dispatch through and
+    writes down what it ran under — the rule protects comparisons between
+    unmeasured regimes, and a record saying so protects them too."""
+
+    import json as _json
+
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    _write_config_eval(tmp_path, "executor", "sha256:old", "sha256:new")
+    deps = _dispatch_deps(_StubRuntime("sha256:drifted"))
+    config = RunnerConfig(unmeasured_images="allow")
+
+    hooks = real_hooks(tmp_path, _executor_task(), config, deps, tmp_path / "wt")
+
+    assert hooks.attempt is not None
+
+    events = [
+        _json.loads(line)
+        for line in (tmp_path / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    recorded = [one for one in events if one.get("event") == "unmeasured_dispatch"]
+
+    assert recorded, "the unmeasured regime was dispatched with nothing written down"
+    assert recorded[-1]["digest"] == "sha256:drifted"
+    assert recorded[-1]["tier"] == "executor"
+
+
 def test_real_dispatch_allows_the_unchanged_measured_default(tmp_path):
     from torve.application.runner import real_hooks
     from torve.config.runconfig import RunnerConfig

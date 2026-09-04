@@ -148,6 +148,14 @@ def build_prompt(
             f" repair — fix it and run the command again."
         ),
         (
+            f"- Before you finish, run `torve log owed {task.id} --touched <each"
+            f" file you changed>`. It names the LOCKED decisions your changes"
+            f" touch that your log has not cited yet — the same check the gate"
+            f" convicts on, asked while you can still answer it. A silent log"
+            f" over a governed file is the single most common way an attempt"
+            f" is thrown away."
+        ),
+        (
             "- `torve log notes` prints anything the engine has to say about"
             " this run — a known flake, a constraint that arrived after you"
             " started. It is a poll: nothing interrupts you, so read it when"

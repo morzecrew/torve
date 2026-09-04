@@ -50,18 +50,22 @@ class Recorder:
     the contract is what these cases are about."""
 
     def __init__(self, refuse: str = "") -> None:
-        self.records: list[tuple[str, dict]] = []
+        self.posted: list[tuple[str, dict]] = []
         self.refuse = refuse
         self.sent: list[dict] = []
+        self.stored: list[dict] = []
 
     def record(self, kind: str, payload: dict) -> None:
         if self.refuse:
             raise ValueError(self.refuse)
 
-        self.records.append((kind, payload))
+        self.posted.append((kind, payload))
 
     def notes(self) -> list[dict]:
         return self.sent
+
+    def records(self) -> list[dict]:
+        return self.stored
 
 
 @pytest.fixture
@@ -88,7 +92,7 @@ def test_a_record_reaches_the_store_through_the_broker(broker):
 
     assert status == 201
     assert json.loads(body) == {"recorded": True}
-    assert channel.records == [("divergence.recorded", ENTRY)]
+    assert channel.posted == [("divergence.recorded", ENTRY)]
 
     local.close(handle)
 
@@ -105,7 +109,7 @@ def test_a_request_without_the_run_token_reaches_nothing(broker):
     )
 
     assert status == 401
-    assert channel.records == []
+    assert channel.posted == []
 
     usage = local.close(handle)
     assert usage.refusals == {"auth": 1}
@@ -126,7 +130,7 @@ def test_a_kind_the_agent_may_not_write_is_refused_at_the_boundary(broker):
 
     assert status == 403
     assert "may not write" in json.loads(body)["error"]["message"]
-    assert channel.records == []
+    assert channel.posted == []
 
     assert local.close(handle).refusals == {"authority": 1}
 
@@ -270,8 +274,8 @@ def test_the_verb_posts_through_the_channel_and_writes_no_file(worktree, broker)
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["channel"] is True
-    assert [kind for kind, _ in channel.records] == ["divergence.recorded"]
-    assert channel.records[0][1]["claim"] == "the entry travels the channel"
+    assert [kind for kind, _ in channel.posted] == ["divergence.recorded"]
+    assert channel.posted[0][1]["claim"] == "the entry travels the channel"
     # Nothing was written into the worktree: with a channel the engine
     # writes the log from the record, and the sandbox writes nothing.
     assert not layout.log_file(worktree.root, SABOTAGE_TASK).exists()
@@ -311,3 +315,25 @@ def test_a_run_with_no_channel_has_no_notes_and_that_is_not_an_error(worktree):
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout) == {"channel": False, "notes": []}
+
+
+def test_a_run_reads_back_what_it_recorded(broker):
+    """A sandbox posting through the channel never sees its own entries in
+    the worktree — the engine writes that file at the next gate pass. Reading
+    them back is how an attempt checks its own bookkeeping before it is
+    judged on it."""
+
+    local, upstream_url = broker
+    channel = Recorder()
+    handle = local.open("run-1", routing_for(upstream_url), BrokerBudget(), channel=channel)
+    sandbox = Channel(url=handle.channel_url, token=handle.token)
+
+    sandbox.record("divergence.recorded", ENTRY)
+
+    # The recorder answers with what it was given, which is what the
+    # host-side channel does with the record.
+    channel.stored = [ENTRY]
+
+    assert sandbox.records() == [ENTRY]
+
+    local.close(handle)

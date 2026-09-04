@@ -98,6 +98,26 @@ engine owns that file. A hand-written log is the failure this verb exists to
 remove: it has ended three-attempt runs over a stray character, an evidence
 line in the wrong shape, and a file nobody staged.
 
+## Before you finish: `torve log owed`
+
+```console
+$ torve log owed T-0142 --touched src/app/session.py --touched tests/test_session.py
+```
+
+Name the files you changed. It answers which LOCKED decisions govern them
+with no entry citing them yet — the same check the gate convicts on, run
+while you can still answer it. Nothing is written and nothing is judged.
+
+This is worth a habit because silence over a governed file is the most
+common way an attempt is thrown away: the work is done, the gate refuses it
+for the log, and the next attempt starts from a tree it cannot tell apart
+from the last one. The most recent run lost three attempts to exactly two
+missing entries.
+
+A decision you touched and disagree with still gets an entry — that is what
+`--kind contradicted` and `--action halted` are for. What is never right is
+saying nothing.
+
 Write the entry **before** you act; an entry written afterwards is a
 rationalisation. Entries are append-only — a wrong entry gets a later entry
 saying so, never an edit of the old one. `--grade` is the grade the task

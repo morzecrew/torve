@@ -371,6 +371,15 @@ class RunChannel(Protocol):
 
         ...
 
+    def records(self) -> list[dict[str, Any]]:
+        """What this run has already recorded, oldest first. A sandbox that
+        posts through the channel never sees its own entries in the
+        worktree — the engine writes that file at the next gate pass — so
+        reading them back is the only way an attempt can check its own
+        bookkeeping before it is judged on it."""
+
+        ...
+
 
 # ....................... #
 

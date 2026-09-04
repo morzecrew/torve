@@ -1123,6 +1123,15 @@ class RunnerConfig(BaseModel):
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
     worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not
 
+    # Whether a tier may dispatch under an image no paired replay verdict
+    # has measured (RFC 0027 D-27.7, as amended). `refuse` is the rule as
+    # written: a definition edit must not quietly change what a seat runs
+    # under. `allow` is for a repository rebuilding its own engine, where
+    # the images change faster than verdicts can be recorded — the dispatch
+    # still records the unmeasured digest as an engine event, so the reading
+    # stays honest and the measurement stays owed.
+    unmeasured_images: Literal["refuse", "allow"] = "refuse"
+
     # ....................... #
 
     @model_validator(mode="after")

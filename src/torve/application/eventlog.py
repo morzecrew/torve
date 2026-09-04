@@ -358,6 +358,16 @@ class RunLogChannel(RunChannel):
     # ....................... #
 
     def notes(self) -> list[dict[str, Any]]:
+        return self._of_kind(EventKind.MESSAGE_SENT)
+
+    # ....................... #
+
+    def records(self) -> list[dict[str, Any]]:
+        return self._of_kind(EventKind.DIVERGENCE_RECORDED)
+
+    # ....................... #
+
+    def _of_kind(self, kind: EventKind) -> list[dict[str, Any]]:
         events = run_coroutine_threadsafe(
             self.log.history(self.task_id, partition=self.partition),
             self.loop,
@@ -366,5 +376,5 @@ class RunLogChannel(RunChannel):
         return [
             {"at": event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"), **event.payload}
             for event in events
-            if event.kind is EventKind.MESSAGE_SENT
+            if event.kind is kind
         ]

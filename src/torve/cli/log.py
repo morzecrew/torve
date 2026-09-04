@@ -12,9 +12,16 @@ from typing import Annotated
 import typer
 
 from torve.application.channel import ChannelRefused, open_channel
-from torve.application.divergence import IntakeRefused, append, compose, payload_of
-from torve.cli.console import Format, closing, emit_json, err, make_table, out
+from torve.application.divergence import (
+    IntakeRefused,
+    append,
+    compose,
+    open_log,
+    payload_of,
+)
+from torve.cli.console import Format, closing, emit_json, err, fail, make_table, out
 from torve.cli.options import FormatOption, RootOption
+from torve.config import layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 # ----------------------- #
@@ -200,4 +207,72 @@ def notes_cmd(
         )
 
     console.print(table)
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+@log_app.command("owed")
+def owed_cmd(
+    task_id: Annotated[str, typer.Argument(help="The task whose log to check.")],
+    touched: Annotated[
+        list[str] | None,
+        typer.Option("--touched", help="A file this attempt changed; repeat for each."),
+    ] = None,
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """What this attempt's log still owes, before a gate says so.
+
+    Name the files you changed; this answers which LOCKED decisions govern
+    them with no entry citing them yet. It is the same check the
+    `decisions-reported` gate performs on the diff — the same code, so a
+    green answer here and a conviction later cannot disagree.
+
+    Nothing is written. A run with a channel is asked what it has recorded;
+    a run without one reads the worktree's log.
+    """
+
+    from torve.application.channel import ChannelRefused, open_channel
+    from torve.gates.context import load_task
+    from torve.gates.decisions_reported import owed
+
+    root = root.resolve()
+    contract = layout.task_file(root, task_id)
+
+    if not contract.is_file():
+        raise fail(f"configuration error: no task contract at {contract}", EXIT_CONFIG)
+
+    channel = open_channel(root)
+    cited: list[str] = []
+
+    if channel is not None:
+        try:
+            cited = [str(one.get("decision_id") or "") for one in channel.records()]
+
+        except ChannelRefused as refused:
+            raise fail(f"configuration error: {refused}", EXIT_CONFIG) from refused
+
+    else:
+        cited = [str(one.get("decision") or "") for one in open_log(root, task_id)["entries"]]
+
+    problems, skipped = owed(load_task(contract).decisions, touched or [], cited)
+
+    if fmt is Format.JSON:
+        emit_json({"task": task_id, "owed": problems, "skipped": skipped})
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+
+    if not problems:
+        closing(console, "nothing owed — every LOCKED decision your changes touch has an entry")
+        raise typer.Exit(EXIT_OK)
+
+    console.print("these decisions govern what you changed and have no entry yet:")
+
+    for problem in problems:
+        console.print(f"  {problem}")
+
+    closing(console, "record one entry per decision with `torve log divergence`")
     raise typer.Exit(EXIT_OK)

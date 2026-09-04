@@ -104,6 +104,13 @@ class Channel:
 
         return [dict(one) for one in answer.get("notes", [])]
 
+    # ....................... #
+
+    def records(self) -> list[dict[str, Any]]:
+        answer = self._call("/records")
+
+        return [dict(one) for one in answer.get("records", [])]
+
 
 # ....................... #
 

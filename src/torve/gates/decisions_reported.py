@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
@@ -30,6 +30,11 @@ from torve.config.manifest import Gate
 from torve.gates.context import GateContext
 from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
 from torve.gates.evidence import BACKTICKED, CITATION, locate
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from torve.domain.task import InheritedDecision
 
 # ----------------------- #
 
@@ -315,13 +320,24 @@ def _check_bypasses(document: dict[str, Any]) -> list[str]:
 # ....................... #
 
 
-def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str], list[str]]:
+def owed(
+    decisions: Iterable[InheritedDecision], changed: Iterable[str], logged: Iterable[str]
+) -> tuple[list[str], list[str]]:
+    """(problems, skipped) — the silence check, over inputs rather than over
+    a gate context.
+
+    The gate asks this of the diff it is judging; the agent-facing `owed`
+    verb asks it of the files an attempt says it touched, before the battery
+    ever runs. One implementation, because a pre-check that disagrees with
+    the conviction is worse than no pre-check at all.
+    """
+
     problems: list[str] = []
     skipped: list[str] = []
-    logged = {_norm(e.get("decision")) for e in document["entries"]}
-    assert ctx.task is not None
+    cited = {_norm(one) for one in logged}
+    touched = list(changed)
 
-    for decision in ctx.task.decisions:
+    for decision in decisions:
         if decision.grade != "LOCKED":
             continue
 
@@ -330,9 +346,9 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
             continue
 
         area = spec(decision.paths)
-        hits = [p for p in ctx.changed_paths if area.match_file(p)]
+        hits = [path for path in touched if area.match_file(path)]
 
-        if hits and decision.id not in logged:
+        if hits and decision.id not in cited:
             shown = ", ".join(sorted(hits)[:3]) + ("…" if len(hits) > 3 else "")
 
             problems.append(
@@ -341,6 +357,19 @@ def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str
             )
 
     return problems, skipped
+
+
+# ....................... #
+
+
+def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str], list[str]]:
+    assert ctx.task is not None
+
+    return owed(
+        ctx.task.decisions,
+        ctx.changed_paths,
+        [_norm(entry.get("decision")) for entry in document["entries"]],
+    )
 
 
 # ....................... #
