@@ -45,8 +45,6 @@ def outcome_of(state: RunState) -> Outcome:
     return Outcome(
         attempt=state.attempts,
         exit_code=0 if landed else 1,
-        gates_exit_code=0 if landed else 1,
-        gate_outcomes={},
         landed_sha=state.landed_sha if landed else None,
         # The run state carries the reason as the string it recorded; the
         # vocabulary is closed either way, and reading it back through the

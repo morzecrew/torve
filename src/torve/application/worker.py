@@ -41,22 +41,16 @@ LEASE_SECONDS = 900
 
 @dataclass(frozen=True)
 class Outcome:
-    """What one attempt produced. The worker records these as facts and
-    reads none of them for control flow beyond the states they imply —
-    routing keys on gate outcomes, never on anything a model wrote
-    (D-44.1)."""
+    """How the run ended, for the worker's release decision and nothing
+    else. What each attempt did is recorded by the attempt itself (D-44.3),
+    so this carries only what the lifecycle branches on: landed, escalated,
+    or neither."""
 
     attempt: int
     exit_code: int
-    gates_exit_code: int
-    gate_outcomes: dict[str, str]
     landed_sha: str | None = None
     escalation: EscalationReason | None = None
     detail: str = ""
-    timed_out: bool = False
-    wall_time_s: float | None = None
-    cost_usd: float | None = None
-    digest: str = ""
 
 
 Execute = Callable[["Task"], Awaitable[Outcome]]

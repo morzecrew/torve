@@ -29,7 +29,7 @@ from torve.application.executors import runner_execute
 from torve.application.manager import project
 from torve.application.residency import serve
 from torve.application.worker import Worker
-from torve.domain.events import EventKind
+from torve.domain.events import EventKind, gate_outcomes
 from torve.domain.states import TaskState
 from torve.gates.sabotage import TASK_ID
 
@@ -108,8 +108,12 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
     # answerable if both are on record.
     assert [event.payload["attempt"] for event in gates] == [1, 2]
     assert [event.payload["exit_code"] != 0 for event in gates] == [True, False]
-    assert gates[0].payload["outcomes"]["acceptance"] == "fail"
-    assert gates[1].payload["outcomes"]["acceptance"] == "pass"
+    assert gate_outcomes(gates[0].payload)["acceptance"] == "fail"
+    assert gate_outcomes(gates[1].payload)["acceptance"] == "pass"
+    # The event carries the attempt record itself, not a summary of it: the
+    # regime the pass ran under is on the row a projection would read.
+    assert gates[1].payload["config_hash"]
+    assert gates[1].payload["agent"]["adapter"]
 
     # The board is a fold over what Postgres returned — the same projection
     # a restarted manager would build, from rows it did not write.

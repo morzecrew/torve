@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -402,6 +403,45 @@ def build_attempt_row(
         "timed_out": timed_out,
         "verdict": verdict,
         **({} if escalation is None else {"escalation": escalation}),
+    }
+
+
+# ....................... #
+
+
+# The fields the event envelope already carries, so the record does not
+# repeat them: a record is what happened, and who and when it happened to
+# are the envelope's (RFC 0044 A-85).
+ENVELOPE_FIELDS = ("schema_version", "at", "task_id")
+
+
+def record_payload(record: dict[str, Any], attempt: int) -> dict[str, Any]:
+    """The attempt record as an event payload.
+
+    Absence is preserved rather than defaulted: the stream's rule is that a
+    missing key reads as "written before this key existed" (D-38.6), and a
+    payload that helpfully fills one in destroys that reading.
+    """
+
+    payload = {key: value for key, value in record.items() if key not in ENVELOPE_FIELDS}
+    payload["attempt"] = attempt
+
+    return payload
+
+
+# ....................... #
+
+
+def record_row(payload: Mapping[str, Any], *, task_id: str | None, at: str) -> dict[str, Any]:
+    """The same record as a telemetry row — the carrier every projection
+    reads. Rendered from the payload rather than built beside it, which is
+    what makes the two carriers incapable of disagreeing."""
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "at": at,
+        "task_id": task_id,
+        **{key: value for key, value in payload.items() if key != "attempt"},
     }
 
 

@@ -40,10 +40,7 @@ def green(**overrides) -> Outcome:
     fields = {
         "attempt": 1,
         "exit_code": 0,
-        "gates_exit_code": 0,
-        "gate_outcomes": {"scope": "pass", "acceptance": "pass"},
         "landed_sha": "a" * 40,
-        "digest": "d" * 12,
     }
 
     return Outcome(**{**fields, **overrides})
@@ -119,8 +116,6 @@ def test_an_escalation_hands_the_task_to_a_human():
         await mint(log, "T-1")
         outcome = green(
             landed_sha=None,
-            gates_exit_code=1,
-            gate_outcomes={"scope": "fail"},
             escalation=EscalationReason.POISON_CEILING,
             detail="3 attempts, ceiling 3",
         )

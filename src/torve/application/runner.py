@@ -73,6 +73,8 @@ from torve.application.telemetry import (
     build_record,
     config_hash,
     engine_event,
+    record_payload,
+    record_row,
 )
 from torve.base import naming
 from torve.config import layout
@@ -201,7 +203,7 @@ def _continuable(escalation: Escalation) -> bool:
 # ....................... #
 
 
-def _emit(sink: AttemptSink | None, kind: str, attempt: int, **payload: object) -> None:
+def _emit(sink: AttemptSink | None, kind: str, attempt: int, /, **payload: object) -> None:
     """Hand one attempt fact to whoever is observing this run.
 
     Failures are swallowed on purpose, the same rule the burn sink follows:
@@ -606,6 +608,23 @@ class _SandboxExecutor:
 # ....................... #
 
 
+def _write_attempt_record(
+    telemetry: Path, record: dict[str, Any], sink: AttemptSink | None, attempt: int
+) -> None:
+    """One record, both carriers (A-85). The stream is written from the
+    record and the event is the same record with the envelope's fields
+    removed, so a projection reading either one is reading the same
+    numbers."""
+
+    payload = record_payload(record, attempt)
+
+    append_record(telemetry, record_row(payload, task_id=record["task_id"], at=record["at"]))
+    _emit(sink, "gates_evaluated", attempt, **payload)
+
+
+# ....................... #
+
+
 def _run_gates_in_worktree(
     worktree: Path,
     task_id: str,
@@ -618,12 +637,20 @@ def _run_gates_in_worktree(
     image: str | None = None,
     image_digest: str | None = None,
     cache_volumes: dict[str, str] | None = None,
+    sink: AttemptSink | None = None,
+    attempt: int = 0,
 ) -> tuple[int, str, str, list[GateResult], str]:
     """(exit_code, summary, config_hash, results, patch) — the results and
     the patch feed the review's input when one is configured. Raises on
     infrastructure failure. `cache_volumes` is the live run's derived-cache
     mount — the battery is what pays the toolchain cold tax — empty for an
-    unnamed cache and always empty under shadow (D-35.3)."""
+    unnamed cache and always empty under shadow (D-35.3).
+
+    The attempt record is built once here and written to both carriers from
+    that one object (A-85): the telemetry row every projection reads, and
+    the event the board folds. `sink` is None for a run nobody is
+    observing, and the row is written either way — the record exists before
+    either carrier does."""
 
     manifest_path = layout.gates_file(worktree)
 
@@ -680,7 +707,7 @@ def _run_gates_in_worktree(
             # verdicts over a tree the agent never touched.
             digest = config_hash(manifest_path, worktree, config, image_digest=image_digest)
             record = build_record(ctx, RunReport(exit_code=1), digest, agent=agent_meta)
-            append_record(root / manifest.telemetry, record)
+            _write_attempt_record(root / manifest.telemetry, record, sink, attempt)
             summary = "empty diff against base — no changes produced"
 
             return 1, summary, digest, [], ctx.patch
@@ -692,7 +719,7 @@ def _run_gates_in_worktree(
 
     digest = config_hash(manifest_path, worktree, config, image_digest=image_digest)
     record = build_record(ctx, report, digest, agent=agent_meta)
-    append_record(root / manifest.telemetry, record)
+    _write_attempt_record(root / manifest.telemetry, record, sink, attempt)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
     return report.exit_code, summary, digest, report.results, ctx.patch
@@ -1162,24 +1189,33 @@ def real_hooks(
         exit_code: int | None,
         timed_out: bool,
         escalation: str | None = None,
-    ) -> None:
+    ) -> dict[str, Any]:
         """One row for one ending of an attempt that produces no gate record
         (D-38.1): the red-agent shape — the spend survives even though the
         gates never ran — with the engine-derived verdict naming how the
         attempt ended. The attempt's facts, not its prose: exec results,
         escalation state, whatever the adapter reported (D-38.2)."""
 
+        record = build_attempt_row(
+            task,
+            agent_meta,
+            verdict=verdict,
+            exit_code=exit_code,
+            timed_out=timed_out,
+            escalation=escalation,
+        )
+        # Rendered rather than appended directly, so the stream is provably
+        # a view of the record the event carries (A-85) — the round trip is
+        # what a test can pin, and a field added to one carrier and not the
+        # other stops being possible.
+        payload = record_payload(record, int(agent_meta.get("attempt") or 0))
+
         append_record(
             _telemetry_target(),
-            build_attempt_row(
-                task,
-                agent_meta,
-                verdict=verdict,
-                exit_code=exit_code,
-                timed_out=timed_out,
-                escalation=escalation,
-            ),
+            record_row(payload, task_id=record["task_id"], at=record["at"]),
         )
+
+        return record
 
     async def attempt(state: RunState) -> AgentResult:
         # D-27.11's one rung, routed by the conviction: the attempt after a
@@ -1366,11 +1402,13 @@ def real_hooks(
             # then the agent's own failure — so the verdict on the row is
             # the ending the loop acts on. A clean attempt appends no row
             # here: the gates leg owns its verdict (green or gates_red).
+            record: dict[str, Any] = {}
+
             if state.escalation is not None:
                 # The broker refused the run's budget mid-attempt (D-21.6):
                 # the spend happened, the gates will never run, and until
                 # now this was the ending that recorded nothing at all.
-                _append_attempt_row(
+                record = _append_attempt_row(
                     "broker_refused",
                     exit_code=result.exit_code,
                     timed_out=result.timed_out,
@@ -1380,7 +1418,7 @@ def real_hooks(
             elif _log_has_halted_entry(worktree, task.id):
                 # The halted divergence entry (RFC 0001 §4): terminal by
                 # design, and today it ends the attempt silently.
-                _append_attempt_row(
+                record = _append_attempt_row(
                     "halted",
                     exit_code=result.exit_code,
                     timed_out=result.timed_out,
@@ -1394,20 +1432,31 @@ def real_hooks(
                 # every projection (four ~$4 first attempts were missing
                 # from cost-and-iterations when this was found). This is
                 # that record, now carrying its verdict (D-38.3).
-                _append_attempt_row(
+                record = _append_attempt_row(
                     "agent_timeout" if result.timed_out else "agent_error",
                     exit_code=result.exit_code,
                     timed_out=result.timed_out,
                 )
 
+            # One record, both carriers (A-85). An ending that produced a
+            # telemetry row emits that same row's content; an attempt that
+            # goes on to a gate pass has no ending of its own to describe,
+            # so it reports only what it spent and the gate's record is the
+            # one that describes it.
             _emit(
                 deps.facts,
                 "attempt_finished",
                 state.attempts,
-                exit_code=result.exit_code,
-                timed_out=result.timed_out,
-                wall_time_s=agent_meta.get("wall_time_s"),
-                cost_usd=result.cost_usd,
+                **(
+                    record_payload(record, state.attempts)
+                    if record
+                    else {
+                        "exit_code": result.exit_code,
+                        "timed_out": result.timed_out,
+                        "wall_time_s": agent_meta.get("wall_time_s"),
+                        "cost_usd": result.cost_usd,
+                    }
+                ),
             )
 
             return result
@@ -1471,6 +1520,8 @@ def real_hooks(
                 # Always empty under shadow: a replay's gate pass measures the
                 # cold truth even when the tier names a cache (D-35.3).
                 {} if shadow else _sandbox_cache(current["tier"], config.worker_slot),
+                deps.facts,
+                state.attempts,
             )
 
         except Exception:
@@ -1490,15 +1541,6 @@ def real_hooks(
 
         last_convictions["results"] = list(results)
         last_pass.update(results=results, patch=patch, digest=digest)
-
-        _emit(
-            deps.facts,
-            "gates_evaluated",
-            state.attempts,
-            exit_code=exit_code,
-            outcomes={one.name: str(one.outcome) for one in results},
-            digest=digest,
-        )
 
         return exit_code, summary, digest
 

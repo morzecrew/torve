@@ -23,6 +23,7 @@ sits above the document ports rather than beside them.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -210,25 +211,86 @@ class AttemptStarted(BaseModel):
 
 
 class AttemptFinished(BaseModel):
+    """One attempt, as it ended (RFC 0044 A-85).
+
+    The fields below `cost_usd` are the attempt record the engine has always
+    written to its telemetry stream, carried here because they are the same
+    facts: what ran, what it cost, what it produced and how it ended. They
+    are optional because an attempt that goes on to a gate pass has no
+    ending of its own to describe — the gate's record is that attempt's —
+    and because a stream written before this existed carries none of them.
+
+    The interiors stay loose on purpose. `agent`, `transfer` and `results`
+    have their own shapes elsewhere (the adapter's self-report, the
+    runtime's booking, `GateResult`); restating them here would give the
+    engine two definitions of one thing, which is the defect this phase
+    exists to remove.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     attempt: int
-    exit_code: int
+    exit_code: int | None = None
     timed_out: bool = False
     wall_time_s: float | None = None
     cost_usd: float | None = None
+
+    # The attempt record, present on an ending that produced no gate pass.
+    torve_version: str = ""
+    config_hash: str | None = None
+    verdict: str = ""
+    escalation: str = ""
+    gates_run: bool = True
+    agent: dict[str, Any] = Field(default_factory=dict)
+    transfer: dict[str, Any] = Field(default_factory=dict)
+    decisions: list[dict[str, Any]] = Field(default_factory=list)
+    results: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # ....................... #
 
 
 class GatesEvaluated(BaseModel):
+    """One gate pass, and the attempt it judged (RFC 0044 A-85).
+
+    Same rule as `AttemptFinished`: this is the record the telemetry stream
+    has always carried for an attempt that reached its battery, written once
+    and rendered into both carriers. `config_hash` is the regime the pass
+    ran under — the identity every comparison between numbers keys on — and
+    `results` is the battery's own output, not a summary of it.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     attempt: int
     exit_code: int
-    outcomes: dict[str, str] = Field(default_factory=dict)
-    digest: str = ""
+    config_hash: str | None = None
+    torve_version: str = ""
+    verdict: str = ""
+    base: str = ""
+    merge_base: str = ""
+    head: str = ""
+    gates_run: bool = True
+    agent: dict[str, Any] = Field(default_factory=dict)
+    transfer: dict[str, Any] = Field(default_factory=dict)
+    decisions: list[dict[str, Any]] = Field(default_factory=list)
+    results: list[dict[str, Any]] = Field(default_factory=list)
+    bypass_count_by_gate: dict[str, int] = Field(default_factory=dict)
+    flaky_count_by_command: dict[str, int] = Field(default_factory=dict)
+
+
+# ....................... #
+
+
+def gate_outcomes(payload: Mapping[str, Any]) -> dict[str, str]:
+    """`{gate: outcome}` from a gates.evaluated payload. Derived where it is
+    read rather than stored beside `results`: a summary recorded next to
+    what it summarises is a second copy that can disagree."""
+
+    return {
+        str(one.get("name") or ""): str(one.get("outcome") or "")
+        for one in payload.get("results", [])
+    }
 
 
 # ....................... #

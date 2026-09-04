@@ -344,8 +344,25 @@ def test_replay_never_mounts_the_cache_volume_even_when_the_tier_names_one(
 
     gate_caches: list[dict] = []
 
-    def scripted_gates(_worktree, _task_id, _config, _runtime, _run_id, _root, _meta=None, *_args):
-        gate_caches.append(dict(_args[-1]) if _args else {})
+    def scripted_gates(
+        _worktree,
+        _task_id,
+        _config,
+        _runtime,
+        _run_id,
+        _root,
+        _meta=None,
+        _base=None,
+        _image=None,
+        _image_digest=None,
+        cache_volumes=None,
+        _sink=None,
+        _attempt=0,
+    ):
+        # Named rather than counted from the end: the gate pass gained the
+        # attempt's observer, and a double reading its last argument reads
+        # whatever was added last.
+        gate_caches.append(dict(cache_volumes or {}))
         return 0, "scripted", "cafecafe1234", [], ""
 
     import torve.application.runner as run_module

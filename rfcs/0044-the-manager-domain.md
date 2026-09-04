@@ -2,11 +2,12 @@
 id: "0044"
 title: The manager domain
 status: accepted
+implementation: partial
 depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82"]
+amended_by: ["A-80", "A-81", "A-82", "A-85"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -478,13 +479,88 @@ alongside the existing architecture review. The corpus amendments listed in
     - "uv run torve rfc check"
   tier_variant: heavy
   depends_on: [2]
+
+- phase: 4
+  title: one record per attempt
+  intent: >-
+    An attempt is recorded once. Today the same facts are produced twice by
+    two writers — the telemetry row the projections read, and the typed
+    events the board folds — and nothing makes them agree. This phase makes
+    the attempt record one object built once at the moment the attempt
+    ends: the event payload carries everything the row carries, the row is
+    rendered from that payload, and both carriers are written from it. A
+    test pins the rendered row byte-equal to what the current builders
+    produce, so no reader of the stream changes and no projection is
+    rewritten. A run with no store still writes its row, because the record
+    exists before either carrier does.
+  character: structural
+  scope:
+    - src/torve/application/telemetry.py
+    - src/torve/application/runner.py
+    - src/torve/domain/events.py
+    - tests/test_runner.py
+  acceptance:
+    - uv run pytest tests/test_runner.py tests/test_events.py
+    - uv run lint-imports
+    - uv run torve rfc check
+  depends_on: [3]
+
+- phase: 5
+  title: one state per run
+  intent: >-
+    A run's state stops being a file the loop maintains and becomes what
+    the log says. `RunState` survives as the in-memory aggregate the attempt
+    loop drives, rebuilt by replay rather than loaded; the state file
+    becomes a cache nothing reads for a decision, and the reaper, the lane
+    and `torve status` read the record. The property to prove is the one
+    the manager already claims: rebuilding a run's state from its events
+    equals the state the loop was holding, including after a kill mid
+    attempt — which is also what finally answers who releases a lease when
+    the worker holding it dies.
+  character: structural
+  tier_variant: heavy
+  scope:
+    - src/torve/application/runstate.py
+    - src/torve/application/reaper.py
+    - src/torve/application/manager.py
+    - src/torve/cli/status.py
+    - tests/test_reaper.py
+  acceptance:
+    - uv run pytest tests/test_reaper.py tests/test_manager.py tests/test_worker.py
+    - uv run lint-imports
+    - uv run torve rfc check
+  depends_on: [4]
+
+- phase: 6
+  title: one dispatch rule
+  intent: >-
+    The dependency rule, the scope-disjointness rule and the landing
+    serialization exist twice — once as a filesystem scan over contracts and
+    run-state files, once as a fold over the log — and the two are already
+    written to agree by hand. This phase deletes the scan: `torve tick`
+    becomes a bounded call into the manager's own dispatch over the record,
+    or retires as D-44.5 says it should. What must not change is any of the
+    three rules, and the existing dispatch tests are what says so.
+  character: structural
+  scope:
+    - src/torve/application/loop.py
+    - src/torve/application/manager.py
+    - src/torve/cli/tick.py
+    - tests/test_tick.py
+  acceptance:
+    - uv run pytest tests/test_tick.py tests/test_standing.py tests/test_manager.py
+    - uv run lint-imports
+    - uv run torve rfc check
+  depends_on: [5]
 ```
 
-Later phases are deliberately unphased until the first three land and the
-exit criterion has data: sources and decisions as records with the corpus
-as importer (D-44.8, D-44.9), the projection set that replaces
-`torve context` and the served tables, the tracker as an ordinary
-projection consumer, and the multi-partition operation that makes
+The rest stays unphased (A-85), because it is new design rather than
+consolidation and each piece deserves its own document: the attempt loop as
+explicit steps rather than a closure, with the naming pass and the sandbox
+rework that ride with it; sources and decisions as records with the corpus
+as importer (D-44.8, D-44.9); the projection set that replaces
+`torve context` and the served tables; the tracker as an ordinary
+projection consumer; and the multi-partition operation that makes
 multi-repo real.
 
 ## Amendments
@@ -572,3 +648,33 @@ from, not what makes an entry legal.
 **Phase 2 is now complete.** The remaining carrier question — whether the
 file survives at all once nothing but the engine writes it — belongs to the
 projection set, not here.
+
+### A-85 — 2026-09-04 — phases 4 to 6 — one record, one state, one dispatch rule (phases D-44.1, D-44.3, D-44.5)
+**Found after the first three phases landed.** §12 leaves the later work
+unphased "until the first three land and the exit criterion has data". The
+first half is true now; the second is not, and these phases are written
+anyway — deliberately, because they are not more of v2.
+
+The three phases below remove second implementations of things v2 already
+owns. Each is a place where the same fact is produced twice by different
+code that can disagree: an attempt is recorded into the telemetry stream and
+into the event log; a run's state lives in a state file and in the board; a
+dispatch decision is made by a filesystem scan and by a fold over the log.
+Every one of those pairs was created by adding v2 beside v1, and every one
+of them is a way for the migration to fail confusingly rather than plainly.
+Consolidating them lowers the risk of running v2; it does not bet more on
+it, and it changes nothing a reader of v1 depends on.
+
+The **exit criterion still gates the migration** — making the manager the
+thing that runs the work, and retiring v1's loop — and that remains
+measured, not argued. What these phases buy is that when the measurement
+happens, there is one number to read rather than two that disagree.
+
+**Changed:** §12 gains phases 4, 5 and 6. Two further pieces of work are
+named and deliberately not phased here, because they are new design rather
+than consolidation and each deserves its own document: the attempt loop as
+explicit steps rather than a closure over a two-thousand-line function
+(with the naming pass and the sandbox rework that ride along with it), and
+sources and decisions as records (D-44.8, D-44.9). Neither is a prerequisite
+for the exit criterion; both are prerequisites for multi-repo being real
+rather than designed.

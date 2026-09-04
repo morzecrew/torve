@@ -1850,8 +1850,25 @@ def _script_gates_capturing_cache(monkeypatch):
 
     seen: list[dict] = []
 
-    def scripted(_worktree, _task_id, _config, _runtime, _run_id, _root, _meta=None, *_args):
-        seen.append(dict(_args[-1]) if _args else {})
+    def scripted(
+        _worktree,
+        _task_id,
+        _config,
+        _runtime,
+        _run_id,
+        _root,
+        _meta=None,
+        _base=None,
+        _image=None,
+        _image_digest=None,
+        cache_volumes=None,
+        _sink=None,
+        _attempt=0,
+    ):
+        # Named rather than counted from the end: the gate pass gained the
+        # attempt's observer, and a double that reads its last argument
+        # reads whatever was added last.
+        seen.append(dict(cache_volumes or {}))
         return 0, "scripted", "cafecafe1234", [], ""
 
     monkeypatch.setattr(run_module, "_run_gates_in_worktree", scripted)

@@ -40,8 +40,6 @@ def landing(**overrides) -> Outcome:
     fields = {
         "attempt": 1,
         "exit_code": 0,
-        "gates_exit_code": 0,
-        "gate_outcomes": {"scope": "pass"},
         "landed_sha": "a" * 40,
     }
 
