@@ -1,7 +1,7 @@
 ---
 id: "0043"
 title: Blocker revision
-status: draft
+status: accepted
 depends_on: ["0005"]
 informed_by: ["0038"]
 supersedes: []
