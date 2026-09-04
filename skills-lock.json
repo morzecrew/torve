@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "forze-skills": {
+      "source": "morzecrew/forze",
+      "sourceType": "github",
+      "skillPath": "skills/forze-skills/SKILL.md",
+      "computedHash": "86e323e1f3950c6018d4c4eced6750dfb9327c25fea90acbb707f06a0909f72e"
+    },
     "gitmoji-conventional": {
       "source": "morzecrew/agent-skills",
       "sourceType": "github",
