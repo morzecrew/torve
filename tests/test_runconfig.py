@@ -487,6 +487,14 @@ def test_retry_variants_change_the_regime_digest(tmp_path: Path):
     )
 
 
+def test_blocker_revisions_defaults_to_one_and_parses_from_yaml(tmp_path: Path):
+    # RFC 0043 D-43.1/D-43.3: the knob defaults to 1 in-run revision, and a
+    # YAML override rides the same `review:` mapping as `on`/`feedback_from`.
+    config = load(tmp_path, '\n'.join(['review:', '  "on": [task_gated]', '  blocker_revisions: 3']))
+    assert config.review.blocker_revisions == 3
+    assert RunnerConfig().review.blocker_revisions == 1
+
+
 # ....................... #
 # The tier clock (D-35.6): a named override wins, absence falls to the global
 

@@ -356,7 +356,12 @@ async def _attempt_loop(
             state.save()
             continue
 
-        if not await _apply_review(hooks, state):
+        outcome = await _apply_review(hooks, state)
+
+        if outcome is None:
+            continue  # D-43.1: blocker revision budget spent, retry in place
+
+        if not outcome:
             return state  # a surviving blocker escalated the target
 
         fact = await hooks.land(state, digest)
@@ -369,11 +374,14 @@ async def _attempt_loop(
 # ....................... #
 
 
-async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool:
-    """Runs the configured review hook and transitions to REVIEWED. False
-    means a surviving blocker escalated the target — the caller stops the
-    loop without landing; the review-not-configured bridge always returns
-    True."""
+async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool | None:
+    """Runs the configured review hook and transitions to REVIEWED. True
+    lands; False means the target escalated (a surviving blocker's spent
+    budget, an unparseable verdict, or a broker budget refusal) — the caller
+    stops the loop without landing; None means a surviving blocker spent
+    revision budget (RFC 0043 D-43.1) without escalating — the caller
+    retries the same worktree. The review-not-configured bridge always
+    returns True."""
 
     if hooks.review is None:
         state.transition(TaskState.REVIEWED, "gates green; review not configured")
@@ -382,7 +390,7 @@ async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool:
     review_fact = await hooks.review(state)
 
     if review_fact is None:
-        return False
+        return None if state.escalation is None else False
 
     state.transition(TaskState.REVIEWED, review_fact)
     return True
@@ -427,6 +435,23 @@ def _previous_attempt_gate_red(state: RunState) -> bool:
     attempt's own "attempt N dispatched" entry — never the last one."""
 
     return len(state.history) >= 2 and state.history[-2]["fact"].startswith("gates red:")
+
+
+# ....................... #
+
+# A surviving blocker's revision fact (RFC 0043 D-43.1) starts with this —
+# `_blocker_revisions_spent` is the only reader, so generation and counting
+# can never drift apart. Mirrors `_WALLCLOCK_MARKER` above.
+_BLOCKER_REVISION_MARKER = "review blocker (revision "
+
+
+def _blocker_revisions_spent(state: RunState) -> int:
+    """D-43.1: how much of the run's `blocker_revisions` budget a surviving
+    blocker has already spent — every revision fact `review_hook_fn` appends
+    without a transition (the state stays GATED, retried), counted across
+    the run's whole history, never just the last attempt."""
+
+    return sum(1 for h in state.history if h["fact"].startswith(_BLOCKER_REVISION_MARKER))
 
 
 # ....................... #
@@ -1714,7 +1739,37 @@ def real_hooks(
                 return None
 
             if outcome.blockers:
+                from torve.application.feedback import capture_feedback
+                from torve.application.review import blocker_threads
+
                 detail = "; ".join(f.claim for f in outcome.blockers)
+                spent = _blocker_revisions_spent(state)
+                budget = config.review.blocker_revisions
+
+                if spent < budget:
+                    # RFC 0043 D-43.1/D-43.2: the blockers and the convicted
+                    # candidate diff ride the RFC 0005 §4a feedback record —
+                    # the existing D-5.13 plant/frame mechanics carry it into
+                    # the next attempt with no new delivery path.
+                    capture_feedback(
+                        root,
+                        task.id,
+                        str(last_pass["patch"]),
+                        blocker_threads(outcome.blockers, outcome.review_id),
+                    )
+                    state.history.append(
+                        {
+                            "at": state.heartbeat,
+                            "from": str(state.state),
+                            "to": str(state.state),
+                            "fact": (
+                                f"{_BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
+                                f"{outcome.review_id}: {detail[:300]}"
+                            ),
+                        }
+                    )
+                    state.save()
+                    return None
 
                 state.escalate(
                     EscalationReason.BLOCKER_FINDING, f"{outcome.review_id}: {detail[:300]}"

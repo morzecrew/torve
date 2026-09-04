@@ -23,7 +23,8 @@ from test_run_loop import (
 import torve.application.review as review_module
 import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
-from torve.application.ports import AgentResult
+from torve.application.feedback import feedback_file
+from torve.application.ports import AgentResult, BrokerHandle, BrokerUsage
 from torve.application.review import build_review_prompt, parse_findings, run_review
 from torve.application.runner import RunDeps, run_task
 from torve.application.runstate import RunState
@@ -163,6 +164,205 @@ def test_a_surviving_blocker_escalates_the_target(review_rig):
     assert state.escalation.reason == "blocker_finding"
     # A surviving blocker never records a verdict (D-6.14).
     assert state.reviewed_by is None
+    # RFC 0043 D-43.1: the default budget (1) bought one revision attempt —
+    # the same blocker survived it, so the target spent two attempts, not
+    # one, before escalating.
+    assert state.attempts == 2
+    facts = [h["fact"] for h in state.history]
+    assert any(f.startswith("review blocker (revision 1 of 1):") for f in facts)
+
+
+class SequencedReviewer:
+    """A different verdict per call. `run_review` always stamps its own
+    AgentContext attempt=1 (one iteration budget, RFC 0005 §1.1), so
+    ScriptedAgent's index-by-ctx.attempt cannot vary a revision's second
+    verdict from its first — this fake counts calls instead."""
+
+    kind = "harness"
+
+    def __init__(self, outputs: list[str]) -> None:
+        self.outputs = outputs
+        self.calls = 0
+
+    def run(self, ctx):
+        output = self.outputs[min(self.calls, len(self.outputs) - 1)]
+        self.calls += 1
+        return AgentResult(exit_code=0, output=output)
+
+
+def test_a_blocker_with_budget_left_continues_in_the_same_worktree(review_rig):
+    # RFC 0043 D-43.1/D-43.2: a surviving blocker with revision budget left
+    # writes the RFC 0005 §4a feedback record and continues in place instead
+    # of escalating; a clean revision lands like any other.
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    reviewer = SequencedReviewer(
+        [
+            reviewer_output(
+                [
+                    {
+                        "severity": "blocker",
+                        "claim": "the change is wrong",
+                        "evidence": "app.py:1 — the flag",
+                    }
+                ]
+            ),
+            reviewer_output([]),
+        ]
+    )
+
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.READY
+    assert state.escalation is None
+    assert state.attempts == 2
+    facts = [h["fact"] for h in state.history]
+    assert any(f.startswith("review blocker (revision 1 of 1):") for f in facts)
+    # The revision's own verdict landed the target — the second review's id,
+    # not the first blocker's (D-6.14, A-43).
+    assert state.reviewed_by is not None
+
+    # D-43.2: the blockers and the convicted diff rode the record — root
+    # side (D-43.5), so it outlives this run.
+    record = feedback_file(repo.root, "T-9001").read_text(encoding="utf-8")
+    assert "the change is wrong" in record
+    assert "app.py:1" in record
+    assert "diff --git a/x b/x" in record  # last_pass["patch"], the scripted gate diff
+
+    # Two reviews ran on this one run, each its own contract and verdict row
+    # (the runner already re-mints a fresh review task per invocation).
+    minted = sorted((repo.root / ".torve" / "tasks").glob("T-*/contract.yaml"))
+    assert len(minted) == 2
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    review_records = [r for r in records if r.get("kind") == "review"]
+    assert len(review_records) == 2
+    assert review_records[0]["task_id"] != review_records[1]["task_id"]
+    assert [f["severity"] for f in review_records[0]["findings"]] == ["blocker"]
+    assert review_records[1]["findings"] == []
+
+
+def test_blocker_revisions_zero_reproduces_todays_transitions_byte_for_byte(review_rig):
+    # D-43.3: the conservative setting is always reachable — zero spends no
+    # revision, so the transition sequence is exactly the pre-0043 one.
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+    reviewer = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=reviewer_output(
+                    [
+                        {
+                            "severity": "blocker",
+                            "claim": "the change is wrong",
+                            "evidence": "app.py:1 — the flag",
+                        }
+                    ]
+                ),
+            )
+        ]
+    )
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], blocker_revisions=0))
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(reviewer))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+    assert state.attempts == 1
+    facts = [h["fact"] for h in state.history]
+    assert not any(f.startswith("review blocker (revision") for f in facts)
+    assert not feedback_file(repo.root, "T-9001").exists()
+
+
+def test_a_revision_that_would_pass_the_poison_ceiling_escalates_the_ceiling(review_rig):
+    # RFC 0043 §5.3: revisions above 1 are legal but interact with the
+    # poison ceiling — the ceiling still wins, so the escalation names it,
+    # not blocker_finding.
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+    reviewer = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=reviewer_output(
+                    [
+                        {
+                            "severity": "blocker",
+                            "claim": "the change is wrong",
+                            "evidence": "app.py:1 — the flag",
+                        }
+                    ]
+                ),
+            )
+        ]
+    )
+    config = RunnerConfig(
+        review=ReviewConfig(on=["task_gated"], blocker_revisions=1), poison_ceiling=1
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(reviewer))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "poison_ceiling"
+    assert state.attempts == 1
+    # The revision fact was still recorded — the budget was spent, only the
+    # next dispatch never happened.
+    facts = [h["fact"] for h in state.history]
+    assert any(f.startswith("review blocker (revision 1 of 1):") for f in facts)
+
+
+class RefusingBroker:
+    """The budget refusal mid-attempt (D-21.6): usage always reports one
+    refusal, so any request the review makes reads as over budget."""
+
+    name = "local"
+
+    def open(self, run, routing, budget, sink=None, channel=None):
+        return BrokerHandle(token="t-1")
+
+    def usage(self, handle):
+        return BrokerUsage(requests=4, refusals={"budget": 2})
+
+    def close(self, handle):
+        return self.usage(None)
+
+
+def test_broker_budget_refusal_during_review_escalates_immediately(review_rig):
+    # D-43.4: a broker budget refusal is a cost conviction, not a revisable
+    # defect — it escalates immediately even with revision budget unspent.
+    repo, runtime, deps_for = review_rig
+    reviewer = ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output([]))])
+    deps = deps_for(reviewer)
+    deps = RunDeps(
+        workspace=deps.workspace,
+        runtime=runtime,
+        agent=deps.agent,
+        vcs=deps.vcs,
+        scm=deps.scm,
+        store=deps.store,
+        review_agent=reviewer,
+        broker=RefusingBroker(),
+    )
+
+    state = run_task(repo.root, task_for(repo), review_config(), deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "cost_anomaly"
+    assert state.attempts == 1
+    facts = [h["fact"] for h in state.history]
+    assert not any(f.startswith("review blocker (revision") for f in facts)
 
 
 def test_the_unconfigured_bridge_never_records_a_verdict(review_rig):

@@ -52,7 +52,7 @@ from torve.config.runconfig import (
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import TaskState
 from torve.domain.task import SCHEMA_VERSION, Budget, Task
-from torve.gates.evidence import filter_findings
+from torve.gates.evidence import CITATION, filter_findings
 
 # ----------------------- #
 
@@ -381,6 +381,38 @@ class ReviewOutcome:
     kept: list[Finding] = field(default_factory=list)
     discarded: list[str] = field(default_factory=list)
     unparseable: bool = False
+
+
+# ....................... #
+
+
+def blocker_threads(blockers: list[Finding], review_id: str) -> list[dict[str, Any]]:
+    """A revision's critique, in the feedback record's thread shape (RFC
+    0043 D-43.2): one thread per blocker, the review id as its single
+    comment's author, the claim and its evidence as the body. Evidence that
+    resolves to a path:line anchors the thread there; a backticked command
+    with its output (D-5.16) locates without a filesystem coordinate at
+    all, so the thread carries no path/line and renders anchor-less — the
+    same honest "?:-" `render_feedback` already gives an address-less
+    thread."""
+
+    threads: list[dict[str, Any]] = []
+
+    for finding in blockers:
+        citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
+        thread: dict[str, Any] = {
+            "comments": [
+                {"author": review_id, "body": f"{finding.claim}\n\n{finding.evidence}"}
+            ]
+        }
+
+        if citation:
+            thread["path"] = citation.group("path")
+            thread["line"] = int(citation.group("start"))
+
+        threads.append(thread)
+
+    return threads
 
 
 # ....................... #

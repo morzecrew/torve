@@ -966,7 +966,11 @@ class ReviewConfig(BaseModel):
     nothing decides nothing. `task_gated` is board-driven; the pull-request
     triggers admit `torve review pr` as the forge's event delivery.
     `skip_authors` is §4's author skip rule; draft and zero-changed-files
-    pull requests always skip."""
+    pull requests always skip. `blocker_revisions` (RFC 0043, D-2's framing:
+    configuration decides the consequence, never the model) bounds how many
+    in-run attempts a surviving blocker earns before escalating
+    `blocker_finding`; 0 escalates on the first surviving blocker, today's
+    behavior exactly."""
 
     model_config = ConfigDict(extra="forbid")
     on: list[str] = Field(default_factory=list)
@@ -976,6 +980,12 @@ class ReviewConfig(BaseModel):
     # whose review threads become revision context at retry. Empty = off;
     # a stranger's comment never reaches an agent.
     feedback_from: list[str] = Field(default_factory=list)
+
+    # The blocker revision budget (RFC 0043 D-43.1/D-43.3): in-run attempts,
+    # same worktree, a surviving blocker spends before escalating. Counted
+    # per run, spent only by surviving blockers — a clean review costs
+    # nothing against it.
+    blocker_revisions: int = 1
 
     # ....................... #
 
