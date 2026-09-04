@@ -1,7 +1,7 @@
 ---
 id: "0045"
 title: The live channel
-status: draft
+status: accepted
 depends_on: ["0044"]
 informed_by: ["0021", "0039", "0041"]
 supersedes: []
