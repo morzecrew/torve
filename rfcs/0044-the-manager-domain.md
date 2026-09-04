@@ -1,7 +1,7 @@
 ---
 id: "0044"
 title: The manager domain
-status: draft
+status: accepted
 depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
