@@ -20,7 +20,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from torve.application.planner import globs_intersect
+from torve.application.planner import scopes_clash
 from torve.domain.events import EventKind, SubjectType
 from torve.domain.states import TaskState
 
@@ -33,6 +33,12 @@ if TYPE_CHECKING:
 # A task the engine is still holding: claimed or anywhere inside an attempt.
 # These are what a new dispatch must stay scope-disjoint from (A-39).
 IN_FLIGHT = frozenset({TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED})
+
+# How long a claim stands with nothing happening before the manager may
+# hand the task to someone else. The manager's rule, not the worker's: the
+# worker holding a lease is exactly the process that cannot be trusted to
+# decide when it has stopped.
+LEASE_SECONDS = 900
 
 
 # ....................... #
@@ -55,6 +61,12 @@ class TaskView:
     # about itself, and it is not asked.
     last_burn: datetime | None = None
     burned_usd: float = 0.0
+    # When the claim was taken, and when anything last happened. A worker
+    # that dies holds its task until the first of these goes stale — which
+    # is the whole cost of a kill (D-44.6), and the only thing that makes it
+    # bounded rather than permanent.
+    claimed_at: datetime | None = None
+    last_event_at: datetime | None = None
 
 
 # ....................... #
@@ -109,16 +121,18 @@ def project(events: Iterable[EventRecord]) -> Board:
             continue
 
         view = tasks.get(event.subject_id, TaskView(task_id=event.subject_id))
-        view = replace(view, partition=event.partition)
+        view = replace(view, partition=event.partition, last_event_at=event.created_at)
         payload = event.payload
 
         if (state := _TRANSITIONS.get(event.kind)) is not None:
             view = replace(view, state=state)
 
         if event.kind is EventKind.TASK_CLAIMED:
-            view = replace(view, claimed_by=str(payload.get("worker") or ""))
+            view = replace(
+                view, claimed_by=str(payload.get("worker") or ""), claimed_at=event.created_at
+            )
         elif event.kind is EventKind.TASK_RELEASED:
-            view = replace(view, claimed_by=None)
+            view = replace(view, claimed_by=None, claimed_at=None)
         elif event.kind is EventKind.ATTEMPT_STARTED:
             view = replace(view, attempts=int(payload.get("attempt") or view.attempts + 1))
         elif event.kind is EventKind.LANDING_RECORDED:
@@ -161,10 +175,12 @@ def blocked_by(task: Task, board: Board) -> list[str]:
 
 
 def overlaps(task: Task, board: Board, tasks: dict[str, Task]) -> list[str]:
-    """Tasks in flight whose scope this one shares (A-39). Conservative by
-    construction — `globs_intersect` refuses what is provably shared, never
-    what is cleverly disjoint — because two agents editing one file is a
-    conflict the engine cannot resolve afterwards."""
+    """Tasks in flight whose scope this one shares (A-39). The rule is the
+    standing loop's own, shared rather than restated: conservative about
+    overlap, and refusing outright for an unconstrained allow-set, because
+    a task that may touch anything can prove itself disjoint from nothing.
+    Two agents editing one file is a conflict the engine cannot resolve
+    afterwards."""
 
     shared: list[str] = []
 
@@ -174,7 +190,7 @@ def overlaps(task: Task, board: Board, tasks: dict[str, Task]) -> list[str]:
 
         other = tasks.get(view.task_id)
 
-        if other is not None and globs_intersect(task.scope.allow, other.scope.allow):
+        if other is not None and scopes_clash(task.scope.allow, other.scope.allow):
             shared.append(view.task_id)
 
     return sorted(shared)
@@ -243,3 +259,35 @@ def stalled(view: TaskView, *, now: datetime | None = None, after: timedelta = S
         return False
 
     return (now or datetime.now(UTC)) - view.last_burn > after
+
+
+# ....................... #
+
+
+def expired(
+    board: Board, *, now: datetime | None = None, lease: timedelta | None = None
+) -> list[TaskView]:
+    """Tasks whose holder has gone silent past its lease (RFC 0044 D-44.6).
+
+    A worker holds nothing but a lease, and a worker that dies holds it
+    until it runs out — so something has to notice. What counts as activity
+    is any recorded fact about the task, not a heartbeat the holder sends:
+    a process that can report itself alive can report itself alive while
+    wedged, and the facts are what the work actually produced.
+
+    Nothing here acts. Releasing is the manager's, and it records why.
+    """
+
+    moment = now or datetime.now(UTC)
+    window = lease if lease is not None else timedelta(seconds=LEASE_SECONDS)
+
+    return sorted(
+        (
+            view
+            for view in board.tasks.values()
+            if view.state in IN_FLIGHT
+            and view.claimed_at is not None
+            and moment - (view.last_event_at or view.claimed_at) > window
+        ),
+        key=lambda one: one.task_id,
+    )

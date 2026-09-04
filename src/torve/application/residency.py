@@ -19,11 +19,12 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from torve.application.manager import project
+from torve.application.manager import expired, project
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
 
 if TYPE_CHECKING:
+    from datetime import timedelta
     from pathlib import Path
 
     from torve.application.eventlog import EventLog
@@ -123,11 +124,58 @@ async def mint(
 # ....................... #
 
 
-async def once(log: EventLog, worker: Worker, root: Path, partition: str) -> str | None:
-    """One pass: mint what is new, then let the worker take at most one
-    task. Returns the task id it handled, or None when the pass was idle."""
+async def reclaim(
+    log: EventLog, *, partition: str, actor_id: str, lease: timedelta | None = None
+) -> list[str]:
+    """Return tasks whose holder has gone silent past its lease.
+
+    This is the other half of "a killed worker loses nothing but its lease"
+    (D-44.6): something has to be the lease running out, and it is the
+    manager, because the process that died cannot release itself. The
+    release is a recorded fact with its reason, so a task that came back to
+    the queue can always be told from one that never left.
+    """
+
+    board = project(await log.since(partition=partition))
+    released: list[str] = []
+
+    for view in expired(board, lease=lease):
+        await log.record(
+            EventKind.TASK_RELEASED,
+            partition=partition,
+            subject_type=SubjectType.TASK,
+            subject_id=view.task_id,
+            actor_kind=ActorKind.MANAGER,
+            actor_id=actor_id,
+            payload={"reason": f"lease expired; last held by {view.claimed_by or 'nobody'}"},
+        )
+        released.append(view.task_id)
+
+    return released
+
+
+# ....................... #
+
+
+async def once(
+    log: EventLog,
+    worker: Worker,
+    root: Path,
+    partition: str,
+    *,
+    lease: timedelta | None = None,
+) -> str | None:
+    """One pass: reclaim what expired, mint what is new, then let the worker
+    take at most one task. Returns the task id it handled, or None when the
+    pass was idle.
+
+    Reclaiming comes first because a task nobody is running is a task this
+    pass could start, and the alternative is waiting a whole idle interval
+    to notice.
+    """
 
     tasks = contracts(root)
+    await reclaim(log, partition=partition, actor_id=worker.name, lease=lease)
     await mint(log, tasks, partition=partition, actor_id=worker.name)
 
     return await worker.once(tasks, partition)
@@ -144,6 +192,7 @@ async def serve(
     *,
     idle_seconds: float = IDLE_SECONDS,
     passes: int | None = None,
+    lease: timedelta | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -159,7 +208,7 @@ async def serve(
 
     while passes is None or seen < passes:
         seen += 1
-        task_id = await once(log, worker, root, partition)
+        task_id = await once(log, worker, root, partition, lease=lease)
 
         if task_id is not None:
             handled += 1

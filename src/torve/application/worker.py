@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 import attrs
 
-from torve.application.manager import dispatchable, project
+from torve.application.manager import LEASE_SECONDS, dispatchable, project
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import EscalationReason
 
@@ -30,11 +30,6 @@ if TYPE_CHECKING:
     from torve.domain.task import Task
 
 # ----------------------- #
-
-# How long a claim stands before the manager may hand the task to someone
-# else. A worker that dies mid-attempt costs exactly this much waiting.
-LEASE_SECONDS = 900
-
 
 # ....................... #
 

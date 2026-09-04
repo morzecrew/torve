@@ -188,6 +188,28 @@ class PlanReport:
 # ....................... #
 
 
+def scopes_clash(left: list[str], right: list[str]) -> bool:
+    """Whether two tasks may not run at the same time (A-39, D-19.14).
+
+    An empty allow-set is unconstrained (RFC 0002 §6), and a task that may
+    touch anything can prove itself disjoint from nothing — so it clashes
+    with every other task, including another unconstrained one. Everything
+    else is `globs_intersect`'s conservative overlap.
+
+    One rule with two callers: the standing loop asks it of the run-state
+    files it can see, the manager asks it of the board it folds, and the
+    two answering differently is how two agents end up editing one file.
+    """
+
+    if not left or not right:
+        return True
+
+    return globs_intersect(left, right)
+
+
+# ....................... #
+
+
 def globs_intersect(left: list[str], right: list[str]) -> bool:
     """Conservative overlap between two allow-sets: identical globs, or one
     set's glob matching another's glob read as a literal path (with its own

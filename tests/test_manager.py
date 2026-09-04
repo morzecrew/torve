@@ -16,7 +16,14 @@ from forze.application.execution import DepsRegistry, ExecutionRuntime
 
 from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
-from torve.application.manager import Board, TaskView, dispatchable, project, stalled
+from torve.application.manager import (
+    Board,
+    TaskView,
+    dispatchable,
+    expired,
+    project,
+    stalled,
+)
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.states import TaskState
 from torve.domain.task import Scope, Task
@@ -369,3 +376,98 @@ def test_an_attempt_that_has_burned_nothing_yet_accuses_nobody():
 
     # A sandbox still building, or a tier that calls no provider at all.
     assert stalled(board.tasks["T-1"], now=now) is False
+
+
+# ....................... #
+
+# The lease (RFC 0044 D-44.6): a worker holds nothing else, and something
+# has to be it running out.
+
+
+def test_a_claim_that_has_gone_silent_past_its_lease_is_expired():
+    now = datetime.now(UTC)
+    board = project(
+        [
+            event(EventKind.TASK_MINTED, "T-1", at=now - timedelta(hours=2)),
+            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}, at=now - timedelta(hours=1)),
+        ]
+    )
+
+    assert [view.task_id for view in expired(board, now=now)] == ["T-1"]
+    # The window is the manager's rule, and a longer one forgives the same
+    # silence.
+    assert expired(board, now=now, lease=timedelta(hours=3)) == []
+
+
+def test_a_working_claim_is_not_expired():
+    now = datetime.now(UTC)
+    board = project(
+        [
+            event(EventKind.TASK_MINTED, "T-1", at=now - timedelta(hours=2)),
+            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}, at=now - timedelta(hours=1)),
+            # Activity is any recorded fact, not a heartbeat the holder
+            # sends: a wedged process can report itself healthy, and a burn
+            # event is what the work actually produced.
+            event(
+                EventKind.SEAT_CONSUMED,
+                "T-1",
+                {"seat": "anthropic", "tokens": 10, "cost_usd": 0.01},
+                at=now - timedelta(minutes=1),
+            ),
+        ]
+    )
+
+    assert expired(board, now=now) == []
+
+
+def test_a_task_nobody_holds_never_expires():
+    now = datetime.now(UTC)
+    board = project(
+        [
+            event(EventKind.TASK_MINTED, "T-1", at=now - timedelta(days=7)),
+            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}, at=now - timedelta(days=7)),
+            event(
+                EventKind.LANDING_RECORDED,
+                "T-1",
+                {"sha": "a" * 40, "attempt": 1},
+                at=now - timedelta(days=7),
+            ),
+        ]
+    )
+
+    # Landed a week ago and held by nobody: idle, not abandoned.
+    assert expired(board, now=now) == []
+
+
+def test_two_unconstrained_tasks_never_run_together():
+    """The defect this shares a rule to prevent: an empty allow-set is
+    unconstrained (RFC 0002 §6), and a glob intersection over two empty
+    sets is empty — so the manager would have dispatched two tasks that may
+    each touch anything, while the standing loop refused the same pair."""
+
+    tasks = {
+        "T-1": Task(id="T-1", decisions=[]),
+        "T-2": Task(id="T-2", decisions=[]),
+    }
+    board = project(
+        [
+            event(EventKind.TASK_MINTED, "T-1"),
+            event(EventKind.TASK_MINTED, "T-2"),
+            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}),
+        ]
+    )
+
+    assert dispatchable(tasks, board, PARTITION) == []
+
+
+def test_the_scope_rule_is_the_one_the_standing_loop_asks():
+    from torve.application.loop import _scopes_clash
+    from torve.application.planner import scopes_clash
+
+    for left, right in (
+        ([], []),
+        ([], ["src/**"]),
+        (["src/**"], ["src/**"]),
+        (["src/**"], ["docs/**"]),
+    ):
+        assert scopes_clash(left, right) == _scopes_clash(left, right)

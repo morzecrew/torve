@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -479,78 +479,49 @@ alongside the existing architecture review. The corpus amendments listed in
     - "uv run torve rfc check"
   tier_variant: heavy
   depends_on: [2]
-
 - phase: 4
   title: one record per attempt
   intent: >-
-    An attempt is recorded once. Today the same facts are produced twice by
-    two writers — the telemetry row the projections read, and the typed
-    events the board folds — and nothing makes them agree. This phase makes
-    the attempt record one object built once at the moment the attempt
-    ends: the event payload carries everything the row carries, the row is
-    rendered from that payload, and both carriers are written from it. A
-    test pins the rendered row byte-equal to what the current builders
-    produce, so no reader of the stream changes and no projection is
-    rewritten. A run with no store still writes its row, because the record
-    exists before either carrier does.
-  character: structural
+    An attempt is recorded once. Today the same facts are produced twice by two writers — the telemetry row the projections read, and the typed events the board folds — and nothing makes them agree. This phase makes the attempt record one object built once at the moment the attempt ends: the event payload carries everything the row carries, the row is rendered from that payload, and both carriers are written from it. A test pins the rendered row byte-equal to what the current builders produce, so no reader of the stream changes and no projection is rewritten. A run with no store still writes its row, because the record exists before either carrier does.
   scope:
-    - src/torve/application/telemetry.py
-    - src/torve/application/runner.py
-    - src/torve/domain/events.py
-    - tests/test_runner.py
+    - "src/torve/application/telemetry.py"
+    - "src/torve/application/runner.py"
+    - "src/torve/domain/events.py"
+    - "tests/test_runner.py"
   acceptance:
-    - uv run pytest tests/test_runner.py tests/test_events.py
-    - uv run lint-imports
-    - uv run torve rfc check
+    - "uv run pytest tests/test_runner.py tests/test_events.py"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
   depends_on: [3]
-
 - phase: 5
   title: one state per run
   intent: >-
-    A run's state stops being a file the loop maintains and becomes what
-    the log says. `RunState` survives as the in-memory aggregate the attempt
-    loop drives, rebuilt by replay rather than loaded; the state file
-    becomes a cache nothing reads for a decision, and the reaper, the lane
-    and `torve status` read the record. The property to prove is the one
-    the manager already claims: rebuilding a run's state from its events
-    equals the state the loop was holding, including after a kill mid
-    attempt — which is also what finally answers who releases a lease when
-    the worker holding it dies.
-  character: structural
-  tier_variant: heavy
+    A run's state stops being a file the loop maintains and becomes what the log says. `RunState` survives as the in-memory aggregate the attempt loop drives, rebuilt by replay rather than loaded; the state file becomes a cache nothing reads for a decision, and the reaper, the lane and `torve status` read the record. The property to prove is the one the manager already claims: rebuilding a run's state from its events equals the state the loop was holding, including after a kill mid attempt — which is also what finally answers who releases a lease when the worker holding it dies.
   scope:
-    - src/torve/application/runstate.py
-    - src/torve/application/reaper.py
-    - src/torve/application/manager.py
-    - src/torve/cli/status.py
-    - tests/test_reaper.py
+    - "src/torve/application/runstate.py"
+    - "src/torve/application/reaper.py"
+    - "src/torve/application/manager.py"
+    - "src/torve/cli/status.py"
+    - "tests/test_reaper.py"
   acceptance:
-    - uv run pytest tests/test_reaper.py tests/test_manager.py tests/test_worker.py
-    - uv run lint-imports
-    - uv run torve rfc check
+    - "uv run pytest tests/test_reaper.py tests/test_manager.py tests/test_worker.py"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
+  tier_variant: heavy
   depends_on: [4]
-
 - phase: 6
   title: one dispatch rule
   intent: >-
-    The dependency rule, the scope-disjointness rule and the landing
-    serialization exist twice — once as a filesystem scan over contracts and
-    run-state files, once as a fold over the log — and the two are already
-    written to agree by hand. This phase deletes the scan: `torve tick`
-    becomes a bounded call into the manager's own dispatch over the record,
-    or retires as D-44.5 says it should. What must not change is any of the
-    three rules, and the existing dispatch tests are what says so.
-  character: structural
+    The dependency rule, the scope-disjointness rule and the landing serialization exist twice — once as a filesystem scan over contracts and run-state files, once as a fold over the log — and the two are already written to agree by hand. This phase deletes the scan: `torve tick` becomes a bounded call into the manager's own dispatch over the record, or retires as D-44.5 says it should. What must not change is any of the three rules, and the existing dispatch tests are what says so.
   scope:
-    - src/torve/application/loop.py
-    - src/torve/application/manager.py
-    - src/torve/cli/tick.py
-    - tests/test_tick.py
+    - "src/torve/application/loop.py"
+    - "src/torve/application/manager.py"
+    - "src/torve/cli/tick.py"
+    - "tests/test_tick.py"
   acceptance:
-    - uv run pytest tests/test_tick.py tests/test_standing.py tests/test_manager.py
-    - uv run lint-imports
-    - uv run torve rfc check
+    - "uv run pytest tests/test_tick.py tests/test_standing.py tests/test_manager.py"
+    - "uv run lint-imports"
+    - "uv run torve rfc check"
   depends_on: [5]
 ```
 
@@ -678,3 +649,45 @@ explicit steps rather than a closure over a two-thousand-line function
 sources and decisions as records (D-44.8, D-44.9). Neither is a prerequisite
 for the exit criterion; both are prerequisites for multi-repo being real
 rather than designed.
+
+### A-86 — 2026-09-04 — phases 5 and 6 land as one rule, not one reader (amends A-85, cites D-44.6)
+**Found executing phase 5.** Both phases as written move readers onto the
+record: the reaper, the lane and `torve status` read the log instead of the
+state file; `torve tick` dispatches from the log instead of scanning the
+filesystem. Neither is possible yet, for one reason that applies to both —
+**a v1 run has no log**. `torve run` and `torve tick` wire no event store,
+and a gates-only install has no database at all. A reader moved onto the
+record today would read an empty one and conclude that nothing is in
+flight, which is the worst available answer.
+
+So the same shape phase 4 arrived at: one record, and the carriers stay
+until there is a reason to remove one. What consolidates now is the *rule*,
+not the reader.
+
+**Phase 5 delivered:** the lease that D-44.6 always claimed. A worker holds
+nothing but its lease, and until now nothing was that lease running out —
+a worker that died left its task claimed permanently, which the kill-safety
+test asserted as "nothing is invented on its behalf" without noticing that
+nothing reclaimed it either. `expired` reads a stale claim from the record
+(activity is any recorded fact, never a heartbeat the holder sends, because
+a wedged process can report itself healthy), and the manager releases it
+with the reason recorded. Beside it, the parity proof the phase was really
+for: a run driven through the worker is projected from its events and
+asserted equal to the state the attempt loop held — the state, the attempt
+count, the landing and the escalation. If those four could differ, the
+board is not the run's state and every dispatch decision made from it is a
+guess.
+
+**Phase 6 delivered:** one dispatch rule with two callers instead of two
+implementations written to agree by hand. The scope rule and the in-flight
+set now live once. That found a live defect: an empty allow-set is
+unconstrained (RFC 0002 §6) and a glob intersection over two empty sets is
+empty, so the manager would have dispatched two tasks that may each touch
+anything, while the standing loop refused exactly that pair. A contract
+with no explicit scope is the common case, so this was not a corner.
+
+**Still owed by both, and gated on the migration rather than on effort:**
+the readers. When the manager is the thing that runs the work and every run
+has a log, the state file becomes a cache and the filesystem scan becomes
+dead code — and deleting them then is a smaller change than it would be
+now, because the rules they implement will already be shared.

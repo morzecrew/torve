@@ -33,6 +33,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from torve.application.manager import IN_FLIGHT
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
@@ -134,21 +135,18 @@ def _dependency_satisfied(dep: str, landed: Callable[[str], bool]) -> bool:
 
 # The states whose scopes fence the dispatch batch (D-19.14): a run the
 # loop must not touch is also a run whose files nothing else may claim.
-INFLIGHT = frozenset({TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED})
+# The manager's set, imported rather than repeated — two definitions of
+# "in flight" is two answers to whether a dispatch is safe.
+INFLIGHT = IN_FLIGHT
 
 
 # ....................... #
 
 
 def _scopes_clash(left: list[str], right: list[str]) -> bool:
-    # An empty allow-set is unconstrained (RFC 0002 §6): a task that may
-    # touch anything can prove itself disjoint from nothing.
-    if not left or not right:
-        return True
+    from torve.application.planner import scopes_clash
 
-    from torve.application.planner import globs_intersect
-
-    return globs_intersect(left, right)
+    return scopes_clash(left, right)
 
 
 # ....................... #

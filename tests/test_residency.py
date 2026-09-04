@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 from forze.application.execution import DepsRegistry, ExecutionRuntime
@@ -18,7 +19,7 @@ from forze.application.execution import DepsRegistry, ExecutionRuntime
 from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
 from torve.application.manager import project
-from torve.application.residency import contracts, mint, once, serve
+from torve.application.residency import contracts, mint, once, reclaim, serve
 from torve.application.worker import Outcome, Worker
 from torve.domain.events import EventKind
 from torve.domain.states import TaskState
@@ -444,3 +445,57 @@ def test_the_serve_verb_runs_a_bounded_pass_and_says_what_it_did(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["handled"] == 0
+
+
+# ....................... #
+
+
+def test_a_dead_worker_s_task_comes_back_when_its_lease_runs_out(tmp_path):
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        # A worker claims and dies: nothing releases the task, because the
+        # process that would have is gone.
+        dead = Worker(log=log, name="w-dead", execute=worker_over(log, []).execute)
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+
+        assert await dead.claim(contracts(tmp_path), PARTITION) is not None
+        assert await once(log, worker_over(log, []), tmp_path, PARTITION) is None
+
+        # Reclaiming is the manager's, and it says why.
+        released = await reclaim(log, partition=PARTITION, actor_id="manager-1", lease=timedelta(0))
+
+        assert released == ["T-0001"]
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].state is TaskState.QUEUED
+        assert board.tasks["T-0001"].claimed_by is None
+
+        recorded = [
+            one for one in await log.history("T-0001") if one.kind is EventKind.TASK_RELEASED
+        ]
+        assert "lease expired" in recorded[0].payload["reason"]
+        assert "w-dead" in recorded[0].payload["reason"]
+
+    run(scenario)
+
+
+def test_the_next_pass_picks_up_what_the_lease_released(tmp_path):
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        executed: list[str] = []
+        dead = Worker(log=log, name="w-dead", execute=worker_over(log, []).execute)
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        await dead.claim(contracts(tmp_path), PARTITION)
+
+        # A pass whose reclaim window has passed frees the task and runs it
+        # in the same pass — waiting an idle interval to notice would be a
+        # second cost on top of the death.
+        assert (
+            await once(log, worker_over(log, executed), tmp_path, PARTITION, lease=timedelta(0))
+            == "T-0001"
+        )
+        assert executed == ["T-0001"]
+
+    run(scenario)
