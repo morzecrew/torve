@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0043**.
+number is **0044**.
 
 ## Design
 
@@ -51,6 +51,7 @@ number is **0043**.
 | [0040](0040-the-why-projection.md) | The why projection | accepted | none | 0007, 0032, 0038 | — | One on-demand per-task projection — torve why — joining attempt rows, verdicts, convictions, reviews, escalations and costs into a chronological timeline, rendered by CLI, MCP and serve from one reader. |
 | [0041](0041-remote-sandboxes.md) | Remote sandboxes | accepted | none | 0003, 0017, 0021, 0033 | — | The OpenSandbox runtime matured into a first-class remote execution target — live-server conformance, registry-delivered images, measured workspace transfer, and a broker the sandbox can actually reach — so agent sessions and gate batteries run on machines that are not the operator's. |
 | [0042](0042-the-composition-root-and-the-substrate-runtime.md) | The composition root and the substrate runtime | accepted | none | 0008, 0015, 0019 | — | One composition root instead of per-verb wiring, and the substrate's runtime machinery adopted where torve hand-rolls it — the enabling move for any deployment shape beyond "the operator's shell", with the resident-server question named and demand-gated, not smuggled. |
+| [0043](0043-blocker-revision.md) | Blocker revision | draft | none | 0005 | — | A surviving review blocker feeds a bounded in-run revision attempt in the same worktree — carried by the RFC 0005 §4a feedback record — before it escalates the run. |
 
 ## Conventions
 
