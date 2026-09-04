@@ -20,6 +20,7 @@ import torve
 from torve.cli import (
     console,
     context,
+    decisions,
     doctor,
     evals,
     feedback,
@@ -62,6 +63,7 @@ app.add_typer(tracker.tracker_app, name="tracker")
 app.add_typer(fleet.fleet_app, name="fleet")
 app.add_typer(log.log_app, name="log")
 app.add_typer(manager.manager_app, name="manager")
+app.add_typer(decisions.decisions_app, name="decisions")
 
 
 # ....................... #

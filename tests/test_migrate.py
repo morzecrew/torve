@@ -67,9 +67,17 @@ def test_missing_extra_names_the_install_and_exit_code(monkeypatch):
 
 
 def test_status_reports_three_targets_and_the_pin():
+    # Counted from the directory rather than written down: a step count in
+    # an assertion goes stale on the next migration, and a test that has to
+    # be edited whenever the schema grows teaches people to edit it without
+    # reading it.
+    from pathlib import Path
+
+    torve_steps = len(list((Path(__file__).parents[1] / "migrations/torve/postgres").glob("*.sql")))
+
     lines = status(dsn=None)
     assert len(lines) == 4
-    assert lines[0].startswith("torve") and "1 step(s)" in lines[0]
+    assert lines[0].startswith("torve") and f"{torve_steps} step(s)" in lines[0]
     assert lines[1].startswith("substrate") and "1 step(s)" in lines[1]
     assert lines[2].startswith("telemetry")
     assert "forze" in lines[3]

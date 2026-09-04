@@ -1,7 +1,8 @@
 ---
 id: "0047"
 title: Sources and decisions as records
-status: draft
+status: accepted
+implementation: complete
 depends_on: ["0044"]
 informed_by: ["0007", "0016", "0020", "0022", "0030"]
 supersedes: []

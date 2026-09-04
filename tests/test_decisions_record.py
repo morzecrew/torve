@@ -427,3 +427,43 @@ def test_the_record_answers_the_paths_question_the_corpus_answers(tmp_path):
         assert from_record, "the corpus governs these paths; an empty answer is a broken read"
 
     run(scenario)
+
+
+# ....................... #
+
+
+def test_the_check_verb_reports_without_writing(tmp_path):
+    """`--check` and a real import are the same comparison with the write
+    skipped (D-47.5), which only means anything if the check writes nothing.
+
+    Run against the mock, so the record is empty at process start and the
+    whole corpus reads as pending — which is also what the verb should say
+    when nobody has imported yet.
+    """
+
+    import json
+
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+
+    document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+    (tmp_path / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\nrfcs:\n  path: rfcs\n", encoding="utf-8"
+    )
+
+    checked = CliRunner().invoke(
+        app,
+        ["decisions", "import", "p", "--check", "--root", str(tmp_path), "--format", "json"],
+    )
+
+    assert checked.exit_code == 0, checked.output
+
+    report = json.loads(checked.stdout)
+
+    assert report["written"] is False
+    assert [one["kind"] for one in report["events"]] == [
+        "source.imported",
+        "decision.recorded",
+    ]

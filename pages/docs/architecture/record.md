@@ -96,6 +96,50 @@ The rule has teeth in two places worth naming:
   payload, so a field added to one carrier and not the other is not
   expressible.
 
+## The intent half: sources and decisions
+
+Everything above is execution — what an attempt did, what a gate found, what
+landed. The other half of the record is what the work was supposed to
+honour.
+
+A **source** is any provenance carrying zero or more decisions: a
+specification document, an incident, an audit, a review finding, an
+operator's ask. The corpus is one shape of this and not a privileged one —
+before the record existed, an incident that settled something had to become
+an RFC first or the settlement was lost. A source is identified as
+`<namespace>/<slug>`, so `rfc/0044` keeps its identity when the file is
+renamed and the decisions stay attached to it.
+
+A **decision** is a subject, and this is the one distinction worth reading
+twice, because getting it backwards makes every count wrong and the error
+invisible:
+
+- **A second record on the same subject is a new version of that
+  decision.** `D-27.7` regraded from `ASSUMED` to `LOCKED` is a second
+  record on `D-27.7`. Its current state is the last one; its history is all
+  of them — the question `git log -p` over the corpus answers today, by
+  hand, from diffs.
+- **`supersedes` is an edge to a different decision.** `D-14.13` retired in
+  favour of `A-44` is one decision naming another. It is not how a regrade
+  is expressed.
+
+Retirement is recorded, never inferred from a row that stopped appearing.
+Absence cannot tell a deliberate retirement from a table somebody broke, and
+for a source that is an incident rather than a file it means nothing at all.
+
+```bash
+torve decisions import <repo>          # idempotent: an unchanged corpus appends nothing
+torve decisions show <repo> D-44.9     # what it says now, and every version behind it
+torve decisions paths <repo> "src/torve/application/**"
+```
+
+What the record deliberately does **not** do here is mint. A task contract
+still copies its grades at write time from the document a human committed:
+putting an import between a signature and the contract that inherits it
+creates a way for the two to disagree and buys the mint nothing. That
+changes when tasks are records too, at which point the import stops being an
+extra step and becomes the only one.
+
 ## What is projected from it
 
 | Projection | Answers |
@@ -103,6 +147,7 @@ The rule has teeth in two places worth naming:
 | the board (`torve manager board`) | what each task's recorded facts add up to: state, attempts, who holds it, what it landed, what it has burned |
 | the divergence log (`.torve/tasks/<id>/log.yaml`) | the entries the record holds for a task, written into the worktree before each gate pass so the battery judges the record |
 | the telemetry stream | the attempt rows the cost, regime and quality projections read |
+| the decision graph (`torve decisions`) | what is in force, what each decision used to say, and which decisions govern a set of paths |
 
 A projection is never edited. Rebuilding one is reading the log again, which
 is also what a manager does when it restarts — restart transparency is a

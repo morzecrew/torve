@@ -18,6 +18,7 @@ import subprocess
 import time
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from forze.application.contracts.durable.function import DurableRunStatus
@@ -169,7 +170,11 @@ def test_migrated_database_passes_the_battery_fresh_and_populated(pg_dsn, monkey
 
     # Run 1 — from scratch: every step applied to a clean database.
     assert migrate_apply("substrate", pg_dsn) == 1
-    assert migrate_apply("torve", pg_dsn) == 1  # the event log (RFC 0044)
+    # Counted from the directory: the number of torve's own steps grows, and
+    # the property under test is that a clean database takes all of them.
+    torve_steps = len(list((Path(__file__).parents[1] / "migrations/torve/postgres").glob("*.sql")))
+
+    assert migrate_apply("torve", pg_dsn) == torve_steps
     assert migrate_apply("telemetry", pg_dsn) == 0  # stage 1: a file has no schema
 
     async def scenario():
