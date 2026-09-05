@@ -127,6 +127,43 @@ def test_disagreement_is_flagged(plan_repo):  # noqa: F811
     assert entry["disagreement"] == "asserted complete, but a phase is not shipped"
 
 
+def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # noqa: F811
+    """`partial` was the assertion nothing could contradict (A-113): a
+    document could ship every phase it declared and keep saying there was
+    more to do, and this projection agreed. Nine of them had."""
+
+    root, _write_doc, _git = plan_repo
+    seed_facts(root)
+    doc = next((root / "rfcs").glob("0090-*.md"))
+    body = doc.read_text(encoding="utf-8").replace(
+        "implementation: none", "implementation: partial"
+    )
+    doc.write_text(body, encoding="utf-8")
+
+    # While a phase is short of shipped, `partial` is exactly right and the
+    # projection says nothing.
+    entry = next(d for d in context_report(root, root / "rfcs")["programme"] if d["rfc"] == "0090")
+    assert entry["disagreement"] is None
+
+    # Every task ready: the same three contracts, all landed.
+    for task_id in ("T-0001", "T-0002", "T-0003"):
+        state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+
+        for to in (
+            TaskState.CLAIMED,
+            TaskState.RUNNING,
+            TaskState.GATED,
+            TaskState.REVIEWED,
+            TaskState.READY,
+        ):
+            state.transition(to, "t")
+
+        state.save()
+
+    entry = next(d for d in context_report(root, root / "rfcs")["programme"] if d["rfc"] == "0090")
+    assert entry["disagreement"] == "asserted partial, but every declared phase shipped"
+
+
 def test_unminted_accepted_document_is_plannable(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     report = context_report(root, root / "rfcs")  # nothing minted yet

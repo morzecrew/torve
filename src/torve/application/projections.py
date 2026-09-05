@@ -1019,6 +1019,20 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
             disagreement = "asserted complete, but a phase is not shipped"
         elif implementation == "none" and any(p == "shipped" for p in progress.values()):
             disagreement = "a phase shipped, but the assertion still says none"
+        elif (
+            implementation == "partial"
+            and progress
+            and not unminted
+            and all(p == "shipped" for p in progress.values())
+        ):
+            # The assertion nothing could contradict (A-113). `partial` was
+            # the one value with no failing shape: a document could ship
+            # every phase it declared and keep asserting there was more to
+            # do, for months, and this projection agreed with it. It says
+            # nothing about *scope* — a document may describe more than it
+            # ever minted — which is why this reads as a disagreement for a
+            # person to settle rather than a correction.
+            disagreement = "asserted partial, but every declared phase shipped"
 
         view.append(
             {

@@ -7,7 +7,7 @@ depends_on: ["0003", "0016"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-47", "A-55", "A-69"]
+amended_by: ["A-47", "A-55", "A-69", "A-113"]
 owner: Lev Litvinov
 description: >-
   Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface.
@@ -271,7 +271,6 @@ The format's surface is narrow by construction: it terminates at the planner. `d
 ## Amendments
 
 ### A-69 — 2026-08-31 — the contract carries a title; the intent dumps as a block
-
 **Found reading a minted contract.** Two defects wearing one symptom:
 the dumper's single-quoted style wrote every newline in `intent` as a
 blank-line escape (a double-spaced telegram), and the landing subject —
@@ -286,7 +285,6 @@ under the old fallback.
 
 
 ### A-55 — 2026-08-27 — the identifier lookup: `torve rfc show` and its MCP face (amends §3a, §5)
-
 **Found in corpus authoring.** Every artefact in this system cites corpus
 identifiers — divergence logs cite decisions, escalations name them, task
 contracts inherit them, amendments amend them — and the only way to resolve
@@ -314,7 +312,6 @@ what a sandbox sees. Full-text search is refused: grep exists, and the verb
 answers identifiers, not questions.
 
 ### A-47 — 2026-08-27 — one decision-table reader, one inheritance helper (amends §6a, retires D-7.6's adapter)
-
 **Found in a whole-repository audit for over-engineering.** Three implementations read a document's decision table and produced inherited rows: `torve plan`'s inline loop, adoption's `_inherit_decisions`, and the `RfcDirectory` adapter behind the `DecisionSource` port. Two more parsed the markdown table itself — `decision_rows` for the validator and `decision_table` for minting, thirty lines apart, differing in whether a four-column row survives and passing the header verdict back as an integer repeated on every row.
 
 **`RfcDirectory` and `DecisionSource` had no production caller at all** — the port was never used as an annotation and the adapter was reached only from its own test. What it did, the planner already did, with one behavioural difference nobody had chosen: it dropped pathless rows, and the planner keeps them.
@@ -322,3 +319,28 @@ answers identifiers, not questions.
 **Changed:** one `inherit_decisions(text, name)` in the planner is what both `torve plan` and adoption mint from — if they can drift, they will, and a contract that inherited different grades depending on which door it came through is the failure D-7.7 is guarding against. One `decision_section` parses the table; `decision_table` is its minting face, and the validator takes the section, which tells "no Decisions section" apart from "a header with no rows under it" and carries the header verdict once.
 
 **The port is retired,** not replaced. §6a's requirement stands — standing decisions are read deterministically from committed documents, and model-assisted extraction stays outside the engine — but it is met by a function, not by a seam with one side.
+
+### A-113 — 2026-09-05 — The assertion nothing could contradict
+**Found asking which documents still owe work.** D-7.15 puts the asserted
+`implementation` beside derived per-phase progress so the two can be seen
+to disagree. Two shapes of disagreement were checked — asserted `complete`
+with a phase short of shipped, and asserted `none` with something shipped —
+and `partial` had none. It was the one value nothing could contradict: a
+document could ship every phase it declared, mint nothing further, and go
+on asserting there was more to do, indefinitely, with this projection
+agreeing.
+
+Nine documents were in exactly that state — 0002, 0003, 0004, 0005, 0006,
+0009, 0020, 0021 and 0022, every declared phase shipped, no unminted phase
+left — and nothing said so. Two more (0043, 0045) had drifted one step
+further and carried no assertion at all.
+
+**Changed:** a third shape. `partial` with every declared phase shipped and
+no phase unminted reads as a disagreement.
+
+It is deliberately a *disagreement* and not a correction, because the
+evidence is about phases and the assertion is about scope: a document may
+describe more than it ever minted a task for, which is precisely how RFC
+0023 could be `complete` and never once have run. What the flag says is
+"the phases are done and the assertion says otherwise — settle it", and a
+person settles it by reading the document, not by trusting this count.
