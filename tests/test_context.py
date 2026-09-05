@@ -1385,3 +1385,36 @@ def test_why_envelope_is_deterministic_across_reads(plan_repo):  # noqa: F811
     seed_why_facts(root)
 
     assert why_report(root, "T-0001") == why_report(root, "T-0001")
+
+
+def test_gate_health_reports_recency_beside_the_lifetime_rate():
+    """RFC 0004's shadow-run reading found `coverage-delta` at 59% failures
+    over its whole life, and 100%, 76%, 0% over the three days that life
+    consists of — a gate being calibrated, read by the aggregate as a
+    broken one (A-124). A rate that is moving is a different fact from a
+    rate that is high."""
+
+    from torve.application.projections import RECENT_RUNS, _gate_health
+
+    def row(outcome):
+        return {"results": [{"name": "coverage-delta", "outcome": outcome, "state": "shadow"}]}
+
+    # Oldest first, as the stream is written: a long run of failures, then
+    # a clean window the size the reading looks at.
+    rows = [row("fail")] * 40 + [row("pass")] * RECENT_RUNS
+    gate = _gate_health(rows)["coverage-delta"]
+
+    assert gate["runs"] == 40 + RECENT_RUNS
+    assert gate["failures"] == 40
+    # The whole point: lifetime says two thirds red, recency says green.
+    assert gate["recent_runs"] == RECENT_RUNS
+    assert gate["recent_failures"] == 0
+
+
+def test_a_gate_with_fewer_runs_than_the_window_reports_what_it_has():
+    from torve.application.projections import _gate_health
+
+    rows = [{"results": [{"name": "rfc-index", "outcome": "pass"}]}] * 3
+    gate = _gate_health(rows)["rfc-index"]
+
+    assert gate["recent_runs"] == 3 and gate["recent_failures"] == 0

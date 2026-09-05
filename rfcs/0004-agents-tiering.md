@@ -2,12 +2,12 @@
 id: "0004"
 title: Agent adapters and tiering
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-57", "A-72", "A-121"]
+amended_by: ["A-57", "A-72", "A-121", "A-124"]
 owner: Lev Litvinov
 description: >-
   Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable.
@@ -220,3 +220,61 @@ criterion; only silence leaves it open.
 
 **Changed:** `implementation: partial` stands, with exactly one criterion
 outstanding and the evidence for it already collected.
+
+### A-124 — 2026-09-06 — The gate set read against the replays: one change, and the rest stand
+**A-121's outstanding criterion, closed by reading the evidence.** §8 asks
+for a gate set adjusted from shadow-run evidence rather than from
+expectation. The 21 replays and the 406 real attempts behind them were read
+today, split by population. Per gate, failures over runs:
+
+| gate | replays | real |
+| --- | --- | --- |
+| `decisions-reported` | 1/23 (4%) | 60/383 (16%) |
+| `scope` | 3/23 (13%) | 29/382 (8%) |
+| `user-facing-text` | 0/18 | 25/313 (8%) |
+| `acceptance` | 0/23 | 15/382 (4%) |
+| `self-audit` | 0/23 | 8/383 (2%) |
+| `rfc-valid` | 2/23 (9%) | 3/350 (1%) |
+| `layering` | 2/23 (9%) | 0/359 |
+| `source-layout` | 0/23 | 4/366 (1%) |
+| `secrets` | 0/23 | 0/382 |
+| `no-test-tampering` | 0/23 | 0/382 |
+| `coverage-delta` | 0/0 | 37/63 (59%) |
+
+**The blocking set does not change, and each zero has a different reason.**
+`secrets` and `no-test-tampering` have never convicted anything in 405 runs
+across both populations, and that is what they are for: their failure class
+is irreversible, so their evidence is the sabotage twin rather than a
+conviction rate, and 29 of 29 twins behave. `layering` has never convicted
+a real attempt either, and its zero is different again — the import
+contracts run continuously in development, so the gate is a ratchet that
+holds rather than a net that catches. Removing a gate because it never
+fires is removing the reason it never fires.
+
+**`layering` and `rfc-valid` convict replays and not real runs**, at 9%
+each. That is not a finding about the gates: a replay runs old work against
+*today's* rules, and both rules tightened since the tasks being replayed
+landed. It is the measurement working, and it is worth writing down before
+somebody reads those two rows as gate defects.
+
+**The one adjustment the evidence supports is not to a gate.**
+`coverage-delta` reads 37 failures in 63 runs — 59%, the worst rate in the
+battery, on the newest gate. By day it reads **100%, 76%, 0%**: the gate
+landed on 2026-09-03 refusing everything and passes everything three days
+later. The aggregate describes a gate's own calibration window and would
+have argued for weakening or removing a gate that is now working. The
+reading was the thing that was wrong.
+
+**Changed:** `_gate_health` reports the last 20 runs beside the lifetime
+figure, and `torve context` prints both. A rate that is moving is a
+different fact from a rate that is high, and the projection said only the
+second. `coverage-delta` now reads `37` lifetime and `0/20` recent.
+
+The criterion is met in the direction it was written to allow: the evidence
+was read, it changed something, and what it changed is the instrument
+rather than the battery — because for the battery the evidence says leave
+it alone, which is a finding and not an absence of one.
+
+With §8's other two criteria met on 2026-08-28, that is all three, and this
+document's `implementation` becomes `complete`.
+

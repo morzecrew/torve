@@ -305,14 +305,27 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     if report["gates"]:
         gates = make_table(
-            "gate", "runs", "failures", "flaky", "bypassed", "mean", "max", title="Gate health"
+            "gate",
+            "runs",
+            "failures",
+            "recent",
+            "flaky",
+            "bypassed",
+            "mean",
+            "max",
+            title="Gate health",
         )
 
         for name, gate in sorted(report["gates"].items()):
+            # Lifetime beside the last few runs: a rate that is moving is a
+            # different fact from a rate that is high (A-124).
+            recent_runs = gate.get("recent_runs", 0)
+            recent = f"{gate.get('recent_failures', 0)}/{recent_runs}" if recent_runs else "—"
             gates.add_row(
                 name,
                 str(gate["runs"]),
                 Text(str(gate["failures"]), STYLE_FAIL if gate["failures"] else STYLE_DIM),
+                Text(recent, STYLE_FAIL if gate.get("recent_failures") else STYLE_DIM),
                 str(gate["flaky"]),
                 str(gate["bypassed"]),
                 Text(f"{gate['mean_duration_s']}s", STYLE_DIM),

@@ -371,11 +371,26 @@ def _findings(root: Path) -> list[dict[str, Any]]:
 # ....................... #
 
 
+# How many of a gate's most recent runs the recency counters cover. Small
+# enough that a gate calibrated this week reads differently from its own
+# lifetime, large enough not to swing on one attempt (A-124).
+RECENT_RUNS = 20
+
+
 def _gate_health(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per-gate counters from the attempt rows (§4: what gate to write comes
-    from data rather than recollection)."""
+    from data rather than recollection).
+
+    Lifetime *and* the last `RECENT_RUNS`, because the lifetime figure alone
+    hides the thing worth seeing. RFC 0004's shadow-run reading found
+    `coverage-delta` at 59% failures over its whole life and 100%, 76%, 0%
+    over the three days that life consists of: a gate being calibrated, and
+    an aggregate that reads as a broken gate (A-124). A rate that is moving
+    is a different fact from a rate that is high.
+    """
 
     stats: dict[str, dict[str, Any]] = {}
+    recent: dict[str, list[str]] = {}
 
     for record in rows:
         results: Any = record.get("results")
@@ -404,6 +419,7 @@ def _gate_health(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
             gate["runs"] += 1
             outcome = str(row.get("outcome", ""))
+            recent.setdefault(name, []).append(outcome)
 
             if outcome in ("fail", "error"):
                 gate["failures"] += 1
@@ -416,10 +432,15 @@ def _gate_health(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             gate["total_duration_s"] += duration
             gate["max_duration_s"] = max(gate["max_duration_s"], duration)
 
-    for gate in stats.values():
+    for name, gate in stats.items():
         runs = gate["runs"] or 1
         gate["mean_duration_s"] = round(gate["total_duration_s"] / runs, 2)
         gate["total_duration_s"] = round(gate["total_duration_s"], 2)
+
+        # The rows arrive oldest first, so the tail is the recent window.
+        window = recent[name][-RECENT_RUNS:]
+        gate["recent_runs"] = len(window)
+        gate["recent_failures"] = sum(1 for one in window if one in ("fail", "error"))
 
     return stats
 
