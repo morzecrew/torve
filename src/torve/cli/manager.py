@@ -108,10 +108,13 @@ async def _serve(
 ) -> int:
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
+    from torve.application.fleet import escalated_tasks
+    from torve.application.manager import project
     from torve.application.projections import shipped_landings
     from torve.application.residency import ran_here, serve
     from torve.application.worker import Worker
     from torve.cli import assembly
+    from torve.domain.events import SubjectType
 
     config = load_config(root, config_path)
 
@@ -122,6 +125,18 @@ async def _serve(
     # the engine's trailer and a human's citation both mean finished.
     landings = shipped_landings(root)
     ran = ran_here(root)
+
+    async def paused() -> bool:
+        """This root's own pause rule, re-decided every pass (A-110).
+
+        The queue is the union of both carriers (D-48.5): a task escalated
+        under v1 left a run-state file, one this manager escalated is in
+        the log, and a task in both is one task a person has to look at.
+        """
+
+        board = project(await log.of_subject_type(SubjectType.TASK, partition=partition))
+
+        return len(escalated_tasks(root, board)) >= config.loop.pause_escalations
 
     def standing() -> tuple[str, bool]:
         # RFC 0023's leg, unchanged — it mints a contract through the
@@ -158,6 +173,7 @@ async def _serve(
             only=only,
             dispatch=dispatch,
             standing=standing,
+            paused=paused,
         )
 
 

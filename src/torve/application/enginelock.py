@@ -7,9 +7,9 @@ contract (RFC 0023 D-23.4). The tick it was named for is gone; the
 contention it prevents is not, so the file keeps its name on disk — a lock
 file whose name changes under a running process is a lock nobody holds.
 
-The escalation count is read by the fleet before any root is served
-(RFC 0024 §5.2) and by the pause rule, computed here once so the two cannot
-drift by counting two different ways.
+The escalation count that used to live beside it is gone: it counted one
+carrier, and the pause rule now asks `fleet.escalated_tasks`, which counts
+both (D-48.5, A-110).
 """
 
 from __future__ import annotations
@@ -20,11 +20,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
-from torve.base import naming
 from torve.config import layout
-from torve.domain.states import TaskState
 
 # ----------------------- #
 
@@ -76,17 +73,3 @@ def acquire_lock(root: Path, budget_s: int) -> bool:
 
 def release_lock(root: Path) -> None:
     (root / layout.TORVE_DIR / LOCK).unlink(missing_ok=True)
-
-
-# ....................... #
-
-
-def escalated_count(root: Path) -> int:
-    """This root's escalation queue — the same count `torve status` shows,
-    and the count a fleet's survey reads before any root is served."""
-
-    return sum(
-        1
-        for state in RunState.load_all(root / naming.WORKTREE_DIR)
-        if state.state is TaskState.ESCALATED
-    )

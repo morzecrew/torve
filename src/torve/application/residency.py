@@ -17,7 +17,7 @@ mint exists no manager owns the task and no worker may claim it.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from torve.application.manager import IN_FLIGHT, TaskView, expired, project
@@ -46,6 +46,12 @@ Landed = Callable[[str], str | None]
 # run-state file or a telemetry row. Asked by the composition root for the
 # same reason as `Landed`: it reads files, and this module decides.
 Ran = Callable[[str], bool]
+
+# Whether the operator's attention is spoken for right now, asked once a
+# pass. A callable rather than a value because the queue changes while a
+# resident manager runs (A-110), and asked by the composition root because
+# the answer joins a file carrier to a record one.
+Pause = Callable[[], Awaitable[bool]]
 
 # One evaluation of every committed standing job (RFC 0023 §5.4), returning
 # what it did and whether anything fired. Wired by the composition root
@@ -413,7 +419,7 @@ async def serve(
     landed: Landed | None = None,
     ran: Ran | None = None,
     only: str | None = None,
-    paused: bool = False,
+    paused: Pause | bool = False,
     dispatch: bool = True,
     standing: Standing | None = None,
 ) -> int:
@@ -424,6 +430,10 @@ async def serve(
     thing. Returns how many tasks were handled — the bounded form is what
     tests and a `--passes` dispatch use, and the unbounded one is the
     resident process D-44.5 asks for.
+
+    `paused` may be a callable, and for a resident process it must be: the
+    escalation queue changes while the manager runs, and a pause decided
+    once at startup stops meaning anything an hour later (A-110).
     """
 
     handled = 0
@@ -440,7 +450,7 @@ async def serve(
             landed=landed,
             ran=ran,
             only=only,
-            paused=paused,
+            paused=(await paused()) if callable(paused) else paused,
             dispatch=dispatch,
             standing=standing,
         )

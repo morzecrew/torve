@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from torve.application.enginelock import escalated_count
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.fleet import FleetManifest, FleetRepository, TrustRefused, enforce_trust
@@ -34,6 +33,10 @@ if TYPE_CHECKING:
     from torve.application.manager import Board
 
 # ----------------------- #
+
+# Every repository's board by root, folded by the caller — the fleet reads
+# roots and the record, and only the composition root holds the log.
+Boards = Callable[[], Awaitable[dict[str, "Board"]]]
 
 
 def escalated_tasks(root: Path, board: Board | None = None) -> set[str]:
@@ -58,13 +61,20 @@ def escalated_tasks(root: Path, board: Board | None = None) -> set[str]:
 # ....................... #
 
 
-def survey(manifest: FleetManifest) -> dict[str, int]:
-    """Leg 1 (§5.2): each root's escalation queue, read the same way
-    `torve status` and the tick itself already do (`escalated_count`) — no
-    new source, and the count a fleet decision is based on is the same
-    count each root's own tick will report."""
+def survey(manifest: FleetManifest, boards: dict[str, Board] | None = None) -> dict[str, int]:
+    """Leg 1 (§5.2): each root's escalation queue.
 
-    return {repo.root: escalated_count(repo.path) for repo in manifest.ticking_order()}
+    Both carriers when a board is available, one when it is not (D-48.5).
+    A manager records its escalations in the log and whatever v1 ran on the
+    same root left them in run-state files; counting only the files makes a
+    fleet blind to every escalation the manager has raised since, which is
+    now all of them (A-110).
+    """
+
+    return {
+        repo.root: len(escalated_tasks(repo.path, (boards or {}).get(repo.root)))
+        for repo in manifest.ticking_order()
+    }
 
 
 # ....................... #
@@ -202,6 +212,7 @@ async def serve_fleet(
     *,
     idle_seconds: float = IDLE_SECONDS,
     rounds: int | None = None,
+    boards: Boards | None = None,
 ) -> FleetServeReport:
     """The resident manager over every repository the manifest names
     (RFC 0048 §5.2).
@@ -227,7 +238,7 @@ async def serve_fleet(
         # Re-surveyed every round: the queue changes as the fleet runs, and
         # a pause decided once at startup is a pause that stops meaning
         # anything an hour later.
-        _, paused = decide_pause(manifest, survey(manifest))
+        _, paused = decide_pause(manifest, survey(manifest, await boards() if boards else None))
 
         for repo in manifest.ticking_order():
             outcome, took = await _serve_one(repo, paused, run_pass)

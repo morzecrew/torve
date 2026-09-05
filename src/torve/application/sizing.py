@@ -97,15 +97,3 @@ def has_children(root: Path, task_id: str) -> bool:
             return True
 
     return False
-
-
-# ....................... #
-
-
-def awaiting_decomposition(root: Path, task: Task) -> bool:
-    """The too_large route's predicate (D-26.7): a contract this large,
-    that has not already been split into children, awaits decomposition —
-    dispatch skips it until either a decomposition is adopted or the
-    operator overrides explicitly."""
-
-    return estimate(task).size == "too_large" and not has_children(root, task.id)

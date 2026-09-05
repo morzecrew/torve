@@ -287,3 +287,35 @@ def test_the_order_is_the_manifests_and_never_a_priority(tmp_path, order):
     expected = ["a/alpha", "b/beta"] if order == "alphabetical" else ["b/beta", "a/alpha"]
 
     assert [partition for partition, _ in passes.seen] == expected
+
+
+def test_the_pause_counts_the_record_and_not_only_the_files(tmp_path):
+    """D-48.5's union was written, tested and never called: `survey` counted
+    run-state files, so a fleet was blind to every escalation the manager
+    had raised — which is now all of them (A-110)."""
+
+    one = root(tmp_path, "one")
+    board = Board(
+        tasks={"T-0002": TaskView(task_id="T-0002", partition="a/one", state=TaskState.ESCALATED)}
+    )
+    seen: list[bool] = []
+
+    async def run_pass(repo, paused):
+        seen.append(paused)
+        return None
+
+    async def boards():
+        return {str(one): board}
+
+    asyncio.run(
+        serve_fleet(
+            manifest(repo(one, partition="a/one"), pause_escalations=1),
+            run_pass,
+            rounds=1,
+            idle_seconds=0,
+            boards=boards,
+        )
+    )
+
+    # Nothing on disk is escalated; the record alone carries the queue.
+    assert seen == [True]

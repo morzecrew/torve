@@ -288,7 +288,11 @@ def lint_contract_cmd(
     """The standalone lint — the same mechanical protection a drafted
     contract gets, for the hand-minted path."""
 
-    from torve.application.intake import document_threshold_warnings, lint_contract
+    from torve.application.intake import (
+        document_threshold_warnings,
+        lint_contract,
+        standing_warnings,
+    )
 
     root = root.resolve()
     config = load_config(root, config_path)
@@ -298,8 +302,12 @@ def lint_contract_cmd(
 
     errors = lint_contract(root, contract)
     # D-30.4: advisory only — a hand-minted contract is already signed, so
-    # crossing the document threshold warns here rather than refusing.
-    warnings = document_threshold_warnings(root, contract, config)
+    # crossing the document threshold warns here rather than refusing. The
+    # standing rows whose paths this scope crosses warn on the same terms
+    # (RFC 0030 §5.1); the advisory existed and nothing printed it (A-110).
+    warnings = document_threshold_warnings(root, contract, config) + standing_warnings(
+        root, contract, root / config.rfcs.path
+    )
 
     if fmt is Format.JSON:
         emit_json(

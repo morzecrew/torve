@@ -1043,23 +1043,21 @@ class PromotionConfig(BaseModel):
 
 
 class LoopConfig(BaseModel):
-    """The standing loop's knobs (RFC 0019 §7). There is no enabled
-    flag — scheduling `torve tick` is the enablement."""
+    """The manager pass's knobs. Named for the standing loop that is gone
+    (A-105); the keys stay because a configuration file that has to be
+    rewritten to keep working is a worse cost than a section named after
+    its ancestor."""
 
     model_config = ConfigDict(extra="forbid")
 
-    # Intake pauses while the escalation queue holds this many (D-19.5).
+    # A pass mints nothing while this root's escalation queue holds this
+    # many, counting both carriers (D-48.5). The queue may drain during a
+    # pause; it may not grow.
     pause_escalations: int = 1
-    # Up to this many dispatches per tick, admitted only while their
-    # scopes are provably disjoint (D-19.14, A-39). The default keeps
-    # D-19.4's original one-dispatch regime; raising it is RFC 0006 §4's
-    # parallelism raise — one dimension, after measured escalation rate.
-    dispatch_workers: int = 1
-    # Seconds; a tick lock older than this is stale and broken loudly.
+    # Seconds; an adoption lock older than this is stale and broken loudly.
     tick_budget: int = 3600
-    # RFC 0023 D-23.6: instantiations across every standing job, bounded
-    # like dispatch's one-per-tick doctrine — spend per unit time stays
-    # cadence times a known bound.
+    # RFC 0023 D-23.6: instantiations across every standing job in one
+    # pass, so spend per unit time stays cadence times a known bound.
     standing_max_per_tick: int = 1
 
 

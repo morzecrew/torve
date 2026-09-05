@@ -144,6 +144,61 @@ def _exit_code(results: list[LaneResult]) -> int:
 # ....................... #
 
 
+def approve_cmd(
+    task: Annotated[str, typer.Argument(help="The task whose current tip is approved.")],
+    actor: Annotated[
+        str, typer.Option("--actor", help="Who is approving; defaults to the git user.")
+    ] = "",
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Approve a candidate's current branch tip.
+
+    An approval is bound to the sha it was given for: a push after it
+    approves nothing, which is the point — the lane counts approvals of the
+    tip it is about to land and no others. Approving the same tip twice is
+    one approval.
+    """
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.application.lane import record_approval
+    from torve.base import naming
+
+    root = root.resolve()
+
+    if not naming.state_file(root, task).is_file():
+        raise fail(f"configuration error: no run state for {task}", EXIT_CONFIG)
+
+    lane = GitLane()
+    tip = lane.tip(root, naming.branch(task))
+
+    if not tip:
+        raise fail(f"configuration error: no candidate branch for {task}", EXIT_CONFIG)
+
+    who = actor or lane.approver(root)
+    fresh = record_approval(root, task, who, tip)
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "task": task,
+                "actor": who,
+                "sha": tip,
+                "recorded": fresh,
+            }
+        )
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    console.print(f"{task}: {'approved' if fresh else 'already approved'} {tip[:10]} by {who}")
+
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
 def merge_cmd(
     task: Annotated[
         str | None, typer.Argument(help="One candidate to land; omit to process the whole queue.")

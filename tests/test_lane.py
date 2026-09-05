@@ -567,3 +567,44 @@ def test_reviewed_by_round_trips_and_dies_with_the_next_attempt(tmp_path):
     state.transition(TaskState.GATED, "gates red")
     state.transition(TaskState.RUNNING, "attempt 2")
     assert state.reviewed_by is None
+
+
+# ....................... #
+
+
+def test_the_approve_verb_records_the_tip_and_dedupes(lane_repo):
+    """The tracker's `/torve approve` was the only surface that recorded an
+    approval, so `promotion.approvals` had become a knob that could never
+    be satisfied — set it and the lane waited forever (A-110). The verb is
+    the surface now."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    candidate(lane_repo, "T-7099", "ninetynine.py", "n = 99\n")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7099"))
+
+    first = CliRunner().invoke(
+        app, ["approve", "T-7099", "--root", str(lane_repo), "--format", "json"]
+    )
+    assert first.exit_code == 0, first.output
+    payload = json.loads(first.stdout)
+    assert payload["sha"] == tip and payload["recorded"] is True
+
+    # The same tip twice is one approval, and the verb says so rather than
+    # counting it again.
+    again = CliRunner().invoke(
+        app, ["approve", "T-7099", "--root", str(lane_repo), "--format", "json"]
+    )
+    assert json.loads(again.stdout)["recorded"] is False
+
+
+def test_approving_a_task_with_no_run_state_is_a_configuration_error(lane_repo):
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    result = CliRunner().invoke(app, ["approve", "T-9999", "--root", str(lane_repo)])
+    assert result.exit_code == 3
+    assert "no run state" in result.stderr

@@ -1,5 +1,5 @@
 ---
-id: "0048"
+id: 0048
 title: The fleet as partitions
 status: accepted
 implementation: complete
@@ -7,7 +7,7 @@ depends_on: ["0024", "0044"]
 informed_by: ["0013", "0019", "0035"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-110"]
 owner: misery7100
 description: >-
   The resident manager runs the operator's whole fleet rather than one repository: the manifest that already names every root gains the partition each one's contracts are minted onto, and one process round-robins them under one shared attention budget.
@@ -352,3 +352,49 @@ and the concurrency question is named as open rather than implied.
     - "uv run torve rfc check"
   depends_on: [1]
 ```
+
+---
+
+## Amendments
+
+### A-110 — 2026-09-05 — The pause rule was written and never asked
+**Found sweeping for dead code after the standing loop's retirement
+(A-105).** The sweep's real finding was not dead code. It was four things
+that had been *written, tested and never called* — the same failure the
+standing leg turned out to be, in four more places.
+
+**D-48.5's union.** `escalated_tasks` counts a repository's escalations
+across both carriers, has its own test, and nothing called it: `survey`
+still counted run-state files. A fleet was therefore blind to every
+escalation the manager had raised — which, since RFC 0044, is all of them.
+The survey takes the boards now; the composition root folds them once a
+round, and `escalated_count` is deleted rather than left as the tempting
+wrong answer.
+
+**A solo manager never paused at all.** `config.loop.pause_escalations`
+had no reader after the tick went: `torve manager serve` passed no pause
+and `residency.serve` took a constant. It now asks a callable once a pass,
+because a resident process outlives its answer — the same reason
+`serve_fleet` re-surveys every round.
+
+**The standing advisory printed nowhere.** `intake.standing_warnings` is
+RFC 0030 §5.1's reading, and `torve lint-contract` rendered only the
+document-threshold half. Both warn on the same terms; both print now.
+
+**`promotion.approvals` had become a trap.** The lane counts sha-bound
+approvals of the tip it is about to land, and the only surface that ever
+recorded one was the tracker's `/torve approve` (deleted, A-92). Setting
+the knob above 0 would have waited forever, silently. `torve approve
+<task>` is the surface now — the same `record_approval`, bound to the same
+tip, deduped the same way.
+
+Two things were genuinely dead and are gone: `sizing.awaiting_decomposition`
+(the scan was its only caller; the rule is `manager.dispatchable`'s now) and
+`loop.dispatch_workers` (batching left with the tick). `torve reap` also
+raised a bare traceback when the durable store was unreachable, where every
+other verb exits 4 with a sentence.
+
+The pattern is worth naming, because it is now the third time: a capability
+whose *caller* is a field somebody forgot to set fails silently and forever,
+and no test catches it, because the unit works. What catches it is asking
+the repository which functions nothing calls.

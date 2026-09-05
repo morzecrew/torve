@@ -1,7 +1,8 @@
-"""RFC 0026: the too_large route's predicate (D-26.7) — `estimate_scope`'s
-three rules of thumb, and `has_children`/`awaiting_decomposition`, which
-decide whether a too_large verdict routes a second time once a
-decomposition has already been adopted (D-26.6)."""
+"""RFC 0026: `estimate_scope`'s three rules of thumb, and `has_children`,
+which decides whether a too_large verdict routes a second time once a
+decomposition has already been adopted (D-26.6). The rule that joined them
+is the board's now (`manager.dispatchable`), so the standalone predicate is
+gone with the scan that called it (A-110)."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ from pathlib import Path
 import yaml
 
 from torve.application import sizing
-from torve.domain.task import Scope, Task
+from torve.domain.task import Scope
 
 # ----------------------- #
 
@@ -68,17 +69,3 @@ def test_has_children_true_only_once_a_child_names_the_parent(tmp_path: Path):
     _write_contract(tmp_path, "T-0101", parent="T-0100")
     assert sizing.has_children(tmp_path, "T-0100") is True
     assert sizing.has_children(tmp_path, "T-0101") is False
-
-
-def test_awaiting_decomposition_only_for_too_large_and_childless(tmp_path: Path):
-    ok_task = Task(id="T-1", scope=Scope(allow=["src/a.py"]), decisions=[])
-    assert sizing.awaiting_decomposition(tmp_path, ok_task) is False
-
-    oversized = Task(id="T-0100", scope=Scope(allow=["src/a.py", "docs/a.md"]), decisions=[])
-    assert sizing.awaiting_decomposition(tmp_path, oversized) is True
-
-    _write_contract(tmp_path, "T-0100")
-    _write_contract(tmp_path, "T-0101", parent="T-0100")
-    # The same oversized contract, once it has adopted children, is the
-    # integration task — its verdict does not route a second time.
-    assert sizing.awaiting_decomposition(tmp_path, oversized) is False

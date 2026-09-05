@@ -19,6 +19,7 @@ from torve.cli.console import (
     STYLE_PASS,
     Format,
     emit_json,
+    fail,
     header,
     id_list,
     make_table,
@@ -35,9 +36,13 @@ from torve.cli.options import (
     runtime_for,
     task_events,
 )
+from torve.domain.states import EXIT_INFRASTRUCTURE
 
 if TYPE_CHECKING:
+    from torve.adapters.vcs.git import GitVcs
     from torve.application.manager import Board
+    from torve.application.reaper import ReapReport
+    from torve.config.runconfig import RunnerConfig
 
 # ----------------------- #
 
@@ -136,6 +141,38 @@ def status(
 # ....................... #
 
 
+def _swept(
+    root: Path,
+    config: RunnerConfig,
+    runtime_name: RuntimeName | None,
+    force: bool,
+    dry_run: bool,
+    escalated: bool,
+    vcs: GitVcs,
+) -> ReapReport:
+    from torve.adapters.store.durable import open_store
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.application.reaper import reap
+
+    return reap(
+        root,
+        config,
+        runtime_for(config, runtime_name),
+        GitWorkspace(root),
+        force=force,
+        dry_run=dry_run,
+        store=open_store,
+        # The landed oracle (D-19.10): a READY implement state whose landing
+        # trailer is in history is collectable — without it this verb kept
+        # every landed candidate forever.
+        landed=lambda t: bool(vcs.landed_shas(root, t)),
+        escalated=escalated,
+    )
+
+
+# ....................... #
+
+
 def reap_cmd(
     force: Annotated[
         bool,
@@ -167,29 +204,20 @@ def reap_cmd(
     """Sweep orphaned sandboxes, worktrees and finished run state, by
     convention."""
 
-    from torve.adapters.store.durable import open_store
     from torve.adapters.vcs.git import GitVcs
-    from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.reaper import reap
 
     root = root.resolve()
     config = load_config(root, config_path)
     vcs = GitVcs()
 
-    report = reap(
-        root,
-        config,
-        runtime_for(config, runtime_name),
-        GitWorkspace(root),
-        force=force,
-        dry_run=dry_run,
-        store=open_store,
-        # The landed oracle, exactly as the tick wires it (D-19.10): a READY
-        # implement state whose landing trailer is in history is collectable —
-        # without it the hand-run verb kept every landed candidate forever.
-        landed=lambda t: bool(vcs.landed_shas(root, t)),
-        escalated=escalated,
-    )
+    try:
+        report = _swept(root, config, runtime_name, force, dry_run, escalated, vcs)
+
+    except RuntimeError as exc:
+        # A store the sweep cannot reach is infrastructure, not a crash: the
+        # durable half is what decides expiry, so a reap without it would
+        # report a sweep it never performed (A-110).
+        raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
     if fmt is Format.JSON:
         emit_json(

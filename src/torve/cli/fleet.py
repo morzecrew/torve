@@ -22,10 +22,7 @@ from rich.text import Text
 
 from torve.cli.console import (
     STYLE_DIM,
-    STYLE_FAIL,
-    STYLE_PASS,
     Format,
-    closing,
     emit_json,
     fail,
     header,
@@ -34,10 +31,11 @@ from torve.cli.console import (
 )
 from torve.cli.options import FormatOption, runtime_for
 from torve.config.fleet import default_manifest_path, load_fleet_manifest
-from torve.domain.states import EXIT_CONFIG, EXIT_OK
+from torve.domain.states import EXIT_CONFIG
 
 if TYPE_CHECKING:
     from torve.application.fleet import FleetServeReport
+    from torve.application.manager import Board
     from torve.config.fleet import FleetManifest, FleetRepository
 
 # ----------------------- #
@@ -144,11 +142,13 @@ async def _serve_fleet(
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
     from torve.application.fleet import serve_fleet
+    from torve.application.manager import project
     from torve.application.projections import shipped_landings
     from torve.application.residency import once, ran_here
     from torve.application.worker import Worker
     from torve.cli import assembly
     from torve.config.runconfig import load_runner_config
+    from torve.domain.events import SubjectType
 
     # The runtime narrates itself on stdout, and stdout is where this verb's
     # JSON goes. Warnings and worse, on stderr (D-15.6).
@@ -197,80 +197,19 @@ async def _serve_fleet(
                 standing=standing,
             )
 
-        return await serve_fleet(manifest, run_pass, idle_seconds=interval, rounds=rounds)
+        async def boards() -> dict[str, Board]:
+            """Every partition's board, folded once a round for the pause
+            decision (D-48.5). One read per repository per round, beside a
+            round that may run an agent."""
 
-
-# ....................... #
-
-
-@fleet_app.command("serve")
-def fleet_serve_cmd(
-    manifest_path: ManifestOption = None,
-    dsn: Annotated[
-        str,
-        typer.Option("--dsn", help="Postgres DSN holding the log; omitted runs against the mock."),
-    ] = "",
-    worker: Annotated[
-        str, typer.Option("--worker", help="This process's name in the log.")
-    ] = "fleet-1",
-    rounds: Annotated[
-        int | None,
-        typer.Option(
-            "--rounds", min=1, help="Stop after this many rounds; omitted runs until killed."
-        ),
-    ] = None,
-    interval: Annotated[
-        float, typer.Option("--interval", min=0.0, help="Seconds an idle round waits.")
-    ] = 15.0,
-    fmt: FormatOption = Format.TEXT,
-) -> None:
-    """Run the manager over every repository the manifest names.
-
-    Each round surveys every queue, decides one pause for the whole fleet,
-    then gives each repository one pass in the manifest's order under its own
-    trust class. A repository with no partition declared is refused and the
-    round carries on; so is one whose configuration asks for more than its
-    class allows, and one that fails outright.
-
-    The process holds nothing. Every pass rebuilds its view from the log, so
-    interrupting this is safe at any moment.
-    """
-
-    import asyncio
-
-    manifest = _load_manifest(manifest_path)
-    report = asyncio.run(
-        _serve_fleet(manifest, dsn or None, worker=worker, rounds=rounds, interval=interval)
-    )
-
-    if fmt is Format.JSON:
-        emit_json(
-            {
-                "schema_version": 1,
-                "rounds": report.rounds,
-                "handled": report.handled,
-                "repositories": [asdict(one) for one in report.outcomes],
+            return {
+                repo.root: project(
+                    await log.of_subject_type(SubjectType.TASK, partition=repo.partition)
+                )
+                for repo in manifest.ticking_order()
+                if repo.partition
             }
-        )
-        raise typer.Exit(EXIT_OK)
 
-    console = out(fmt)
-    header(console, "fleet serve", f"{len(report.outcomes)} repository(ies)")
-    table = make_table("root", "partition", "trust", "last round")
-
-    for outcome in report.outcomes:
-        style = (
-            STYLE_FAIL
-            if outcome.outcome.startswith(("error", "refused"))
-            else (STYLE_DIM if outcome.outcome == "idle" else STYLE_PASS)
+        return await serve_fleet(
+            manifest, run_pass, idle_seconds=interval, rounds=rounds, boards=boards
         )
-        table.add_row(
-            outcome.root,
-            outcome.partition or "—",
-            outcome.trust,
-            Text(outcome.outcome, style),
-        )
-
-    console.print(table)
-    closing(console, f"{report.handled} task(s) handled over {report.rounds} round(s)")
-    raise typer.Exit(EXIT_OK)

@@ -205,6 +205,36 @@ def test_the_standing_leg_runs_before_the_scan_and_a_paused_pass_skips_it(tmp_pa
     run(scenario)
 
 
+def test_the_pause_is_asked_again_every_pass(tmp_path):
+    """A resident manager outlives the answer: a pause decided once at
+    startup stops meaning anything an hour later, so `serve` asks (A-110).
+    The first pass is paused and mints nothing; the second is not."""
+
+    contract(tmp_path, "T-0001")
+    answers = [True, False]
+
+    async def paused() -> bool:
+        return answers.pop(0)
+
+    async def scenario(log):
+        executed: list[str] = []
+        await serve(
+            log,
+            worker_over(log, executed),
+            tmp_path,
+            PARTITION,
+            passes=2,
+            idle_seconds=0,
+            paused=paused,
+        )
+
+        board = project(await log.since(partition=PARTITION))
+        assert "T-0001" in board.tasks  # minted by the second pass, not the first
+        assert executed == ["T-0001"]
+
+    run(scenario)
+
+
 def test_a_pass_that_does_not_dispatch_imports_and_claims_nothing(tmp_path):
     """The re-mint pass (A-96): the scan must be able to reach the record
     without a worker taking the first thing it finds there."""
