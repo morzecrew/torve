@@ -952,11 +952,6 @@ class ReviewConfig(BaseModel):
     on: list[str] = Field(default_factory=list)
     skip_authors: list[str] = Field(default_factory=list)
 
-    # The revision loop's allow-list (RFC 0005 §4a, A-52): forge logins
-    # whose review threads become revision context at retry. Empty = off;
-    # a stranger's comment never reaches an agent.
-    feedback_from: list[str] = Field(default_factory=list)
-
     # The blocker revision budget (RFC 0043 D-43.1/D-43.3): in-run attempts,
     # same worktree, a surviving blocker spends before escalating. Counted
     # per run, spent only by surviving blockers — a clean review costs
@@ -1009,10 +1004,10 @@ class ReviewConfig(BaseModel):
 
 
 class PromotionConfig(BaseModel):
-    """Landing policy (RFC 0006 §3). In the local regime the operator's
-    `torve merge` invocation is the recorded approval; `auto_merge` is the
-    knob a future scheduler consults before landing without one — off by
-    default, opt-in per repository, never globally (D-6.2).
+    """Landing policy (RFC 0006 §3). The operator's `torve merge` is the
+    recorded approval; the `auto_merge` switch a scheduler would have
+    consulted left with the standing loop (A-105, A-110), and a future one
+    reintroduces it rather than inheriting a knob nothing read.
 
     `require_ci` is §3's `ci: green_on_current_head` requirement: the lane
     refuses to land a candidate whose branch tip is not green on the
@@ -1022,8 +1017,6 @@ class PromotionConfig(BaseModel):
     remote actually saw."""
 
     model_config = ConfigDict(extra="forbid")
-
-    auto_merge: bool = False
     require_ci: bool = False
     # §3's review criterion (D-6.14, A-43): the lane lands only a candidate
     # whose producing run recorded a concluded review (`reviewed_by` on the

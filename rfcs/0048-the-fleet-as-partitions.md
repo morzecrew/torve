@@ -398,3 +398,25 @@ The pattern is worth naming, because it is now the third time: a capability
 whose *caller* is a field somebody forgot to set fails silently and forever,
 and no test catches it, because the unit works. What catches it is asking
 the repository which functions nothing calls.
+
+**A second pass, over configuration and adapters.** Two knobs were dead:
+`promotion.auto_merge`, whose only reader was the tick's lane leg, and
+`review.feedback_from`, the revision loop's forge allow-list, whose only
+reader was the lane's automatic conflict disposal (A-35's `on_conflict`).
+Both are deleted — a knob that cannot change anything is worse than absent,
+because somebody sets it and waits.
+
+That disposal is a capability A-105 failed to name: on a merge conflict the
+loop captured the forge's review threads and the candidate diff into the
+next attempt's feedback record and re-queued. `torve merge` escalates and
+leaves it for a human, which is D-6.10's documented manual behaviour, so
+nothing is broken — but the automatic half is gone with its caller.
+
+Left in place deliberately: five methods on the forge adapter whose only
+caller left with the loop — `review_threads`, `answer_captured_threads`,
+`close_pr`, `retire_pr`, `delete_remote_branch`. They are working, tested
+GitHub primitives, and the lane rework that wants them is a named future
+(RFC 0006). Naming them here is the point: the next sweep should find this
+paragraph rather than rediscover them as a surprise, and a rebuild should
+find the code rather than the API documentation.
+

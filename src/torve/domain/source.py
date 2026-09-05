@@ -14,13 +14,11 @@ written against, and the source id is what a record joins on.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import Literal
 
 # ----------------------- #
 
 SourceKind = Literal["specification", "incident", "audit", "review", "operator"]
-
-SOURCE_KINDS: tuple[SourceKind, ...] = get_args(SourceKind)
 
 # The corpus's own namespace. A namespace is the importer's: `rfc/0044` is
 # this one, `incident/…` and `ask/…` are others when their importers exist.
