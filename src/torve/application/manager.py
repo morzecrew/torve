@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from torve.application.planner import scopes_clash
 from torve.domain.events import EventKind, SubjectType
 from torve.domain.states import TaskState
-from torve.domain.task import Task
+from torve.domain.task import DISPATCHABLE_ROLES, Task
 
 if TYPE_CHECKING:
     from torve.domain.events import EventRecord
@@ -259,9 +259,15 @@ def dispatchable(board: Board, partition: str) -> list[str]:
     """What this partition could start right now, in id order.
 
     A task qualifies when this partition's board carries it as queued with a
-    contract, its dependencies have landed, and nothing sharing its scope is
-    in flight. Everything else is somebody's turn: an escalated task waits
-    on a human, a claimed one on its worker, a landed one on nobody.
+    contract a worker may take, its dependencies have landed, and nothing
+    sharing its scope is in flight. Everything else is somebody's turn: an
+    escalated task waits on a human, a claimed one on its worker, a landed
+    one on nobody.
+
+    The role guard is what lets the scan mint every contract (A-96). A
+    review or draft contract is recorded because the planning projections
+    read the record, and it is offered to nobody because the run that
+    minted it is the only thing that ever executes it.
 
     Answered from the board alone (D-49.1). Minting is what places a task on
     a partition (D-44.7), so an unminted contract belongs to nobody and a
@@ -278,6 +284,9 @@ def dispatchable(board: Board, partition: str) -> list[str]:
         task = view.contract
 
         if task is None or view.partition != partition:
+            continue
+
+        if task.role not in DISPATCHABLE_ROLES:
             continue
 
         if view.state is not TaskState.QUEUED:

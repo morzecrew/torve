@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 from torve.application.manager import IN_FLIGHT, TaskView, expired, project
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
+from torve.domain.task import DISPATCHABLE_ROLES
 
 if TYPE_CHECKING:
     from datetime import timedelta
@@ -49,16 +50,19 @@ Ran = Callable[[str], bool]
 # not sit for a coffee break.
 IDLE_SECONDS = 15.0
 
-# The roles a worker executes. Review and draft are runner-minted mid-run
-# (D-5.2, D-20.2) and are nobody's to claim from the board.
-DISPATCHABLE_ROLES = ("implement", "revert")
-
 
 # ....................... #
 
 
 def contracts(root: Path) -> dict[str, Task]:
-    """Every executable contract the repository carries, by id.
+    """Every contract the repository carries, by id.
+
+    Every one, whatever its role (A-96). A review or draft contract is
+    nobody's to claim, and the board refuses to offer one — but it is a
+    fact about the work, and the projections that read the record for a
+    planning view need the whole population or they answer over a third of
+    it. Filtering at the importer is what made the record a subset of the
+    repository; filtering at dispatch is what keeps a worker honest.
 
     An unreadable contract is skipped rather than fatal: one malformed file
     is not a reason for a manager to stop managing the rest. Nothing else is
@@ -77,8 +81,7 @@ def contracts(root: Path) -> dict[str, Task]:
         except ValueError:
             continue
 
-        if task.role in DISPATCHABLE_ROLES:
-            tasks[task.id] = task
+        tasks[task.id] = task
 
     return tasks
 
@@ -202,12 +205,19 @@ async def mint(
 
         sha = landed(task_id) if landed is not None else None
 
-        if not sha and ran is not None and ran(task_id):
+        offerable = task.role in DISPATCHABLE_ROLES
+
+        if offerable and not sha and ran is not None and ran(task_id):
             # It ran on this host and did not land. Whatever it produced,
             # placing it on the board as queued would offer it to a worker
             # again — and unlike a landing there is nothing to record about
             # it that is true. It stays off the board until a human puts it
             # there.
+            #
+            # The guard is about being offered, so it applies only to what
+            # can be (A-96): a review that ran and landed nothing is still
+            # a fact the planning projections read, and no worker will ever
+            # be handed it.
             continue
 
         await _record_mint(log, task, partition=partition, actor_id=actor_id)
@@ -274,6 +284,7 @@ async def once(
     ran: Ran | None = None,
     only: str | None = None,
     paused: bool = False,
+    dispatch: bool = True,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -286,6 +297,12 @@ async def once(
     The scan is an importer, not a reader (D-49.1): it is how a contract the
     repository gained reaches the record, and the mint is its only consumer.
     What a worker claims and runs comes off the board.
+
+    `dispatch=False` is the other half: import and reclaim, claim nothing.
+    It is what a re-mint after a contract-shape change is run under (A-96) —
+    the scan must reach the record without a worker taking the first thing
+    it finds there, which on a repository with a queue is a real agent and
+    real money.
 
     `paused` skips the mint and nothing else (D-48.4): the queue may drain
     during a pause, it may not grow (D-19.5). A pause is a statement about
@@ -307,7 +324,7 @@ async def once(
     if not paused:
         await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed, ran=ran)
 
-    return await worker.once(partition)
+    return await worker.once(partition) if dispatch else None
 
 
 # ....................... #
@@ -326,6 +343,7 @@ async def serve(
     ran: Ran | None = None,
     only: str | None = None,
     paused: bool = False,
+    dispatch: bool = True,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -351,6 +369,7 @@ async def serve(
             ran=ran,
             only=only,
             paused=paused,
+            dispatch=dispatch,
         )
 
         if task_id is not None:

@@ -98,6 +98,7 @@ async def _serve(
     passes: int | None,
     interval: float,
     only: str | None,
+    dispatch: bool,
 ) -> int:
     from torve.adapters.vcs.git import GitVcs
     from torve.application.eventlog import event_log
@@ -143,6 +144,7 @@ async def _serve(
             landed=landed,
             ran=lambda task_id: run_record_exists(root, task_id),
             only=only,
+            dispatch=dispatch,
         )
 
 
@@ -191,6 +193,11 @@ def board_cmd(
                 "tasks": [
                     {
                         "task": view.task_id,
+                        # A-96: the record holds every contract, and a
+                        # review or draft one is queued in the sense that
+                        # nobody will ever claim it. The role is what tells
+                        # the two kinds of queued apart.
+                        "role": view.contract.role if view.contract else None,
                         "state": str(view.state),
                         "attempts": view.attempts,
                         "claimed_by": view.claimed_by,
@@ -208,12 +215,13 @@ def board_cmd(
 
     console = out(fmt)
     header(console, "manager board", partition)
-    table = make_table("task", "state", "attempts", "held by", "burn", "landing")
+    table = make_table("task", "role", "state", "attempts", "held by", "burn", "landing")
     withheld = add_rows_truncated(
         table,
         [
             (
                 view.task_id,
+                view.contract.role if view.contract else "—",
                 view.escalation or str(view.state),
                 str(view.attempts),
                 view.claimed_by or "—",
@@ -253,6 +261,13 @@ def serve_cmd(
         int,
         typer.Option("--passes", help="Stop after this many passes; 0 runs until interrupted."),
     ] = 0,
+    no_dispatch: Annotated[
+        bool,
+        typer.Option(
+            "--no-dispatch",
+            help="Import contracts and release expired leases, but claim nothing.",
+        ),
+    ] = False,
     interval: Annotated[
         float, typer.Option("--interval", help="Seconds an idle pass waits before looking again.")
     ] = IDLE_SECONDS,
@@ -284,6 +299,7 @@ def serve_cmd(
                 passes=passes or None,
                 interval=interval,
                 only=task or None,
+                dispatch=not no_dispatch,
             )
         )
 

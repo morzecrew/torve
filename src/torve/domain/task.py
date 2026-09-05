@@ -56,6 +56,15 @@ class Budget(BaseModel):
 
 # ....................... #
 
+# The roles a worker may take off the board. Review and draft contracts are
+# runner-minted mid-run (D-5.2, D-20.2) and conclude with the run that
+# minted them, so nobody claims one — they are recorded (A-96) because the
+# record is what the planning projections read, and offered to nobody.
+DISPATCHABLE_ROLES = ("implement", "revert")
+
+
+# ....................... #
+
 
 class Task(BaseModel):
     """The task contract, `.torve/tasks/T-nnnn.yaml` (RFC 0001 §3, §6).

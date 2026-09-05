@@ -18,7 +18,7 @@ from forze.application.execution import DepsRegistry, ExecutionRuntime
 
 from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
-from torve.application.manager import project
+from torve.application.manager import dispatchable, project
 from torve.application.residency import contracts, mint, once, reclaim, serve
 from torve.application.worker import Outcome, Worker
 from torve.domain.events import ActorKind, EventKind, SubjectType
@@ -30,9 +30,13 @@ PARTITION = "morzecrew/torve"
 def contract(root: Path, task_id: str, *, role: str = "implement", allow: str = "src/**") -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
+    # A review or revert contract names what it acts on, and neither carries
+    # acceptance commands — the shape the model refuses to build without.
+    acts_on = role in ("review", "revert")
     (task_dir / "contract.yaml").write_text(
         f"schema_version: 1\nid: {task_id}\nrole: {role}\nintent: work here\n"
-        f"scope: {{allow: ['{allow}']}}\nacceptance: []\ndecisions: []\n",
+        f"scope: {{allow: ['{allow}']}}\nacceptance: []\ndecisions: []\n"
+        + ("targets: ['T-9999']\n" if acts_on else ""),
         encoding="utf-8",
     )
 
@@ -71,15 +75,74 @@ def worker_over(log, executed: list[str], outcome: Outcome | None = None) -> Wor
 # ....................... #
 
 
-def test_only_executable_contracts_are_offered(tmp_path):
+def test_every_contract_is_imported_and_a_broken_one_is_skipped(tmp_path):
     contract(tmp_path, "T-0001")
     contract(tmp_path, "T-0002", role="review")
     (tmp_path / ".torve" / "tasks" / "T-0003").mkdir(parents=True)
     (tmp_path / ".torve" / "tasks" / "T-0003" / "contract.yaml").write_text("id: [", "utf-8")
 
-    # A review is runner-minted mid-run and a malformed contract is not the
-    # manager's emergency — neither stops the rest of the repository.
-    assert list(contracts(tmp_path)) == ["T-0001"]
+    # A-96: the importer takes every role, because the projections that read
+    # the record for a planning view need the whole population. A malformed
+    # contract is not the manager's emergency and stops nothing else.
+    assert list(contracts(tmp_path)) == ["T-0001", "T-0002"]
+
+
+def test_a_review_contract_is_recorded_and_offered_to_nobody(tmp_path):
+    contract(tmp_path, "T-0001", role="review")
+
+    async def scenario(log):
+        assert await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="m") == ["T-0001"]
+
+        board = project(await log.since(partition=PARTITION))
+
+        # On the board, with its contract, and never dispatchable: the run
+        # that mints a review is the only thing that ever executes one.
+        assert board.tasks["T-0001"].contract is not None
+        assert dispatchable(board, PARTITION) == []
+
+    run(scenario)
+
+
+def test_a_review_that_ran_and_landed_nothing_is_still_imported(tmp_path):
+    """The `ran` guard keeps a task off the board so no worker is handed it
+    twice. A review is handed to nobody, so the guard has nothing to
+    protect and would only hide the row the projections read (A-96)."""
+
+    contract(tmp_path, "T-0001", role="review")
+    contract(tmp_path, "T-0002")
+
+    async def scenario(log):
+        minted = await mint(
+            log,
+            contracts(tmp_path),
+            partition=PARTITION,
+            actor_id="m",
+            ran=lambda task_id: True,
+        )
+
+        assert minted == ["T-0001"]
+
+    run(scenario)
+
+
+def test_a_pass_that_does_not_dispatch_imports_and_claims_nothing(tmp_path):
+    """The re-mint pass (A-96): the scan must be able to reach the record
+    without a worker taking the first thing it finds there."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        executed: list[str] = []
+        worker = worker_over(log, executed)
+
+        assert await once(log, worker, tmp_path, PARTITION, dispatch=False) is None
+        assert executed == []
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].state is TaskState.QUEUED
+        assert board.tasks["T-0001"].claimed_by is None
+
+    run(scenario)
 
 
 def test_minting_places_a_contract_on_this_partition(tmp_path):

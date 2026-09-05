@@ -1,5 +1,5 @@
 ---
-id: "0049"
+id: 0049
 title: Tasks as records
 status: accepted
 implementation: complete
@@ -7,7 +7,7 @@ depends_on: ["0044"]
 informed_by: ["0001", "0007", "0022", "0047"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-96"]
 owner: misery7100
 description: >-
   The contract a task runs under travels in the record: minting carries the contract itself, re-minting records a changed one as a new version, and the repository's task directory becomes an importer rather than the thing every reader consults.
@@ -343,3 +343,47 @@ contract was placed on which board, when, and what changed since.
     - "uv run torve rfc check"
   depends_on: [1]
 ```
+
+---
+
+## Amendments
+
+### A-96 — 2026-09-05 — The importer takes every role; dispatch is what filters
+**Found starting RFC 0050 phase 3.** The scan imported only the roles a
+worker executes, because the mint's only consumer was dispatch. RFC 0050
+phase 3 gives it a second consumer with a different appetite: the planning
+projections read the whole population, and this repository's is 273
+contracts — 184 implement, 85 review, 4 draft. A record holding 184 of them
+cannot answer `context`'s task block, its decompositions (which key on a
+draft's `parent`) or its character calibration; it would answer over two
+thirds of the corpus and say nothing about the third it dropped.
+
+**Changed:** D-49.1's scan takes every contract the repository carries.
+Dispatch is where the role filter belongs and now lives: `dispatchable`
+refuses a contract whose role is not `implement` or `revert`, so a review
+or draft row is on the board, carries its contract, and is offered to
+nobody. That is also the truthful shape — the run that mints a review is
+the only thing that ever executes one (D-5.2, D-20.2), and a board row for
+it is a record of work that happened, not an offer.
+
+Two consequences worth stating. The board grows by every non-dispatchable
+contract, all of them reading `queued` forever, so `torve manager board`
+gains a `role` column: the role is what tells a queue entry from a record.
+And a re-mint pass has to be able to run without a worker taking the first
+thing it finds — on a repository with a queue that is a real agent and real
+money — so `torve manager serve` gains `--no-dispatch`, which imports and
+reclaims and claims nothing.
+
+The 184 rows already on this repository's board carry no contract at all:
+every one of them was minted before A-91, and no pass has run since to
+re-mint. The dry run RFC 0049 measured predicted exactly that. Filling them
+is one `--no-dispatch` pass, and it is a prerequisite of phase 3 rather
+than part of it.
+
+One more thing the first pass found: the `ran` guard — a contract that ran
+here and landed nothing stays off the board — was written to stop a worker
+being handed the same unfinished work twice. It is therefore about being
+offered, and applies only to what can be. Left as it was it skipped 87 of
+the 89 review and draft contracts, which is the same subset problem one
+level down. Measured after the change: 273 rows, 184 implement, 85 review,
+4 draft, 40 of them dispatchable.
