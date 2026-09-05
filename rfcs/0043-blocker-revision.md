@@ -2,11 +2,12 @@
 id: "0043"
 title: Blocker revision
 status: accepted
+implementation: complete
 depends_on: ["0005"]
 informed_by: ["0038"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-87"]
+amended_by: ["A-87", "A-103"]
 owner: misery7100
 description: >-
   A surviving review blocker feeds a bounded in-run revision attempt in the same worktree — carried by the RFC 0005 §4a feedback record — before it escalates the run.
@@ -260,3 +261,15 @@ gains a dated cross-reference note (amendment on acceptance, not an edit).
 ## Amendments
 
 ### A-87 — 2026-09-04 — the phase scope owes runconfig its test file
+### A-103 — 2026-09-05 — The judgement this document never carried
+**Found taking stock.** This document was accepted with no `implementation`
+field at all, so it carried no D-A.11 judgement either way — neither built
+nor owed, which reads as an oversight rather than a position and leaves the
+programme view guessing.
+
+It is built. `ReviewConfig.blocker_revisions` exists with the default this
+document specifies, the revision loop runs in the attempt, and phase 1's
+own acceptance passes today
+(`pytest tests/test_runner.py tests/test_review_run.py tests/test_feedback.py`).
+
+**Changed:** `implementation: complete`. Nothing normative.

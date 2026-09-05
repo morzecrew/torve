@@ -2,11 +2,12 @@
 id: "0045"
 title: The live channel
 status: accepted
+implementation: complete
 depends_on: ["0044"]
 informed_by: ["0021", "0039", "0041"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-83"]
+amended_by: ["A-83", "A-104"]
 owner: misery7100
 description: >-
   A run becomes observable while it runs: the broker meters liveness from the burn it already sees, carries the sandbox's records to the store without ever handing it a credential, and gives the manager a way to speak back.
@@ -346,3 +347,22 @@ constant in one place precisely so the first weeks of data can move it.
 
 **Changed:** nothing in the decision table. §12's note that phase 3 waits on
 the manager is spent; what replaces it is this entry.
+
+### A-104 — 2026-09-05 — The judgement this document never carried
+**Found taking stock.** Accepted with no `implementation` field, so no
+D-A.11 judgement — the same gap RFC 0043 carried, found in the same pass.
+
+Both phases are built. Burn events reach the log through `burn_sink` and
+the board reads liveness from them (D-45.4); the authenticated intake route
+takes divergence records from a sealed sandbox and the notes route backs
+`torve manager note`. Both phases' acceptance passes today
+(`pytest tests/test_broker.py tests/test_divergence.py tests/test_broker_sealed.py`).
+
+One caveat worth recording rather than hiding: `test_broker_sealed` is a
+known flake under a full-suite run. The sealed broker derives its port from
+the network name, so the port is deterministic and two suites racing for it
+collide with `Address already in use`. It passes in isolation and on rerun.
+That is a test-harness defect, not a channel one, and it is the reason the
+gate battery occasionally reports `acceptance` as flaky rather than green.
+
+**Changed:** `implementation: complete`. Nothing normative.
