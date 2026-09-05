@@ -5,8 +5,9 @@ convention).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.text import Text
@@ -18,6 +19,7 @@ from torve.cli.console import (
     STYLE_PASS,
     Format,
     emit_json,
+    fail,
     header,
     id_list,
     make_table,
@@ -25,58 +27,118 @@ from torve.cli.console import (
 )
 from torve.cli.options import (
     ConfigOption,
+    DsnOption,
     FormatOption,
+    PartitionOption,
     RootOption,
     RuntimeName,
     load_config,
+    read_log,
     runtime_for,
 )
+from torve.domain.states import EXIT_INFRASTRUCTURE
+
+if TYPE_CHECKING:
+    from torve.application.manager import Board
 
 # ----------------------- #
 
 
+def _board(dsn: str, partition: str) -> Board | None:
+    """The partition's board, when one was named. None means nobody asked
+    for the record, which is different from a record holding no run
+    (RFC 0050 D-50.2)."""
+
+    if not partition:
+        return None
+
+    from torve.application.eventlog import TruncatedRead
+    from torve.application.manager import project
+    from torve.domain.events import SubjectType
+
+    # The guarded read, not the paging one: a board folded from a prefix of
+    # the log reports states that have since moved, and a report that is
+    # confidently stale is worse than one that refuses.
+    try:
+        events = read_log(
+            dsn, lambda log: log.of_subject_type(SubjectType.TASK, partition=partition)
+        )
+
+    except TruncatedRead as exc:
+        raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
+
+    return project(events)
+
+
+# ....................... #
+
+
+def _age(heartbeat: Any) -> str:
+    """How long ago this run last said anything. Unparseable reads as
+    unknown rather than as zero: a run whose stamp nobody can read is not a
+    run that just checked in."""
+
+    try:
+        stamp = datetime.strptime(str(heartbeat), "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+
+    except ValueError:
+        return "unknown"
+
+    return f"{(datetime.now(UTC) - stamp).total_seconds():.0f}s ago"
+
+
+# ....................... #
+
+
 def status(
+    dsn: DsnOption = "",
+    partition: PartitionOption = "",
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Run states from the .wt/ state files."""
+    """Run states — from the partition's log when one is named, and from
+    this host's .wt/ state files when none is.
+
+    A log that holds no run falls back to the files, never the other way
+    round: a v1 run left a state file and no log, so an empty record means
+    ask the files rather than report that nothing ever ran.
+    """
+
+    from torve.application.projections import status_report
+
+    # The projection, verbatim: the serve endpoint renders the same
+    # envelope, so the browser and the terminal cannot disagree (D-32.1).
+    envelope = status_report(root, board=_board(dsn, partition))
 
     if fmt is Format.JSON:
-        from torve.application.projections import status_report
-
-        # The projection, verbatim: the serve endpoint renders the same
-        # envelope, so the browser and the terminal cannot disagree (D-32.1).
-        emit_json(status_report(root))
+        emit_json(envelope)
         return
 
-    from torve.application.runstate import RunState
-    from torve.base import naming
-
-    states = RunState.load_all(root.resolve() / naming.WORKTREE_DIR)
-
     console = out(fmt)
+    runs: list[dict[str, Any]] = envelope["runs"]
 
-    if not states:
+    if not runs:
         console.print("no runs")
         return
 
-    header(console, "status", f"{len(states)} run(s)")
+    header(console, "status", f"{len(runs)} run(s)")
     table = make_table("task", "state", "attempts", "heartbeat", "escalation")
 
-    for state in states:
-        terminal_ready = str(state.state) == "ready"
-        escalated = str(state.state) == "escalated"
+    for run in runs:
+        state = str(run.get("state"))
+        escalation = run.get("escalation")
 
         table.add_row(
-            Text(state.task_id, STYLE_ID),
+            Text(str(run.get("task_id")), STYLE_ID),
             Text(
-                str(state.state), STYLE_PASS if terminal_ready else STYLE_FAIL if escalated else ""
+                state,
+                STYLE_PASS if state == "ready" else STYLE_FAIL if state == "escalated" else "",
             ),
-            str(state.attempts),
-            Text(f"{state.heartbeat_age_s():.0f}s ago", STYLE_DIM),
+            str(run.get("attempts")),
+            Text(_age(run.get("heartbeat")), STYLE_DIM),
             (
-                f"{state.escalation.reason}: {state.escalation.detail}"
-                if state.escalation is not None
+                f"{escalation.get('reason')}: {escalation.get('detail')}"
+                if isinstance(escalation, dict)
                 else ""
             ),
         )

@@ -8,14 +8,18 @@ rides every result-producing command (D-11.2).
 
 from __future__ import annotations
 
+import sys
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
 import yaml
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from torve.application.eventlog import EventLog
     from torve.application.ports import Runtime
     from torve.config.runconfig import RunnerConfig
 
@@ -85,3 +89,42 @@ def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     raise fail(f"configuration error: unknown runtime adapter {adapter!r}", EXIT_CONFIG)
+
+
+# ....................... #
+
+# The two options every record-backed reader takes (RFC 0050 D-50.2). A
+# partition is what selects the record: naming one says which repository's
+# log to read, and naming none says to read this repository's files.
+DsnOption = Annotated[
+    str, typer.Option("--dsn", help="Postgres DSN holding the log; omitted reads the files.")
+]
+PartitionOption = Annotated[
+    str, typer.Option("--partition", help="The repository whose log holds these tasks.")
+]
+
+Read = TypeVar("Read")
+
+
+def read_log(dsn: str, reader: Callable[[EventLog], Awaitable[Read]]) -> Read:
+    """Open the log, ask it one question, close it. Every record-backed
+    reader wants the same six lines of wiring around a different query, so
+    the wiring lives here and the query arrives as an argument."""
+
+    import asyncio
+
+    async def opened() -> Read:
+        from forze.application.execution import DepsRegistry, ExecutionRuntime
+        from forze.base.logging import configure_logging
+
+        from torve.adapters.eventstore.document import mock_module, postgres_module
+        from torve.application.eventlog import event_log
+
+        configure_logging(level="warning", stream=sys.stderr)
+        module = await postgres_module(dsn) if dsn else mock_module()
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
+
+        async with runtime.scope():
+            return await reader(event_log(runtime.get_context()))
+
+    return asyncio.run(opened())

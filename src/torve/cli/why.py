@@ -12,7 +12,6 @@ history.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -31,7 +30,13 @@ from torve.cli.console import (
     header,
     out,
 )
-from torve.cli.options import FormatOption, RootOption
+from torve.cli.options import (
+    DsnOption,
+    FormatOption,
+    PartitionOption,
+    RootOption,
+    read_log,
+)
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
@@ -149,28 +154,7 @@ def _recorded(dsn: str, partition: str, task_id: str) -> list[EventRecord] | Non
     if not partition:
         return None
 
-    import asyncio
-
-    async def read() -> list[EventRecord]:
-        from forze.application.execution import DepsRegistry, ExecutionRuntime
-        from forze.base.logging import configure_logging
-
-        from torve.adapters.eventstore.document import mock_module, postgres_module
-        from torve.application.eventlog import event_log
-
-        configure_logging(level="warning", stream=sys.stderr)
-        module = await postgres_module(dsn) if dsn else mock_module()
-        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
-
-        async with runtime.scope():
-            log = event_log(runtime.get_context())
-
-            return await log.history(task_id, partition=partition)
-
-    return asyncio.run(read())
-
-
-# ....................... #
+    return read_log(dsn, lambda log: log.history(task_id, partition=partition))
 
 
 # ....................... #
@@ -181,13 +165,8 @@ def why_cmd(
         str,
         typer.Argument(help="The task to interrogate, e.g. T-0213."),
     ],
-    dsn: Annotated[
-        str,
-        typer.Option("--dsn", help="Postgres DSN holding the log; omitted reads the files."),
-    ] = "",
-    partition: Annotated[
-        str, typer.Option("--partition", help="The repository whose log holds this task.")
-    ] = "",
+    dsn: DsnOption = "",
+    partition: PartitionOption = "",
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:

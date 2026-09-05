@@ -148,6 +148,23 @@ extra step and becomes the only one.
 | the divergence log (`.torve/tasks/<id>/log.yaml`) | the entries the record holds for a task, written into the worktree before each gate pass so the battery judges the record |
 | the telemetry stream | the attempt rows the cost, regime and quality projections read |
 | the decision graph (`torve decisions`) | what is in force, what each decision used to say, and which decisions govern a set of paths |
+| one task's history (`torve why --partition`) | every attempt with its verdict, cost and convictions, the events and reviews around them, and the totals |
+| what ran here (`torve status --partition`) | the run states of tasks a run actually touched — an attempt recorded, or the engine holding the task now |
+
+The last two also answer from files, and which one answers is the caller's
+choice: naming a partition reads the record, naming none reads this
+repository's own telemetry stream and run-state files. Only one rule is
+automatic, and it runs in the safe direction — a record that turns out not
+to hold the run falls back to the files, never the reverse. A v1 run left a
+state file and no log, so an empty record means *ask the files*, not
+*nothing ever ran*.
+
+`status` and the board answer different questions over the same rows. The
+board is every contract this partition owns and what became of it, including
+landings imported from the repository's own trailers. `status` is what ran:
+on this repository the record reports one run and the files three — the
+manager dispatched one, and the other two are a v1 escalation and a hand run
+no partition ever saw. That gap is why both readers still exist.
 
 A projection is never edited. Rebuilding one is reading the log again, which
 is also what a manager does when it restarts — restart transparency is a

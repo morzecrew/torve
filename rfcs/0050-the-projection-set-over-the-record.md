@@ -7,7 +7,7 @@ depends_on: ["0044", "0049"]
 informed_by: ["0022", "0032", "0040", "0047"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-95"]
 owner: misery7100
 description: >-
   The reports the engine answers planning questions with move onto the record, one at a time, each landing beside its file reader with a parity test rather than replacing it — because a reader moved today would read an empty log for every run the manager did not dispatch.
@@ -300,3 +300,43 @@ change.
     - "uv run torve rfc check"
   depends_on: [2]
 ```
+
+---
+
+## Amendments
+
+### A-95 — 2026-09-05 — A run, over a board that also holds history
+**Found executing phase 2.** §5.4 called `status` the easy one — "the board
+already is it" — and the fold was indeed free. What was not free is the
+population. The board carries every task a partition has ever minted, and
+RFC 0049 D-49.1 mints landed history too: on this repository's first pass
+the manager minted 184 contracts and recorded 184 landings from the trailer,
+so a board-backed `status` that reported every non-queued row answered with
+184 `ready` rows and buried the one run that was actually live.
+
+The run-state files never had this problem because a state file exists only
+where a run happened. The board's equivalent question is therefore not
+"which rows are not queued" but "which rows did a run touch": an attempt is
+recorded, or the engine is holding the task now. An escalation counts even
+with no attempt behind it, because something is waiting on a person either
+way. A `ready` row with no attempt is history the board imported, and it is
+`torve board`'s to show, not this reader's.
+
+That settles the first of §10's unresolved questions in the negative:
+`status` keeps its own report, because the two answer different questions
+over the same rows. The board is every contract this partition owns and
+what became of it; `status` is what ran here. Their overlap is real but
+partial, and collapsing them would cost the second question.
+
+The second question is now measured rather than hypothetical. Against the
+live log this repository reports one run from the record and three from the
+files: the record's is the only task the manager dispatched, and the files
+also hold a v1 escalation and a hand-run landing that no partition ever saw.
+That is A-86's wall with a number on it, and it is why D-50.1 holds.
+
+**Changed:** §5.4's account of `status` gains its population rule — a run is
+an attempt recorded or a task the engine holds, plus any escalation — and
+§10's first unresolved question is settled: `status` keeps its own report.
+
+Phases 1 and 2 have landed. Phase 3 remains, and its first block —
+`context`'s tasks and programme — is the one RFC 0049 already made a fold.

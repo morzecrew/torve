@@ -19,8 +19,17 @@ from pathlib import Path
 
 import yaml
 
-from torve.application.projections import rows_from_events, why_report
+from torve.application.manager import Board, project
+from torve.application.projections import (
+    rows_from_events,
+    runs_from_board,
+    status_report,
+    why_report,
+)
+from torve.application.runstate import RunState
+from torve.base import naming
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+from torve.domain.states import TaskState
 from torve.domain.task import Task
 
 TASK_ID = "T-0900"
@@ -284,3 +293,134 @@ def test_the_two_readers_agree_on_the_same_attempt(tmp_path):
     # The envelopes carry the same keys — a key added to one reader and not
     # the other passes every value assertion above.
     assert set(from_files) == set(from_record)
+
+
+# ....................... #
+# `status` over the board (RFC 0050 phase 2). The two vocabularies are the
+# same TaskState reached by different paths, so what is worth testing is
+# the depth each carrier reaches and the selection between them.
+# ....................... #
+
+
+def board_of(*events) -> Board:
+    return project(list(events))
+
+
+# ....................... #
+
+
+def test_a_board_row_renders_the_run_record_status_reports():
+    """State, attempts, holder's landing and escalation all come off the
+    board; the host facts a run state also carries come back empty."""
+
+    runs = runs_from_board(
+        board_of(
+            minted(),
+            event(EventKind.ATTEMPT_STARTED, {"attempt": 1}, at="2026-09-05T10:00:00Z"),
+            event(
+                EventKind.ESCALATION_RAISED,
+                {"reason": "poison_ceiling", "detail": "3 attempts"},
+                at="2026-09-05T10:05:00Z",
+            ),
+        )
+    )
+
+    assert len(runs) == 1
+    assert runs[0]["task_id"] == TASK_ID
+    assert runs[0]["state"] == "escalated"
+    assert runs[0]["attempts"] == 1
+    assert runs[0]["heartbeat"].startswith("2026-09-05T10:05:00")
+    # The record carries the reason and not the detail: the board folds the
+    # reason and the detail stays in the log the fold read.
+    assert runs[0]["escalation"] == {"reason": "poison_ceiling", "detail": ""}
+    assert runs[0]["worktree"] is None and runs[0]["sandbox_id"] is None
+
+
+# ....................... #
+
+
+def test_a_landing_renders_its_sha_and_the_ready_state():
+    runs = runs_from_board(
+        board_of(
+            minted(),
+            event(EventKind.ATTEMPT_STARTED, {"attempt": 1}),
+            event(EventKind.LANDING_RECORDED, {"sha": "abc123", "attempt": 1}),
+        )
+    )
+
+    assert runs[0]["state"] == "ready"
+    assert runs[0]["landed_sha"] == "abc123"
+
+
+# ....................... #
+
+
+def test_a_minted_task_that_never_ran_is_not_a_run():
+    """The board carries every task a partition has ever minted; `status`
+    reports runs. A queued contract with no attempt behind it belongs to
+    the board's own reading, not to this one."""
+
+    assert runs_from_board(board_of(minted())) == []
+
+
+# ....................... #
+
+
+def test_an_imported_landing_is_history_and_not_a_run():
+    """A partition's first pass mints every contract the tree carries and
+    records the landings the trailer already proves (D-49.1) — on this
+    repository, 184 of them. They are `ready` with no attempt behind them,
+    and reporting them as runs would bury the handful that are."""
+
+    assert (
+        runs_from_board(
+            board_of(minted(), event(EventKind.LANDING_RECORDED, {"sha": "abc123", "attempt": 0}))
+        )
+        == []
+    )
+
+
+# ....................... #
+
+
+def test_both_carriers_answer_with_the_same_keys(tmp_path):
+    """A run the record holds and a run the file holds must be the same
+    shape, or a reader written against one breaks on the other."""
+
+    state = RunState(
+        task_id=TASK_ID,
+        path=tmp_path / naming.WORKTREE_DIR / f"{TASK_ID}.state.json",
+        state=TaskState.RUNNING,
+        attempts=1,
+    )
+    state.save()
+
+    from_files = status_report(tmp_path)
+    from_record = status_report(
+        tmp_path,
+        board=board_of(minted(), event(EventKind.ATTEMPT_STARTED, {"attempt": 1})),
+    )
+
+    assert set(from_files) == set(from_record)
+    assert set(from_files["runs"][0]) == set(from_record["runs"][0])
+    assert from_record["runs"][0]["state"] == from_files["runs"][0]["state"] == "running"
+    assert from_record["runs"][0]["attempts"] == from_files["runs"][0]["attempts"] == 1
+
+
+# ....................... #
+
+
+def test_a_board_holding_no_run_falls_back_to_the_files(tmp_path):
+    """A-86's direction: a v1 run left a file and no log, so an empty
+    record means ask the files. The reverse is never done — a populated
+    record is not second-guessed by a stale file."""
+
+    RunState(
+        task_id=TASK_ID,
+        path=tmp_path / naming.WORKTREE_DIR / f"{TASK_ID}.state.json",
+        state=TaskState.READY,
+    ).save()
+
+    assert [run["task_id"] for run in status_report(tmp_path, board=Board())["runs"]] == [TASK_ID]
+    # And with no board at all, which is what an unnamed partition passes.
+    assert status_report(tmp_path, board=None) == status_report(tmp_path)

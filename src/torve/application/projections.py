@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
+from torve.application.manager import IN_FLIGHT, Board, TaskView
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.application.telemetry import TOKEN_FIELDS, record_row
@@ -1206,11 +1207,79 @@ def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
 # ....................... #
 
 
-def status_report(root: Path) -> dict[str, Any]:
+# What a run record carries that the board does not (RFC 0050 §5.3). These
+# are host facts — where the run put its worktree, which sandbox it held,
+# which store run it executed under — and the record holds facts about the
+# work rather than about the machine that did it. They are rendered empty
+# rather than omitted: one envelope, two sources, and a key that appears
+# only under one source is a key no reader can rely on.
+_HOST_ONLY_KEYS = ("run_id", "sandbox_id", "durable_run_id", "worktree", "conflict_base")
+
+
+def run_from_view(view: TaskView) -> dict[str, Any]:
+    """One board row rendered as the run record `status` reports.
+
+    The two vocabularies are the same `TaskState` reached by different
+    paths, so nothing is translated here; what differs is depth. The record
+    carries the escalation's reason and not its detail, and carries no
+    history, because a board is a fold and the transitions it folded are
+    the log itself rather than a list it keeps.
+    """
+
+    heartbeat = view.last_event_at or view.claimed_at
+
+    return {
+        "task_id": view.task_id,
+        "schema_version": SCHEMA_VERSION,
+        "state": str(view.state),
+        "attempts": view.attempts,
+        "heartbeat": (heartbeat or datetime.now(UTC)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "escalation": ({"reason": view.escalation, "detail": ""} if view.escalation else None),
+        "history": [],
+        "approvals": [],
+        "landed_sha": view.landed_sha,
+        "reviewed_by": None,
+        **dict.fromkeys(_HOST_ONLY_KEYS, None),
+    }
+
+
+def runs_from_board(board: Board) -> list[dict[str, Any]]:
+    """The run records a partition's board renders to (RFC 0050 §5.3).
+
+    A run exists where the record shows an attempt, or where the engine is
+    holding the task right now. Everything else the board carries is on the
+    board and was never a run here: a queued contract waiting for a worker,
+    and — the population that dwarfs the rest on a first pass — a task
+    minted straight to `ready` from the repository's own landing trailer
+    (D-49.1), which is history the board imported rather than work this
+    record watched happen.
+    """
+
+    return [
+        run_from_view(view)
+        for _, view in sorted(board.tasks.items())
+        if view.attempts or view.state in IN_FLIGHT or view.state is TaskState.ESCALATED
+    ]
+
+
+def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
     """The `torve status` projection (RFC 0032 §5.2): live run states, one
     record per task, in the same envelope the CLI's --format json emits.
     One reader, two renderers (D-32.1): the CLI and the serve endpoint both
-    consume this, so the browser and the terminal can never disagree."""
+    consume this, so the browser and the terminal can never disagree.
+
+    With a board, the records come from the log the board was folded from
+    (RFC 0050 D-50.2); without one, from this host's state files. A board
+    that turns out to hold no run falls back to the files, never the other
+    way round — the direction that is safe when only one of the two
+    carriers was ever written (A-86).
+    """
+
+    if board is not None:
+        runs = runs_from_board(board)
+
+        if runs:
+            return {"schema_version": 1, "runs": runs}
 
     states = RunState.load_all(root.resolve() / naming.WORKTREE_DIR)
     return {"schema_version": 1, "runs": [s.to_record() for s in states]}
