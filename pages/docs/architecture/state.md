@@ -65,7 +65,7 @@ that turns out not to hold the run falls back to the files, never the
 reverse. A v1 run left a state file and no log, so an empty record means
 *ask the files*, not *nothing ever ran*.
 
-Four things still read files whatever you name, and each for its own
+Three things still read files whatever you name, and each for its own
 reason:
 
 | Reader | Why it is still on files |
@@ -73,7 +73,6 @@ reason:
 | the findings ledger | it reports each finding's severity **and its claim**, and the record carries a claim only for a blocker (`blocker.raised`). Moving it would silently drop the text an operator triages by |
 | operator feedback | there is no event kind for it. Human minutes and rework are a `torve feedback` file and nothing else |
 | the corpus | the corpus *is* files. The decision graph is imported into the record; the documents stay where a human edits them |
-| the served surface and the MCP tool | they call the same readers the CLI does, without a partition — so they answer from files even where a record exists. Nothing designed that; the option simply was never threaded through |
 
 The report says which carrier answered. `torve context` prints a
 `read from —` line above the first count, and the JSON envelope carries a

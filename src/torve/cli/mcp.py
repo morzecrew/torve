@@ -14,13 +14,20 @@ from pathlib import Path
 from typing import Any
 
 from torve.cli.console import fail
-from torve.cli.options import ConfigOption, RootOption, load_config
+from torve.cli.options import (
+    ConfigOption,
+    DsnOption,
+    PartitionOption,
+    RootOption,
+    dsn_for,
+    load_config,
+)
 from torve.domain.states import EXIT_CONFIG
 
 # ----------------------- #
 
 
-def build_server(root: Path, rfc_dir: Path) -> Any:
+def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "") -> Any:
     """A server exposing the projections — context, show and why — as
     read-only queries, and nothing else."""
 
@@ -32,6 +39,15 @@ def build_server(root: Path, rfc_dir: Path) -> Any:
         raise RuntimeError(
             "the mcp package is not installed — install the extra: pip install 'torve[mcp]'"
         ) from exc
+
+    def recorded() -> list[Any] | None:
+        """This partition's task facts, or None when none was named — the
+        same selection rule every other reader takes (D-50.2), read per
+        call so a long-lived session sees what has happened since (A-123)."""
+
+        from torve.cli.options import task_events
+
+        return task_events(dsn, partition)
 
     server = mcpserver.MCPServer(
         "torve",
@@ -49,7 +65,7 @@ def build_server(root: Path, rfc_dir: Path) -> Any:
 
         from torve.application.projections import context_report
 
-        report = context_report(root, rfc_dir)
+        report = context_report(root, rfc_dir, recorded=recorded())
 
         if section and section not in report:
             raise ValueError(f"unknown section {section!r} — one of: {', '.join(report)}")
@@ -89,7 +105,13 @@ def build_server(root: Path, rfc_dir: Path) -> Any:
         # an unknown id is the found:false envelope, not an error — the exit
         # code that distinguishes a typo lives on the CLI, not the read
         # surface (D-40.1, D-40.6).
-        return why_report(root, task_id)
+        events = recorded()
+
+        return why_report(
+            root,
+            task_id,
+            recorded=[e for e in events if e.subject_id == task_id] if events else None,
+        )
 
     return server
 
@@ -97,15 +119,25 @@ def build_server(root: Path, rfc_dir: Path) -> Any:
 # ....................... #
 
 
-def mcp_cmd(config_path: ConfigOption = None, root: RootOption = Path(".")) -> None:
+def mcp_cmd(
+    dsn: DsnOption = "",
+    partition: PartitionOption = "",
+    config_path: ConfigOption = None,
+    root: RootOption = Path("."),
+) -> None:
     """Serve the planning read surface over stdio. Queries only; execution
-    sandboxes never get this server."""
+    sandboxes never get this server.
+
+    With a partition named, the reports answer from that partition's log;
+    without one, from this repository's files, and the envelope says which."""
 
     root = root.resolve()
     config = load_config(root, config_path)
 
     try:
-        server = build_server(root, root / config.rfcs.path)
+        server = build_server(
+            root, root / config.rfcs.path, dsn=dsn_for(root, dsn), partition=partition
+        )
 
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_CONFIG) from exc

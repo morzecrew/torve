@@ -880,3 +880,28 @@ def test_no_dotenv_is_not_an_error(tmp_path):
     from torve.cli.options import load_dotenv
 
     assert load_dotenv(tmp_path) == []
+
+
+def test_dsn_defaults_to_the_configured_variable(tmp_path, monkeypatch):
+    """Naming a partition and omitting --dsn read an empty mock, found
+    nothing and fell back to the files — the safe direction, and silent
+    about a misconfiguration the operator could not see (A-123)."""
+
+    from torve.cli.options import dsn_for
+
+    (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\nstore:\n  adapter: postgres\n  dsn_env: TORVE_TEST_PG\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TORVE_TEST_PG", "postgresql://configured/db")
+
+    assert dsn_for(tmp_path) == "postgresql://configured/db"
+    # What the caller typed always wins over what the configuration names.
+    assert dsn_for(tmp_path, "postgresql://typed/db") == "postgresql://typed/db"
+
+    # A mock store has no DSN, and says so rather than guessing at a name.
+    (tmp_path / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\nstore:\n  adapter: mock\n", encoding="utf-8"
+    )
+    assert dsn_for(tmp_path) == ""

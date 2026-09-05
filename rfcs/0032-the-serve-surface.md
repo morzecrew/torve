@@ -8,7 +8,7 @@ depends_on: ["0007", "0022"]
 informed_by: ["0005", "0011", "0013", "0018"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-76", "A-77"]
+amended_by: ["A-76", "A-77", "A-123"]
 owner: Lev Litvinov
 description: >-
   A local read-only dashboard over the projections the engine already computes — `torve serve` behind an extra, loopback-only, polling JSON the CLI already emits, with the frontend shipped as built assets in the wheel.
@@ -306,3 +306,41 @@ page, disclosed here.
 **Deliberately unchanged:** every decision row, again. A-76's lesson
 stands as history: the framework was never the problem, and the vanilla
 page was the right bridge to knowing what the surface needed.
+
+### A-123 — 2026-09-05 — The surfaces that re-expose the readers get their source
+**Found by the operator, reading the dashboard.** D-32.1 says the served
+endpoints re-expose the projection functions verbatim, and they did — the
+file-reading call of each. RFC 0050 gave `why`, `status` and `context` a
+record source selected by naming a partition, wired it into the three CLI
+verbs, and left the two surfaces that exist to re-expose those same
+readers calling them without it. A dashboard therefore answered from one
+host's files however full the log was, and said `read from — tasks: files`
+while a board with 273 contracts sat in Postgres.
+
+Nothing about that was designed. It is D-32.1 working exactly as written:
+the endpoint is a call into the projection and nothing more, so a *new
+argument* on the projection reaches the endpoint only when somebody passes
+it.
+
+**Changed:** `torve serve` and `torve mcp` take `--partition` and `--dsn`,
+and pass them into every reader. Two properties are deliberate:
+
+- **The read is per request, not per process.** A resident server that
+  folded the log at startup would serve a board frozen at boot, which is a
+  worse answer than the files it replaced.
+- **The envelope already carries the answer.** `context`'s `sources` block
+  names the carrier per block (RFC 0050 A-102), so a page cannot show a
+  number without its provenance being one field away.
+
+**Also changed, and it is what made the flags usable:** `--dsn` now
+defaults to the DSN the repository's own configuration names. It names the
+variable (D-4b), the environment holds the value, and `.env` fills that in
+for a terminal (A-111) — so `torve status --partition <repo>` reaches the
+record with no flag at all. Before this, omitting `--dsn` built a mock,
+read an empty record, and fell back to the files: the safe direction, and
+silent about a misconfiguration the operator had no way to see.
+
+One ceiling worth naming rather than fixing: each request folds the
+partition's whole task history. At this repository's 1,995 events that is
+cheap, and `since(after=…)` is the incremental read whenever it stops
+being.

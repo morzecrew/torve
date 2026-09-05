@@ -58,9 +58,13 @@ the JSON envelope carries a `sources` block. Read it before quoting a
 figure. On this repository the record holds 10 attempt rows where the files
 hold 636 — both true, and only one of them answers "what has this cost".
 
-The served dashboard (`torve serve`) and the MCP tool call the same readers
-**without** a partition, so they answer from files today whatever the
-record holds.
+`torve serve` and `torve mcp` take the same two options and pass them into
+every reader, per request — so a dashboard left running shows the board as
+it is, not as it was at boot.
+
+And `--dsn` is optional: it defaults to the DSN your configuration names,
+which `.env` has already put in the environment. `--partition` alone is
+enough.
 
 ## Running a pass without spending
 

@@ -35,6 +35,7 @@ from torve.cli.options import (
     FormatOption,
     PartitionOption,
     RootOption,
+    dsn_for,
     read_log,
 )
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
@@ -185,7 +186,8 @@ def why_cmd(
 
     from torve.application.projections import why_report
 
-    envelope = why_report(root.resolve(), task_id, recorded=_recorded(dsn, partition, task_id))
+    root = root.resolve()
+    envelope = why_report(root, task_id, recorded=_recorded(dsn_for(root, dsn), partition, task_id))
 
     if fmt is Format.JSON:
         # The envelope, verbatim — the same bytes the serve endpoint hands

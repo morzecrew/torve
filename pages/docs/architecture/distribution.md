@@ -46,13 +46,12 @@ was inert in every repository torve runs, and 2,600 lines nobody runs and
 everybody must maintain is worse than a subsystem that is gone and recorded.
 The design survives in its document for whoever rebuilds it.
 
-Item 4 — run state and telemetry as files — is crossed off for the readers
-and open for the surfaces. `torve why`, `torve status` and `torve context`
-answer from the record when a partition is named, and say in the report
-which carrier answered. The served dashboard and the MCP tool call those
-same readers *without* a partition, so a second node reaching them still
-gets one host's files. That is a wiring gap rather than a design one, and
-it is the smallest thing on this page.
+Item 4 — run state and telemetry as files — is crossed off. `torve why`,
+`torve status` and `torve context` answer from the record when a partition
+is named and say in the report which carrier answered, and the two surfaces
+that re-expose them — the served dashboard and the MCP tool — take the same
+partition and read it per request (RFC 0032 A-123). `--dsn` defaults to the
+DSN the configuration names, so naming the partition is the whole of it.
 
 What stays on files by shape rather than by schedule: the findings ledger,
 because the record carries a claim only for a blocker, and operator

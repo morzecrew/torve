@@ -32,6 +32,7 @@ from torve.cli.options import (
     PartitionOption,
     RootOption,
     RuntimeName,
+    dsn_for,
     load_config,
     runtime_for,
     task_events,
@@ -100,7 +101,7 @@ def status(
 
     # The projection, verbatim: the serve endpoint renders the same
     # envelope, so the browser and the terminal cannot disagree (D-32.1).
-    envelope = status_report(root, board=_board(dsn, partition))
+    envelope = status_report(root, board=_board(dsn_for(root, dsn), partition))
 
     if fmt is Format.JSON:
         emit_json(envelope)

@@ -17,7 +17,14 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 from torve.cli.console import fail
-from torve.cli.options import ConfigOption, RootOption, load_config
+from torve.cli.options import (
+    ConfigOption,
+    DsnOption,
+    PartitionOption,
+    RootOption,
+    dsn_for,
+    load_config,
+)
 from torve.domain.states import EXIT_CONFIG
 
 if TYPE_CHECKING:
@@ -113,14 +120,35 @@ def _bundle_root() -> Path | None:
 # ....................... #
 
 
-def build_app(root: Path, rfc_dir: Path) -> Any:
+def _records_for(dsn: str, partition: str) -> list[Any] | None:
+    """This partition's task facts, or None when none was named — the same
+    selection rule every CLI reader takes (D-50.2)."""
+
+    from torve.cli.options import task_events
+
+    return task_events(dsn, partition)
+
+
+# ....................... #
+
+
+def build_app(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "") -> Any:
     """A starlette app re-exposing the projections the CLI already renders
     and serving the shipped bundle. The server derives nothing of its own:
     a shape the browser needs is added to the projection, and every
     surface renders it at once. Any, like `mcp.build_server`: starlette is
-    an optional extra, so its classes never appear at runtime."""
+    an optional extra, so its classes never appear at runtime.
+
+    With a partition, every endpoint reads the record the way the CLI's
+    `--partition` does, and per request rather than at startup: a resident
+    server that folded the log once would serve a board frozen at boot
+    (A-123). Without one, the same file readers the CLI falls back to.
+    """
 
     http = _http()
+
+    def recorded() -> list[Any] | None:
+        return _records_for(dsn, partition)
 
     def api_context(request: Request) -> Any:
         # The re-exposure rule (D-32.1): this handler is a call into the
@@ -128,12 +156,17 @@ def build_app(root: Path, rfc_dir: Path) -> Any:
         # added to the projection, not derived here.
         from torve.application.projections import context_report
 
-        return http.JSONResponse(context_report(root, rfc_dir))
+        return http.JSONResponse(context_report(root, rfc_dir, recorded=recorded()))
 
     def api_status(request: Request) -> Any:
+        from torve.application.manager import project
         from torve.application.projections import status_report
 
-        return http.JSONResponse(status_report(root))
+        events = recorded()
+
+        return http.JSONResponse(
+            status_report(root, board=project(events) if events is not None else None)
+        )
 
     def api_why(request: Request) -> Any:
         from torve.application.projections import why_report
@@ -142,7 +175,16 @@ def build_app(root: Path, rfc_dir: Path) -> Any:
         # envelope arrives byte-identical to the CLI's --format json, and an
         # unknown id is the found:false envelope over HTTP 200 — the exit
         # code that catches a typo is the CLI's, not the wire's.
-        return http.JSONResponse(why_report(root, str(request.path_params["task_id"])))
+        task_id = str(request.path_params["task_id"])
+        events = recorded()
+
+        return http.JSONResponse(
+            why_report(
+                root,
+                task_id,
+                recorded=[e for e in events if e.subject_id == task_id] if events else None,
+            )
+        )
 
     routes: list[BaseRoute] = [
         http.Route("/api/context", api_context, methods=["GET"]),
@@ -181,17 +223,25 @@ def serve_cmd(
             help="Port to bind on 127.0.0.1; the loopback bind is fixed.",
         ),
     ] = DEFAULT_PORT,
+    dsn: DsnOption = "",
+    partition: PartitionOption = "",
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
 ) -> None:
     """Serve the projections as a read-only dashboard on the loopback
-    interface, plus the shipped frontend bundle when one is present."""
+    interface, plus the shipped frontend bundle when one is present.
+
+    With a partition named, every endpoint answers from that partition's
+    log; without one, from this repository's files. The envelope says which
+    it used, so the page cannot show a number without its provenance."""
 
     root = root.resolve()
     config = load_config(root, config_path)
 
     try:
-        server_app = build_app(root, root / config.rfcs.path)
+        server_app = build_app(
+            root, root / config.rfcs.path, dsn=dsn_for(root, dsn), partition=partition
+        )
         uvicorn = _uvicorn()
 
     except RuntimeError as exc:

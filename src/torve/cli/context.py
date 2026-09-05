@@ -33,6 +33,7 @@ from torve.cli.options import (
     DsnOption,
     PartitionOption,
     RootOption,
+    dsn_for,
     load_config,
     task_events,
 )
@@ -81,7 +82,9 @@ def context_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
-    report = context_report(root, root / config.rfcs.path, recorded=task_events(dsn, partition))
+    report = context_report(
+        root, root / config.rfcs.path, recorded=task_events(dsn_for(root, dsn), partition)
+    )
 
     if fmt is ContextFormat.JSON:
         emit_json(report)

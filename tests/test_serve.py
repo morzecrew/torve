@@ -186,3 +186,57 @@ def test_the_three_surfaces_render_one_envelope_byte_identical(plan_repo):  # no
     canonical = [json.dumps(doc, sort_keys=True) for doc in (envelope, cli_doc, mcp_doc, serve_doc)]
 
     assert canonical[0] == canonical[1] == canonical[2] == canonical[3]
+
+
+# ....................... #
+
+
+def test_the_served_endpoints_read_the_record_when_a_partition_is_named(plan_repo, monkeypatch):  # noqa: F811
+    """The three readers took a record source and the two surfaces that
+    re-expose them never got the option, so a dashboard answered from one
+    host's files however full the log was (A-123)."""
+
+    from test_why_record import event, minted
+
+    from torve.domain.events import EventKind
+
+    root, _, _ = plan_repo
+    seed_facts(root)
+
+    payload = {
+        "attempt": 1,
+        "verdict": "green",
+        "exit_code": 0,
+        "results": [{"name": "acceptance", "outcome": "pass", "state": "blocking"}],
+        "agent": {"tier": "executor", "adapter": "harness", "attempt": 1, "cost_usd": 3.0},
+    }
+    recorded = [minted(), event(EventKind.GATES_EVALUATED, payload)]
+
+    monkeypatch.setattr(serve_cli, "_records_for", lambda _dsn, _partition: recorded)
+    server = serve_cli.build_app(root, root / "rfcs", partition="acme/one")
+
+    with TestClient(server) as client:
+        context = client.get("/api/context").json()
+        status = client.get("/api/status").json()
+        why = client.get("/api/why/T-0900").json()
+
+    assert context["sources"]["tasks"] == "record"
+    assert context["sources"]["attempts"] == "record"
+    assert [row["cost_usd"] for row in context["costs"]] == [3.0]
+    # The board's row, not the host's state file.
+    assert [run["task_id"] for run in status["runs"]] == ["T-0900"]
+    assert why["found"] is True
+
+
+def test_the_served_endpoints_read_the_files_when_no_partition_is_named(plan_repo):  # noqa: F811
+    """Naming no partition is how a caller says "this repository", and it
+    is what every existing consumer does."""
+
+    root, _, _ = plan_repo
+    seed_facts(root)
+    server = serve_cli.build_app(root, root / "rfcs")
+
+    with TestClient(server) as client:
+        context = client.get("/api/context").json()
+
+    assert context["sources"]["tasks"] == "files"

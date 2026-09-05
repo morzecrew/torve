@@ -7,7 +7,8 @@ rides every result-producing command (D-11.2).
 
 `--dsn` and `--partition` are the record-backed readers' shared pair, and
 naming a partition is what selects the record over this repository's files
-(RFC 0050 D-50.2).
+(RFC 0050 D-50.2). `dsn_for` resolves the DSN the configuration names
+(D-4b) when the caller supplies none (RFC 0032 A-123).
 """
 
 from __future__ import annotations
@@ -185,6 +186,39 @@ def read_log(dsn: str, reader: Callable[[EventLog], Awaitable[Read]]) -> Read:
             return await reader(event_log(runtime.get_context()))
 
     return asyncio.run(opened())
+
+
+# ....................... #
+
+
+def dsn_for(root: Path, override: str = "") -> str:
+    """The DSN a record read should use, given what the caller typed.
+
+    An explicit `--dsn` wins. Otherwise the repository's own configuration
+    answers: it names the variable and the environment holds the value,
+    which `.env` fills in for a terminal. A mock store has no DSN and says
+    so by returning nothing.
+
+    Without this, naming a partition and omitting `--dsn` read an empty
+    mock, found nothing, and fell back to the files — the safe direction,
+    and silent about a misconfiguration the operator could not see.
+    """
+
+    if override:
+        return override
+
+    from torve.config.runconfig import load_runner_config
+
+    try:
+        config = load_runner_config(root, None)
+
+    except (ValueError, OSError):
+        return ""
+
+    if config.store.adapter != "postgres":
+        return ""
+
+    return os.environ.get(config.store.dsn_env, "")
 
 
 # ....................... #
