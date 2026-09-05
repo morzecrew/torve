@@ -156,6 +156,15 @@ def run_skill_eval(
     Raises ValueError for a skill in no role set or a task with no shipped
     commit; RuntimeError on infrastructure failure — as run_shadow does."""
 
+    seat = config.tiers.get("executor")
+    # D-4.6: a fake adapter is simulation, neither spend nor conviction. The
+    # cost and quality projections already exclude its rows; an eval that
+    # ignored it compares two arms of nothing and matches them at zero
+    # (A-125). Recorded rather than refused, because a test asserting the
+    # record's shape runs a fake agent on purpose — what must not happen is
+    # a *verdict*.
+    simulated = seat is not None and seat.adapter == "fake"
+
     arms = {"with": config, "without": without_skill(config, skill)}
     results: dict[str, list[dict[str, Any]]] = {"with": [], "without": []}
 
@@ -169,10 +178,19 @@ def run_skill_eval(
 
     with_arm, without_arm = _summary(results["with"]), _summary(results["without"])
 
-    matched = (
-        without_arm["green"] >= with_arm["green"]
-        and without_arm["attempts"] <= with_arm["attempts"]
-    )
+    # A comparison needs something to compare, and something real to compare
+    # it with. Both arms failing every task is not the baseline keeping up —
+    # it is the replay failing for a reason upstream of the skill — and a
+    # simulated arm is not a measurement at all. Either way the verdict is
+    # absent rather than false, because a false one invites a deletion on no
+    # evidence (A-125).
+    matched: bool | None = None
+
+    if not simulated and (with_arm["green"] or without_arm["green"]):
+        matched = (
+            without_arm["green"] >= with_arm["green"]
+            and without_arm["attempts"] <= with_arm["attempts"]
+        )
 
     record = {
         "schema_version": SCHEMA_VERSION,
@@ -182,6 +200,9 @@ def run_skill_eval(
         "tasks": [task.id for task in tasks],
         "arms": results,
         "summary": {"with": with_arm, "without": without_arm},
+        # What the arms ran on, so a reader can tell a measurement from a
+        # rehearsal without reconstructing the configuration (D-4.6).
+        "simulated": simulated,
         # Direction, never magnitude: true says the baseline did as well
         # here — the deletion decision stays with a person (D-9.4).
         "baseline_matched": matched,

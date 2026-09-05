@@ -841,11 +841,15 @@ class StoreConfig(BaseModel):
 
 
 def _default_skill_sets() -> dict[str, list[str]]:
+    """The skills each dispatchable role loads (D-9.1). Keyed by roles a run
+    can actually have: an entry for a role nothing dispatches promises a
+    materialization that never happens, and `torve eval` then refuses the
+    skill it names as "in no role set" (A-125)."""
+
     return {
         "implement": ["flag-dont-flip", "ratchet-what-you-build"],
         "review": [],
         "revert": ["flag-dont-flip"],
-        "author": ["rfc-writer"],
     }
 
 

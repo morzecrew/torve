@@ -19,6 +19,7 @@ from rich.text import Text
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_PASS,
+    STYLE_WARN,
     Format,
     closing,
     emit_json,
@@ -245,7 +246,17 @@ def eval_cmd(
 
         console.print(table)
 
-        if record["baseline_matched"]:
+        if record["baseline_matched"] is None:
+            # Nothing was compared, and saying "baseline matched" here is how
+            # a skill gets deleted on the evidence of a replay that measured
+            # nothing (A-125).
+            why = (
+                "the seat is a fake adapter, so no model ran"
+                if record.get("simulated")
+                else "neither arm completed a task"
+            )
+            closing(console, f"inconclusive — {why}; nothing here measures the skill", STYLE_WARN)
+        elif record["baseline_matched"]:
             closing(
                 console,
                 "baseline matched — this skill did not earn its tokens here; deletion is your call",

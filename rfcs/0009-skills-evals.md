@@ -7,7 +7,7 @@ depends_on: ["0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-3", "A-25", "A-54", "A-122"]
+amended_by: ["A-3", "A-25", "A-54", "A-122", "A-125"]
 owner: Lev Litvinov
 description: >-
   Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens.
@@ -195,3 +195,65 @@ reporting that all four earn them.
 
 **Changed:** `implementation: partial` stands, with the outstanding work
 named as campaign rather than build.
+
+### A-125 — 2026-09-06 — The eval ran, measured nothing, and said the skill had not earned its tokens
+**Found running A-122's owed evals.** The library was read against the
+record first, and the reading changed what "the whole library" can mean.
+
+**Two of the four shipped skills have never once been materialized.** Over
+226 attempts that name what they loaded (D-9.14), the record shows
+`flag-dont-flip` 226 times, `ratchet-what-you-build` 225, and a vendored
+`reading-isnt-proof` twice. `rfc-writer` and `corpus-bootstrap`: never.
+The cause is a role that does not exist — the default sets keyed
+`rfc-writer` under `author`, and no run has that role, so `sets.get(role)`
+never asks for it and `torve eval` refuses the skill as "in no role set".
+
+They are not dead code, which is why they are not deleted.
+`skills/rfc-writer/references/rfc-template.md` is what `torve rfc new`
+reads to create every document in this corpus, and
+`skills/corpus-bootstrap/fixtures/` carries the survey report and expected
+output RFC 0031's tests read. They are **packaged assets shaped like
+skills**: unreachable as instructions, load-bearing as files. The dead
+`author` key is removed; the directories stay, and this records what they
+are so the next reader does not delete them for the reason I nearly did.
+
+**The eval then ran, and its verdict was worthless in a way worth keeping.**
+`ratchet-what-you-build` over T-0254, T-0255 and T-0259 — three tasks about
+gates, chosen because this skill is about finishing a guard. Six replays,
+all escalated at the poison ceiling, both arms `0/3` green. The verdict
+printed: *baseline matched — this skill did not earn its tokens here;
+deletion is your call.*
+
+Both arms scored zero because this repository's committed configuration
+runs every tier on the `fake` adapter with every provider denied — a safe
+default so a stray `torve run` here calls nobody. Each replay took 0.4
+seconds and cost nothing. Nothing about the skill was measured, and D-9.4
+would have deleted it on that.
+
+**Changed, twice, both the same defect in different clothes:**
+
+- `baseline_matched` was `without.green >= with.green and
+  without.attempts <= with.attempts`. At 0 green and 9 attempts each that
+  is `0 >= 0 and 9 <= 9` — true. It is now `None` when neither arm
+  completed a task: a comparison needs something to compare.
+- The record carries `simulated`, true when the executor seat is a fake
+  adapter, and a simulated eval never produces a verdict. D-4.6 already
+  says a fake adapter is neither spend nor conviction and the cost and
+  quality projections already exclude its rows; the eval loop was the one
+  reader that did not.
+
+Recorded rather than refused, because a test asserting the record's shape
+runs a fake agent on purpose. What must not happen is a *verdict*.
+
+**What this leaves owed.** §8's second criterion cannot be met in this
+repository as configured: skill evidence needs a real seat, and this
+repository denies every provider by design. It can be met where the engine
+runs against real tiers — the lab — and the two skills that can be
+measured there are `flag-dont-flip` (measured once, August, baseline
+matched) and `ratchet-what-you-build` (never measured). The other two are
+not skills a run loads and should not be counted as owed.
+
+**Its third criterion is met, and provable.** Every skill in the library
+declares a `gate:` — `rfc-valid`, `decisions-reported`, `gates-sabotage`,
+`rfc-index` — which is D-9.7's skill-and-gate-as-one-unit holding across
+all four.

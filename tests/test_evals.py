@@ -181,7 +181,10 @@ def test_skill_eval_runs_both_arms_and_ledgers(repo):
     assert record["kind"] == "skill-eval" and record["skill"] == "flag-dont-flip"
     assert [r["task"] for r in record["arms"]["with"]] == [TASK_ID]
     assert [r["task"] for r in record["arms"]["without"]] == [TASK_ID]
-    assert isinstance(record["baseline_matched"], bool)
+    # The seat is a fake adapter, so this run rehearses the record's shape
+    # and measures nothing: no verdict, and the record says why (A-125).
+    assert record["simulated"] is True
+    assert record["baseline_matched"] is None
 
     # One line in the ledger; two arm-marked shadow records in telemetry;
     # attribution shows the without-arm ran skill-less (T-0070).
