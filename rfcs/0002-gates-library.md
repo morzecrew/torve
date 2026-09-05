@@ -2,12 +2,12 @@
 id: "0002"
 title: Gates as a library
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0001"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-2", "A-8", "A-49", "A-52"]
+amended_by: ["A-2", "A-8", "A-49", "A-52", "A-119"]
 owner: Lev Litvinov
 description: >-
   The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment.
@@ -303,7 +303,6 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 ## Amendments
 
 ### A-2 — 2026-08-21 — gate implementations belong to the package (amends §4)
-
 **Found in implementation.** `log_check.py` was shipped inside the `flag-dont-flip` skill directory, so every repository installing the skill got its own copy — precisely the cross-repository copy-paste this RFC exists to remove.
 
 **Changed:** gate implementations live in `src/torve/gates/` (`scope.py`, `decisions_reported.py`, `no_test_tampering.py`, `secrets.py`, `sabotage.py`), not in skill directories. The skill keeps one line naming its enforcing gate and loses its `scripts/` directory.
@@ -311,7 +310,6 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 **A skill is not replaced by its gate.** The gate reports that an entry is missing; it cannot say when one should have been written. `flag-dont-flip` retains the plan gate, the readiness gate, the unlisted-decision rule, and how to phrase `claim` and `evidence`. Per D-9.5: the gate is the source of truth, the skill is how it is passed on the first attempt.
 
 ### A-8 — 2026-08-21 — gate lifecycle (adds §7, D-2.18 – D-2.23)
-
 **Found in consolidation.** How a gate comes into existence, when it is allowed to block, and when it is removed was spread across six documents and complete in none of them. The load-bearing property (D-3: a gate runs where the agent cannot influence it) had a lifecycle nobody had written down.
 
 **Added:** §7 — sources (structural / distilled from leaks / derived from convention documents), the five filters before writing a gate, the state machine `proposed → shadow → blocking → quarantined → retired`, the implementation/activation split, the manifest entry shape, health metrics, retirement signals, and the rule that a material tightening goes back through `shadow`. The sections that followed renumbered (§7 Telemetry → §8, Decisions → §9, Exit criteria → §10).
@@ -323,7 +321,6 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 **Also edits:** RFC 0004 §6 (per-gate health metrics among the telemetry fields), RFC 0009 D-9.5 (retiring a gate shrinks or removes its paired skill in the same change), RFC 0011 §5 (cross-referenced from filter 5).
 
 ### A-49 — 2026-08-27 — the size estimate is a function (amends §6b, D-2.9)
-
 **Found in a whole-repository audit for over-engineering.** §6b shipped a `SizePolicy` protocol with one implementation, `StaticThresholds`, whose three thresholds were constructor parameters no call site ever overrode, and whose `observe` method had an empty body and no callers. The protocol existed for a `HistoricalPercentile` arm that needs the attempt store and retrospective calibration — neither of which exists.
 
 **Changed:** the estimate is a module-level function over module-level thresholds. The seam returns when there is a second arm to put behind it; a protocol with one implementation is a seam that has not been tested by a second case, which is to say it is a guess about where the seam goes.
@@ -331,7 +328,6 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 **D-2.9 stands** — the estimate is still pre-dispatch, still advisory, still the thing `torve size` reports. Only its shape changed.
 
 ### A-52 — 2026-08-27 — CI runs the gate, not the battery twice (amends §5, §7.3)
-
 **Found in the same audit.** The workflow ran `ruff`, `mypy`, `pytest` and `torve rfc check` as explicit steps, then ran `torve gates run`, whose acceptance gate ran the same four commands again from the manifest's fallback battery. On a branch with no task contract the whole suite executed twice per push; `torve rfc check` executed three times, because the `rfc-valid` gate ran it as well.
 
 **Changed:** CI is `torve gates check` followed by `torve gates run`. The manifest's fallback battery is the definition of the battery, and the gate running it is the thing under test — a green CI that never exercised the gate is the failure mode §5 exists to prevent.
@@ -339,3 +335,27 @@ Even without a store, each run appends one JSONL record. Three fields must be ri
 **`rfc-valid` is promoted out of shadow** in the same change, and dropped from the acceptance fallback. It was the only corpus check left blocking through the deleted CI step; leaving it at `shadow` would have made a red corpus advisory. Named and blocking, it also reports as a corpus failure rather than as a red test suite.
 
 **This is a §7.3 promotion without the §7.7 soak,** on the D-15.8/T-0014 precedent: `torve rfc check` is deterministic over committed documents and has no false-positive rate to measure. It had served a shadow tenure since 2026-08-22 with the blocking dedicated step beside it.
+
+### A-119 — 2026-09-05 — The two-week window closed
+**Judged in the pass A-113's new flag started.** This document's own header
+named one outstanding item and called it correctly: "waiting on the
+calendar, not on work". The calendar has arrived.
+
+§10's three exit criteria, measured today:
+
+- **Two weeks of `config_hash` telemetry.** 520 rows carrying a
+  `config_hash`, first 2026-08-21, last 2026-09-05 — **15 days**, 60
+  distinct regimes. The window opened when this document said it did and
+  has closed. RFC 0004 has its baseline.
+- **The sabotage suite passes and fails on demand.** `torve gates check`
+  reports 29 of 29 cases behaving, each asserting the twin outcome — a pass
+  where the gate should pass and a *failure* where a deliberate break
+  should be caught. CI runs it on every push.
+- **Five gates green in two repositories, on human pull requests as well as
+  agent ones.** Verified here; the second repository is the lab, on this
+  document's own record from 2026-08-23, which I cannot reach from this
+  tree.
+
+**Changed:** `implementation: complete`. Nothing normative — this records
+that the last criterion was time, and the time passed.
+

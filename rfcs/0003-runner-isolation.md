@@ -2,12 +2,12 @@
 id: "0003"
 title: Runner and isolation
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0002"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-6", "A-13", "A-18", "A-38", "A-50", "A-112"]
+amended_by: ["A-6", "A-13", "A-18", "A-38", "A-50", "A-112", "A-120"]
 owner: Lev Litvinov
 description: >-
   `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
@@ -274,3 +274,34 @@ because the sweeps disagreeing is precisely how a footprint half-survives.
 **Changed:** nothing normative. A-70's rule is what it always was; it now
 runs where the operator invoked it. Measured on this repository: one pass
 took `.wt/` from 9.1 MB to 324 KB, and what remains is trace logs.
+
+### A-120 — 2026-09-05 — The field never caught up with the judgement
+**Judged in the pass A-113's new flag started.** This document's header has
+read "Implementation state: complete (judged 2026-08-23)" for a fortnight
+while the front matter said `partial`. The field was added corpus-wide on
+2026-08-22, the judgement was written the next day, and the two were never
+reconciled — which is the same drift A-113 now flags, arriving a day early
+and by hand.
+
+§9's exit criteria, checked today: the fake-agent suite is green, the
+simulation sweep and its broken twins pass (`tests/test_dst.py`), the
+`kill -9` reap is proved by an integration test that actually SIGKILLs a
+run, and the pull-request leg is on the record from T-0045.
+
+One caveat, recorded rather than left implied: **D-3.18 delegated
+transactional notifications to RFC 0006, and its delegate lost its
+implementation.** D-6.11's delivery rode the tracker's `notify` through the
+outbox, and both are deleted (RFC 0008 A-92, RFC 0006 A-115). An escalation
+is still recorded, still ages and still appears in `torve status` and the
+fleet's queue; what is gone is the page. That is RFC 0006's to owe — this
+document delegated the policy and the delegation is intact — but a reader
+of D-3.18 should not have to follow the pointer to find out.
+
+Also updated by today's work: the header credits "the tick's reap leg" with
+carrying the store factory. The tick is retired (RFC 0019 A-105) and
+`torve reap` carries it, where A-112 found the durable path had been
+silently dropping `--escalated`.
+
+**Changed:** `implementation: complete`, catching the field up to the
+judgement its own header made.
+

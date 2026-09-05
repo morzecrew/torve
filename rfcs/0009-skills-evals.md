@@ -1,5 +1,5 @@
 ---
-id: "0009"
+id: 0009
 title: Skills and evals
 status: accepted
 implementation: partial
@@ -7,7 +7,7 @@ depends_on: ["0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-3", "A-25", "A-54"]
+amended_by: ["A-3", "A-25", "A-54", "A-122"]
 owner: Lev Litvinov
 description: >-
   Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens.
@@ -141,7 +141,6 @@ This also gives a retirement path in the other direction: once a gate exists and
 ## Amendments
 
 ### A-3 — 2026-08-21 — skills whose format Torve parses ship with Torve (adds D-9.7)
-
 **Found in implementation.** A skill and its gate encode one rule in two forms. Versioned separately, they drift: the gate tightens in the package, the skill in another repository does not know, and agents write to the old rule and redden on every task.
 
 **Changed:** a skill and its gate are **one unit of versioning**. Skills whose output Torve parses ship with the package: `flag-dont-flip` (parsed by `decisions_reported`), `rfc-writer` (parsed by `RfcDirectory` and `rfc_index`), `ratchet-what-you-build` (parsed by `sabotage`). Everything else stays in `agent-skills`. `escape-hatch-policy` was on the list and removed on review — same word, different concept; three skills move, not four.
@@ -153,13 +152,11 @@ This also gives a retirement path in the other direction: once a gate exists and
 **Consequence for D-9.3:** `config_hash` includes the Torve package version, not only the `agent-skills` lockfile — otherwise upgrading Torve silently changes the regime and telemetry does not notice.
 
 ### A-25 — 2026-08-22 — vendored skills reach the sandbox as reviewed content (adds §4a, D-9.11–D-9.13)
-
 **Found asking how the rest of the library gets in.** A-3 drew the boundary — Torve ships only what it parses — but left everything on the far side of it (review checklists, stack conventions, the `agent-skills` library) with no road into the sandbox.
 
 **Changed:** §4a — the sandbox-definition doctrine applied to skills. Vendored skills are committed under `.torve/skills-vendor/<name>/` and resolve by name beside shipped skills at materialization; a collision with a shipped skill is refused, structurally protecting the A-3 unit-of-versioning; the vendored tree's digest joins `config_hash`. The channel is task context (RFC 0017 §3) — repository content instructing the agent about the work, which is allowed, as distinct from the repository configuring the harness, which is not (D-17.4).
 
 ### A-54 — 2026-08-27 — the specialisation rules come in from `ops/` (amends A-3, adds D-9.14)
-
 **Found deleting the executed procedure.** `ops/skill-specialisation.md` was executed on 2026-08-21 and kept past its deletion (D-A.1b), because four of its rules were still normative and had nowhere else to live. That is exactly the case §2 of RFC 0016 names: when a procedure accumulates decisions rather than steps, the decisions are promoted into an RFC and the procedure goes.
 
 **Adds D-9.14,** carrying the four rules intact:
@@ -170,3 +167,31 @@ This also gives a retirement path in the other direction: once a gate exists and
 - **The homonym lesson.** Before moving a skill, check that the Torve concept it maps to is the same concept and not the same word. `escape-hatch-policy` was on A-3's list and removed on review: Torve parses bypass records, and that skill does not produce them.
 
 **Note on A-3's wording.** A-3 cites `RfcDirectory` as the parser of `rfc-writer`'s output. That adapter was retired by RFC 0007 A-47; the parser is `torve.config.rfc_parse`, reached by `torve plan`, `torve rfc check` and adoption. A-3's text stands as written — amendments record what was decided when — and this note is the correction.
+
+### A-122 — 2026-09-05 — One skill evaluated of four, and none retired
+**Judged in the pass A-113's new flag started.** The machinery is built and
+the header is accurate about it: `torve eval` runs with/without-skill
+shadow arms, the ledger records them, per-skill telemetry attribution
+works, vendored skills resolve and join `config_hash`. What §8 asks for is
+use, and use has not happened.
+
+- **"Evals run for the whole library, with at least one skill retired on
+  evidence"** is unmet, and not marginally. The library is four skills —
+  `corpus-bootstrap`, `flag-dont-flip`, `ratchet-what-you-build`,
+  `rfc-writer` — and one has been evaluated, once, in August, with the
+  baseline matched and the deletion left to the operator. Nothing has been
+  retired. The seven rows in the evals ledger since are `config-eval`
+  entries from RFC 0027's harness work, not skill arms; a reader counting
+  ledger lines would conclude otherwise, which is why this says so.
+- **"Every cluster-C skill paired with a gate, or an explicit written
+  decision"** has no evidence either way in this tree.
+- Role-scoped sets are configured, which is the one criterion the code
+  answers on its own.
+
+The honest shape of what is owed: three evals and a decision. The engine
+side is done, and a skill that cannot show it earns its tokens is exactly
+what this document exists to retire — including, potentially, itself
+reporting that all four earn them.
+
+**Changed:** `implementation: partial` stands, with the outstanding work
+named as campaign rather than build.

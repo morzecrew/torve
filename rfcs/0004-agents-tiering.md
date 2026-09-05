@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-57", "A-72"]
+amended_by: ["A-57", "A-72", "A-121"]
 owner: Lev Litvinov
 description: >-
   Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable.
@@ -199,3 +199,24 @@ store query about real work would need a shadow filter forever.
 **Interim operations note:** until the execution lands, a shadow campaign
 on a root with a scheduled tick pauses the schedule for the campaign's
 duration — the 2026-08-28 clean campaign ran that way.
+
+### A-121 — 2026-09-05 — Two criteria met, and the third is a reading nobody did
+**Judged in the pass A-113's new flag started.** Two of §8's three exit
+criteria were met on 2026-08-28 and the header says so: fifteen shadow runs
+(23 recorded replays), two adapters over the same eight tasks. The third is
+not met, and it is the one that was never going to happen by itself.
+
+**"Gate set adjusted from shadow-run evidence rather than from
+expectation."** The gate set has changed three times since — the coverage
+delta gate and the declared twins (both RFC 0036), and the axis labels
+(RFC 0034). Every one came from a design document. None came from reading
+the 21 shadow rows this repository has been accumulating.
+
+That is not a gap in the machinery. The replays ran, the rows are there
+with cost, iterations and gate outcomes, and `torve context` already
+projects them. What is missing is somebody reading them and either changing
+a gate or writing down that the evidence says not to. Either closes the
+criterion; only silence leaves it open.
+
+**Changed:** `implementation: partial` stands, with exactly one criterion
+outstanding and the evidence for it already collected.
