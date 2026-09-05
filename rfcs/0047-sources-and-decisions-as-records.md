@@ -7,7 +7,7 @@ depends_on: ["0044"]
 informed_by: ["0007", "0016", "0020", "0022", "0030"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-100"]
 owner: misery7100
 description: >-
   The corpus becomes an importer rather than the only reader: a source is any provenance carrying zero or more decisions, a decision is a versioned subject in the record, and the decision graph is answered by query instead of by re-parsing every accepted document.
@@ -436,3 +436,16 @@ rather than by an edit.
     - "uv run torve rfc check"
   depends_on: [1]
 ```
+
+---
+
+## Amendments
+
+### A-100 — 2026-09-05 — The board's row cap, closed
+§8 recorded the board's 1000-row cap as a defect this document found and
+declined to own. RFC 0044 A-99 closes it: every read on the log pages to
+the end, `TruncatedRead` is gone, and the `limit` arguments §5 describes no
+longer exist. D-47.7 still holds and for its original reason — reading the
+decision graph by subject type keeps a corpus-sized slice cheap as
+execution grows — but it is now an efficiency argument rather than a
+correctness one.

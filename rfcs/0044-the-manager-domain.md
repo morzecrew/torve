@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -771,3 +771,31 @@ an edited file would be writing an `escalation.resolved` it has no authority
 to write (D-44.2) under another name — and a fold must treat a mint with no
 contract as a view with no contract, because 192 of them are already in the
 lab log and every one of them predates this.
+
+### A-99 — 2026-09-05 — Every read of the log pages
+**Found taking stock after RFC 0050 phase 3.** Every read on the log took a
+row cap — `since` at 1000, `history` at 1000, `of_subject_type` at 5000 —
+and two of the three returned a prefix with nothing to say they had. This
+partition holds 1,995 events. The board the manager folds from `since` had
+**184 rows where the log holds 273**, and that board is what decides what a
+worker claims, what a lease releases and what a scan re-mints. RFC 0047 §8
+named the hazard when the cap was theoretical; it had been live since the
+log passed a thousand events.
+
+The visible damage is noise rather than corruption: 916 mint events for 273
+tasks, because a pass could not see the rows the previous pass had written
+and minted them again. A fold over the whole log reads those as re-mints
+and transitions nothing (D-49.2), which is the only reason this was
+recoverable by reading rather than by repair.
+
+**Changed:** §5.2's reads page. One `_paged` helper behind `since`,
+`history` and `of_subject_type` walks the log until a short page comes
+back, and `PAGE` is a request size rather than a cap. `TruncatedRead` is
+deleted: it existed to make one silent prefix loud, and a read that cannot
+return a prefix has nothing to announce.
+
+Offset paging is safe on this log and on no other kind — append-only under
+a total order (`created_at`, `id`), so a page never repeats or skips a row,
+and a write landing mid-scan lands after the tail the scan will reach.
+
+Measured after: `since` returns 1,995 events and the board 273 rows.

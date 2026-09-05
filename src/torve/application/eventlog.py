@@ -94,17 +94,11 @@ ORDER: Mapping[str, Literal["asc", "desc"]] = {"created_at": "asc", "id": "asc"}
 # ----------------------- #
 
 
-class TruncatedRead(RuntimeError):
-    """A read hit its row cap, so what came back is a prefix of the answer
-    rather than the answer."""
-
-    def __init__(self, subject_type: SubjectType, partition: str, limit: int) -> None:
-        super().__init__(
-            f"{partition}: more than {limit} {subject_type} records — the fold would be "
-            "built on part of the log; raise the limit or page"
-        )
-
-        self.subject_type, self.partition, self.limit = subject_type, partition, limit
+# How many records one read of the log asks for at a time. Every read here
+# pages until the log runs out, so this is a request size and never a cap:
+# a fold built on part of the record is a wrong answer that looks like a
+# right one, and the reader cannot tell the difference (A-99).
+PAGE = 1000
 
 
 # ....................... #
@@ -163,9 +157,34 @@ class EventLog:
 
     # ....................... #
 
-    async def history(
-        self, subject_id: str, *, partition: str | None = None, limit: int = 1000
-    ) -> list[EventRecord]:
+    async def _paged(self, values: dict[str, Any]) -> list[EventRecord]:
+        """Every record matching, oldest first, paged until the log runs
+        out.
+
+        Offset paging is safe on this log and on no other kind: it is
+        append-only under a total order, so a page never repeats or skips a
+        row, and a write landing mid-scan lands after the tail this scan
+        will reach. The cost is a scan proportional to the offset, which at
+        a partition's lifetime size is a rounding error next to the fold.
+        """
+
+        found: list[EventRecord] = []
+
+        while True:
+            page = await self.reader.find_many(
+                filters={"$values": values} if values else None,
+                pagination={"limit": PAGE, "offset": len(found)},
+                sorts=ORDER,
+            )
+            hits = list(page.hits)
+            found.extend(hits)
+
+            if len(hits) < PAGE:
+                return found
+
+    # ....................... #
+
+    async def history(self, subject_id: str, *, partition: str | None = None) -> list[EventRecord]:
         """Everything recorded about one subject, oldest first — the read a
         projection of a single task or decision replays."""
 
@@ -174,54 +193,27 @@ class EventLog:
         if partition is not None:
             values["partition"] = partition
 
-        page = await self.reader.find_many(
-            filters={"$values": values},
-            pagination={"limit": limit, "offset": 0},
-            sorts=ORDER,
-        )
-
-        return list(page.hits)
+        return await self._paged(values)
 
     # ....................... #
 
     async def of_subject_type(
-        self, subject_type: SubjectType, *, partition: str, limit: int = 5000
+        self, subject_type: SubjectType, *, partition: str
     ) -> list[EventRecord]:
         """One partition's records about one kind of subject, oldest first
         (D-47.7).
 
         Sources and decisions grow with the corpus; attempts, gates and burn
         grow with execution. Folding the second to answer a question about
-        the first is the wrong read, and past the row cap it is also a wrong
-        answer — a truncated fold reports a decision graph missing whatever
-        the cap cut off, with nothing to say it did.
+        the first is the wrong read.
         """
 
-        page = await self.reader.find_many(
-            filters={"$values": {"partition": partition, "subject_type": subject_type}},
-            pagination={"limit": limit, "offset": 0},
-            sorts=ORDER,
-        )
-        hits = list(page.hits)
-
-        if len(hits) >= limit:
-            # A fold over a truncated read is a wrong answer that looks like
-            # a right one — a decision graph missing whatever the cap cut
-            # off, with nothing to say it did. Raise instead: the caller
-            # raises the limit or pages, and either is better than a
-            # projection quietly built on part of the record.
-            raise TruncatedRead(subject_type, partition, limit)
-
-        return hits
+        return await self._paged({"partition": partition, "subject_type": subject_type})
 
     # ....................... #
 
     async def since(
-        self,
-        after: datetime | None = None,
-        *,
-        partition: str | None = None,
-        limit: int = 1000,
+        self, after: datetime | None = None, *, partition: str | None = None
     ) -> list[EventRecord]:
         """The log's tail after a moment, oldest first — the read a
         projection resumes with, and the manager's view of one partition."""
@@ -234,13 +226,7 @@ class EventLog:
         if partition is not None:
             values["partition"] = partition
 
-        page = await self.reader.find_many(
-            filters={"$values": values} if values else None,
-            pagination={"limit": limit, "offset": 0},
-            sorts=ORDER,
-        )
-
-        return list(page.hits)
+        return await self._paged(values)
 
 
 # ....................... #

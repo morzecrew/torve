@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from torve.domain.events import EventRecord
 
 from torve.cli.console import Format, fail
-from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE
+from torve.domain.states import EXIT_CONFIG
 
 # ----------------------- #
 
@@ -143,19 +143,14 @@ def task_events(dsn: str, partition: str) -> list[EventRecord] | None:
     was named — which is how a caller says to read this repository's files
     instead.
 
-    The guarded read, not the paging one: a projection folded from a prefix
-    of the log reports states that have since moved, and a report that is
-    confidently stale is worse than one that refuses.
+    The read pages to the end of the partition: a projection folded from a
+    prefix of the log reports states that have since moved, and nothing in
+    the answer says so.
     """
 
     if not partition:
         return None
 
-    from torve.application.eventlog import TruncatedRead
     from torve.domain.events import SubjectType
 
-    try:
-        return read_log(dsn, lambda log: log.of_subject_type(SubjectType.TASK, partition=partition))
-
-    except TruncatedRead as exc:
-        raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
+    return read_log(dsn, lambda log: log.of_subject_type(SubjectType.TASK, partition=partition))

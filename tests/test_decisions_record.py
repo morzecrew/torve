@@ -380,11 +380,12 @@ def test_the_decision_read_does_not_fold_the_execution_log(tmp_path):
 # ....................... #
 
 
-def test_a_read_that_hits_its_cap_raises_rather_than_folding_a_prefix(tmp_path):
-    """A projection built on a truncated read is a wrong answer that looks
-    like a right one. The read says so instead."""
+def test_a_read_pages_past_its_page_size_rather_than_stopping_there(tmp_path):
+    """A projection built on a prefix of the log is a wrong answer that
+    looks like a right one, and nothing in it says so. The read pages to
+    the end instead (A-99)."""
 
-    from torve.application.eventlog import TruncatedRead
+    from torve.application import eventlog
 
     rfc_dir = document(
         tmp_path,
@@ -395,8 +396,18 @@ def test_a_read_that_hits_its_cap_raises_rather_than_folding_a_prefix(tmp_path):
     async def scenario(log):
         await sync(log, rfc_dir)
 
-        with pytest.raises(TruncatedRead, match="more than 3"):
-            await log.of_subject_type(SubjectType.DECISION, partition=PARTITION, limit=3)
+        # A page size smaller than the answer is the whole point: five
+        # decisions, two at a time, and the fold sees all five.
+        monkey = eventlog.PAGE
+        eventlog.PAGE = 2
+
+        try:
+            records = await log.of_subject_type(SubjectType.DECISION, partition=PARTITION)
+
+        finally:
+            eventlog.PAGE = monkey
+
+        assert len({record.subject_id for record in records}) == 5
 
     run(scenario)
 
