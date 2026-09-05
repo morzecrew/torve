@@ -7,12 +7,10 @@ depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-101"]
 owner: Lev Litvinov
 description: >-
-  Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a
-  forze version), telemetry from stage 3; yoyo behind the migrate extra,
-  torve doctor, and the conformance battery as the gate.
+  Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and the conformance battery as the gate.
 schema_version: 1
 ---
 
@@ -171,3 +169,28 @@ Both are blocking gates in the Torve repository's own CI. A migration that has n
 | D-12.15 | `ASSUMED` | The migrate module normalizes DSNs to `postgresql+psycopg://` before handing them to yoyo; operator DSNs stay in the standard form everywhere else. Added by execution 2026-08-21 | `src/torve/application/migrate.py` | yoyo routes bare `postgresql://` through psycopg2, which torve does not ship |
 
 *Provenance note 2026-08-22:* the migration regime rows above — yoyo over alembic, canonical table names, the pin checked by doctor, owner directories as stable no-ops, DSN normalisation — absorbed the discoveries of the provisioning era; see .torve/tasks/T-0005 and .torve/tasks/T-0006.
+
+---
+
+## Amendments
+
+### A-101 — 2026-09-05 — The status line says why there is no database
+**Found taking stock.** `--status` printed `database not configured` for
+both ways of having no DSN — a mock store, which has no database to
+migrate, and a postgres store whose variable is unset, which has one nobody
+named. The CLI knew the difference and threw it away: it caught the
+`resolve_dsn` error and suppressed it. Reported identically, the two send an
+operator to different files, and one of them is a shell. This cost a
+session's owner an hour of believing the command could not reach a database
+at all.
+
+**Changed:** `status` takes the sentence to print when there is no DSN, and
+the caller supplies it, because the caller is the one that knows why. The
+`resolve_dsn` error keeps its decision citation in a comment rather than in
+the message, now that the message is something an operator reads.
+
+Also found: this repository's ledger held `0001_events` and `0001_durable`
+but not `0002_decisions`, whose index had been created by hand during RFC
+0047. `torve migrate torve` reconciled the two — the step is
+`CREATE INDEX IF NOT EXISTS`, so applying it against the index it describes
+is a no-op that records the row.

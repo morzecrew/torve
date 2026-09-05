@@ -47,17 +47,20 @@ def migrate_cmd(
 
     try:
         if show_status:
-            dsn = None
+            dsn, unreachable = None, f"store.adapter is {config.store.adapter!r} — no database"
 
             if config.store.adapter == "postgres":
-                import contextlib
-
-                with contextlib.suppress(RuntimeError):
+                try:
                     dsn = resolve_dsn(config.store)
+
+                except RuntimeError as exc:
+                    # Why, not just that: the two ways to have no DSN send an
+                    # operator to different files, and one of them is a shell.
+                    unreachable = str(exc)
 
             header(console, "migrate", "status")
 
-            for line in migrate_status(dsn):
+            for line in migrate_status(dsn, unreachable=unreachable):
                 console.print(line)
 
             return

@@ -75,8 +75,11 @@ def test_status_reports_three_targets_and_the_pin():
 
     torve_steps = len(list((Path(__file__).parents[1] / "migrations/torve/postgres").glob("*.sql")))
 
-    lines = status(dsn=None)
+    lines = status(dsn=None, unreachable="no database here")
     assert len(lines) == 4
+    # Why there is no count, in the caller's words: a mock store and an
+    # unset variable send an operator to different files.
+    assert "no database here" in lines[0]
     assert lines[0].startswith("torve") and f"{torve_steps} step(s)" in lines[0]
     assert lines[1].startswith("substrate") and "1 step(s)" in lines[1]
     assert lines[2].startswith("telemetry")

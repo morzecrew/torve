@@ -24,10 +24,9 @@ def resolve_dsn(config: StoreConfig) -> str:
     dsn = os.environ.get(config.dsn_env, "")
 
     if not dsn:
-        raise RuntimeError(
-            f"store.adapter is 'postgres' but ${config.dsn_env} is not set — "
-            "the DSN is named by environment variable, never committed (D-4b)"
-        )
+        # The configuration names the variable; the environment holds the
+        # value, and never a committed file (D-4b).
+        raise RuntimeError(f"store.adapter is 'postgres' but ${config.dsn_env} is not set")
 
     return dsn
 

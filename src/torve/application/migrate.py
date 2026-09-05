@@ -180,9 +180,16 @@ def pending_count(target: str, dsn: str) -> int:
 # ....................... #
 
 
-def status(dsn: str | None) -> list[str]:
+def status(dsn: str | None, *, unreachable: str = "database not configured") -> list[str]:
     """One line per target: available steps, applied count where a database
-    is reachable — the first question during a forze upgrade (§5)."""
+    is reachable — the first question during a forze upgrade (§5).
+
+    `unreachable` is what the line says when there is no DSN, and the caller
+    supplies it because the caller is the one that knows why: a mock store
+    has no database to migrate, and a postgres store whose variable is unset
+    has one nobody named. Reported identically, those two send an operator
+    looking in the wrong place (A-101).
+    """
 
     lines: list[str] = []
 
@@ -193,7 +200,7 @@ def status(dsn: str | None) -> list[str]:
             lines.append(f"{target:<10} no migrations yet")
             continue
 
-        applied = "database not configured"
+        applied = unreachable
 
         if dsn:
             try:
