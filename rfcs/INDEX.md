@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0050**.
+number is **0051**.
 
 ## Design
 
@@ -57,6 +57,7 @@ number is **0050**.
 | [0047](0047-sources-and-decisions-as-records.md) | Sources and decisions as records | accepted | complete | 0044 | — | The corpus becomes an importer rather than the only reader: a source is any provenance carrying zero or more decisions, a decision is a versioned subject in the record, and the decision graph is answered by query instead of by re-parsing every accepted document. |
 | [0048](0048-the-fleet-as-partitions.md) | The fleet as partitions | accepted | complete | 0024, 0044 | — | The resident manager runs the operator's whole fleet rather than one repository: the manifest that already names every root gains the partition each one's contracts are minted onto, and one process round-robins them under one shared attention budget. |
 | [0049](0049-tasks-as-records.md) | Tasks as records | accepted | complete | 0044 | — | The contract a task runs under travels in the record: minting carries the contract itself, re-minting records a changed one as a new version, and the repository's task directory becomes an importer rather than the thing every reader consults. |
+| [0050](0050-the-projection-set-over-the-record.md) | The projection set over the record | accepted | partial | 0044, 0049 | — | The reports the engine answers planning questions with move onto the record, one at a time, each landing beside its file reader with a parity test rather than replacing it — because a reader moved today would read an empty log for every run the manager did not dispatch. |
 
 ## Conventions
 

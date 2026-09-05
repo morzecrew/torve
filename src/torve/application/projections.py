@@ -25,19 +25,25 @@ import statistics
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
-from torve.application.telemetry import TOKEN_FIELDS
+from torve.application.telemetry import TOKEN_FIELDS, record_row
 from torve.base import naming
 from torve.config import layout, rfc_parse
 from torve.config.manifest import GATE_AXES, UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
+from torve.domain.events import EventKind
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import SCHEMA_VERSION
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+    from torve.domain.events import EventRecord
 
 # ----------------------- #
 
@@ -1534,7 +1540,101 @@ def _stream_state(attempts: list[dict[str, Any]], events: list[dict[str, Any]]) 
     return None
 
 
-def why_report(root: Path, task_id: str) -> dict[str, Any]:
+def _minted_contract(events: Sequence[EventRecord]) -> dict[str, Any] | None:
+    """The contract the task was last minted with, as a plain mapping — the
+    envelope wants `rfc` and nothing else from it (RFC 0049 D-49.1).
+
+    None means the record does not hold this task, which is the one signal
+    `why_report` falls back to the files on.
+    """
+
+    for event in reversed(events):
+        if event.kind is not EventKind.TASK_MINTED:
+            continue
+
+        contract = event.payload.get("contract")
+
+        if isinstance(contract, dict) and contract:
+            return cast("dict[str, Any]", contract)
+
+    return None
+
+
+# ....................... #
+
+
+def rows_from_events(events: Iterable[EventRecord]) -> list[dict[str, Any]]:
+    """The telemetry rows a task's events render to (RFC 0050 §5.2).
+
+    A-85 made the telemetry row a *rendering* of the event payload, so this
+    is that rule read backwards: rather than re-implementing five joins
+    against a second vocabulary, the record is rendered into the rows those
+    joins already read. Parity then holds because the two sides are the same
+    object rendered by the same function, and a difference is a defect in
+    this rendering rather than a disagreement between two readings.
+
+    Only the kinds the why envelope reads are rendered. An event this
+    projection has nothing to say about produces no row, which is the same
+    silence the stream keeps for a fact nobody wrote down.
+    """
+
+    rows: list[dict[str, Any]] = []
+
+    for event in events:
+        at = event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        payload = event.payload
+
+        if event.kind in (EventKind.GATES_EVALUATED, EventKind.ATTEMPT_FINISHED):
+            rows.append(record_row(payload, task_id=event.subject_id, at=at))
+
+        elif event.kind is EventKind.ESCALATION_RAISED:
+            rows.append(
+                {
+                    "kind": "engine",
+                    "at": at,
+                    "event": "escalation",
+                    "task": event.subject_id,
+                    "reason": str(payload.get("reason") or ""),
+                    "detail": str(payload.get("detail") or ""),
+                }
+            )
+
+        elif event.kind is EventKind.REVIEW_RECORDED:
+            # The findings count is what the record carries; the file row
+            # carries the findings themselves and the join counts them. The
+            # envelope wants the counts, so both arrive at the same place
+            # from different depths.
+            rows.append(
+                {
+                    "kind": "review",
+                    "at": at,
+                    "task_id": str(payload.get("review_id") or ""),
+                    "target": event.subject_id,
+                    "findings": [
+                        {"severity": "blocker"} for _ in range(int(payload.get("blockers") or 0))
+                    ]
+                    + [
+                        {"severity": "finding"}
+                        for _ in range(
+                            max(
+                                0,
+                                int(payload.get("findings") or 0)
+                                - int(payload.get("blockers") or 0),
+                            )
+                        )
+                    ],
+                }
+            )
+
+    return rows
+
+
+# ....................... #
+
+
+def why_report(
+    root: Path, task_id: str, *, recorded: Sequence[EventRecord] | None = None
+) -> dict[str, Any]:
     """The per-task history envelope (the whole point of this projection):
     one task's attempts, the engine's events around them, the reviews of it,
     its totals and its regime comparator — joined from the durable streams
@@ -1546,14 +1646,23 @@ def why_report(root: Path, task_id: str) -> dict[str, Any]:
     contract head — never run-state files (overwritten per dispatch and
     swept at reap) and never trace content (the ref is displayed, not
     opened). An unknown task id is a `found: false` envelope, not a taskless
-    history a typo could fake."""
+    history a typo could fake.
 
-    contract = _load_yaml_dict(layout.task_file(root, task_id))
+    `recorded` is one task's own events, when the caller has a log holding
+    them (RFC 0050 D-50.2): selection is the caller's, because only the call
+    site knows whether a partition was named. A record that turns out not to
+    hold the task falls back to the files — never the reverse, since an
+    empty log must read as "ask the files" and a populated one must not be
+    second-guessed by a stale file.
+    """
+
+    minted = _minted_contract(recorded) if recorded else None
+    contract = minted if minted is not None else _load_yaml_dict(layout.task_file(root, task_id))
 
     if contract is None:
         return {"schema_version": SCHEMA_VERSION, "task": task_id, "found": False}
 
-    rows = _stream_rows(root)
+    rows = rows_from_events(recorded) if minted is not None and recorded else _stream_rows(root)
     task_rows = [row for row in rows if row.get("task_id") == task_id and _is_attempt_row(row)]
     attempts = _group_attempts(task_rows, root)
     events = _why_events(rows, task_id)

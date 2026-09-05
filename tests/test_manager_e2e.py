@@ -27,6 +27,7 @@ from torve.adapters.eventstore.document import postgres_module
 from torve.application.eventlog import event_log
 from torve.application.executors import runner_execute
 from torve.application.manager import project
+from torve.application.projections import why_report
 from torve.application.residency import serve
 from torve.application.worker import Worker
 from torve.domain.events import EventKind, gate_outcomes
@@ -121,3 +122,15 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
     assert board.tasks[TASK_ID].state is TaskState.READY
     # The full sha, not the abbreviation the history prints for a human.
     assert len(board.tasks[TASK_ID].landed_sha or "") == 40
+
+    # RFC 0050 D-50.4: the one place both carriers were written by the same
+    # run, so the one place the two `why` readers can be held against each
+    # other. Key by key, so a failure names the key rather than the report.
+    from_files = why_report(repo.root, TASK_ID)
+    from_record = why_report(repo.root, TASK_ID, recorded=events)
+
+    assert from_files["found"] and from_record["found"]
+    assert set(from_files) == set(from_record)
+
+    for key in ("attempts", "totals", "rfc", "reviews"):
+        assert from_files[key] == from_record[key], key
