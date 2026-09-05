@@ -73,23 +73,44 @@ class ReapReport:
 # ....................... #
 
 
+def _collectable(state: RunState | None, escalated: bool) -> bool:
+    """Whether this run's footprint is the sweep's to take.
+
+    No state file at all is pure convention debris; a terminal run left its
+    commits on the task branch. `--escalated` (A-70) adds the operator's
+    explicit triage-discard for an escalation already dealt with outside
+    the state machine — never swept by default, because an escalation
+    exists to be looked at.
+
+    One predicate for both halves of the footprint (A-112): the worktree
+    sweep and the state sweep answering differently is how one pass leaves
+    the worktree of a state it just deleted.
+    """
+
+    if state is None or state.state in TERMINAL:
+        return True
+
+    return escalated and state.state is TaskState.ESCALATED
+
+
+# ....................... #
+
+
 def _sweep_worktrees(
     workspace: WorkspacePort,
     by_task: dict[str, RunState],
     report: ReapReport,
     dry_run: bool,
+    escalated: bool = False,
 ) -> None:
     for name, _path in workspace.list_worktrees():
         # An intake/decompose drafting run's worktree carries a distinct
         # suffix (naming.INTAKE_SUFFIX) from the state file it is named
         # after — unstripped, every live drafting run reads as convention
-        # debris and a concurrent tick destroys it mid-run.
+        # debris and a concurrent pass destroys it mid-run.
         task_id = name.removesuffix(naming.INTAKE_SUFFIX)
-        state = by_task.get(task_id)
 
-        if state is None or state.state in TERMINAL:
-            # No state file at all is pure convention debris; terminal runs
-            # left their commits on the task branch.
+        if _collectable(by_task.get(task_id), escalated):
             if not dry_run:
                 workspace.remove(name)
 
@@ -153,15 +174,7 @@ def _sweep_states(
     retention pass below is their only remover."""
 
     for state in states:
-        collectable = state.state in TERMINAL or (
-            # --escalated (A-70): the operator's explicit triage-discard for
-            # an escalation already dealt with outside the state machine —
-            # an infra failure, a hand landing. Never swept by default: an
-            # escalation exists to be looked at.
-            escalated and str(state.state) == "escalated"
-        )
-
-        if not collectable:
+        if not _collectable(state, escalated):
             continue
 
         if _lane_input(root, state, landed):
@@ -281,7 +294,7 @@ def _heartbeat_reap(
 
             report.sandboxes_destroyed.append(sandbox.name)
 
-    _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run)
+    _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run, escalated)
     _sweep_states(root, states, report, dry_run, landed, escalated=escalated)
     _retain_traces(root, config, report, dry_run)
 
@@ -372,6 +385,7 @@ async def _durable_reap(
     dry_run: bool,
     store: StoreFactory,
     landed: LandedOracle | None = None,
+    escalated: bool = False,
 ) -> ReapReport:
     from torve.application.taskstore import TaskStore
 
@@ -428,8 +442,8 @@ async def _durable_reap(
 
             report.sandboxes_destroyed.append(sandbox.name)
 
-    _sweep_worktrees(workspace, by_task, report, dry_run)
-    _sweep_states(root, states, report, dry_run, landed)
+    _sweep_worktrees(workspace, by_task, report, dry_run, escalated)
+    _sweep_states(root, states, report, dry_run, landed, escalated=escalated)
     _retain_traces(root, config, report, dry_run)
 
     return report
@@ -454,7 +468,9 @@ def reap(
             raise RuntimeError("a postgres reap needs a store factory injected by the caller")
 
         return asyncio.run(
-            _durable_reap(root, config, runtime, workspace, force, dry_run, store, landed)
+            _durable_reap(
+                root, config, runtime, workspace, force, dry_run, store, landed, escalated
+            )
         )
 
     return _heartbeat_reap(

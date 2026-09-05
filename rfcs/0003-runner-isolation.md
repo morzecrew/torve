@@ -7,7 +7,7 @@ depends_on: ["0002"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-6", "A-13", "A-18", "A-38", "A-50"]
+amended_by: ["A-6", "A-13", "A-18", "A-38", "A-50", "A-112"]
 owner: Lev Litvinov
 description: >-
   `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
@@ -189,7 +189,6 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 ## Amendments
 
 ### A-6 — 2026-08-21 — substrate schema provisioning is ours (amends §7)
-
 **Found in implementation.** §7 stated that substrate tables have their own provisioning path. They do not — forze documents its schemas in docstrings and ships no migrations. The claim was inferred, never verified.
 
 **Changed:** Torve owns migrations for the substrate tables it uses (run store, step store, and later outbox/inbox/schedules/idempotency/locks) as well as for its own document tables. One set, Postgres only — multi-backend was already moot under D-3.6. The full design is RFC 0012. *(Revised 2026-08-21: the runner is yoyo over raw SQL steps; alembic is rejected — torve has no sqlalchemy models for it to work from.)*
@@ -201,7 +200,6 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 **Consequence, and the real cost of this finding:** substrate schema versions are pinned alongside the forze version (`migrations/substrate/FORZE_VERSION`); the pin joins `config_hash`, and a forze upgrade that changes a substrate schema is a migration task in Torve, not a silent `pip install -U`.
 
 ### A-13 — 2026-08-22 — logs are created by writing (amends the execution-log handling, charter §6/A-1)
-
 **Found in design review.** Skipping empty log files is worthwhile — most tasks produce no divergence and an empty `entries:` list is noise — but the obvious implementation is dangerous: writing the file at the end of a run from state held in memory loses entries whenever the run crashes, is killed or times out. "Skipped an empty file" would become "lost a non-empty one". *(The source patch numbered this A-11 and its decisions D-3.8/D-3.9; all were taken, so they land as A-13 and D-3.20/D-3.21 per D-A.4/D-A.5.)*
 
 **Changed:** the log file is created by its first entry and by nothing else. Entries are appended and flushed as they are made. There is no code path in which the runner decides whether to write a log.
@@ -211,7 +209,6 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 **Verified by:** a simulation scenario in which the agent writes an entry and then crashes — the entry must be on disk (§6 table).
 
 ### A-18 — 2026-08-22 — the source document does not enter the sandbox (amends §5a)
-
 **Found in specialising the `flag-dont-flip` skill for autonomous execution.** Its Torve copy told the executor to produce a plan, stop, and read the RFC's rejected-alternatives sections first. Both instructions come from the interactive world upstream serves — a human at the other end of a checkpoint — and both fail here: an executor that plans and stops produces no diff, gives the gates nothing to run against, and dies on wall-clock or the poison ceiling; a deadlock presenting as a mysterious timeout. The checkpoint did not disappear — it moved earlier and became `torve plan`, D-7.7's readiness refusal, `SizePolicy` and the reviewed contract.
 
 **Changed:** §5a's exclusion list gains the source specification document. The contract is the document's projection — intent, scope, graded decisions, acceptance — and everything the executor is owed. Rejected alternatives are temptations, not constraints: they hand an executor the material for arguing that the rejected option is better *in this case*, precisely the reasoning `LOCKED` forecloses. The document also carries the phasing of adjacent tasks, which D-31 deliberately keeps out of reach. *(These citations read D-2a until 2026-08-22 — an identifier no table ever defined; D-31 is the decision that says it.)* Where a rejected alternative genuinely bears on a task, it becomes a graded decision row — the judgement sits with the author deciding what an executor needs, not with the executor deciding what to read. If a contract proves insufficient, the fix is the projection, never handing over the original behind its back.
@@ -221,7 +218,6 @@ Because all three aggregates are immutable and carry `schema_version` (D-22), mi
 **Verified by:** the end-to-end scenario in which a well-formed contract produces a diff (the deadlock's signature is a run ending with no diff and no `blocked` entry), and a context check that a dispatched sandbox resolves `rfc` as provenance only — the runner never reads or copies the document it names.
 
 ### A-38 — 2026-08-25 — the reap keeps to its root (adds D-3.25)
-
 **Found in operation** — with the lab's standing loop ticking every
 minute on the same Docker daemon the development suite tests against,
 the dev repo's runtime-conformance tests began dying mid-test with
@@ -248,9 +244,33 @@ discipline). And the reap stays aggressive inside its own root: an
 orphan with no live run dies exactly as before.
 
 ### A-50 — 2026-08-27 — the unwired identifier derivations are removed (amends §4)
-
 **Found in a whole-repository audit for over-engineering.** §4 derives an API port, a database name and a Docker Compose project name from the task id, alongside the worktree path, sandbox name, branch and labels. The latter are load-bearing — the reaper's cleanup-by-convention depends on them entirely. The former three were implemented, never called from anywhere in the package or the suite, and nothing a sandbox runs today reaches a port, a database or a compose project.
 
 **Changed:** `api_port`, its `offset` helper, `db_name` and `compose_project` are deleted. The derivation *rule* stands and is the point of §4: everything addressable derives from the task id with a stable digest, never a runtime search for a free port, because two workers searching race for the same one. When a service needs a port, it derives one exactly this way — the four lines come back with a caller attached.
 
 **Nothing else in §4 changes.** The worktree, state file, trace file, sandbox name, branch, root key and label derivations are untouched.
+
+### A-112 — 2026-09-05 — The escalated sweep was accepted and dropped
+**Found by the operator, on the obvious thing.** `torve reap --escalated`
+left an escalated run's worktree on disk. Two defects behind one symptom,
+and the second is the one worth remembering.
+
+**`reap` dropped the flag on the durable path.** The entry point takes
+`escalated`, branches on the store adapter, and forwards every argument
+except that one to `_durable_reap`. Every real run uses postgres, so the
+flag reached nothing that could act on it: the verb accepted an option,
+did the default sweep, and reported the result as if it had been asked
+for. It was tested — against `_sweep_states` directly, which is exactly the
+level at which the bug is invisible. A dropped argument is not a wrong
+rule; it is a rule nobody asked.
+
+**The two halves of a footprint answered differently.** The worktree sweep
+collected terminal and state-less runs; the state sweep collected those
+plus, on the flag, escalated ones. So even with the flag threaded, one pass
+deleted the state file and left the worktree, which the *next* pass then
+collected as debris. One predicate (`_collectable`) now answers for both,
+because the sweeps disagreeing is precisely how a footprint half-survives.
+
+**Changed:** nothing normative. A-70's rule is what it always was; it now
+runs where the operator invoked it. Measured on this repository: one pass
+took `.wt/` from 9.1 MB to 324 KB, and what remains is trace logs.

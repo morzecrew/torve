@@ -580,3 +580,87 @@ def test_escalated_states_sweep_only_on_the_flag(tmp_path):
 
     _sweep_states(tmp_path, [state], report, dry_run=False, landed=None, escalated=True)
     assert report.states_removed == ["T-9100"] and not state.path.exists()
+
+
+def test_the_escalated_sweep_takes_the_worktree_in_the_same_pass(tmp_path):
+    """The two halves of a footprint answered differently: --escalated
+    dropped the state file and left the worktree, which the *next* reap
+    then collected as debris. One pass, or the operator runs it twice and
+    the disk keeps 8.8 MB in the meantime (A-112)."""
+
+    from torve.application.reaper import ReapReport, _sweep_worktrees
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import EscalationReason, TaskState
+
+    class Workspace:
+        def __init__(self) -> None:
+            self.removed: list[str] = []
+
+        def list_worktrees(self):
+            return [("T-9101", tmp_path / ".wt" / "T-9101")]
+
+        def remove(self, name: str) -> None:
+            self.removed.append(name)
+
+    (tmp_path / naming.WORKTREE_DIR).mkdir(parents=True, exist_ok=True)
+    state = RunState(task_id="T-9101", path=naming.state_file(tmp_path, "T-9101"))
+    state.transition(TaskState.CLAIMED, "t")
+    state.transition(TaskState.RUNNING, "t")
+    state.escalate(EscalationReason.KILLED, "operator kill")
+
+    kept = Workspace()
+    _sweep_worktrees(kept, {"T-9101": state}, ReapReport(), dry_run=False)
+    assert kept.removed == []  # the default sweep keeps it for triage
+
+    swept = Workspace()
+    report = ReapReport()
+    _sweep_worktrees(swept, {"T-9101": state}, report, dry_run=False, escalated=True)
+    assert swept.removed == ["T-9101"] and report.worktrees_removed == ["T-9101"]
+
+
+def test_the_escalated_flag_reaches_the_durable_path(tmp_path, monkeypatch):
+    """`reap` took the flag, matched on the store adapter and forwarded
+    every other argument. On postgres — which is what a real run uses —
+    `--escalated` was accepted and dropped, so the verb reported a sweep it
+    had not been asked for (A-112)."""
+
+    import torve.application.taskstore as taskstore_module
+    from torve.application.reaper import reap
+    from torve.domain.states import EscalationReason
+
+    class StubTaskStore:
+        def __init__(self, store, config):
+            pass
+
+        async def expire_abandoned(self):
+            return []
+
+        async def live_records(self):
+            return []
+
+    monkeypatch.setattr(taskstore_module, "TaskStore", StubTaskStore)
+    monkeypatch.setenv("TORVE_PG_DSN", "postgresql://stub/db")
+
+    state = state_at(tmp_path, "T-9701", TaskState.RUNNING)
+    state.escalate(EscalationReason.KILLED, "operator kill")
+
+    config = RunnerConfig()
+    config.store.adapter = "postgres"
+
+    async def factory(config):
+        return object()
+
+    workspace = ListingWorkspace([("T-9701", tmp_path / ".wt" / "T-9701")])
+    report = reap(
+        tmp_path,
+        config,
+        MockRuntime(),
+        workspace,
+        dry_run=True,
+        store=factory,
+        escalated=True,
+    )
+
+    assert report.states_removed == ["T-9701"]
+    assert report.worktrees_removed == ["T-9701"]
