@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: ["0005"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-35", "A-42", "A-43"]
+amended_by: ["A-35", "A-42", "A-43", "A-115"]
 owner: Lev Litvinov
 description: >-
   Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted.
@@ -161,14 +161,8 @@ and the gate battery is current-head CI.)*
 ```yaml
 - phase: 1
   title: Prevention, kill, and engine sight
-  intent: |
-    What must exist before a lane is safe to run: dispatch refuses a task
-    whose scope intersects an active run's, logged with its cause and
-    counted per path through a new EngineEvent record on the existing
-    telemetry path; torve kill force-terminates one run — sandbox
-    destroyed, state escalated as killed; and the escalation queue's age
-    becomes visible in the context projection, because a queue nobody
-    triages looks identical to success from inside the runner.
+  intent: >-
+    What must exist before a lane is safe to run: dispatch refuses a task whose scope intersects an active run's, logged with its cause and counted per path through a new EngineEvent record on the existing telemetry path; torve kill force-terminates one run — sandbox destroyed, state escalated as killed; and the escalation queue's age becomes visible in the context projection, because a queue nobody triages looks identical to success from inside the runner.
   scope:
     - "src/torve/application/**"
     - "src/torve/cli/**"
@@ -181,17 +175,11 @@ and the gate battery is current-head CI.)*
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: []
 - phase: 2
   title: The serialized lane
-  depends_on: [1]
-  intent: |
-    Ready is a lane, not a set: torve merge processes candidates one at a
-    time — a task branch whose base has not moved lands as it was measured;
-    one whose base moved is rebased and its gate battery re-run over the
-    rebased tree before landing; a conflict escalates as merge_conflict
-    and the lane moves on. The engine never resolves a conflict, and the
-    operator's invocation is the recorded approval. Auto-merge stays off
-    by default in configuration.
+  intent: >-
+    Ready is a lane, not a set: torve merge processes candidates one at a time — a task branch whose base has not moved lands as it was measured; one whose base moved is rebased and its gate battery re-run over the rebased tree before landing; a conflict escalates as merge_conflict and the lane moves on. The engine never resolves a conflict, and the operator's invocation is the recorded approval. Auto-merge stays off by default in configuration.
   scope:
     - "src/torve/application/lane.py"
     - "src/torve/adapters/**"
@@ -205,6 +193,7 @@ and the gate battery is current-head CI.)*
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: [1]
 ```
 
 ## 7. Exit criteria
@@ -215,7 +204,6 @@ and the gate battery is current-head CI.)*
 ## Amendments
 
 ### A-35 — 2026-08-24 — a conflicted landing re-queues through the revision loop (amends D-6.10, adds D-6.12)
-
 **Found in operation** — twice in one evening the owner approved a
 candidate and watched it escalate `merge_conflict` seconds later: a
 same-file sibling had landed first, the sha-bound approval burned with
@@ -239,7 +227,6 @@ the rebase before requesting approvals, so a doomed tip is never
 offered for approval at all — is left to a future amendment.
 
 ### A-42 — 2026-08-25 — the probe precedes the prompt (adds D-6.13)
-
 **Found in operation** — the deferred half of A-35, promised in its
 own closing paragraph. Through two live batches the pattern repeated:
 the commander approves a candidate, a same-file sibling has landed
@@ -266,7 +253,6 @@ cannot see; and the manual lane, which never probes — an operator
 running `torve merge` by hand is present to read the refusal.
 
 ### A-43 — 2026-08-26 — the review verdict becomes a landing predicate (adds D-6.14)
-
 **Found in audit** — §3 has listed `review: no_blocker_findings` among
 the promotion criteria since acceptance, and the runner honours it: the
 task-gated review runs after green gates, before `ready`, and a
@@ -296,3 +282,42 @@ an unparseable review still concludes — the predicate asserts a review
 ran and no blocker survived, and reviewer output quality is RFC 0005
 §7's ladder, not this knob; and the pull-request-triggered reviews stay
 report-only — task state is never mutated on that path.
+
+### A-115 — 2026-09-05 — Four decisions lost their carrier to two retirements
+**Judged in the pass A-113's new flag started.** Both declared phases
+shipped, and the header's account of what is outstanding — §7's exit
+criteria accruing with dogfood use, "the calendar, not work" — was true
+when written and is no longer the whole of it. Four decisions lost their
+implementation to two retirements this month, and neither retirement said
+so here.
+
+- **D-6.2 is unimplemented, and it is `LOCKED`.** Auto-merge off by
+  default, opt-in per repository: the switch a scheduler consulted was
+  `promotion.auto_merge`, whose only reader was the standing loop's lane
+  leg. The loop was retired (A-105) and the knob deleted as a setting
+  nothing could act on (A-110). The *rule* is unchanged and the default it
+  names is now the only behaviour there is — `torve merge` lands when a
+  person runs it — so nothing landed that this decision forbade. What is
+  gone is the opt-in half, and a scheduler that wants it reintroduces the
+  switch here rather than inheriting one nothing read.
+- **D-6.11 is unimplemented.** Interrupt-class escalations paged through
+  `tracker.notify` and the outbox. The tracker projection was deleted
+  (RFC 0008 A-92) and no surface produces those notifications now. An
+  escalation is still recorded, still ages, and still shows in `torve
+  status` and the fleet's queue — what is gone is the delivery.
+- **D-6.12 and D-6.13 are unimplemented.** Both describe the lane's
+  *automatic* conflict disposal — the bounded re-queue and the probe that
+  precedes the approvals prompt — which ran only under the tick's
+  `on_conflict` hook (A-110). D-6.10 is untouched and is what happens now:
+  a conflicted landing escalates and waits for a person, which is this
+  document's manual behaviour and always was.
+
+The header's claim that "RFC 0008's `approve` supplies approvals from the
+board" is also stale in a way worth correcting rather than deleting: that
+surface went with the tracker, and `torve approve` is the surface now
+(A-110), recording the same sha-bound approval on the same run state.
+
+**Changed:** `implementation: partial` stands. What is owed is no longer
+only a calendar: it is one `LOCKED` decision and three `ASSUMED` ones whose
+carriers were removed by documents that did not name them, and §7's exit
+criteria on top.

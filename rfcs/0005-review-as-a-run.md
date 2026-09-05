@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79"]
+amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79", "A-114"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -374,7 +374,6 @@ evidence discarded), the runner-posts-comments half of D-5.2, and the
 reviewer's lack of any forge credential.
 
 ### A-79 — 2026-09-02 — The staged diff — the reviewer reads, the prompt points
-
 The original prompt embedded the whole diff — the right shape for a
 tool-less reviewer, and a bomb once diffs carry vendored bulk: T-0228's
 pagination diff (a rebuilt 270KB bundle) first blew the executing
@@ -396,3 +395,40 @@ filename instead of paying context for it. The evidence rule (D-5.4)
 is the guard against a reviewer that skips the reading: findings that
 do not locate are discarded, and the reviewer measurement corpus
 watches for empty-handed reviews of substantial diffs.
+
+### A-114 — 2026-09-05 — What phases 1-3 left, and what the loop's retirement took
+**Judged in the pass A-113's new flag started.** The programme view reports
+every declared phase of this document shipped, and `partial` is still the
+right assertion — but for a different reason than the header gives, and the
+list of what is owed has grown since it was written.
+
+**Still owed, as the header says:** §7's replacement sequence. The
+comparison window opened 2026-08-26 and the ledger reads complementary
+classes rather than redundancy, which is a finding about the incumbent and
+not about this engine. D-5.7 says removal needs numbers; the numbers are
+not in yet.
+
+**Newly owed, and this is the part the header cannot know:** two decisions
+lost their implementation to the standing loop's retirement (A-105, A-110),
+and A-110 named the code without naming them.
+
+- **D-5.14 is unimplemented.** It says the landing answers the review
+  threads its revision consumed, and names *the tick's landing leg* as what
+  posts the replies. That leg is deleted. `answer_captured_threads` remains
+  on the forge adapter with no caller — A-110 lists it among the five kept
+  deliberately — so the capability is one call site away, on whatever lands
+  next.
+- **D-5.12 is half-implemented.** Its blocker path is alive and is RFC
+  0043's: a surviving blocker's claims and the convicted diff reach the next
+  attempt in-run. Its forge path is gone — the pull request's threads were
+  captured by the lane's automatic conflict disposal, and the allow-list it
+  read (`review.feedback_from`) was deleted as a knob nothing could act on.
+
+Both are recorded here rather than regraded. An `ASSUMED` decision whose
+carrier was deleted by a *different* document's retirement is not a decision
+that turned out wrong; it is one waiting on a rebuild that has somewhere to
+go. What would be wrong is a corpus that reads as though the capability
+still exists.
+
+**Changed:** `implementation: partial` stands, now with three things owed
+rather than one.

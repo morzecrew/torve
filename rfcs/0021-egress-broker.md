@@ -8,14 +8,11 @@ depends_on: ["0003", "0004"]
 informed_by: ["0001", "0013", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-56", "A-70"]
+amended_by: ["A-56", "A-70", "A-117"]
 retired: []
 owner: Lev Litvinov
 description: >-
-  Credential custody and outbound traffic for a sandbox: the agent holds no
-  provider key and the broker injects, routes and meters at the wire — closing
-  D-4b under Docker today, with the OpenSandbox vault as one adapter rather
-  than a prerequisite.
+  Credential custody and outbound traffic for a sandbox: the agent holds no provider key and the broker injects, routes and meters at the wire — closing D-4b under Docker today, with the OpenSandbox vault as one adapter rather than a prerequisite.
 schema_version: 1
 ---
 
@@ -343,16 +340,8 @@ introduces it.
 ```yaml
 - phase: 1
   title: broker-port-and-endpoint-mode
-  intent: |
-    The Broker port and its local adapter in endpoint mode, so that a run's
-    provider credential never enters a sandbox: the broker holds the keys,
-    exposes one loopback route per routed provider, issues a run-scoped
-    token, and the tier command is substituted with the broker's URL. A
-    brokered tier naming api_key_env is refused. Wire-side routing refusal,
-    per-run usage metering from provider responses, mid-run budget refusal
-    escalating cost_anomaly, the broker adapter and routing in config_hash,
-    and torve doctor naming the adapter in force. The `none` adapter makes
-    today's behaviour explicit and stays the default for this phase.
+  intent: >-
+    The Broker port and its local adapter in endpoint mode, so that a run's provider credential never enters a sandbox: the broker holds the keys, exposes one loopback route per routed provider, issues a run-scoped token, and the tier command is substituted with the broker's URL. A brokered tier naming api_key_env is refused. Wire-side routing refusal, per-run usage metering from provider responses, mid-run budget refusal escalating cost_anomaly, the broker adapter and routing in config_hash, and torve doctor naming the adapter in force. The `none` adapter makes today's behaviour explicit and stays the default for this phase.
   scope:
     - "src/torve/adapters/broker/**"
     - "src/torve/adapters/agent/**"
@@ -373,15 +362,8 @@ introduces it.
   depends_on: []
 - phase: 2
   title: sealed-mode-containment
-  intent: |
-    Containment on top of custody: the sandbox joins an internal Docker
-    network shared with the broker, so no destination is reachable except
-    through it, and every non-provider host the run legitimately needs is
-    declared and CONNECTed without inspection. An undeclared destination
-    fails loudly and the run escalates as a configuration error rather than
-    succeeding through a path nobody meant to leave open. This is what makes
-    D-17.10's trust sentence checkable for a repository the operator does
-    not trust as their own shell.
+  intent: >-
+    Containment on top of custody: the sandbox joins an internal Docker network shared with the broker, so no destination is reachable except through it, and every non-provider host the run legitimately needs is declared and CONNECTed without inspection. An undeclared destination fails loudly and the run escalates as a configuration error rather than succeeding through a path nobody meant to leave open. This is what makes D-17.10's trust sentence checkable for a repository the operator does not trust as their own shell.
   scope:
     - "src/torve/adapters/runtime/**"
     - "src/torve/adapters/broker/**"
@@ -414,7 +396,6 @@ introduces it.
 ## Amendments
 
 ### A-70 — 2026-08-31 — the broker's own leg may tunnel (adds via_proxy); the gate demands the pin; reap gains --escalated
-
 Three operator-ledger items in one pass:
 
 - A provider may declare `via_proxy: true`: the broker's upstream leg
@@ -434,7 +415,6 @@ Three operator-ledger items in one pass:
   escalation: it exists to be looked at.
 
 ### A-56 — 2026-08-28 — phase scopes widened to the measured touch surface (amends §Phasing)
-
 **Found in the first dispatch.** T-0097's first execution went red on the
 scope gate three times running, identically: `outside allow: CHANGELOG.md,
 pyproject.toml, src/torve/adapters/agent/harness.py`. All three are the
@@ -452,3 +432,26 @@ contract is a new task.
 **Deliberately unchanged:** the scope gate itself did exactly its job;
 three identical reds and a poison ceiling on working code is the designed
 outcome for a mis-drawn fence, and the fix is the fence, never the gate.
+
+### A-117 — 2026-09-05 — Both open rows were settled by execution
+**Judged in the pass A-113's new flag started.** Both declared phases
+shipped, no decision lost its implementation to this month's retirements —
+the broker is the one subsystem neither the tracker nor the standing loop
+touched — and both `OPEN` rows are settled in fact by the phase that was
+supposed to settle them.
+
+- **D-21.10** asked whether the `local` adapter is a subprocess or an
+  in-process thread, and said execution would settle it. It did: the
+  adapter is an in-process `ThreadingHTTPServer` per run, opened and closed
+  by the runner around the attempt.
+- **D-21.11** asked where sealed mode's declared pass-through hosts live.
+  The header says phase 2 decided the broker block; `pass_through` is a
+  field on `BrokerConfig`, so that is where they live.
+
+Flagged rather than regraded, as in A-116: naming a settled row is a
+reader's job, flipping its grade is the owner's.
+
+**Changed:** nothing. `implementation: partial` stands for exactly one
+reason, and it is worth stating so the next reader does not go looking for
+code: §12's live-regime demonstrations accrue as tiers opt into brokered
+seats. The work is done; the evidence is a calendar.

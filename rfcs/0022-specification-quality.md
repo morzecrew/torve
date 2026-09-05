@@ -8,7 +8,7 @@ depends_on: ["0004", "0007"]
 informed_by: ["0001", "0002", "0009", "0016", "0020"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-59", "A-62", "A-67", "A-71", "A-73"]
+amended_by: ["A-59", "A-62", "A-67", "A-71", "A-73", "A-118"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -500,3 +500,32 @@ from the records the engine already writes. No new recorded fields — the
 the §6a caveat printed with it (D-22.7). §Phasing gains phase 4
 (operator-attention-line) carrying exactly this; `implementation` returns
 to `partial` until it ships.
+
+### A-118 — 2026-09-05 — What the two retirements took from the readings
+**Judged in the pass A-113's new flag started.** All four declared phases
+shipped. Two decisions were narrowed by this month's retirements, and one
+row is open exactly as designed.
+
+- **D-22.11 is half-implemented, and the surviving half is the one that
+  matters.** The envelope prints on `torve run`, where a person is watching
+  a dispatch they typed. The other printer was the standing loop's dispatch
+  leg, which is deleted (A-105) — and it was already off for a fleet root,
+  so what is gone is one caller of a reading, not the reading.
+- **D-22.12's population shrank.** The operator-attention line counts
+  interventions behind landed changes; the tracker's commands and approvals
+  were one kind, and no surface produces them since A-92. Feedback minutes
+  and triaged escalations still count, so the line still prints — with a
+  narrower denominator that nothing in the output announces. That is worth
+  knowing before comparing a reading taken today against one from August.
+- **D-22.10 is open by design.** Whether an abandoned task's entries weigh
+  the same as a landed task's is a question execution answers by reporting
+  both populations, and it still reports both.
+
+Nothing here moved onto the record in RFC 0050 phase 3, and that was also a
+judgement rather than an omission: these readings join operator feedback,
+which has no event kind at all, and a findings ledger whose claims the
+record does not carry (RFC 0050 A-102). D-22.5's stage-1 storage rule is
+therefore still exactly what the code does.
+
+**Changed:** `implementation: partial` stands — the readings are built and
+their populations are the thing still moving.

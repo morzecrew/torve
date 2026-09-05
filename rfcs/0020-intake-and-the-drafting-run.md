@@ -7,7 +7,7 @@ depends_on: ["0003", "0007", "0008"]
 informed_by: ["0005", "0019"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-93"]
+amended_by: ["A-93", "A-116"]
 owner: Lev Litvinov
 description: >-
   A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption.
@@ -402,3 +402,32 @@ run it drove is the part that was expensive.
 
 Implementation is `partial` rather than `complete` for exactly that reason:
 the document describes a delivery path that no longer has a delivery.
+
+### A-116 — 2026-09-05 — Two settled rows still graded OPEN, and the board half that left
+**Judged in the pass A-113's new flag started.** All three declared phases
+shipped. `partial` is still right, and the reasons divide into two kinds.
+
+**Two rows are settled in fact and still graded `OPEN`.** D-20.8's ceiling
+is `intake.max_drafts: 4` in the configuration model, where the header says
+the first live run settled it. D-20.10's disposal is settled by operation:
+the reaper keeps a READY draft, the lane skips it, and adoption is the
+disposal — the code carries the rule and a test pins it. Recorded here
+rather than regraded: flagging is mine, flipping a grade is the owner's.
+
+**Two rows lost their implementation with the tracker (A-92, A-93).**
+
+- **D-20.5 is unimplemented.** Intake authorization was the commander list
+  and requests arrived as `torve.intake`-labeled issues. Both were the
+  tracker's. `torve intake "<request>"` from the command line is untouched
+  and is now the only door; there is no authorization check on it, because
+  the person typing it is already the operator.
+- **D-20.6 is unimplemented.** The intake thread's revision loop was
+  `/torve revise`, an inbound command with no surface left to arrive on.
+
+Phase 2 is `board-intake`, so the phase whose progress reads `shipped` is
+the phase whose subject was deleted. That is not a contradiction the
+programme view can see — it counts landed tasks, and those tasks did land.
+It is the reason a phase count is evidence and not a verdict.
+
+**Changed:** `implementation: partial` stands, with the drafting run and
+the lint intact, the board half gone, and two grades owed a regrade.
