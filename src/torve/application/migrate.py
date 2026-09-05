@@ -210,6 +210,12 @@ def status(dsn: str | None, *, unreachable: str = "database not configured") -> 
             except MigrateError:
                 applied = "yoyo not installed"
 
+            except Exception as exc:  # a database that will not answer
+                # `--status` is the preview an operator runs *because*
+                # something is wrong; a driver traceback is the one answer
+                # it must not give (A-111).
+                applied = f"unreachable: {type(exc).__name__}"
+
         lines.append(f"{target:<10} {len(steps)} step(s), {applied}")
 
     ok, message = check_forze_pin()

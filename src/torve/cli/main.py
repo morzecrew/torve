@@ -43,6 +43,7 @@ from torve.cli import (
     survey,
     why,
 )
+from torve.cli.options import load_dotenv
 from torve.domain.states import EXIT_OK
 
 # ----------------------- #
@@ -128,6 +129,16 @@ app.command("why")(why.why_cmd)
 
 
 def main() -> None:
+    """The console script's entry, and the one place `.env` is read.
+
+    Here rather than in the callback on purpose (A-111): this runs for a
+    person at a terminal, and a test driving the same app through
+    `CliRunner` gets the environment the test set and not the operator's
+    own secrets. A name the environment already carries always wins over
+    the file either way.
+    """
+
+    load_dotenv()
     app()
 
 

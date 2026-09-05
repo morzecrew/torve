@@ -12,6 +12,7 @@ naming a partition is what selects the record over this repository's files
 
 from __future__ import annotations
 
+import os
 import sys
 from enum import StrEnum
 from pathlib import Path
@@ -56,6 +57,57 @@ RootOption = Annotated[
 FormatOption = Annotated[
     Format, typer.Option("--format", help="text for a person, json for a machine.")
 ]
+
+
+# ....................... #
+
+# Where a run's secrets are named. The file is never committed (it is in
+# `.gitignore`, and D-4b says the DSN is named by variable rather than
+# written down); reading it here only saves the operator from exporting the
+# same eight names into every shell.
+DOTENV = ".env"
+
+
+def load_dotenv(directory: Path | None = None) -> list[str]:
+    """Put `.env`'s names into the environment, and return the ones taken.
+
+    The real environment always wins: a name already exported is a name the
+    operator set deliberately for this invocation, and a file on disk does
+    not get to overrule it. A malformed line is skipped rather than fatal —
+    this is a convenience, and a convenience that refuses to start the
+    program is not one.
+
+    Values are never returned, logged or rendered. The names are, because
+    "which secrets did this pick up" is a question worth answering and
+    "what are they" is not.
+    """
+
+    path = (directory or Path.cwd()) / DOTENV
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+
+    except OSError:
+        return []
+
+    taken: list[str] = []
+
+    for line in lines:
+        entry = line.strip().removeprefix("export ").strip()
+
+        if not entry or entry.startswith("#") or "=" not in entry:
+            continue
+
+        name, _, value = entry.partition("=")
+        name = name.strip()
+
+        if not name or name in os.environ:
+            continue
+
+        os.environ[name] = value.strip().strip("\"'")
+        taken.append(name)
+
+    return taken
 
 
 # ....................... #

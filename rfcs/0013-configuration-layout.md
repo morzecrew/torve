@@ -7,11 +7,10 @@ depends_on: ["0016"]
 informed_by: ["0002", "0011"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-16", "A-48"]
+amended_by: ["A-16", "A-48", "A-111"]
 owner: Lev Litvinov
 description: >-
-  Where Torve's files live in a consuming repository: the .torve/ directory,
-  the gates/config split, resolution rules, and what belongs in neither file.
+  Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file.
 schema_version: 1
 ---
 
@@ -98,7 +97,6 @@ That last one is worth being strict about: a gate manifest with `sope:` instead 
 ## Amendments
 
 ### A-16 — 2026-08-22 — corpus path (amends §1, §3)
-
 **Found in use.** `config.yaml` had no setting for where the specification corpus lives, so `rfcs/` was effectively hard-coded. A repository keeping specifications for `torve plan` may reasonably put them elsewhere. *(The source patch numbered this A-14; that was taken, so it lands as A-16 per charter D-A.5. The patch's citation for the resolution rule named a `D-F.*` decision, a family that does not exist in this corpus — the rule here is D-13.3.)*
 
 **Changed:** `config.yaml` gains
@@ -115,7 +113,6 @@ rfcs:
 **Also edits:** 0001 (A-15).
 
 ### A-48 — 2026-08-27 — one location per lookup (amends §3, D-13.1)
-
 **Found in a whole-repository audit for over-engineering.** Every lookup searched a candidate list before answering: the gate manifest tried `.torve/gates.yaml` then a root `gates.yaml`; the runner configuration tried `.torve/config.yaml` then a root `torve.yaml`; a task's contract and log each tried three locations, from the per-task directory back through a flat `.torve/tasks/T-nnnn.yaml` to a root `tasks/`.
 
 **The compatibility was with nothing.** The package has never had a released version; no repository outside this one has ever held any of those layouts, and this one holds none of them either. The fallbacks were written for a migration that had already happened before anyone else could be mid-way through it.
@@ -125,3 +122,35 @@ rfcs:
 **Why this matters beyond the line count.** A resolver that searches gives an answer that depends on what happens to exist on disk, which means a stray file two directories up can change which manifest a run is judged against. §3's "always local to the repository being checked" was being enforced by convention rather than by construction.
 
 **D-13.1 is amended** to state one canonical location per file rather than a resolution order. The locations themselves are unchanged.
+
+### A-111 — 2026-09-05 — The CLI reads .env, and the shell still wins
+**Found operating the engine.** D-4b keeps secrets out of committed files
+by naming an environment variable instead of a value, which is right and
+which left the operator exporting eight names into every shell. Forgetting
+one produces the least helpful failure the engine has: `torve reap` refusing
+because `$TORVE_PG_DSN` is unset, in a repository whose `.env` has held that
+DSN all along.
+
+**Changed:** the console script reads `.env` from the working directory
+before dispatching. Three properties make this safe rather than convenient:
+
+- **The environment always wins.** A name already exported was set
+  deliberately for this invocation, and a file does not overrule it. This
+  is the opposite of most `.env` loaders and it is the point — `FOO=x torve
+  ...` must mean what it says.
+- **It runs at the entry point, not in the Typer callback.** A test driving
+  the same app through `CliRunner` gets the environment the test set, never
+  the operator's own keys. A suite that passes because a developer's
+  provider key leaked into it is worse than a suite that fails.
+- **Names are returned; values are never returned, logged or rendered.**
+  "Which secrets did this pick up" is worth answering. "What are they" is
+  not.
+
+D-4b is unchanged: `.env` is gitignored and stays that way, and a
+configuration file still names the variable rather than the value. What
+changed is only who types the export.
+
+Found in the same pass: `torve migrate --status` raised a driver traceback
+for a DSN pointing at a database that will not answer. `--status` is the
+preview an operator runs *because* something is wrong, so it now reports
+`unreachable: OperationalError` per target and still prints the forze pin.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -840,3 +841,42 @@ def test_route_dispatch_providers_refuses_a_rung_provider(tmp_path):
     )
     config = load_runner_config(root)
     route_dispatch_providers(config, root, tier_for(config, "executor"))  # must not raise
+
+
+# ....................... #
+
+
+def test_dotenv_fills_in_names_the_environment_does_not_carry(tmp_path, monkeypatch):
+    """The operator exports eight names into every shell or writes them once
+    (A-111). What they wrote is never allowed to overrule what they typed:
+    a name already in the environment stays as it is."""
+
+    from torve.cli.options import load_dotenv
+
+    (tmp_path / ".env").write_text(
+        "# a comment\n"
+        "\n"
+        "TORVE_TEST_DSN=postgresql://from-file/db\n"
+        "export TORVE_TEST_QUOTED='quoted'\n"
+        'TORVE_TEST_ALREADY="from-file"\n'
+        "not an assignment\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TORVE_TEST_ALREADY", "from-the-shell")
+    monkeypatch.delenv("TORVE_TEST_DSN", raising=False)
+    monkeypatch.delenv("TORVE_TEST_QUOTED", raising=False)
+
+    taken = load_dotenv(tmp_path)
+
+    assert set(taken) == {"TORVE_TEST_DSN", "TORVE_TEST_QUOTED"}
+    assert os.environ["TORVE_TEST_DSN"] == "postgresql://from-file/db"
+    # `export ` and surrounding quotes are shell noise, not part of a value.
+    assert os.environ["TORVE_TEST_QUOTED"] == "quoted"
+    # The shell wins, and the name it set is not in what the file took.
+    assert os.environ["TORVE_TEST_ALREADY"] == "from-the-shell"
+
+
+def test_no_dotenv_is_not_an_error(tmp_path):
+    from torve.cli.options import load_dotenv
+
+    assert load_dotenv(tmp_path) == []

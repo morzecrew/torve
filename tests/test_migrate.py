@@ -105,3 +105,15 @@ def test_step_names_are_unique_across_owners():
         for step in steps_for(target):
             assert step.stem not in seen, f"{target}/{step.name} collides with {seen[step.stem]}"
             seen[step.stem] = f"{target}/{step.name}"
+
+
+def test_an_unreachable_database_reports_rather_than_raises():
+    """`--status` is what an operator runs *because* something is wrong; a
+    driver traceback is the one answer it must not give (A-111)."""
+
+    lines = status(dsn="postgresql://nowhere.invalid:1/db")
+
+    assert "unreachable" in lines[0]
+    # And the pin line still prints: one target failing is not the report
+    # failing.
+    assert "forze" in lines[-1]
