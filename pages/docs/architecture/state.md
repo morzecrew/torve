@@ -55,11 +55,30 @@ other, and a test says so.
   dispatch took effect with nothing written down: the board said one thing
   and the gates enforced another.
 
-## What is not in the record yet
+## What still reads files, and why
 
-The projections that answer planning questions — `torve context`, the why
-report, the specification-quality readings — still read files. Every one of them is a join against tasks, and until the mint
-carried the contract there was nothing to join to; now there is, and what
-remains is the rewriting rather than the design. They are named as later
-work in RFC 0044 §12, and they are the reason
-[what does not distribute](distribution.md) is still worth reading.
+The planning projections read the record now. `torve why`, `torve status`
+and `torve context` each take `--partition` (and `--dsn`), and naming a
+partition is what selects the record; naming none reads this repository's
+own files. One rule is automatic and it runs in the safe direction: a record
+that turns out not to hold the run falls back to the files, never the
+reverse. A v1 run left a state file and no log, so an empty record means
+*ask the files*, not *nothing ever ran*.
+
+Four things still read files whatever you name, and each for its own
+reason:
+
+| Reader | Why it is still on files |
+| --- | --- |
+| the findings ledger | it reports each finding's severity **and its claim**, and the record carries a claim only for a blocker (`blocker.raised`). Moving it would silently drop the text an operator triages by |
+| operator feedback | there is no event kind for it. Human minutes and rework are a `torve feedback` file and nothing else |
+| the corpus | the corpus *is* files. The decision graph is imported into the record; the documents stay where a human edits them |
+| the served surface and the MCP tool | they call the same readers the CLI does, without a partition — so they answer from files even where a record exists. Nothing designed that; the option simply was never threaded through |
+
+The report says which carrier answered. `torve context` prints a
+`read from —` line above the first count, and the JSON envelope carries a
+`sources` block naming the carrier per block. That line exists because the
+numbers are correct about whichever carrier produced them and say nothing
+about the other: on this repository the record holds 10 attempt rows where
+the files hold 636, and `$10.62` of spend against `$242.87`. Both are true.
+Only one of them answers "what has this repository cost".

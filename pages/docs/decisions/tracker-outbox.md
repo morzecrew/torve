@@ -7,8 +7,12 @@
     is replay. The page is kept as the argument that produced that decision,
     including the counters that turned out to be right.
 
-    The tracker itself has not been rebuilt on the record yet — RFC 0044 §12
-    names it as later work.
+    The tracker itself is **deleted**, not pending. The whole projection —
+    2,600 lines, both directions — was removed in September 2026 (RFC 0008
+    A-92) after being inert in every repository torve runs. Its design
+    survives in RFC 0008 for whoever rebuilds it; what left with it is
+    named in A-93, and includes intake by issue, the `/torve` commands and
+    the escalation paging RFC 0006 D-6.11 still asks for.
 
 The tracker projects engine state onto GitHub (issue comments, labels,
 notifications). Effects must survive a crash between "decided to comment"

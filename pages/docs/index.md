@@ -18,6 +18,11 @@ way they are, and which failures each separation exists to prevent.
     disagree with the other two, and the engine has spent a lot of its life
     removing exactly that.
 
+If you are here to *run* the engine rather than to understand it,
+[Operating the engine](operating.md) is the page you want: the verbs, which
+carrier answers a report, and why a single un-triaged escalation stops new
+work.
+
 ## Reading order
 
 1. [System overview](architecture/overview.md) — the layers, the actors, and
