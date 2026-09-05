@@ -4,6 +4,10 @@ Files resolve under `.torve/`, one location each (RFC 0013 A-48); `--gates`
 and `--config` are the only overrides (D-13.4). A
 malformed manifest or runner configuration exits 3 (D-13.6). `--format json`
 rides every result-producing command (D-11.2).
+
+`--dsn` and `--partition` are the record-backed readers' shared pair, and
+naming a partition is what selects the record over this repository's files
+(RFC 0050 D-50.2).
 """
 
 from __future__ import annotations
@@ -22,9 +26,10 @@ if TYPE_CHECKING:
     from torve.application.eventlog import EventLog
     from torve.application.ports import Runtime
     from torve.config.runconfig import RunnerConfig
+    from torve.domain.events import EventRecord
 
 from torve.cli.console import Format, fail
-from torve.domain.states import EXIT_CONFIG
+from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE
 
 # ----------------------- #
 
@@ -128,3 +133,29 @@ def read_log(dsn: str, reader: Callable[[EventLog], Awaitable[Read]]) -> Read:
             return await reader(event_log(runtime.get_context()))
 
     return asyncio.run(opened())
+
+
+# ....................... #
+
+
+def task_events(dsn: str, partition: str) -> list[EventRecord] | None:
+    """Every task fact one partition's log holds, or None when no partition
+    was named — which is how a caller says to read this repository's files
+    instead.
+
+    The guarded read, not the paging one: a projection folded from a prefix
+    of the log reports states that have since moved, and a report that is
+    confidently stale is worse than one that refuses.
+    """
+
+    if not partition:
+        return None
+
+    from torve.application.eventlog import TruncatedRead
+    from torve.domain.events import SubjectType
+
+    try:
+        return read_log(dsn, lambda log: log.of_subject_type(SubjectType.TASK, partition=partition))
+
+    except TruncatedRead as exc:
+        raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc

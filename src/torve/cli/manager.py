@@ -100,25 +100,22 @@ async def _serve(
     only: str | None,
     dispatch: bool,
 ) -> int:
-    from torve.adapters.vcs.git import GitVcs
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
     from torve.application.loop import run_record_exists
+    from torve.application.projections import shipped_landings
     from torve.application.residency import serve
     from torve.application.worker import Worker
     from torve.cli import assembly
 
     config = load_config(root, config_path)
-    vcs = GitVcs()
 
-    def landed(task_id: str) -> str | None:
-        # The repository's own answer (A-29): a contract the tree already
-        # landed is minted onto the board as landed, so a first pass over a
-        # repository with history does not offer a worker somebody's
-        # finished work.
-        shas = vcs.landed_shas(root, task_id)
-
-        return shas[0] if shas else None
+    # The repository's own answer (A-29): a contract the tree already landed
+    # is minted onto the board as landed, so a pass over a repository with
+    # history does not offer a worker somebody's finished work. One batched
+    # log pass, and the same evidence the projections call shipped (A-97) —
+    # the engine's trailer and a human's citation both mean finished.
+    landings = shipped_landings(root)
 
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
@@ -141,7 +138,7 @@ async def _serve(
             partition,
             idle_seconds=interval,
             passes=passes,
-            landed=landed,
+            landed=landings.get,
             ran=lambda task_id: run_record_exists(root, task_id),
             only=only,
             dispatch=dispatch,

@@ -7,7 +7,7 @@ depends_on: ["0044"]
 informed_by: ["0001", "0007", "0022", "0047"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-96"]
+amended_by: ["A-96", "A-97"]
 owner: misery7100
 description: >-
   The contract a task runs under travels in the record: minting carries the contract itself, re-minting records a changed one as a new version, and the repository's task directory becomes an importer rather than the thing every reader consults.
@@ -387,3 +387,37 @@ offered, and applies only to what can be. Left as it was it skipped 87 of
 the 89 review and draft contracts, which is the same subset problem one
 level down. Measured after the change: 273 rows, 184 implement, 85 review,
 4 draft, 40 of them dispatchable.
+
+### A-97 — 2026-09-05 — One landing oracle, and the landing a mint could not see
+**Found comparing the two carriers.** With every contract imported (A-96),
+`context` answered from the record over the same 273 tasks as the files —
+and disagreed about the state of 204 of them. The cause was two oracles for
+one question. The manager asked `landed_shas`, which reads the engine's own
+`Torve-Task` trailer and nothing else (D-10.4); the projections ask
+`shipped_ids`, which also counts a human's citation — `(T-0019)`, a
+`torve/T-0006` merge (D-7.26). 111 tasks carry the trailer; 202 are shipped.
+The other 91 were minted as queued, and 40 of them were dispatchable: a
+manager pass would have handed a worker work somebody finished months ago,
+which is the exact failure the landing import exists to prevent.
+
+**Changed:** one oracle, `shipped_landings`, returning id to the commit
+that shipped it in a single log pass. `shipped_ids` is now its key set, and
+the manager reads it instead of the trailer alone. The question every
+caller was really asking is whether the task is finished, and the manager
+asking it more narrowly than the projections is not a stricter standard —
+it is a different answer to the same question.
+
+**Changed:** the landing import reaches a row that is already minted. A
+first mint records the landing the repository proves; a row minted before
+the partition could see that landing never got one, and re-minting does not
+write one (D-49.2). The scan now records it for a row the record has *only
+ever minted* — queued, no attempt, no landing. Once a task has run here the
+board outranks the repository, so a human who requeued a landed task is not
+sent back to `ready` by a scan that found an old commit.
+
+Measured after the pass: 204 landed on both sides, and two rows left
+disagreeing. T-0280 ran as a review here and the record only has it minted.
+T-0096 escalated under v1 — the record never saw it, a commit cites the id,
+so the record reads it shipped and RFC 0007 phase 4 reads `shipped` where
+the files read `blocked`. That is A-86's wall in one row, and it is the
+argument for RFC 0050 D-50.1 rather than a defect in this import.

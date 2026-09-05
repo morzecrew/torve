@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 from torve.application.manager import IN_FLIGHT, TaskView, expired, project
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
+from torve.domain.states import TaskState
 from torve.domain.task import DISPATCHABLE_ROLES
 
 if TYPE_CHECKING:
@@ -152,6 +153,38 @@ async def _record_mint(log: EventLog, task: Task, *, partition: str, actor_id: s
 # ....................... #
 
 
+def _only_ever_minted(view: TaskView) -> bool:
+    """Whether the record holds nothing about this task but its mint — no
+    attempt, no landing, and still queued. The one state in which the
+    repository may still tell the board something it does not know."""
+
+    return view.state is TaskState.QUEUED and not view.attempts and not view.landed_sha
+
+
+# ....................... #
+
+
+async def _record_landing(
+    log: EventLog, task_id: str, sha: str, *, partition: str, actor_id: str
+) -> None:
+    """A landing the repository proves and the record had not recorded.
+    Attempt 0 because no attempt here produced it — the work landed
+    somewhere this log was not watching."""
+
+    await log.record(
+        EventKind.LANDING_RECORDED,
+        partition=partition,
+        subject_type=SubjectType.TASK,
+        subject_id=task_id,
+        actor_kind=ActorKind.MANAGER,
+        actor_id=actor_id,
+        payload={"sha": sha, "attempt": 0},
+    )
+
+
+# ....................... #
+
+
 async def mint(
     log: EventLog,
     tasks: dict[str, Task],
@@ -195,15 +228,22 @@ async def mint(
 
     for task_id, task in sorted(tasks.items()):
         view = board.tasks.get(task_id)
+        sha = landed(task_id) if landed is not None else None
 
         if view is not None:
             if _remintable(view, task):
                 await _record_mint(log, task, partition=partition, actor_id=actor_id)
                 minted.append(task_id)
 
-            continue
+            if sha and _only_ever_minted(view):
+                # The landing the first mint would have recorded, for a row
+                # minted before this partition could see it (A-97). Guarded
+                # to a task the record has only ever *minted*: once it has
+                # run here the board outranks the repository, and a human
+                # who requeued a landed task is not overruled by a scan.
+                await _record_landing(log, task_id, sha, partition=partition, actor_id=actor_id)
 
-        sha = landed(task_id) if landed is not None else None
+            continue
 
         offerable = task.role in DISPATCHABLE_ROLES
 
@@ -224,15 +264,7 @@ async def mint(
         minted.append(task_id)
 
         if sha:
-            await log.record(
-                EventKind.LANDING_RECORDED,
-                partition=partition,
-                subject_type=SubjectType.TASK,
-                subject_id=task_id,
-                actor_kind=ActorKind.MANAGER,
-                actor_id=actor_id,
-                payload={"sha": sha, "attempt": 0},
-            )
+            await _record_landing(log, task_id, sha, partition=partition, actor_id=actor_id)
 
     return minted
 

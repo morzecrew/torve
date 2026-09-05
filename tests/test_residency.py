@@ -125,6 +125,54 @@ def test_a_review_that_ran_and_landed_nothing_is_still_imported(tmp_path):
     run(scenario)
 
 
+def test_a_landing_the_record_missed_is_imported_onto_a_minted_row(tmp_path):
+    """A row minted before this partition could see the landing (A-97): the
+    repository proves it landed, the record has only ever minted it, so the
+    landing the first mint would have written is written now."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="m")
+
+        await mint(
+            log,
+            contracts(tmp_path),
+            partition=PARTITION,
+            actor_id="m",
+            landed=lambda task_id: "c" * 40,
+        )
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].state is TaskState.READY
+        assert board.tasks["T-0001"].landed_sha == "c" * 40
+
+
+def test_a_task_the_record_has_run_is_not_overruled_by_the_repository(tmp_path):
+    """Once a task has run here the board outranks the host: a human who
+    requeued it after an escalation is not sent back to ready by a scan
+    that found an old commit."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        executed: list[str] = []
+        await once(
+            log, worker_over(log, executed, Outcome(attempt=1, exit_code=1)), tmp_path, PARTITION
+        )
+
+        await mint(
+            log,
+            contracts(tmp_path),
+            partition=PARTITION,
+            actor_id="m",
+            landed=lambda task_id: "c" * 40,
+        )
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].landed_sha is None
+
+
 def test_a_pass_that_does_not_dispatch_imports_and_claims_nothing(tmp_path):
     """The re-mint pass (A-96): the scan must be able to reach the record
     without a worker taking the first thing it finds there."""

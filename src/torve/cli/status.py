@@ -19,7 +19,6 @@ from torve.cli.console import (
     STYLE_PASS,
     Format,
     emit_json,
-    fail,
     header,
     id_list,
     make_table,
@@ -33,10 +32,9 @@ from torve.cli.options import (
     RootOption,
     RuntimeName,
     load_config,
-    read_log,
     runtime_for,
+    task_events,
 )
-from torve.domain.states import EXIT_INFRASTRUCTURE
 
 if TYPE_CHECKING:
     from torve.application.manager import Board
@@ -49,23 +47,12 @@ def _board(dsn: str, partition: str) -> Board | None:
     for the record, which is different from a record holding no run
     (RFC 0050 D-50.2)."""
 
-    if not partition:
+    events = task_events(dsn, partition)
+
+    if events is None:
         return None
 
-    from torve.application.eventlog import TruncatedRead
     from torve.application.manager import project
-    from torve.domain.events import SubjectType
-
-    # The guarded read, not the paging one: a board folded from a prefix of
-    # the log reports states that have since moved, and a report that is
-    # confidently stale is worse than one that refuses.
-    try:
-        events = read_log(
-            dsn, lambda log: log.of_subject_type(SubjectType.TASK, partition=partition)
-        )
-
-    except TruncatedRead as exc:
-        raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
 
     return project(events)
 

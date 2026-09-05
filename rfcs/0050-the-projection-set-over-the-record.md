@@ -7,7 +7,7 @@ depends_on: ["0044", "0049"]
 informed_by: ["0022", "0032", "0040", "0047"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-95"]
+amended_by: ["A-95", "A-98"]
 owner: misery7100
 description: >-
   The reports the engine answers planning questions with move onto the record, one at a time, each landing beside its file reader with a parity test rather than replacing it — because a reader moved today would read an empty log for every run the manager did not dispatch.
@@ -340,3 +340,30 @@ an attempt recorded or a task the engine holds, plus any escalation — and
 
 Phases 1 and 2 have landed. Phase 3 remains, and its first block —
 `context`'s tasks and programme — is the one RFC 0049 already made a fold.
+
+### A-98 — 2026-09-05 — Phase 3's first block, and what the other two still owe
+**Landed.** `context`'s task block reads the record: every contract the
+partition holds, its state, attempts, escalation and the two cross-links
+(`parent`, `targets`) that decompositions and reviews are read through. It
+is a fold rather than a swap, which is what A-96 and A-97 had to make true
+first — a record holding two thirds of the contracts and a third of the
+landings would have answered over a population nobody chose.
+
+The vocabularies differ in exactly one place. The board has one word for a
+task nothing has happened to; this projection has three. A queued row with
+no attempt is `consumed` for the roles a run mints and concludes with, and
+`unstarted` for the roles a worker takes. `shipped` needs no equivalent: it
+means landed, and a landed row reads `ready`, which every consumer of this
+key already accepts alongside it (`_phase_progress`, the document signals).
+
+Fallback stays wholesale, never key by key. A record carrying no contract
+falls back to the files entirely, because a report assembled from two
+populations compares counts that were never measured over the same tasks.
+
+**Still owed by phase 3**, and deliberately not attempted here: the costs
+and harness-population blocks, which read the telemetry stream and are the
+place phase 1's `rows_from_events` should be reused; and the
+specification-quality readings, whose landed-window semantics are their own
+reading rather than a source swap. Everything except the task block still
+reads files, which for the corpus and the programme is not a limitation —
+the corpus *is* files.

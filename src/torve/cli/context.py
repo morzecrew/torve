@@ -28,7 +28,14 @@ from torve.cli.console import (
     make_table,
     out,
 )
-from torve.cli.options import ConfigOption, RootOption, load_config
+from torve.cli.options import (
+    ConfigOption,
+    DsnOption,
+    PartitionOption,
+    RootOption,
+    load_config,
+    task_events,
+)
 from torve.domain.states import EXIT_OK
 
 # ----------------------- #
@@ -44,6 +51,8 @@ class ContextFormat(StrEnum):
 
 
 def context_cmd(
+    dsn: DsnOption = "",
+    partition: PartitionOption = "",
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: Annotated[
@@ -59,7 +68,11 @@ def context_cmd(
     by state, escalations by reason, proposals awaiting the author,
     findings awaiting the operator, gate health, cost against config_hash,
     the programme view, declared task character against realized gate
-    convictions, and the document-level specification-quality signals."""
+    convictions, and the document-level specification-quality signals.
+
+    With a partition named, the task block comes from that partition's log
+    and every other block from this repository's own files. A log holding
+    no contract falls back to the files, never the other way round."""
     # The document-signals section is RFC 0022 §5.3 and the character
     # calibration is RFC 0034 §5.5 (D-34.8); the docstring is help text and
     # carries no corpus coordinates.
@@ -68,7 +81,7 @@ def context_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
-    report = context_report(root, root / config.rfcs.path)
+    report = context_report(root, root / config.rfcs.path, recorded=task_events(dsn, partition))
 
     if fmt is ContextFormat.JSON:
         emit_json(report)

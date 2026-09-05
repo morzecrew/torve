@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
-from torve.application.manager import IN_FLIGHT, Board, TaskView
+from torve.application.manager import IN_FLIGHT, Board, TaskView, project
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.application.telemetry import TOKEN_FIELDS, record_row
@@ -39,7 +39,7 @@ from torve.config.manifest import GATE_AXES, UNLABELED_AXIS, Manifest, load_mani
 from torve.config.runconfig import RunnerConfig
 from torve.domain.events import EventKind
 from torve.domain.states import EscalationReason, TaskState
-from torve.domain.task import SCHEMA_VERSION
+from torve.domain.task import DISPATCHABLE_ROLES, SCHEMA_VERSION, Task
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -85,29 +85,45 @@ SPEC_DRIFT_FINDINGS_LIMIT = 10
 # ....................... #
 
 
-def shipped_ids(root: Path) -> set[str]:
-    """Task ids the history records as shipped, in one batched log pass —
-    a task with no run state is not necessarily unstarted: the engine did
-    not run it, but a shipping commit records that someone did."""
+def shipped_landings(root: Path) -> dict[str, str]:
+    """Task id to the commit that shipped it, in one batched log pass —
+    newest first, so the first sighting wins.
+
+    A task with no run state is not necessarily unstarted: the engine did
+    not run it, but a shipping commit records that someone did. Both
+    spellings count, the engine's own trailer and a human's citation
+    (D-7.26), because the question every caller is really asking is whether
+    this task is finished — and the manager asking it more narrowly than
+    the projections is how a worker gets handed somebody's finished work.
+    """
 
     proc = subprocess.run(
-        ["git", "-C", str(root), "log", "--all", "--format=%x1e%s%x1f%b"],
+        ["git", "-C", str(root), "log", "--all", "--format=%x1e%H%x1f%s%x1f%b"],
         capture_output=True,
         text=True,
         check=False,
     )
 
     if proc.returncode != 0:
-        return set()
+        return {}
 
-    found: set[str] = set()
+    found: dict[str, str] = {}
 
     for record in proc.stdout.split("\x1e"):
-        subject, _, body = record.partition("\x1f")
-        found.update(g for pair in SUBJECT_ID.findall(subject) for g in pair if g)
-        found.update(TRAILER_ID.findall(body))
+        sha, _, rest = record.partition("\x1f")
+        subject, _, body = rest.partition("\x1f")
+        cited = [g for pair in SUBJECT_ID.findall(subject) for g in pair if g]
+
+        for task_id in cited + TRAILER_ID.findall(body):
+            found.setdefault(task_id, sha.strip())
 
     return found
+
+
+def shipped_ids(root: Path) -> set[str]:
+    """Task ids the history records as shipped."""
+
+    return set(shipped_landings(root))
 
 
 # ....................... #
@@ -1164,8 +1180,81 @@ def _decompositions(tasks: list[dict[str, Any]]) -> dict[str, list[str]]:
 # ....................... #
 
 
-def context_report(root: Path, rfc_dir: Path) -> dict[str, Any]:
-    tasks = _tasks(root)
+def _entry_state(view: TaskView, task: Task) -> str:
+    """One board row in the task vocabulary this projection reports in.
+
+    The two vocabularies overlap everywhere a run happened and differ only
+    at the start: the record has one word for a task nothing has happened
+    to yet, and this projection has three. A queued row with no attempt
+    behind it is `consumed` for the roles a run mints mid-flight and
+    concludes with (D-5.2, D-20.2), and `unstarted` for the roles a worker
+    takes. `shipped` has no record equivalent and needs none — it means
+    landed, and a landed task on the board reads `ready`, which every
+    consumer of this key already accepts alongside it.
+    """
+
+    if view.state is TaskState.QUEUED and not view.attempts:
+        return "consumed" if task.role not in DISPATCHABLE_ROLES else "unstarted"
+
+    return str(view.state)
+
+
+# ....................... #
+
+
+def tasks_from_events(events: Sequence[EventRecord]) -> list[dict[str, Any]]:
+    """The task entries a partition's record renders to (RFC 0050 §5.4).
+
+    Every contract the record holds, whatever its role — which is what
+    A-96 made true, and the reason this is a fold rather than a subset. A
+    row whose contract the record does not carry is skipped: there is
+    nothing to report about it beyond its state, and an entry with no
+    document, phase or role is one every downstream block would have to
+    special-case.
+    """
+
+    board = project(events)
+    escalated_at = {
+        event.subject_id: event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        for event in events
+        if event.kind is EventKind.ESCALATION_RAISED
+    }
+
+    return [
+        {
+            "id": task_id,
+            "rfc": view.contract.rfc,
+            "phase": view.contract.phase,
+            "role": view.contract.role,
+            "state": _entry_state(view, view.contract),
+            "attempts": view.attempts,
+            "escalation": view.escalation,
+            "escalated_at": escalated_at.get(task_id) if view.escalation else None,
+            "parent": view.contract.parent,
+            "targets": list(view.contract.targets),
+        }
+        for task_id, view in sorted(board.tasks.items())
+        if view.contract is not None
+    ]
+
+
+# ....................... #
+
+
+def context_report(
+    root: Path, rfc_dir: Path, *, recorded: Sequence[EventRecord] | None = None
+) -> dict[str, Any]:
+    """The planning projection (RFC 0007 §4).
+
+    The task block reads the record when a partition was named and the
+    record holds contracts; every other block still reads files, because
+    the corpus is a file and the telemetry stream is this host's (RFC 0050
+    phase 3). A record carrying no contract falls back wholesale, never
+    key by key — a report assembled from two populations would compare
+    counts that were never measured over the same tasks.
+    """
+
+    tasks = (tasks_from_events(recorded) if recorded else []) or _tasks(root)
     escalations: dict[str, list[dict[str, Any]]] = {}
 
     for task in tasks:

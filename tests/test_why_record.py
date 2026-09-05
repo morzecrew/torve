@@ -21,9 +21,11 @@ import yaml
 
 from torve.application.manager import Board, project
 from torve.application.projections import (
+    context_report,
     rows_from_events,
     runs_from_board,
     status_report,
+    tasks_from_events,
     why_report,
 )
 from torve.application.runstate import RunState
@@ -64,7 +66,7 @@ def event(kind, payload, *, at="2026-09-05T10:00:00Z", subject=TASK_ID) -> Event
 
 
 def minted(**overrides) -> EventRecord:
-    contract = Task(id=TASK_ID, decisions=[], rfc="rfcs/0050-x.md", **overrides)
+    contract = Task(**{"id": TASK_ID, "decisions": [], "rfc": "rfcs/0050-x.md", **overrides})
 
     return event(
         EventKind.TASK_MINTED,
@@ -424,3 +426,94 @@ def test_a_board_holding_no_run_falls_back_to_the_files(tmp_path):
     assert [run["task_id"] for run in status_report(tmp_path, board=Board())["runs"]] == [TASK_ID]
     # And with no board at all, which is what an unnamed partition passes.
     assert status_report(tmp_path, board=None) == status_report(tmp_path)
+
+
+# ....................... #
+# `context`'s task block over the record (RFC 0050 phase 3). The record
+# holds every contract since A-96, so this is a fold; what is worth
+# testing is the one place the vocabularies differ and the fallback.
+# ....................... #
+
+
+def test_a_task_entry_is_folded_from_its_contract_and_its_facts():
+    entries = tasks_from_events(
+        [
+            minted(phase=3, rfc="rfcs/0050-x.md"),
+            event(EventKind.ATTEMPT_STARTED, {"attempt": 1}),
+            event(
+                EventKind.ESCALATION_RAISED,
+                {"reason": "underspecified", "detail": "no acceptance"},
+                at="2026-09-05T10:05:00Z",
+            ),
+        ]
+    )
+
+    assert entries == [
+        {
+            "id": TASK_ID,
+            "rfc": "rfcs/0050-x.md",
+            "phase": 3,
+            "role": "implement",
+            "state": "escalated",
+            "attempts": 1,
+            "escalation": "underspecified",
+            "escalated_at": "2026-09-05T10:05:00Z",
+            "parent": None,
+            "targets": [],
+        }
+    ]
+
+
+# ....................... #
+
+
+def test_the_three_starting_words_the_record_has_one_of():
+    """The vocabularies differ only at the start: the board says `queued`
+    where this projection says `unstarted` for a task a worker will take
+    and `consumed` for one a run mints and concludes with."""
+
+    implement = tasks_from_events([minted()])
+    review = tasks_from_events([minted(role="review", targets=["T-0001"])])
+
+    assert implement[0]["state"] == "unstarted"
+    assert review[0]["state"] == "consumed"
+
+
+# ....................... #
+
+
+def test_a_row_whose_contract_the_record_does_not_hold_is_skipped():
+    """A mint written before A-91 carries no contract, so there is no
+    document, phase or role to report — and every downstream block would
+    have to special-case an entry without them (D-49.5)."""
+
+    pre_a91 = event(EventKind.TASK_MINTED, {"title": "a task", "source_id": "0050", "phase": 0})
+
+    assert tasks_from_events([pre_a91]) == []
+
+
+# ....................... #
+
+
+def test_context_falls_back_to_the_files_when_the_record_holds_no_contract(tmp_path):
+    (tmp_path / ".torve" / "tasks" / TASK_ID).mkdir(parents=True)
+    (tmp_path / ".torve" / "tasks" / TASK_ID / "contract.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": TASK_ID,
+                "rfc": "rfcs/0050-x.md",
+                "intent": "work",
+                "scope": {"allow": ["src/**"]},
+                "acceptance": [],
+                "decisions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from_files = context_report(tmp_path, tmp_path / "rfcs")
+    from_empty = context_report(tmp_path, tmp_path / "rfcs", recorded=[])
+
+    assert [entry["id"] for entry in from_files["tasks"]] == [TASK_ID]
+    assert from_empty["tasks"] == from_files["tasks"]
