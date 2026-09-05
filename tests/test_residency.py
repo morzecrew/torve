@@ -459,7 +459,7 @@ def test_a_dead_worker_s_task_comes_back_when_its_lease_runs_out(tmp_path):
         dead = Worker(log=log, name="w-dead", execute=worker_over(log, []).execute)
         await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
 
-        assert await dead.claim(contracts(tmp_path), PARTITION) is not None
+        assert await dead.claim(PARTITION) is not None
         assert await once(log, worker_over(log, []), tmp_path, PARTITION) is None
 
         # Reclaiming is the manager's, and it says why.
@@ -487,7 +487,7 @@ def test_the_next_pass_picks_up_what_the_lease_released(tmp_path):
         executed: list[str] = []
         dead = Worker(log=log, name="w-dead", execute=worker_over(log, []).execute)
         await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
-        await dead.claim(contracts(tmp_path), PARTITION)
+        await dead.claim(PARTITION)
 
         # A pass whose reclaim window has passed frees the task and runs it
         # in the same pass — waiting an idle interval to notice would be a

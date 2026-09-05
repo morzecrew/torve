@@ -56,7 +56,10 @@ def run(scenario):
     asyncio.run(main())
 
 
-async def mint(log, task_id):
+async def mint(log, task_id, *, allow=("src/**",)):
+    """One mint carrying its contract (RFC 0049 D-49.1) — the scope a
+    worker's claim reads for disjointness comes off the board now."""
+
     await log.record(
         EventKind.TASK_MINTED,
         partition=PARTITION,
@@ -64,7 +67,11 @@ async def mint(log, task_id):
         subject_id=task_id,
         actor_kind=ActorKind.MANAGER,
         actor_id="manager-1",
-        payload={"title": task_id, "source_id": "0044"},
+        payload={
+            "title": task_id,
+            "source_id": "0044",
+            "contract": task(task_id, allow=list(allow)).model_dump(mode="json"),
+        },
     )
 
 
@@ -78,8 +85,7 @@ def worker_over(log, outcome: Outcome, *, name: str = "w-1") -> Worker:
 def test_a_green_pass_claims_runs_and_lands():
     async def scenario(log):
         await mint(log, "T-1")
-        tasks = {"T-1": task("T-1", allow=["src/**"])}
-        handled = await worker_over(log, green()).once(tasks, PARTITION)
+        handled = await worker_over(log, green()).once(PARTITION)
         history = await log.history("T-1")
 
         assert handled == "T-1"
@@ -103,7 +109,7 @@ def test_a_green_pass_claims_runs_and_lands():
 
 def test_nothing_to_claim_records_nothing():
     async def scenario(log):
-        handled = await worker_over(log, green()).once({}, PARTITION)
+        handled = await worker_over(log, green()).once(PARTITION)
 
         assert handled is None
         assert await log.since() == []
@@ -119,7 +125,7 @@ def test_an_escalation_hands_the_task_to_a_human():
             escalation=EscalationReason.POISON_CEILING,
             detail="3 attempts, ceiling 3",
         )
-        await worker_over(log, outcome).once({"T-1": task("T-1", allow=["src/**"])}, PARTITION)
+        await worker_over(log, outcome).once(PARTITION)
         board = project(await log.since(partition=PARTITION))
 
         assert board.tasks["T-1"].state is TaskState.ESCALATED
@@ -132,14 +138,13 @@ def test_an_escalation_hands_the_task_to_a_human():
 def test_an_attempt_that_neither_landed_nor_escalated_returns_to_the_queue():
     async def scenario(log):
         await mint(log, "T-1")
-        tasks = {"T-1": task("T-1", allow=["src/**"])}
-        await worker_over(log, green(landed_sha=None, detail="gates red")).once(tasks, PARTITION)
+        await worker_over(log, green(landed_sha=None, detail="gates red")).once(PARTITION)
         board = project(await log.since(partition=PARTITION))
 
         assert board.tasks["T-1"].state is TaskState.QUEUED
         assert board.tasks["T-1"].claimed_by is None
         # And another worker can pick it straight up.
-        assert await worker_over(log, green(), name="w-2").once(tasks, PARTITION) == "T-1"
+        assert await worker_over(log, green(), name="w-2").once(PARTITION) == "T-1"
 
     run(scenario)
 
@@ -155,7 +160,7 @@ def test_a_worker_killed_mid_attempt_leaves_a_log_that_says_where_it_stopped():
             raise RuntimeError("the worker died")
 
         worker = Worker(log=log, name="w-1", execute=dies)
-        claimed = await worker.claim({"T-1": task("T-1", allow=["src/**"])}, PARTITION)
+        claimed = await worker.claim(PARTITION)
 
         with pytest.raises(RuntimeError):
             await worker.run(claimed, PARTITION)
@@ -178,26 +183,21 @@ def test_a_worker_killed_mid_attempt_leaves_a_log_that_says_where_it_stopped():
 def test_two_workers_never_take_the_same_task():
     async def scenario(log):
         await mint(log, "T-1")
-        tasks = {"T-1": task("T-1", allow=["src/**"])}
 
-        assert await worker_over(log, green(), name="w-1").claim(tasks, PARTITION) is not None
-        assert await worker_over(log, green(), name="w-2").claim(tasks, PARTITION) is None
+        assert await worker_over(log, green(), name="w-1").claim(PARTITION) is not None
+        assert await worker_over(log, green(), name="w-2").claim(PARTITION) is None
 
     run(scenario)
 
 
 def test_a_worker_takes_the_next_disjoint_task_beside_one_in_flight():
     async def scenario(log):
-        await mint(log, "T-1")
-        await mint(log, "T-2")
-        tasks = {
-            "T-1": task("T-1", allow=["src/**"]),
-            "T-2": task("T-2", allow=["web/**"]),
-        }
+        await mint(log, "T-1", allow=["src/**"])
+        await mint(log, "T-2", allow=["web/**"])
 
-        assert await worker_over(log, green(), name="w-1").claim(tasks, PARTITION) is not None
+        assert await worker_over(log, green(), name="w-1").claim(PARTITION) is not None
 
-        second = await worker_over(log, green(), name="w-2").claim(tasks, PARTITION)
+        second = await worker_over(log, green(), name="w-2").claim(PARTITION)
 
         assert second is not None
         assert second.id == "T-2"

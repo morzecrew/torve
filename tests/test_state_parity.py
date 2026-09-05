@@ -92,7 +92,7 @@ def drive(repo, deps, *, config: RunnerConfig | None = None):
                     seat="w-1",
                 ),
             )
-            await worker.once({task.id: task}, PARTITION)
+            await worker.once(PARTITION)
 
             holder["board"] = project(await log.since(partition=PARTITION)).tasks[task.id]
 

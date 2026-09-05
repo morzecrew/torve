@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0049**.
+number is **0050**.
 
 ## Design
 
@@ -52,11 +52,12 @@ number is **0049**.
 | [0041](0041-remote-sandboxes.md) | Remote sandboxes | accepted | complete | 0003, 0017, 0021, 0033 | — | The OpenSandbox runtime matured into a first-class remote execution target — live-server conformance, registry-delivered images, measured workspace transfer, and a broker the sandbox can actually reach — so agent sessions and gate batteries run on machines that are not the operator's. |
 | [0042](0042-the-composition-root-and-the-substrate-runtime.md) | The composition root and the substrate runtime | accepted | complete | 0008, 0015, 0019 | — | One composition root instead of per-verb wiring, and the substrate's runtime machinery adopted where torve hand-rolls it — the enabling move for any deployment shape beyond "the operator's shell", with the resident-server question named and demand-gated, not smuggled. |
 | [0043](0043-blocker-revision.md) | Blocker revision | accepted | none | 0005 | A-87 | A surviving review blocker feeds a bounded in-run revision attempt in the same worktree — carried by the RFC 0005 §4a feedback record — before it escalates the run. |
-| [0044](0044-the-manager-domain.md) | The manager domain | accepted | partial | — | A-80, A-81, A-82, A-85, A-86, A-89, A-90 | The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection. |
+| [0044](0044-the-manager-domain.md) | The manager domain | accepted | partial | — | A-80, A-81, A-82, A-85, A-86, A-89, A-90, A-91 | The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection. |
 | [0045](0045-the-live-channel.md) | The live channel | accepted | none | 0044 | A-83 | A run becomes observable while it runs: the broker meters liveness from the burn it already sees, carries the sandbox's records to the store without ever handing it a credential, and gives the manager a way to speak back. |
 | [0046](0046-the-dispatch-and-its-steps.md) | The dispatch and its steps | accepted | complete | — | — | The runner's 776-line hook factory becomes one typed dispatch object and a handful of steps over it, so a seam is a parameter and a step instead of another closure over another untyped dictionary. |
 | [0047](0047-sources-and-decisions-as-records.md) | Sources and decisions as records | accepted | complete | 0044 | — | The corpus becomes an importer rather than the only reader: a source is any provenance carrying zero or more decisions, a decision is a versioned subject in the record, and the decision graph is answered by query instead of by re-parsing every accepted document. |
 | [0048](0048-the-fleet-as-partitions.md) | The fleet as partitions | accepted | complete | 0024, 0044 | — | The resident manager runs the operator's whole fleet rather than one repository: the manifest that already names every root gains the partition each one's contracts are minted onto, and one process round-robins them under one shared attention budget. |
+| [0049](0049-tasks-as-records.md) | Tasks as records | accepted | complete | 0044 | — | The contract a task runs under travels in the record: minting carries the contract itself, re-minting records a changed one as a new version, and the repository's task directory becomes an importer rather than the thing every reader consults. |
 
 ## Conventions
 

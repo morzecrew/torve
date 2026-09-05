@@ -20,6 +20,7 @@ list.
 | the tick's dispatch rules are the only ones | a filesystem scan | the same rules over the record — and the two now share one implementation |
 | one manager, one repository | a process and a hand-typed partition per repo | one resident process over the operator's fleet manifest, which now names the board each root mints onto |
 | the corpus is only readable by re-parsing it | every reader walked `rfcs/` and re-parsed each document | the corpus is imported into the record; decisions are versioned subjects answered by query |
+| a worker needs the repository to know what it is running | dispatch read every `contract.yaml` off disk, every pass | the mint carries the contract; the board answers what a partition can start, and the task directory is an importer |
 
 ## Still single-node
 

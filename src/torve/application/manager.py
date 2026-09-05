@@ -15,18 +15,20 @@ What changes is only where the state they read comes from.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from pydantic import ValidationError
 
 from torve.application.planner import scopes_clash
 from torve.domain.events import EventKind, SubjectType
 from torve.domain.states import TaskState
+from torve.domain.task import Task
 
 if TYPE_CHECKING:
     from torve.domain.events import EventRecord
-    from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -67,6 +69,12 @@ class TaskView:
     # bounded rather than permanent.
     claimed_at: datetime | None = None
     last_event_at: datetime | None = None
+    # The contract this task was minted with (RFC 0049 D-49.1), re-minted
+    # whenever the repository's differs. None for a mint written before
+    # A-91, or for one whose payload no longer validates as a `Task` — both
+    # read as "the record does not hold this task's contract", which is
+    # undispatchable and visible rather than an error (D-49.5, D-49.6).
+    contract: Task | None = None
 
 
 # ....................... #
@@ -119,6 +127,31 @@ _TRANSITIONS: dict[EventKind, TaskState] = {
 # ....................... #
 
 
+def minted_contract(payload: Mapping[str, Any]) -> Task | None:
+    """The contract a mint carried, or None when it carried none.
+
+    None covers two cases the board must survive rather than raise on: a
+    mint written before A-91, and a payload that no longer validates as a
+    `Task` because the model moved under it. Both mean the same thing to
+    every reader — the record does not hold this task's contract — and one
+    unreadable payload must not take a whole board down (D-49.5).
+    """
+
+    raw = payload.get("contract")
+
+    if not isinstance(raw, dict) or not raw:
+        return None
+
+    try:
+        return Task.model_validate(raw)
+
+    except ValidationError:
+        return None
+
+
+# ....................... #
+
+
 def project(events: Iterable[EventRecord]) -> Board:
     """Fold the log into a board. Replaying the same events must produce the
     same board — that equality is what lets a manager restart without
@@ -130,14 +163,24 @@ def project(events: Iterable[EventRecord]) -> Board:
         if event.subject_type is not SubjectType.TASK:
             continue
 
+        known = event.subject_id in tasks
         view = tasks.get(event.subject_id, TaskView(task_id=event.subject_id))
         view = replace(view, partition=event.partition, last_event_at=event.created_at)
         payload = event.payload
 
-        if (state := _TRANSITIONS.get(event.kind)) is not None:
+        # A re-mint records a contract and nothing else (D-49.2): a manager
+        # that could re-queue an escalated task by noticing an edited file
+        # would be writing an `escalation.resolved` it has no authority to
+        # write, under another name.
+        remint = event.kind is EventKind.TASK_MINTED and known
+        state = _TRANSITIONS.get(event.kind)
+
+        if state is not None and not remint:
             view = replace(view, state=state)
 
-        if event.kind is EventKind.TASK_CLAIMED:
+        if event.kind is EventKind.TASK_MINTED:
+            view = replace(view, contract=minted_contract(payload) or view.contract)
+        elif event.kind is EventKind.TASK_CLAIMED:
             view = replace(
                 view, claimed_by=str(payload.get("worker") or ""), claimed_at=event.created_at
             )
@@ -184,23 +227,26 @@ def blocked_by(task: Task, board: Board) -> list[str]:
 # ....................... #
 
 
-def overlaps(task: Task, board: Board, tasks: dict[str, Task]) -> list[str]:
+def overlaps(task: Task, board: Board) -> list[str]:
     """Tasks in flight whose scope this one shares (A-39). The rule is the
     standing loop's own, shared rather than restated: conservative about
     overlap, and refusing outright for an unconstrained allow-set, because
     a task that may touch anything can prove itself disjoint from nothing.
     Two agents editing one file is a conflict the engine cannot resolve
-    afterwards."""
+    afterwards.
+
+    The scopes come off the board's own contracts (D-49.1). A task in flight
+    whose contract the record does not hold is skipped rather than assumed
+    disjoint — the same silence the scan produced when it could not read a
+    contract file."""
 
     shared: list[str] = []
 
     for view in board.in_flight():
-        if view.task_id == task.id:
+        if view.task_id == task.id or view.contract is None:
             continue
 
-        other = tasks.get(view.task_id)
-
-        if other is not None and scopes_clash(task.scope.allow, other.scope.allow):
+        if scopes_clash(task.scope.allow, view.contract.scope.allow):
             shared.append(view.task_id)
 
     return sorted(shared)
@@ -209,32 +255,35 @@ def overlaps(task: Task, board: Board, tasks: dict[str, Task]) -> list[str]:
 # ....................... #
 
 
-def dispatchable(tasks: dict[str, Task], board: Board, partition: str) -> list[str]:
+def dispatchable(board: Board, partition: str) -> list[str]:
     """What this partition could start right now, in id order.
 
-    A task qualifies when this partition's board carries it as queued, its
-    dependencies have landed, and nothing sharing its scope is in flight.
-    Everything else is somebody's turn: an escalated task waits on a human,
-    a claimed one on its worker, a landed one on nobody.
+    A task qualifies when this partition's board carries it as queued with a
+    contract, its dependencies have landed, and nothing sharing its scope is
+    in flight. Everything else is somebody's turn: an escalated task waits
+    on a human, a claimed one on its worker, a landed one on nobody.
 
-    A contract the board has never seen is not dispatchable here, whatever
-    the caller passed in. Minting is what places a task on a partition
-    (D-44.7), so an unminted contract belongs to nobody and a contract
-    minted elsewhere belongs to that partition's manager.
+    Answered from the board alone (D-49.1). Minting is what places a task on
+    a partition (D-44.7), so an unminted contract belongs to nobody and a
+    contract minted elsewhere belongs to that partition's manager — and a
+    task whose contract the record does not hold is not dispatchable
+    (D-49.6), because there is nothing to check its scope or dependencies
+    against.
     """
 
     ready: list[str] = []
 
-    for task_id, task in sorted(tasks.items()):
-        view = board.tasks.get(task_id)
+    for task_id in sorted(board.tasks):
+        view = board.tasks[task_id]
+        task = view.contract
 
-        if view is None or view.partition != partition:
+        if task is None or view.partition != partition:
             continue
 
         if view.state is not TaskState.QUEUED:
             continue
 
-        if blocked_by(task, board) or overlaps(task, board, tasks):
+        if blocked_by(task, board) or overlaps(task, board):
             continue
 
         ready.append(task_id)

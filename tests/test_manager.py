@@ -73,7 +73,15 @@ def run(scenario):
     asyncio.run(main())
 
 
-async def mint(log, task_id, *, partition=PARTITION, **payload):
+async def mint(log, task_id, *, partition=PARTITION, allow=None, depends_on=None, **payload):
+    """One mint carrying its contract (RFC 0049 D-49.1) — what the board
+    reads for scope and dependencies, so a case that leaves it out is
+    testing a mint written before A-91 and says so."""
+
+    contract = task(
+        task_id, allow=allow if allow is not None else ["src/**"], depends_on=depends_on
+    )
+
     await log.record(
         EventKind.TASK_MINTED,
         partition=partition,
@@ -81,7 +89,13 @@ async def mint(log, task_id, *, partition=PARTITION, **payload):
         subject_id=task_id,
         actor_kind=ActorKind.MANAGER,
         actor_id="manager-1",
-        payload={"title": task_id, "source_id": "0044", **payload},
+        payload={
+            "title": task_id,
+            "source_id": "0044",
+            "depends_on": contract.depends_on,
+            "contract": contract.model_dump(mode="json"),
+            **payload,
+        },
     )
 
 
@@ -119,7 +133,7 @@ def test_a_minted_task_is_queued_and_dispatchable():
         board = project(await log.since())
 
         assert board.tasks["T-1"].state is TaskState.QUEUED
-        assert dispatchable({"T-1": task("T-1", allow=["src/**"])}, board, PARTITION) == ["T-1"]
+        assert dispatchable(board, PARTITION) == ["T-1"]
 
     run(scenario)
 
@@ -132,50 +146,43 @@ def test_a_claimed_task_is_no_longer_dispatchable_and_names_its_worker():
 
         assert board.tasks["T-1"].state is TaskState.CLAIMED
         assert board.tasks["T-1"].claimed_by == "w-1"
-        assert dispatchable({"T-1": task("T-1", allow=["src/**"])}, board, PARTITION) == []
+        assert dispatchable(board, PARTITION) == []
 
     run(scenario)
 
 
 def test_a_dependency_is_satisfied_only_by_a_landing():
     async def scenario(log):
-        await mint(log, "T-1")
-        await mint(log, "T-2")
-        tasks = {
-            "T-1": task("T-1", allow=["src/a/**"]),
-            "T-2": task("T-2", allow=["src/b/**"], depends_on=["T-1"]),
-        }
+        await mint(log, "T-1", allow=["src/a/**"])
+        await mint(log, "T-2", allow=["src/b/**"], depends_on=["T-1"])
 
-        assert dispatchable(tasks, project(await log.since()), PARTITION) == ["T-1"]
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-1"]
 
         # Reaching a claim, an attempt, even a review is not a landing.
         await claim(log, "T-1")
 
-        assert dispatchable(tasks, project(await log.since()), PARTITION) == []
+        assert dispatchable(project(await log.since()), PARTITION) == []
 
         await land(log, "T-1")
 
-        assert dispatchable(tasks, project(await log.since()), PARTITION) == ["T-2"]
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-2"]
 
     run(scenario)
 
 
 def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
     async def scenario(log):
-        await mint(log, "T-1")
-        await mint(log, "T-2")
+        await mint(log, "T-1", allow=["src/**"])
+        await mint(log, "T-2", allow=["src/**"])
         await claim(log, "T-1")
-        tasks = {
-            "T-1": task("T-1", allow=["src/**"]),
-            "T-2": task("T-2", allow=["src/**"]),
-        }
 
-        assert dispatchable(tasks, project(await log.since()), PARTITION) == []
+        assert dispatchable(project(await log.since()), PARTITION) == []
 
-        # Disjoint scope dispatches beside it.
-        tasks["T-2"] = task("T-2", allow=["web/**"])
+        # Disjoint scope dispatches beside it — re-minted, because that is
+        # the only way a contract changes now (D-49.4).
+        await mint(log, "T-2", allow=["web/**"])
 
-        assert dispatchable(tasks, project(await log.since()), PARTITION) == ["T-2"]
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-2"]
 
     run(scenario)
 
@@ -184,11 +191,10 @@ def test_partitions_do_not_see_each_others_work():
     async def scenario(log):
         await mint(log, "T-1", partition=PARTITION)
         await mint(log, "T-2", partition=OTHER)
-        tasks = {"T-1": task("T-1", allow=["src/**"]), "T-2": task("T-2", allow=["src/**"])}
         board = project(await log.since(partition=PARTITION))
 
-        assert dispatchable(tasks, board, PARTITION) == ["T-1"]
-        assert dispatchable(tasks, project(await log.since(partition=OTHER)), OTHER) == ["T-2"]
+        assert dispatchable(board, PARTITION) == ["T-1"]
+        assert dispatchable(project(await log.since(partition=OTHER)), OTHER) == ["T-2"]
 
     run(scenario)
 
@@ -206,13 +212,12 @@ def test_an_escalated_task_waits_for_a_human_and_returns_when_resolved():
             actor_id="w-1",
             payload={"reason": "poison_ceiling", "detail": "3 attempts"},
         )
-        tasks = {"T-1": task("T-1", allow=["src/**"])}
         board = project(await log.since())
 
         assert board.tasks["T-1"].state is TaskState.ESCALATED
         assert board.tasks["T-1"].escalation == "poison_ceiling"
         assert board.tasks["T-1"].claimed_by is None
-        assert dispatchable(tasks, board, PARTITION) == []
+        assert dispatchable(board, PARTITION) == []
 
         await log.record(
             EventKind.ESCALATION_RESOLVED,
@@ -224,7 +229,7 @@ def test_an_escalated_task_waits_for_a_human_and_returns_when_resolved():
             payload={"resolution": "requeued", "note": "contract amended"},
         )
 
-        assert dispatchable(tasks, project(await log.since()), PARTITION) == ["T-1"]
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-1"]
 
     run(scenario)
 
@@ -253,7 +258,7 @@ def test_an_abandoned_task_never_returns():
         board = project(await log.since())
 
         assert board.tasks["T-1"].state is TaskState.ABANDONED
-        assert dispatchable({"T-1": task("T-1", allow=["src/**"])}, board, PARTITION) == []
+        assert dispatchable(board, PARTITION) == []
 
     run(scenario)
 
@@ -446,19 +451,20 @@ def test_two_unconstrained_tasks_never_run_together():
     sets is empty — so the manager would have dispatched two tasks that may
     each touch anything, while the standing loop refused the same pair."""
 
-    tasks = {
-        "T-1": Task(id="T-1", decisions=[]),
-        "T-2": Task(id="T-2", decisions=[]),
-    }
+    unconstrained = Task(id="T-1", decisions=[]).model_dump(mode="json")
     board = project(
         [
-            event(EventKind.TASK_MINTED, "T-1"),
-            event(EventKind.TASK_MINTED, "T-2"),
+            event(EventKind.TASK_MINTED, "T-1", {"contract": unconstrained}),
+            event(
+                EventKind.TASK_MINTED,
+                "T-2",
+                {"contract": {**unconstrained, "id": "T-2"}},
+            ),
             event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}),
         ]
     )
 
-    assert dispatchable(tasks, board, PARTITION) == []
+    assert dispatchable(board, PARTITION) == []
 
 
 def test_the_scope_rule_is_the_one_the_standing_loop_asks():

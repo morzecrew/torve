@@ -65,21 +65,24 @@ class Worker:
 
     # ....................... #
 
-    async def claim(self, tasks: dict[str, Task], partition: str) -> Task | None:
+    async def claim(self, partition: str) -> Task | None:
         """Take the first task this partition could start, or nothing.
 
         The board is rebuilt from the log on every pass rather than carried
         between them: a worker that remembers what it saw last time is a
         worker whose memory can disagree with the record.
+
+        The contract comes off the board too (D-49.1), so what a worker
+        needs to claim and run a task is the record and a worktree — not the
+        repository's task directory, which is what "a worker holds nothing
+        but a lease" had been true of for state and false of for intent.
         """
 
         board = project(await self.log.since(partition=partition))
-        ready = dispatchable(tasks, board, partition)
+        task = next((board.tasks[one].contract for one in dispatchable(board, partition)), None)
 
-        if not ready:
+        if task is None:
             return None
-
-        task = tasks[ready[0]]
 
         await self.log.record(
             EventKind.TASK_CLAIMED,
@@ -153,11 +156,11 @@ class Worker:
 
     # ....................... #
 
-    async def once(self, tasks: dict[str, Task], partition: str) -> str | None:
+    async def once(self, partition: str) -> str | None:
         """One full pass: claim, run, release. Returns the task id it
         handled, or None when the partition had nothing to start."""
 
-        task = await self.claim(tasks, partition)
+        task = await self.claim(partition)
 
         if task is None:
             return None

@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -743,3 +743,31 @@ land together or not at all.
 
 **Changed:** nothing normative. This records which of §12's tail is done and
 why the remainder is one prerequisite rather than three separate ones.
+
+### A-91 — 2026-09-05 — the mint carries its contract (amends §5.3, required by RFC 0049 D-49.1)
+**Found executing RFC 0049.** §5.3 makes minting the act that places a
+contract on a partition, and `task.minted` records everything about that act
+except the contract. The board knows a task's state, attempts, convictions,
+divergences, landing and spend; it does not know its scope, its acceptance
+commands or the decisions it inherited, so every reader that needs those has
+to be standing next to the repository.
+
+That is also why the two pieces A-90 left owed are blocked: both are joins
+against tasks, and the task rows they would join are files.
+
+**Changed:** `TaskMinted` gains `contract` — the contract as minted, the
+`Task` model's own dump, validated on the way in and re-validated on the way
+out. `title` and `source_id` stay because they are the board's derivations
+rather than contract fields; `phase` and `depends_on` stay as copies with a
+test pinning them equal to the contract's, which is A-85's rule applied to a
+payload instead of to two carriers. Nothing else in §5.2 moves and no kind
+is added.
+
+Two consequences worth recording here rather than only in RFC 0049, because
+they are properties of this event and not of that design: a second
+`task.minted` on a subject is a **new version of the contract and never a
+transition** — a manager that could re-queue an escalated task by noticing
+an edited file would be writing an `escalation.resolved` it has no authority
+to write (D-44.2) under another name — and a fold must treat a mint with no
+contract as a view with no contract, because 192 of them are already in the
+lab log and every one of them predates this.

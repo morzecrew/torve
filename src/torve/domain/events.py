@@ -176,12 +176,25 @@ class DecisionRetired(BaseModel):
 
 
 class TaskMinted(BaseModel):
+    """A-91: minting places a contract on a partition (§5.3), so the contract
+    is what the event carries.
+
+    `title` and `source_id` are the board's own derivations — a fallback
+    chain and `rfc or "operator"` — rather than contract fields. `phase` and
+    `depends_on` are copies, kept because 192 mints written before this
+    amendment carry them and nothing else, with a test pinning them equal to
+    the contract's: the fold prefers the contract and falls back to them.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     title: str
     source_id: str
     phase: int = 0
     depends_on: list[str] = Field(default_factory=list)
+    # The `Task` model's own dump. Empty for a mint written before A-91 —
+    # readers treat that as a view with no contract rather than an error.
+    contract: dict[str, Any] = Field(default_factory=dict)
 
 
 # ....................... #

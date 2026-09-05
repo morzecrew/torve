@@ -20,7 +20,7 @@ import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from torve.application.manager import expired, project
+from torve.application.manager import IN_FLIGHT, TaskView, expired, project
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
 
@@ -99,6 +99,56 @@ def _title(task: Task) -> str:
 # ....................... #
 
 
+def _remintable(view: TaskView, task: Task) -> bool:
+    """Whether the repository's contract differs from the one on the board
+    and may replace it (D-49.3, D-49.4).
+
+    Compared as validated `Task` models rather than as raw payloads: a
+    comparison that finds a difference where there is none re-mints on every
+    pass and fills the log with a contract nobody changed.
+
+    Never while the task is in flight. The contract an attempt is judged
+    against is the one it started under, and a contract changing beneath a
+    running attempt is the hazard the corpus rule already names, arriving
+    from the other direction.
+    """
+
+    if view.state in IN_FLIGHT:
+        return False
+
+    return view.contract != task
+
+
+# ....................... #
+
+
+async def _record_mint(log: EventLog, task: Task, *, partition: str, actor_id: str) -> None:
+    """One mint, first or re-mint — the same event either way (A-91), since
+    what makes the second one a version rather than a transition is the
+    board's fold and not a different kind."""
+
+    await log.record(
+        EventKind.TASK_MINTED,
+        partition=partition,
+        subject_type=SubjectType.TASK,
+        subject_id=task.id,
+        actor_kind=ActorKind.MANAGER,
+        actor_id=actor_id,
+        payload={
+            "title": _title(task),
+            "source_id": task.rfc or "operator",
+            # Copies of the contract's own fields, kept for the mints
+            # written before A-91 and pinned equal to it by test.
+            "phase": task.phase,
+            "depends_on": list(task.depends_on),
+            "contract": task.model_dump(mode="json"),
+        },
+    )
+
+
+# ....................... #
+
+
 async def mint(
     log: EventLog,
     tasks: dict[str, Task],
@@ -111,9 +161,15 @@ async def mint(
     """Place contracts this partition has never seen onto its board.
 
     Minting is idempotent by reading rather than by remembering: a task the
-    board already carries is already minted, whatever state it has since
-    reached, so a restart re-mints nothing and a re-adopted contract is not
-    duplicated.
+    board already carries with the contract the repository holds is already
+    minted, whatever state it has since reached, so a restart re-mints
+    nothing and a re-adopted contract is not duplicated.
+
+    A contract that *changed* is re-minted (D-49.4), which is how the
+    operator's recourse after an escalation works: fix the contract, resolve
+    the escalation, and the next pass records the change and puts it in
+    force. A re-mint carries the contract and transitions nothing (D-49.2),
+    and never happens while the task is in flight (D-49.3).
 
     A contract that already landed is minted **and** recorded as landed, in
     that order, from the repository's own trailer. The repository outranks
@@ -135,7 +191,13 @@ async def mint(
     minted: list[str] = []
 
     for task_id, task in sorted(tasks.items()):
-        if task_id in board.tasks:
+        view = board.tasks.get(task_id)
+
+        if view is not None:
+            if _remintable(view, task):
+                await _record_mint(log, task, partition=partition, actor_id=actor_id)
+                minted.append(task_id)
+
             continue
 
         sha = landed(task_id) if landed is not None else None
@@ -148,20 +210,7 @@ async def mint(
             # there.
             continue
 
-        await log.record(
-            EventKind.TASK_MINTED,
-            partition=partition,
-            subject_type=SubjectType.TASK,
-            subject_id=task_id,
-            actor_kind=ActorKind.MANAGER,
-            actor_id=actor_id,
-            payload={
-                "title": _title(task),
-                "source_id": task.rfc or "operator",
-                "phase": task.phase,
-                "depends_on": list(task.depends_on),
-            },
-        )
+        await _record_mint(log, task, partition=partition, actor_id=actor_id)
         minted.append(task_id)
 
         if sha:
@@ -234,6 +283,10 @@ async def once(
     pass could start, and the alternative is waiting a whole idle interval
     to notice.
 
+    The scan is an importer, not a reader (D-49.1): it is how a contract the
+    repository gained reaches the record, and the mint is its only consumer.
+    What a worker claims and runs comes off the board.
+
     `paused` skips the mint and nothing else (D-48.4): the queue may drain
     during a pause, it may not grow (D-19.5). A pause is a statement about
     the operator's capacity to triage, never about the safety of what is
@@ -254,7 +307,7 @@ async def once(
     if not paused:
         await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed, ran=ran)
 
-    return await worker.once(tasks, partition)
+    return await worker.once(partition)
 
 
 # ....................... #
