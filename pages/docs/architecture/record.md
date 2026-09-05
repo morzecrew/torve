@@ -150,7 +150,7 @@ extra step and becomes the only one.
 | the decision graph (`torve decisions`) | what is in force, what each decision used to say, and which decisions govern a set of paths |
 | one task's history (`torve why --partition`) | every attempt with its verdict, cost and convictions, the events and reviews around them, and the totals |
 | what ran here (`torve status --partition`) | the run states of tasks a run actually touched — an attempt recorded, or the engine holding the task now |
-| the planning view's task block (`torve context --partition`) | every contract the partition holds, its state, attempts, escalation and cross-links; the rest of the report still reads files |
+| the planning view (`torve context --partition`) | contracts, attempts, gate health, cost, character and divergences from the record; findings, feedback and the corpus from files, and the report names which |
 
 These three also answer from files, and which one answers is the caller's
 choice: naming a partition reads the record, naming none reads this

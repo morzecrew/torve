@@ -217,7 +217,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
 # ....................... #
 
 
-def _proposals(root: Path, rfc_dir: Path) -> list[dict[str, Any]]:
+def _proposals(rfc_dir: Path, logs_by_task: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
     """Divergence entries carrying a `proposal:` — data ready to become
     decision-table rows, with the entry that produced each (§4: amendments
     stop being copy-paste; append-only is preserved and nothing is retyped).
@@ -233,33 +233,13 @@ def _proposals(root: Path, rfc_dir: Path) -> list[dict[str, Any]]:
         cited += path.read_text(encoding="utf-8")
 
     found: list[dict[str, Any]] = []
-    tasks_dir = root / layout.TORVE_DIR / "tasks"
 
-    if not tasks_dir.is_dir():
-        return found
-
-    for log in sorted(tasks_dir.glob("T-*/log.yaml")):
-        document = _load_yaml_dict(log)
-
-        if document is None:
-            continue
-
-        entries: Any = document.get("entries")
-
-        if not isinstance(entries, list):
-            continue
-
-        for entry in cast("list[object]", entries):
-            if not isinstance(entry, dict):
-                continue
-
-            record = cast("dict[str, Any]", entry)
+    for task_id, entries in sorted(logs_by_task.items()):
+        for record in entries:
             proposal = record.get("proposal")
 
             if not proposal:
                 continue
-
-            task_id = str(document.get("task", log.parent.name))
 
             found.append(
                 {
@@ -389,27 +369,14 @@ def _findings(root: Path) -> list[dict[str, Any]]:
 # ....................... #
 
 
-def _gate_health(root: Path) -> dict[str, dict[str, Any]]:
-    """Per-gate counters from the telemetry stream (§4: what gate to write
-    comes from data rather than recollection)."""
+def _gate_health(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per-gate counters from the attempt rows (§4: what gate to write comes
+    from data rather than recollection)."""
 
     stats: dict[str, dict[str, Any]] = {}
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
 
-    if not telemetry.is_file():
-        return stats
-
-    for line in telemetry.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        results: Any = cast("dict[str, Any]", record).get("results")
+    for record in rows:
+        results: Any = record.get("results")
 
         if not isinstance(results, list):
             continue
@@ -473,7 +440,7 @@ def _harness_label(agent: dict[str, Any]) -> str | None:
     return str(adapter) if adapter else None
 
 
-def _costs(root: Path) -> list[dict[str, Any]]:
+def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Cost and iterations by task against config_hash (§4) — every real
     agent attempt and every shadow summary. An attempt whose harness reported
     no usage still appears, costless: an uncontrolled regime is a fact worth
@@ -481,23 +448,8 @@ def _costs(root: Path) -> list[dict[str, Any]]:
     Fake-agent attempts stay out — simulation is not spend."""
 
     found: list[dict[str, Any]] = []
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
 
-    if not telemetry.is_file():
-        return found
-
-    for line in telemetry.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        row = cast("dict[str, Any]", record)
-
+    for row in rows:
         if row.get("kind") == "shadow":
             found.append(
                 {
@@ -607,14 +559,20 @@ def _task_tier_name(record: dict[str, Any]) -> str:
     return f"{tier}.{variant}" if variant else tier
 
 
-def harness_populations(root: Path, config: RunnerConfig) -> list[dict[str, Any]]:
+def harness_populations(
+    root: Path, config: RunnerConfig, rows: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     """RFC 0027 D-27.5's fact-feed widening: per-tier runs, cost (D-21.5's
     broker-measured-preferred, self-reported-labelled split), escalations by
     reason, unparseable-review counts, and the most recently recorded image
     digest — every *configured* tier present with its denominator even at
     zero, so a variant nothing uses is visible (RFC 0027 §9's variant-sprawl
-    mitigation). All from existing records: telemetry for runs, cost, digest
-    and unparseable reviews; contracts and run state for escalations."""
+    mitigation). All from existing records: attempt rows for runs, cost,
+    digest and unparseable reviews; contracts and run state for escalations.
+
+    `rows` is where those attempt rows come from, and a caller that has them
+    already — from the stream or rendered from the record — passes them
+    rather than making this read the stream again."""
 
     buckets: dict[str, dict[str, Any]] = {
         name: {
@@ -631,57 +589,40 @@ def harness_populations(root: Path, config: RunnerConfig) -> list[dict[str, Any]
         for name in sorted(config.tiers)
     }
 
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+    for row in rows if rows is not None else _stream_rows(root):
+        if str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
+            continue
 
-    if telemetry.is_file():
-        for line in telemetry.read_text(encoding="utf-8").splitlines():
-            try:
-                record: Any = json.loads(line)
+        agent = row.get("agent")
 
-            except json.JSONDecodeError:
-                continue
+        if not isinstance(agent, dict) or cast("dict[str, Any]", agent).get("adapter") == "fake":
+            continue
 
-            if not isinstance(record, dict):
-                continue
+        block = cast("dict[str, Any]", agent)
+        bucket = buckets.get(str(block.get("tier") or ""))
 
-            row = cast("dict[str, Any]", record)
+        if bucket is None:
+            continue
 
-            if str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
-                continue
+        bucket["attempts"] += 1
+        broker = block.get("broker")
 
-            agent = row.get("agent")
+        if isinstance(broker, dict) and isinstance(
+            cast("dict[str, Any]", broker).get("cost_usd"), int | float
+        ):
+            bucket["cost_usd_broker"] += float(cast("dict[str, Any]", broker)["cost_usd"])
+            bucket["cost_usd_broker_n"] += 1
+        elif isinstance(block.get("cost_usd"), int | float):
+            bucket["cost_usd_self_reported"] += float(block["cost_usd"])
+            bucket["cost_usd_self_reported_n"] += 1
 
-            if (
-                not isinstance(agent, dict)
-                or cast("dict[str, Any]", agent).get("adapter") == "fake"
-            ):
-                continue
+        digest = block.get("image_digest")
 
-            block = cast("dict[str, Any]", agent)
-            bucket = buckets.get(str(block.get("tier") or ""))
+        if digest:
+            bucket["current_digest"] = digest
 
-            if bucket is None:
-                continue
-
-            bucket["attempts"] += 1
-            broker = block.get("broker")
-
-            if isinstance(broker, dict) and isinstance(
-                cast("dict[str, Any]", broker).get("cost_usd"), int | float
-            ):
-                bucket["cost_usd_broker"] += float(cast("dict[str, Any]", broker)["cost_usd"])
-                bucket["cost_usd_broker_n"] += 1
-            elif isinstance(block.get("cost_usd"), int | float):
-                bucket["cost_usd_self_reported"] += float(block["cost_usd"])
-                bucket["cost_usd_self_reported_n"] += 1
-
-            digest = block.get("image_digest")
-
-            if digest:
-                bucket["current_digest"] = digest
-
-            if row.get("kind") == "review" and row.get("unparseable"):
-                bucket["unparseable_reviews"] += 1
+        if row.get("kind") == "review" and row.get("unparseable"):
+            bucket["unparseable_reviews"] += 1
 
     tasks_dir = root / layout.TORVE_DIR / "tasks"
 
@@ -731,7 +672,7 @@ def _gate_axes_and_stream(root: Path) -> tuple[dict[str, str], str]:
     telemetry stream's configured location — both resolved through the
     repository's gate manifest. No manifest: no labels, every gate reads on
     the unlabeled default (`functional`), and the stream sits at the shipped
-    default path (same resolution as `specquality._telemetry_file`)."""
+    default path (same resolution as `specquality.telemetry_file`)."""
 
     manifest_path = layout.gates_file(root)
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else Manifest(gates=[])
@@ -742,7 +683,9 @@ def _gate_axes_and_stream(root: Path) -> tuple[dict[str, str], str]:
     )
 
 
-def _character_calibration(root: Path, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _character_calibration(
+    root: Path, tasks: list[dict[str, Any]], rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Character calibration (D-34.8): one row per task carrying a declaration
     or a conviction — declared character, realized conviction profile grouped
     by gate axis, attempts and token shape. The costs section already exposes
@@ -758,7 +701,7 @@ def _character_calibration(root: Path, tasks: list[dict[str, Any]]) -> list[dict
     A wrong declaration is corrected in the document by its author, the way
     sizing estimates already earn observations."""
 
-    axis_by_gate, telemetry_rel = _gate_axes_and_stream(root)
+    axis_by_gate, _ = _gate_axes_and_stream(root)
 
     declared: dict[str, str] = {}
     tasks_dir = root / layout.TORVE_DIR / "tasks"
@@ -777,56 +720,44 @@ def _character_calibration(root: Path, tasks: list[dict[str, Any]]) -> list[dict
 
     convictions: dict[str, dict[str, int]] = {}
     tokens: dict[str, dict[str, int]] = {}
-    telemetry = root / telemetry_rel
 
-    if telemetry.is_file():
-        for line in telemetry.read_text(encoding="utf-8").splitlines():
-            try:
-                record: Any = json.loads(line)
+    for row in rows:
+        task_id = str(row.get("task_id") or "")
 
-            except json.JSONDecodeError:
-                continue
+        if not task_id or str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
+            continue
 
-            if not isinstance(record, dict):
-                continue
+        agent: Any = row.get("agent")
 
-            row = cast("dict[str, Any]", record)
-            task_id = str(row.get("task_id") or "")
+        if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("adapter") == "fake":
+            continue  # simulation is neither spend nor conviction (D-4.6)
 
-            if not task_id or str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
-                continue
+        results: Any = row.get("results")
 
-            agent: Any = row.get("agent")
+        if isinstance(results, list):
+            for result in cast("list[object]", results):
+                if not isinstance(result, dict):
+                    continue
 
-            if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("adapter") == "fake":
-                continue  # simulation is neither spend nor conviction (D-4.6)
+                gate = cast("dict[str, Any]", result)
 
-            results: Any = row.get("results")
+                if (
+                    str(gate.get("outcome", "")) in _CONVICTION_OUTCOMES
+                    and str(gate.get("state", "")) in _CONVICTION_STATES
+                ):
+                    axis = axis_by_gate.get(str(gate.get("name", "")), UNLABELED_AXIS)
+                    profile = convictions.setdefault(task_id, {})
+                    profile[axis] = profile.get(axis, 0) + 1
 
-            if isinstance(results, list):
-                for result in cast("list[object]", results):
-                    if not isinstance(result, dict):
-                        continue
+        if isinstance(agent, dict):
+            block = cast("dict[str, Any]", agent)
 
-                    gate = cast("dict[str, Any]", result)
+            for key in TOKEN_FIELDS:
+                value = block.get(key)
 
-                    if (
-                        str(gate.get("outcome", "")) in _CONVICTION_OUTCOMES
-                        and str(gate.get("state", "")) in _CONVICTION_STATES
-                    ):
-                        axis = axis_by_gate.get(str(gate.get("name", "")), UNLABELED_AXIS)
-                        profile = convictions.setdefault(task_id, {})
-                        profile[axis] = profile.get(axis, 0) + 1
-
-            if isinstance(agent, dict):
-                block = cast("dict[str, Any]", agent)
-
-                for key in TOKEN_FIELDS:
-                    value = block.get(key)
-
-                    if isinstance(value, int):
-                        shape = tokens.setdefault(task_id, {})
-                        shape[key] = shape.get(key, 0) + value
+                if isinstance(value, int):
+                    shape = tokens.setdefault(task_id, {})
+                    shape[key] = shape.get(key, 0) + value
 
     attempts = {str(task["id"]): task.get("attempts") for task in tasks}
     found: list[dict[str, Any]] = []
@@ -909,7 +840,9 @@ def feedback_records(root: Path) -> dict[str, dict[str, Any]]:
 # ....................... #
 
 
-def _document_signals(root: Path, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _document_signals(
+    root: Path, tasks: list[dict[str, Any]], logs_by_task: dict[str, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
     """RFC 0022 §5.3, the document-level half of the specification-quality
     report: tasks minted, attempts to green (median, over tasks that landed
     — a task that never went green has none to count), escalations by
@@ -925,7 +858,6 @@ def _document_signals(root: Path, tasks: list[dict[str, Any]]) -> list[dict[str,
     disagree, same reasoning specquality gives for reusing the gate's own
     `parse_log`."""
 
-    logs_by_task = {task.id: task.log_entries for task in read_tasks(root)}
     feedback = feedback_records(root)
     by_document: dict[str, list[dict[str, Any]]] = {}
 
@@ -1202,6 +1134,40 @@ def _entry_state(view: TaskView, task: Task) -> str:
 # ....................... #
 
 
+def divergences_from_events(events: Sequence[EventRecord]) -> dict[str, list[dict[str, Any]]]:
+    """The log entries a partition's divergence records render to, by task.
+
+    The rendering is the one the engine already writes a worktree's
+    `log.yaml` with (A-82), reused rather than restated: the log file is a
+    projection of these events, so a reader that folds the events directly
+    and one that parses the file it wrote must not be able to disagree.
+    """
+
+    from torve.application.divergence import entry_of
+
+    found: dict[str, list[dict[str, Any]]] = {}
+
+    for event in events:
+        if event.kind is EventKind.DIVERGENCE_RECORDED:
+            found.setdefault(event.subject_id, []).append(entry_of(event))
+
+    return found
+
+
+# ....................... #
+
+
+def _stream_divergences(root: Path) -> dict[str, list[dict[str, Any]]]:
+    """The same map from the worktree's own log files. One parser for both
+    halves — `read_tasks` reuses the `decisions-reported` gate's parser, so
+    the report and the gate cannot disagree about what an entry is."""
+
+    return {task.id: task.log_entries for task in read_tasks(root)}
+
+
+# ....................... #
+
+
 def tasks_from_events(events: Sequence[EventRecord]) -> list[dict[str, Any]]:
     """The task entries a partition's record renders to (RFC 0050 §5.4).
 
@@ -1255,6 +1221,13 @@ def context_report(
     """
 
     tasks = (tasks_from_events(recorded) if recorded else []) or _tasks(root)
+    # One parse for every block that counts attempts, rendered from the
+    # record when a partition was named (A-85, A-102). The `or` is the same
+    # fallback the task block takes and for the same reason: a record with
+    # no attempt in it is a record that was not watching, not a repository
+    # where nothing ran.
+    rows = (rows_from_events(recorded) if recorded else []) or _stream_rows(root)
+    logs = (divergences_from_events(recorded) if recorded else {}) or _stream_divergences(root)
     escalations: dict[str, list[dict[str, Any]]] = {}
 
     for task in tasks:
@@ -1274,18 +1247,43 @@ def context_report(
     return {
         "schema_version": SCHEMA_VERSION,
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # Which carrier answered, per block, and how much it had to answer
+        # with (A-102). A record that was not watching a run holds nothing
+        # about it, and every count below is then correct about the record
+        # and wrong about the repository — a reader has no way to tell those
+        # apart from the numbers, so the report says which it is.
+        "sources": {
+            "tasks": "record" if recorded and tasks_from_events(recorded) else "files",
+            "attempts": "record" if recorded and rows_from_events(recorded) else "files",
+            "divergences": "record" if recorded and divergences_from_events(recorded) else "files",
+            # No event kind carries operator feedback — human minutes and
+            # rework are a `torve feedback` file and nothing else — so the
+            # readings that join them stay on files whatever was selected.
+            "feedback": "files",
+            "attempt_rows": len(rows),
+            # The corpus is files, and the findings ledger stays on the
+            # stream for its claims whatever else was selected.
+            "corpus": "files",
+            "findings": "files",
+        },
         "tasks": tasks,
         "decompositions": _decompositions(tasks),
         "escalations": escalations,
-        "proposals": _proposals(root, rfc_dir),
+        "proposals": _proposals(rfc_dir, logs),
+        # The findings ledger stays on the stream whatever the caller
+        # selected: it reports each finding's severity *and its claim*, and
+        # the record carries a claim only for a blocker (`blocker.raised`).
+        # Rendering it from the record would silently drop the text an
+        # operator triages by, which is a vocabulary change rather than a
+        # source swap.
         "findings": _findings(root),
-        "gates": _gate_health(root),
-        "costs": _costs(root),
-        "character": _character_calibration(root, tasks),
+        "gates": _gate_health(rows),
+        "costs": _costs(rows),
+        "character": _character_calibration(root, tasks, rows),
         "programme": _programme(root, rfc_dir, tasks),
         "spec_quality": {
             "caveat": QUASI_EXPERIMENT_CAVEAT,
-            "documents": _document_signals(root, tasks),
+            "documents": _document_signals(root, tasks, logs),
             # D-22.12, A-73: the corpus-wide reading, independent of any
             # one document's population.
             "operator_attention": operator_attention(root),
@@ -1385,12 +1383,15 @@ _ATTEMPT_EXCLUDED_KINDS = _HARNESS_EXCLUDED_KINDS | {"review"}
 
 
 def _stream_rows(root: Path) -> list[dict[str, Any]]:
-    """The telemetry stream, parsed. Unparseable and non-object lines are
-    skipped as everywhere else in this module: the stream is append-only and
-    a projection reader is not a repair shop."""
+    """The telemetry stream, parsed — from the location the writer appends
+    to, which a repository may relocate by configuration. Unparseable and
+    non-object lines are skipped as everywhere else in this module: the
+    stream is append-only and a projection reader is not a repair shop."""
+
+    from torve.application.specquality import telemetry_file
 
     found: list[dict[str, Any]] = []
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+    telemetry = telemetry_file(root)
 
     if not telemetry.is_file():
         return found
@@ -1854,6 +1855,17 @@ def render_markdown(report: dict[str, Any]) -> str:
     report)."""
 
     lines: list[str] = [f"# torve context — {report['at']}", ""]
+    sources = report.get("sources")
+
+    if isinstance(sources, dict):
+        # First, before any count: a planning session reading these numbers
+        # has to know which carrier produced them (A-102).
+        read_from = (
+            f"Read from — tasks: {sources['tasks']}, attempts: "
+            f"{sources['attempts']} ({sources['attempt_rows']} row(s)), "
+            "findings and corpus: files."
+        )
+        lines.extend([read_from, ""])
 
     lines.append("## Programme")
     lines.append("")

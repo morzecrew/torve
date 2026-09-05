@@ -602,7 +602,7 @@ def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> di
 # ....................... #
 
 
-def _telemetry_file(root: Path) -> Path:
+def telemetry_file(root: Path) -> Path:
     """The telemetry stream's configured location, resolved through the same
     layout/configuration the writer resolves it with: gates.yaml's `telemetry`
     field when the manifest exists, the default path otherwise. The stream is
@@ -632,12 +632,12 @@ def _task_cost_usd(root: Path) -> dict[str, float]:
     """Real-adapter spend per task, summed across its attempts, read the same
     way `torve.application.projections._costs` reads one attempt at a time
     (D-22.5: a plain JSONL reader, no new dependency), from the telemetry
-    stream's configured location — `_telemetry_file`, the same manifest
+    stream's configured location — `telemetry_file`, the same manifest
     resolution the writer appends with, so a repository that relocates the
     stream still reports its spend rather than a silent zero (D-22.11).
     Fake-agent attempts are simulation, not spend, and stay out."""
 
-    telemetry = _telemetry_file(root)
+    telemetry = telemetry_file(root)
     totals: dict[str, float] = {}
 
     if not telemetry.is_file():

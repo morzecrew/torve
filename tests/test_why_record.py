@@ -517,3 +517,89 @@ def test_context_falls_back_to_the_files_when_the_record_holds_no_contract(tmp_p
 
     assert [entry["id"] for entry in from_files["tasks"]] == [TASK_ID]
     assert from_empty["tasks"] == from_files["tasks"]
+
+
+# ....................... #
+# The attempt-counting blocks over the record (RFC 0050 phase 3, A-102).
+# ....................... #
+
+
+def test_the_report_says_which_carrier_answered(tmp_path):
+    """Every count below the header is correct about its carrier and says
+    nothing about the other one. A reader cannot tell a quiet record from a
+    quiet repository by the numbers, so the report says which it read."""
+
+    payload = {
+        "attempt": 1,
+        "verdict": "green",
+        "exit_code": 0,
+        "results": [{"name": "acceptance", "outcome": "pass", "state": "blocking"}],
+        "agent": {"tier": "executor", "adapter": "harness", "attempt": 1, "cost_usd": 2.0},
+    }
+    recorded = [minted(), event(EventKind.GATES_EVALUATED, payload)]
+
+    from_record = context_report(tmp_path, tmp_path / "rfcs", recorded=recorded)
+    from_files = context_report(tmp_path, tmp_path / "rfcs")
+
+    assert from_record["sources"] == {
+        "tasks": "record",
+        "attempts": "record",
+        "attempt_rows": 1,
+        "divergences": "files",
+        "corpus": "files",
+        "findings": "files",
+        "feedback": "files",
+    }
+    assert from_files["sources"]["tasks"] == "files"
+    assert from_files["sources"]["attempts"] == "files"
+
+    # And the blocks that count attempts counted the record's one.
+    assert from_record["gates"]["acceptance"]["runs"] == 1
+    assert [row["cost_usd"] for row in from_record["costs"]] == [2.0]
+
+
+# ....................... #
+
+
+def test_the_findings_ledger_stays_on_the_stream(tmp_path):
+    """The record carries a claim only for a blocker, and this ledger
+    reports every finding's claim. Rendering it from the record would drop
+    the text an operator triages by."""
+
+    recorded = [minted(), event(EventKind.REVIEW_RECORDED, {"review_id": "T-0901", "findings": 2})]
+    report = context_report(tmp_path, tmp_path / "rfcs", recorded=recorded)
+
+    assert report["sources"]["findings"] == "files"
+    assert report["findings"] == []
+
+
+# ....................... #
+
+
+def test_divergences_render_as_the_log_file_the_engine_writes(tmp_path):
+    """The worktree's log.yaml is a projection of these events, so the
+    reader that folds the events and the one that parses the file it wrote
+    must not be able to disagree: both use the engine's own rendering."""
+
+    recorded = [
+        minted(),
+        event(
+            EventKind.DIVERGENCE_RECORDED,
+            {
+                "attempt": 1,
+                "decision_id": "D-50.1",
+                "grade": "LOCKED",
+                "entry_kind": "resolved",
+                "entry_class": "drift",
+                "claim": "the file reader stays",
+                "evidence": "tests/test_why_record.py",
+                "action": "followed",
+                "proposal": "record the rule",
+            },
+        ),
+    ]
+    report = context_report(tmp_path, tmp_path / "rfcs", recorded=recorded)
+
+    assert report["sources"]["divergences"] == "record"
+    assert [p["decision"] for p in report["proposals"]] == ["D-50.1"]
+    assert report["proposals"][0]["proposal"] == "record the rule"

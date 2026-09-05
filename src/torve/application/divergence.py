@@ -419,7 +419,7 @@ async def ingest(
 # ....................... #
 
 
-def _entry_of(event: EventRecord) -> dict[str, Any]:
+def entry_of(event: EventRecord) -> dict[str, Any]:
     """One recorded divergence as the log format writes it. The event's own
     clock supplies `at`: the record's time is when the engine accepted it,
     which is the only timestamp anybody can check."""
@@ -493,7 +493,7 @@ async def project(log: EventLog, root: Path, task_id: str, *, partition: str | N
         if not str(document.get(key) or "").strip():
             document[key] = value
 
-    document["entries"] = [_entry_of(event) for event in recorded]
+    document["entries"] = [entry_of(event) for event in recorded]
     document["drift_count"] = sum(
         1 for one in document["entries"] if str(one.get("class") or "") == "drift"
     )

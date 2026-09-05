@@ -117,6 +117,19 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     console = out()
     header(console, "context", f"projected {report['at']}")
+
+    sources = report.get("sources")
+
+    if isinstance(sources, dict):
+        console.print(
+            Text(
+                f"read from — tasks: {sources['tasks']}, attempts: "
+                f"{sources['attempts']} ({sources['attempt_rows']} row(s)), "
+                f"divergences: {sources['divergences']}",
+                STYLE_DIM,
+            )
+        )
+
     console.print()
 
     programme = make_table("rfc", "title", "status", "impl", "progress", "notes", title="Programme")

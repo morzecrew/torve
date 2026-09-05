@@ -2,12 +2,12 @@
 id: "0050"
 title: The projection set over the record
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: ["0044", "0049"]
 informed_by: ["0022", "0032", "0040", "0047"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-95", "A-98"]
+amended_by: ["A-95", "A-98", "A-102"]
 owner: misery7100
 description: >-
   The reports the engine answers planning questions with move onto the record, one at a time, each landing beside its file reader with a parity test rather than replacing it — because a reader moved today would read an empty log for every run the manager did not dispatch.
@@ -367,3 +367,39 @@ specification-quality readings, whose landed-window semantics are their own
 reading rather than a source swap. Everything except the task block still
 reads files, which for the corpus and the programme is not a limitation —
 the corpus *is* files.
+
+### A-102 — 2026-09-05 — The last two blocks, and the two that stay on files
+**Landed, and phase 3 with it.** The attempt-counting blocks — costs, gate
+health, the character calibration and the harness populations — take rows
+rather than a path, and `context_report` renders those rows once from
+whichever carrier was selected. That deleted four copies of the same parse
+loop, which is the shape §5.2 predicted: A-85 made the row a rendering of
+the payload, so nothing had to be re-derived, only re-sourced. The
+divergence half moved the same way and reuses the engine's own `entry_of`
+— the worktree's `log.yaml` is a projection of those events (A-82), so the
+reader that folds the events and the one that parses the file it wrote
+cannot disagree about what an entry is.
+
+**Two blocks stay on files, and not for now — by shape.** The findings
+ledger reports each finding's severity *and its claim*, and the record
+carries a claim only for a blocker (`blocker.raised`); rendering it from
+the record would silently drop the text an operator triages by. Operator
+feedback — human minutes, rework — has no event kind at all. Moving either
+is a change to §5.2's vocabulary rather than a change of source, and this
+document's scope says it does not touch what the engine records.
+
+**Added: `sources`.** The envelope names which carrier answered each block
+and how many attempt rows it had. This is D-50.3's one deliberate
+exception, and it exists because of what the live comparison showed: the
+record holds 10 attempt rows where the files hold 636, 1 proposal where the
+files hold 225, and `$10.62` of spend against `$242.87`. Every one of those
+numbers is correct about the record and wrong about the repository, and
+nothing in the report distinguished the two. D-50.2 keeps selection at the
+call site; this makes the consequence of the selection readable. The text
+and markdown renderers print it above the first count, because the reader
+who needs it most is a planning session that will otherwise quote the
+figure.
+
+That leaves D-50.6 answered in the narrow case that actually arose: a
+report over a partial record says so, in a line, rather than merging
+carriers or refusing.
