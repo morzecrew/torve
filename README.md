@@ -58,14 +58,15 @@ torve intake "add rate limiting to the fetch path"   # or draft from prose
 torve adopt T-0140               # accept the drafts; ids are minted here
 torve run T-0142                 # one task, synchronously, sandboxed
 torve merge                      # land ready candidates, serialized
-torve tick                       # one bounded pass of the standing loop
+torve manager serve morzecrew/repo --dsn "$TORVE_PG_DSN"   # the resident manager
 ```
 
 `plan` is deterministic — no model call ever happens inside the engine.
 `intake` runs a drafting agent in a read-only sandbox whose gate is a
-contract lint; a human adopts or refuses. `tick` is the standing team: poll
-the board, land what is approved, reap, dispatch one task, sync — then exit.
-Cadence belongs to cron or a systemd timer, never to a resident daemon.
+contract lint; a human adopts or refuses. `manager serve` is the standing
+team: import what the repository added, claim one task at a time, execute
+it, and record what happened. It holds nothing between passes, so killing
+it costs the lease on whatever was in flight and nothing else.
 
 Review is a second run role: a reviewer agent, isolated from the executor,
 whose findings gate the merge lane. `torve review pr` reviews forge pull

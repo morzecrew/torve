@@ -2,12 +2,12 @@
 id: "0044"
 title: The manager domain
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99", "A-107"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -799,3 +799,29 @@ a total order (`created_at`, `id`), so a page never repeats or skips a row,
 and a write landing mid-scan lands after the tail the scan will reach.
 
 Measured after: `since` returns 1,995 events and the board 273 rows.
+
+### A-107 — 2026-09-05 — Phase 6 closes: the scan is deleted
+**Phase 6 as written, finished.** A-86 kept both dispatch carriers after
+the rules consolidated, on the grounds that a v1 run leaves no log. That is
+still true and no longer decisive: the scan's *caller* is what mattered,
+and the tick had run three times in a fortnight against 47 landings by
+hand, with every leg reporting off. RFC 0019 A-105 has the measurement and
+the retirement.
+
+Two rules had to reach the board before the scan could go, and both turned
+out to be folds rather than ports. The oversize skip (D-26.7) asked the
+filesystem whether any contract carried this task as its parent; the board
+carries every contract since A-96, so `manager.decomposed` asks the board.
+The "already ran here" test stays a host fact — it reads run-state files
+and the telemetry stream, neither of which is in the record — but it is now
+built once per pass (`residency.ran_here`) rather than re-reading the whole
+stream once per contract.
+
+**Changed:** §12 phase 6 is complete, and with it this document's phasing.
+`implementation: complete`. What A-90 left owed was the projection set,
+finished as RFC 0050, and the tracker, retired as RFC 0008 A-92.
+
+The record's own reads had to grow up on the way (A-99): `since` was
+folding the oldest 1000 events of 1995, so the board a manager decided
+from was missing a third of its tasks. Deleting the alternative carrier
+raises the price of a defect in this one.

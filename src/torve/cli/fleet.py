@@ -24,7 +24,6 @@ from torve.cli.console import (
     STYLE_DIM,
     STYLE_FAIL,
     STYLE_PASS,
-    STYLE_WARN,
     Format,
     closing,
     emit_json,
@@ -33,20 +32,19 @@ from torve.cli.console import (
     make_table,
     out,
 )
-from torve.cli.options import FormatOption
+from torve.cli.options import FormatOption, runtime_for
 from torve.config.fleet import default_manifest_path, load_fleet_manifest
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
     from torve.application.fleet import FleetServeReport
-    from torve.application.loop import TickReport
     from torve.config.fleet import FleetManifest, FleetRepository
 
 # ----------------------- #
 
 fleet_app = typer.Typer(
     no_args_is_help=True,
-    help="Run the standing loop over every repository in the operator's manifest.",
+    help="Run the manager over every repository in the operator's manifest.",
 )
 
 ManifestOption = Annotated[
@@ -78,71 +76,6 @@ def _load_manifest(manifest_path: Path | None) -> FleetManifest:
 
     except (ValueError, yaml.YAMLError) as exc:
         raise fail(f"fleet manifest error: {exc}", EXIT_CONFIG) from exc
-
-
-# ....................... #
-
-
-@fleet_app.command("tick")
-def fleet_tick_cmd(
-    manifest_path: ManifestOption = None,
-    fmt: FormatOption = Format.TEXT,
-) -> None:
-    """Survey every root's escalation queue, decide the pause once for the
-    fleet, tick each root in the manifest's order under its own lock with
-    that decision passed down, and record one fleet event.
-    A locked-out or failing root is recorded and the pass continues."""
-
-    from torve.application.fleet import fleet_tick
-    from torve.application.loop import run_tick
-    from torve.cli import assembly
-    from torve.config.runconfig import load_runner_config
-
-    manifest = _load_manifest(manifest_path)
-
-    def tick_one(repo: FleetRepository, paused: bool) -> TickReport:
-        root = repo.path
-        config = load_runner_config(root)
-
-        return run_tick(
-            root, config, assembly.build_fleet_tick_deps(root, config), fleet_pause=paused
-        )
-
-    report = fleet_tick(manifest, tick_one)
-
-    if fmt is Format.JSON:
-        emit_json(
-            {
-                "schema_version": 1,
-                "escalated_total": report.escalated_total,
-                "paused": report.paused,
-                "roots": [asdict(o) for o in report.outcomes],
-            }
-        )
-        raise typer.Exit(EXIT_OK)
-
-    console = out(fmt)
-    header(console, "fleet tick", f"{len(report.outcomes)} root(s)")
-    table = make_table("root", "trust", "escalated", "outcome")
-
-    for outcome in report.outcomes:
-        style = (
-            STYLE_FAIL
-            if outcome.outcome.startswith("error") or outcome.outcome == "locked out"
-            else (STYLE_DIM if outcome.noop else STYLE_PASS)
-        )
-        table.add_row(
-            outcome.root, outcome.trust, str(outcome.escalated), Text(outcome.outcome, style)
-        )
-
-    console.print(table)
-    closing(
-        console,
-        f"fleet-wide pause {'in force' if report.paused else 'not in force'} "
-        f"(queue at {report.escalated_total})",
-        STYLE_WARN if report.paused else STYLE_DIM,
-    )
-    raise typer.Exit(EXIT_OK)
 
 
 # ....................... #
@@ -208,12 +141,11 @@ async def _serve_fleet(
     from forze.base.logging import configure_logging
 
     from torve.adapters.eventstore.document import mock_module, postgres_module
-    from torve.adapters.vcs.git import GitVcs
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
     from torve.application.fleet import serve_fleet
-    from torve.application.loop import run_record_exists
-    from torve.application.residency import once
+    from torve.application.projections import shipped_landings
+    from torve.application.residency import once, ran_here
     from torve.application.worker import Worker
     from torve.cli import assembly
     from torve.config.runconfig import load_runner_config
@@ -224,7 +156,6 @@ async def _serve_fleet(
 
     module = await postgres_module(dsn) if dsn else mock_module()
     runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
-    vcs = GitVcs()
 
     async with runtime.scope():
         log = event_log(runtime.get_context())
@@ -236,11 +167,13 @@ async def _serve_fleet(
             root = repo.path
             config = load_runner_config(root)
             seat = f"{worker}:{repo.partition}"
+            landings = shipped_landings(root)
+            ran = ran_here(root)
 
-            def landed(task_id: str) -> str | None:
-                shas = vcs.landed_shas(root, task_id)
+            def standing() -> tuple[str, bool]:
+                from torve.application.standing import standing_leg
 
-                return shas[0] if shas else None
+                return standing_leg(root, config, runtime_for(config, None), landings.__contains__)
 
             return await once(
                 log,
@@ -258,9 +191,10 @@ async def _serve_fleet(
                 ),
                 root,
                 repo.partition,
-                landed=landed,
-                ran=lambda task_id: run_record_exists(root, task_id),
+                landed=landings.get,
+                ran=ran.__contains__,
                 paused=paused,
+                standing=standing,
             )
 
         return await serve_fleet(manifest, run_pass, idle_seconds=interval, rounds=rounds)

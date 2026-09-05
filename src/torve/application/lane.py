@@ -129,8 +129,8 @@ def _engine_record(root: Path, rel: str) -> bool:
     contracts, telemetry appends, the engine's own ledgers — must not demand
     an operator commit before every landing."""
 
+    from torve.application.enginelock import LOCK
     from torve.application.evals import EVAL_LEDGER
-    from torve.application.loop import LOCK
     from torve.application.review import PR_LEDGER
     from torve.config.manifest import Manifest, load_manifest
 

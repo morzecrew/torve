@@ -1587,7 +1587,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     `assume_lock` is for a caller already inside the tick — the board's
     adopt command applies under the lock the tick holds."""
 
-    from torve.application.loop import acquire_lock, release_lock
+    from torve.application.enginelock import acquire_lock, release_lock
     from torve.application.planner import next_task_number
 
     marker = adopted_file(root, task_id)

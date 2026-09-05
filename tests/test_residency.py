@@ -173,6 +173,38 @@ def test_a_task_the_record_has_run_is_not_overruled_by_the_repository(tmp_path):
         assert board.tasks["T-0001"].landed_sha is None
 
 
+def test_the_standing_leg_runs_before_the_scan_and_a_paused_pass_skips_it(tmp_path):
+    """RFC 0023 §5.4: whatever a predicate mints is a contract file, and the
+    scan that runs after it is what puts that contract on the board — so
+    the leg needs no record-side machinery at all, only its turn (A-106).
+
+    D-23.6's first bound is the caller's, and this is that caller: a paused
+    pass evaluates no predicate, because a predicate that fires creates work
+    and a pause says nobody can triage it."""
+
+    fired: list[str] = []
+
+    def standing() -> tuple[str, bool]:
+        # What a real leg does: write a contract, and let the scan find it.
+        contract(tmp_path, "T-0002")
+        fired.append("job")
+
+        return "fired 1: job->T-0002", True
+
+    async def scenario(log):
+        worker = worker_over(log, [])
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, standing=standing)
+
+        board = project(await log.since(partition=PARTITION))
+        assert fired == ["job"]
+        assert "T-0002" in board.tasks
+
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, standing=standing, paused=True)
+        assert fired == ["job"]
+
+    run(scenario)
+
+
 def test_a_pass_that_does_not_dispatch_imports_and_claims_nothing(tmp_path):
     """The re-mint pass (A-96): the scan must be able to reach the record
     without a worker taking the first thing it finds there."""

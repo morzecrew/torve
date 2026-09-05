@@ -14,10 +14,10 @@ list.
 
 | Assumption | Was | Now |
 | --- | --- | --- |
-| the scheduler is whoever invoked `torve run` | a tick on cron, one node | a resident manager per partition, restart-transparent because its whole view is a fold over the record (D-44.5) |
+| the scheduler is whoever invoked `torve run` | a tick on cron, one node | a resident manager per partition, restart-transparent because its whole view is a fold over the record (D-44.5). The tick is retired; `torve merge` and `torve reap` keep their verbs |
 | two writers tear the JSONL store | serial queues, by necessity | Postgres behind the document port; the mock stays for tests |
 | assignment state lives in the runner | a killed run needed a reaper to notice | a worker holds a lease and nothing else; the manager reclaims it from the record when it goes quiet (D-44.6) |
-| the tick's dispatch rules are the only ones | a filesystem scan | the same rules over the record — and the two now share one implementation |
+| the tick's dispatch rules are the only ones | a filesystem scan | the same rules over the record, and the scan is deleted — the oversize skip and the already-ran test were the last two to move (RFC 0019 A-105) |
 | one manager, one repository | a process and a hand-typed partition per repo | one resident process over the operator's fleet manifest, which now names the board each root mints onto |
 | the corpus is only readable by re-parsing it | every reader walked `rfcs/` and re-parsed each document | the corpus is imported into the record; decisions are versioned subjects answered by query |
 | a worker needs the repository to know what it is running | dispatch read every `contract.yaml` off disk, every pass | the mint carries the contract; the board answers what a partition can start, and the task directory is an importer |
@@ -32,6 +32,13 @@ list.
 | 5 | the broker binds loopback routes into local sandboxes | broker adapter | remote sandboxes — RFC 0041 added bind and advertise for exactly this |
 | 6 | host proxy and `.env` passthrough shape egress | run configuration, docker adapter | a fleet node with different egress |
 | 7 | attempt budgets reset per dispatch | runner | re-dispatch across nodes multiplies the reset |
+
+One capability left with the loop rather than moving: after a landing, the
+tick pushed the base fast-forward-only, republished the landed candidate
+branches and closed a landed pull request the forge had not marked merged.
+`torve merge` lands and stops. With `auto_merge` off nobody had been using
+that half, so it is deleted rather than ported — if it is wanted it belongs
+on the lane, not on a loop nobody schedules.
 
 Item 3 was the tracker's outbox, and it is gone rather than answered: the
 whole tracker projection was deleted in September 2026 (RFC 0008 A-92) — it

@@ -21,6 +21,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from torve.application.manager import IN_FLIGHT, TaskView, expired, project
+from torve.base import naming
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import TaskState
@@ -46,10 +47,39 @@ Landed = Callable[[str], str | None]
 # same reason as `Landed`: it reads files, and this module decides.
 Ran = Callable[[str], bool]
 
+# One evaluation of every committed standing job (RFC 0023 §5.4), returning
+# what it did and whether anything fired. Wired by the composition root
+# because firing a predicate needs a sandbox, and this module decides only
+# *when* it may run.
+Standing = Callable[[], tuple[str, bool]]
+
 # How long an idle pass waits before looking again. Long enough that an idle
 # manager costs nothing, short enough that a freshly adopted contract does
 # not sit for a coffee break.
 IDLE_SECONDS = 15.0
+
+
+# ....................... #
+
+
+def ran_here(root: Path) -> set[str]:
+    """Every task this host has a record of having run: a run-state file, or
+    a telemetry row.
+
+    Built once per pass rather than asked per task. The scan asked it one
+    contract at a time and re-read the whole stream for each, which on a
+    repository with history is the same file parsed hundreds of times to
+    answer one question about it.
+    """
+
+    from torve.application.projections import stream_rows
+
+    found = {
+        path.name.removesuffix(".state.json")
+        for path in (root / naming.WORKTREE_DIR).glob("*.state.json")
+    }
+
+    return found | {str(row["task_id"]) for row in stream_rows(root) if row.get("task_id")}
 
 
 # ....................... #
@@ -317,6 +347,7 @@ async def once(
     only: str | None = None,
     paused: bool = False,
     dispatch: bool = True,
+    standing: Standing | None = None,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -336,12 +367,20 @@ async def once(
     it finds there, which on a repository with a queue is a real agent and
     real money.
 
-    `paused` skips the mint and nothing else (D-48.4): the queue may drain
-    during a pause, it may not grow (D-19.5). A pause is a statement about
-    the operator's capacity to triage, never about the safety of what is
-    already running, so an attempt in flight is not interrupted and a task
-    already on the board is still claimed.
+    `paused` skips the two legs that can grow the queue and nothing else
+    (D-48.4, D-23.6): the queue may drain during a pause, it may not grow.
+    A pause is a statement about the operator's capacity to triage, never
+    about the safety of what is already running, so an attempt in flight is
+    not interrupted and a task already on the board is still claimed.
     """
+
+    if standing is not None and not paused:
+        # RFC 0023 §5.4: standing before the scan, so a contract this pass
+        # mints is on the board this pass. D-23.6's first bound is the
+        # caller's, and this is that caller: a paused pass evaluates no
+        # predicate, because a predicate that fires creates work and a
+        # pause is a statement that nobody has capacity to triage it.
+        standing()
 
     tasks = contracts(root)
 
@@ -376,6 +415,7 @@ async def serve(
     only: str | None = None,
     paused: bool = False,
     dispatch: bool = True,
+    standing: Standing | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -402,6 +442,7 @@ async def serve(
             only=only,
             paused=paused,
             dispatch=dispatch,
+            standing=standing,
         )
 
         if task_id is not None:

@@ -8,14 +8,11 @@ depends_on: ["0007", "0019", "0020"]
 informed_by: ["0001", "0002", "0006", "0012"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-68"]
+amended_by: ["A-68", "A-106"]
 retired: []
 owner: Lev Litvinov
 description: >-
-  Work that recurs on a condition rather than on a plan: a committed contract
-  template plus a deterministic trigger the tick evaluates and instantiates —
-  the machine recognising a condition a human already decided to answer,
-  never inventing a backlog.
+  Work that recurs on a condition rather than on a plan: a committed contract template plus a deterministic trigger the tick evaluates and instantiates — the machine recognising a condition a human already decided to answer, never inventing a backlog.
 schema_version: 1
 ---
 
@@ -361,14 +358,8 @@ template variable, not after.
 ```yaml
 - phase: 1
   title: standing-contracts-and-the-command-predicate
-  intent: |
-    The standing contract format under .torve/standing/, validated by the
-    existing contract lint; the command predicate evaluated in a sandbox
-    with no agent, exit code as the answer, any error minting nothing; the
-    tick's standing leg placed inside the escalation pause and bounded by
-    cooldown, max_open and loop.standing_max_per_tick; instantiation
-    through the adoption path with decisions inherited only through
-    inherit_decisions, each instance recording its originating job.
+  intent: >-
+    The standing contract format under .torve/standing/, validated by the existing contract lint; the command predicate evaluated in a sandbox with no agent, exit code as the answer, any error minting nothing; the tick's standing leg placed inside the escalation pause and bounded by cooldown, max_open and loop.standing_max_per_tick; instantiation through the adoption path with decisions inherited only through inherit_decisions, each instance recording its originating job.
   scope:
     - "src/torve/application/standing.py"
     - "src/torve/application/loop.py"
@@ -384,15 +375,8 @@ template variable, not after.
   depends_on: []
 - phase: 2
   title: path-digest-predicate-and-self-disable
-  intent: |
-    The second predicate kind and the last bound: path-digest compares a
-    digest of declared paths against the digest recorded at the last
-    firing, covering moved references without requiring a tool to exist;
-    self-disable stops a job after strike_limit consecutive non-landings
-    with an engine event naming it. The first two standing contracts land
-    in this repository under the mechanism — lockfile drift and flake
-    quarantine — which is what turns the exit criteria from a demo into
-    use.
+  intent: >-
+    The second predicate kind and the last bound: path-digest compares a digest of declared paths against the digest recorded at the last firing, covering moved references without requiring a tool to exist; self-disable stops a job after strike_limit consecutive non-landings with an engine event naming it. The first two standing contracts land in this repository under the mechanism — lockfile drift and flake quarantine — which is what turns the exit criteria from a demo into use.
   scope:
     - "src/torve/application/standing.py"
     - ".torve/standing/**"
@@ -422,7 +406,6 @@ template variable, not after.
 ## Amendments
 
 ### A-68 — 2026-08-31 — the third predicate kind arrives with its job (amends D-23.8)
-
 **Found reading the first cut.** D-23.8 said a third kind arrives with a
 job that needs it and not before; `flake-quarantine` was that job from
 the day it shipped — its `command` predicate inlined a 36-line python
@@ -434,3 +417,29 @@ manifest loader, threshold in the contract, nothing in a shell string.
 **Deliberately unchanged:** `command` stays for predicates over inputs
 the engine does not own; the doctrine that a kind arrives only with its
 job is what this amendment obeys, not what it revises.
+
+### A-106 — 2026-09-05 — The leg runs in the manager's pass
+**Found retiring the standing loop (A-105).** §5.4 gives this leg its turn
+inside the tick. The tick is gone — and the leg had never run anyway: it is
+a `TickDeps` field, and the composition root never set it, so every
+invocation since this document landed recorded `skipped: no standing leg
+wired`. `standing_fired` appears **nowhere** in this repository's
+telemetry. Two committed jobs, `lockfile-drift` and `flake-quarantine`,
+have been unable to fire since the day they were written.
+
+**Changed:** the leg's turn is now the manager's pass, before the scan that
+imports contracts onto the board — the same ordering §5.4 asks for and for
+the same reason: what a predicate mints this pass is a contract the board
+carries this pass. D-23.6's first bound moves with it: a paused pass
+evaluates no predicate, because a predicate that fires creates work and a
+pause says nobody can triage it.
+
+Nothing else moved, and that is the point. `instantiate` mints through
+RFC 0020's adoption path, which writes a contract file; the manager's
+importer reads contract files. The leg needed no record-side machinery to
+join the second architecture — only a caller.
+
+The adoption lock this depends on (D-23.4) outlived the loop it was named
+for, in `application/enginelock.py`. It still matters: a human running
+`torve intake` and a manager pass minting a standing instance can now race
+for an id where before only one of them existed.

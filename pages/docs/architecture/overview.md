@@ -37,7 +37,7 @@ Five import-linter contracts enforce this mechanically and the `layering`
 gate runs them on every attempt. It earns its keep: agents violate it
 regularly and the gate catches it every time.
 
-## Two engines, one repository
+## One engine, two vintages
 
 The manager is new. The machinery it drives — the attempt loop, the gate
 battery, the review lane, the landing — is the original engine, kept as
@@ -46,13 +46,15 @@ the problem. The whole of the seam between them is one module,
 `application/executors.py`: it hands the runner a task and turns the run
 back into the facts the record holds.
 
-The consequence worth knowing when reading the code: **most things still
-have two callers.** The standing loop (`torve tick`) dispatches from a
-filesystem scan; the manager dispatches from the record. They share the
-rules — one scope-disjointness test, one in-flight set, one attempt record —
-and differ only in where the state they read comes from. That is deliberate
-and temporary, and [what does not distribute](distribution.md) says what
-retires it.
+There used to be two dispatchers. The standing loop scanned the filesystem;
+the manager folds the record. They shared the rules and differed only in
+where the state they read came from, which was deliberate and temporary —
+and the scan is now gone (RFC 0019 A-105). What is left of it is the
+adoption lock in `application/enginelock.py`, because a human adopting and
+a manager pass minting a standing instance can still race for an id.
+
+What still reads files rather than the record is the subject of
+[what does not distribute](distribution.md).
 
 ## Where to start reading the code
 

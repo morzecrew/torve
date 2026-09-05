@@ -3,12 +3,12 @@ id: 0019
 title: The standing loop
 kind: design
 status: accepted
-implementation: partial
+implementation: abandoned
 depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-27", "A-28", "A-29", "A-31", "A-34", "A-39", "A-94"]
+amended_by: ["A-27", "A-28", "A-29", "A-31", "A-34", "A-39", "A-94", "A-105"]
 retired: []
 owner: Lev Litvinov
 description: >-
@@ -497,3 +497,55 @@ property is *a bounded tick reaches its last leg and releases its lock* —
 
 D-19.3's own text names the legs in order and is left as written: the
 document says what the loop was, and this amendment says what it is.
+
+### A-105 — 2026-09-05 — The loop is retired; what it carried, and what left with it
+**Retired, not superseded in place.** RFC 0044 §12 phase 6 said the scan
+would go once the same rules lived over the record. They have since
+d75f7c1, and both carriers stayed under A-86 because a v1 run leaves no
+log. What settled it was measurement rather than the rule: on this
+repository the tick had run **3 times, last on 2026-08-31**, against 47
+landings through `torve merge`; nothing in CI, the justfile or any
+schedule invokes it; and a real pass today reports every leg off —
+
+```
+recover   skipped: no durable store
+lane      skipped: auto_merge off
+reap      error: ...$TORVE_PG_DSN is not set
+dispatch  paused: escalation queue at 1
+standing  paused: escalation queue at 1
+```
+
+The pause is one escalation from August. D-19.5 as written pauses on a
+queue of one, so a single un-triaged v1 escalation had been suppressing
+dispatch and standing for a week, silently, in the only loop that could
+have noticed.
+
+**Changed:** `implementation: abandoned`. `torve tick`, `torve fleet tick`,
+`application/loop.py` and the tick's leg bundles in the composition root are
+deleted. `application/enginelock.py` keeps the two things that outlived the
+loop: the adoption lock (`torve intake` and the standing leg both mint ids
+under it) and `escalated_count`.
+
+**What moved.** The dispatch rules are the manager's and were already
+shared; the last two the board could not answer moved with this change —
+the oversize skip (D-26.7) is now `manager.decomposed` over the board's own
+contracts, and the "already ran here" test is `residency.ran_here`, built
+once per pass instead of re-reading the telemetry stream per contract. The
+reap leg is `torve reap`; the standing leg is a manager leg (A-105 on RFC
+0023); recovery is `residency.reclaim`.
+
+**What left, and is not coming back by itself.** The tick's lane leg did
+more than `torve merge` does: after a landing it pushed the base
+fast-forward-only (D-19.9), republished each landed candidate branch
+(D-19.12), closed a landed pull request the forge had not marked merged
+(D-19.13), and answered captured review threads. `torve merge` lands and
+stops. With `auto_merge` off, none of that has run on this repository
+either — it is deleted rather than moved, and if it is wanted it belongs on
+the lane and RFC 0006, not on a loop nobody schedules. Batched dispatch
+(D-19.14, `loop.dispatch_workers`) also goes: the manager claims one task
+per worker, and concurrency is a second worker rather than a thread pool.
+The solo dispatch line's size envelope (D-22.11) goes with the leg that
+printed it.
+
+The document stays. D-19.5's rule — a queue may drain during a pause and
+may not grow — survives as D-48.4 and now covers the standing leg too.

@@ -7,13 +7,10 @@ depends_on: ["0008", "0015", "0019"]
 informed_by: ["0003", "0012", "0024", "0032", "0041"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-109"]
 owner: Lev Litvinov
 description: >-
-  One composition root instead of per-verb wiring, and the substrate's
-  runtime machinery adopted where torve hand-rolls it — the enabling move
-  for any deployment shape beyond "the operator's shell", with the
-  resident-server question named and demand-gated, not smuggled.
+  One composition root instead of per-verb wiring, and the substrate's runtime machinery adopted where torve hand-rolls it — the enabling move for any deployment shape beyond "the operator's shell", with the resident-server question named and demand-gated, not smuggled.
 schema_version: 1
 ---
 
@@ -251,7 +248,7 @@ until the owner answers it.
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-42.1 | `LOCKED` | One composition root in `src/torve/cli/assembly.py` produces every dep bundle; verbs consume it and no verb builds adapters inline again | `src/torve/cli/assembly.py` `src/torve/cli/run.py` `src/torve/cli/tick.py` `src/torve/cli/fleet.py` | A fourth copy of the wiring is a review reject; every future entrypoint (serve write path, resident engine, remote profile) starts as one new consumer |
+| D-42.1 | `LOCKED` | One composition root in `src/torve/cli/assembly.py` produces every dep bundle; verbs consume it and no verb builds adapters inline again | `src/torve/cli/assembly.py` `src/torve/cli/run.py` `src/torve/cli/manager.py` `src/torve/cli/fleet.py` | A fourth copy of the wiring is a review reject; every future entrypoint (serve write path, resident engine, remote profile) starts as one new consumer |
 | D-42.2 | `LOCKED` | The extraction is behaviour-preserving and layering-preserving: same bundles, same ports, no `lint-imports` change, front-door policy stays in the verbs | `src/torve/cli/assembly.py` | RFC 0015 §2.1 stands untouched; anyone needing assembly below `cli` is asking the §5.4 question, not a wiring question |
 | D-42.3 | `ASSUMED` | Tick shutdown runs forze's quiesce plane over what the tick started; recovery becomes the substrate's step at tick start, replacing the ad hoc invocation with identical semantics | `src/torve/application/loop.py` `src/torve/application/taskstore.py` | — |
 | D-42.4 | `ASSUMED` | Substrate machinery is adopted only where it displaces a hand-rolled equivalent behind an existing port; adoption without displacement is refused | `src/torve/application/taskstore.py` | — |
@@ -266,74 +263,70 @@ assembly. Phase 3 is investigation-gated by its own decision.
 ```yaml
 - phase: 1
   title: the composition root
-  character: structural
   intent: >-
-    src/torve/cli/assembly.py: builders producing RunDeps, TickDeps
-    and the intake/review legs from (root, config); run_cmd, tick_cmd
-    and the fleet loop consume them; fleet._build_deps is deleted
-    (D-42.1). Behaviour-preserving and layering-preserving (D-42.2):
-    front-door checks stay in the verbs, bundles and ports unchanged.
-    Assembly builder tests land with the extraction; verb scenario
-    tests pin behaviour unchanged.
+    src/torve/cli/assembly.py: builders producing RunDeps, TickDeps and the intake/review legs from (root, config); run_cmd, tick_cmd and the fleet loop consume them; fleet._build_deps is deleted (D-42.1). Behaviour-preserving and layering-preserving (D-42.2): front-door checks stay in the verbs, bundles and ports unchanged. Assembly builder tests land with the extraction; verb scenario tests pin behaviour unchanged.
   scope:
-    - src/torve/cli/assembly.py
-    - src/torve/cli/run.py
-    - src/torve/cli/tick.py
-    - src/torve/cli/fleet.py
-    - tests/test_cli.py
-    - tests/test_fleet_cli.py
-    - tests/test_run_loop.py
+    - "src/torve/cli/assembly.py"
+    - "src/torve/cli/run.py"
+    - "src/torve/cli/tick.py"
+    - "src/torve/cli/fleet.py"
+    - "tests/test_cli.py"
+    - "tests/test_fleet_cli.py"
+    - "tests/test_run_loop.py"
   acceptance:
-    - uv run pytest tests/test_cli.py tests/test_fleet_cli.py tests/test_run_loop.py
-    - uv run lint-imports
-    - uv run mypy src
-    - uv run basedpyright src
-    - uv run ruff check .
+    - "uv run pytest tests/test_cli.py tests/test_fleet_cli.py tests/test_run_loop.py"
+    - "uv run lint-imports"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run ruff check ."
   depends_on: []
 - phase: 2
   title: quiesce and recovery as substrate steps
-  character: structural
-  tier_variant: heavy
   intent: >-
-    Tick shutdown drains through forze's quiesce plane; the recovery
-    invocation moves from the reaper's ad hoc call to the substrate's
-    recovery step at tick start with identical semantics (D-42.3,
-    D-42.4). Per-invocation only — nothing resident (D-42.6 stands).
-    Tick tests pin drain-on-shutdown and recovery equivalence against
-    the current reaper-driven baseline.
+    Tick shutdown drains through forze's quiesce plane; the recovery invocation moves from the reaper's ad hoc call to the substrate's recovery step at tick start with identical semantics (D-42.3, D-42.4). Per-invocation only — nothing resident (D-42.6 stands). Tick tests pin drain-on-shutdown and recovery equivalence against the current reaper-driven baseline.
   scope:
-    - src/torve/application/loop.py
-    - src/torve/application/taskstore.py
-    - src/torve/application/reaper.py
-    - tests/test_tick.py
-    - tests/test_reaper.py
-    - tests/test_taskstore.py
+    - "src/torve/application/loop.py"
+    - "src/torve/application/taskstore.py"
+    - "src/torve/application/reaper.py"
+    - "tests/test_tick.py"
+    - "tests/test_reaper.py"
+    - "tests/test_taskstore.py"
   acceptance:
-    - uv run pytest tests/test_tick.py tests/test_reaper.py tests/test_taskstore.py
-    - uv run mypy src
-    - uv run basedpyright src
-    - uv run ruff check .
+    - "uv run pytest tests/test_tick.py tests/test_reaper.py tests/test_taskstore.py"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run ruff check ."
+  tier_variant: heavy
   depends_on: [1]
 - phase: 3
   title: the tracker outbox investigation
-  character: structural
   intent: >-
-    The timeboxed D-42.5 investigation: map D-8.2's staged-effect
-    semantics onto forze_kits.integrations.outbox and record the
-    verdict in the task log. On fit, the follow-up migration replaces
-    the hand-rolled staging under the same Tracker port with the
-    tracker suite passing unchanged as the acceptance bar; on no-fit,
-    the hand-rolled outbox stays and the decision row gains the
-    finding. This phase is the investigation; the migration mints only
-    from its verdict.
+    The timeboxed D-42.5 investigation: map D-8.2's staged-effect semantics onto forze_kits.integrations.outbox and record the verdict in the task log. On fit, the follow-up migration replaces the hand-rolled staging under the same Tracker port with the tracker suite passing unchanged as the acceptance bar; on no-fit, the hand-rolled outbox stays and the decision row gains the finding. This phase is the investigation; the migration mints only from its verdict.
   scope:
-    - src/torve/application/tracker.py
-    - tests/test_tracker.py
-    - tests/test_outbox.py
+    - "src/torve/application/tracker.py"
+    - "tests/test_tracker.py"
+    - "tests/test_outbox.py"
   acceptance:
-    - uv run pytest tests/test_tracker.py tests/test_outbox.py
-    - uv run mypy src
-    - uv run basedpyright src
-    - uv run ruff check .
+    - "uv run pytest tests/test_tracker.py tests/test_outbox.py"
+    - "uv run mypy src"
+    - "uv run basedpyright src"
+    - "uv run ruff check ."
   depends_on: [1]
 ```
+
+---
+
+## Amendments
+
+### A-109 — 2026-09-05 — The tick's consumer is the manager's
+**Found retiring the standing loop (RFC 0019 A-105).** D-42.1's Paths named
+`cli/tick.py` as one of the root's consumers. That verb is deleted, and so
+are `build_tick_deps`, `build_fleet_tick_deps` and the leg bundle they
+built — roughly 320 lines of the root, which was most of it.
+
+The decision is unchanged and its consumer list is one shorter and one
+longer: `cli/manager.py` takes `build_dispatch_prepare` where the tick took
+`TickDeps`. D-42.1's point stands better than before — the fourth copy of
+the wiring never happened, and the third was deleted rather than forked.
+
+**Changed:** D-42.1's Paths only.

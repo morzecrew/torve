@@ -217,7 +217,9 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
 # ....................... #
 
 
-def _proposals(rfc_dir: Path, logs_by_task: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+def _proposals(
+    rfc_dir: Path, logs_by_task: dict[str, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
     """Divergence entries carrying a `proposal:` — data ready to become
     decision-table rows, with the entry that produced each (§4: amendments
     stop being copy-paste; append-only is preserved and nothing is retyped).
@@ -589,7 +591,7 @@ def harness_populations(
         for name in sorted(config.tiers)
     }
 
-    for row in rows if rows is not None else _stream_rows(root):
+    for row in rows if rows is not None else stream_rows(root):
         if str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
             continue
 
@@ -1226,7 +1228,7 @@ def context_report(
     # fallback the task block takes and for the same reason: a record with
     # no attempt in it is a record that was not watching, not a repository
     # where nothing ran.
-    rows = (rows_from_events(recorded) if recorded else []) or _stream_rows(root)
+    rows = (rows_from_events(recorded) if recorded else []) or stream_rows(root)
     logs = (divergences_from_events(recorded) if recorded else {}) or _stream_divergences(root)
     escalations: dict[str, list[dict[str, Any]]] = {}
 
@@ -1382,7 +1384,7 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
 _ATTEMPT_EXCLUDED_KINDS = _HARNESS_EXCLUDED_KINDS | {"review"}
 
 
-def _stream_rows(root: Path) -> list[dict[str, Any]]:
+def stream_rows(root: Path) -> list[dict[str, Any]]:
     """The telemetry stream, parsed — from the location the writer appends
     to, which a repository may relocate by configuration. Unparseable and
     non-object lines are skipped as everywhere else in this module: the
@@ -1821,7 +1823,7 @@ def why_report(
     if contract is None:
         return {"schema_version": SCHEMA_VERSION, "task": task_id, "found": False}
 
-    rows = rows_from_events(recorded) if minted is not None and recorded else _stream_rows(root)
+    rows = rows_from_events(recorded) if minted is not None and recorded else stream_rows(root)
     task_rows = [row for row in rows if row.get("task_id") == task_id and _is_attempt_row(row)]
     attempts = _group_attempts(task_rows, root)
     events = _why_events(rows, task_id)

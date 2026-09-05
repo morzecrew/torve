@@ -1,25 +1,33 @@
-"""RFC 0024 phase 1: survey every root's escalation queue, decide the pause
-once for the fleet, tick each root in deterministic order under its own
-lock with that decision passed down, and record one fleet event. A
-locked-out or failing root is recorded and the pass continues. `torve
-fleet status` reads every root into one table ordered by escalation age."""
+"""RFC 0024's fleet-wide readings: survey every root's escalation queue,
+decide the pause once for the fleet total, refuse a root whose own
+configuration exceeds its manifest trust class, and read every root into
+one table ordered by escalation age.
+
+The pass these readings gate is the manager's (tests/test_fleet_serve.py).
+The tick that used to run in its place is gone (A-105), and with it the
+cases that were about its legs rather than about these rules."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+import pytest
 
 from torve.application.fleet import (
     decide_pause,
     fleet_escalations,
-    fleet_tick,
     survey,
 )
-from torve.application.loop import LOCK, TickDeps, run_tick
 from torve.application.runstate import RunState
 from torve.base import naming
-from torve.config.fleet import FleetAttention, FleetManifest, FleetRepository
-from torve.config.runconfig import RunnerConfig
+from torve.config.fleet import (
+    FleetAttention,
+    FleetManifest,
+    FleetRepository,
+    TrustRefused,
+    enforce_trust,
+)
+from torve.config.runconfig import load_runner_config
 from torve.domain.states import EscalationReason, TaskState
 
 # ----------------------- #
@@ -59,38 +67,6 @@ def manifest(
     )
 
 
-class Recorder:
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    def leg(self, name: str, moved: bool = False):
-        def call() -> tuple[str, bool]:
-            self.calls.append(name)
-            return (f"{name} ran", moved)
-
-        return call
-
-    def dispatch(self):
-        def call(task_ids: list[str]) -> tuple[str, bool]:
-            self.calls.extend(f"dispatch:{t}" for t in task_ids)
-            return ("ran", True)
-
-        return call
-
-
-def deps_for(rec: Recorder) -> TickDeps:
-    return TickDeps(
-        reap=rec.leg("reap"),
-        dispatch=rec.dispatch(),
-        lane=rec.leg("lane", moved=True),
-        landed=lambda _t: False,
-    )
-
-
-# ....................... #
-# survey / decide_pause
-
-
 def test_survey_reads_each_roots_escalation_queue(tmp_path: Path):
     a, b = root(tmp_path, "a"), root(tmp_path, "b")
     escalate(a, "T-1")
@@ -114,194 +90,29 @@ def test_decide_pause_is_the_fleet_total_not_a_per_root_check(tmp_path: Path):
     assert decide_pause(m, survey(m)) == (2, True)
 
 
+# ----------------------- #
+# Trust (D-24.6). These were tick cases; the check they exercise is a pure
+# function of one repository and its own configuration, so they are asked
+# of it directly now — `serve_fleet` calls the same one before every pass
+# (tests/test_fleet_serve.py), and the tick that used to is gone (A-105).
 # ....................... #
-# fleet_tick
 
 
-def test_an_escalation_in_one_root_suppresses_dispatch_in_both_while_lanes_still_land(
-    tmp_path: Path,
-):
-    a, b = root(tmp_path, "a"), root(tmp_path, "b")
-    escalate(a, "T-1")
-    contract(b, "T-9001")  # a clean candidate elsewhere in the fleet
-    m = manifest(
-        FleetRepository(root=str(a), trust="own"), FleetRepository(root=str(b), trust="own")
-    )
-    recs = {str(a): Recorder(), str(b): Recorder()}
+def refusal(root_path: Path, trust_class: str) -> str:
+    repo = FleetRepository(root=str(root_path), trust=trust_class)
 
-    def tick(repo: FleetRepository, paused: bool):
-        return run_tick(
-            Path(repo.root), RunnerConfig(), deps_for(recs[repo.root]), fleet_pause=paused
-        )
+    with pytest.raises(TrustRefused) as caught:
+        enforce_trust(repo, load_runner_config(root_path))
 
-    report = fleet_tick(m, tick)
-
-    assert report.paused is True
-    assert report.escalated_total == 1
-
-    for rec in recs.values():
-        assert not any(c.startswith("dispatch:") for c in rec.calls)
-        assert "lane" in rec.calls  # every other leg still runs, and still lands
+    return str(caught.value)
 
 
-def test_a_clean_fleet_dispatches_normally(tmp_path: Path):
+def test_a_reviewed_root_configured_for_socket_mode_is_refused(tmp_path: Path):
     a = root(tmp_path, "a")
-    contract(a, "T-9001")
-    m = manifest(FleetRepository(root=str(a), trust="own"), pause_escalations=1)
-    rec = Recorder()
-
-    def tick(repo: FleetRepository, paused: bool):
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(rec), fleet_pause=paused)
-
-    report = fleet_tick(m, tick)
-    assert report.paused is False
-    assert "dispatch:T-9001" in rec.calls
-
-
-def test_a_root_with_its_lock_held_is_a_recorded_noop_and_the_pass_continues(tmp_path: Path):
-    a, b = root(tmp_path, "a"), root(tmp_path, "b")
-    (a / ".torve" / LOCK).write_text(
-        json.dumps({"pid": 1, "at": "2126-01-01T00:00:00Z"}), encoding="utf-8"
-    )
-    m = manifest(
-        FleetRepository(root=str(a), trust="own"), FleetRepository(root=str(b), trust="own")
-    )
-    recs = {str(a): Recorder(), str(b): Recorder()}
-
-    def tick(repo: FleetRepository, paused: bool):
-        return run_tick(
-            Path(repo.root), RunnerConfig(), deps_for(recs[repo.root]), fleet_pause=paused
-        )
-
-    report = fleet_tick(m, tick)
-    outcomes = {o.root: o.outcome for o in report.outcomes}
-    assert outcomes[str(a)] == "locked out"
-    assert outcomes[str(b)] == "ticked"
-    assert recs[str(b)].calls  # the pass continued past the locked root
-
-
-def test_a_root_that_raises_does_not_stop_the_pass(tmp_path: Path):
-    a, b = root(tmp_path, "a"), root(tmp_path, "b")
-    m = manifest(
-        FleetRepository(root=str(a), trust="own"), FleetRepository(root=str(b), trust="own")
-    )
-    rec_b = Recorder()
-
-    def tick(repo: FleetRepository, paused: bool):
-        if repo.root == str(a):
-            raise RuntimeError("sandbox exploded")
-
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(rec_b), fleet_pause=paused)
-
-    report = fleet_tick(m, tick)
-    outcomes = {o.root: o.outcome for o in report.outcomes}
-    assert outcomes[str(a)] == "error: sandbox exploded"
-    assert outcomes[str(b)] == "ticked"
-    assert rec_b.calls  # b still ran despite a's failure
-
-
-def test_roots_tick_in_the_manifests_order(tmp_path: Path):
-    a, b, c = root(tmp_path, "a"), root(tmp_path, "b"), root(tmp_path, "c")
-    order: list[str] = []
-    m = manifest(
-        FleetRepository(root=str(b), trust="own"),
-        FleetRepository(root=str(a), trust="own"),
-        FleetRepository(root=str(c), trust="own"),
-    )
-
-    def tick(repo: FleetRepository, paused: bool):
-        order.append(repo.root)
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
-
-    fleet_tick(m, tick)
-    assert order == [str(b), str(a), str(c)]
-
-
-def test_a_fleet_event_is_recorded_to_every_ticked_roots_own_telemetry(tmp_path: Path):
-    a, b = root(tmp_path, "a"), root(tmp_path, "b")
-    escalate(a, "T-1")
-    m = manifest(
-        FleetRepository(root=str(a), trust="own"), FleetRepository(root=str(b), trust="own")
-    )
-
-    def tick(repo: FleetRepository, paused: bool):
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
-
-    fleet_tick(m, tick)
-
-    for r in (a, b):
-        lines = (r / ".torve" / "telemetry.jsonl").read_text(encoding="utf-8").splitlines()
-        events = [
-            json.loads(line) for line in lines if json.loads(line).get("event") == "fleet_tick"
-        ]
-        assert len(events) == 1
-        assert events[0]["escalated_total"] == 1
-        assert events[0]["paused"] is True
-        assert {row["root"] for row in events[0]["roots"]} == {str(a), str(b)}
-
-
-# ....................... #
-# run_tick's fleet_pause kwarg
-
-
-def test_fleet_pause_overrides_a_roots_own_threshold_when_the_fleet_says_no(tmp_path: Path):
-    # This root alone would pause on its own (1 escalation >= its default
-    # threshold of 1), but the fleet's decision replaces that check (D-24.10).
-    a = root(tmp_path, "a")
-    contract(a, "T-9001")
-    escalate(a, "T-1")
-    rec = Recorder()
-    report = run_tick(a, RunnerConfig(), deps_for(rec), fleet_pause=False)
-    assert "dispatch:T-9001" in rec.calls
-    assert not report.noop
-
-
-def test_fleet_pause_true_pauses_even_a_root_with_an_empty_queue(tmp_path: Path):
-    a = root(tmp_path, "a")
-    contract(a, "T-9001")
-    rec = Recorder()
-    report = run_tick(a, RunnerConfig(), deps_for(rec), fleet_pause=True)
-    assert not any(c.startswith("dispatch:") for c in rec.calls)
-    assert any(
-        "fleet-wide pause in force" in detail for name, detail in report.legs if name == "dispatch"
-    )
-
-
-def test_solo_ticks_are_unaffected_by_fleet_pause_being_none(tmp_path: Path):
-    a = root(tmp_path, "a")
-    contract(a, "T-9001")
-    rec = Recorder()
-    run_tick(a, RunnerConfig(), deps_for(rec))
-    assert "dispatch:T-9001" in rec.calls
-
-
-# ....................... #
-# trust classes — D-24.6
-
-
-def test_a_reviewed_root_configured_for_socket_mode_is_refused_before_its_tick(tmp_path: Path):
-    a, b = root(tmp_path, "a"), root(tmp_path, "b")
     (a / ".torve" / "config.yaml").write_text("runtime:\n  docker: socket\n", encoding="utf-8")
-    m = manifest(
-        FleetRepository(root=str(a), trust="reviewed"),
-        FleetRepository(root=str(b), trust="own"),
-    )
-    called: list[str] = []
 
-    def tick(repo: FleetRepository, paused: bool):
-        called.append(repo.root)
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
-
-    report = fleet_tick(m, tick)
-    outcomes = {o.root: o.outcome for o in report.outcomes}
-
-    assert outcomes[str(a)].startswith("refused:")
-    assert "reviewed" in outcomes[str(a)]
-    assert "runtime.docker: socket" in outcomes[str(a)]
-    assert str(a) not in called  # the refusal happened before the tick, not inside it
-
-    assert outcomes[str(b)] == "ticked"
-    assert str(b) in called  # the pass continued past the refused root
+    message = refusal(a, "reviewed")
+    assert "reviewed" in message and "runtime.docker: socket" in message
 
 
 def test_a_reviewed_root_relying_on_the_default_provider_allowlist_is_refused(tmp_path: Path):
@@ -309,60 +120,26 @@ def test_a_reviewed_root_relying_on_the_default_provider_allowlist_is_refused(tm
     (a / ".torve" / "config.yaml").write_text(
         "providers:\n  default: [deepseek]\n", encoding="utf-8"
     )
-    m = manifest(FleetRepository(root=str(a), trust="reviewed"))
-    called: list[str] = []
 
-    def tick(repo: FleetRepository, paused: bool):
-        called.append(repo.root)
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
-
-    report = fleet_tick(m, tick)
-    outcome = report.outcomes[0].outcome
-
-    assert outcome.startswith("refused:")
-    assert "reviewed" in outcome
-    assert "providers.default" in outcome
-    assert not called
+    message = refusal(a, "reviewed")
+    assert "reviewed" in message and "providers.default" in message
 
 
 def test_an_untrusted_root_without_a_sealed_broker_is_refused(tmp_path: Path):
     a = root(tmp_path, "a")
-    m = manifest(FleetRepository(root=str(a), trust="untrusted"))
-    called: list[str] = []
 
-    def tick(repo: FleetRepository, paused: bool):
-        called.append(repo.root)
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
-
-    report = fleet_tick(m, tick)
-    outcome = report.outcomes[0].outcome
-
-    assert outcome.startswith("refused:")
-    assert "untrusted" in outcome
-    assert "broker.mode" in outcome
-    assert not called
+    assert "sealed" in refusal(a, "untrusted")
 
 
 def test_an_untrusted_root_asking_for_host_networking_is_refused(tmp_path: Path):
     a = root(tmp_path, "a")
     (a / ".torve" / "config.yaml").write_text("runtime:\n  network: host\n", encoding="utf-8")
-    m = manifest(FleetRepository(root=str(a), trust="untrusted"))
-    called: list[str] = []
 
-    def tick(repo: FleetRepository, paused: bool):
-        called.append(repo.root)
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
-
-    report = fleet_tick(m, tick)
-    outcome = report.outcomes[0].outcome
-
-    assert outcome.startswith("refused:")
-    assert "untrusted" in outcome
-    assert "runtime.network: host" in outcome
-    assert not called
+    message = refusal(a, "untrusted")
+    assert "untrusted" in message and "runtime.network: host" in message
 
 
-def test_an_untrusted_root_configured_for_sealed_mode_ticks_normally(tmp_path: Path):
+def test_an_untrusted_root_configured_for_sealed_mode_passes(tmp_path: Path):
     a = root(tmp_path, "a")
     (a / ".torve" / "config.yaml").write_text(
         "runtime:\n"
@@ -373,21 +150,13 @@ def test_an_untrusted_root_configured_for_sealed_mode_ticks_normally(tmp_path: P
         "  network: fleet-internal\n",
         encoding="utf-8",
     )
-    m = manifest(FleetRepository(root=str(a), trust="untrusted"))
-    called: list[str] = []
 
-    def tick(repo: FleetRepository, paused: bool):
-        called.append(repo.root)
-        return run_tick(Path(repo.root), RunnerConfig(), deps_for(Recorder()), fleet_pause=paused)
-
-    report = fleet_tick(m, tick)
-
-    assert report.outcomes[0].outcome == "ticked"
-    assert called == [str(a)]
+    # No refusal: the configuration this trust class asks for is the one it
+    # has, and enforcement says nothing else about it.
+    enforce_trust(FleetRepository(root=str(a), trust="untrusted"), load_runner_config(a))
 
 
-# ....................... #
-# fleet_escalations — D-24.8
+# ----------------------- #
 
 
 def test_fleet_status_orders_escalations_by_age_across_roots(tmp_path: Path):
@@ -413,40 +182,3 @@ def test_fleet_status_ignores_non_escalated_runs(tmp_path: Path):
     state.save()
     m = manifest(FleetRepository(root=str(a), trust="own"))
     assert fleet_escalations(m) == []
-
-
-# ....................... #
-# The fleet's dispatch leg reads the same full mapping (D-34.6, D-4.8):
-# a provider denied to the repository is refused at dispatch no matter
-# which axis's rung names it.
-
-
-def test_the_fleet_dispatch_leg_refuses_a_provider_only_a_rung_needs(tmp_path: Path):
-    from typer.testing import CliRunner
-
-    from torve.cli.main import app
-
-    a = root(tmp_path, "a")
-    (a / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\n"
-        "tiers:\n"
-        "  executor: {retry_variants: {compliance: executor.deep}}\n"
-        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
-        "providers: {default: []}\n",
-        encoding="utf-8",
-    )
-    contract(a, "T-9001")
-    manifest_path = tmp_path / "fleet.yaml"
-    manifest_path.write_text(f"repositories:\n  - root: {a}\n    trust: own\n", encoding="utf-8")
-
-    result = CliRunner().invoke(app, ["fleet", "tick", "--manifest", str(manifest_path)])
-    assert result.exit_code == 0, result.output
-
-    ticks = [
-        json.loads(line)
-        for line in (a / ".torve" / "telemetry.jsonl").read_text(encoding="utf-8").splitlines()
-        if json.loads(line).get("event") == "tick"
-    ]
-    assert ticks, "the root's own tick must have run"
-    assert "not permitted" in ticks[-1]["dispatch"]
-    assert "deepseek" in ticks[-1]["dispatch"]

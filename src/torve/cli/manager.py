@@ -30,7 +30,13 @@ from torve.cli.console import (
     make_table,
     out,
 )
-from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
+from torve.cli.options import (
+    ConfigOption,
+    FormatOption,
+    RootOption,
+    load_config,
+    runtime_for,
+)
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
@@ -102,9 +108,8 @@ async def _serve(
 ) -> int:
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
-    from torve.application.loop import run_record_exists
     from torve.application.projections import shipped_landings
-    from torve.application.residency import serve
+    from torve.application.residency import ran_here, serve
     from torve.application.worker import Worker
     from torve.cli import assembly
 
@@ -116,6 +121,16 @@ async def _serve(
     # log pass, and the same evidence the projections call shipped (A-97) —
     # the engine's trailer and a human's citation both mean finished.
     landings = shipped_landings(root)
+    ran = ran_here(root)
+
+    def standing() -> tuple[str, bool]:
+        # RFC 0023's leg, unchanged — it mints a contract through the
+        # ordinary adoption path, and the scan above imports whatever it
+        # minted onto the board. Nothing about it had to move for the
+        # manager to run it (A-106).
+        from torve.application.standing import standing_leg
+
+        return standing_leg(root, config, runtime_for(config, None), landings.__contains__)
 
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
@@ -139,9 +154,10 @@ async def _serve(
             idle_seconds=interval,
             passes=passes,
             landed=landings.get,
-            ran=lambda task_id: run_record_exists(root, task_id),
+            ran=ran.__contains__,
             only=only,
             dispatch=dispatch,
+            standing=standing,
         )
 
 

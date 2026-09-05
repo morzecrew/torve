@@ -8,14 +8,11 @@ depends_on: ["0008", "0013", "0019"]
 informed_by: ["0001", "0004", "0006", "0017", "0021", "0022"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-60", "A-61", "A-63"]
+amended_by: ["A-60", "A-61", "A-63", "A-108"]
 retired: []
 owner: Lev Litvinov
 description: >-
-  Running the standing loop over several repositories from one operator's
-  attention: an operator-side manifest, a fleet-wide escalation pause, trust
-  classes that bind per-repository capability, and aggregation that keeps
-  every root authoritative for itself.
+  Running the standing loop over several repositories from one operator's attention: an operator-side manifest, a fleet-wide escalation pause, trust classes that bind per-repository capability, and aggregation that keeps every root authoritative for itself.
 schema_version: 1
 ---
 
@@ -294,7 +291,7 @@ will read the first fleet-wide pause as a bug.
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
 | D-24.1 | `LOCKED` | The fleet manifest is operator-side and never lives in a repository under work | `src/torve/config/fleet.py` | D-13.3 in its purest form: a repository that can declare its own trust class has declared itself trusted |
-| D-24.2 | `LOCKED` | The escalation pause is decided once for the fleet and passed down; every other leg runs in every root | `src/torve/application/fleet.py` `src/torve/application/loop.py` | D-19.5 exists because one person triages; enforcing it per root enforces it N times against a person who exists once |
+| D-24.2 | `LOCKED` | The escalation pause is decided once for the fleet and passed down; every other leg runs in every root | `src/torve/application/fleet.py` `src/torve/application/residency.py` | The rule exists because one person triages; enforcing it per root enforces it N times against a person who exists once |
 | D-24.3 | `LOCKED` | No fleet store: aggregation is read-only over roots, and no root's truth ever lives outside it | `src/torve/application/fleet.py` | D-27's direction of authority one level up, and charter §8a's reversibility requirement — a fleet store would be the first artefact no repository holds |
 | D-24.4 | `ASSUMED` | Roots tick serially in a deterministic manifest order; `order` is never a priority field | `src/torve/application/fleet.py` `src/torve/config/fleet.py` | Concurrency across roots is RFC 0006 §4's raise, one dimension at a time; a chosen order is a scheduler with opinions |
 | D-24.5 | `ASSUMED` | A root that fails or is locked out is recorded and the pass continues | `src/torve/application/fleet.py` | Stopping at the first bad root lets one broken repository silently halt every other — the §2 failure, reintroduced above itself |
@@ -310,14 +307,8 @@ will read the first fleet-wide pause as a bug.
 ```yaml
 - phase: 1
   title: fleet-tick-and-the-shared-pause
-  intent: |
-    The operator-side manifest and torve fleet tick: survey every root's
-    escalation queue, decide the pause once for the fleet, tick each root
-    in deterministic order under its own lock with the decision passed
-    down, and record one fleet event. A locked-out or failing root is
-    recorded and the pass continues. torve fleet status reads every root
-    into one table ordered by escalation age. No writes across roots and no
-    fleet store of any kind.
+  intent: >-
+    The operator-side manifest and torve fleet tick: survey every root's escalation queue, decide the pause once for the fleet, tick each root in deterministic order under its own lock with the decision passed down, and record one fleet event. A locked-out or failing root is recorded and the pass continues. torve fleet status reads every root into one table ordered by escalation age. No writes across roots and no fleet store of any kind.
   scope:
     - "src/torve/application/fleet.py"
     - "src/torve/config/fleet.py"
@@ -335,14 +326,8 @@ will read the first fleet-wide pause as a bug.
   depends_on: []
 - phase: 2
   title: trust-classes-bind-capability
-  intent: |
-    Trust classes enforced against each root's own configuration before the
-    root is ticked, so that the capabilities the corpus already grants
-    unevenly — socket mode, host networking, provider routing breadth, and
-    RFC 0021's broker mode where it exists — are refused when a repository
-    asks for more than its class allows, naming the class and the setting.
-    This is what turns D-17.10 from a sentence an operator remembers into a
-    refusal an operator reads.
+  intent: >-
+    Trust classes enforced against each root's own configuration before the root is ticked, so that the capabilities the corpus already grants unevenly — socket mode, host networking, provider routing breadth, and RFC 0021's broker mode where it exists — are refused when a repository asks for more than its class allows, naming the class and the setting. This is what turns D-17.10 from a sentence an operator remembers into a refusal an operator reads.
   scope:
     - "src/torve/config/fleet.py"
     - "src/torve/application/fleet.py"
@@ -371,7 +356,6 @@ will read the first fleet-wide pause as a bug.
 ## Amendments
 
 ### A-63 — 2026-08-31 — trust-class granularity is settled where it stands (amends §5.3)
-
 **From T-0109's execution log, approved.** The `reviewed` class refuses a
 non-empty `providers.default`; `untrusted` carries no such check because
 its required `broker.mode: sealed` already forces every provider route
@@ -381,7 +365,6 @@ fallback to refuse. A future repository needing different granularity
 say) amends §5.3; it is never a re-interpretation at the enforcement site.
 
 ### A-61 — 2026-08-30 — phase 1's scope admits the tick it passes the decision to (amends §Phasing)
-
 **Found in the re-minted dispatch, three identical reds.** T-0108 went red
 on `outside allow: src/torve/application/loop.py` — the phase's own intent
 says "tick each root … with the decision passed down", and a decision
@@ -398,7 +381,6 @@ minted contracts are re-minted — a changed contract is a new task.
 consumes the fleet modules only.
 
 ### A-60 — 2026-08-30 — phase 1's scope admits the subcommand registration (amends §Phasing)
-
 **Found in the first dispatch, three identical reds.** T-0103 went red on
 the scope gate three times running on `outside allow: src/torve/cli/main.py`
 — four lines registering `torve fleet` on the CLI app, which is the work,
@@ -413,3 +395,18 @@ contracts are re-minted — a changed contract is a new task.
 **Deliberately unchanged:** phase 2's scope — trust-class refusal lives in
 the fleet modules and registers nothing new; and the scope gate itself,
 which did exactly its job.
+
+### A-108 — 2026-09-05 — The pause gates a manager pass now
+**Found retiring the standing loop (RFC 0019 A-105).** D-24.2's Paths named
+`application/loop.py`, which is deleted. The decision is unchanged — the
+escalation pause is decided once for the fleet total and passed down — and
+what honours it in each root is now `residency.once(paused=...)`, which
+skips the two legs that can grow the queue.
+
+`torve fleet tick` goes with the loop. `torve fleet serve` was already its
+replacement (RFC 0048), enforces the same trust classes before every pass,
+and re-surveys each round rather than deciding the pause once at startup.
+The trust cases that reached `enforce_trust` through the tick now ask it
+directly, which is what they were always about.
+
+**Changed:** D-24.2's Paths only.
