@@ -385,7 +385,7 @@ def test_gitvcs_pr_surface_over_a_local_origin(tmp_path: Path) -> None:
 
 
 def test_ghscm_retries_a_transient_failure_once(monkeypatch):
-    # T-0058, the same transport contract as the tracker adapter's.
+    # T-0058: the forge transport contract.
     view = json.dumps(
         {
             "number": 12,

@@ -153,11 +153,7 @@ def test_inheriting_from_a_draft_reddens(tmp_path: Path) -> None:
 
 
 CONTRACT_EXAMPLE_OK = (
-    "\n## Contract example\n\n"
-    "```yaml contract-example\n"
-    "id: T-9999\n"
-    "decisions: []\n"
-    "```\n"
+    "\n## Contract example\n\n```yaml contract-example\nid: T-9999\ndecisions: []\n```\n"
 )
 
 CONTRACT_EXAMPLE_BROKEN = (
@@ -186,9 +182,7 @@ def test_an_invalid_contract_example_reddens(tmp_path: Path) -> None:
 
 
 def test_a_prose_only_contract_example_passes(tmp_path: Path) -> None:
-    doc = rfc_text(
-        "0001", "Widget", "D-T.1", body_extra="\n## Contract example\n\nSee above.\n"
-    )
+    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\n## Contract example\n\nSee above.\n")
     seed(tmp_path, ("0001-widget.md", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output

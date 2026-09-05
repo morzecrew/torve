@@ -488,7 +488,17 @@ def test_eval_cli_refuses_an_unknown_variant(tmp_path):
 
     result = CliRunner().invoke(
         app,
-        ["eval", "--task", "T-0042", "--tier", "executor", "--variant", "ghost", "--root", str(root)],
+        [
+            "eval",
+            "--task",
+            "T-0042",
+            "--tier",
+            "executor",
+            "--variant",
+            "ghost",
+            "--root",
+            str(root),
+        ],
     )
 
     assert result.exit_code == 3
@@ -505,7 +515,17 @@ def test_eval_cli_config_mode_refuses_an_already_resolved_variant(tmp_path):
 
     result = CliRunner().invoke(
         app,
-        ["eval", "--task", "T-0042", "--tier", "executor", "--variant", "indexed", "--root", str(root)],
+        [
+            "eval",
+            "--task",
+            "T-0042",
+            "--tier",
+            "executor",
+            "--variant",
+            "indexed",
+            "--root",
+            str(root),
+        ],
     )
 
     assert result.exit_code == 3

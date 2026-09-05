@@ -646,8 +646,8 @@ class GhScm:
     # ....................... #
 
     def comment(self, number: int, body: str, key: str) -> str:
-        # The same marker dedupe as the tracker's comments: the destination
-        # absorbs an at-least-once duplicate.
+        # Marker-keyed dedupe: the destination absorbs an at-least-once
+        # duplicate.
         marker = f"<!-- torve-key:{key} -->"
         existing = self._gh("pr", "view", str(number), "--json", "comments")
 

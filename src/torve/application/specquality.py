@@ -39,7 +39,7 @@ or resizes a dispatch.
 
 `operator_attention` (D-22.12, A-73) reads the same join corpus-wide: landed
 changes beside the operator interventions already recorded behind them —
-feedback minutes, tracker commands and approvals, escalations triaged —
+feedback minutes and escalations triaged —
 joined per task id. Each intervention kind reports its count behind landed
 changes beside its raw total, every count labeled with its own population —
 the joined count's population is interventions whose task landed, the raw
@@ -94,10 +94,9 @@ _QUEUED_STATE = str(TaskState.QUEUED)
 
 # The landing trailer the runner writes into the commit that lands a task
 # (D-10.4: git log is the surviving record) — the same trailer
-# `torve.adapters.vcs.git.GitVcs.landed_shas` greps for and
-# `torve.application.tracker._discharged` reads through its injected
-# oracle. `read_tasks` reads it directly (T-0133, departing D-22.5's "no
-# git subprocess" — logged) because it has no caller to inject one for it.
+# `torve.adapters.vcs.git.GitVcs.landed_shas` greps for. `read_tasks` reads
+# it directly (T-0133, departing D-22.5's "no git subprocess" — logged)
+# because it has no caller to inject one for it.
 
 
 # ....................... #
@@ -773,48 +772,16 @@ def render_envelope(envelope: dict[str, Any]) -> str:
 # ....................... #
 
 
-def _tracker_command_events(root: Path) -> list[dict[str, Any]]:
-    """Every `tracker_command` engine event the tracker's `poll_and_apply`
-    already writes for the six commander verbs, applied or refused — a
-    refused command is still an operator spending attention on the board,
-    read the same plain-JSONL way `_task_cost_usd` reads this stream."""
-
-    telemetry = _telemetry_file(root)
-
-    if not telemetry.is_file():
-        return []
-
-    found: list[dict[str, Any]] = []
-
-    for line in telemetry.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        row = cast("dict[str, Any]", record)
-
-        if row.get("kind") == "engine" and row.get("event") == "tracker_command":
-            found.append(row)
-
-    return found
-
-
-# ....................... #
-
-
 def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
     """RFC 0022 §5.3/D-22.12 (A-73): landed changes beside the operator
-    interventions already recorded behind them — feedback minutes, tracker
-    commands and approvals (one event, distinguished by `verb`), escalations
-    a human triaged — joined from `read_tasks`, the telemetry stream and
-    `projections.feedback_records`, with no new recorded field. Feedback rows
-    and tracker events carry task ids and landings resolve to task ids through
-    the shipped derivation, so every intervention kind reports its joined
+    interventions already recorded behind them — feedback minutes and the
+    escalations a human triaged — joined from `read_tasks` and
+    `projections.feedback_records`, with no new recorded field. The tracker
+    commands and approvals this also counted left with the tracker (A-92);
+    they were the only kind an external surface produced, and no surface
+    produces them now. Feedback rows carry task ids and landings resolve to
+    task ids through the shipped derivation, so every intervention kind
+    reports its joined
     count (its task landed in the window) beside its raw total; each count
     carries its own population — the joined count is interventions behind
     landed changes, the raw total is every intervention, and `landed` is the
@@ -848,8 +815,6 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
     ]
     minutes = [int(row["human_minutes"]) for _, row in feedback_rows]
 
-    events = _tracker_command_events(root)
-
     return {
         "schema_version": 1,
         "floor": floor,
@@ -857,10 +822,6 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
         "feedback": {
             "joined": sum(1 for task_id, _ in feedback_rows if task_id in landed_ids),
             "total": len(feedback_rows),
-        },
-        "command_events": {
-            "joined": sum(1 for event in events if str(event.get("task") or "") in landed_ids),
-            "total": len(events),
         },
         "escalations_triaged": {
             "joined": sum(t.escalations_triaged for t in landed_tasks),
@@ -899,7 +860,6 @@ def render_operator_attention(report: dict[str, Any]) -> str:
 
     kinds = (
         ("feedback", report["feedback"]),
-        ("command/approval events", report["command_events"]),
         ("escalations triaged", report["escalations_triaged"]),
     )
 

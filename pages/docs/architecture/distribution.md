@@ -28,17 +28,22 @@ list.
 | --- | --- | --- | --- |
 | 1 | worktrees on the local filesystem are the work surface | runner, workspace adapter | executors run on remote sandboxes with no shared filesystem |
 | 2 | landings serialize through one `main` on one clone | merge lane, operator chain | any second lander — and this is the throughput wall, not a bug |
-| 3 | the tracker outbox is a directory, relayed inside the tick | tracker, outbox | the tracker runs anywhere but the repository host |
 | 4 | run state and telemetry are files on the host | reaper, lane, `torve status`, planning projections | a second node needs an answer the record can give and these cannot |
 | 5 | the broker binds loopback routes into local sandboxes | broker adapter | remote sandboxes — RFC 0041 added bind and advertise for exactly this |
 | 6 | host proxy and `.env` passthrough shape egress | run configuration, docker adapter | a fleet node with different egress |
 | 7 | attempt budgets reset per dispatch | runner | re-dispatch across nodes multiplies the reset |
 
-Items 3 and 4 are the same shape as everything already crossed off: a reader
-that consults a file where the record could answer. They are not blocked on
-design — RFC 0044 §12 names them — they are blocked on the migration, because
-a reader moved onto the record today would find an empty one on any run the
-manager did not dispatch.
+Item 3 was the tracker's outbox, and it is gone rather than answered: the
+whole tracker projection was deleted in September 2026 (RFC 0008 A-92) — it
+was inert in every repository torve runs, and 2,600 lines nobody runs and
+everybody must maintain is worse than a subsystem that is gone and recorded.
+The design survives in its document for whoever rebuilds it.
+
+Item 4 is the same shape as everything already crossed off: a reader that
+consults a file where the record could answer. It is not blocked on design —
+RFC 0044 §12 names it — it is blocked on the migration, because a reader
+moved onto the record today would find an empty one on any run the manager
+did not dispatch.
 
 ## How a second repository gets served
 

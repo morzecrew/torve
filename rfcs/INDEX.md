@@ -19,7 +19,6 @@ number is **0050**.
 | [0005](0005-review-as-a-run.md) | Review as a run | accepted | partial | 0003, 0004 | A-32, A-41, A-75, A-78, A-79 | Independent automated review as a second run role: isolation rules, the finding contract, calibration, and replacing third-party PR reviewers. |
 | [0006](0006-merge-escalation.md) | Merge train and escalation policy | accepted | partial | 0003 | A-35, A-42, A-43 | Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted. |
 | [0007](0007-planner-context.md) | Planner and context | accepted | complete | 0003, 0016 | A-47, A-55, A-69 | Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface. |
-| [0008](0008-tracker-projection.md) | Tracker projection | accepted | complete | 0003 | A-30, A-33, A-36, A-40 | Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board. |
 | [0009](0009-skills-evals.md) | Skills and evals | accepted | partial | 0004 | A-3, A-25, A-54 | Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens. |
 | [0010](0010-vcs-provenance-revert.md) | VCS, provenance and revert | accepted | complete | 0003 | A-37, A-58 | How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role. |
 | [0011](0011-cli-contract.md) | CLI contract | accepted | complete | 0016 | A-23 | Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed by CI, telemetry and scripts — plus where UX effort actually pays. |
@@ -27,8 +26,8 @@ number is **0050**.
 | [0013](0013-configuration-layout.md) | Configuration layout | accepted | complete | 0016 | A-16, A-48 | Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file. |
 | [0017](0017-sandbox-provisioning.md) | Sandbox provisioning and harness configuration | accepted | complete | 0003, 0004 | A-24, A-84 | How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory. |
 | [0018](0018-cli-presentation.md) | CLI presentation | accepted | complete | 0011 | — | One visual vocabulary for the human side of every verb — components, colour semantics, formats and live status — now that the hand-run commands are known. The machine contracts of RFC 0011 are untouched. |
-| [0019](0019-standing-loop.md) | The standing loop | accepted | partial | 0003, 0006, 0008 | A-27, A-28, A-29, A-31, A-34, A-39 | The bounded tick that makes the team standing: drain one queued task, process the lane under its existing approval switch, project the board, and stop — cadence delivered by the environment, never a resident daemon. Intake pauses while the escalation queue is non-empty, because a queue nobody triages must stop the machine, not the person. |
-| [0020](0020-intake-and-the-drafting-run.md) | Intake and the drafting run | accepted | complete | 0003, 0007, 0008 | — | A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption. |
+| [0019](0019-standing-loop.md) | The standing loop | accepted | partial | 0003, 0006, 0008 | A-27, A-28, A-29, A-31, A-34, A-39, A-94 | The bounded tick that makes the team standing: drain one queued task, process the lane under its existing approval switch, project the board, and stop — cadence delivered by the environment, never a resident daemon. Intake pauses while the escalation queue is non-empty, because a queue nobody triages must stop the machine, not the person. |
+| [0020](0020-intake-and-the-drafting-run.md) | Intake and the drafting run | accepted | partial | 0003, 0007, 0008 | A-93 | A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption. |
 | [0021](0021-egress-broker.md) | The egress broker | accepted | partial | 0003, 0004 | A-56, A-70 | Credential custody and outbound traffic for a sandbox: the agent holds no provider key and the broker injects, routes and meters at the wire — closing D-4b under Docker today, with the OpenSandbox vault as one adapter rather than a prerequisite. |
 | [0022](0022-specification-quality.md) | Specification quality as a measured quantity | accepted | partial | 0004, 0007 | A-59, A-62, A-67, A-71, A-73 | Reading the records the engine already writes to measure the corpus that produced them: per-decision and per-document attribution, grade calibration, and the decoration check — reported to a human who then writes an amendment, never applied by the engine. |
 | [0023](0023-standing-maintenance.md) | Standing maintenance | accepted | complete | 0007, 0019, 0020 | A-68 | Work that recurs on a condition rather than on a plan: a committed contract template plus a deterministic trigger the tick evaluates and instantiates — the machine recognising a condition a human already decided to answer, never inventing a backlog. |
@@ -66,6 +65,15 @@ number is **0050**.
 | [0014](0014-source-layout.md) | Source file layout | accepted | complete | — | A-44, A-51 | Semantic separators and module preamble structure for Torve's Python source, extracted from forze by reading and counting; the checkable half ships as the source-layout gate. |
 | [0015](0015-source-tree.md) | Source tree structure | accepted | complete | 0016 | A-19, A-45, A-46 | The package layout of src/torve — layers, permitted import directions, module naming, adapter organisation, and the layering gate that enforces the enforceable half. |
 | [0016](0016-corpus-conventions.md) | Specification corpus conventions | accepted | complete | — | A-7, A-9, A-10, A-14, A-15, A-20, A-53 | How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved. |
+
+## Accepted but not implemented
+
+Decisions from these documents are still inherited. There is no
+implementation.
+
+| # | Title | Status | Impl | Depends on | Amends | One-line routing description |
+| --- | --- | --- | --- | --- | --- | --- |
+| [0008](0008-tracker-projection.md) | Tracker projection | accepted | abandoned | 0003 | A-30, A-33, A-36, A-40, A-92 | Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board. |
 
 Statuses: draft · accepted · superseded. Impl is the D-A.11 judgement:
 none · partial · complete · abandoned.

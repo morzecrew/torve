@@ -269,7 +269,9 @@ def test_costs_are_newest_first_and_carry_the_model(plan_repo):  # noqa: F811
     assert [c["task"] for c in report["costs"]] == ["T-0002", "T-0001"]
     assert report["costs"][0]["model"] == "deepseek-chat"
     rendered = render_markdown(report)
-    assert "2026-08-31T10:00:00Z · attempt T-0002 @ bbb: $2.0000, harness · deepseek-chat" in rendered
+    assert (
+        "2026-08-31T10:00:00Z · attempt T-0002 @ bbb: $2.0000, harness · deepseek-chat" in rendered
+    )
 
 
 def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
@@ -295,8 +297,13 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
     subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
     subprocess.run(
         [
-            "git", "-C", str(root), "commit", "-q",
-            "-m", "feat: the broker meters the wire (T-0105, A-56)",
+            "git",
+            "-C",
+            str(root),
+            "commit",
+            "-q",
+            "-m",
+            "feat: the broker meters the wire (T-0105, A-56)",
         ],
         check=True,
     )
@@ -304,8 +311,13 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
     subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
     subprocess.run(
         [
-            "git", "-C", str(root), "commit", "-q",
-            "-m", "merge torve/T-0106 into main\n\nTorve-Task: T-0107",
+            "git",
+            "-C",
+            str(root),
+            "commit",
+            "-q",
+            "-m",
+            "merge torve/T-0106 into main\n\nTorve-Task: T-0107",
         ],
         check=True,
     )
@@ -358,7 +370,9 @@ def _write_log(root, task_id: str, entries: list[dict]) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "log.yaml").write_text(
-        yaml.safe_dump({"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}),
+        yaml.safe_dump(
+            {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}
+        ),
         encoding="utf-8",
     )
 
@@ -468,7 +482,10 @@ def test_spec_drift_findings_are_class_drift_log_entries(tmp_path):
     _write_log(
         tmp_path,
         "T-0001",
-        [_drift_entry("built otherwise than the row said"), {**_drift_entry("second"), "class": "spec-gap"}],
+        [
+            _drift_entry("built otherwise than the row said"),
+            {**_drift_entry("second"), "class": "spec-gap"},
+        ],
     )
     report = context_report(tmp_path, tmp_path / "rfcs")
     doc = _spec_quality_doc(report, "rfcs/0090-a.md")
@@ -549,7 +566,6 @@ def test_operator_attention_is_present_with_no_tasks(tmp_path):
     attention = report["spec_quality"]["operator_attention"]
     assert attention["landed"] == 0
     assert attention["feedback"] == {"joined": 0, "total": 0}
-    assert attention["command_events"] == {"joined": 0, "total": 0}
     assert attention["escalations_triaged"] == {"joined": 0, "total": 0}
     assert attention["human_minutes_n"] == 0
     assert "quasi-experiment" in attention["caveat"]
@@ -584,9 +600,9 @@ def _land_commit(root, task_id: str) -> None:
 
 
 def test_operator_attention_joins_interventions_to_landed_changes(tmp_path):
-    """D-22.12: the interventions behind landed changes — feedback, commands
-    and escalations — join per task id, with the raw total carrying whatever
-    never landed in the window."""
+    """D-22.12: the interventions behind landed changes — feedback and the
+    escalations a human triaged — join per task id, with the raw total
+    carrying whatever never landed in the window."""
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
     _ready_state(tmp_path, "T-0001")
     _land_commit(tmp_path, "T-0001")
@@ -594,39 +610,9 @@ def test_operator_attention_joins_interventions_to_landed_changes(tmp_path):
     _write_feedback(tmp_path, "T-0002", 20, rework=False)  # never landed: raw only
     _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
 
-    telemetry = tmp_path / ".torve" / "telemetry.jsonl"
-    telemetry.parent.mkdir(parents=True, exist_ok=True)
-    telemetry.write_text(
-        json.dumps({"kind": "engine", "event": "tracker_command", "task": "T-0001"})
-        + "\n"
-        + json.dumps({"kind": "engine", "event": "tracker_command", "task": "T-0002"})
-        + "\n",
-        encoding="utf-8",
-    )
-
     attention = context_report(tmp_path, tmp_path / "rfcs")["spec_quality"]["operator_attention"]
     assert attention["landed"] == 1
     assert attention["feedback"] == {"joined": 1, "total": 2}
-    assert attention["command_events"] == {"joined": 1, "total": 2}
-
-
-def test_operator_attention_reads_the_configured_telemetry_path(tmp_path):
-    """The context section reads the telemetry stream where gates.yaml puts
-    it, not a hardcoded default — a relocated stream must not read as zero."""
-    _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
-    custom = tmp_path / ".torve" / "custom-telemetry.jsonl"
-    custom.parent.mkdir(parents=True, exist_ok=True)
-    custom.write_text(
-        json.dumps({"kind": "engine", "event": "tracker_command", "task": "T-0001"}) + "\n",
-        encoding="utf-8",
-    )
-    (tmp_path / ".torve" / "gates.yaml").write_text(
-        yaml.safe_dump({"schema_version": 1, "telemetry": ".torve/custom-telemetry.jsonl"}),
-        encoding="utf-8",
-    )
-
-    attention = context_report(tmp_path, tmp_path / "rfcs")["spec_quality"]["operator_attention"]
-    assert attention["command_events"] == {"joined": 0, "total": 1}
 
 
 def test_render_markdown_prints_the_operator_attention_line_with_no_documents(tmp_path):
@@ -686,7 +672,11 @@ def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tm
         "T-0101",
         "T-0001",
         [
-            {"severity": "major", "claim": "the retry loop swallows errors", "evidence": "x.py:1 — loop"},
+            {
+                "severity": "major",
+                "claim": "the retry loop swallows errors",
+                "evidence": "x.py:1 — loop",
+            },
             {"severity": "minor", "claim": "a nit", "evidence": "x.py:2 — nit"},
             {"severity": "blocker", "claim": "unsafe", "evidence": "x.py:3 — bad"},
         ],
@@ -704,7 +694,10 @@ def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tm
 
 def test_findings_from_unlanded_targets_stay_out(tmp_path):
     _write_review_telemetry(
-        tmp_path, "T-0101", "T-0001", [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}]
+        tmp_path,
+        "T-0101",
+        "T-0001",
+        [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}],
     )
     assert context_report(tmp_path, tmp_path / "rfcs")["findings"] == []
 
@@ -712,7 +705,10 @@ def test_findings_from_unlanded_targets_stay_out(tmp_path):
 def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_path):
     _land_commit(tmp_path, "T-0001")
     _write_review_telemetry(
-        tmp_path, "T-0101", "T-0001", [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}]
+        tmp_path,
+        "T-0101",
+        "T-0001",
+        [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}],
     )
     assert context_report(tmp_path, tmp_path / "rfcs")["findings"][0]["possibly_addressed"] is False
 
@@ -742,7 +738,13 @@ def test_findings_render_in_all_three_formats(tmp_path):
         tmp_path,
         "T-0101",
         "T-0001",
-        [{"severity": "major", "claim": "the retry loop swallows errors", "evidence": "x.py:1 — loop"}],
+        [
+            {
+                "severity": "major",
+                "claim": "the retry loop swallows errors",
+                "evidence": "x.py:1 — loop",
+            }
+        ],
     )
 
     markdown = CliRunner().invoke(app, ["context", "--root", str(tmp_path), "--format", "markdown"])
@@ -764,7 +766,10 @@ def test_findings_render_in_all_three_formats(tmp_path):
 def test_addressed_findings_collapse_to_the_plus_line(tmp_path):
     _land_commit(tmp_path, "T-0001")
     _write_review_telemetry(
-        tmp_path, "T-0101", "T-0001", [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}]
+        tmp_path,
+        "T-0101",
+        "T-0001",
+        [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}],
     )
     later = tmp_path / ".torve" / "tasks" / "T-0102"
     later.mkdir(parents=True)
@@ -821,7 +826,13 @@ def _append_attempt(root, task_id, results, agent=None, kind=None, stream=".torv
 # the whole fail-safe of D-34.4.
 _LABELED_GATES = [
     {"name": "acceptance", "run": "@task.acceptance", "state": "blocking", "origin": "structural"},
-    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural", "axis": "boundary"},
+    {
+        "name": "scope",
+        "run": "@scope",
+        "state": "blocking",
+        "origin": "structural",
+        "axis": "boundary",
+    },
     {
         "name": "decisions-reported",
         "run": "@decisions-reported",
@@ -892,7 +903,10 @@ def test_character_calibration_joins_declaration_convictions_attempts_and_tokens
     _write_task(tmp_path, "T-0002", rfc=None, character="routine")
     _write_task(tmp_path, "T-0003", rfc=None)
     _append_attempt(
-        tmp_path, "T-0003", [{"name": "acceptance", "outcome": "pass", "state": "blocking"}], harness
+        tmp_path,
+        "T-0003",
+        [{"name": "acceptance", "outcome": "pass", "state": "blocking"}],
+        harness,
     )
     _write_task(tmp_path, "T-0004", rfc=None)
     _append_attempt(
@@ -1240,6 +1254,7 @@ def test_why_marks_unstamped_history_pre_verdict_and_never_retrofits(plan_repo):
     assert "pre_verdict" not in stamped
     assert stamped["attempt"] == 1
 
+
 def test_why_reports_trace_presence_per_attempt(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     attempts = _why_env(root)["attempts"]
@@ -1333,4 +1348,3 @@ def test_why_envelope_is_deterministic_across_reads(plan_repo):  # noqa: F811
     seed_why_facts(root)
 
     assert why_report(root, "T-0001") == why_report(root, "T-0001")
-

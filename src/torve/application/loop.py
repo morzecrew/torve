@@ -1,15 +1,15 @@
 """The standing loop (RFC 0019): one bounded tick over existing machinery
-— recovery, poll, the lane under its approval switch, reap, dispatch of at
-most one queued task, tracker sync last (D-19.3 as amended by A-27: the
-lane runs before the reaper, because READY is sweepable and a reap ahead
-of the lane destroys the lane's own input — merge-before-reap, A-26,
-applied inside the tick). Recovery runs first of all (D-42.3): reclaiming
+— recovery, the lane under its approval switch, reap, dispatch of at most
+one queued task (D-19.3 as amended by A-27: the lane runs before the
+reaper, because READY is sweepable and a reap ahead of the lane destroys
+the lane's own input — merge-before-reap, A-26, applied inside the tick;
+the poll, intake and sync legs left with the tracker, A-94). Recovery runs first of all (D-42.3): reclaiming
 an abandoned durable run is the substrate's own step, not the reap sweep's
 decision, so nothing later in the tick reads a lease this tick's own
 recovery would otherwise still call live. Never a daemon: cadence is
 delivered by the environment, and every invocation exits (D-19.1). One
 tick at a time per root, held by a lock whose stale break is loud
-(D-19.2); intake pauses while the escalation queue is non-empty so the
+(D-19.2); dispatch pauses while the escalation queue is non-empty so the
 queue may drain but not grow by the loop's hand (D-19.5); the tick never
 creates work — it drains contracts and commands humans minted (D-19.8).
 
@@ -59,14 +59,9 @@ class TickDeps:
     configuration turned off; the tick records the skip reason itself."""
 
     reap: Leg
-    poll: Leg | None  # None: no tracker configured
     dispatch: Callable[[list[str]], tuple[str, bool]]
     lane: Leg | None  # None: promotion.auto_merge is off
-    sync: Leg | None  # None: no tracker configured
     landed: Callable[[str], bool]  # has this task id landed on the base?
-    # RFC 0020 phase 2: claim intake requests, run pending drafting
-    # tasks, project drafts. None: no tracker configured.
-    intake: Leg | None = None
     # RFC 0023: evaluate every committed standing job's predicate and mint
     # what is due, bounded by cooldown, max_open and
     # loop.standing_max_per_tick. None: no standing leg wired.
@@ -329,7 +324,7 @@ def run_tick(
     fleet_pause: bool | None = None,
 ) -> TickReport:
     """One pass, fixed order, every leg's failure recorded rather than
-    fatal — a bounded tick must reach its sync leg so the board reflects
+    fatal — a bounded tick must reach its last leg so the record reflects
     whatever did happen.
 
     `fleet_pause`, set only by a fleet pass (RFC 0024 D-24.2), is the
@@ -369,15 +364,10 @@ def run_tick(
         moved = moved or did
 
     try:
-        # D-42.3: recovery first — before poll or intake can act on a
+        # D-42.3: recovery first — nothing later in the tick should read a
         # lease this tick's own recovery step would otherwise reclaim out
-        # from under them.
+        # from under it.
         leg("recover", deps.recover, "no durable store")
-        leg("poll", deps.poll, "no tracker configured")
-        # Intake after poll (RFC 0020 §5.4): a revise or adopt the poll
-        # just applied is what this leg acts on — re-running a re-queued
-        # drafter, or skipping a run adoption just consumed.
-        leg("intake", deps.intake, "no tracker configured")
         # The lane before the reaper (A-27): READY is sweepable, so the
         # candidates must land while their states still exist.
         leg("lane", deps.lane, "auto_merge off")
@@ -398,9 +388,9 @@ def run_tick(
             legs.append(("dispatch", f"paused: {reason}"))
             legs.append(("standing", f"paused: {reason}"))
         else:
-            # Standing before dispatch (RFC 0023 §5.4, the intake
-            # precedent): whatever it mints this pass is a queued
-            # contract the batch below can already consider.
+            # Standing before dispatch (RFC 0023 §5.4): whatever it mints
+            # this pass is a queued contract the batch below can already
+            # consider.
             leg("standing", deps.standing, "no standing leg wired")
             batch = queued_batch(root, deps.landed, max(1, config.loop.dispatch_workers))
 
@@ -408,8 +398,6 @@ def run_tick(
                 legs.append(("dispatch", "nothing queued"))
             else:
                 leg("dispatch", lambda: deps.dispatch(batch), "")
-
-        leg("sync", deps.sync, "no tracker configured")
 
     finally:
         release_lock(root)

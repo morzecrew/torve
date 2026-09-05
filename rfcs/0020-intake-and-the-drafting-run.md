@@ -2,12 +2,12 @@
 id: "0020"
 title: Intake and the drafting run
 status: accepted
-implementation: complete
+implementation: partial
 depends_on: ["0003", "0007", "0008"]
 informed_by: ["0005", "0019"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-93"]
 owner: Lev Litvinov
 description: >-
   A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption.
@@ -325,7 +325,7 @@ never landed and never approved, like a review (D-8.14's sibling).
 
 | # | Grade | Decision | Paths | Consequence |
 | --- | --- | --- | --- | --- |
-| D-20.1 | `LOCKED` | A draft never dispatches without a human's adoption; adoption is RFC 0007 §6's signature, relocated but never removed | `src/torve/application/intake.py` `src/torve/application/tracker.py` | Remove it and the engine plans autonomously — the boundary 0007 §2 exists to prevent |
+| D-20.1 | `LOCKED` | A draft never dispatches without a human's adoption; adoption is RFC 0007 §6's signature, relocated but never removed | `src/torve/application/intake.py` `src/torve/cli/intake.py` | Remove it and the engine plans autonomously — the boundary 0007 §2 exists to prevent |
 | D-20.2 | `LOCKED` | Drafting is a run under the runner — role `draft`, its own tier seat, read-only workspace — never a planner-module model call; D-7.1 stands untouched | `src/torve/application/intake.py` `src/torve/application/runner.py` `src/torve/domain/task.py` | The review precedent (0005) is the load-bearing argument that the run boundary suffices; breaching D-7.1 instead forfeits it |
 | D-20.3 | `LOCKED` | Draft output is data gated by the deterministic contract lint; red lint is a red attempt; unparseable output is recorded, never treated as empty | `src/torve/application/intake.py` | A draft a human sees has already passed every mechanical check — the T-0113 class dies before the board |
 | D-20.4 | `LOCKED` | Task ids are minted at adoption, atomically with the contract commit under the engine lock; drafts carry request-local `DRAFT-n` refs | `src/torve/application/intake.py` | Closes the id race hit twice in dogfood (T-0101, T-0103); reservation ledgers rejected in §5.3's alternatives |
@@ -342,40 +342,63 @@ never landed and never approved, like a review (D-8.14's sibling).
 - phase: 1
   title: the-drafting-run-and-the-lint
   intent: >-
-    The role, the run, the lint, and CLI adoption: role vocabulary gains
-    "draft"; a drafting run executes a request from the command line into
-    lint-gated draft documents persisted under the task's directory; the
-    contract lint ships with the schema, scope-hygiene, batch-disjointness
-    and T-0113 checks and is invocable standalone; torve adopt mints ids
-    under the lock, rewrites DRAFT-n refs, copies decisions from a named
-    accepted document, and commits the contracts as engine records.
-  scope: ["src/torve/application/intake.py", "src/torve/domain/task.py",
-          "src/torve/config/runconfig.py", "src/torve/cli/**",
-          "tests/**"]
-  acceptance: ["uv run pytest -q", "uv run torve rfc check"]
+    The role, the run, the lint, and CLI adoption: role vocabulary gains "draft"; a drafting run executes a request from the command line into lint-gated draft documents persisted under the task's directory; the contract lint ships with the schema, scope-hygiene, batch-disjointness and T-0113 checks and is invocable standalone; torve adopt mints ids under the lock, rewrites DRAFT-n refs, copies decisions from a named accepted document, and commits the contracts as engine records.
+  scope:
+    - "src/torve/application/intake.py"
+    - "src/torve/domain/task.py"
+    - "src/torve/config/runconfig.py"
+    - "src/torve/cli/**"
+    - "tests/**"
+  acceptance:
+    - "uv run pytest -q"
+    - "uv run torve rfc check"
   depends_on: []
 - phase: 2
   title: board-intake
   intent: >-
-    The board becomes the intake surface: torve.intake-labeled issues mint
-    drafting tasks; lint-green drafts project onto the thread with rationale
-    and the authority footer; adopt joins the verb vocabulary with standard
-    authorization and role refusal; revise re-runs the drafter against
-    captured thread feedback; abandon refuses the request.
-  scope: ["src/torve/application/tracker.py", "src/torve/application/intake.py",
-          "src/torve/cli/tick.py", "tests/**"]
-  acceptance: ["uv run pytest -q"]
+    The board becomes the intake surface: torve.intake-labeled issues mint drafting tasks; lint-green drafts project onto the thread with rationale and the authority footer; adopt joins the verb vocabulary with standard authorization and role refusal; revise re-runs the drafter against captured thread feedback; abandon refuses the request.
+  scope:
+    - "src/torve/application/tracker.py"
+    - "src/torve/application/intake.py"
+    - "src/torve/cli/tick.py"
+    - "tests/**"
+  acceptance:
+    - "uv run pytest -q"
   depends_on: [1]
 - phase: 3
   title: context-enrichment
   intent: >-
-    Demand-gated: the drafter's input gains selected torve context
-    projections (contended paths, recent escalations by reason) once
-    drafting telemetry shows what the drafter lacks; the lint's learned-rule
-    set gains its documented growth path, each rule citing the escalation
-    that produced it.
-  scope: ["src/torve/application/intake.py", "src/torve/application/projections.py",
-          "tests/**"]
-  acceptance: ["uv run pytest -q"]
+    Demand-gated: the drafter's input gains selected torve context projections (contended paths, recent escalations by reason) once drafting telemetry shows what the drafter lacks; the lint's learned-rule set gains its documented growth path, each rule citing the escalation that produced it.
+  scope:
+    - "src/torve/application/intake.py"
+    - "src/torve/application/projections.py"
+    - "tests/**"
+  acceptance:
+    - "uv run pytest -q"
   depends_on: [2]
 ```
+
+## Amendments
+
+### A-93 — 2026-09-05 — the request surface left with the tracker (amends §5.4, cites A-92)
+**Found deleting the tracker (A-92).** §5.4's intake leg is the half of this
+document that ran inside the tick: claim a commander-filed issue, run the
+drafting it asks for, project the lint-green drafts back onto the thread the
+request lives on. Every one of those verbs is the tracker's, so the leg went
+with it — `intake_leg`, `IntakeDeps`, the claim ledger and the drafts
+comment.
+
+**Unchanged, which is most of the document:** the drafting run itself, the
+lint, the draft schema, adoption and its marker, the refusal that a draft
+never dispatches without a human's signature (D-20.1). `torve intake` from
+the command line is untouched and is now the only way a request enters —
+which is what it always was for an operator at a terminal.
+
+**What is actually lost:** requests arriving from somewhere other than the
+operator's own shell. That was the point of §5.4 and it is a real capability,
+not a tidying. It returns with whatever surface replaces the tracker, and the
+mechanics it needs are all still here — the leg was thin, and the drafting
+run it drove is the part that was expensive.
+
+Implementation is `partial` rather than `complete` for exactly that reason:
+the document describes a delivery path that no longer has a delivery.

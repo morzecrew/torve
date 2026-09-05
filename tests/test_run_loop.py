@@ -352,7 +352,7 @@ def test_continuation_resumes_the_worktree_and_tells_the_agent(rig, monkeypatch)
 
     state_path = repo.root / ".wt" / f"{task.id}.state.json"
     requeued = RunState.load(state_path)
-    requeued.transition(TaskState.QUEUED, "tracker command retry from operator")
+    requeued.transition(TaskState.QUEUED, "requeued by an operator")
     requeued.save()
 
     seen = {}
@@ -385,7 +385,7 @@ def test_a_convicted_retry_does_not_resume(rig):
 
     state_path = repo.root / ".wt" / f"{task.id}.state.json"
     requeued = RunState.load(state_path)
-    requeued.transition(TaskState.QUEUED, "tracker command retry from operator")
+    requeued.transition(TaskState.QUEUED, "requeued by an operator")
     requeued.save()
     # A real worktree recreation would clear the halted entry the first
     # attempt wrote; the mock never wipes the directory, so clear it by
@@ -632,7 +632,10 @@ def test_retry_variant_resolves_after_a_gate_red_and_stamps_its_own_tier(rig, mo
     gate_outcomes += [1, 0]
 
     build_tier = TierConfig(
-        adapter="api", command="x", provider="p", model="build-model",
+        adapter="api",
+        command="x",
+        provider="p",
+        model="build-model",
         retry_variant="executor.fast",
     )
     fast_tier = TierConfig(adapter="api", command="x", provider="p", model="fast-model")

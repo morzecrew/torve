@@ -30,8 +30,18 @@ TARGET_MANIFEST = {
     "gates": [
         {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"},
         {"name": "secrets", "run": "@secrets", "state": "blocking", "origin": "structural"},
-        {"name": "no-test-tampering", "run": "@no-test-tampering", "state": "blocking", "origin": "structural"},
-        {"name": "decisions-reported", "run": "@decisions-reported", "state": "blocking", "origin": "structural"},
+        {
+            "name": "no-test-tampering",
+            "run": "@no-test-tampering",
+            "state": "blocking",
+            "origin": "structural",
+        },
+        {
+            "name": "decisions-reported",
+            "run": "@decisions-reported",
+            "state": "blocking",
+            "origin": "structural",
+        },
         {"name": "self-audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
         {
             "name": "acceptance",
@@ -43,7 +53,14 @@ TARGET_MANIFEST = {
     ],
 }
 
-PRODUCT_GATES = ["scope", "secrets", "no-test-tampering", "decisions-reported", "self-audit", "acceptance"]
+PRODUCT_GATES = [
+    "scope",
+    "secrets",
+    "no-test-tampering",
+    "decisions-reported",
+    "self-audit",
+    "acceptance",
+]
 NO_CORPUS_GATES = ["no-test-tampering", "decisions-reported", "self-audit"]
 
 
@@ -268,7 +285,10 @@ def test_survey_is_read_only(tmp_path):
     assert _tree_snapshot(root) == before  # byte-identical, no workspace residue
     assert not (root / ".wt").exists()
     status = subprocess.run(
-        ["git", "-C", str(root), "status", "--porcelain"], capture_output=True, text=True, check=True
+        ["git", "-C", str(root), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert status.stdout == ""  # the tree is as clean as it was
 
@@ -285,7 +305,15 @@ def test_json_report_shape(tmp_path):
     doc = json.loads(result.stdout)  # exactly one document, nothing else on stdout
 
     assert doc["schema_version"] == 1
-    assert set(doc) == {"schema_version", "kind", "branch", "last", "manifest", "landings", "summary"}
+    assert set(doc) == {
+        "schema_version",
+        "kind",
+        "branch",
+        "last",
+        "manifest",
+        "landings",
+        "summary",
+    }
 
     landing = doc["landings"][0]
     assert set(landing) == {"sha", "short", "subject", "parent", "gates"}
@@ -293,7 +321,15 @@ def test_json_report_shape(tmp_path):
     assert landing["parent"] == shas["landing3"]  # first parent, not the side branch
 
     gate = landing["gates"][0]
-    assert set(gate) == {"name", "outcome", "state", "duration_s", "exit_code", "output", "no_corpus"}
+    assert set(gate) == {
+        "name",
+        "outcome",
+        "state",
+        "duration_s",
+        "exit_code",
+        "output",
+        "no_corpus",
+    }
 
     summary = doc["summary"]
     assert summary["landings"] == 4

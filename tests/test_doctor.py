@@ -54,17 +54,13 @@ def test_profile_check_names_the_resolved_tier(monkeypatch, tmp_path: Path):
     assert "executor" in detail and "claude-sonnet" in detail
 
 
-def test_profile_check_names_the_chain_in_order_for_a_composed_tier(
-    monkeypatch, tmp_path: Path
-):
+def test_profile_check_names_the_chain_in_order_for_a_composed_tier(monkeypatch, tmp_path: Path):
     """A-74: a tier composed from a list of profiles gets one provenance
     line naming the chain in order, wiring before equipment."""
 
     _write_profile(monkeypatch, tmp_path, "wiring", "adapter: harness\nprovider: p\ncommand: c\n")
     _write_profile(monkeypatch, tmp_path, "equipment", "model: m\n")
-    root = _doctor_repo(
-        tmp_path, {"tiers": {"executor": {"profile": ["wiring", "equipment"]}}}
-    )
+    root = _doctor_repo(tmp_path, {"tiers": {"executor": {"profile": ["wiring", "equipment"]}}})
 
     checks = _profile_checks(root, None)
 
@@ -124,7 +120,10 @@ def test_doctor_json_carries_the_profile_line_and_stays_green(monkeypatch, tmp_p
     )
     root = _doctor_repo(
         tmp_path,
-        {"runtime": {"adapter": "opensandbox"}, "tiers": {"executor": {"profile": "claude-sonnet"}}},
+        {
+            "runtime": {"adapter": "opensandbox"},
+            "tiers": {"executor": {"profile": "claude-sonnet"}},
+        },
     )
 
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])

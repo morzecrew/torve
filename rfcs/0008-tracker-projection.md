@@ -1,13 +1,13 @@
 ---
-id: "0008"
+id: 0008
 title: Tracker projection
 status: accepted
-implementation: complete
+implementation: abandoned
 depends_on: ["0003"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-30", "A-33", "A-36", "A-40"]
+amended_by: ["A-30", "A-33", "A-36", "A-40", "A-92"]
 owner: Lev Litvinov
 description: >-
   Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board.
@@ -155,15 +155,8 @@ engine state (RFC 0006's forge leg); the other three commands land here.)*
 ```yaml
 - phase: 1
   title: The outbox the projection rides
-  intent: |
-    The transactional outbox from RFC 0003 §5, built for its first
-    consumer: effects are staged in the same transaction as the state
-    change they announce, relayed at-least-once by an explicit relay
-    step, and every effect carries an idempotency key so a replay is a
-    no-op rather than a duplicate. The engine's existing events keep
-    flowing unchanged; the outbox is a new, durable leg beside them —
-    staged rows survive a runner crash and relay later, which is the
-    property the projection cannot live without.
+  intent: >-
+    The transactional outbox from RFC 0003 §5, built for its first consumer: effects are staged in the same transaction as the state change they announce, relayed at-least-once by an explicit relay step, and every effect carries an idempotency key so a replay is a no-op rather than a duplicate. The engine's existing events keep flowing unchanged; the outbox is a new, durable leg beside them — staged rows survive a runner crash and relay later, which is the property the projection cannot live without.
   scope:
     - "src/torve/application/**"
     - "src/torve/adapters/**"
@@ -176,21 +169,11 @@ engine state (RFC 0006's forge leg); the other three commands land here.)*
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: []
 - phase: 2
   title: The GitHub Issues projection
-  depends_on: [1]
-  intent: |
-    The Tracker port and its first adapter: reflect maps engine states to
-    issue state and labels and returns applied, refused or unsupported —
-    a refusal is a logged divergence, never an exception; comments are
-    one per attempt, keyed on task, state and attempt through the
-    idempotency rule; findings annotate; escalations label from the
-    enumerated vocabulary and assign. Inbound is the fixed command
-    vocabulary — retry, abandon, unblock — parsed allow-listed from
-    comments, validated against the real store, refusals posted back.
-    Tracker text is untrusted input everywhere. Proven against the lab
-    repository: all states projected, idempotency verified by
-    deliberately replaying the relay, one refusal path exercised.
+  intent: >-
+    The Tracker port and its first adapter: reflect maps engine states to issue state and labels and returns applied, refused or unsupported — a refusal is a logged divergence, never an exception; comments are one per attempt, keyed on task, state and attempt through the idempotency rule; findings annotate; escalations label from the enumerated vocabulary and assign. Inbound is the fixed command vocabulary — retry, abandon, unblock — parsed allow-listed from comments, validated against the real store, refusals posted back. Tracker text is untrusted input everywhere. Proven against the lab repository: all states projected, idempotency verified by deliberately replaying the relay, one refusal path exercised.
   scope:
     - "src/torve/application/**"
     - "src/torve/adapters/**"
@@ -204,6 +187,7 @@ engine state (RFC 0006's forge leg); the other three commands land here.)*
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: [1]
 ```
 
 ## 9. Exit criteria
@@ -215,7 +199,6 @@ engine state (RFC 0006's forge leg); the other three commands land here.)*
 ## Amendments
 
 ### A-30 — 2026-08-24 — a revisited state is a new fact (amends D-8.2)
-
 **Found in operation** — on the first organic retry under the standing
 schedule. A candidate was reflected `ready` at attempt 1, escalated on a
 merge conflict (the board correctly retired `state:ready` for
@@ -238,7 +221,6 @@ re-reflected once under the new key form — idempotent at the
 destination, a label re-set and nothing more.
 
 ### A-33 — 2026-08-24 — the board is for humans (amends D-8.14, retires D-8.15, adds D-8.16)
-
 **Operator feedback**, after a day of live operation: review tasks
 doubled the board and never asked for anything. The doubling fell out of
 two sound rules composing badly — reviews are tasks (RFC 0005 D-5.9),
@@ -263,7 +245,6 @@ tidies the legacy review issues out of the board; and the review
 machinery itself — what runs is untouched, only what is shown.
 
 ### A-36 — 2026-08-25 — the label follows the gap (amends D-8.13, adds D-8.17)
-
 **Found in operation** — after the first batch fully drained, the owner
 reviewed the board and found landed, closed issues still wearing
 `needs:approval` beside `state:landed`. The prompt's label had an
@@ -288,7 +269,6 @@ working — `state:*` staleness during a busy drain is delivery lag that
 self-corrects, not a defect; and the outbox's at-least-once contract.
 
 ### A-40 — 2026-08-25 — revise: the commander's re-queue of a ready candidate (adds D-8.18; the D-8.3 vocabulary grows)
-
 **Found in operation** — the disjoint experiment batch produced the
 corpus's first true line-anchored review finding: an allow-listed
 reviewer flagged a Major correctness bug in a candidate the task-gated
@@ -315,3 +295,45 @@ re-run rides their target's); approvals, sha-bound as always — a
 superseded tip's approval counts for nothing; and the review's
 advisory grade — `revise` is a human judgement about a finding, never
 an automatic consequence of one.
+
+### A-92 — 2026-09-05 — the projection is deleted, not deprecated (retires the implementation)
+**The owner, 2026-09-05:** *"for a while we can completely wipe github
+issues projector (tracker projection) — not necessary now (as it's
+underdeveloped and we would need to rebuild it almost from scratch)."*
+
+Deleted rather than left inert: `application/tracker.py`,
+`application/outbox.py`, `cli/tracker.py`, `adapters/tracker/`, the `Tracker`
+port and its three value objects, `TrackerConfig`, the tick's `poll` and
+`sync` legs, and the tests for all of it — about 2,600 lines. The
+`tracker_command` leg of RFC 0022's operator-attention projection goes with
+them, since no surface produces those events any more.
+
+**Why deletion rather than deprecation.** The projection was already inert
+in every repository torve runs: `tracker.kind` is empty by default and this
+one never set it. Inert code is not free — it is 2,600 lines that every
+refactor has to be correct about, and this session moved the runner, the
+board, the decision graph and the task record past it three times. A
+subsystem nobody runs and everybody has to maintain is worse than one that
+is gone and recorded.
+
+**What the deletion also takes, which is the part worth reading.** The
+tracker carried the *inbound* half: `/torve` commands, the commander
+approvals D-8.9 authorized, and RFC 0020's intake requests. Deleting the
+outbound projection without them was not available — they share the port and
+the poll leg. `torve intake` from the command line survives untouched; what
+is gone is a request arriving as an issue.
+
+**What survives, deliberately.** This document, its decisions and its
+identifiers. D-8.1's rule — the board is a view, never authority — is the
+one thing a rebuild must not relearn by being burned, and it costs nothing
+to keep written down. The implementation state is `abandoned`, which is the
+D-A.11 judgement for exactly this: not a design that failed, a build that
+stopped being worth its maintenance.
+
+**A rebuild starts here, not from scratch.** §3's outbound mapping, §4's
+idempotency rules and the restricted inbound command set are unchanged by
+the deletion, and A-30/A-33/A-36/A-40 record what the first build learned.
+The corpus check now warns that six LOCKED globs name modules that do not
+exist. That is correct and should stay: for an abandoned document the globs
+name where the build was and where a rebuild would go, and stripping them to
+silence the warning would delete the one thing that says where.

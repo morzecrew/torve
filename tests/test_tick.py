@@ -87,10 +87,8 @@ class Recorder:
 def deps_for(rec: Recorder, lane: bool = True) -> TickDeps:
     return TickDeps(
         reap=rec.leg("reap"),
-        poll=rec.leg("poll"),
         dispatch=rec.dispatch(),
         lane=rec.leg("lane") if lane else None,
-        sync=rec.leg("sync"),
         landed=lambda _task: False,
     )
 
@@ -116,21 +114,19 @@ def test_legs_run_in_the_fixed_order(root):
     contract(root, "T-9001")
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec))
-    assert rec.calls == ["poll", "lane", "reap", "dispatch:T-9001", "sync"]
+    assert rec.calls == ["lane", "reap", "dispatch:T-9001"]
     assert rec.calls.index("lane") < rec.calls.index("reap")
     assert report.noop is False  # dispatch moved
 
 
 def test_recovery_leg_runs_first_of_all(root):
-    # D-42.3: recovery is the tick's own first step, ahead of poll and
-    # everything the reap-driven baseline used to run before it.
+    # D-42.3: recovery is the tick's own first step, ahead of everything
+    # the reap-driven baseline used to run before it.
     rec = Recorder()
     deps = TickDeps(
         reap=rec.leg("reap"),
-        poll=rec.leg("poll"),
         dispatch=rec.dispatch(),
         lane=rec.leg("lane"),
-        sync=rec.leg("sync"),
         landed=lambda _t: False,
         recover=rec.leg("recover"),
     )
@@ -149,11 +145,11 @@ def test_the_tick_returns_only_after_dispatch_is_fully_drained(root):
     # .torve/tasks/T-0245/log.yaml) — dispatch is already synchronous per
     # tick, so by the time run_tick returns, whatever it started has
     # already finished. Pinned against the same fixed order the
-    # reaper-driven baseline always ran: dispatch strictly before sync.
+    # reaper-driven baseline always ran: dispatch strictly after the reap.
     contract(root, "T-9001")
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec))
-    assert rec.calls.index("dispatch:T-9001") < rec.calls.index("sync")
+    assert rec.calls.index("reap") < rec.calls.index("dispatch:T-9001")
     assert report.noop is False
 
 
@@ -172,7 +168,7 @@ def test_a_stale_lock_is_broken_loudly(root):
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec))
     assert not report.locked_out
-    assert rec.calls[0] == "poll"  # the tick ran
+    assert rec.calls[0] == "lane"  # the tick ran
     events = [
         r
         for r in (
@@ -261,14 +257,14 @@ def test_dependencies_hold_until_landed(root):
     assert next_queued(root, lambda t: t == "T-9001") == "T-9002"
 
 
-def test_an_escalation_pauses_intake_but_drains_everything_else(root):
+def test_an_escalation_pauses_dispatch_but_drains_everything_else(root):
     contract(root, "T-9002")
     state = run_state(root, "T-9001", TaskState.RUNNING)
     state.escalate(EscalationReason.BLOCKER_FINDING, "unresolved")
     rec = Recorder()
     report = run_tick(root, config(), deps_for(rec))
     assert not any(c.startswith("dispatch:") for c in rec.calls)
-    assert "poll" in rec.calls and "lane" in rec.calls and "sync" in rec.calls
+    assert "lane" in rec.calls and "reap" in rec.calls
     assert any(
         "paused: escalation queue at 1" in detail
         for name, detail in report.legs
@@ -284,10 +280,8 @@ def test_standing_leg_is_paused_with_dispatch_during_escalation(root):
     rec = Recorder()
     deps = TickDeps(
         reap=rec.leg("reap"),
-        poll=rec.leg("poll"),
         dispatch=rec.dispatch(),
         lane=rec.leg("lane"),
-        sync=rec.leg("sync"),
         landed=lambda _t: False,
         standing=rec.leg("standing"),
     )
@@ -297,19 +291,20 @@ def test_standing_leg_is_paused_with_dispatch_during_escalation(root):
 
 
 def test_standing_leg_runs_before_dispatch_when_not_paused(root):
+    # A contract, so there is a dispatch to be before: whatever standing
+    # mints this pass is a queued contract the batch can already consider.
+    contract(root, "T-9001")
     rec = Recorder()
     deps = TickDeps(
         reap=rec.leg("reap"),
-        poll=rec.leg("poll"),
         dispatch=rec.dispatch(),
         lane=rec.leg("lane"),
-        sync=rec.leg("sync"),
         landed=lambda _t: False,
         standing=rec.leg("standing"),
     )
     run_tick(root, config(), deps)
     assert "standing" in rec.calls
-    assert rec.calls.index("standing") < rec.calls.index("sync")
+    assert rec.calls.index("standing") < rec.calls.index("dispatch:T-9001")
 
 
 def test_standing_leg_defaults_to_none_and_is_skipped(root):
@@ -332,24 +327,26 @@ def test_a_tick_that_moved_nothing_is_an_honest_noop(root):
     assert len(events) == 1 and events[0]["noop"] is True
 
 
-def test_a_leg_error_is_recorded_and_the_tick_reaches_sync(root):
+def test_a_leg_error_is_recorded_and_the_tick_reaches_its_last_leg(root):
+    """A bounded tick must reach its last leg whatever an earlier one did,
+    so the record reflects what actually happened — and must release its
+    lock on the way out."""
+
     contract(root, "T-9001")
     rec = Recorder()
 
-    def broken(task_id: str) -> tuple[str, bool]:
-        raise RuntimeError("sandbox exploded")
+    def broken() -> tuple[str, bool]:
+        raise RuntimeError("the lane exploded")
 
     deps = TickDeps(
         reap=rec.leg("reap"),
-        poll=rec.leg("poll"),
-        dispatch=broken,
-        lane=rec.leg("lane"),
-        sync=rec.leg("sync"),
+        dispatch=rec.dispatch(),
+        lane=broken,
         landed=lambda _t: False,
     )
     report = run_tick(root, config(), deps)
-    assert ("dispatch", "error: sandbox exploded") in report.legs
-    assert "sync" in rec.calls
+    assert ("lane", "error: the lane exploded") in report.legs
+    assert "dispatch:T-9001" in rec.calls
     assert not (root / ".torve" / LOCK).exists()
 
 
@@ -422,9 +419,10 @@ def test_tick_dispatch_leg_prints_the_envelope(tmp_path: Path) -> None:
     from torve.cli.main import app
     from torve.gates.sabotage import TASK_ID, Repo, base_task
 
-    if shutil.which("docker") is None or subprocess.run(
-        ["docker", "info"], capture_output=True, check=False
-    ).returncode != 0:
+    if (
+        shutil.which("docker") is None
+        or subprocess.run(["docker", "info"], capture_output=True, check=False).returncode != 0
+    ):
         pytest.skip("docker daemon not available")
 
     (tmp_path / "repo").mkdir()

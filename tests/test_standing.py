@@ -222,9 +222,7 @@ def test_load_standing_contracts_refuses_duplicate_names(tmp_path: Path):
 def test_lint_job_body_names_the_job_not_a_draft_ref(tmp_path: Path):
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
-    job = StandingContract.model_validate(
-        {**job_dict(allow=["src/missing.py"]), "acceptance": []}
-    )
+    job = StandingContract.model_validate({**job_dict(allow=["src/missing.py"]), "acceptance": []})
     errors = lint_job_body(tmp_path, job)
     assert any("lockfile-drift" in e for e in errors)
     assert any("acceptance is empty" in e for e in errors)
@@ -302,17 +300,13 @@ def test_instantiate_mints_through_adoption_and_records_origin(seeded):
     task_id = instantiate(seeded.root, job, RunnerConfig())
 
     contract = yaml.safe_load(
-        (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(
-            encoding="utf-8"
-        )
+        (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(encoding="utf-8")
     )
     assert contract["role"] == "implement"
     assert contract["decisions"] == []
 
     sidecar = json.loads(
-        (seeded.root / ".torve" / "tasks" / task_id / STANDING_RECORD).read_text(
-            encoding="utf-8"
-        )
+        (seeded.root / ".torve" / "tasks" / task_id / STANDING_RECORD).read_text(encoding="utf-8")
     )
     assert sidecar["job"] == "lockfile-drift"
 
@@ -352,9 +346,7 @@ def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
     task_id = instantiate(seeded.root, job, RunnerConfig())
 
     contract = yaml.safe_load(
-        (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(
-            encoding="utf-8"
-        )
+        (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(encoding="utf-8")
     )
     assert contract["decisions"] == [
         {"id": "D-12.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
@@ -366,9 +358,7 @@ def test_instantiate_records_the_path_digest_baseline(seeded):
     task_id = instantiate(seeded.root, job, RunnerConfig())
 
     sidecar = json.loads(
-        (seeded.root / ".torve" / "tasks" / task_id / STANDING_RECORD).read_text(
-            encoding="utf-8"
-        )
+        (seeded.root / ".torve" / "tasks" / task_id / STANDING_RECORD).read_text(encoding="utf-8")
     )
     assert sidecar["digest"]
     assert isinstance(sidecar["digest"], str)
@@ -399,7 +389,9 @@ def test_instantiate_two_firings_differ_only_in_id(seeded):
 
 def test_standing_leg_fires_a_due_job(seeded):
     write_job(seeded.root, job_dict())
-    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False)
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False
+    )
     assert moved
     assert "fired 1" in detail
     assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 1
@@ -407,7 +399,9 @@ def test_standing_leg_fires_a_due_job(seeded):
 
 def test_standing_leg_skips_a_job_that_is_not_due(seeded):
     write_job(seeded.root, job_dict())
-    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([0]), lambda _t: False)
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([0]), lambda _t: False
+    )
     assert not moved
     assert "no standing jobs due" in detail
     assert not list((seeded.root / ".torve" / "tasks").glob("T-*"))
@@ -443,11 +437,15 @@ def test_standing_leg_respects_max_open(seeded):
 def test_standing_leg_respects_cooldown_hours(seeded):
     # max_open=2 keeps this test isolated to the cooldown bound alone.
     write_job(seeded.root, job_dict(cooldown_hours=24, max_open=2))
-    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False)
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False
+    )
     assert moved
 
     # Immediately again: inside the cooldown, mints nothing even though due.
-    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False)
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False
+    )
     assert not moved
     assert "cooldown" in detail
 
@@ -459,7 +457,9 @@ def test_standing_leg_respects_cooldown_hours(seeded):
     record["at"] = stale.strftime("%Y-%m-%dT%H:%M:%SZ")
     sidecar.write_text(json.dumps(record), encoding="utf-8")
 
-    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False)
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False
+    )
     assert moved
 
 
@@ -501,7 +501,9 @@ def test_standing_leg_contract_lint_red_mints_nothing(seeded):
     # A due predicate whose body the lint refuses (T-0113: an existing
     # module without its existing test) must fail closed too.
     write_job(seeded.root, job_dict(allow=["src/app.py"]))
-    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False)
+    detail, moved = standing_leg(
+        seeded.root, RunnerConfig(), ScriptedRuntime([1]), lambda _t: False
+    )
     assert not moved
     assert "contract lint red" in detail
     assert not list((seeded.root / ".torve" / "tasks").glob("T-*"))
@@ -532,25 +534,19 @@ def test_standing_leg_with_no_committed_jobs_is_a_quiet_noop(seeded):
 def test_standing_leg_path_digest_fires_once_then_waits_for_a_change(seeded):
     write_job(seeded.root, path_digest_job_dict(max_open=2))
 
-    detail, moved = standing_leg(
-        seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False
-    )
+    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False)
     assert moved
     assert "fired 1" in detail
     assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 1
 
     # Unchanged content: not due, mints nothing.
-    detail, moved = standing_leg(
-        seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False
-    )
+    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False)
     assert not moved
     assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 1
 
     # The declared path's content changes: due again.
     seeded.write("src/app.py", "print('moved')\n")
-    detail, moved = standing_leg(
-        seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False
-    )
+    detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([]), lambda _t: False)
     assert moved
     assert len(list((seeded.root / ".torve" / "tasks").glob("T-*"))) == 2
 
@@ -575,9 +571,7 @@ def test_standing_leg_self_disables_after_strike_limit_consecutive_non_landings(
     # Fire again, abandon again: strike two, at the limit.
     _detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
     assert moved
-    second = next(
-        p.name for p in (seeded.root / ".torve" / "tasks").glob("T-*") if p.name != first
-    )
+    second = next(p.name for p in (seeded.root / ".torve" / "tasks").glob("T-*") if p.name != first)
     abandon(seeded.root, second)
 
     # Third tick: two consecutive non-landings at strike_limit=2 — self-disabled,
@@ -612,9 +606,7 @@ def test_standing_leg_a_landing_resets_the_strike_streak(seeded):
     # ...then one that lands: the streak resets to zero.
     _detail, moved = standing_leg(seeded.root, RunnerConfig(), ScriptedRuntime([1]), is_landed)
     assert moved
-    second = next(
-        p.name for p in (seeded.root / ".torve" / "tasks").glob("T-*") if p.name != first
-    )
+    second = next(p.name for p in (seeded.root / ".torve" / "tasks").glob("T-*") if p.name != first)
     landed[second] = True
 
     # Due again: not self-disabled, because the last instance landed.
@@ -635,8 +627,10 @@ def test_flake_threshold_reads_the_engines_own_records(tmp_path):
     torve_dir.mkdir()
     telemetry = torve_dir / "telemetry.jsonl"
     telemetry.write_text(
-        json.dumps({"flaky_count_by_command": {"uv run pytest": 2}}) + "\n"
-        + json.dumps({"flaky_count_by_command": {"uv run pytest": 1, "ruff check": 1}}) + "\n",
+        json.dumps({"flaky_count_by_command": {"uv run pytest": 2}})
+        + "\n"
+        + json.dumps({"flaky_count_by_command": {"uv run pytest": 1, "ruff check": 1}})
+        + "\n",
         encoding="utf-8",
     )
 

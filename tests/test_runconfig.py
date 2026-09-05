@@ -137,7 +137,9 @@ def test_a_partial_profile_leaves_untouched_fields_at_their_default(
     """D-28.5: a profile body may be a skeleton — only checked for key
     validity at merge time, never validated as a standalone TierConfig."""
 
-    write(agents_dir / "skeleton.yaml", "image: torve-battery:latest\ncommand: claude -p {prompt}\n")
+    write(
+        agents_dir / "skeleton.yaml", "image: torve-battery:latest\ncommand: claude -p {prompt}\n"
+    )
     config = load(tmp_path, "tiers:\n  executor:\n    profile: skeleton\n")
     tier = config.tiers["executor"]
 
@@ -208,7 +210,9 @@ def test_single_name_profile_is_unaffected_by_list_support(agents_dir: Path, tmp
     """A single name behaves exactly as today — the list machinery is never
     exercised, and `profile` carries just that one name, no arrow."""
 
-    write(agents_dir / "solo.yaml", "adapter: harness\ncommand: c\nprovider: p\nmodel: solo-model\n")
+    write(
+        agents_dir / "solo.yaml", "adapter: harness\ncommand: c\nprovider: p\nmodel: solo-model\n"
+    )
     config = load(tmp_path, "tiers:\n  executor:\n    profile: solo\n")
     tier = config.tiers["executor"]
 
@@ -216,9 +220,7 @@ def test_single_name_profile_is_unaffected_by_list_support(agents_dir: Path, tmp
     assert tier.profile == "solo"
 
 
-def test_profile_list_missing_file_names_that_profiles_own_path(
-    agents_dir: Path, tmp_path: Path
-):
+def test_profile_list_missing_file_names_that_profiles_own_path(agents_dir: Path, tmp_path: Path):
     write(agents_dir / "wiring.yaml", "model: m\n")
 
     with pytest.raises(ValueError, match=r"missing\.yaml") as excinfo:
@@ -290,9 +292,7 @@ def test_non_mapping_profile_body_refuses_naming_the_file(agents_dir: Path, tmp_
     assert str(path) in str(excinfo.value)
 
 
-def test_unknown_key_in_profile_body_refuses_naming_key_and_file(
-    agents_dir: Path, tmp_path: Path
-):
+def test_unknown_key_in_profile_body_refuses_naming_key_and_file(agents_dir: Path, tmp_path: Path):
     path = write(agents_dir / "typo.yaml", "bogus_field: 1\n")
 
     with pytest.raises(ValueError, match="bogus_field") as excinfo:
@@ -457,9 +457,7 @@ def test_a_rung_named_on_any_axis_must_be_a_configured_tier():
         )
 
 
-def test_the_mapping_rides_the_profile_merge_like_any_other_field(
-    agents_dir: Path, tmp_path: Path
-):
+def test_the_mapping_rides_the_profile_merge_like_any_other_field(agents_dir: Path, tmp_path: Path):
     write(agents_dir / "armed.yaml", "retry_variants: {compliance: executor}\n")
     config = load(
         tmp_path,
@@ -490,7 +488,9 @@ def test_retry_variants_change_the_regime_digest(tmp_path: Path):
 def test_blocker_revisions_defaults_to_one_and_parses_from_yaml(tmp_path: Path):
     # RFC 0043 D-43.1/D-43.3: the knob defaults to 1 in-run revision, and a
     # YAML override rides the same `review:` mapping as `on`/`feedback_from`.
-    config = load(tmp_path, '\n'.join(['review:', '  "on": [task_gated]', '  blocker_revisions: 3']))
+    config = load(
+        tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  blocker_revisions: 3"])
+    )
     assert config.review.blocker_revisions == 3
     assert RunnerConfig().review.blocker_revisions == 1
 

@@ -31,7 +31,9 @@ from torve.domain.states import EscalationReason, TaskState
 # ----------------------- #
 
 
-def write_contract(root, task_id: str, *, rfc=None, decisions=(), scope_allow=(), acceptance=()) -> None:
+def write_contract(
+    root, task_id: str, *, rfc=None, decisions=(), scope_allow=(), acceptance=()
+) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "contract.yaml").write_text(
@@ -62,12 +64,16 @@ def write_log(root, task_id: str, entries: list[dict]) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "log.yaml").write_text(
-        yaml.safe_dump({"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}),
+        yaml.safe_dump(
+            {"schema_version": 1, "task": task_id, "drift_count": 0, "entries": entries}
+        ),
         encoding="utf-8",
     )
 
 
-def entry(decision: str, grade: str, action: str, *, kind="departed", claim="c", evidence="a.py:1-2"):
+def entry(
+    decision: str, grade: str, action: str, *, kind="departed", claim="c", evidence="a.py:1-2"
+):
     return {
         "decision": decision,
         "grade": grade,
@@ -83,7 +89,13 @@ def entry(decision: str, grade: str, action: str, *, kind="departed", claim="c",
 
 def ready_state(root, task_id: str) -> None:
     state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
-    for to in (TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED, TaskState.READY):
+    for to in (
+        TaskState.CLAIMED,
+        TaskState.RUNNING,
+        TaskState.GATED,
+        TaskState.REVIEWED,
+        TaskState.READY,
+    ):
         state.transition(to, "t")
     state.save()
 
@@ -137,7 +149,8 @@ def write_cost(root, task_id: str, cost_usd: float, *, adapter: str = "harness")
 
     with telemetry.open("a", encoding="utf-8") as handle:
         handle.write(
-            json.dumps({"task_id": task_id, "agent": {"adapter": adapter, "cost_usd": cost_usd}}) + "\n"
+            json.dumps({"task_id": task_id, "agent": {"adapter": adapter, "cost_usd": cost_usd}})
+            + "\n"
         )
 
 
@@ -148,27 +161,6 @@ def requeued_state(root, task_id: str) -> None:
     state.escalate(EscalationReason.LOCKED_CONFLICT, "d")
     state.transition(TaskState.QUEUED, "human requeue")
     state.save()
-
-
-def write_tracker_command_event(root, verb: str, task_id: str, *, applied: bool = True) -> None:
-    telemetry = root / ".torve" / "telemetry.jsonl"
-    telemetry.parent.mkdir(parents=True, exist_ok=True)
-
-    with telemetry.open("a", encoding="utf-8") as handle:
-        handle.write(
-            json.dumps(
-                {
-                    "kind": "engine",
-                    "event": "tracker_command",
-                    "verb": verb,
-                    "task": task_id,
-                    "actor": "human",
-                    "applied": applied,
-                    "detail": "d",
-                }
-            )
-            + "\n"
-        )
 
 
 def write_feedback(root, task_id: str, human_minutes: int) -> None:
@@ -238,7 +230,9 @@ def test_a_task_whose_scope_misses_the_paths_is_not_touched(tmp_path):
 
 
 def test_unconstrained_scope_counts_as_touched(tmp_path):
-    write_contract(tmp_path, "T-0001", decisions=[("D-1.1", "LOCKED", ["src/widget/**"])], scope_allow=[])
+    write_contract(
+        tmp_path, "T-0001", decisions=[("D-1.1", "LOCKED", ["src/widget/**"])], scope_allow=[]
+    )
     report = decision_report(tmp_path, tmp_path / "rfcs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 1
@@ -352,7 +346,7 @@ def test_locked_halted_and_amended_reads_as_over_grade(tmp_path):
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir()
     (rfcs / "0001-a.md").write_text(
-        "---\nid: \"0001\"\ntitle: A\nstatus: accepted\nimplementation: none\n"
+        '---\nid: "0001"\ntitle: A\nstatus: accepted\nimplementation: none\n'
         "depends_on: []\ninformed_by: []\nsupersedes: []\nsuperseded_by: null\n"
         'amended_by: ["A-1"]\nowner: t\ndescription: d\nschema_version: 1\n---\n\n'
         "# RFC 0001 — A\n\n## Decisions\n\n"
@@ -364,7 +358,10 @@ def test_locked_halted_and_amended_reads_as_over_grade(tmp_path):
     for i in range(1, 4):
         task_id = f"T-000{i}"
         write_contract(
-            tmp_path, task_id, decisions=[("D-1.1", "LOCKED", ["src/a.py"])], scope_allow=["src/a.py"]
+            tmp_path,
+            task_id,
+            decisions=[("D-1.1", "LOCKED", ["src/a.py"])],
+            scope_allow=["src/a.py"],
         )
         write_log(tmp_path, task_id, [entry("D-1.1", "LOCKED", "halted", kind="blocked")])
     report = decision_report(tmp_path, rfcs, floor=3)
@@ -376,7 +373,10 @@ def test_locked_halted_and_requeued_reads_as_healthy(tmp_path):
     for i in range(1, 4):
         task_id = f"T-000{i}"
         write_contract(
-            tmp_path, task_id, decisions=[("D-1.1", "LOCKED", ["src/a.py"])], scope_allow=["src/a.py"]
+            tmp_path,
+            task_id,
+            decisions=[("D-1.1", "LOCKED", ["src/a.py"])],
+            scope_allow=["src/a.py"],
         )
         write_log(tmp_path, task_id, [entry("D-1.1", "LOCKED", "halted", kind="blocked")])
         requeued_state(tmp_path, task_id)
@@ -424,7 +424,9 @@ def test_landed_survives_the_reap_sweep_of_the_run_state_file(tmp_path):
 
 def test_an_unlisted_entry_is_never_attributed_to_a_declared_row(tmp_path):
     write_contract(tmp_path, "T-0001", decisions=[("D-1.1", "OPEN", [])])
-    write_log(tmp_path, "T-0001", [entry("unlisted", "UNLISTED", "decided", claim="something else")])
+    write_log(
+        tmp_path, "T-0001", [entry("unlisted", "UNLISTED", "decided", claim="something else")]
+    )
     report = decision_report(tmp_path, tmp_path / "rfcs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["cited"] == 0
@@ -438,7 +440,7 @@ def test_identifiers_for_document_filters_by_rfc_number(tmp_path):
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir()
     (rfcs / "0001-a.md").write_text(
-        "---\nid: \"0001\"\ntitle: A\nstatus: accepted\nimplementation: none\n"
+        '---\nid: "0001"\ntitle: A\nstatus: accepted\nimplementation: none\n'
         "depends_on: []\ninformed_by: []\nsupersedes: []\nsuperseded_by: null\n"
         "amended_by: []\nowner: t\ndescription: d\nschema_version: 1\n---\n\n"
         "# RFC 0001 — A\n\n## Decisions\n\n"
@@ -458,7 +460,7 @@ def _seed_cli_repo(tmp_path):
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir()
     (rfcs / "0001-a.md").write_text(
-        "---\nid: \"0001\"\ntitle: A\nstatus: accepted\nimplementation: none\n"
+        '---\nid: "0001"\ntitle: A\nstatus: accepted\nimplementation: none\n'
         "depends_on: []\ninformed_by: []\nsupersedes: []\nsuperseded_by: null\n"
         "amended_by: []\nowner: t\ndescription: d\nschema_version: 1\n---\n\n"
         "# RFC 0001 — A\n\n## Decisions\n\n"
@@ -531,7 +533,10 @@ def test_dispatch_envelope_is_silent_below_the_floor(tmp_path):
     for i, task_id in enumerate(("T-0001", "T-0002"), start=1):
         write_contract(tmp_path, task_id, scope_allow=["src/a.py"])
         landed_state_with(
-            tmp_path, task_id, attempts=i, start_at="2026-08-20T10:00:00.000000Z",
+            tmp_path,
+            task_id,
+            attempts=i,
+            start_at="2026-08-20T10:00:00.000000Z",
             end_at="2026-08-20T10:10:00.000000Z",
         )
         land_commit(tmp_path, task_id)
@@ -568,7 +573,10 @@ def test_dispatch_envelope_reports_medians_once_the_floor_is_met(tmp_path):
 def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
     write_contract(tmp_path, "T-0001", scope_allow=["src/a.py"])
     landed_state_with(
-        tmp_path, "T-0001", attempts=1, start_at="2026-08-20T10:00:00.000000Z",
+        tmp_path,
+        "T-0001",
+        attempts=1,
+        start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",
     )
     land_commit(tmp_path, "T-0001")
@@ -578,7 +586,10 @@ def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
     # population.
     write_contract(tmp_path, "T-0002", scope_allow=["src/a.py", "lib/a.py"])
     landed_state_with(
-        tmp_path, "T-0002", attempts=1, start_at="2026-08-20T10:00:00.000000Z",
+        tmp_path,
+        "T-0002",
+        attempts=1,
+        start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",
     )
     land_commit(tmp_path, "T-0002")
@@ -652,9 +663,10 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
 
     from torve.gates.sabotage import TASK_ID, Repo, base_task
 
-    if shutil.which("docker") is None or subprocess.run(
-        ["docker", "info"], capture_output=True, check=False
-    ).returncode != 0:
+    if (
+        shutil.which("docker") is None
+        or subprocess.run(["docker", "info"], capture_output=True, check=False).returncode != 0
+    ):
         pytest.skip("docker daemon not available")
 
     (tmp_path / "json_repo").mkdir()
@@ -667,7 +679,9 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
     # and the diff came back empty.)
     json_repo.task(base_task(allow=["src/**", "TORVE_FAKE.md"]), None)
 
-    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(json_repo.root), "--format", "json"])
+    result = CliRunner().invoke(
+        app, ["run", TASK_ID, "--root", str(json_repo.root), "--format", "json"]
+    )
     assert result.exit_code == 0, result.output
     document = json.loads(result.stdout)
     assert document["size"] == "ok"
@@ -698,19 +712,6 @@ def test_operator_attention_counts_landed_changes(tmp_path):
     assert report["landed"] == 1
 
 
-def test_operator_attention_counts_tracker_command_events_applied_or_not(tmp_path):
-    write_tracker_command_event(tmp_path, "approve", "T-0001", applied=True)
-    write_tracker_command_event(tmp_path, "retry", "T-0002", applied=False)
-    # Not a tracker_command: a different engine event must not be counted.
-    (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
-    with (tmp_path / ".torve" / "telemetry.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"kind": "engine", "event": "tracker_divergence"}) + "\n")
-
-    report = operator_attention(tmp_path)
-    # No task ever landed here, so both events stay in the raw total only.
-    assert report["command_events"] == {"joined": 0, "total": 2}
-
-
 def test_operator_attention_counts_escalations_triaged_both_exits(tmp_path):
     write_contract(tmp_path, "T-0001")
     requeued_state(tmp_path, "T-0001")  # escalated -> queued
@@ -733,21 +734,6 @@ def test_operator_attention_joins_feedback_to_landed_changes(tmp_path):
     assert report["landed"] == 1
     assert report["feedback"] == {"joined": 1, "total": 2}
     assert report["human_minutes_n"] == 2  # the median keeps its own population
-
-
-def test_operator_attention_joins_tracker_events_to_landed_changes(tmp_path):
-    write_contract(tmp_path, "T-0001")
-    ready_state(tmp_path, "T-0001")
-    land_commit(tmp_path, "T-0001")
-    write_contract(tmp_path, "T-0002")
-    write_tracker_command_event(tmp_path, "approve", "T-0001")
-    write_tracker_command_event(tmp_path, "retry", "T-0002")  # never landed: raw total only
-    write_tracker_command_event(
-        tmp_path, "approve", "T-0001"
-    )  # a second event behind the same landing
-
-    report = operator_attention(tmp_path)
-    assert report["command_events"] == {"joined": 2, "total": 3}
 
 
 def test_operator_attention_joins_escalations_to_landed_changes(tmp_path):
@@ -795,7 +781,6 @@ def test_render_operator_attention_below_the_floor_names_the_floor():
     report = {
         "landed": 4,
         "feedback": {"joined": 2, "total": 3},
-        "command_events": {"joined": 2, "total": 6},
         "escalations_triaged": {"joined": 1, "total": 2},
         "human_minutes_median": None,
         "human_minutes_n": 2,
@@ -805,7 +790,6 @@ def test_render_operator_attention_below_the_floor_names_the_floor():
     text = render_operator_attention(report)
     assert "4 landed change(s)" in text
     assert "feedback: 2 behind landed change(s), 3 total" in text
-    assert "command/approval events: 2 behind landed change(s), 6 total" in text
     assert "escalations triaged: 1 behind landed change(s), 2 total" in text
     assert "below the observation floor of 5" in text and "n=2" in text
     assert "quasi-experiment" in text
@@ -820,7 +804,6 @@ def test_render_operator_attention_never_prints_a_mixed_population_ratio():
     report = {
         "landed": 1,
         "feedback": {"joined": 2, "total": 3},
-        "command_events": {"joined": 5, "total": 7},
         "escalations_triaged": {"joined": 1, "total": 2},
         "human_minutes_median": None,
         "human_minutes_n": 3,
@@ -830,7 +813,6 @@ def test_render_operator_attention_never_prints_a_mixed_population_ratio():
     text = render_operator_attention(report)
     assert "1 landed change(s)" in text
     assert "feedback: 2 behind landed change(s), 3 total" in text
-    assert "command/approval events: 5 behind landed change(s), 7 total" in text
     assert "escalations triaged: 1 behind landed change(s), 2 total" in text
     assert "(of 1)" not in text  # joined is interventions, not changes
 
@@ -839,7 +821,6 @@ def test_render_operator_attention_above_the_floor_carries_the_median():
     report = {
         "landed": 4,
         "feedback": {"joined": 2, "total": 3},
-        "command_events": {"joined": 2, "total": 6},
         "escalations_triaged": {"joined": 1, "total": 2},
         "human_minutes_median": 20.0,
         "human_minutes_n": 5,
@@ -867,34 +848,6 @@ def _write_engine_event(root, path: str, *, event: str, task_id: str) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps({"kind": "engine", "event": event, "task": task_id}) + "\n")
-
-
-def test_tracker_command_events_follow_the_configured_telemetry_path(tmp_path):
-    """A repository that relocates the telemetry stream is read at the
-    configured path — the hardcoded default must not silently read zero."""
-    _write_gates_with_telemetry(tmp_path, ".torve/custom-telemetry.jsonl")
-    _write_engine_event(
-        tmp_path, ".torve/custom-telemetry.jsonl", event="tracker_command", task_id="T-0001"
-    )
-    # A stray event at the default path belongs to a stream this repository
-    # does not write: it must not count.
-    _write_engine_event(
-        tmp_path, ".torve/telemetry.jsonl", event="tracker_command", task_id="T-0002"
-    )
-
-    report = operator_attention(tmp_path)
-    assert report["command_events"] == {"joined": 0, "total": 1}
-
-
-def test_tracker_command_events_default_to_the_shipped_path(tmp_path):
-    """No gates.yaml, or a gates.yaml without a telemetry field — the writer
-    falls back to the shipped default, and the reader must too."""
-    _write_engine_event(
-        tmp_path, ".torve/telemetry.jsonl", event="tracker_command", task_id="T-0001"
-    )
-    _write_gates_with_telemetry(tmp_path, ".torve/telemetry.jsonl")
-
-    assert operator_attention(tmp_path)["command_events"] == {"joined": 0, "total": 1}
 
 
 def _write_cost_record(root, path: str, task_id: str, cost_usd: float) -> None:
@@ -938,30 +891,29 @@ def test_dispatch_envelope_cost_follows_the_configured_telemetry_path(tmp_path):
 
 def test_health_cli_corpus_summary_prints_operator_attention_text(tmp_path):
     _seed_cli_repo(tmp_path)
-    write_tracker_command_event(tmp_path, "approve", "T-0001")
     result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "operator attention" in result.output
-    # The event's task never landed in the window: the raw total prints, the
-    # joined count stays zero — and the joined count never prints against
-    # the landed window as its denominator (T-0174).
-    assert "command/approval events: 0 behind landed change(s), 1 total" in result.output
+    # Each kind prints its own population, and the joined count never prints
+    # against the landed window as its denominator (T-0174).
+    assert "escalations triaged: 0 behind landed change(s), 0 total" in result.output
 
 
 def test_health_cli_corpus_summary_carries_operator_attention_json(tmp_path):
     _seed_cli_repo(tmp_path)
-    write_tracker_command_event(tmp_path, "approve", "T-0001")
     result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path), "--format", "json"])
     assert result.exit_code == 0, result.output
     document = json.loads(result.output)
-    assert document["operator_attention"]["command_events"] == {"joined": 0, "total": 1}
+    assert document["operator_attention"]["escalations_triaged"] == {"joined": 0, "total": 0}
 
 
 def test_health_cli_document_filter_has_no_operator_attention(tmp_path):
     """D-22.12: the operator-attention line is a corpus-wide fact — a
     single-document view is decision-level and has no bearing on it."""
     _seed_cli_repo(tmp_path)
-    result = CliRunner().invoke(app, ["rfc", "health", "0001", "--root", str(tmp_path), "--format", "json"])
+    result = CliRunner().invoke(
+        app, ["rfc", "health", "0001", "--root", str(tmp_path), "--format", "json"]
+    )
     assert result.exit_code == 0, result.output
     document = json.loads(result.output)
     assert document["operator_attention"] is None

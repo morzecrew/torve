@@ -851,17 +851,9 @@ def test_build_tick_deps_leg_shape_follows_the_configuration(tmp_path):
     bare = build_tick_deps(root, RunnerConfig())
     assert isinstance(bare, TickDeps)
     assert callable(bare.reap) and callable(bare.dispatch) and callable(bare.landed)
-    assert bare.poll is None and bare.sync is None  # no tracker configured
-    assert bare.intake is None
     assert bare.lane is None  # auto_merge off
 
-    board = _assembly_root(tmp_path / "board")
-    _write_config(board, "schema_version: 1\ntracker: {kind: github-issues, repo: o/r}\n")
     from torve.config.runconfig import load_runner_config
-
-    tracked = build_tick_deps(board, load_runner_config(board))
-    assert tracked.poll is not None and tracked.sync is not None
-    assert tracked.intake is not None
 
     lane = _assembly_root(tmp_path / "lane")
     _write_config(lane, "schema_version: 1\npromotion: {auto_merge: true}\n")
@@ -940,21 +932,3 @@ def test_the_fleet_dispatch_line_stays_as_it_was(tmp_path, monkeypatch):
     line, moved = _dispatch_rig(tmp_path, monkeypatch, fleet=True)
     assert moved is True
     assert line == "T-9101: ready after 1 attempt(s)"
-
-
-def test_build_intake_deps_wires_the_planner_and_the_board(tmp_path):
-    from torve.adapters.broker.none import NoneBroker
-    from torve.adapters.runtime.docker import DockerRuntime
-    from torve.adapters.vcs.git import GitVcs
-    from torve.cli.assembly import build_intake_deps
-    from torve.config.runconfig import RunnerConfig
-
-    root = _assembly_root(tmp_path)
-    board = object()
-    deps = build_intake_deps(root, RunnerConfig(), board=board, vcs=GitVcs())
-
-    assert deps.tracker is board
-    assert isinstance(deps.runtime, DockerRuntime)
-    assert isinstance(deps.broker, NoneBroker)
-    assert callable(deps.agent_factory) and callable(deps.base_tip)
-    assert deps.config_digest  # the gates file's digest rides along

@@ -766,7 +766,14 @@ def test_runtime_sealed_joins_the_network_and_proxies_to_the_broker(
     assert "--network" in args and args[args.index("--network") + 1] == NETWORK
     proxy = f"http://127.0.0.1:{sealed_broker_port(NETWORK)}"
 
-    for name in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY"):
+    for name in (
+        "http_proxy",
+        "HTTP_PROXY",
+        "https_proxy",
+        "HTTPS_PROXY",
+        "all_proxy",
+        "ALL_PROXY",
+    ):
         assert f"{name}={proxy}" in args, args
 
     assert "no_proxy=127.0.0.1,localhost,127.0.0.1" in args
@@ -840,7 +847,7 @@ def test_sealed_docker_run_cannot_reach_an_undeclared_host(tmp_path, monkeypatch
             assert not any(line.split()[1] == "00000000" for line in lines[1:]), routes.output
 
             probe = (
-                "python -c \""
+                'python -c "'
                 "import os,re,socket;"
                 "m=re.match(r'http://([^:]+):(\\d+)',os.environ['http_proxy']);"
                 "s=socket.create_connection((m.group(1),int(m.group(2))),timeout=5);"

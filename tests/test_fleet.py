@@ -81,10 +81,8 @@ class Recorder:
 def deps_for(rec: Recorder) -> TickDeps:
     return TickDeps(
         reap=rec.leg("reap"),
-        poll=None,
         dispatch=rec.dispatch(),
         lane=rec.leg("lane", moved=True),
-        sync=None,
         landed=lambda _t: False,
     )
 
@@ -439,9 +437,7 @@ def test_the_fleet_dispatch_leg_refuses_a_provider_only_a_rung_needs(tmp_path: P
     )
     contract(a, "T-9001")
     manifest_path = tmp_path / "fleet.yaml"
-    manifest_path.write_text(
-        f"repositories:\n  - root: {a}\n    trust: own\n", encoding="utf-8"
-    )
+    manifest_path.write_text(f"repositories:\n  - root: {a}\n    trust: own\n", encoding="utf-8")
 
     result = CliRunner().invoke(app, ["fleet", "tick", "--manifest", str(manifest_path)])
     assert result.exit_code == 0, result.output

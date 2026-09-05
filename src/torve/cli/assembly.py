@@ -23,13 +23,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from torve.adapters.vcs.git import GitVcs
     from torve.application.dispatch import RunDeps
     from torve.application.executors import Prepare
-    from torve.application.intake import IntakeDeps
     from torve.application.loop import TickDeps
     from torve.application.ports import Agent, Vcs, WorkspacePort
     from torve.cli.options import RuntimeName
@@ -210,35 +208,6 @@ def build_dispatch_prepare(
 # ....................... #
 
 
-def build_intake_deps(
-    root: Path, config: RunnerConfig, *, board: Any, vcs: GitVcs
-) -> IntakeDeps:  # GitVcs, not the Vcs port: the worktree pair lives on the adapter.
-    """The intake leg's wiring: the tracker board is the surface, the
-    drafter's harness is built only when a request needs it."""
-
-    from torve.adapters.broker import build_broker
-    from torve.adapters.vcs.git import GitLane
-    from torve.application.intake import IntakeDeps
-    from torve.application.telemetry import config_hash
-    from torve.cli.options import runtime_for
-    from torve.config import layout
-    from torve.gates.context import resolve_base
-
-    return IntakeDeps(
-        tracker=board,
-        runtime=runtime_for(config, None),
-        agent_factory=lambda: build_tier_agent(config, root, "planner"),
-        worktree_at=vcs.worktree_at,
-        remove_worktree=vcs.remove_worktree,
-        base_tip=lambda: GitLane().tip(root, resolve_base(root, config.base) or "HEAD"),
-        config_digest=config_hash(layout.gates_file(root), root, config),
-        broker=build_broker(config.broker),
-    )
-
-
-# ....................... #
-
-
 def build_tick_deps(root: Path, config: RunnerConfig) -> TickDeps:
     """The solo tick's legs, wired from `(root, config)` — the shape
     `torve tick` has always dispatched."""
@@ -339,89 +308,6 @@ def _tick_deps(
 
         return "branch kept; feedback captured" if captured else "branch kept; nothing to capture"
 
-    poll_leg = None
-    sync_leg = None
-    intake_leg_fn = None
-
-    if config.tracker.kind == "github-issues" and config.tracker.repo:
-        from torve.adapters.tracker.github import GithubIssues
-        from torve.application.tracker import (
-            poll_and_apply,
-            project,
-            relay_to_tracker,
-        )
-
-        board = GithubIssues(config.tracker.repo, config.tracker.token_env)
-
-        def _approve_tip(task_id: str) -> str | None:
-            from torve.base import naming
-
-            return GitLane().tip(root, naming.branch(task_id))
-
-        def _adopt_drafts(task_id: str) -> list[str]:
-            from torve.application.intake import adopt
-
-            # The poll runs under the tick's lock — adoption borrows it.
-            return adopt(root, task_id, config, assume_lock=True)
-
-        def _draft_feedback(task_id: str, text: str) -> str:
-            import re as _re
-
-            from torve.application.feedback import feedback_file
-
-            body = _re.sub(r"^/torve\s+[a-z]+\s*$", "", text, flags=_re.MULTILINE).strip()
-            target = feedback_file(root, task_id)
-            target.parent.mkdir(parents=True, exist_ok=True)
-
-            if body:
-                target.write_text(body + "\n", encoding="utf-8")
-                return "thread feedback captured"
-
-            target.unlink(missing_ok=True)
-
-            return "no feedback text — the drafter re-runs on the request"
-
-        def _intake() -> tuple[str, bool]:
-            from torve.application.intake import intake_leg
-
-            # Built per run, as the solo tick always built it: the digest
-            # and the runtime snapshot belong to the leg's moment, not the
-            # tick's setup.
-            deps = build_intake_deps(root, config, board=board, vcs=vcs)
-
-            return intake_leg(root, config, deps, tuple(config.tracker.commanders))
-
-        intake_leg_fn = _intake
-
-        def _poll() -> tuple[str, bool]:
-            report = poll_and_apply(
-                root,
-                board,
-                tuple(config.tracker.commanders),
-                _capture_for_revision,
-                _approve_tip,
-                _adopt_drafts,
-                _draft_feedback,
-            )
-
-            if not report.outcomes:
-                return ("no commands on the board", False)
-
-            applied = sum(o.applied for o in report.outcomes)
-
-            return (f"{applied} applied of {len(report.outcomes)} command(s)", applied > 0)
-
-        def _sync() -> tuple[str, bool]:
-            from torve.application.tracker import project_landings
-
-            staged = project(root, config.tracker.notify)
-            staged += project_landings(root, lambda t: bool(vcs.landed_shas(root, t)))
-            report = relay_to_tracker(root, board)
-
-            return (f"staged {staged}, delivered {len(report.delivered)}", bool(report.delivered))
-
-        poll_leg, sync_leg = _poll, _sync
-
     def _dispatch_one(task_id: str, slot_offset: int) -> str:
         from torve.application import sizing, specquality
         from torve.application.runner import run_task
@@ -521,15 +407,6 @@ def _tick_deps(
 
             if not results:
                 return ("no ready candidates", False)
-
-            if config.tracker.kind == "github-issues" and config.tracker.repo:
-                from torve.application.tracker import project_approval_gap
-
-                # D-8.13: the refusal prompts on its thread — delivered by
-                # this same tick's sync leg.
-                for r in results:
-                    if r.action == "approvals short" and r.sha:
-                        project_approval_gap(root, r.task, r.sha, config.promotion.approvals)
 
             landed = sum(1 for r in results if r.action == "landed")
             detail = f"landed {landed} of {len(results)} candidate(s)"
@@ -644,10 +521,7 @@ def _tick_deps(
 
     return TickDeps(
         reap=reap_leg,
-        poll=poll_leg,
         dispatch=dispatch_leg,
         lane=lane_leg,
-        sync=sync_leg,
         landed=landed,
-        intake=intake_leg_fn,
     )

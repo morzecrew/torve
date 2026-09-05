@@ -52,7 +52,9 @@ class ScriptedAgent:
 
 
 class StubRuntime:
-    def __init__(self, *, image_digest: str | None = "sha256:stub", build_error: str | None = None) -> None:
+    def __init__(
+        self, *, image_digest: str | None = "sha256:stub", build_error: str | None = None
+    ) -> None:
         self.created = 0
         self.destroyed = 0
         self.built: list[tuple[Path, str]] = []
@@ -701,7 +703,9 @@ def test_a_real_tier_under_no_broker_drafts_without_a_provider_table(seeded):
     config = RunnerConfig(
         tiers={
             "planner": TierConfig(
-                adapter="harness", command="run", provider="anthropic",
+                adapter="harness",
+                command="run",
+                provider="anthropic",
                 api_key_env=["X"],
             ),
             "executor": TierConfig(),
@@ -711,7 +715,13 @@ def test_a_real_tier_under_no_broker_drafts_without_a_provider_table(seeded):
     task = mint_intake_task(seeded.root, "add a widget module", config)
     agent = ScriptedAgent([output_for(draft_dict())])
     outcome = run_intake(
-        seeded.root, seeded.root, task, config, StubRuntime(), agent, "digest",
+        seeded.root,
+        seeded.root,
+        task,
+        config,
+        StubRuntime(),
+        agent,
+        "digest",
         broker=NoneBroker(),
     )
     assert outcome.attempts == 1
@@ -979,16 +989,12 @@ def test_adopt_of_a_decomposition_sets_parent_and_grows_the_integration_task(see
     child_id = adopted[0]
 
     child = yaml.safe_load(
-        (seeded.root / ".torve" / "tasks" / child_id / "contract.yaml").read_text(
-            encoding="utf-8"
-        )
+        (seeded.root / ".torve" / "tasks" / child_id / "contract.yaml").read_text(encoding="utf-8")
     )
     assert child["parent"] == "T-0100"
 
     parent = yaml.safe_load(
-        (seeded.root / ".torve" / "tasks" / "T-0100" / "contract.yaml").read_text(
-            encoding="utf-8"
-        )
+        (seeded.root / ".torve" / "tasks" / "T-0100" / "contract.yaml").read_text(encoding="utf-8")
     )
     assert parent["depends_on"] == [child_id]
     assert parent["scope"]["allow"] == ["src/**"]  # scope stays exactly as authored
@@ -1136,165 +1142,6 @@ def test_adopt_tolerates_a_swept_state_and_disposes_of_a_kept_one(seeded):
 # Phase 2 (T-0091): the board as the intake surface.
 
 
-class FakeIntakeTracker:
-    def __init__(self, requests=None):
-        self.requests = list(requests or [])
-        self.retitled: list[tuple[int, str]] = []
-
-    def intake_requests(self):
-        return list(self.requests)
-
-    def retitle(self, number: int, title: str):
-        # The real adapter filters claimed requests by their new T-nnnn
-        # title prefix; consuming the row here mimics that filter.
-        self.retitled.append((number, title))
-        self.requests = [r for r in self.requests if r.number != number]
-        from torve.application.ports import ReflectResult
-
-        return ReflectResult("applied", "retitled")
-
-
-def leg_deps(tracker, agent):
-    from torve.application.intake import IntakeDeps
-
-    return IntakeDeps(
-        tracker=tracker,
-        runtime=StubRuntime(),
-        agent_factory=lambda: agent,
-        worktree_at=lambda root, sha, workdir: workdir.mkdir(parents=True, exist_ok=True),
-        remove_worktree=lambda root, workdir: None,
-        base_tip=lambda: "a" * 40,
-        config_digest="digest",
-    )
-
-
-def request(number=7, title="add a rolling widget", body="", author="cmdr"):
-    from torve.application.ports import IntakeRequest
-
-    return IntakeRequest(number=number, title=title, body=body, author=author)
-
-
-def test_intake_leg_claims_only_commander_requests(seeded):
-    from torve.application.intake import intake_leg, ledger_file
-
-    tracker = FakeIntakeTracker([request(), request(number=8, author="rando")])
-    # The claimed request drafts against the SEEDED tree, not a worktree
-    # copy — leg_deps points worktrees at empty dirs, so use a draft the
-    # lint judges creatable there.
-    agent = ScriptedAgent([output_for(draft_dict())])
-    detail, moved = intake_leg(seeded.root, RunnerConfig(), leg_deps(tracker, agent), ("cmdr",))
-
-    assert moved
-    assert "skipped 1 non-commander" in detail
-    assert len(tracker.retitled) == 1
-    number, title = tracker.retitled[0]
-    assert number == 7
-    assert title.split(":", 1)[1].strip() == "add a rolling widget"
-    rows = [
-        json.loads(line)
-        for line in ledger_file(seeded.root).read_text(encoding="utf-8").splitlines()
-    ]
-    assert rows[0]["issue"] == 7
-
-
-def test_intake_leg_runs_the_claim_and_projects_the_drafts(seeded):
-    from torve.application.intake import intake_leg
-    from torve.application.outbox import staged_keys
-
-    tracker = FakeIntakeTracker([request()])
-    agent = ScriptedAgent([output_for(draft_dict())])
-    detail, _ = intake_leg(seeded.root, RunnerConfig(), leg_deps(tracker, agent), ("cmdr",))
-
-    assert "ran 1" in detail and "projected 1" in detail
-    keys = staged_keys(seeded.root)
-    assert any(k.endswith(":drafts:a1") for k in keys)
-    # The drafter saw the request text, over a worktree the leg made.
-    assert "add a rolling widget" in agent.prompts[0]
-
-
-def test_intake_leg_rfc_line_reaches_the_contract(seeded):
-    from torve.application.intake import intake_leg, ledger_file
-
-    tracker = FakeIntakeTracker([request(body="rfc: rfcs/0099-fixture.md")])
-    agent = ScriptedAgent([output_for(draft_dict())])
-    intake_leg(seeded.root, RunnerConfig(), leg_deps(tracker, agent), ("cmdr",))
-
-    task_id = json.loads(ledger_file(seeded.root).read_text(encoding="utf-8").splitlines()[0])[
-        "task"
-    ]
-    contract = yaml.safe_load(
-        (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(encoding="utf-8")
-    )
-    assert contract["rfc"] == "rfcs/0099-fixture.md"
-
-
-def test_revise_requeues_a_draft_with_the_comment_as_feedback(seeded):
-    from torve.application.feedback import feedback_file
-    from torve.application.intake import intake_leg
-    from torve.application.ports import TrackerCommand
-    from torve.application.tracker import _apply
-
-    tracker = FakeIntakeTracker([request()])
-    agent = ScriptedAgent(
-        [
-            output_for(draft_dict()),
-            output_for(draft_dict("DRAFT-1", allow=["src/other.py", "tests/test_other.py"])),
-        ]
-    )
-    intake_leg(seeded.root, RunnerConfig(), leg_deps(tracker, agent), ("cmdr",))
-    task_id = RunState.load_all(seeded.root / ".wt")[0].task_id
-
-    def draft_feedback(tid: str, text: str) -> str:
-        body = text.split("\n", 1)[1] if "\n" in text else ""
-        feedback_file(seeded.root, tid).write_text(body, encoding="utf-8")
-        return "thread feedback captured"
-
-    outcome = _apply(
-        seeded.root,
-        TrackerCommand(
-            verb="revise",
-            task_id=task_id,
-            actor="cmdr",
-            source="c1",
-            text="/torve revise\nprefer a different module",
-        ),
-        draft_feedback=draft_feedback,
-    )
-    assert outcome.applied and "re-drafting" in outcome.detail
-    assert RunState.load(naming.state_file(seeded.root, task_id)).state is TaskState.QUEUED
-
-    detail, _ = intake_leg(seeded.root, RunnerConfig(), leg_deps(tracker, agent), ("cmdr",))
-    assert "ran 1" in detail
-    assert "prefer a different module" in agent.prompts[1]
-    assert RunState.load(naming.state_file(seeded.root, task_id)).attempts == 2
-
-
-def test_adopt_verb_role_refusal_and_wiring(seeded):
-    from torve.application.ports import TrackerCommand
-    from torve.application.tracker import _apply
-
-    # An implement task is never adopted.
-    (seeded.root / ".torve" / "tasks" / "T-0500").mkdir(parents=True)
-    (seeded.root / ".torve" / "tasks" / "T-0500" / "contract.yaml").write_text(
-        "schema_version: 1\nid: T-0500\nrole: implement\nintent: x\ndecisions: []\n",
-        encoding="utf-8",
-    )
-    outcome = _apply(
-        seeded.root,
-        TrackerCommand(verb="adopt", task_id="T-0500", actor="cmdr", source="c2"),
-        adopt_drafts=lambda t: ["T-9999"],
-    )
-    assert not outcome.applied and "role" in outcome.detail
-
-    source = adopted_ready_run(seeded)
-    outcome = _apply(
-        seeded.root,
-        TrackerCommand(verb="adopt", task_id=source, actor="cmdr", source="c3"),
-        adopt_drafts=lambda t: adopt(seeded.root, t, RunnerConfig()),
-    )
-    assert outcome.applied and "adopted: " in outcome.detail
-
-
 def test_adopt_twice_is_refused_by_the_marker(seeded):
     from torve.application.intake import adopted_file
 
@@ -1303,41 +1150,6 @@ def test_adopt_twice_is_refused_by_the_marker(seeded):
     assert adopted_file(seeded.root, source).is_file()
     with pytest.raises(ValueError, match="already adopted"):
         adopt(seeded.root, source, RunnerConfig())
-
-
-def test_abandon_discards_a_ready_drafts_batch(seeded):
-    from torve.application.ports import TrackerCommand
-    from torve.application.tracker import _apply
-
-    source = adopted_ready_run(seeded)
-    outcome = _apply(
-        seeded.root, TrackerCommand(verb="abandon", task_id=source, actor="cmdr", source="c4")
-    )
-    assert outcome.applied and "drafts discarded" in outcome.detail
-    assert RunState.load(naming.state_file(seeded.root, source)).state is TaskState.ABANDONED
-    assert not drafts_file(seeded.root, source).exists()
-    with pytest.raises(ValueError, match="nothing to adopt"):
-        adopt(seeded.root, source, RunnerConfig())
-
-
-def test_intake_leg_closes_an_adopted_thread(seeded):
-    from torve.application.intake import intake_leg, ledger_file
-    from torve.application.outbox import staged_keys
-
-    source = adopted_ready_run(seeded)
-    with ledger_file(seeded.root).open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"issue": 9, "task": source, "at": "t"}) + "\n")
-    adopt(seeded.root, source, RunnerConfig())
-
-    tracker = FakeIntakeTracker()
-    intake_leg(seeded.root, RunnerConfig(), leg_deps(tracker, ScriptedAgent([])), ("cmdr",))
-    assert f"{source}:adopted-close" in staged_keys(seeded.root)
-    # Keyed: a second pass stages nothing new.
-    intake_leg(seeded.root, RunnerConfig(), leg_deps(tracker, ScriptedAgent([])), ("cmdr",))
-    assert len([k for k in staged_keys(seeded.root) if k == f"{source}:adopted-close"]) == 1
-
-
-# Phase 3 (T-0094): execution facts in the drafter's input.
 
 
 def test_execution_facts_reads_queue_and_telemetry(seeded):

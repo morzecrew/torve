@@ -57,9 +57,8 @@ other, and a test says so.
 
 ## What is not in the record yet
 
-The tracker's outbox and the projections that answer planning questions —
-`torve context`, the why report, the specification-quality readings — still
-read files. Every one of them is a join against tasks, and until the mint
+The projections that answer planning questions — `torve context`, the why
+report, the specification-quality readings — still read files. Every one of them is a join against tasks, and until the mint
 carried the contract there was nothing to join to; now there is, and what
 remains is the rewriting rather than the design. They are named as later
 work in RFC 0044 §12, and they are the reason

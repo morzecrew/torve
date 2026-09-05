@@ -194,18 +194,15 @@ def test_a_dirty_checkout_refuses_the_lane_and_names_the_dirt(lane_repo):
 
 def test_engine_records_never_block_the_lane(lane_repo):
     # The papercut the first standing-team run surfaced: the runner-minted
-    # review contract lands untracked in the root checkout, and the outbox
-    # pair mutates with every tracker sync. Records, not landed content —
-    # the candidate still lands.
+    # review contract lands untracked in the root checkout, and the engine's
+    # own ledgers mutate as it runs. Records, not landed content — the
+    # candidate still lands.
     candidate(lane_repo, "T-7010", "ten.py", "ten = 10\n")
     contract_dir = lane_repo / ".torve" / "tasks" / "T-7011"
     contract_dir.mkdir(parents=True)
     (contract_dir / "contract.yaml").write_text("# runner-minted\n", encoding="utf-8")
-    (lane_repo / ".torve" / "outbox.jsonl").write_text("{}\n", encoding="utf-8")
-    (lane_repo / ".torve" / "outbox-ledger.jsonl").write_text("{}\n", encoding="utf-8")
-    # The intake ledger (T-0092): a claim's row blocked an approved
-    # landing live before the guard learned it.
-    (lane_repo / ".torve" / "intake.jsonl").write_text("{}\n", encoding="utf-8")
+    (lane_repo / ".torve" / "pr-reviews.jsonl").write_text("{}\n", encoding="utf-8")
+    (lane_repo / ".torve" / "evals.jsonl").write_text("{}\n", encoding="utf-8")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"

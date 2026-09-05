@@ -860,8 +860,8 @@ def health(
     and calls no model: this is evidence for a human writing an amendment,
     not a verdict. No single corpus score is computed anywhere. The
     corpus-wide view (no document given) also prints landed changes beside
-    the operator attention already on record for them — feedback minutes,
-    tracker commands and approvals, escalations triaged."""
+    the operator attention already on record for them — feedback minutes
+    and escalations triaged."""
     # The docstring is help text and carries no corpus coordinates; the
     # rules it states are D-22.2, D-22.1, D-22.3 and D-22.12 in that order.
 

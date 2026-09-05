@@ -126,13 +126,11 @@ def _engine_record(root: Path, rel: str) -> bool:
     """The store's files are records, not landed content: the landing is
     measured from the candidate's committed tree, never composed from the
     checkout's engine state, so engine-authored dirt — minted task
-    contracts, telemetry appends, the outbox pair — must not demand an
-    operator commit before every landing."""
+    contracts, telemetry appends, the engine's own ledgers — must not demand
+    an operator commit before every landing."""
 
     from torve.application.evals import EVAL_LEDGER
-    from torve.application.intake import INTAKE_LEDGER
     from torve.application.loop import LOCK
-    from torve.application.outbox import LEDGER, OUTBOX
     from torve.application.review import PR_LEDGER
     from torve.config.manifest import Manifest, load_manifest
 
@@ -149,19 +147,12 @@ def _engine_record(root: Path, rel: str) -> bool:
 
     return rel in {
         telemetry_rel,
-        f"{layout.TORVE_DIR}/{OUTBOX}",
-        f"{layout.TORVE_DIR}/{LEDGER}",
         # The tick's own lock (RFC 0019) must not dirty the lane
         # leg running inside the tick that holds it; the
         # pr-reviews ledger is the same class of record.
         f"{layout.TORVE_DIR}/{LOCK}",
         f"{layout.TORVE_DIR}/{PR_LEDGER}",
         f"{layout.TORVE_DIR}/{EVAL_LEDGER}",
-        # The intake ledger (RFC 0020 §5.4): the claim writes
-        # it inside the tick, and the lane leg follows in the
-        # same pass — found live when a claimed request blocked
-        # an approved landing.
-        f"{layout.TORVE_DIR}/{INTAKE_LEDGER}",
     }
 
 

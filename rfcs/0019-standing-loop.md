@@ -1,5 +1,5 @@
 ---
-id: "0019"
+id: 0019
 title: The standing loop
 kind: design
 status: accepted
@@ -8,15 +8,11 @@ depends_on: ["0003", "0006", "0008"]
 informed_by: ["0005", "0007", "0017"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-27", "A-28", "A-29", "A-31", "A-34", "A-39"]
+amended_by: ["A-27", "A-28", "A-29", "A-31", "A-34", "A-39", "A-94"]
 retired: []
 owner: Lev Litvinov
 description: >-
-  The bounded tick that makes the team standing: drain one queued task,
-  process the lane under its existing approval switch, project the board,
-  and stop — cadence delivered by the environment, never a resident
-  daemon. Intake pauses while the escalation queue is non-empty, because
-  a queue nobody triages must stop the machine, not the person.
+  The bounded tick that makes the team standing: drain one queued task, process the lane under its existing approval switch, project the board, and stop — cadence delivered by the environment, never a resident daemon. Intake pauses while the escalation queue is non-empty, because a queue nobody triages must stop the machine, not the person.
 schema_version: 1
 ---
 
@@ -272,14 +268,8 @@ creates work" buys.
 ```yaml
 - phase: 1
   title: The tick
-  intent: |
-    torve tick as one bounded pass over existing machinery: reap, poll,
-    dispatch of at most one queued task selected by the file-system rule,
-    the lane under promotion.auto_merge, tracker sync last. The tick
-    lock with loud stale-break, the pause threshold on the escalation
-    queue, the loop configuration block, and the per-tick engine event
-    with honest noops. No new run semantics anywhere — every leg is a
-    call into what already exists.
+  intent: >-
+    torve tick as one bounded pass over existing machinery: reap, poll, dispatch of at most one queued task selected by the file-system rule, the lane under promotion.auto_merge, tracker sync last. The tick lock with loud stale-break, the pause threshold on the escalation queue, the loop configuration block, and the per-tick engine event with honest noops. No new run semantics anywhere — every leg is a call into what already exists.
   scope:
     - "src/torve/application/**"
     - "src/torve/cli/**"
@@ -292,6 +282,7 @@ creates work" buys.
     - "uv run pytest"
     - "uv run lint-imports"
     - "uv run torve rfc check"
+  depends_on: []
 ```
 
 ## 11. Exit criteria
@@ -312,7 +303,6 @@ creates work" buys.
 ## Amendments
 
 ### A-27 — 2026-08-24 — the lane precedes the reaper inside the tick (amends §3, D-19.3)
-
 **Found in implementation** — by the second live tick. Tick 1 dispatched
 a task to `ready` (its lane leg refused on unrelated content dirt); tick
 2 opened with the reaper, which collected the READY state and worktree —
@@ -341,7 +331,6 @@ is explicit operator surgery, recorded as such, and the next tick lands
 it through the normal path.
 
 ### A-28 — 2026-08-24 — the loop publishes, the reaper waits, the lane adopts (adds D-19.9–D-19.11; also edits RFC 0003 D-3.23)
-
 **Found in implementation** — by the first live drain, three defects
 with one theme: the scheduled regime removes the operator whose habits
 papered over the gaps.
@@ -377,7 +366,6 @@ including the new base push; the tick order (A-27) stands; the reaper's
 treatment of escalated runs (keep everything for triage) stands.
 
 ### A-29 — 2026-08-24 — landings are repo truth, run records are host truth (amends §4, D-19.4)
-
 **Found in implementation** — by the very first tick under the installed
 schedule, which ran against a fresh clone of the lab. The T-0055
 execution note had already refined "no run state" to "no run record"
@@ -406,7 +394,6 @@ over it — a landed task's re-entry is a revert and a new contract,
 never a re-run; and the tick still creates nothing (D-19.8).
 
 ### A-31 — 2026-08-24 — a dependency is satisfied only by its landing (amends §4, D-19.4)
-
 **Found in operation** — within the first hour of a twelve-task batch
 under the approvals regime at one-minute cadence. T-0045 reached ready
 and waited for its human approval; the loop then dispatched T-0046,
@@ -434,7 +421,6 @@ this defect exactly as designed; and the QUEUED re-entry path — a
 re-queued dependent re-checks its dependencies like everything else.
 
 ### A-34 — 2026-08-24 — the forge sees the landing (adds D-19.12/D-19.13; scopes RFC 0010 D-10.5)
-
 **Found in operation** — the owner read the pull-request board as a
 disconnected mess: most landed work wore the red "closed" of rejected
 branches. Audit: the forge marks a pull request merged exactly when its
@@ -463,7 +449,6 @@ have concluded the review that row protects, and is precisely what keeps
 its line comments anchored to the landed history.
 
 ### A-39 — 2026-08-25 — the loop dispatches what cannot collide (amends D-19.4, adds D-19.14)
-
 **Found in operation** — the first twelve-task batch ran strictly
 serially: one dispatch per tick, each landing conflicting the remaining
 same-file siblings into the revision loop, roughly N²/2 candidate
@@ -491,3 +476,24 @@ which is RFC 0006's founding argument; one tick at a time per root
 pause, checked before any admission; and the default of 1, which keeps
 every existing deployment on D-19.4's original regime until its owner
 raises the knob deliberately.
+
+### A-94 — 2026-09-05 — the poll and sync legs left with the tracker (amends §5, cites A-92)
+**Found deleting the tracker (A-92).** Three of the tick's legs existed only
+to talk to it: `poll` applied inbound commands, `intake` claimed
+tracker-filed requests (RFC 0020 §5.4, A-93), and `sync` projected the board
+outward. All three are gone, and `TickDeps` loses the three fields.
+
+The tick is now recovery, lane, reap, standing, dispatch. **The order rule
+that mattered is untouched**: the lane still runs before the reaper (A-27),
+because READY is sweepable and a reap ahead of the lane destroys the lane's
+own input. Recovery still runs first of all (D-42.3).
+
+One test changed shape rather than assertion. "A leg error is recorded and
+the tick reaches its sync leg" was written against `sync` because it was
+last; with dispatch last, the same property is asserted by breaking the lane
+and checking dispatch still ran and the lock was still released. The
+property is *a bounded tick reaches its last leg and releases its lock* —
+`sync` was only ever how it was spelled.
+
+D-19.3's own text names the legs in order and is left as written: the
+document says what the loop was, and this amendment says what it is.
