@@ -7,7 +7,7 @@ depends_on: ["0003"]
 informed_by: ["0005"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-35", "A-42", "A-43", "A-115"]
+amended_by: ["A-35", "A-42", "A-43", "A-115", "A-127"]
 owner: Lev Litvinov
 description: >-
   Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted.
@@ -321,3 +321,36 @@ surface went with the tracker, and `torve approve` is the surface now
 only a calendar: it is one `LOCKED` decision and three `ASSUMED` ones whose
 carriers were removed by documents that did not name them, and §7's exit
 criteria on top.
+
+### A-127 — 2026-09-06 — D-6.11's rule is satisfied; its mechanism is not the one it named
+**A-115 is out of date, by two hours.** It recorded D-6.11 as
+unimplemented, which was true when written and stopped being true when
+RFC 0051 landed. Recorded here rather than left for the next reader to
+discover, because a document that says a capability is missing when it is
+present is the same defect as one that says it is present when it is
+missing — and the corpus spent this week fixing the second kind.
+
+**The rule holds; the mechanism is a substitution.** D-6.11 asks that an
+interrupt-class escalation produce exactly one delivered notification, and
+names the machinery of the day: `tracker.notify`, an issue assignment and
+an @mention through the tracker's outbox. All of that is deleted (A-92).
+What delivers now is RFC 0051 — the undelivered queue folded from the log,
+a `Notifier` port, and a relay leg of the manager's pass — and the
+destination is a webhook rather than a forge.
+
+Two clauses of D-6.11 are worth reading against what shipped:
+
+- *"exactly one delivered notification"* is assembled rather than assumed
+  (RFC 0051 D-51.6). No transport offers exactly-once; the escalation's own
+  event id rides the wire as an idempotency key, the delivery is recorded
+  after it happens, and a crash in between redelivers. A destination that
+  honours the key collapses that; one that does not sends a duplicate page,
+  which is the failure this engine chooses over a page that never arrives.
+- *"batch stays board-visible only"* survives verbatim as D-51.8, and its
+  interrupt/batch split is this document's §4, inherited rather than
+  re-decided.
+
+**Changed:** nothing in the table. D-6.11 keeps its text, its grade and its
+identifier; what changed is that something implements it. The three
+decisions A-115 listed beside it — D-6.2, D-6.12, D-6.13 — are still
+unimplemented, and still for the reason it gave.
