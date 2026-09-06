@@ -110,3 +110,37 @@ So an escalation nobody triages stops new work. That is the design, and it
 is worth knowing before wondering why a board went quiet: check
 `torve status`, resolve it with `torve manager resolve`, or discard the
 footprint with `torve reap --escalated`.
+
+## Unattended landing
+
+A pass does not land anything by default. `torve merge` is the recorded
+approval, a human act, and that is the whole of the safety story here — a
+manager with the switch off behaves exactly as it did before the landing
+leg existed.
+
+```yaml
+promotion:
+  auto_merge: true    # off by default; arms the pass's landing leg
+```
+
+Armed, each pass runs the **same** serialized lane the verb runs, with the
+same arguments this configuration already feeds it. It adds a caller, not
+a policy: every refusal below still refuses, and nothing is gated twice.
+
+| Setting | What it refuses |
+| --- | --- |
+| `promotion.require_ci` | a candidate whose branch tip is not green on the remote. Needs `scm.repo` to name that remote |
+| `promotion.require_review` | a candidate whose producing run recorded no concluded review |
+| `promotion.approvals` | a candidate short of approvals **on its current tip** — a push after an approval approves nothing |
+| `promotion.quiet_window` | a candidate whose branch moved more recently than the window |
+
+A conflict is reported and left for a human. The lane never resolves one,
+and it does not resolve one differently because a pass called it.
+
+**A pause stops landing.** Unlike the notification relay — which delivers
+what is already owed and so runs regardless — landing advances the
+repository, and a pause is a statement that nobody has capacity to look at
+what advancing produces.
+
+**Landing is not publishing.** The lane moves the base locally and stops;
+pushing it, and republishing the candidate, stay yours.

@@ -111,14 +111,16 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
     if not config.promotion.auto_merge:
         return None
 
-    from torve.adapters.vcs.git import GitLane
-    from torve.application.lane import process_lane
-    from torve.cli.merge import _resolve_ci
-
-    vcs = GitLane()
-    ci = _resolve_ci(config)
-
     async def lane() -> list[str]:
+        # Built here rather than above, for A-128's reason one step back:
+        # `_leg` protects a leg's *call*, so anything raised while building
+        # one still takes the pass down. `_resolve_ci` refuses a promotion
+        # configuration that names no remote, and refusing it out here left
+        # the manager unable to reclaim, mint or dispatch (T-0284).
+        from torve.adapters.vcs.git import GitLane
+        from torve.application.lane import process_lane
+        from torve.cli.merge import _resolve_ci
+
         # Landing is git in a blocking world: run it off the loop so a slow
         # rebase cannot stall the pass's clock. The arguments are `merge_cmd`
         # to the letter — the verb passes no conflict disposal (its own
@@ -128,9 +130,9 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
         results = await asyncio.to_thread(
             process_lane,
             root,
-            vcs,
+            GitLane(),
             only=only,
-            ci=ci,
+            ci=_resolve_ci(config),
             approvals_required=config.promotion.approvals,
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
@@ -189,17 +191,18 @@ async def _serve(
 
         return len(escalated_tasks(root, board)) >= config.loop.pause_escalations
 
-    notifier = build_notifier(config)
-
     async def relay() -> list[str]:
         """Drain the undelivered queue to whatever destination is
-        configured. Built per pass from the same log the pass reads."""
+        configured. Built per pass from the same log the pass reads —
+        the destination included, for A-128's reason one step back:
+        `build_notifier` refuses an adapter it does not know, and refusing
+        it outside the leg took the whole pass down with it."""
 
         from torve.application.notify import relay as drain
 
         return await drain(
             log,
-            notifier,
+            build_notifier(config),
             partition=partition,
             actor_id=worker,
             max_attempts=config.notify.attempts,

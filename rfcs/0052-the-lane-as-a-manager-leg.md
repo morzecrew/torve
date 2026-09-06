@@ -7,7 +7,7 @@ depends_on: ["0006", "0044"]
 informed_by: ["0019", "0051"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-130"]
 owner: misery7100
 description: >-
   Restoring the landing half of an unattended session: the serialized lane becomes a leg of the manager's pass under an opt-in switch, and a conflict disposes of itself the way the retired loop's did.
@@ -235,6 +235,7 @@ half of the pass. No new page.
     - "src/torve/config/runconfig.py"
     - "src/torve/cli/manager.py"
     - "tests/test_residency.py"
+    - "pages/docs/operating.md"  # A-130
   acceptance:
     - "uv run pytest tests/test_residency.py tests/test_lane.py"
     - "uv run lint-imports --config pyproject.toml"
@@ -254,3 +255,21 @@ half of the pass. No new page.
     - "uv run torve rfc check"
   depends_on: [1]
 ```
+
+## Amendments
+
+### A-130 — 2026-09-06 — §7's documentation was owed by no phase
+**Found by the reviewer of T-0281.** §7 assigns the switch's operator
+documentation to `pages/docs/operating.md` and the pass's landing half to
+`pages/docs/architecture/execution.md`. Neither phase's `scope` in §12
+names `pages/` at all, so no minted contract could write either page
+without leaving its scope — the documentation was assigned to a document
+and owed by nobody. An operator arming unattended landing had only this
+RFC to read.
+
+**Changed:** phase 1's scope gains `pages/docs/operating.md`, and the
+section written for the switch that landed with it is authored here rather
+than deferred to a phase that cannot reach it. This is an authoring defect
+of the kind the skill's rule 3a already names for decision rows — a
+deliverable whose paths fall outside every phase's scope is the same
+mistake one level up, and the check that catches it does not exist yet.

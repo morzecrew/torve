@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99", "A-107", "A-128"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99", "A-107", "A-128", "A-129"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -870,3 +870,38 @@ The pattern this session named four times over — a capability that is green
 and inert — has a companion this run found: a capability that is green,
 wired, and fatal the first time it is exercised. The only check that finds
 either is running it.
+
+### A-129 — 2026-09-06 — A-128's rule reaches a leg's construction, not only its call
+**Found by the second live dispatch, by the reviewer.** A-128 wrapped every
+leg's *call* so one broken leg could not take the pass down. It did not
+reach a leg's *construction*, and two of the three legs built their
+dependencies eagerly in the composition root — outside the wrapper that
+exists to make their failure survivable.
+
+The reviewer found the instance in the diff under judgment: with
+`promotion.auto_merge` and `require_ci` both on and `scm.repo` unset,
+`_resolve_ci` refused before the runtime was open, and the manager never
+reclaimed, minted or dispatched. It could not see the instance already
+shipped — `build_notifier` refuses an adapter it does not know, from the
+same eager position, on every pass since RFC 0051 landed.
+
+**Changed:** every leg builds what it needs inside its own closure, which
+is the idiom `standing` already used and the other two had drifted from.
+Nothing new was added to carry the rule; the rule was already there.
+
+**A second change the record forced.** `_resolve_ci` refused with
+`typer.Exit(EXIT_CONFIG)`, and `_leg` records `str(exc)` — so the recorded
+reason for a promotion misconfiguration was the sentence *"lane leg
+failed: 3"*. A command's exit protocol is not a reason, and a helper two
+callers share must not encode one caller's. It raises `ValueError` with the
+message now, and `torve merge` translates it back at the command boundary.
+The test asserting the *content* of the record, not merely its presence,
+is what caught this — an assertion that the leg failed would have passed
+on both the useful record and the useless one.
+
+**What this says about the grade.** The finding was recorded `major`, and
+only a `blocker` stops promotion, so the engine promoted a candidate that
+could take the manager down. That is the second review running where a
+finding worth stopping for was graded below the bar that stops. Whether
+`major` should be able to hold a defect of this class is RFC 0005's
+question, and it is open.

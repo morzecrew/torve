@@ -1137,6 +1137,28 @@ def test_an_armed_pass_lands_what_the_lane_would_land_and_says_so(tmp_path):
     assert [e["task"] for e in engine_events(repo, "lane_landed")] == ["T-7101"]
 
 
+def test_a_promotion_misconfiguration_breaks_the_leg_and_not_the_pass(tmp_path):
+    """A-128 one step back (T-0284): `_leg` protects a leg's call, so a leg
+    whose dependencies are built outside it takes the pass down while being
+    constructed. `_resolve_ci` refuses `require_ci` with no `scm.repo`, and
+    refusing it out there left the manager unable to reclaim, mint or
+    dispatch anything — the failure that mattered was a promotion
+    configuration, and the failure that showed was a dead manager."""
+
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7101", "one.py", "one = 1\n")
+    base_tip = git(repo, "rev-parse", "HEAD")
+
+    # The switch armed, CI required, and no remote named for it to consult.
+    land_in_a_pass(repo, armed(require_ci=True))
+
+    # The pass survived and said why: nothing landed, and the refusal is a
+    # recorded leg failure rather than a traceback out of the pass.
+    assert git(repo, "rev-parse", "HEAD") == base_tip
+    assert [e["leg"] for e in engine_events(repo, "leg_failed")] == ["lane"]
+    assert "scm.repo" in engine_events(repo, "leg_failed")[0]["error"]
+
+
 def test_an_armed_pass_drains_the_lane_serially(tmp_path):
     """D-52.6 is decided by the wiring rather than by a new choice: the leg
     walks the queue exactly as the manual verb does with no argument — the

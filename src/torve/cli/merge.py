@@ -64,16 +64,22 @@ _MARKS = {
 
 def _resolve_ci(config: RunnerConfig) -> CiStatus | None:
     """`promotion.require_ci` needs `scm.repo` to name the remote the
-    lane consults; anything else is a configuration error (EXIT_CONFIG)."""
+    lane consults; anything else is a configuration error.
+
+    The refusal is a `ValueError` and not this command's exit protocol:
+    the manager's landing leg resolves CI through here too, and a
+    `typer.Exit` carries its code where a leg's record wants the reason —
+    "lane leg failed: 3" is the sentence that taught us (T-0284). The
+    command below translates it back into EXIT_CONFIG.
+    """
 
     if not config.promotion.require_ci:
         return None
 
     if not config.scm.repo:
-        raise fail(
+        raise ValueError(
             "configuration error: promotion.require_ci needs "
-            "scm.repo to name the remote whose ci is consulted",
-            EXIT_CONFIG,
+            "scm.repo to name the remote whose ci is consulted"
         )
 
     from torve.adapters.vcs.git import GhCi
@@ -221,7 +227,12 @@ def merge_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
-    ci = _resolve_ci(config)
+
+    try:
+        ci = _resolve_ci(config)
+
+    except ValueError as exc:
+        raise fail(str(exc), EXIT_CONFIG) from exc
 
     try:
         results = process_lane(
