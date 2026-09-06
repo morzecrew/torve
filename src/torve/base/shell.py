@@ -7,6 +7,7 @@ ceiling once a runner exists.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 from collections.abc import Callable
@@ -33,6 +34,29 @@ ExecuteOnce = Callable[[str, float], tuple[int | None, str]]
 FINAL_LINE_LIMIT = 262_144
 
 
+def _document(line: str) -> bool:
+    """Whether this line is a whole JSON document.
+
+    Size was the wrong test for a verdict (T-0283): a review envelope is as
+    large as the session it summarises — that one echoed the reviewer's own
+    probe script back inside `permission_denials` and cleared the bound, so
+    the ordinary clip cut through the JSON and a paid, correct review was
+    recorded as unparseable. Shape is the test the bound was standing in
+    for; the bound stays for a line that is merely long.
+    """
+
+    if not (line.startswith("{") and line.endswith("}")):
+        return False
+
+    try:
+        json.loads(line)
+
+    except ValueError:
+        return False
+
+    return True
+
+
 def truncate(text: str) -> str:
     if len(text) <= OUTPUT_LIMIT:
         return text
@@ -40,7 +64,9 @@ def truncate(text: str) -> str:
     head, tail = text[:2000], text[-(OUTPUT_LIMIT - 2000) :]
     final_line = text[text.rfind("\n") + 1 :]
 
-    if len(tail) < len(final_line) <= FINAL_LINE_LIMIT:
+    if len(tail) < len(final_line) and (
+        len(final_line) <= FINAL_LINE_LIMIT or _document(final_line)
+    ):
         tail = final_line
 
     return f"{head}\n… truncated …\n{tail}"
