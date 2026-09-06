@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0052**.
+number is **0053**.
 
 ## Design
 
@@ -58,6 +58,7 @@ number is **0052**.
 | [0049](0049-tasks-as-records.md) | Tasks as records | accepted | complete | 0044 | A-96, A-97 | The contract a task runs under travels in the record: minting carries the contract itself, re-minting records a changed one as a new version, and the repository's task directory becomes an importer rather than the thing every reader consults. |
 | [0050](0050-the-projection-set-over-the-record.md) | The projection set over the record | accepted | complete | 0044, 0049 | A-95, A-98, A-102 | The reports the engine answers planning questions with move onto the record, one at a time, each landing beside its file reader with a parity test rather than replacing it — because a reader moved today would read an empty log for every run the manager did not dispatch. |
 | [0051](0051-notifications-and-the-delivery-port.md) | Notifications and the delivery port | accepted | complete | 0006, 0044 | A-126 | How a recorded escalation reaches a person who is not looking at the dashboard: the log is the queue, delivery is a recorded fact, and the destination is a port with adapters. |
+| [0052](0052-the-lane-as-a-manager-leg.md) | The lane as a manager leg | accepted | none | 0006, 0044 | — | Restoring the landing half of an unattended session: the serialized lane becomes a leg of the manager's pass under an opt-in switch, and a conflict disposes of itself the way the retired loop's did. |
 
 ## Conventions
 
