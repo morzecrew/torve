@@ -617,6 +617,31 @@ class BrokerProvider(BaseModel):
 # ....................... #
 
 
+class NotifyConfig(BaseModel):
+    """Where an interrupt-class escalation is delivered (RFC 0051).
+
+    `none` by default and explicitly (D-51.4): a repository that has not
+    chosen a destination sends nothing because somebody decided that, the
+    same shape the broker's `none` adapter takes.
+
+    The URL is the destination itself, not a credential — a webhook URL is
+    a bearer secret in practice, so it names an environment variable rather
+    than carrying a value into a committed file (D-4b).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    adapter: str = "none"  # none | webhook
+    url_env: str = "TORVE_NOTIFY_URL"
+    # How many deliveries one escalation earns before the relay parks it
+    # (D-51.7). A queue that retries forever is a queue that never drains.
+    attempts: int = 5
+    timeout_s: float = 10.0
+
+
+# ....................... #
+
+
 class BrokerConfig(BaseModel):
     """The egress broker (RFC 0021 §5.1): which adapter is in force and what
     it is fed. `none` is today's behaviour named explicitly — keys pass
@@ -1099,6 +1124,7 @@ class RunnerConfig(BaseModel):
     tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     broker: BrokerConfig = Field(default_factory=BrokerConfig)
+    notify: NotifyConfig = Field(default_factory=NotifyConfig)
     loop: LoopConfig = Field(default_factory=LoopConfig)
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
     worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not

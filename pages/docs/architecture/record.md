@@ -60,6 +60,7 @@ executable intent without a human signature.**
 | `escalation.resolved` | operator |
 | `message.sent` | agent, manager, operator |
 | `seat.consumed` | worker |
+| `notification.sent` | manager |
 
 <!-- authority-table:end -->
 
@@ -148,6 +149,7 @@ extra step and becomes the only one.
 | the divergence log (`.torve/tasks/<id>/log.yaml`) | the entries the record holds for a task, written into the worktree before each gate pass so the battery judges the record |
 | the telemetry stream | the attempt rows the cost, regime and quality projections read |
 | the decision graph (`torve decisions`) | what is in force, what each decision used to say, and which decisions govern a set of paths |
+| the notification queue | escalations with no settled delivery recorded against them — the queue is the *absence* of a second event, so there is nothing to update and nothing to lose |
 | one task's history (`torve why --partition`) | every attempt with its verdict, cost and convictions, the events and reviews around them, and the totals |
 | what ran here (`torve status --partition`) | the run states of tasks a run actually touched — an attempt recorded, or the engine holding the task now |
 | the planning view (`torve context --partition`) | contracts, attempts, gate health, cost, character and divergences from the record; findings, feedback and the corpus from files, and the report names which |

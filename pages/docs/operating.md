@@ -77,6 +77,28 @@ pass to run after changing contracts, when you want the board to catch up
 without a worker taking the first thing it finds there — which on a full
 board is a real agent and real money.
 
+## Getting told
+
+An interrupt-class escalation is delivered once, by a leg of the manager's
+pass, to whatever destination is configured:
+
+```yaml
+notify:
+  adapter: webhook          # none | webhook
+  url_env: TORVE_NOTIFY_URL # the variable holding the URL, never the URL
+  attempts: 5               # deliveries before the queue parks one
+```
+
+`none` is the default and is a choice, not a blank: a repository that has
+not picked a destination sends nothing on purpose. The queue is the log —
+an escalation with no settled delivery recorded against it — so a manager
+killed mid-page redelivers rather than losing it, and the escalation's own
+event id rides the wire as an `Idempotency-Key` for a destination that
+knows what to do with one.
+
+Batch-class escalations never page. Paging on everything is how a pager
+stops being read.
+
 ## The escalation queue is a pause
 
 A pass mints nothing while this root's escalation queue is at

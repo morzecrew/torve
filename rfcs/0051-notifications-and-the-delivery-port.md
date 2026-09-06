@@ -1,13 +1,13 @@
 ---
 id: "0051"
 title: Notifications and the delivery port
-status: draft
-implementation: none
+status: accepted
+implementation: complete
 depends_on: ["0006", "0044"]
 informed_by: ["0008", "0032", "0045"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-126"]
 owner: misery7100
 description: >-
   How a recorded escalation reaches a person who is not looking at the dashboard: the log is the queue, delivery is a recorded fact, and the destination is a port with adapters.
@@ -356,3 +356,44 @@ how a docs site stops being read.
     - "uv run torve rfc check"
   depends_on: [1]
 ```
+
+---
+
+## Amendments
+
+### A-126 — 2026-09-06 — Every attempt is a fact, or the ceiling is unreachable
+**Found executing phase 1, by the test that was supposed to pass.** §5.5
+says a transient failure "records nothing at all" and is retried, and
+D-51.7 says the relay parks a delivery "past `notify.attempts`" with the
+count derived from the record (D-51.6, §5.2). Those two cannot both be
+true. If a failed attempt records nothing, the record holds no attempts to
+count, `attempts_so_far` returns zero forever, and the ceiling is never
+reached — the relay retries a dead destination until somebody notices.
+
+The test that caught it was written from the RFC, asserting that four
+recorded failures plus one more park the delivery. It failed because there
+was no way to have four recorded failures.
+
+**Changed:** every attempt is recorded, not only the ones that worked.
+`NotificationSent.delivered: bool` becomes
+`outcome: "delivered" | "retrying" | "failed"`, and the queue drains on a
+*settled* outcome — `delivered` or `failed` — while a `retrying` row leaves
+the escalation owed. The retry count is the number of rows naming the
+escalation, which is derivable precisely because the failures are there.
+
+D-51.1 stands unbroken: the vocabulary still grows by `notification.sent`
+and by nothing else. What changed is what that kind records — attempts
+rather than successes — which is the RFC 0044 rule applied consistently
+rather than partially: a delivery that was tried and failed is a fact about
+the work, and §5.2's own argument for keeping the queue in the log is that
+facts which committed cannot be lost.
+
+The cost, stated: a destination that is down for an hour writes one row per
+escalation per pass until the ceiling, rather than nothing. Bounded by
+`notify.attempts` (default 5), and the rows are the evidence of the outage.
+
+**Both phases landed 2026-09-06.** Verified end to end against real
+Postgres and a live HTTP server: an escalation recorded on a fresh
+partition appeared in the queue, was delivered with its own event id on the
+wire as `Idempotency-Key`, recorded `delivered` with the destination's
+receipt, drained the queue, and a second pass paged nothing.

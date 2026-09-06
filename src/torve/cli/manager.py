@@ -114,6 +114,7 @@ async def _serve(
     from torve.application.residency import ran_here, serve
     from torve.application.worker import Worker
     from torve.cli import assembly
+    from torve.cli.assembly import build_notifier
     from torve.domain.events import SubjectType
 
     config = load_config(root, config_path)
@@ -137,6 +138,22 @@ async def _serve(
         board = project(await log.of_subject_type(SubjectType.TASK, partition=partition))
 
         return len(escalated_tasks(root, board)) >= config.loop.pause_escalations
+
+    notifier = build_notifier(config)
+
+    async def relay() -> list[str]:
+        """Drain the undelivered queue to whatever destination is
+        configured. Built per pass from the same log the pass reads."""
+
+        from torve.application.notify import relay as drain
+
+        return await drain(
+            log,
+            notifier,
+            partition=partition,
+            actor_id=worker,
+            max_attempts=config.notify.attempts,
+        )
 
     def standing() -> tuple[str, bool]:
         # RFC 0023's leg, unchanged — it mints a contract through the
@@ -174,6 +191,7 @@ async def _serve(
             dispatch=dispatch,
             standing=standing,
             paused=paused,
+            relay=relay,
         )
 
 

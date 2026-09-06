@@ -53,6 +53,11 @@ Ran = Callable[[str], bool]
 # the answer joins a file carrier to a record one.
 Pause = Callable[[], Awaitable[bool]]
 
+# One drain of the undelivered notification queue (RFC 0051 D-51.5),
+# returning the task ids paged. Wired by the composition root because a
+# destination is an adapter, and this module decides only *when*.
+Relay = Callable[[], Awaitable[list[str]]]
+
 # One evaluation of every committed standing job (RFC 0023 §5.4), returning
 # what it did and whether anything fired. Wired by the composition root
 # because firing a predicate needs a sandbox, and this module decides only
@@ -354,6 +359,7 @@ async def once(
     paused: bool = False,
     dispatch: bool = True,
     standing: Standing | None = None,
+    relay: Relay | None = None,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -373,12 +379,24 @@ async def once(
     it finds there, which on a repository with a queue is a real agent and
     real money.
 
+    The relay runs whatever `paused` says, for the reason in D-51.5: it
+    delivers what is already owed rather than creating anything.
+
     `paused` skips the two legs that can grow the queue and nothing else
     (D-48.4, D-23.6): the queue may drain during a pause, it may not grow.
     A pause is a statement about the operator's capacity to triage, never
     about the safety of what is already running, so an attempt in flight is
     not interrupted and a task already on the board is still claimed.
     """
+
+    if relay is not None:
+        # RFC 0051 D-51.5: after reclaim, before the mint. What a pass does
+        # first is the work already owed, and a page for an escalation
+        # raised an hour ago is owed more than a contract nobody has minted
+        # yet. Unaffected by `paused` — a pause is a statement that nobody
+        # can triage more work, which is exactly when the queue most needs
+        # draining.
+        await relay()
 
     if standing is not None and not paused:
         # RFC 0023 §5.4: standing before the scan, so a contract this pass
@@ -422,6 +440,7 @@ async def serve(
     paused: Pause | bool = False,
     dispatch: bool = True,
     standing: Standing | None = None,
+    relay: Relay | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -453,6 +472,7 @@ async def serve(
             paused=(await paused()) if callable(paused) else paused,
             dispatch=dispatch,
             standing=standing,
+            relay=relay,
         )
 
         if task_id is not None:

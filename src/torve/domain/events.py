@@ -85,6 +85,7 @@ class EventKind(StrEnum):
     ESCALATION_RESOLVED = "escalation.resolved"
     MESSAGE_SENT = "message.sent"
     SEAT_CONSUMED = "seat.consumed"
+    NOTIFICATION_SENT = "notification.sent"
 
 
 # ....................... #
@@ -117,6 +118,10 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     # a different sender, and the sender is stamped rather than claimed.
     EventKind.MESSAGE_SENT: frozenset({ActorKind.AGENT, ActorKind.MANAGER, ActorKind.OPERATOR}),
     EventKind.SEAT_CONSUMED: frozenset({ActorKind.WORKER}),
+    # D-51.1: the relay runs inside the manager's pass, so the manager is
+    # who delivered it. A worker never writes this — a page is the loop's
+    # act, not an attempt's.
+    EventKind.NOTIFICATION_SENT: frozenset({ActorKind.MANAGER}),
 }
 
 
@@ -430,6 +435,38 @@ class SeatConsumed(BaseModel):
 
 # ....................... #
 
+
+class NotificationSent(BaseModel):
+    """One delivery of one escalation (RFC 0051 D-51.1).
+
+    `subject` is the escalation event's own id, which is both what makes
+    this a delivery *of* something and the idempotency key the destination
+    dedups on (D-51.6). `receipt` is the destination's own handle for what
+    it accepted — a delivery nobody can point at afterwards is
+    indistinguishable from one that never happened.
+
+    Every attempt is recorded, not only the ones that worked (A-126):
+    `outcome` is `delivered`, `retrying` when the destination might take it
+    later, or `failed` once the attempts are spent. The count of rows is
+    what the retry ceiling is derived from, so a relay that recorded only
+    successes could never reach it.
+
+    `delivered` and `failed` both drain the queue (D-51.7) — an escalation
+    nobody could page about is still on the board where it always was.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject: str
+    destination: str
+    outcome: Literal["delivered", "retrying", "failed"] = "delivered"
+    attempt: int = 1
+    receipt: str = ""
+    detail: str = ""
+
+
+# ....................... #
+
 PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.SOURCE_IMPORTED: SourceImported,
     EventKind.DECISION_RECORDED: DecisionRecorded,
@@ -450,6 +487,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.ESCALATION_RESOLVED: EscalationResolved,
     EventKind.MESSAGE_SENT: MessageSent,
     EventKind.SEAT_CONSUMED: SeatConsumed,
+    EventKind.NOTIFICATION_SENT: NotificationSent,
 }
 
 

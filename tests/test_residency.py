@@ -235,6 +235,51 @@ def test_the_pause_is_asked_again_every_pass(tmp_path):
     run(scenario)
 
 
+def test_the_relay_runs_before_the_mint_and_through_a_pause(tmp_path):
+    """RFC 0051 D-51.5: what a pass does first is the work already owed, so
+    a page for an escalation raised an hour ago comes before a contract
+    nobody has minted. And a pause is a statement that nobody can triage
+    more work — which is exactly when the queue most needs draining, so the
+    relay is the one leg a pause does not stop."""
+
+    contract(tmp_path, "T-0001")
+    order: list[str] = []
+
+    async def relay() -> list[str]:
+        order.append("relay")
+
+        return []
+
+    def standing() -> tuple[str, bool]:
+        order.append("standing")
+
+        return "no standing jobs due", False
+
+    async def scenario(log):
+        worker = worker_over(log, [])
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, relay=relay, standing=standing)
+
+        assert order == ["relay", "standing"]
+
+        order.clear()
+        await once(
+            log,
+            worker,
+            tmp_path,
+            PARTITION,
+            dispatch=False,
+            relay=relay,
+            standing=standing,
+            paused=True,
+        )
+
+        # The pause stops the leg that creates work, never the one that
+        # delivers what is already owed.
+        assert order == ["relay"]
+
+    run(scenario)
+
+
 def test_a_pass_that_does_not_dispatch_imports_and_claims_nothing(tmp_path):
     """The re-mint pass (A-96): the scan must be able to reach the record
     without a worker taking the first thing it finds there."""

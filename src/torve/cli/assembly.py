@@ -13,10 +13,14 @@ routing that tier must pass (D-4.8).
 
 The tick's leg bundles left with the standing loop (A-105); what they wired
 is now the manager's pass, `torve merge` and `torve reap`.
+
+`build_notifier` resolves the notification destination (RFC 0051 D-51.3,
+D-51.4), following the broker's `none`-by-default precedent (D-21.9).
 """
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -24,7 +28,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from torve.application.dispatch import RunDeps
     from torve.application.executors import Prepare
-    from torve.application.ports import Agent, Vcs, WorkspacePort
+    from torve.application.ports import Agent, Notifier, Vcs, WorkspacePort
     from torve.cli.options import RuntimeName
     from torve.config.runconfig import RunnerConfig, TierConfig
     from torve.domain.task import Task
@@ -198,3 +202,30 @@ def build_dispatch_prepare(
         )
 
     return prepare
+
+
+# ....................... #
+
+
+def build_notifier(config: RunnerConfig) -> Notifier:
+    """The destination in force.
+
+    `none` by default and explicitly: a repository that has not chosen a
+    destination sends nothing because somebody decided that, which is the
+    broker's `none` adapter's precedent. An unknown adapter is a
+    configuration error rather than a silent fallback to silence — a
+    notifier that quietly does nothing is the failure this whole document
+    exists to end.
+    """
+
+    from torve.adapters.notify import NoNotifier, WebhookNotifier
+
+    if config.notify.adapter == "none":
+        return NoNotifier()
+
+    if config.notify.adapter == "webhook":
+        return WebhookNotifier(
+            os.environ.get(config.notify.url_env, ""), timeout_s=config.notify.timeout_s
+        )
+
+    raise ValueError(f"unknown notify adapter {config.notify.adapter!r} — one of: none, webhook")

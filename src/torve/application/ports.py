@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from forze.application.contracts.durable.function import DurableRunStorePort
 
     from torve.config.runconfig import StoreConfig
@@ -545,3 +547,53 @@ class CiStatus(Protocol):
     commit. Only "success" lands."""
 
     def conclusion(self, sha: str) -> str: ...
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class Notification:
+    """One escalation, addressed (RFC 0051 §5.3).
+
+    Composed from records and from nothing else: the reason and detail are
+    what the escalation recorded, never a finding's own words, because the
+    engine does not judge what a finding said. `event_id` is the
+    escalation's own, which is what makes this a delivery *of* something
+    and what a destination dedups on (D-51.6).
+    """
+
+    task_id: str
+    partition: str
+    reason: str
+    detail: str
+    at: datetime
+    event_id: str
+    age_s: float
+
+
+# ....................... #
+
+
+class TransientDelivery(RuntimeError):
+    """The destination might take this later — a timeout, a 5xx, a refused
+    connection. Recorded nowhere and retried on the next pass (D-51.6); a
+    refusal a retry will not fix raises RuntimeError instead."""
+
+
+# ....................... #
+
+
+class Notifier(Protocol):
+    """One destination for a notification (RFC 0051 D-51.3).
+
+    The domain never names a destination: webhook, email or pager is an
+    adapter behind this, and adding one is a wiring edit. `deliver` returns
+    the destination's own receipt, which the record keeps — a delivery you
+    cannot point at afterwards is indistinguishable from one that did not
+    happen.
+    """
+
+    name: str
+
+    def deliver(self, notification: Notification) -> str: ...
