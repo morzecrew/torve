@@ -1033,10 +1033,10 @@ class ReviewConfig(BaseModel):
 
 
 class PromotionConfig(BaseModel):
-    """Landing policy (RFC 0006 §3). The operator's `torve merge` is the
-    recorded approval; the `auto_merge` switch a scheduler would have
-    consulted left with the standing loop (A-105, A-110), and a future one
-    reintroduces it rather than inheriting a knob nothing read.
+    """Landing policy (RFC 0006 §3). The operator's `torve merge` is always
+    the recorded approval; `auto_merge` is the opt-in that lets a manager
+    pass invoke the same lane on the same terms — it arms the pass's landing
+    leg, and every refusal below still applies to it unchanged.
 
     `require_ci` is §3's `ci: green_on_current_head` requirement: the lane
     refuses to land a candidate whose branch tip is not green on the
@@ -1046,6 +1046,13 @@ class PromotionConfig(BaseModel):
     remote actually saw."""
 
     model_config = ConfigDict(extra="forbid")
+    # D-52.2: D-6.2's opt-in, restored with its original default of false.
+    # Off, a manager pass never lands and behaves exactly as it did before
+    # the landing leg existed — landing stays a human act. On, the pass runs
+    # the same `process_lane` `torve merge` runs, with the same arguments,
+    # so every refusal below refuses a pass's leg exactly as it refuses the
+    # manual verb.
+    auto_merge: bool = False
     require_ci: bool = False
     # §3's review criterion (D-6.14, A-43): the lane lands only a candidate
     # whose producing run recorded a concluded review (`reviewed_by` on the

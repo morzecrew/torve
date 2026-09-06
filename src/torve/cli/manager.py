@@ -44,6 +44,9 @@ if TYPE_CHECKING:
 
     from forze.application.execution import ExecutionRuntime
 
+    from torve.application.residency import Lane
+    from torve.config.runconfig import RunnerConfig
+
 # ----------------------- #
 
 manager_app = typer.Typer(no_args_is_help=True, help="Run and read the engine's board.")
@@ -89,6 +92,53 @@ async def _board(dsn: str | None, partition: str) -> Board:
         log = event_log(runtime.get_context())
 
         return project(await log.since(partition=partition))
+
+
+# ....................... #
+
+
+def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | None:
+    """The pass's landing leg, or None when the switch is off.
+
+    Off, a pass behaves exactly as it did before the leg existed: the
+    switch's default is the whole of the safety story here, and landing
+    stays the manual verb's job. On, the leg calls the same `process_lane`
+    the operator calls, with the same CI, approvals, review and quiet
+    window arguments this configuration feeds the verb — it adds a caller,
+    not a policy, so no refusal changes and nothing is gated twice.
+    """
+
+    if not config.promotion.auto_merge:
+        return None
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.application.lane import process_lane
+    from torve.cli.merge import _resolve_ci
+
+    vcs = GitLane()
+    ci = _resolve_ci(config)
+
+    async def lane() -> list[str]:
+        # Landing is git in a blocking world: run it off the loop so a slow
+        # rebase cannot stall the pass's clock. The arguments are `merge_cmd`
+        # to the letter — the verb passes no conflict disposal (its own
+        # automatic re-queue is separate, later work), and a leg that passed
+        # one would leave the same conflicting candidate disposed of one way
+        # by `torve merge` and another by the pass.
+        results = await asyncio.to_thread(
+            process_lane,
+            root,
+            vcs,
+            only=only,
+            ci=ci,
+            approvals_required=config.promotion.approvals,
+            require_review=config.promotion.require_review,
+            quiet_window_s=config.promotion.quiet_window,
+        )
+
+        return [result.task for result in results if result.landed]
+
+    return lane
 
 
 # ....................... #
@@ -164,6 +214,10 @@ async def _serve(
 
         return standing_leg(root, config, runtime_for(config, None), landings.__contains__)
 
+    # None unless the auto-merge switch is on: an unarmed serve is the
+    # same pass it was before the landing leg existed.
+    lane_leg = _lane_leg(root, config, only=only)
+
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
 
@@ -192,6 +246,7 @@ async def _serve(
             standing=standing,
             paused=paused,
             relay=relay,
+            lane=lane_leg,
         )
 
 
@@ -324,6 +379,12 @@ def serve_cmd(
 ) -> None:
     """Run the manager: mint what the repository has added, claim one task
     at a time, execute it, and record what happened.
+
+    When the configuration arms auto-merge, each pass also lands finished
+    candidates through the serialized lane — the same lane the merge
+    command runs, with the same approvals, review, CI and quiet-window
+    refusals, and stopped by the same pause. Off, which is the default,
+    landing stays a human act.
 
     The process holds nothing. Every pass rebuilds its view from the log, so
     interrupting this is safe at any moment — the cost of a kill is the

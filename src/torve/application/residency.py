@@ -58,6 +58,12 @@ Pause = Callable[[], Awaitable[bool]]
 # destination is an adapter, and this module decides only *when*.
 Relay = Callable[[], Awaitable[list[str]]]
 
+# One pass of the serialized lane (RFC 0052 §5.1), returning the task ids
+# it landed. Wired by the composition root because landing is git, and
+# this module decides only *when*. Unlike the relay, a pause stops it:
+# landing advances the repository rather than delivering what is owed.
+Lane = Callable[[], Awaitable[list[str]]]
+
 # One evaluation of every committed standing job (RFC 0023 §5.4), returning
 # what it did and whether anything fired. Wired by the composition root
 # because firing a predicate needs a sandbox, and this module decides only
@@ -390,6 +396,7 @@ async def once(
     dispatch: bool = True,
     standing: Standing | None = None,
     relay: Relay | None = None,
+    lane: Lane | None = None,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -410,13 +417,17 @@ async def once(
     real money.
 
     The relay runs whatever `paused` says, for the reason in D-51.5: it
-    delivers what is already owed rather than creating anything.
+    delivers what is already owed rather than creating anything. The lane
+    does not, for the reason in D-52.3: landing is not delivering what is
+    owed but advancing the repository, and a pause says nobody has capacity
+    to look at what advancing produces.
 
-    `paused` skips the two legs that can grow the queue and nothing else
-    (D-48.4, D-23.6): the queue may drain during a pause, it may not grow.
-    A pause is a statement about the operator's capacity to triage, never
-    about the safety of what is already running, so an attempt in flight is
-    not interrupted and a task already on the board is still claimed.
+    `paused` skips the legs that can grow the queue or advance the
+    repository, and nothing else (D-48.4, D-23.6): the queue may drain
+    during a pause, it may not grow. A pause is a statement about the
+    operator's capacity to triage, never about the safety of what is
+    already running, so an attempt in flight is not interrupted and a task
+    already on the board is still claimed.
     """
 
     if relay is not None:
@@ -427,6 +438,16 @@ async def once(
         # can triage more work, which is exactly when the queue most needs
         # draining.
         await _leg(root, "relay", relay)
+
+    if lane is not None and not paused:
+        # RFC 0052 §5.1 (D-52.3): after the relay, before the mint. The same
+        # argument one leg further: a candidate that went green an hour ago
+        # is owed its landing more than a contract nobody has minted is owed
+        # its board row — and landing first means the mint that follows sees
+        # a base that already moved, which is the state the dependency rule
+        # reads. The pause stops it where the relay's does not: landing is
+        # advancing the repository, not delivering what is already owed.
+        await _leg(root, "lane", lane)
 
     if standing is not None and not paused:
         # RFC 0023 §5.4: standing before the scan, so a contract this pass
@@ -471,6 +492,7 @@ async def serve(
     dispatch: bool = True,
     standing: Standing | None = None,
     relay: Relay | None = None,
+    lane: Lane | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -503,6 +525,7 @@ async def serve(
             dispatch=dispatch,
             standing=standing,
             relay=relay,
+            lane=lane,
         )
 
         if task_id is not None:

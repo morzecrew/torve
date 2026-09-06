@@ -21,6 +21,7 @@ from torve.application.eventlog import event_log
 from torve.application.manager import dispatchable, project
 from torve.application.residency import contracts, mint, once, reclaim, serve
 from torve.application.worker import Outcome, Worker
+from torve.config.runconfig import PromotionConfig, RunnerConfig
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import TaskState
 
@@ -219,6 +220,9 @@ def test_a_broken_leg_is_recorded_and_the_pass_carries_on(tmp_path):
     async def relay() -> list[str]:
         raise RuntimeError("the destination is unreachable")
 
+    async def lane() -> list[str]:
+        raise RuntimeError("the working tree on main is not clean")
+
     async def scenario(log):
         executed: list[str] = []
         took = await once(
@@ -228,9 +232,10 @@ def test_a_broken_leg_is_recorded_and_the_pass_carries_on(tmp_path):
             PARTITION,
             standing=standing,
             relay=relay,
+            lane=lane,
         )
 
-        # Both legs failed; the pass still minted and still claimed.
+        # All three legs failed; the pass still minted and still claimed.
         assert took == "T-0001"
         assert executed == ["T-0001"]
 
@@ -311,6 +316,87 @@ def test_the_relay_runs_before_the_mint_and_through_a_pause(tmp_path):
         # The pause stops the leg that creates work, never the one that
         # delivers what is already owed.
         assert order == ["relay"]
+
+    run(scenario)
+
+
+def test_the_lane_leg_runs_after_the_relay_and_before_the_mint(tmp_path):
+    """RFC 0052 §5.1: what a pass does first is the work already owed, and
+    a candidate that went green an hour ago is owed its landing more than
+    a contract nobody has minted is owed its board row. Landing first also
+    means the mint that follows sees a base that already moved, which is
+    the state the dependency rule reads."""
+
+    contract(tmp_path, "T-0001")
+    order: list[str] = []
+
+    async def scenario(log):
+        async def relay() -> list[str]:
+            order.append("relay")
+
+            return []
+
+        async def lane() -> list[str]:
+            # The lane's turn must come before the mint's: the contract the
+            # repository holds is not on the board while it runs.
+            board = project(await log.since(partition=PARTITION))
+            order.append("lane" if "T-0001" not in board.tasks else "lane-after-mint")
+
+            return []
+
+        worker = worker_over(log, [])
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, relay=relay, lane=lane)
+
+        assert order == ["relay", "lane"]
+
+        # The mint followed the landing: the row is on the board only
+        # after the pass is through.
+        board = project(await log.since(partition=PARTITION))
+        assert "T-0001" in board.tasks
+
+    run(scenario)
+
+
+def test_a_pause_stops_the_lane_and_not_the_relay(tmp_path):
+    """The two legs differ on exactly this point, and the difference is the
+    design: the relay delivers what is already owed — which is when the
+    queue most needs draining — while landing advances the repository, and
+    a pause says nobody has capacity to look at what advancing produces.
+
+    Asked through `serve`, which is also the proof the loop forwards the
+    leg: the first pass is paused and lands nothing, the second is not."""
+
+    order: list[str] = []
+    answers = [True, False]
+
+    async def relay() -> list[str]:
+        order.append("relay")
+
+        return []
+
+    async def lane() -> list[str]:
+        order.append("lane")
+
+        return []
+
+    async def paused() -> bool:
+        return answers.pop(0)
+
+    async def scenario(log):
+        await serve(
+            log,
+            worker_over(log, []),
+            tmp_path,
+            PARTITION,
+            passes=2,
+            idle_seconds=0,
+            dispatch=False,
+            paused=paused,
+            relay=relay,
+            lane=lane,
+        )
+
+        assert order == ["relay", "relay", "lane"]
 
     run(scenario)
 
@@ -912,3 +998,274 @@ def test_serve_honours_the_named_task_too(tmp_path):
         assert executed == ["T-0002"]
 
     run(scenario)
+
+
+# ....................... #
+# The composition root's landing leg: the switch, the same lane a person
+# calls, and the refusals and the conflict disposal a new caller must not
+# change. These run over real git, because the point of the leg is that
+# nothing about the lane differs for it.
+
+_REPO_SEED = "lane-operator@example.invalid"
+
+
+def git(root: Path, *args: str) -> str:
+    import subprocess
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+    )
+
+    return proc.stdout.strip()
+
+
+def landing_repo(tmp_path: Path) -> Path:
+    """A repository shaped the way the lane finds one: a base branch, a
+    gate manifest, and the engine's records gitignored out of the way."""
+
+    import subprocess
+
+    root = tmp_path / "repo"
+    (root / ".torve").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+    git(root, "config", "user.name", "Lane Operator")
+    git(root, "config", "user.email", _REPO_SEED)
+    (root / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    (root / ".gitignore").write_text(".wt/\n.torve/telemetry.jsonl\n", encoding="utf-8")
+    (root / "app.py").write_text("base = 1\n", encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "init")
+
+    return root
+
+
+def ready_candidate(root: Path, task_id: str, filename: str, content: str) -> None:
+    """A task branch and its terminal READY run state — the lane's input,
+    exactly as an attempt leaves it."""
+
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import TaskState
+
+    git(root, "checkout", "-q", "-b", naming.branch(task_id), "main")
+    (root / filename).write_text(content, encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", f"work ({task_id})")
+    git(root, "checkout", "-q", "main")
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.state = TaskState.READY
+    state.save()
+
+
+def run_state(root: Path, task_id: str):
+    from torve.application.runstate import RunState
+    from torve.base import naming
+
+    return RunState.load(naming.state_file(root, task_id))
+
+
+def engine_events(root: Path, event: str) -> list[dict]:
+    import json
+
+    path = root / ".torve" / "telemetry.jsonl"
+
+    if not path.is_file():
+        return []
+
+    records = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+
+    return [r for r in records if r.get("event") == event]
+
+
+def armed(**criteria) -> RunnerConfig:
+    """The pass as configured to land: the switch on, and whatever landing
+    criteria the case is about."""
+
+    return RunnerConfig(promotion=PromotionConfig(auto_merge=True, **criteria))
+
+
+def land_in_a_pass(repo: Path, config: RunnerConfig, *, only: str | None = None) -> None:
+    """One manager pass over the repository with the leg wired exactly the
+    way `serve` wires it — the switch decides, and a pass with it off
+    carries no lane at all."""
+
+    from torve.cli.manager import _lane_leg
+
+    lane = _lane_leg(repo, config, only=only)
+
+    async def scenario(log):
+        await once(log, worker_over(log, []), repo, PARTITION, dispatch=False, lane=lane)
+
+    run(scenario)
+
+
+def test_the_switch_is_off_by_default_and_an_unarmed_pass_never_lands(tmp_path):
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7101", "one.py", "one = 1\n")
+    base_tip = git(repo, "rev-parse", "HEAD")
+
+    assert RunnerConfig().promotion.auto_merge is False
+
+    land_in_a_pass(repo, RunnerConfig())
+
+    # A pass with the switch off behaves exactly as it did before the leg
+    # existed: the base stands, and the candidate stays ready for `torve
+    # merge` to land by hand.
+    assert git(repo, "rev-parse", "HEAD") == base_tip
+    assert not (repo / "one.py").is_file()
+    assert run_state(repo, "T-7101").state is TaskState.READY
+
+
+def test_the_landing_leg_is_absent_until_the_switch_arms_it(tmp_path):
+    from torve.cli.manager import _lane_leg
+
+    assert _lane_leg(tmp_path, RunnerConfig(), only=None) is None
+    assert _lane_leg(tmp_path, armed(), only=None) is not None
+
+
+def test_an_armed_pass_lands_what_the_lane_would_land_and_says_so(tmp_path):
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7101", "one.py", "one = 1\n")
+
+    land_in_a_pass(repo, armed())
+
+    # The same landing the manual verb performs: the fast-forward moved the
+    # base and carried the candidate's work.
+    assert (repo / "one.py").is_file()
+    assert [e["task"] for e in engine_events(repo, "lane_landed")] == ["T-7101"]
+
+
+def test_an_armed_pass_drains_the_lane_serially(tmp_path):
+    """D-52.6 is decided by the wiring rather than by a new choice: the leg
+    walks the queue exactly as the manual verb does with no argument — the
+    first candidate fast-forwards, its landing moves the base, and the next
+    rebases onto it in the same pass. One candidate per pass would be a
+    different lane, and the leg is not allowed one."""
+
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7101", "one.py", "one = 1\n")
+    ready_candidate(repo, "T-7102", "two.py", "two = 2\n")
+
+    land_in_a_pass(repo, armed())
+
+    assert (repo / "one.py").is_file() and (repo / "two.py").is_file()
+
+
+def test_a_named_task_narrows_the_leg_to_that_candidate(tmp_path):
+    """An operator naming one task means that task and no other — the
+    landing leg is bound by `--task` exactly as the scan and the dispatch
+    are, because it carries the verb's own `only` argument across."""
+
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7101", "one.py", "one = 1\n")
+    ready_candidate(repo, "T-7102", "two.py", "two = 2\n")
+
+    land_in_a_pass(repo, armed(), only="T-7102")
+
+    assert not (repo / "one.py").is_file()
+    assert (repo / "two.py").is_file()
+
+
+def test_a_conflict_escalates_for_the_leg_exactly_as_it_does_for_the_verb(tmp_path):
+    """The lane has two callers now, and they must treat one repository
+    the same way: `torve merge` passes no conflict disposal, so neither
+    does the leg. A candidate whose rebase conflicts is escalated, its
+    branch parks untouched for the human's turn, and the automatic capture
+    and re-queue — the disposal of the next phase's caller — has left no
+    trace of having been here."""
+
+    from torve.base import naming
+
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7102", "app.py", "candidate = 2\n")
+    # The base moves under the candidate, touching the same line: the
+    # rebase conflicts, and the escalation is the disposal.
+    (repo / "app.py").write_text("base = 9\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    base_tip = git(repo, "rev-parse", "HEAD")
+    branch_tip = git(repo, "rev-parse", naming.branch("T-7102"))
+
+    land_in_a_pass(repo, armed())
+
+    state = run_state(repo, "T-7102")
+    assert state.state is TaskState.ESCALATED
+    assert "merge_conflict" in state.escalation.reason
+    # The two carriers of an automatic disposal: no base remembered, no
+    # diff captured — only the escalation a person resolves.
+    assert state.conflict_base is None
+    assert not (repo / ".torve" / "tasks" / "T-7102" / "feedback.md").exists()
+
+    # Nothing landed and the branch stands as measured: parked, not
+    # superseded.
+    assert git(repo, "rev-parse", "HEAD") == base_tip
+    assert git(repo, "rev-parse", naming.branch("T-7102")) == branch_tip
+    assert [e["task"] for e in engine_events(repo, "lane_conflict")] == ["T-7102"]
+
+
+def test_approvals_short_refuses_the_leg_as_it_refuses_the_verb(tmp_path):
+    """The measured case: a conflicting candidate short of its approvals
+    is refused by the prompt before any probe — 'approvals short', the run
+    state left ready — exactly as the manual verb leaves it. A disposal the
+    verb does not have cannot fire for the leg and quietly re-queue what
+    the operator's own command reports as short."""
+
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7201", "app.py", "candidate = 2\n")
+    (repo / "app.py").write_text("base = 9\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    base_tip = git(repo, "rev-parse", "HEAD")
+
+    land_in_a_pass(repo, armed(approvals=2))
+
+    assert [e["task"] for e in engine_events(repo, "lane_approvals_short")] == ["T-7201"]
+    assert run_state(repo, "T-7201").state is TaskState.READY
+    assert git(repo, "rev-parse", "HEAD") == base_tip
+
+
+def test_review_missing_refuses_the_leg_as_it_refuses_the_verb(tmp_path):
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7201", "one.py", "one = 1\n")
+
+    land_in_a_pass(repo, armed(require_review=True))
+
+    assert [e["task"] for e in engine_events(repo, "lane_review_missing")] == ["T-7201"]
+    assert run_state(repo, "T-7201").state is TaskState.READY
+    assert not (repo / "one.py").is_file()
+
+
+def test_the_quiet_window_refuses_the_leg_as_it_refuses_the_verb(tmp_path):
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7201", "one.py", "one = 1\n")
+
+    land_in_a_pass(repo, armed(quiet_window=3600))
+
+    assert [e["task"] for e in engine_events(repo, "lane_quiet_window")] == ["T-7201"]
+    assert run_state(repo, "T-7201").state is TaskState.READY
+    assert not (repo / "one.py").is_file()
+
+
+def test_ci_not_green_refuses_the_leg_as_it_refuses_the_verb(tmp_path, monkeypatch):
+    """The CI port is built from the same configuration helper the verb
+    uses; standing in for the remote is enough, because what is pinned here
+    is that the leg's argument reaches the same refusal."""
+
+    import torve.cli.merge as merge_cli
+
+    class _RedCi:
+        def conclusion(self, sha: str) -> str:
+            return "failure"
+
+    repo = landing_repo(tmp_path)
+    ready_candidate(repo, "T-7201", "one.py", "one = 1\n")
+
+    monkeypatch.setattr(merge_cli, "_resolve_ci", lambda config: _RedCi())
+
+    land_in_a_pass(repo, armed(require_ci=True))
+
+    assert [e["task"] for e in engine_events(repo, "lane_ci_not_green")] == ["T-7201"]
+    assert run_state(repo, "T-7201").state is TaskState.READY
+    assert not (repo / "one.py").is_file()
