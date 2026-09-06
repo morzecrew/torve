@@ -23,7 +23,7 @@ import attrs
 
 from torve.application.manager import LEASE_SECONDS, dispatchable, project
 from torve.domain.events import ActorKind, EventKind, SubjectType
-from torve.domain.states import EscalationReason
+from torve.domain.states import EXIT_INFRASTRUCTURE, EscalationReason
 
 if TYPE_CHECKING:
     from torve.application.eventlog import EventLog
@@ -165,7 +165,28 @@ class Worker:
         if task is None:
             return None
 
-        outcome = await self.run(task, partition)
+        try:
+            outcome = await self.run(task, partition)
+
+        except (ValueError, RuntimeError) as exc:
+            # A dispatch the engine refuses — an unmeasured image regime, a
+            # provider the repository may not reach, a role this path does
+            # not implement — is an outcome, not a crash (A-128). Letting it
+            # escape stranded the claim until the lease ran out, and the
+            # failure that showed was "the pass died" rather than "your
+            # configuration refuses". It escalates instead: a person is
+            # exactly who can fix it, and re-queuing would refuse again next
+            # pass, forever.
+            outcome = Outcome(
+                attempt=0,
+                exit_code=EXIT_INFRASTRUCTURE,
+                # Never a document-indicting reason (RFC 0022): the fault
+                # is the machine's configuration, and `underspecified`
+                # would blame the contract in the quality readings.
+                escalation=EscalationReason.GATE_INFRASTRUCTURE_FAILURE,
+                detail=f"dispatch refused: {exc}"[:300],
+            )
+
         await self.release(task, partition, outcome)
 
         return task.id

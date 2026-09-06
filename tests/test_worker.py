@@ -233,3 +233,39 @@ def test_an_escalated_run_state_carries_its_reason_through_the_enum():
     assert outcome.escalation is EscalationReason.POISON_CEILING
     assert outcome.landed_sha is None
     assert "3 attempts" in outcome.detail
+
+
+def test_a_refused_dispatch_escalates_rather_than_stranding_the_claim():
+    """Found by the first live dispatch (A-128). The regime check refused an
+    unmeasured image, the ValueError escaped the worker, the pass died and
+    the task sat `claimed` until its lease ran out — so what showed was "no
+    work ran" rather than "your configuration refuses". A person is exactly
+    who can fix that, and re-queuing would refuse again next pass forever."""
+
+    async def refuse(task):
+        raise ValueError("tier 'executor' now resolves an image digest nothing measured")
+
+    async def scenario(log):
+        await mint(log, "T-0001")
+        worker = Worker(log=log, name="w-1", execute=refuse)
+
+        assert await worker.once(PARTITION) == "T-0001"
+
+        board = project(await log.since(partition=PARTITION))
+        view = board.tasks["T-0001"]
+        assert view.state is TaskState.ESCALATED
+        # Never a document-indicting reason: the fault is the machine's, and
+        # `underspecified` would blame the contract in the quality readings.
+        assert view.escalation == "gate_infrastructure_failure"
+
+        raised = [
+            e
+            for e in await log.history("T-0001", partition=PARTITION)
+            if e.kind is EventKind.ESCALATION_RAISED
+        ]
+        assert "dispatch refused" in raised[0].payload["detail"]
+        # And the claim is gone: an escalated task is a person's, not a
+        # worker's.
+        assert view.claimed_by is None
+
+    run(scenario)

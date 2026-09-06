@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99", "A-107"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99", "A-107", "A-128"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -825,3 +825,48 @@ The record's own reads had to grow up on the way (A-99): `since` was
 folding the oldest 1000 events of 1995, so the board a manager decided
 from was missing a third of its tasks. Deleting the alternative carrier
 raises the price of a defect in this one.
+
+### A-128 — 2026-09-06 — A leg's failure is recorded, never fatal — found by the first live dispatch
+**Found by dispatching one task.** The v2 manager had executed five
+attempts across one task in its whole life. Putting one more through it
+found three defects in ten minutes, two of them mine from the same day.
+
+**A leg's failure killed the pass.** The retired tick wrapped every leg —
+*"a bounded tick must reach its last leg so the record reflects whatever
+did happen"* — and when the standing and relay legs moved into
+`residency.once` (A-106, RFC 0051 D-51.5) they arrived without the wrapper.
+The first live pass proved it: a standing job whose body crosses four
+documents' locked decisions is refused by RFC 0030's threshold, the
+`ValueError` escaped, and nothing was minted, claimed or dispatched. What
+showed was *"no work ran"*; what happened was *"a draft was refused"*.
+
+**Changed:** `_leg` wraps every injected leg and records `leg_failed`
+rather than propagating. The same argument as D-24.5 one level down — a
+manager that stops serving because one leg is broken is worse than one that
+says so and carries on.
+
+**A refused dispatch stranded the claim.** The second pass claimed T-0281
+and then the regime check refused it: the executor tier's image digest had
+changed with no paired verdict behind it (RFC 0027). That refusal is
+correct and is the engine working — but it escaped `Worker.once`, so the
+task sat `claimed` with the pass dead until its lease ran out.
+
+**Changed:** a refusal the engine raises before an attempt exists is an
+outcome, and the worker escalates it. Deliberately **not** with
+`underspecified`, which is one of RFC 0022's two document-indicting reasons
+— the fault is the machine's configuration, and blaming the contract would
+poison the specification-quality readings. `gate_infrastructure_failure`
+says what it is. Re-queuing was the alternative and is a loop: the same
+configuration refuses the same task on the next pass, forever.
+
+**The third defect is not fixed here.** A standing job that has never been
+able to instantiate now records `standing_instantiate_refused` and is
+skipped (RFC 0023 D-23.3's fail-closed rule, one step later than it was
+written) — but the job itself is still unadoptable, and `lockfile-drift`
+or `flake-quarantine` will refuse on every pass until somebody narrows its
+scope. That is RFC 0023's to own.
+
+The pattern this session named four times over — a capability that is green
+and inert — has a companion this run found: a capability that is green,
+wired, and fatal the first time it is exercised. The only check that finds
+either is running it.

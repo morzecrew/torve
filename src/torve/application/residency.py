@@ -96,6 +96,36 @@ def ran_here(root: Path) -> set[str]:
 # ....................... #
 
 
+async def _leg(root: Path, name: str, call: Callable[[], object]) -> None:
+    """One injected leg, whose failure is recorded and never fatal (A-128).
+
+    The retired tick wrapped every leg for this reason — "a bounded pass
+    must reach its last leg so the record reflects whatever did happen" —
+    and the manager's pass inherited the legs without the wrapper. It cost
+    a live dispatch: a standing job that could not be instantiated took
+    down the pass before it claimed anything, and the failure that mattered
+    (a refused draft) was not the failure that showed (no work ran).
+
+    The same argument as D-24.5 one level down: a manager that stops
+    serving because one leg is broken is worse than one that says so and
+    carries on.
+    """
+
+    from torve.application.telemetry import engine_event
+
+    try:
+        outcome = call()
+
+        if isinstance(outcome, Awaitable):
+            await outcome
+
+    except Exception as exc:
+        engine_event(root, "leg_failed", {"leg": name, "error": str(exc)[:300]})
+
+
+# ....................... #
+
+
 def contracts(root: Path) -> dict[str, Task]:
     """Every contract the repository carries, by id.
 
@@ -396,7 +426,7 @@ async def once(
         # yet. Unaffected by `paused` — a pause is a statement that nobody
         # can triage more work, which is exactly when the queue most needs
         # draining.
-        await relay()
+        await _leg(root, "relay", relay)
 
     if standing is not None and not paused:
         # RFC 0023 §5.4: standing before the scan, so a contract this pass
@@ -404,7 +434,7 @@ async def once(
         # caller's, and this is that caller: a paused pass evaluates no
         # predicate, because a predicate that fires creates work and a
         # pause is a statement that nobody has capacity to triage it.
-        standing()
+        await _leg(root, "standing", standing)
 
     tasks = contracts(root)
 

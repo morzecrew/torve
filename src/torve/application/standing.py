@@ -574,7 +574,18 @@ def standing_leg(
             errors.append(f"{job.name}: contract lint red: {lint_errors[0]}")
             continue
 
-        fired.append(f"{job.name}->{instantiate(root, job, config)}")
+        try:
+            fired.append(f"{job.name}->{instantiate(root, job, config)}")
+
+        except ValueError as exc:
+            # D-23.3's rule, one step later than it was written: the leg
+            # fails closed toward not creating work, and an instantiation
+            # a human would have to fix is exactly that. Found live — a job
+            # whose body crosses four documents' locked decisions is
+            # refused by the threshold (RFC 0030), and the refusal used to
+            # leave the manager's whole pass dead (A-128).
+            engine_event(root, "standing_instantiate_refused", {"job": job.name, "error": str(exc)})
+            errors.append(f"{job.name}: {exc}")
 
     parts: list[str] = []
 

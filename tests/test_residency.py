@@ -205,6 +205,41 @@ def test_the_standing_leg_runs_before_the_scan_and_a_paused_pass_skips_it(tmp_pa
     run(scenario)
 
 
+def test_a_broken_leg_is_recorded_and_the_pass_carries_on(tmp_path):
+    """Found by the first live dispatch (A-128): a standing job that could
+    not be instantiated raised out of the pass, so nothing was claimed and
+    the failure that showed was "no work ran" rather than "a draft was
+    refused". The retired tick wrapped every leg for exactly this."""
+
+    contract(tmp_path, "T-0001")
+
+    def standing() -> tuple[str, bool]:
+        raise ValueError("a draft the threshold refuses")
+
+    async def relay() -> list[str]:
+        raise RuntimeError("the destination is unreachable")
+
+    async def scenario(log):
+        executed: list[str] = []
+        took = await once(
+            log,
+            worker_over(log, executed),
+            tmp_path,
+            PARTITION,
+            standing=standing,
+            relay=relay,
+        )
+
+        # Both legs failed; the pass still minted and still claimed.
+        assert took == "T-0001"
+        assert executed == ["T-0001"]
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].state is TaskState.READY
+
+    run(scenario)
+
+
 def test_the_pause_is_asked_again_every_pass(tmp_path):
     """A resident manager outlives the answer: a pause decided once at
     startup stops meaning anything an hour later, so `serve` asks (A-110).
