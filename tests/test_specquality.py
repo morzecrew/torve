@@ -843,13 +843,6 @@ def _write_gates_with_telemetry(root, telemetry_rel: str) -> None:
     )
 
 
-def _write_engine_event(root, path: str, *, event: str, task_id: str) -> None:
-    target = root / path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"kind": "engine", "event": event, "task": task_id}) + "\n")
-
-
 def _write_cost_record(root, path: str, task_id: str, cost_usd: float) -> None:
     target = root / path
     target.parent.mkdir(parents=True, exist_ok=True)

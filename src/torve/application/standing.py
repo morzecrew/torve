@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -371,7 +372,18 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
 
     # The tick that calls this leg already holds the lock (D-19.2); adopt's
     # own acquire would deadlock against it.
-    (new_id,) = adopt(root, scratch, config, assume_lock=True)
+    try:
+        (new_id,) = adopt(root, scratch, config, assume_lock=True)
+
+    except Exception:
+        # A refused adoption never retries this scratch — the next
+        # evaluation mints a fresh uuid — so leaving it behind grows one
+        # directory per pass for as long as the job stays unadoptable.
+        # `flake-quarantine` crosses locked decisions from four documents
+        # and had left seven. A successful adoption keeps its directory:
+        # `adopted.json` lands there and is what refuses a second adoption.
+        shutil.rmtree(source.parent, ignore_errors=True)
+        raise
 
     record: dict[str, Any] = {
         "schema_version": 1,

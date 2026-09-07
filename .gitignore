@@ -224,6 +224,15 @@ __marimo__/
 .torve/regimes/
 .torve/skills/
 .torve/tmp/
+# A revision's feedback record is scratch, not a reviewed artefact: it is
+# replaced on every capture and consumed by the next attempt's sandbox.
+# None has ever been tracked; saying so stops them reading as debris.
+.torve/tasks/*/feedback.md
+.torve/tasks/*/feedback-threads.json
+# A refused standing adoption used to leave its scratch drafts behind, one
+# directory per pass. The leg cleans up now; this catches what a crash
+# between the write and the refusal would still leave.
+.torve/tasks/standing-*/
 .wt/
 .torve/review-corpus/*/*.trace.log
 .repowise/

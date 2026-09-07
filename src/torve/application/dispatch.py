@@ -161,11 +161,6 @@ class Dispatch:
     # domain object (D-46.6).
     meta: dict[str, Any]
 
-    # The commits a `revert` role undoes, resolved at open so an
-    # unresolvable target fails before anything runs. Empty for every other
-    # role.
-    revert_shas: list[str] = field(default_factory=list)
-
     # The run's broker route table and handle, opened last (D-46.4) and
     # closed once however the loop ends.
     routing: BrokerRouting = field(default_factory=BrokerRouting)
