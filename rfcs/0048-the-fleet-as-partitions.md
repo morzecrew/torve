@@ -332,6 +332,9 @@ and the concurrency question is named as open rather than implied.
     - "src/torve/application/manager.py"
     - "src/torve/application/residency.py"
     - "tests/test_fleet_serve.py"
+    - "tests/test_fleet.py"  # A-133: a module in scope brings its test file
+    - "tests/test_manager.py"  # A-133: a module in scope brings its test file
+    - "tests/test_residency.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_fleet_serve.py tests/test_fleet.py tests/test_residency.py"
     - "uv run lint-imports --config pyproject.toml"
@@ -346,9 +349,9 @@ and the concurrency question is named as open rather than implied.
     - "src/torve/cli/fleet.py"
     - "pages/docs/architecture/distribution.md"
     - "tests/test_fleet_serve.py"
+    - "tests/test_fleet.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_fleet_serve.py tests/test_fleet.py"
-    - "uv run torve gates run"
     - "uv run torve rfc check"
   depends_on: [1]
 ```

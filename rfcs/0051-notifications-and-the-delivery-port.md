@@ -335,6 +335,8 @@ how a docs site stops being read.
     - "src/torve/adapters/notify/**"
     - "src/torve/config/runconfig.py"
     - "tests/test_notify.py"
+    - "tests/test_events.py"  # A-133: a module in scope brings its test file
+    - "tests/test_runconfig.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_notify.py tests/test_manager.py"
     - "uv run lint-imports --config pyproject.toml"
@@ -350,9 +352,9 @@ how a docs site stops being read.
     - "src/torve/cli/manager.py"
     - "tests/test_notify.py"
     - "tests/test_residency.py"
+    - "tests/test_manager.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_notify.py tests/test_residency.py"
-    - "uv run torve gates run"
     - "uv run torve rfc check"
   depends_on: [1]
 ```

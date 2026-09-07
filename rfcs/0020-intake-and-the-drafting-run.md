@@ -7,7 +7,7 @@ depends_on: ["0003", "0007", "0008"]
 informed_by: ["0005", "0019"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-93", "A-116"]
+amended_by: ["A-93", "A-116", "A-133"]
 owner: Lev Litvinov
 description: >-
   A commander's free-form request becomes lint-checked draft task contracts through a sandboxed drafting run; a human adopts or refuses, and ids are minted only at adoption.
@@ -431,3 +431,34 @@ It is the reason a phase count is evidence and not a verdict.
 
 **Changed:** `implementation: partial` stands, with the drafting run and
 the lint intact, the board half gone, and two grades owed a regrade.
+
+### A-133 — 2026-09-07 — the corpus carried a contract lint it had never been run through
+**Found by wiring the lint into `torve plan` (RFC 0052 A-132).** `lint_drafts`
+was called from the three drafting paths — intake, decompose, standing —
+where a model authors the contract, and never from the minting path, where
+a reviewed document does. The asymmetry read as principled: a drafted
+contract is untrusted, a planned one comes from a document a human
+accepted. What it actually meant is that no phasing block in this corpus
+had ever been checked.
+
+Run over the six documents of the v2 generation, the lint refused every
+one. All six carried `uv run torve gates run` as an acceptance command,
+which cannot pass inside a sandbox — a sandbox mounts the worktree without
+a repository, so `.git` there points at a host path the container never
+sees. Five also allowed a module without its existing test file, the
+T-0113 rule, whose own origin was an escalation that burned a full poison
+ceiling. None of it had ever fired, because that generation was built by
+hand and its phases were never minted.
+
+**Changed:** the six phasing blocks are corrected — the unrunnable command
+dropped, the missing test files added, each marked in place. All six plan
+clean now.
+
+**Why one amendment and not six.** These documents are `complete`; their
+phases are built and will not be minted again. The correction is
+mechanical, touches no decision row, and nothing cites a phasing block
+after minting — divergence logs cite `D-n`. What is worth recording is not
+six identical edits but the reason they were all identical: an unchecked
+input format propagates by imitation, and the eighth author copied the
+first. The check is what stops that, and it now runs where the contracts
+are actually made.

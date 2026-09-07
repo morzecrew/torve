@@ -414,6 +414,8 @@ rather than by an edit.
     - "src/torve/application/eventlog.py"
     - "migrations/torve/postgres/0002_decisions.sql"
     - "tests/test_decisions_record.py"
+    - "tests/test_events.py"  # A-133: a module in scope brings its test file
+    - "tests/test_eventlog.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_decisions_record.py tests/test_events.py"
     - "uv run lint-imports --config pyproject.toml"
@@ -432,7 +434,6 @@ rather than by an edit.
     - "tests/test_docs.py"
   acceptance:
     - "uv run pytest tests/test_decisions_record.py tests/test_docs.py"
-    - "uv run torve gates run"
     - "uv run torve rfc check"
   depends_on: [1]
 ```

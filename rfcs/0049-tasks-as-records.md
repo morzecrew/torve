@@ -322,6 +322,9 @@ contract was placed on which board, when, and what changed since.
     - "src/torve/application/manager.py"
     - "src/torve/application/residency.py"
     - "tests/test_task_records.py"
+    - "tests/test_events.py"  # A-133: a module in scope brings its test file
+    - "tests/test_manager.py"  # A-133: a module in scope brings its test file
+    - "tests/test_residency.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_task_records.py tests/test_manager.py tests/test_residency.py tests/test_events.py"
     - "uv run lint-imports --config pyproject.toml"
@@ -337,9 +340,11 @@ contract was placed on which board, when, and what changed since.
     - "src/torve/application/residency.py"
     - "pages/docs/architecture/state.md"
     - "tests/test_task_records.py"
+    - "tests/test_manager.py"  # A-133: a module in scope brings its test file
+    - "tests/test_worker.py"  # A-133: a module in scope brings its test file
+    - "tests/test_residency.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_task_records.py tests/test_worker.py tests/test_manager.py"
-    - "uv run torve gates run"
     - "uv run torve rfc check"
   depends_on: [1]
 ```

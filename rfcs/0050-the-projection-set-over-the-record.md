@@ -282,7 +282,6 @@ change.
     - "tests/test_why_record.py"
   acceptance:
     - "uv run pytest tests/test_why_record.py tests/test_reaper.py"
-    - "uv run torve gates run"
     - "uv run torve rfc check"
   depends_on: [1]
 - phase: 3
@@ -294,9 +293,9 @@ change.
     - "src/torve/application/specquality.py"
     - "src/torve/cli/context.py"
     - "tests/test_context.py"
+    - "tests/test_specquality.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_context.py tests/test_specquality.py"
-    - "uv run torve gates run"
     - "uv run torve rfc check"
   depends_on: [2]
 ```

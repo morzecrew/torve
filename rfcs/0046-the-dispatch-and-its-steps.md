@@ -401,6 +401,7 @@ point.
     - "src/torve/application/runner.py"
     - "src/torve/application/review.py"
     - "tests/test_dispatch.py"
+    - "tests/test_runner.py"  # A-133: a module in scope brings its test file
   acceptance:
     - "uv run pytest"
     - "uv run lint-imports --config pyproject.toml"
@@ -418,7 +419,6 @@ point.
     - "tests/test_session.py"
   acceptance:
     - "uv run pytest"
-    - "uv run torve gates run"
     - "uv run mypy src/torve/application"
   depends_on: [1]
 ```
