@@ -255,11 +255,27 @@ def echo_port():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(("127.0.0.1", 0))
     server.listen(8)
+    # The accept below wakes on this cadence to see `stopping`, which is what
+    # lets the loop end. Closing the socket under a thread parked in accept()
+    # does not reliably wake it, and a daemon thread still inside a C call
+    # when the interpreter tears down is how this suite segfaulted (exit 139
+    # under T-0282's gate battery, three attempts out of three). Every other
+    # server fixture here ends its thread through `serve_forever`'s own
+    # `shutdown()`; this hand-rolled one had no way to.
+    server.settimeout(0.5)
     port = server.getsockname()[1]
+    stopping = threading.Event()
 
     def loop() -> None:
-        while True:
-            conn, _ = server.accept()
+        while not stopping.is_set():
+            try:
+                conn, _ = server.accept()
+
+            except TimeoutError:
+                continue
+
+            except OSError:
+                return
 
             def serve(connection: socket.socket) -> None:
                 with connection:
@@ -273,10 +289,13 @@ def echo_port():
 
             threading.Thread(target=serve, args=(conn,), daemon=True).start()
 
-    threading.Thread(target=loop, daemon=True).start()
+    accepting = threading.Thread(target=loop, daemon=True)
+    accepting.start()
 
     yield port
 
+    stopping.set()
+    accepting.join(timeout=3)
     server.close()
 
 
