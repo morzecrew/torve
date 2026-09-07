@@ -74,6 +74,7 @@ class EventKind(StrEnum):
     TASK_ADOPTED = "task.adopted"
     TASK_CLAIMED = "task.claimed"
     TASK_RELEASED = "task.released"
+    TASK_RETURNED = "task.returned"
     ATTEMPT_STARTED = "attempt.started"
     ATTEMPT_FINISHED = "attempt.finished"
     GATES_EVALUATED = "gates.evaluated"
@@ -105,6 +106,10 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     EventKind.TASK_ADOPTED: frozenset({ActorKind.OPERATOR}),
     EventKind.TASK_CLAIMED: frozenset({ActorKind.MANAGER}),
     EventKind.TASK_RELEASED: frozenset({ActorKind.MANAGER}),
+    # A-134: sending a reviewed candidate back is the operator's alone, for
+    # ESCALATION_RESOLVED's reason — an agent that could return its own
+    # judged work could route around every verdict it disliked.
+    EventKind.TASK_RETURNED: frozenset({ActorKind.OPERATOR}),
     EventKind.ATTEMPT_STARTED: frozenset({ActorKind.WORKER}),
     EventKind.ATTEMPT_FINISHED: frozenset({ActorKind.WORKER}),
     EventKind.GATES_EVALUATED: frozenset({ActorKind.WORKER}),
@@ -228,6 +233,21 @@ class TaskReleased(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str
+
+
+# ....................... #
+
+
+class TaskReturned(BaseModel):
+    """A reviewed candidate sent back for revision (A-134). Distinct from
+    `TaskReleased`, which is a holder letting go of a lease: this is work
+    that was done, judged and refused, and the two must stay tellable
+    apart. `note` is what the next attempt is briefed with."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str
+    note: str = ""
 
 
 # ....................... #
@@ -476,6 +496,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.TASK_ADOPTED: TaskAdopted,
     EventKind.TASK_CLAIMED: TaskClaimed,
     EventKind.TASK_RELEASED: TaskReleased,
+    EventKind.TASK_RETURNED: TaskReturned,
     EventKind.ATTEMPT_STARTED: AttemptStarted,
     EventKind.ATTEMPT_FINISHED: AttemptFinished,
     EventKind.GATES_EVALUATED: GatesEvaluated,

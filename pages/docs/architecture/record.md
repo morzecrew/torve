@@ -49,6 +49,7 @@ executable intent without a human signature.**
 | `task.adopted` | operator |
 | `task.claimed` | manager |
 | `task.released` | manager |
+| `task.returned` | operator |
 | `attempt.started` | worker |
 | `attempt.finished` | worker |
 | `gates.evaluated` | worker |

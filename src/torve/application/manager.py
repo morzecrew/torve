@@ -117,6 +117,7 @@ _TRANSITIONS: dict[EventKind, TaskState] = {
     EventKind.TASK_MINTED: TaskState.QUEUED,
     EventKind.TASK_CLAIMED: TaskState.CLAIMED,
     EventKind.TASK_RELEASED: TaskState.QUEUED,
+    EventKind.TASK_RETURNED: TaskState.QUEUED,
     EventKind.ATTEMPT_STARTED: TaskState.RUNNING,
     EventKind.GATES_EVALUATED: TaskState.GATED,
     EventKind.REVIEW_RECORDED: TaskState.REVIEWED,
@@ -187,6 +188,10 @@ def project(events: Iterable[EventRecord]) -> Board:
             )
         elif event.kind is EventKind.TASK_RELEASED:
             view = replace(view, claimed_by=None, claimed_at=None)
+        elif event.kind is EventKind.TASK_RETURNED:
+            # The candidate's commit is no longer the answer, and a queued
+            # row still showing a landing reads as a landing (A-134).
+            view = replace(view, claimed_by=None, claimed_at=None, landed_sha=None)
         elif event.kind is EventKind.ATTEMPT_STARTED:
             view = replace(view, attempts=int(payload.get("attempt") or view.attempts + 1))
         elif event.kind is EventKind.LANDING_RECORDED:

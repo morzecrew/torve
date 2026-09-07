@@ -29,6 +29,7 @@ shell has not set is filled in.
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |
 | `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` also discards escalations you have dealt with by hand |
 | `torve status` / `why` / `context` | the reports. See below for which carrier answers |
+| `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
 | `torve rfc check` / `amend` / `index` | the corpus surface |

@@ -284,6 +284,63 @@ def test_a_replayed_log_rebuilds_the_same_board():
     run(scenario)
 
 
+def test_a_returned_candidate_is_queued_again_and_shows_no_landing():
+    """A-134: a candidate reaches `ready` when its gates and its review are
+    done, and a person may still judge it wrong. Nothing could send it back
+    — `task.released` is the manager reclaiming an expired lease and
+    `expired()` sees only in-flight states, so `ready` was landed-or-
+    abandoned and nothing else. T-0282 reached it with a real defect in it.
+    """
+
+    async def scenario(log):
+        await mint(log, "T-1")
+        await claim(log, "T-1")
+        await land(log, "T-1")
+
+        landed = project(await log.since())
+        assert landed.tasks["T-1"].state is TaskState.READY
+        assert landed.tasks["T-1"].landed_sha == "a" * 40
+        assert dispatchable(landed, PARTITION) == []
+
+        await log.record(
+            EventKind.TASK_RETURNED,
+            partition=PARTITION,
+            subject_type=SubjectType.TASK,
+            subject_id="T-1",
+            actor_kind=ActorKind.OPERATOR,
+            actor_id="operator",
+            payload={"reason": "the decode aborts the pass", "note": "wrap the decode"},
+        )
+
+        board = project(await log.since())
+        view = board.tasks["T-1"]
+
+        assert view.state is TaskState.QUEUED
+        # The candidate's commit is no longer the answer, and a queued row
+        # still showing a landing reads as a landing.
+        assert view.landed_sha is None
+        assert view.claimed_by is None
+        assert board.landed() == set()
+        # And the whole point: a worker can pick it up again.
+        assert dispatchable(board, PARTITION) == ["T-1"]
+
+    run(scenario)
+
+
+def test_only_an_operator_may_send_a_candidate_back():
+    """ESCALATION_RESOLVED's reason exactly (A-134): an agent that could
+    return its own judged work could route around every verdict it
+    disliked."""
+
+    from torve.domain.events import AUTHORITY, UnauthorizedWrite, check_authority
+
+    assert AUTHORITY[EventKind.TASK_RETURNED] == frozenset({ActorKind.OPERATOR})
+
+    for actor in (ActorKind.AGENT, ActorKind.WORKER, ActorKind.MANAGER):
+        with pytest.raises(UnauthorizedWrite):
+            check_authority(actor, EventKind.TASK_RETURNED)
+
+
 def test_facts_that_are_not_transitions_leave_the_state_alone():
     """A divergence, a message or a burn event says something about the
     work, never about whose turn it is (D-44.1)."""

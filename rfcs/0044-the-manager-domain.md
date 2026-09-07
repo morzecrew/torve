@@ -7,7 +7,7 @@ depends_on: []
 informed_by: ["0019", "0020", "0021", "0027", "0042", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99", "A-107", "A-128", "A-129"]
+amended_by: ["A-80", "A-81", "A-82", "A-85", "A-86", "A-89", "A-90", "A-91", "A-99", "A-107", "A-128", "A-129", "A-134"]
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution, a resident manager owns queues across repositories, workers are stateless claim-pullers, and the repository becomes a projection.
@@ -905,3 +905,35 @@ could take the manager down. That is the second review running where a
 finding worth stopping for was graded below the bar that stops. Whether
 `major` should be able to hold a defect of this class is RFC 0005's
 question, and it is open.
+
+### A-134 — 2026-09-07 — a reviewed candidate can be sent back (adds `task.returned`)
+**Found by needing it.** T-0282 went green, was reviewed, and reached
+`ready` with a real defect in it — a decode error that abandoned every
+candidate behind the one it tripped on. The finding was `major`, and
+`major` did not stop a promotion, so the candidate stood. There was no way
+to send it back.
+
+`task.released` is the only kind that returns a task to the queue, and it
+is the manager's reclaim of an expired lease: `expired()` considers only
+in-flight states, and `ready` is not one. `escalation.resolved` would have
+worked mechanically — the fold maps `requeued` to the queue — but there was
+no escalation, and writing one to obtain a state transition puts a lie in
+the log to move a task. The alternatives were to land the candidate and fix
+it afterwards, or to abandon the work. Both were taken today, one of each.
+
+**Added:** `task.returned`, authority `OPERATOR` alone. A reviewed
+candidate is work that was done, judged and sent back; that is a different
+fact from a holder letting go, and `task.released`'s own record says why
+the two must stay distinguishable — "a task that came back to the queue can
+always be told from one that never left". The fold returns the task to
+`queued` and clears `landed_sha`, because the candidate's commit is no
+longer the answer and a queued row showing a landing reads as a landing.
+
+Only an operator may write it, for `escalation.resolved`'s reason exactly:
+an agent that could return its own reviewed work could route around every
+verdict it disliked.
+
+The operator's `--note` rides the RFC 0005 §4a feedback record, so the next
+attempt is briefed by the person who sent it back rather than starting
+blind. That is the same carrier a surviving blocker uses (D-43.2); nothing
+new delivers it.

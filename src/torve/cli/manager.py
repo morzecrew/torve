@@ -490,6 +490,89 @@ async def _resolve(
 # ....................... #
 
 
+async def _return(dsn: str | None, partition: str, task_id: str, reason: str, note: str) -> None:
+    from torve.application.eventlog import event_log
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+
+    async with _runtime(dsn) as runtime:
+        await event_log(runtime.get_context()).record(
+            EventKind.TASK_RETURNED,
+            partition=partition,
+            subject_type=SubjectType.TASK,
+            subject_id=task_id,
+            actor_kind=ActorKind.OPERATOR,
+            actor_id="operator",
+            payload={"reason": reason, "note": note},
+        )
+
+
+# ....................... #
+
+
+@manager_app.command("return")
+def return_cmd(
+    partition: Annotated[str, typer.Argument(help="The repository the task belongs to.")],
+    task_id: Annotated[str, typer.Argument(help="The reviewed candidate to send back.")],
+    reason: Annotated[
+        str, typer.Option("--reason", help="Why it is going back, in a few words.")
+    ] = "returned for revision",
+    note: Annotated[
+        str,
+        typer.Option("--note", help="What the next attempt should do differently."),
+    ] = "",
+    dsn: Annotated[
+        str,
+        typer.Option(
+            "--dsn",
+            help="Postgres DSN holding the log; omitted uses the DSN this repository's "
+            "configuration names.",
+        ),
+    ] = "",
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Send a reviewed candidate back for revision.
+
+    A candidate reaches `ready` when its gates and its review are done —
+    and a person may still judge it wrong. Before this, the only answers
+    were to land it and fix it afterwards or to abandon the work; a lease
+    reclaim returns only what is still in flight, and writing an escalation
+    nobody raised would put a lie in the log to move a task (A-134).
+
+    `--note` rides the same feedback record a surviving blocker uses, so
+    the next attempt is briefed by the person who sent it back rather than
+    starting blind. Only an operator may write this.
+    """
+
+    from torve.application.feedback import capture_feedback
+
+    root = root.resolve()
+    asyncio.run(_return(dsn_to_write(root, dsn) or None, partition, task_id, reason, note))
+
+    # The critique travels the way a blocker's does (D-43.2, D-5.13): the
+    # note is a thread, and an empty one captures nothing rather than
+    # briefing the next attempt with silence.
+    briefed = bool(note) and capture_feedback(
+        root,
+        task_id,
+        "",
+        [{"comments": [{"author": "operator", "body": note}]}],
+    )
+
+    if fmt is Format.JSON:
+        emit_json({"partition": partition, "task": task_id, "reason": reason, "briefed": briefed})
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    closing(console, f"{task_id}: returned — {reason}")
+
+    if briefed:
+        closing(console, "the note is in the task's feedback record", STYLE_DIM)
+
+
+# ....................... #
+
+
 @manager_app.command("resolve")
 def resolve_cmd(
     partition: Annotated[str, typer.Argument(help="The repository the task belongs to.")],
