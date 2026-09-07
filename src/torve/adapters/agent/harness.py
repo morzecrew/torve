@@ -532,13 +532,29 @@ def _capture(command: str, raw_relpath: str) -> str:
     counts). The exit code is the command's own, and the group redirect keeps
     pipes and `&&` legs intact. A command that does not run as a real shell
     line simply leaves no raw file, and the adapter falls back to the exec
-    output exactly as before."""
+    output exactly as before.
+
+    So does a workspace the sandbox cannot write. A drafting run mounts its
+    worktree read-only (D-5.2, D-20.2), the raw path lives inside it, and an
+    unconditional redirect fails before the command runs — so `torve intake`
+    with a real harness produced three empty attempts and escalated
+    `drafter output unparseable`, which is what a model returning nothing
+    also looks like. The guard makes the promise above true: the capture is
+    attempted, and where it cannot be created the command runs plainly and
+    the exec output stands, clipped as it was before T-0271."""
 
     quoted = f"'{raw_relpath}'"
+    body = f"{{\n{command}\n}}"
 
     return (
-        f"{{\n{command}\n}} > {quoted} 2>&1\n"
+        # The probe runs in a subshell because a redirect that fails on `:` —
+        # a POSIX *special* builtin — exits the whole shell rather than
+        # returning non-zero, which would take the fallback with it.
+        f"if ( : > {quoted} ) 2>/dev/null; then\n"
+        f"{body} > {quoted} 2>&1\n"
         f"_torve_capture_rc=$?\ncat {quoted}\nexit $_torve_capture_rc\n"
+        f"fi\n"
+        f"{body}\n"
     )
 
 

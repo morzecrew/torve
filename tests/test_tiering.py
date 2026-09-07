@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import pathlib
 import subprocess
 
 import pytest
@@ -965,6 +966,49 @@ def test_harness_agent_derives_the_burn_from_the_captured_stream(tmp_path):
     assert result.trace_ref == ".torve/traces/T-9010.a1.trace.log"
     assert trace.read_text(encoding="utf-8") == CLAUDE_STREAM
     # The raw capture is the adapter's transit, not a kept artifact.
+    assert not (ctx.workspace / ".torve" / "tmp" / "harness-output.a1.raw").exists()
+
+
+class SandboxReadOnlyRuntime(HostShellRuntime):
+    """A drafting run's mount (D-5.2, D-20.2): the host writes the prompt
+    into the worktree, and the sandbox sees the same tree read-only. Only
+    the exec side is denied, which is what the real asymmetry looks like."""
+
+    def exec(self, handle, command, timeout_s):
+        staging = pathlib.Path(self.workspace) / ".torve" / "tmp"
+        staging.chmod(0o555)
+
+        try:
+            return super().exec(handle, command, timeout_s)
+
+        finally:
+            staging.chmod(0o755)
+
+    def sync_out(self, handle, destination):
+        # Nothing to bring back: the tree is bound, and the capture the
+        # adapter looks for was never created.
+        return None
+
+
+def test_a_read_only_workspace_still_runs_the_command(tmp_path):
+    """The raw capture path lives inside the workspace and the redirect was
+    unconditional, so on a drafting run it failed before the command ran:
+    `torve intake` returned three empty attempts and escalated `drafter
+    output unparseable`, which is also what a model returning nothing looks
+    like. The probe runs in a subshell because a failed redirect on `:`, a
+    POSIX special builtin, exits the whole shell rather than returning
+    non-zero — taking the fallback with it."""
+
+    tier = TierConfig(adapter="harness", provider="p", command="cat {prompt}")
+    ctx, agent = harness_ctx(tmp_path, tier)
+    denied = SandboxReadOnlyRuntime(ctx.workspace)
+
+    result = agent.run(dataclasses.replace(ctx, prompt="the drafter's answer", runtime=denied))
+
+    # The command ran and its output stands, clipped as it was before the
+    # capture existed — not an empty attempt reported as unparseable.
+    assert result.exit_code == 0
+    assert "the drafter's answer" in result.output
     assert not (ctx.workspace / ".torve" / "tmp" / "harness-output.a1.raw").exists()
 
 
