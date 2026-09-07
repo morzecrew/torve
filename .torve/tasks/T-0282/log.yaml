@@ -1,0 +1,101 @@
+schema_version: 1
+task: T-0282
+repo: morzecrew/torve
+base_sha: 193d0e4aa956fd24f19f2ff8b0355d840144ca36
+drift_count: 0
+entries:
+- decision: D-52.4
+  grade: ASSUMED
+  kind: contradicted
+  class: spec-gap
+  at: '2026-09-07T05:56:29Z'
+  attempt: 1
+  claim: the phase intent has the landing leg pass the conflict disposal, and this decision's
+    own row names the manager CLI as a path, but the task's scope allows only the lane, the
+    feedback record, and the lane's tests; the lane cannot distinguish the leg's call from
+    the merge verb's — they are argument-for-argument identical — so any distinction drawn
+    inside the shared function would change the manual lane this same intent declares must
+    not change. The disposal and its tests are buildable wholly in scope; the single line
+    that wires it to the leg is not.
+  evidence: src/torve/cli/manager.py:132-141 — the leg's process_lane call carries no disposal
+    argument; src/torve/cli/merge.py:238-247 is the manual verb's call and it is identical
+    argument-for-argument, so no in-scope change can arm one caller without arming the other
+  action: departed
+  proposal: 'amend phase 2''s scope in RFC 0052 §12 to name src/torve/cli/manager.py, or mint
+    the wiring as its own one-line change: the leg''s call gains on_conflict=conflict_disposal(root),
+    the builder this attempt lands in scope'
+  notes: in scope, the disposal is built whole — a follow-up that only adds the keyword argument
+    completes the intent
+- decision: unlisted
+  grade: UNLISTED
+  kind: contradicted
+  class: spec-gap
+  at: '2026-09-07T05:56:38Z'
+  attempt: 1
+  claim: 'the disposal must capture the superseded candidate''s diff, but the lane''s Vcs
+    port has no diff method and the port and the git adapter that would implement one are
+    outside this task''s scope. The contract names neither: it says what to capture, not through
+    what. Decided here: the disposal reads the repository through the same gates helper the
+    lane already reaches for its re-gate, keeping the whole builder inside lane.py so the
+    owed wiring remains the single keyword argument it can be.'
+  evidence: src/torve/application/ports.py:455-475 — the LaneVcs surface as declared, no diff
+    among it; src/torve/application/lane.py:93 is the lane's existing reach into the gates
+    helpers
+  action: decided
+  proposal: give LaneVcs a diff(root, base, head) with three-dot semantics beside its rebase_conflicts
+    probe, implement it on the git adapter, and let the disposal ask the vcs it was handed;
+    the wiring follow-up can carry both
+- decision: D-52.5
+  grade: LOCKED
+  kind: resolved
+  class: discovery
+  at: '2026-09-07T06:02:47Z'
+  attempt: 1
+  claim: 'the restored disposal keeps the moved-base bound untouched: it is reachable only
+    through the guards that already compare the current base tip against the last tip this
+    run conflicted with, and the tests pin the bound over the real capture — a repeat conflict
+    against an unmoved tip escalates, stands escalated, and rewrites nothing, while a base
+    that has genuinely moved fires the disposal again and replaces the stale record'
+  evidence: src/torve/application/lane.py:525 — the landing-time bound, unchanged by this
+    attempt; src/torve/application/lane.py:374 is the probe's same comparison and tests/test_lane.py:222
+    pins the bound over the restored disposal
+  action: decided
+  notes: the new code adds only the diff capture inside the disposal; no re-queue path bypasses
+    the bound
+- decision: D-52.4
+  grade: ASSUMED
+  kind: contradicted
+  class: spec-gap
+  at: '2026-09-07T10:02:15Z'
+  attempt: 1
+  claim: 'the disposal itself is restored in scope, but the half of the intent that makes
+    the leg pass it cannot land here: src/torve/cli/manager.py builds the leg''s call to process_lane
+    and is absent from this contract''s scope.allow, which the blocking scope gate enforces.
+    The restored disposal is exported ready for the one-line wiring; the leg stays undisposed
+    until an amendment puts its path in scope, as A-130 and A-132 did for the two earlier
+    omissions in this same phasing block'
+  evidence: src/torve/cli/manager.py:102-145 — _lane_leg builds the pass's call to process_lane
+    and names no on_conflict; .torve/tasks/T-0282/contract.yaml:18-22 is the scope.allow that
+    omits this file
+  action: departed
+  proposal: 'phase 2''s scope gains src/torve/cli/manager.py: the leg''s on_conflict argument
+    is a deliverable of this phase whose path falls outside its scope, the A-130 defect a
+    third time'
+  notes: lane.py exports conflict_disposal(root, vcs) — capture of the superseded diff into
+    the feedback record, branch kept, no forge threads; tests pin it through process_lane
+    so the wiring task inherits a disposal already proven against real git
+- decision: D-52.5
+  grade: LOCKED
+  kind: resolved
+  class: discovery
+  at: '2026-09-07T10:06:51Z'
+  attempt: 1
+  claim: 'the changes to the lane are additive: a disposal factory and its diff helper, exported
+    beside the machinery that already honored this bound. The re-queue guard was not touched:
+    a disposal still runs at most once per base tip, a conflict against an unmoved tip escalates
+    and stands, and two new tests pin that for the production disposal rather than a fake'
+  evidence: src/torve/application/lane.py:529 — the moved-base guard predates this change
+    and reads unchanged; tests/test_lane.py:220 is test_the_wired_disposal_still_requeues_only_on_a_moved_base
+  action: decided
+  notes: the factory keeps the branch and captures the candidate's diff; it cannot loosen
+    the bound because the bound lives in _dispose_conflict, which this task only reads

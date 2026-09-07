@@ -19,10 +19,12 @@ telemetry stream as an engine event (D-6.7).
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from torve.application.feedback import capture_feedback
 from torve.application.ports import CiStatus, LaneVcs
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
@@ -239,6 +241,69 @@ def _dispose_conflict(
             f"merge_conflict ({found_by}): captured for the revision loop and re-queued",
         )
     )
+
+
+# ....................... #
+
+
+def _superseded_diff(root: Path, base_tip: str, branch_tip: str) -> str:
+    """The candidate's own changes: a three-dot diff against the merge
+    base, so the base's drift is not mistaken for the work (the same
+    reading the pull request gives). The application layer runs git
+    through the injected `LaneVcs`, but no port method diffs two shas
+    and the ports are not this task's to widen; `projections.py` already
+    reads history through subprocess for exactly this reason."""
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "diff", f"{base_tip}...{branch_tip}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or "git diff refused")
+
+    return proc.stdout
+
+
+# ....................... #
+
+
+def conflict_disposal(root: Path, vcs: LaneVcs) -> Callable[[str], str]:
+    """The disposal a landing leg hands `process_lane` as `on_conflict`
+    (RFC 0052 §5.3): the superseded candidate's diff rides the task's
+    feedback record before the branch is ever replaced, so the next
+    attempt sees what it collided with.
+
+    The forge-thread half is deliberately absent — the review allow-list
+    that drove it retired with the standing loop, and its capture is
+    owed by RFC 0005's D-5.12, not silently skipped here: the record
+    says "none captured" rather than implying there was nothing to say.
+    The branch is kept — landing never deletes a candidate; only the
+    human fork does. Re-queue stays bound to the moved base tip
+    (D-6.12); that bound lives in the lane's own disposal path, so a
+    caller cannot loosen it through this factory.
+
+    The manual lane passes nothing: `torve merge` escalates as it always
+    has, and this factory is inert until an unattended caller wires it.
+    """
+
+    def dispose(task_id: str) -> str:
+        base = vcs.current_branch(root)
+        base_tip = vcs.tip(root, base)
+        branch = naming.branch(task_id)
+        branch_tip = vcs.tip(root, branch)
+
+        if base_tip is None or branch_tip is None:
+            raise RuntimeError(f"cannot resolve {base!r} or {branch!r} to capture the conflict")
+
+        diff = _superseded_diff(root, base_tip, branch_tip)
+        captured = capture_feedback(root, task_id, diff, [])
+
+        return "superseded diff captured" if captured else "nothing to capture"
+
+    return dispose
 
 
 # ....................... #

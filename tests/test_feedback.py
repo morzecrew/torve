@@ -63,6 +63,18 @@ def test_nothing_worth_carrying_captures_nothing(root):
     assert not feedback_file(root, "T-8002").exists()
 
 
+def test_a_diff_only_record_is_honest_about_the_absent_threads(root):
+    # A lane-conflict capture has no forge threads to carry — that half
+    # is owed elsewhere, and the record says "none captured" rather than
+    # implying the previous attempt was reviewed and found silent.
+    assert capture_feedback(root, "T-8009", "diff --git a/x b/x\n+1\n", []) is True
+    text = feedback_file(root, "T-8009").read_text(encoding="utf-8")
+    assert "## Review threads" in text
+    assert "- none captured." in text
+    assert "+1" in text
+    assert not threads_file(root, "T-8009").exists()
+
+
 def test_capture_retains_reply_addresses_when_threads_carry_them(root):
     # D-5.14 (A-41): the landing that consumes this record answers its
     # threads — the addresses persist beside it; address-less threads

@@ -12,7 +12,8 @@ import pytest
 from typer.testing import CliRunner
 
 from torve.adapters.vcs.git import GitLane
-from torve.application.lane import process_lane
+from torve.application.feedback import feedback_file, threads_file
+from torve.application.lane import conflict_disposal, process_lane
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app
@@ -173,6 +174,102 @@ def test_a_refused_disposal_leaves_the_escalation_standing(lane_repo):
     assert state.state is TaskState.ESCALATED
     assert state.escalation is not None
     assert state.escalation.reason == "merge_conflict"
+
+
+# ----------------------- #
+
+
+def conflicting_candidate(root: Path, task_id: str) -> str:
+    """A READY candidate whose base moved under it onto the same line.
+    Returns the base tip it now collides with."""
+
+    candidate(root, task_id, "app.py", f"candidate = {task_id[-2:]}\n")
+    (root / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    return git(root, "rev-parse", "HEAD")
+
+
+def test_the_wired_disposal_captures_the_collided_diff_before_requeuing(lane_repo):
+    # The restored disposal (RFC 0052 §5.3) is the loop's minus the forge
+    # half: the next attempt's feedback record holds the superseded
+    # candidate's diff, the thread section says "none captured" rather
+    # than implying the capture was complete, and the branch is kept.
+    base_tip = conflicting_candidate(lane_repo, "T-7007")
+    branch_tip = git(lane_repo, "rev-parse", naming.branch("T-7007"))
+
+    results = process_lane(
+        lane_repo, GitLane(), on_conflict=conflict_disposal(lane_repo, GitLane())
+    )
+    assert [r.action for r in results] == ["conflict requeued"]
+
+    text = feedback_file(lane_repo, "T-7007").read_text(encoding="utf-8")
+    assert "+candidate = 07" in text  # the candidate's own diff, three-dot
+    assert "base = 2" not in text  # not the base's drift
+    assert "- none captured." in text  # the absent forge half, said honestly
+    assert not threads_file(lane_repo, "T-7007").exists()
+
+    state = RunState.load(naming.state_file(lane_repo, "T-7007"))
+    assert state.state is TaskState.QUEUED
+    assert state.conflict_base == base_tip
+    assert git(lane_repo, "rev-parse", "HEAD") == base_tip  # the base stands
+    assert git(lane_repo, "rev-parse", naming.branch("T-7007")) == branch_tip  # branch kept
+
+
+def test_the_wired_disposal_still_requeues_only_on_a_moved_base(lane_repo):
+    # D-6.12 is the lane's bound, not the disposal's — wiring the real
+    # one must not loosen it: a second conflict against the SAME base
+    # tip escalates for the human and re-captures nothing.
+    conflicting_candidate(lane_repo, "T-7008")
+    disposal = conflict_disposal(lane_repo, GitLane())
+
+    assert [r.action for r in process_lane(lane_repo, GitLane(), on_conflict=disposal)] == [
+        "conflict requeued"
+    ]
+    captured = feedback_file(lane_repo, "T-7008").read_text(encoding="utf-8")
+
+    state = RunState.load(naming.state_file(lane_repo, "T-7008"))
+    state.state = TaskState.READY
+    state.save()
+    assert [r.action for r in process_lane(lane_repo, GitLane(), on_conflict=disposal)] == [
+        "conflict"
+    ]
+    state = RunState.load(naming.state_file(lane_repo, "T-7008"))
+    assert state.state is TaskState.ESCALATED
+    assert feedback_file(lane_repo, "T-7008").read_text(encoding="utf-8") == captured
+
+
+def test_the_manual_lane_captures_nothing(lane_repo):
+    # What must not change: `torve merge` passes no disposal, so a
+    # conflict escalates and stays escalated with no feedback record —
+    # capture is the unattended lane's, not the operator's.
+    conflicting_candidate(lane_repo, "T-7009")
+
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 2, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "conflict"
+    assert not feedback_file(lane_repo, "T-7009").exists()
+
+
+def test_a_disposal_with_no_branch_to_read_refuses_cleanly(lane_repo):
+    # The failure mode of a capture is the refused-cleanup path the lane
+    # already has: nothing is re-queued on top of a missing record.
+    dispose = conflict_disposal(lane_repo, GitLane())
+
+    with pytest.raises(RuntimeError, match="cannot resolve"):
+        dispose("T-7099")
+
+
+def test_a_disposal_of_an_unchanged_tip_captures_nothing(lane_repo):
+    # A branch that carries no diff of its own has nothing worth
+    # carrying forward; the record stays absent, honestly — it is never
+    # written empty to look captured.
+    git(lane_repo, "branch", naming.branch("T-7100"), "main")
+    dispose = conflict_disposal(lane_repo, GitLane())
+
+    assert dispose("T-7100") == "nothing to capture"
+    assert not feedback_file(lane_repo, "T-7100").exists()
 
 
 def test_dry_run_previews_without_moving(lane_repo):
