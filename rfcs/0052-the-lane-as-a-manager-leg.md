@@ -7,7 +7,7 @@ depends_on: ["0006", "0044"]
 informed_by: ["0019", "0051"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-130"]
+amended_by: ["A-130", "A-131"]
 owner: misery7100
 description: >-
   Restoring the landing half of an unattended session: the serialized lane becomes a leg of the manager's pass under an opt-in switch, and a conflict disposes of itself the way the retired loop's did.
@@ -251,8 +251,8 @@ half of the pass. No new page.
     - "tests/test_lane.py"
   acceptance:
     - "uv run pytest tests/test_lane.py tests/test_feedback.py"
-    - "uv run torve gates run"
-    - "uv run torve rfc check"
+    - "uv run lint-imports --config pyproject.toml"
+    - "uv run torve rfc check"  # A-131: `torve gates run` cannot pass in a sandbox
   depends_on: [1]
 ```
 
@@ -273,3 +273,33 @@ than deferred to a phase that cannot reach it. This is an authoring defect
 of the kind the skill's rule 3a already names for decision rows — a
 deliverable whose paths fall outside every phase's scope is the same
 mistake one level up, and the check that catches it does not exist yet.
+
+### A-131 — 2026-09-07 — phase 2's acceptance named a command no sandbox can run
+**Found by dispatching T-0282.** Phase 2's acceptance listed `uv run torve
+gates run`. A task's acceptance battery runs *inside* the sandbox, and a
+sandbox mounts the worktree without a repository: `.git` there is a gitdir
+pointer at a host path the container has never seen, and nothing rewrites
+it. That is deliberate — the agent gets a working tree and the engine does
+the committing — so any command needing git fails, and `torve gates run`
+needs a diff against base.
+
+The executor's own tests passed on all three attempts. The engine did
+everything right: it refused to promote red gates, retried to the ceiling
+and escalated `poison_ceiling`. It spent 2410 seconds of executor
+wall-clock proving a command in this document could not succeed.
+
+**Changed:** phase 2's acceptance drops `torve gates run` for
+`lint-imports`, which is what phase 1 asked for and what went green. The
+battery still runs — outside the sandbox, on the candidate, immediately
+after the agent exits, which is where it always ran. Naming it in a
+contract only ever asked for it twice, once impossibly.
+
+**Not fixed here, and larger.** Nine phases across seven documents
+(0046–0052) carry the same command, none of them ever exercised because
+that generation was built by hand. The durable fix is a `lint-contract`
+rule refusing an acceptance command that needs git, so this is caught when
+a contract is minted rather than after three attempts — that check is
+where the other six documents get corrected, at the only moment it
+matters. A-130 was the same defect in a different cell of the same block:
+a phasing table that mints something unsatisfiable, and no check reading
+it.
