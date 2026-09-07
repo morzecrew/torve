@@ -87,6 +87,22 @@ decisions inherited, and the signing key never enters a sandbox. That
 trailer is what makes a landing findable years later by anything that can
 read git.
 
+A landing is not a push. The commit lands on the task branch and the
+candidate waits at `ready` for the serialized lane, which is `torve merge`
+by default — a human act, and the recorded approval.
+
+A manager pass can call that same lane as a leg, when `promotion.auto_merge`
+arms it. The leg is a caller and not a policy: same `process_lane`, same CI,
+approvals, review and quiet-window refusals, so nothing is gated twice and
+no refusal changes because a pass asked instead of a person. It runs after
+the relay and before the mint — a candidate that went green an hour ago is
+owed its landing more than an unminted contract is owed its board row, and
+landing first means the mint that follows reads a base that already moved.
+
+A pause stops it. The relay runs during a pause because it delivers what is
+already owed; landing advances the repository, and a pause says nobody has
+capacity to look at what advancing produces.
+
 ## Escalation — the engine hands it to a person
 
 Every ending that is not a landing is an escalation with a reason from a

@@ -2,7 +2,7 @@
 id: "0052"
 title: The lane as a manager leg
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0006", "0044"]
 informed_by: ["0019", "0051"]
 supersedes: []
