@@ -180,6 +180,38 @@ def test_uncommitted_changes_are_refused(plan_repo):
         plan_document(root, root / "rfcs", "0090")
 
 
+def test_plan_refuses_a_document_whose_contracts_do_not_lint(plan_repo):
+    """A-132: the three drafting paths ran the contract lint and the minting
+    path never did. RFC 0052's phasing block minted three contracts that
+    could not be satisfied — a deliverable outside every scope, an
+    acceptance command no sandbox can run, a module allowed without its test
+    file — and two of them cost a full poison ceiling to find. A reviewed
+    document is not a linted one."""
+
+    from torve.cli.main import app
+    from torve.domain.states import EXIT_CONFIG
+
+    root, write_doc, git = plan_repo
+    write_doc(
+        "0097",
+        "Ungitable",
+        body=TABLE
+        + "## Phasing\n\n```yaml\n- phase: 1\n  title: t\n  intent: i\n"
+        + '  scope: ["src/widget/**"]\n  acceptance: ["uv run torve gates run"]\n```\n',
+    )
+
+    git("add", "-A")
+    git("commit", "-qm", "the ungitable document")
+
+    result = CliRunner().invoke(app, ["plan", "0097", "--root", str(root), "--no-dry-run"])
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "needs git" in result.output
+    # And nothing was written: the refusal precedes the mint, which is the
+    # whole point of moving the check here.
+    assert not (root / ".torve" / "tasks").exists()
+
+
 def test_intersecting_same_phase_scopes_are_refused(plan_repo):
     root, write_doc, git = plan_repo
     clash = PHASING.replace('scope: ["src/frob/**"]', 'scope: ["src/widget/core.py"]')

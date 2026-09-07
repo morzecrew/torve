@@ -478,6 +478,53 @@ class BatteryRunningReviewer:
         return AgentResult(exit_code=0, output=self.output)
 
 
+def test_what_stops_a_promotion_is_configuration_not_the_reviewer(repo):
+    """Three consecutive reviews of this engine found a real defect apiece
+    — a leg that shipped the next phase's deliverable, a leg whose
+    construction took the manager down, a decode error that abandoned every
+    candidate in a lane pass — and graded all three `major`, so all three
+    promoted. The reviewer uses `major` for "this must be fixed" and
+    reserves `blocker` for what has not once occurred here. The grade stays
+    the reviewer's reading; the bar is configuration's (D-2)."""
+
+    repo.seed()
+    target, review, worktree = review_inputs(repo)
+    verdict = reviewer_output(
+        [
+            {
+                "severity": "major",
+                "claim": "the decode aborts the pass",
+                "evidence": "src/app.py:1 — the line as it arrived",
+            }
+        ]
+    )
+
+    def reviewed(config: RunnerConfig):
+        return run_review(
+            repo.root,
+            worktree,
+            target,
+            review,
+            config,
+            MockRuntime(),
+            SequencedReviewer([verdict]),
+            "diff --git a/src/app.py b/src/app.py\n+x = 1\n",
+            [],
+            "digest",
+        )
+
+    # The default: a `major` finding stops the promotion.
+    stopped = reviewed(RunnerConfig())
+    assert [f.severity for f in stopped.blockers] == ["major"]
+    assert "at or above major" in stopped.fact
+
+    # `blocker` restores the behaviour every reading before this had — the
+    # same finding, recorded identically, promoting.
+    promoted = reviewed(RunnerConfig(review=ReviewConfig(blocks_at="blocker")))
+    assert promoted.blockers == []
+    assert [f.severity for f in promoted.kept] == ["major"]
+
+
 def test_an_edit_in_the_copy_leaves_the_target_worktree_byte_identical(repo):
     repo.seed()
     target, review, worktree = review_inputs(repo)
@@ -534,7 +581,9 @@ def test_an_edit_in_the_copy_leaves_the_target_worktree_byte_identical(repo):
     # really holds is kept (D-5.4, D-5.16).
     assert [f.evidence for f in outcome.kept] == ["src/app.py:1 — the line as it arrived"]
     assert len(outcome.discarded) == 2
-    assert outcome.blockers == []
+    # The surviving finding is `major`, which stops a promotion under the
+    # default `review.blocks_at`. The discarded two never reach the question.
+    assert [f.severity for f in outcome.blockers] == ["major"]
 
 
 def test_the_copy_is_destroyed_even_when_the_reviewer_dies(repo):

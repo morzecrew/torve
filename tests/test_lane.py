@@ -217,6 +217,45 @@ def test_the_wired_disposal_captures_the_collided_diff_before_requeuing(lane_rep
     assert git(lane_repo, "rev-parse", naming.branch("T-7007")) == branch_tip  # branch kept
 
 
+def test_a_candidate_with_undecodable_bytes_still_disposes_and_the_pass_goes_on(lane_repo):
+    # T-0285: `_superseded_diff` decoded git's output strictly, so a
+    # candidate holding any non-UTF-8 byte raised UnicodeDecodeError —
+    # which is not the RuntimeError the disposal is built on. It escaped
+    # `process_lane` entirely: the conflicting candidate stayed escalated
+    # and un-requeued, and every candidate behind it was abandoned.
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7021"), "main")
+    (lane_repo / "app.py").write_bytes(b"# caf\xe9\ncandidate = 21\n")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-7021)")
+    git(lane_repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-7021", path=naming.state_file(lane_repo, "T-7021"))
+    state.state = TaskState.READY
+    state.save()
+
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    # A second, innocent candidate queued behind the undecodable one.
+    candidate(lane_repo, "T-7022", "other.py", "other = 22\n")
+
+    results = process_lane(
+        lane_repo, GitLane(), on_conflict=conflict_disposal(lane_repo, GitLane())
+    )
+
+    # The conflicting candidate was disposed of, not abandoned...
+    assert results[0].action == "conflict requeued"
+    assert RunState.load(naming.state_file(lane_repo, "T-7021")).state is TaskState.QUEUED
+
+    # ...the undecodable byte reached the record as a replacement rather
+    # than as an exception...
+    assert "candidate = 21" in feedback_file(lane_repo, "T-7021").read_text(encoding="utf-8")
+
+    # ...and the pass reached the candidate behind it, which is the
+    # invariant the escaping decode error actually broke.
+    assert [r.task for r in results] == ["T-7021", "T-7022"]
+
+
 def test_the_wired_disposal_still_requeues_only_on_a_moved_base(lane_repo):
     # D-6.12 is the lane's bound, not the disposal's — wiring the real
     # one must not loosen it: a second conflict against the SAME base

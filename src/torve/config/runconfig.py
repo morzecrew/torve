@@ -987,6 +987,17 @@ class ReviewConfig(BaseModel):
     # nothing against it.
     blocker_revisions: int = 1
 
+    # The severity that stops a promotion. Three consecutive reviews of this
+    # engine's own work found a real defect apiece — a leg that shipped the
+    # next phase's deliverable, a leg whose construction took the manager
+    # down, a decode error that abandoned every candidate in a lane pass —
+    # and graded all three `major`, so all three promoted. The reviewer uses
+    # `major` for "this must be fixed" and reserves `blocker` for something
+    # that has not once occurred in this repository. The grade is the
+    # reviewer's reading and stays what it recorded; what stops a promotion
+    # is configuration's to decide (D-2), which is what this is.
+    blocks_at: Literal["blocker", "major"] = "major"
+
     # ....................... #
 
     @model_validator(mode="before")

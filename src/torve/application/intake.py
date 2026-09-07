@@ -146,7 +146,9 @@ def parse_drafts(output: str) -> DraftsDocument | None:
 
 # The contract lint (D-20.3): deterministic, engine-side, no model. A red
 # lint is a red attempt; every error names the draft and the field.
-def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) -> list[str]:
+def _glob_errors(
+    ref: str, tree_paths: list[Path], globs: list[str], kind: str, planning: bool = False
+) -> list[str]:
     errors: list[str] = []
 
     for pattern in globs:
@@ -154,8 +156,10 @@ def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) 
             errors.append(f"{ref}: {kind} glob {pattern!r} escapes the tree")
             continue
 
-        if any(ch in pattern for ch in "*?[") and not any(
-            _matched(p, [pattern]) for p in tree_paths
+        if (
+            not planning
+            and any(ch in pattern for ch in "*?[")
+            and not any(_matched(p, [pattern]) for p in tree_paths)
         ):
             errors.append(
                 f"{ref}: {kind} glob {pattern!r} matches nothing in the tree "
@@ -174,6 +178,27 @@ def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) 
 # so `.wt/T-0281/src/…/feedback.py` matches the glob `src/…/feedback.py`.
 # Every lint then reported each finding once per live worktree (T-0282).
 NOT_THE_TREE = frozenset({".git", ".wt", ".venv", ".repowise", "__pycache__", "node_modules"})
+
+
+def _needs_git(words: list[str]) -> bool:
+    """Whether this acceptance command can only run in a repository.
+
+    A sandbox mounts the worktree and not the repository, so `git` there
+    fails outright — and `torve gates run` computes a diff against base, so
+    it fails the same way one call in. T-0282 burned its whole poison
+    ceiling on that, three attempts whose own tests passed every time, and
+    nine phases across seven documents still carry the same command.
+    """
+
+    if words[0] == "git":
+        return True
+
+    # `uv run torve gates run`, `torve gates check`, and anything wrapping
+    # them: the verb is what matters, not what precedes it.
+    return "torve" in words and "gates" in words[words.index("torve") :]
+
+
+# ....................... #
 
 
 def _tree_paths(tree: Path) -> list[Path]:
@@ -203,11 +228,21 @@ def lint_drafts(
     max_drafts: int,
     *,
     allow_dependency_order: bool = False,
+    planning: bool = False,
 ) -> list[str]:
     """Every mechanical check a human should never have to make (D-20.3).
     The T-0113 rule is the first learned rule: a draft touching an existing
     module must allow that module's existing test file — the escalation
     that produced it burned a full poison ceiling on exactly this.
+
+    `planning` is the minting path (A-132), where two of these rules do
+    not hold. A drafted contract is written against the tree as it stands,
+    so a glob matching nothing is a mistake; a *planned* one describes work
+    that does not exist yet, and rfc-check already warns about exactly that
+    as "intended modules awaiting implementation" (D-32). And a phase's
+    `acceptance` is optional by the RFC schema, where a draft's is not.
+    Everything else — the shell parse, the git rule, the T-0113 test-file
+    rule, a glob escaping the tree — holds on both paths.
 
     `allow_dependency_order` relaxes the pairwise-scope check for a
     decomposition batch (RFC 0026 D-26.3): two drafts may overlap when an
@@ -243,23 +278,34 @@ def lint_drafts(
         if not draft.intent.strip():
             errors.append(f"{ref}: intent is empty")
 
-        if not draft.acceptance:
+        if not draft.acceptance and not planning:
             errors.append(f"{ref}: acceptance is empty — nothing would judge the work")
 
         for command in draft.acceptance:
             try:
-                if not shlex.split(command):
+                words = shlex.split(command)
+
+                if not words:
                     raise ValueError
 
             except ValueError:
                 errors.append(f"{ref}: acceptance command {command!r} does not shell-parse")
+                continue
+
+            if _needs_git(words):
+                errors.append(
+                    f"{ref}: acceptance command {command!r} needs git, and a sandbox mounts "
+                    "the worktree without a repository — `.git` there points at a host path "
+                    "the container never sees, so this can only ever fail (A-131). The gate "
+                    "battery runs outside the sandbox on the candidate already"
+                )
 
         if not draft.scope.allow:
             errors.append(
                 f"{ref}: scope.allow is empty — an unconstrained draft contends with everything"
             )
 
-        errors.extend(_glob_errors(ref, tree_paths, draft.scope.allow, "allow"))
+        errors.extend(_glob_errors(ref, tree_paths, draft.scope.allow, "allow", planning))
 
         for pattern in draft.scope.allow:
             if pattern in draft.scope.deny:
@@ -506,13 +552,31 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
         # none by D-20.3 — the batch checks below would misread both.
         return []
 
+    return lint_task(tree, task, max_drafts)
+
+
+# ....................... #
+
+
+def lint_task(tree: Path, task: Task, max_drafts: int = 1, *, planning: bool = False) -> list[str]:
+    """The same protection for a Task already in hand — what `lint_contract`
+    does once the file is parsed, and what `torve plan` runs over every
+    contract it is about to mint (A-132). A review or draft role carries no
+    acceptance by contract law, so the batch checks would misread it."""
+
+    if task.role != "implement":
+        return []
+
     document = DraftsDocument(
         drafts=[
             Draft(ref="DRAFT-1", intent=task.intent, scope=task.scope, acceptance=task.acceptance)
         ]
     )
 
-    return [e.replace("DRAFT-1", task.id) for e in lint_drafts(tree, document, max_drafts)]
+    return [
+        e.replace("DRAFT-1", task.id)
+        for e in lint_drafts(tree, document, max_drafts, planning=planning)
+    ]
 
 
 # ....................... #

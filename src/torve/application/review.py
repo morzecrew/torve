@@ -316,6 +316,15 @@ class _FindingsDocument(BaseModel):
 
 # ....................... #
 
+# Which grades stop a promotion, per `review.blocks_at`. `major` is the
+# default because three consecutive reviews of this engine graded a
+# pass-killing defect `major` and nothing `blocker`, so the bar that stopped
+# promotion sat above everything the reviewer actually found.
+STOPS_AT: dict[str, frozenset[str]] = {
+    "blocker": frozenset({"blocker"}),
+    "major": frozenset({"blocker", "major"}),
+}
+
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
@@ -594,12 +603,17 @@ def run_review(
         # inside the copy (D-5.16).
         kept, discarded = filter_findings(findings, worktree)
 
-    blockers = [f for f in kept if f.severity == "blocker"]
+    # What stops a promotion is configuration's, not the reviewer's (D-2):
+    # `review.blocks_at` says which grades count, and `blocker` alone is the
+    # behaviour every reading before it had. The findings themselves keep the
+    # grade the reviewer gave them, here and in the record.
+    stopping = STOPS_AT[config.review.blocks_at]
+    blockers = [f for f in kept if f.severity in stopping]
 
     if unparseable:
         fact = "review output unparseable — no findings recorded"
     elif blockers:
-        fact = f"review found {len(blockers)} blocker(s)"
+        fact = f"review found {len(blockers)} finding(s) at or above {config.review.blocks_at}"
     elif kept:
         fact = f"review recorded {len(kept)} non-blocking finding(s)"
     else:

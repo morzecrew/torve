@@ -177,6 +177,42 @@ def test_lint_green_on_a_creatable_disjoint_batch(tree: Path):
     assert errors == []
 
 
+def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
+    """A-131/A-132: the acceptance battery runs inside the sandbox, and a
+    sandbox mounts the worktree without a repository — `.git` there points
+    at a host path the container never sees. T-0282 burned a whole poison
+    ceiling on `uv run torve gates run`, three attempts whose own tests
+    passed every time, and nine phases across seven documents carry it."""
+
+    refused = lint_drafts(tree, document(draft_dict(acceptance=["uv run torve gates run"])), 4)
+    assert any("needs git" in e for e in refused)
+
+    # A bare git command is the same wall, said plainly.
+    assert any(
+        "needs git" in e
+        for e in lint_drafts(tree, document(draft_dict(acceptance=["git diff --exit-code"])), 4)
+    )
+
+    # What must stay legal: the commands that carried both of RFC 0052's
+    # phases, none of which touches a repository.
+    assert (
+        lint_drafts(
+            tree,
+            document(
+                draft_dict(
+                    acceptance=[
+                        "uv run pytest tests/test_newmod.py",
+                        "uv run lint-imports --config pyproject.toml",
+                        "uv run torve rfc check",
+                    ]
+                )
+            ),
+            4,
+        )
+        == []
+    )
+
+
 def test_lint_refuses_an_empty_batch(tree: Path):
     errors = lint_drafts(tree, DraftsDocument(drafts=[]), 4)
     assert any("empty batch" in e for e in errors)

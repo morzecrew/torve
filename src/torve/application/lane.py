@@ -257,7 +257,15 @@ def _superseded_diff(root: Path, base_tip: str, branch_tip: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(root), "diff", f"{base_tip}...{branch_tip}"],
         capture_output=True,
-        text=True,
+        # A repository holds whatever bytes a candidate committed, and the
+        # disposal is built on RuntimeError: a UnicodeDecodeError raised
+        # here escaped `_dispose_conflict`'s catch, left the conflicting
+        # candidate escalated but never re-queued, and abandoned every
+        # remaining candidate in the pass (T-0285). A feedback record is
+        # read by a person and a model, so an undecodable byte is worth a
+        # replacement character and not a dead lane.
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

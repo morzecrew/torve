@@ -82,6 +82,30 @@ def plan_cmd(
 
     try:
         report = plan_document(root, rfc_dir, identifier)
+
+    except PlanError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    # A-132: the same mechanical lint the three drafting paths run, on the
+    # minting path they never covered. The asymmetry was defensible — a
+    # drafted contract is a model's, a planned one comes from a document a
+    # human accepted — until RFC 0052's phasing block minted three
+    # contracts that could not be satisfied, two of them costing a full
+    # poison ceiling to discover. A reviewed document is not a linted one.
+    from torve.application.intake import lint_task
+
+    refusals = [
+        error for planned in report.tasks for error in lint_task(root, planned.task, planning=True)
+    ]
+
+    if refusals:
+        raise fail(
+            "configuration error: the contracts this document would mint do not lint:\n  "
+            + "\n  ".join(refusals),
+            EXIT_CONFIG,
+        )
+
+    try:
         written = [] if dry_run else write_contracts(root, report)
 
     except PlanError as exc:
