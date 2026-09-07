@@ -19,10 +19,11 @@ scope:
   - src/torve/application/lane.py
   - src/torve/application/feedback.py
   - tests/test_lane.py
+  - tests/test_feedback.py
   deny: []
 acceptance:
 - uv run pytest tests/test_lane.py tests/test_feedback.py
-- uv run torve gates run
+- uv run lint-imports --config pyproject.toml
 - uv run torve rfc check
 decisions:
 - id: D-52.1

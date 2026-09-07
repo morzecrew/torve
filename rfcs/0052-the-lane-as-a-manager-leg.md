@@ -7,7 +7,7 @@ depends_on: ["0006", "0044"]
 informed_by: ["0019", "0051"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-130", "A-131"]
+amended_by: ["A-130", "A-131", "A-132"]
 owner: misery7100
 description: >-
   Restoring the landing half of an unattended session: the serialized lane becomes a leg of the manager's pass under an opt-in switch, and a conflict disposes of itself the way the retired loop's did.
@@ -249,6 +249,7 @@ half of the pass. No new page.
     - "src/torve/application/lane.py"
     - "src/torve/application/feedback.py"
     - "tests/test_lane.py"
+    - "tests/test_feedback.py"  # A-132: a module in scope brings its test file
   acceptance:
     - "uv run pytest tests/test_lane.py tests/test_feedback.py"
     - "uv run lint-imports --config pyproject.toml"
@@ -303,3 +304,30 @@ where the other six documents get corrected, at the only moment it
 matters. A-130 was the same defect in a different cell of the same block:
 a phasing table that mints something unsatisfiable, and no check reading
 it.
+
+### A-132 — 2026-09-07 — the phasing block's third defect, and why none of them was caught
+**Found by linting the contract by hand.** Phase 2 allows
+`src/torve/application/feedback.py` and does not allow
+`tests/test_feedback.py`. The contract lint refuses exactly this — the
+T-0113 rule, "a module in scope brings its test file" — so the executor
+could change a module while forbidden to touch its tests.
+
+**Changed:** phase 2's scope gains the test file.
+
+**Why this is the third.** A-130 was a deliverable whose paths fell outside
+every phase's scope. A-131 was an acceptance command no sandbox can run.
+This is a scope that fails the lint written to catch it. Three mechanical
+defects in one phasing block, each found by something running rather than
+by the document being read again.
+
+**And why none was caught: `torve plan` does not run the contract lint.**
+`lint_drafts` is called from the three drafting paths — intake, decompose,
+standing — where a model authors the contract, and never from the minting
+path, where a reviewed document does. The asymmetry was defensible when it
+was written: a drafted contract is untrusted, a planned one comes from a
+document a human accepted. This block is the counter-example. T-0281 fails
+the same lint with two refusals of its own, minted, executed and landed
+anyway, and nothing anywhere said so.
+
+Phase 1's scope is left as it shipped. Amending it now would be bookkeeping
+on work already landed; what is owed is the check, not the retrofit.

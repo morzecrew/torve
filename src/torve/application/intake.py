@@ -168,8 +168,20 @@ def _glob_errors(ref: str, tree_paths: list[Path], globs: list[str], kind: str) 
 # ....................... #
 
 
+# Directories that are not the tree under judgment: git's own store, the
+# engine's worktree scratch, and the environment. `.wt/` matters most — it
+# holds whole copies of the repository, and `Path.match` is right-anchored,
+# so `.wt/T-0281/src/…/feedback.py` matches the glob `src/…/feedback.py`.
+# Every lint then reported each finding once per live worktree (T-0282).
+NOT_THE_TREE = frozenset({".git", ".wt", ".venv", ".repowise", "__pycache__", "node_modules"})
+
+
 def _tree_paths(tree: Path) -> list[Path]:
-    return [p.relative_to(tree) for p in tree.rglob("*") if p.is_file() and ".git" not in p.parts]
+    return [
+        p.relative_to(tree)
+        for p in tree.rglob("*")
+        if p.is_file() and NOT_THE_TREE.isdisjoint(p.parts)
+    ]
 
 
 # ....................... #
