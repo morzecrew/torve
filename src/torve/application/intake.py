@@ -296,8 +296,11 @@ def lint_drafts(
                 errors.append(
                     f"{ref}: acceptance command {command!r} needs git, and a sandbox mounts "
                     "the worktree without a repository — `.git` there points at a host path "
-                    "the container never sees, so this can only ever fail (A-131). The gate "
-                    "battery runs outside the sandbox on the candidate already"
+                    "the container never sees, so this can only ever fail (A-131). Use the "
+                    "commands that judge this work without a repository instead — the tests "
+                    "it touches, `uv run lint-imports --config pyproject.toml`, `uv run torve "
+                    "rfc check` — and drop this one: the gate battery runs outside the sandbox "
+                    "on the candidate already"
                 )
 
         if not draft.scope.allow:
@@ -1108,8 +1111,12 @@ read-only; read it to write honest file scopes and acceptance commands.
 never steps), `scope` with `allow`/`deny` file globs (every file the work
 may touch, including test files — a draft touching an existing module must
 allow that module's existing test file), `acceptance` (shell commands that
-exit 0 when the work is done), and `depends_on` (refs of drafts that must
-land first; usually empty). Never invent task ids — refs only.
+exit 0 when the work is done, and that run with no repository — the
+acceptance battery runs inside a sandbox holding the working tree alone, so
+no command may use git, and `torve gates` needs a diff against base; the
+battery runs outside the sandbox on the candidate anyway), and `depends_on`
+(refs of drafts that must land first; usually empty). Never invent task ids
+— refs only.
 
 Your final output must be exactly one JSON document, nothing after it:
 

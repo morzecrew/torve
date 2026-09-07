@@ -186,6 +186,11 @@ def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
 
     refused = lint_drafts(tree, document(draft_dict(acceptance=["uv run torve gates run"])), 4)
     assert any("needs git" in e for e in refused)
+    # D-44.10's principle: a refusal a model must act on names what would
+    # have been allowed. Three drafting attempts proposed `torve gates
+    # check` and were refused with the reason and no alternative; all three
+    # proposed it again.
+    assert any("rfc check" in e and "lint-imports" in e for e in refused)
 
     # A bare git command is the same wall, said plainly.
     assert any(
