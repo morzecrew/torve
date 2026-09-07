@@ -28,7 +28,14 @@ from torve.cli.console import (
     make_table,
     out,
 )
-from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
+from torve.cli.options import (
+    ConfigOption,
+    FormatOption,
+    RootOption,
+    dsn_for,
+    dsn_to_write,
+    load_config,
+)
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
@@ -45,7 +52,12 @@ decisions_app = typer.Typer(
 )
 
 DsnOption = Annotated[
-    str, typer.Option("--dsn", help="Postgres DSN holding the log; omitted reads an empty log.")
+    str,
+    typer.Option(
+        "--dsn",
+        help="Postgres DSN holding the log; omitted uses the DSN this repository's "
+        "configuration names.",
+    ),
 ]
 PartitionArgument = Annotated[
     str, typer.Argument(help="The repository whose record these decisions belong to.")
@@ -157,7 +169,12 @@ def import_cmd(
     """
 
     rfc_dir = _corpus_dir(root, config)
-    pending = asyncio.run(_import(dsn or None, partition, rfc_dir, actor=actor, write=not check))
+    # `--check` writes nothing, so it resolves like a read; a real import
+    # refuses rather than appending the corpus to a store that vanishes.
+    resolved = dsn_for(root, dsn) if check else dsn_to_write(root, dsn)
+    pending = asyncio.run(
+        _import(resolved or None, partition, rfc_dir, actor=actor, write=not check)
+    )
 
     if fmt is Format.JSON:
         emit_json(
@@ -210,12 +227,13 @@ def list_cmd(
     source: Annotated[
         str, typer.Option("--source", help="Only this source's rows, by source id.")
     ] = "",
+    root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Every decision in force, as the record holds it. A retired decision
     keeps its history and leaves this list."""
 
-    graph = asyncio.run(_graph(dsn or None, partition))
+    graph = asyncio.run(_graph(dsn_for(root, dsn) or None, partition))
     states = graph.by_source(source) if source else graph.current()
 
     if fmt is Format.JSON:
@@ -260,12 +278,13 @@ def show_cmd(
         str, typer.Argument(help="A decision identifier, as its table spells it.")
     ],
     dsn: DsnOption = "",
+    root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """One decision as it stands, and every version behind it — the question
     `git log -p` over the corpus answers today, asked of the record."""
 
-    graph = asyncio.run(_graph(dsn or None, partition))
+    graph = asyncio.run(_graph(dsn_for(root, dsn) or None, partition))
     history = graph.history(identifier)
 
     if not history:
@@ -327,6 +346,7 @@ def paths_cmd(
         list[str], typer.Argument(help="Path globs, as a task's scope.allow spells them.")
     ],
     dsn: DsnOption = "",
+    root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """The decisions in force whose declared paths cross these globs — what
@@ -338,7 +358,7 @@ def paths_cmd(
     the silence check.
     """
 
-    graph = asyncio.run(_graph(dsn or None, partition))
+    graph = asyncio.run(_graph(dsn_for(root, dsn) or None, partition))
     states = graph.for_paths(list(globs))
 
     if fmt is Format.JSON:

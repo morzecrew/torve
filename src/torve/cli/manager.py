@@ -34,6 +34,8 @@ from torve.cli.options import (
     ConfigOption,
     FormatOption,
     RootOption,
+    dsn_for,
+    dsn_to_write,
     load_config,
     runtime_for,
 )
@@ -277,7 +279,10 @@ def board_cmd(
     partition: Annotated[str, typer.Argument(help="The repository this board is for.")],
     dsn: Annotated[
         str,
-        typer.Option("--dsn", help="Postgres DSN holding the log; omitted reads an empty log."),
+        typer.Option(
+            "--dsn",
+            help="Postgres DSN holding the log; omitted reads the DSN this repository's configuration names.",
+        ),
     ] = "",
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -289,7 +294,7 @@ def board_cmd(
     call, which is the same thing a manager does when it restarts.
     """
 
-    result = asyncio.run(_board(dsn or None, partition))
+    result = asyncio.run(_board(dsn_for(root, dsn) or None, partition))
 
     if fmt is Format.JSON:
         emit_json(
@@ -353,7 +358,10 @@ def serve_cmd(
     partition: Annotated[str, typer.Argument(help="The repository this manager owns.")],
     dsn: Annotated[
         str,
-        typer.Option("--dsn", help="Postgres DSN holding the log; omitted runs against the mock."),
+        typer.Option(
+            "--dsn",
+            help="Postgres DSN holding the log; omitted uses the DSN this repository's configuration names.",
+        ),
     ] = "",
     worker: Annotated[
         str, typer.Option("--worker", help="This process's name in the log.")
@@ -402,7 +410,7 @@ def serve_cmd(
     try:
         handled = asyncio.run(
             _serve(
-                dsn or None,
+                dsn_to_write(root, dsn) or None,
                 partition,
                 root=root,
                 config_path=config_path,
@@ -491,7 +499,14 @@ def resolve_cmd(
         typer.Option("--resolution", help="requeued, abandoned or landed."),
     ] = "requeued",
     note: Annotated[str, typer.Option("--note", help="Why, for whoever reads this later.")] = "",
-    dsn: Annotated[str, typer.Option("--dsn", help="Postgres DSN holding the log.")] = "",
+    dsn: Annotated[
+        str,
+        typer.Option(
+            "--dsn",
+            help="Postgres DSN holding the log; omitted uses the DSN this repository's configuration names.",
+        ),
+    ] = "",
+    root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Close an escalation, and say how.
@@ -510,7 +525,7 @@ def resolve_cmd(
             EXIT_CONFIG,
         )
 
-    asyncio.run(_resolve(dsn or None, partition, task_id, resolution, note))
+    asyncio.run(_resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note))
 
     if fmt is Format.JSON:
         emit_json({"partition": partition, "task": task_id, "resolution": resolution})
@@ -531,7 +546,14 @@ def note_cmd(
     topic: Annotated[str, typer.Option("--topic", help="One word naming what this is about.")] = (
         "note"
     ),
-    dsn: Annotated[str, typer.Option("--dsn", help="Postgres DSN holding the log.")] = "",
+    dsn: Annotated[
+        str,
+        typer.Option(
+            "--dsn",
+            help="Postgres DSN holding the log; omitted uses the DSN this repository's configuration names.",
+        ),
+    ] = "",
+    root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Say something to a running attempt.
@@ -541,7 +563,7 @@ def note_cmd(
     engine tried to say is auditable afterwards whether or not it was read.
     """
 
-    asyncio.run(_note(dsn or None, partition, task_id, topic, body))
+    asyncio.run(_note(dsn_to_write(root, dsn) or None, partition, task_id, topic, body))
 
     if fmt is Format.JSON:
         emit_json({"partition": partition, "task": task_id, "topic": topic, "sent": True})

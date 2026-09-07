@@ -224,6 +224,49 @@ def dsn_for(root: Path, override: str = "") -> str:
 # ....................... #
 
 
+def dsn_to_write(root: Path, override: str = "") -> str:
+    """The same resolution, for a command that *writes* to the log.
+
+    A read that finds nothing is wrong and recoverable; a write that lands
+    nowhere is wrong and gone. Without a DSN the runtime stands up a mock —
+    "a real log for the life of the process and nothing afterwards" — so
+    `torve manager resolve` closed an escalation against a store that
+    ceased to exist when the process did, and printed that it had. An
+    operator's triage cannot be a no-op that reports success.
+
+    So this refuses instead of standing one in: when the configuration
+    names postgres and nothing supplies the DSN, the write stops. A
+    repository whose store really is mock still gets a mock, because that
+    is what it asked for.
+    """
+
+    dsn = dsn_for(root, override)
+
+    if dsn:
+        return dsn
+
+    from torve.config.runconfig import load_runner_config
+
+    try:
+        config = load_runner_config(root, None)
+
+    except (ValueError, OSError):
+        return ""
+
+    if config.store.adapter == "postgres":
+        raise fail(
+            f"configuration error: store.adapter is 'postgres' but ${config.store.dsn_env} "
+            "is not set and no --dsn was given — this write would land in a mock store "
+            "that vanishes with the process",
+            EXIT_CONFIG,
+        )
+
+    return ""
+
+
+# ....................... #
+
+
 def task_events(dsn: str, partition: str) -> list[EventRecord] | None:
     """Every task fact one partition's log holds, or None when no partition
     was named — which is how a caller says to read this repository's files

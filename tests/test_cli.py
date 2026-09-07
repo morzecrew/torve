@@ -882,6 +882,41 @@ def test_no_dotenv_is_not_an_error(tmp_path):
     assert load_dotenv(tmp_path) == []
 
 
+def test_a_write_refuses_the_mock_the_configuration_did_not_ask_for(tmp_path, monkeypatch):
+    """A read that finds nothing is recoverable; a write that lands nowhere
+    is gone. `torve manager resolve` with no --dsn stood up a mock — "a real
+    log for the life of the process and nothing afterwards" — closed the
+    escalation against it, and printed that it had. An operator's triage
+    cannot be a no-op that reports success."""
+
+    import typer
+
+    from torve.cli.options import dsn_to_write
+    from torve.domain.states import EXIT_CONFIG
+
+    (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
+    config = tmp_path / ".torve" / "config.yaml"
+    config.write_text(
+        "schema_version: 1\nstore:\n  adapter: postgres\n  dsn_env: TORVE_TEST_PG\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("TORVE_TEST_PG", raising=False)
+
+    with pytest.raises(typer.Exit) as refused:
+        dsn_to_write(tmp_path)
+
+    assert refused.value.exit_code == EXIT_CONFIG
+
+    # With the variable set, the write resolves exactly as a read does.
+    monkeypatch.setenv("TORVE_TEST_PG", "postgresql://configured/db")
+    assert dsn_to_write(tmp_path) == "postgresql://configured/db"
+
+    # A repository whose store really is mock still gets one: that is what
+    # it asked for, and refusing it would break every mock-store write.
+    config.write_text("schema_version: 1\nstore:\n  adapter: mock\n", encoding="utf-8")
+    assert dsn_to_write(tmp_path) == ""
+
+
 def test_dsn_defaults_to_the_configured_variable(tmp_path, monkeypatch):
     """Naming a partition and omitting --dsn read an empty mock, found
     nothing and fell back to the files — the safe direction, and silent
