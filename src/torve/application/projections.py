@@ -297,6 +297,43 @@ def _contract_texts(root: Path) -> dict[str, str]:
 # ....................... #
 
 
+def _blocker_escalated(root: Path) -> set[str]:
+    """Tasks whose run ever escalated `blocker_finding` — the lifecycle a
+    blocker gets on the task-gated path. A blocker on a task in this set was
+    handed to a person and is not an escape."""
+
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
+    if not telemetry.is_file():
+        return set()
+
+    raised: set[str] = set()
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        row = cast("dict[str, Any]", record)
+
+        if (
+            row.get("kind") == "engine"
+            and row.get("event") == "escalation"
+            and str(row.get("reason") or "") == "blocker_finding"
+        ):
+            raised.add(str(row.get("task") or ""))
+
+    return raised
+
+
+# ....................... #
+
+
 def _findings(root: Path) -> list[dict[str, Any]]:
     """The findings ledger (D-5.15, A-75): every kept non-blocking finding
     from a landed target's review, read from the review records telemetry
@@ -314,6 +351,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
 
     landed = shipped_ids(root)
     contract_texts = _contract_texts(root)
+    escaped_check = _blocker_escalated(root)
     found: list[dict[str, Any]] = []
 
     for line in telemetry.read_text(encoding="utf-8").splitlines():
@@ -349,9 +387,17 @@ def _findings(root: Path) -> list[dict[str, Any]]:
 
             item = cast("dict[str, Any]", finding)
 
-            # D-5.15: non-blocking only — a blocker escalates its target
-            # and never lands beside it.
-            if item.get("severity") == "blocker":
+            # D-5.15 said non-blocking only, because "a blocker escalates
+            # its target and never lands beside it". True on the task-gated
+            # path and false on the pull-request one, which reports and
+            # never touches task state — so a blocker there escalated
+            # nothing, the target landed, and this filter then hid the
+            # highest severity the reviewer can assign. Fourteen had
+            # accumulated (A-135). A blocker whose target did escalate
+            # `blocker_finding` was handled by the lifecycle D-5.15 defers
+            # to and stays out; one that never did stopped nothing, and
+            # that is exactly what an operator needs to see.
+            if item.get("severity") == "blocker" and target in escaped_check:
                 continue
 
             found.append(

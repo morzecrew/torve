@@ -729,6 +729,57 @@ def test_a_drafting_run_is_not_one_of_the_task_s_attempts(tmp_path):
     assert _is_attempt_row(attempt)
 
 
+def _write_escalation(root, task_id: str, reason: str) -> None:
+    path = root / ".torve" / "telemetry.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "kind": "engine",
+                    "at": "2026-09-01T11:00:00Z",
+                    "event": "escalation",
+                    "task": task_id,
+                    "reason": reason,
+                }
+            )
+            + "\n"
+        )
+
+
+def test_a_blocker_that_escalated_nothing_reaches_the_ledger(tmp_path):
+    """T-0184: D-5.15 excluded blockers because "a blocker escalates its
+    target and never lands beside it" — true on the task-gated path, false
+    on the pull-request one, which reports and never touches task state. A
+    blocker there escalated nothing, its target landed, and the filter then
+    hid the highest severity the reviewer can assign. Fourteen had
+    accumulated in this repository before anyone looked (A-135)."""
+
+    blocker = [{"severity": "blocker", "claim": "the guard never fires", "evidence": "src/a.py:1"}]
+
+    # Escaped: landed, and nothing ever escalated for it.
+    _land_commit(tmp_path, "T-0001")
+    _write_review_telemetry(tmp_path, "T-0101", "T-0001", blocker)
+
+    # Handled: landed, but its run escalated `blocker_finding` first, so the
+    # lifecycle D-5.15 defers to already gave it to a person.
+    _land_commit(tmp_path, "T-0002")
+    _write_review_telemetry(tmp_path, "T-0102", "T-0002", blocker)
+    _write_escalation(tmp_path, "T-0002", "blocker_finding")
+
+    # An escalation for some other reason is not that lifecycle.
+    _land_commit(tmp_path, "T-0003")
+    _write_review_telemetry(tmp_path, "T-0103", "T-0003", blocker)
+    _write_escalation(tmp_path, "T-0003", "poison_ceiling")
+
+    report = context_report(tmp_path, tmp_path / "rfcs")
+    blockers = {f["target"] for f in report["findings"] if f["severity"] == "blocker"}
+
+    assert blockers == {"T-0001", "T-0003"}
+
+
 def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tmp_path):
     _land_commit(tmp_path, "T-0001")
     _write_review_telemetry(
@@ -747,8 +798,11 @@ def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tm
     )
     report = context_report(tmp_path, tmp_path / "rfcs")
     findings = report["findings"]
-    # Blockers escalate their target and never land beside it: non-blocking only.
-    assert [f["severity"] for f in findings] == ["major", "minor"]
+    # A-135: the blocker joins them because nothing escalated for T-0001 —
+    # it stopped nothing, which is the fact the ledger exists to surface.
+    # A blocker whose target escalated `blocker_finding` stays out; that
+    # case is `test_a_blocker_that_escalated_nothing_reaches_the_ledger`.
+    assert [f["severity"] for f in findings] == ["major", "minor", "blocker"]
     assert all(f["review"] == "T-0101" for f in findings)
     assert all(f["target"] == "T-0001" for f in findings)
     assert findings[0]["claim"] == "the retry loop swallows errors"

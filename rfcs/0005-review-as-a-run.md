@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79", "A-114"]
+amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79", "A-114", "A-135", "A-136"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -201,6 +201,7 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.14 | `ASSUMED` | The landing answers the review threads its revision consumed: capture retains each thread's reply address, and the tick's landing leg posts one reply per captured root — composed from records, saying what the loop did (captured, revised, landed as this sha) and never what the finding deserves; each reply carries its idempotency marker so a replay is absorbed at the destination, a failed answer waits for the next tick, and an unconsumed record answers nothing. Added by amendment A-41 2026-08-25 | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | A reviewer whose finding vanishes into a merged pull request stops reading; the loop must close its own conversations |
 | D-5.15 | `ASSUMED` | Non-blocking findings get a ledger, not a lifecycle: `torve context` gains "Findings awaiting the operator" — every kept finding from a landed target's review, marked possibly_addressed when a later contract's text cites the review's task id (D-7.24's possibly_landed discipline applied to findings); the engine still mints nothing from a finding, and the operator triages the ledger in batch — per-finding instant minting is a habit, never a requirement. Added by amendment A-75 2026-09-01 | `src/torve/application/projections.py` | A finding recorded into telemetry and read by nobody is a review that ran for nothing; a ledger keeps the operator honest without making the engine decide work exists (D-2) |
 | D-5.16 | `ASSUMED` | Inside its disposable copy the reviewer may execute the target's acceptance commands and gates; command output it cites is evidence like any path:line, and execution spends the review attempt's own budget and timeout — a battery too slow for the review window is a finding about the battery, never a license to extend the review. Added by amendment A-78 2026-09-01 | `src/torve/application/review.py` | A reviewer that can only read judges tests by their text; one that runs them reports what the change actually does |
+| D-5.17 | `ASSUMED` | `review.blocks_at` names the severity at or above which a kept finding stops a promotion, default `major`; the finding keeps the grade the reviewer gave it and configuration decides what stops (D-2). Added by amendment A-136 2026-09-08 | `src/torve/application/review.py` `src/torve/config/runconfig.py` | Three consecutive reviews graded a pass-killing defect `major` and nothing `blocker`, so the bar that stopped a promotion sat above every severity the reviewer assigns |
 
 D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
 
@@ -432,3 +433,63 @@ still exists.
 
 **Changed:** `implementation: partial` stands, now with three things owed
 rather than one.
+
+### A-135 — 2026-09-08 — the ledger hid the severity it most needed to show (amends D-5.15)
+**Found by triaging the ledger itself.** D-5.15 gave non-blocking findings
+a ledger and excluded blockers, on the premise recorded in the code as "a
+blocker escalates its target and never lands beside it". That premise holds
+on the task-gated path. It is false on the pull-request path, whose own
+docstring says so: *"Task state is never mutated here — blockers on a
+task-gated run escalate on that path; this one reports."*
+
+So a blocker found on a pull request escalated nothing, its target landed
+like any other, and the ledger then dropped it for being a blocker. It
+appeared on no surface at all. This repository had accumulated **fourteen**
+of them — the highest severity the reviewer can assign, recorded in
+telemetry, read by nobody. D-5.15's own rationale is the sentence that
+condemns this: *"A finding recorded into telemetry and read by nobody is a
+review that ran for nothing."*
+
+**Changed (D-5.15, `ASSUMED`, departed per the grade):** the ledger carries
+a blocker whose target never escalated `blocker_finding`. One that did was
+handed to a person by the lifecycle D-5.15 defers to and stays out — five
+of this repository's nineteen, correctly. The discriminator is the
+escalation record rather than the review record, because it is the
+escalation that says whether anything stopped.
+
+**What this did not change.** The engine still mints nothing from a
+finding, and the operator still triages in batch (D-2). A blocker in the
+ledger is a blocker that stopped nothing, which is a fact about the
+engine's own handling and not an instruction to it.
+
+**Read this beside A-136's severity bar.** These fourteen escaped because
+nothing stopped them; the `major` findings escaped because the bar that
+stops sat above every severity the reviewer actually assigns. Same hole,
+two different halves of the same mechanism.
+
+### A-136 — 2026-09-08 — what stops a promotion is configuration's, not the reviewer's (adds D-5.17)
+**Found by three consecutive reviews of this engine's own work.** T-0283
+found a leg that shipped the next phase's deliverable; T-0284 found a leg
+whose construction took the whole manager down; T-0285 found a decode error
+that abandoned every candidate behind the one it tripped on. All three were
+real, all three were graded `major`, and `major` did not stop a promotion —
+so all three promoted. Two of them would have taken down a running pass.
+
+The reviewer uses `major` for "this must be fixed" and reserves `blocker`
+for something that, on this corpus, it has assigned nineteen times and
+never once for a defect that stopped anything (A-135). The bar that stopped
+a promotion sat above every severity the reviewer actually assigns.
+
+**Added — D-5.17 (`ASSUMED`):** `review.blocks_at` names the severity at or
+above which a kept finding stops a promotion, defaulting to `major`. The
+finding keeps the grade the reviewer gave it, in the record and in every
+reading; what stops a promotion is configuration's to decide, which is D-2
+exactly. `blocks_at: blocker` restores every reading before this one.
+
+Deliberately not a prompt change. Re-teaching a model where its own bar sits
+is a guess about calibration; a knob is mechanical, testable and reversible,
+and it leaves the reviewer's judgement intact to be read later.
+
+This matters now in a way it did not before RFC 0052: with
+`promotion.auto_merge` armed, an unattended pass would have landed all
+three.
