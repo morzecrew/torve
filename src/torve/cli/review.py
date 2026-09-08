@@ -26,14 +26,22 @@ import re
 import subprocess
 import tarfile
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import typer
 import yaml
 from rich.text import Text
-from typer._click.core import Command as _ClickCommand
-from typer._click.core import Context as _ClickContext
 from typer.core import TyperGroup
+
+if TYPE_CHECKING:
+    # typer vendors its own click, and these are annotations only — under
+    # `from __future__ import annotations` they are never evaluated. Imported
+    # at runtime they broke `import torve.cli` outright on any resolution
+    # honouring the declared typer floor, where `typer._click` does not
+    # exist: the root app imports this module eagerly, so every `torve`
+    # command failed, not just `torve review` (T-0265).
+    from typer._click.core import Command as _ClickCommand
+    from typer._click.core import Context as _ClickContext
 
 from torve.cli.console import (
     STYLE_FAIL,

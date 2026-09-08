@@ -805,6 +805,29 @@ def test_harness_agent_carries_reported_token_counts(tmp_path):
     assert result.cost_usd == 0.5
 
 
+def test_an_attempt_never_inherits_the_previous_attempt_s_counts():
+    """T-0187: `run.meta` is one dict for the whole run, and
+    `agent_token_counts` only ever adds the keys an adapter reported —
+    "absent stays absent" holds inside an attempt, not across them. An
+    attempt whose adapter reported nothing therefore showed the previous
+    attempt's counts beside its own `cost_usd: null`. Unreported must read
+    as unreported, so the run's block is cleared of them per attempt."""
+
+    from torve.application.telemetry import TOKEN_FIELDS, agent_token_counts
+
+    meta: dict = {"cost_usd": 0.4}
+    meta.update(agent_token_counts(HarnessResult(exit_code=0, output="", input_tokens=10)))
+    assert meta["input_tokens"] == 10
+
+    # The next attempt reports nothing, which is what session.py now does
+    # before restamping the block.
+    for stale in (*TOKEN_FIELDS, "burn"):
+        meta.pop(stale, None)
+
+    meta.update(agent_token_counts(AgentResult(exit_code=0, output="")))
+    assert "input_tokens" not in meta
+
+
 def test_agent_token_counts_records_only_what_was_reported():
     from torve.application.telemetry import agent_token_counts
 

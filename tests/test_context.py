@@ -702,6 +702,33 @@ def _write_review_telemetry(root, review_id: str, target: str, findings: list[di
         handle.write(json.dumps(record) + "\n")
 
 
+def test_a_drafting_run_is_not_one_of_the_task_s_attempts(tmp_path):
+    """T-0273: an `intake` row is how the contract came to exist, not an
+    attempt at the work it describes. Counted as one it added a phantom
+    attempt to every drafted task's `why` and folded the drafting spend into
+    the same-regime median and p90 that `context` reports for every task
+    sharing the config hash — the review row was already excluded for the
+    same reason and this kind was left behind."""
+
+    from torve.application.projections import _is_attempt_row
+
+    def row(kind: str) -> dict:
+        return {
+            "kind": kind,
+            "task_id": "T-0001",
+            "config_hash": "abc123",
+            "agent": {"tier": "planner", "adapter": "harness", "cost_usd": 1.5},
+        }
+
+    assert not _is_attempt_row(row("intake"))
+    assert not _is_attempt_row(row("review"))
+
+    # What must still count: a real attempt carries no kind of its own.
+    attempt = row("")
+    attempt.pop("kind")
+    assert _is_attempt_row(attempt)
+
+
 def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tmp_path):
     _land_commit(tmp_path, "T-0001")
     _write_review_telemetry(

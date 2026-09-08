@@ -44,6 +44,7 @@ from torve.application.ports import (
 from torve.application.runstate import RunState
 from torve.application.skills import materialize
 from torve.application.telemetry import (
+    TOKEN_FIELDS,
     agent_burn,
     agent_token_counts,
     broker_block,
@@ -411,6 +412,15 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         # The attempt's self-reported token counts ride the same block
         # (T-0186): only the counts the adapter reported — absent keys
         # stay absent, never zeroed (D-4.6's self-reported regime).
+        #
+        # Cleared first, because `run.meta` is one dict for the whole run
+        # (T-0187): "absent stays absent" holds within an attempt and not
+        # across them, so an attempt whose adapter reported nothing
+        # inherited the previous attempt's counts and showed them beside
+        # its own `cost_usd: null`. Unreported must read as unreported.
+        for stale in (*TOKEN_FIELDS, "burn"):
+            run.meta.pop(stale, None)
+
         run.meta.update(agent_token_counts(result))
         # The burn profile rides the block beside those totals (RFC 0039
         # §5.3): what the adapter derived at capture time from the

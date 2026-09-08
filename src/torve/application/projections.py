@@ -1416,7 +1416,12 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
 # events carry no agent block, and a fake adapter is simulation, neither
 # spend nor conviction (D-4.6) — the same exclusions the harness
 # populations and the costs section already draw.
-_ATTEMPT_EXCLUDED_KINDS = _HARNESS_EXCLUDED_KINDS | {"review"}
+# `intake` joins them for the same reason one step earlier (T-0273): a
+# drafting run is how the contract came to exist, not an attempt at the
+# work it describes. Counted as one it added a phantom attempt to every
+# drafted task's `why`, and folded its cost into the same-regime median
+# and p90 that `context` reports for every task sharing the config hash.
+_ATTEMPT_EXCLUDED_KINDS = _HARNESS_EXCLUDED_KINDS | {"review", "intake"}
 
 
 def stream_rows(root: Path) -> list[dict[str, Any]]:

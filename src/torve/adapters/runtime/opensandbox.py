@@ -339,7 +339,11 @@ class OpenSandboxRuntime:
         raw = result.output.strip()
         _extract_tar(base64.b64decode(raw), workspace)
 
-        task_id = self._transfer_tasks.pop(handle.id, None)
+        # Read, never consumed (T-0274): an attempt syncs out twice — the
+        # harness recovers its trace file, then the run loop takes the whole
+        # workspace — and popping here booked the first transfer and zeroed
+        # the second, usually larger one. `destroy` owns the cleanup.
+        task_id = self._transfer_tasks.get(handle.id)
 
         if task_id is not None:
             # Wire bytes of the base64 pipe out, seconds through the local

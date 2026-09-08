@@ -917,6 +917,55 @@ def test_a_write_refuses_the_mock_the_configuration_did_not_ask_for(tmp_path, mo
     assert dsn_to_write(tmp_path) == ""
 
 
+def test_no_module_imports_a_dependency_private_at_runtime() -> None:
+    """T-0265: `torve review` imported `typer._click.core` at module level
+    for two annotations, and the root app imports that module eagerly — so
+    every `torve` command failed to import on any resolution honouring the
+    declared `typer>=0.16` floor, where `typer._click` does not exist. Only
+    the lockfile's 0.27.1 hid it; a fresh `pip install torve` was broken.
+
+    The rule is general because the next one will be a different package: a
+    private submodule of a dependency is not part of its contract, and
+    nothing may need one to *import*. Annotations belong under
+    `if TYPE_CHECKING:`, where they are never evaluated.
+    """
+
+    import ast
+
+    offenders: list[str] = []
+
+    for path in sorted(Path("src/torve").rglob("*.py")):
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            # Anything guarded by an `if` — TYPE_CHECKING above all — never
+            # runs at import, which is exactly where these belong.
+            if isinstance(node, ast.If):
+                continue
+
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.ImportFrom) and sub.level == 0:
+                    names = [sub.module or ""]
+
+                elif isinstance(sub, ast.Import):
+                    names = [alias.name for alias in sub.names]
+
+                else:
+                    continue
+
+                for name in names:
+                    parts = name.split(".")
+
+                    if parts[0] in {"torve", ""}:
+                        continue
+
+                    if any(part.startswith("_") for part in parts[1:]):
+                        offenders.append(f"{path}: {name}")
+
+    assert not offenders, (
+        "a dependency's private submodule is not part of its contract, and "
+        f"importing one at runtime breaks the package at its own declared floor: {offenders}"
+    )
+
+
 def test_dsn_defaults_to_the_configured_variable(tmp_path, monkeypatch):
     """Naming a partition and omitting --dsn read an empty mock, found
     nothing and fell back to the files — the safe direction, and silent
