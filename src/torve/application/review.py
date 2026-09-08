@@ -441,6 +441,7 @@ def run_review(
     degraded: bool = False,
     broker: Broker | None = None,
     broker_handle: BrokerHandle | None = None,
+    trigger: str = "task_gated",
 ) -> ReviewOutcome:
     """One review attempt in a disposable copy of the target worktree, which
     the reviewer may run and write in (D-5.2 as reworded by A-78). Produces the
@@ -626,6 +627,11 @@ def run_review(
         "config_hash": config_digest,
         "task_id": review.id,
         "target": target.id,
+        # Which trigger produced this review, because the two have different
+        # lifecycles and the record could not tell them apart (A-137): a
+        # task-gated blocker is revised in-run or escalates, a
+        # pull-request one is reported and stops nothing.
+        "trigger": trigger,
         "findings": [f.model_dump() for f in kept],
         "discarded": discarded,
         "unparseable": unparseable,
@@ -849,6 +855,11 @@ def review_pull_request(
             degraded=degraded,
             broker=broker,
             broker_handle=broker_handle,
+            # This path reports and never touches task state, so nothing
+            # escalates and nothing revises: the record has to say so, or a
+            # blocker found here is indistinguishable from one the
+            # task-gated loop already dealt with (A-137).
+            trigger="pull_request",
         )
 
     finally:

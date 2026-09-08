@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79", "A-114", "A-135", "A-136"]
+amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79", "A-114", "A-135", "A-136", "A-137"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -199,7 +199,7 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.12 | `ASSUMED` | Retry captures revision feedback before the candidate is superseded: the previous candidate's diff and the pull request's `path:line`-anchored review threads from `review.feedback_from` logins — verbatim, whole threads, attributed, size-capped with recorded truncation; an empty allow-list turns the loop off. Added by amendment A-32 2026-08-24. *Amended by A-37 2026-08-25 (registered on RFC 0010, D-10.10): the branch is no longer deleted at requeue — the next attempt's leased force-push supersedes it; capture-first stands unchanged* | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` | A stranger's comment must never reach an agent; a parsed format rots with every vendor redesign |
 | D-5.13 | `ASSUMED` | A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs — revise, not restart; scope, gates and the sha-bound approval are unchanged, and revision spend stays behind the human retry. Added by amendment A-32 2026-08-24 | `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py` | The feedback channel steers attempts, never landings |
 | D-5.14 | `ASSUMED` | The landing answers the review threads its revision consumed: capture retains each thread's reply address, and the tick's landing leg posts one reply per captured root — composed from records, saying what the loop did (captured, revised, landed as this sha) and never what the finding deserves; each reply carries its idempotency marker so a replay is absorbed at the destination, a failed answer waits for the next tick, and an unconsumed record answers nothing. Added by amendment A-41 2026-08-25 | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | A reviewer whose finding vanishes into a merged pull request stops reading; the loop must close its own conversations |
-| D-5.15 | `ASSUMED` | Non-blocking findings get a ledger, not a lifecycle: `torve context` gains "Findings awaiting the operator" — every kept finding from a landed target's review, marked possibly_addressed when a later contract's text cites the review's task id (D-7.24's possibly_landed discipline applied to findings); the engine still mints nothing from a finding, and the operator triages the ledger in batch — per-finding instant minting is a habit, never a requirement. Added by amendment A-75 2026-09-01 | `src/torve/application/projections.py` | A finding recorded into telemetry and read by nobody is a review that ran for nothing; a ledger keeps the operator honest without making the engine decide work exists (D-2) |
+| D-5.15 | `ASSUMED` | *(amended A-135, corrected A-137: the ledger admits a blocker from the pull-request trigger, which escalates and revises nothing; task-gated blockers stay out.)* Non-blocking findings get a ledger, not a lifecycle: `torve context` gains "Findings awaiting the operator" — every kept finding from a landed target's review, marked possibly_addressed when a later contract's text cites the review's task id (D-7.24's possibly_landed discipline applied to findings); the engine still mints nothing from a finding, and the operator triages the ledger in batch — per-finding instant minting is a habit, never a requirement. Added by amendment A-75 2026-09-01 | `src/torve/application/projections.py` | A finding recorded into telemetry and read by nobody is a review that ran for nothing; a ledger keeps the operator honest without making the engine decide work exists (D-2) |
 | D-5.16 | `ASSUMED` | Inside its disposable copy the reviewer may execute the target's acceptance commands and gates; command output it cites is evidence like any path:line, and execution spends the review attempt's own budget and timeout — a battery too slow for the review window is a finding about the battery, never a license to extend the review. Added by amendment A-78 2026-09-01 | `src/torve/application/review.py` | A reviewer that can only read judges tests by their text; one that runs them reports what the change actually does |
 | D-5.17 | `ASSUMED` | `review.blocks_at` names the severity at or above which a kept finding stops a promotion, default `major`; the finding keeps the grade the reviewer gave it and configuration decides what stops (D-2). Added by amendment A-136 2026-09-08 | `src/torve/application/review.py` `src/torve/config/runconfig.py` | Three consecutive reviews graded a pass-killing defect `major` and nothing `blocker`, so the bar that stopped a promotion sat above every severity the reviewer assigns |
 
@@ -476,9 +476,13 @@ real, all three were graded `major`, and `major` did not stop a promotion —
 so all three promoted. Two of them would have taken down a running pass.
 
 The reviewer uses `major` for "this must be fixed" and reserves `blocker`
-for something that, on this corpus, it has assigned nineteen times and
-never once for a defect that stopped anything (A-135). The bar that stopped
-a promotion sat above every severity the reviewer actually assigns.
+for what it judges must stop the work. ~~On this corpus it has assigned
+`blocker` nineteen times and never once for a defect that stopped
+anything.~~ *(Struck 2026-09-08 by A-137: false. All nineteen stopped
+something — five escalated and fourteen were revised in-run. The claim came
+from A-135's mistaken reading and is not load-bearing for this decision,
+which rests on three `major` findings that promoted and were verified
+directly.)*
 
 **Added — D-5.17 (`ASSUMED`):** `review.blocks_at` names the severity at or
 above which a kept finding stops a promotion, defaulting to `major`. The
@@ -493,3 +497,41 @@ and it leaves the reviewer's judgement intact to be read later.
 This matters now in a way it did not before RFC 0052: with
 `promotion.auto_merge` armed, an unattended pass would have landed all
 three.
+
+### A-137 — 2026-09-08 — A-135 was wrong about what it had found (corrects A-135, amends D-5.15)
+**Found by triaging the fourteen it surfaced.** Every one is FIXED. Not one
+was an escape.
+
+A-135 read "no `blocker_finding` escalation" as "nothing stopped this". It
+does not. The task-gated path revises a blocker *inside* the run and only
+escalates once the revision budget is spent, so a blocker fixed on the
+first revision escalates nothing and its target lands — handled, silently.
+That is what all fourteen were. One of them is fixed in
+`.github/workflows/publish.yml` under a comment naming the exact `set -u`
+failure the finding described: somebody read that blocker and acted on it.
+
+So the filter A-135 shipped surfaced fourteen resolved findings as awaiting
+the operator, which is the opposite of the ledger's purpose. Corrected.
+
+**The hole A-135 aimed at is real and has never fired.** `review_pull_request`
+reports and never touches task state, so a blocker found there escalates
+nothing, revises nothing, and its target lands — genuinely invisible. But
+both paths called `run_review` and wrote the identical record, so nothing
+downstream could tell them apart, and zero of this corpus's nineteen
+blockers came from that path.
+
+**Changed:** the review record carries its `trigger`, and the ledger admits
+a blocker only from `pull_request`. An absent trigger is the task-gated
+default, so every record written before this stays out. This is the second
+option the finding itself offered — *"mark the PR path's record so the
+filter's premise holds"* — and it is the right one, because the
+discriminator has to be which lifecycle applied, not whether one of that
+lifecycle's outcomes happens to have been reached.
+
+**What this cost and what it is worth.** A wrong fix, shipped, and caught
+one commit later by reading the very findings it produced. The triage that
+caught it is the same triage that made the ledger worth fixing: 26 of 35
+open `major` findings still true, and 14 of 14 blockers already handled.
+The two numbers together are the actual finding — **`blocker` is acted on
+and `major` is not** — which is the case for D-5.17 far better than the
+sentence A-135 gave it.
