@@ -1,4 +1,4 @@
-# Minted by `torve plan 0054` — phase 1: the row travels whole and a check is a gate; re-minted by hand under A-154 and A-155 — a re-mint is a version.
+# Minted by `torve plan 0054` — phase 1: the row travels whole and a check is a gate; re-minted by hand under A-154, A-155 and A-156 — a re-mint is a version.
 schema_version: 1
 id: T-0296
 rfc: rfcs/0054-decisions-as-gates-and-the-projections-beside-the-code.md
@@ -36,6 +36,7 @@ scope:
   - tests/test_decisions.py
   - tests/test_events.py
   - tests/test_intake.py
+  - tests/test_standing.py
   - tests/test_gates.py
   - tests/test_runner.py
   - tests/test_sabotage.py
@@ -43,8 +44,8 @@ scope:
   deny: []
 acceptance:
 - uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py
-  tests/test_events.py tests/test_intake.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py
-  tests/test_cli.py
+  tests/test_events.py tests/test_intake.py tests/test_standing.py tests/test_gates.py tests/test_runner.py
+  tests/test_sabotage.py tests/test_cli.py
 - uv run lint-imports --config pyproject.toml
 - uv run torve rfc check
 decisions:

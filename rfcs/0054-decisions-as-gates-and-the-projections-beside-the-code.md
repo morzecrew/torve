@@ -8,7 +8,7 @@ depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-153", "A-154", "A-155"]
+amended_by: ["A-153", "A-154", "A-155", "A-156"]
 owner: misery7100
 description: >-
   The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot.
@@ -662,12 +662,13 @@ that (D-A.9); the fence orders only this document's own units.
     - "tests/test_decisions.py"
     - "tests/test_events.py"
     - "tests/test_intake.py"
+    - "tests/test_standing.py"
     - "tests/test_gates.py"
     - "tests/test_runner.py"
     - "tests/test_sabotage.py"
     - "tests/test_cli.py"
   acceptance:
-    - "uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py tests/test_events.py tests/test_intake.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
+    - "uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py tests/test_events.py tests/test_intake.py tests/test_standing.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
     - "uv run lint-imports --config pyproject.toml"
     - "uv run torve rfc check"
   depends_on: []
@@ -795,5 +796,19 @@ gain the four fields too, and three adoption tests compare rows whole.
 - subject: phase 1
   field: scope
   before: "… tests/test_events.py tests/test_gates.py …"
-  after: "… tests/test_events.py tests/test_intake.py tests/test_gates.py …"
+  after: "… tests/test_events.py tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
+```
+
+### A-156 — 2026-09-09 — phase 1 reaches the standing tests
+**Found by the shadow coverage gate on phase 1's landing.** The standing
+maintenance leg mints through the same helper too, and one of its tests
+compares the minted row whole.
+
+**Changed:** phase 1's scope and acceptance gain `tests/test_standing.py`.
+
+```yaml changes
+- subject: phase 1
+  field: scope
+  before: "… tests/test_intake.py tests/test_gates.py …"
+  after: "… tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
 ```
