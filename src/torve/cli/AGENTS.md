@@ -166,4 +166,27 @@ Whether `spec cites` also reads the `Torve-Decisions` trailers of the commit his
 - Paths: `src/torve/cli/spec.py`
 - Consequence: Decided by whoever executes phase 4, logged
 
+### D-58.3 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+`check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar; a legacy identifier in the corpus or the tree is a problem naming its replacement, `spec show` answers a legacy identifier from the mapping and says which it was, and `cites` reads commit trailers and the record's history through it
+
+- Paths: `src/torve/config/spec.py` `src/torve/cli/spec.py`
+- Consequence: A citation written the old way after the conversion cannot survive a check
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.7 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`, for amendments, landings, entries, telemetry, run state and their display; the dates that exist convert once to midnight UTC with the loss stated
+
+- Paths: `src/torve/base/clock.py` `src/torve/domain/spec.py` `src/torve/application/telemetry.py` `src/torve/application/runstate.py` `src/torve/application/decisions.py` `src/torve/application/projections.py` `src/torve/cli/spec.py` `src/torve/cli/decisions.py`
+- Consequence: A timeline over amendments, landings and entries sorts on one string
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.10 — `ASSUMED` (RFC 0058 — One grammar and the anatomy)
+
+The skill and its template, the schemas `torve init` writes, the projections beside the code and the operating page follow the grammar and the anatomy in the same phase that changes them
+
+- Paths: `skills/**` `src/torve/application/colocation.py` `src/torve/cli/init.py` `pages/docs/operating.md`
+- Consequence: Nothing a harness or a person reads names an identifier the check refuses
+
 <!-- /torve:managed -->

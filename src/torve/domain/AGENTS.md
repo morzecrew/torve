@@ -139,4 +139,44 @@ A section is `key` and `md`; the heading is rendered from the key and the number
 - Consequence: A typed list exists in one place; a heading cannot disagree with its key
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### D-58.1 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Every item the corpus defines has one global identifier, `S-NNNN/<local>` — `D-n`, `I-n`, `Q-n`, `A-n`, `P-n` or a prose key — and is written inside its own document by the local half alone; the document is the namespace, amendments included, and tasks stay `T-NNNN`
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
+- Consequence: One regex reads every citation; nothing is spelled twice; sections and phases become citable
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.4 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+`document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`, `goals`, `non_goals`, `tests`, `risks` required of an accepted document, `docs` and `out_of_scope` optional, `design` a keyed list with at least one entry once accepted, `sections` the extras capped at eight — with keys unique document-wide and never a family shape; `description` is dropped and the summary's first sentence routes
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py`
+- Consequence: `yq .motivation` answers; a document without a motivation cannot be accepted; the routing line is written once
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.5 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+`phasing.yaml` holds `phasing` and `contract_example`, author-written and planner-read; a scope amendment touches it and the amendments file alone
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/planner.py`
+- Consequence: Six files per document; the planner's list diffs apart from the prose
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.6 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Execution is a directory, `execution/<task>-<attempt>-<instant>.yaml`, one landing per file, written once and never deleted; the loader reads it sorted by instant into `landings`; an identical replay is a no-op and a restarted attempt lands under a new instant; the scope gate exempts the directory
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py` `src/torve/application/decisions.py` `src/torve/gates/scope.py`
+- Consequence: Two candidates of one document never conflict at merge; no landing is refused for a number
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.7 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`, for amendments, landings, entries, telemetry, run state and their display; the dates that exist convert once to midnight UTC with the loss stated
+
+- Paths: `src/torve/base/clock.py` `src/torve/domain/spec.py` `src/torve/application/telemetry.py` `src/torve/application/runstate.py` `src/torve/application/decisions.py` `src/torve/application/projections.py` `src/torve/cli/spec.py` `src/torve/cli/decisions.py`
+- Consequence: A timeline over amendments, landings and entries sorts on one string
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

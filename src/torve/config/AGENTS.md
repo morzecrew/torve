@@ -184,4 +184,43 @@ The corpus is `.torve/specs/` and the archive `.torve/archive/`; the configurati
 - Paths: `src/torve/config/spec.py`
 - Consequence: The status field and the execution file cannot drift apart silently
 
+### D-58.1 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Every item the corpus defines has one global identifier, `S-NNNN/<local>` — `D-n`, `I-n`, `Q-n`, `A-n`, `P-n` or a prose key — and is written inside its own document by the local half alone; the document is the namespace, amendments included, and tasks stay `T-NNNN`
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
+- Consequence: One regex reads every citation; nothing is spelled twice; sections and phases become citable
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.3 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+`check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar; a legacy identifier in the corpus or the tree is a problem naming its replacement, `spec show` answers a legacy identifier from the mapping and says which it was, and `cites` reads commit trailers and the record's history through it
+
+- Paths: `src/torve/config/spec.py` `src/torve/cli/spec.py`
+- Consequence: A citation written the old way after the conversion cannot survive a check
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.4 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+`document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`, `goals`, `non_goals`, `tests`, `risks` required of an accepted document, `docs` and `out_of_scope` optional, `design` a keyed list with at least one entry once accepted, `sections` the extras capped at eight — with keys unique document-wide and never a family shape; `description` is dropped and the summary's first sentence routes
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py`
+- Consequence: `yq .motivation` answers; a document without a motivation cannot be accepted; the routing line is written once
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.6 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Execution is a directory, `execution/<task>-<attempt>-<instant>.yaml`, one landing per file, written once and never deleted; the loader reads it sorted by instant into `landings`; an identical replay is a no-op and a restarted attempt lands under a new instant; the scope gate exempts the directory
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py` `src/torve/application/decisions.py` `src/torve/gates/scope.py`
+- Consequence: Two candidates of one document never conflict at merge; no landing is refused for a number
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.8 — `ASSUMED` (RFC 0058 — One grammar and the anatomy)
+
+`check` warns for a LOCKED row whose declared paths match files none of which cites it
+
+- Paths: `src/torve/config/spec.py`
+- Consequence: A comment an agent deletes is heard; a row over generated files reads a warning and decides
+
 <!-- /torve:managed -->

@@ -2,7 +2,7 @@
 id: 0058
 title: One grammar and the anatomy
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: ['0057']
 informed_by: ['0053', '0056']

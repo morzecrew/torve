@@ -70,6 +70,14 @@ Every task directory whose contract names an archived document is deleted, not a
 - Consequence: An editor validates any torve YAML as it is typed; an adopting repository ignores the right files without copying a block; `init` is the initialisation there is
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### D-58.2 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Every existing identifier converts once through a mapping committed as `.torve/archive/identifiers.yaml`, applied to the corpus, the archive, `src/`, `pages/`, `skills/`, the README, the local task files and the projections, with "RFC NNNN §n" converted to the section key at that position; a parity script gates the commit and is not committed
+
+- Paths: `.torve/specs/**` `.torve/archive/**` `src/**` `pages/**` `skills/**` `README.md`
+- Consequence: No legacy identifier stands anywhere the check reads; history keeps its words and resolves through the mapping
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over the repository root
 
 - **I-55.1** (RFC 0055): The five layer contracts hold over the whole package
@@ -91,11 +99,13 @@ and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
 `<file>` and `torve spec tests D-x.y` read the same corpus from the worktree.
 
 - `migrations/` — 1 decision(s)
-- `pages/` — 1 decision(s)
-- `pages/docs/` — 0 decision(s)
+- `pages/` — 2 decision(s)
+- `pages/docs/` — 1 decision(s)
 - `pages/docs/architecture/` — 0 decision(s)
-- `skills/` — 3 decision(s)
+- `skills/` — 5 decision(s)
 - `skills/corpus-bootstrap/` — 0 decision(s)
+- `skills/spec-writer/` — 0 decision(s)
+- `src/` — 1 decision(s)
 - `src/torve/` — 3 decision(s)
 - `src/torve/_web/` — 1 decision(s)
 - `src/torve/adapters/` — 2 decision(s)
@@ -103,11 +113,12 @@ and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
 - `src/torve/adapters/broker/` — 1 decision(s)
 - `src/torve/adapters/runtime/` — 1 decision(s)
 - `src/torve/adapters/vcs/` — 1 decision(s)
-- `src/torve/application/` — 59 decision(s)
-- `src/torve/cli/` — 22 decision(s)
-- `src/torve/config/` — 24 decision(s)
-- `src/torve/domain/` — 18 decision(s)
-- `src/torve/gates/` — 17 decision(s)
+- `src/torve/application/` — 64 decision(s)
+- `src/torve/base/` — 1 decision(s)
+- `src/torve/cli/` — 25 decision(s)
+- `src/torve/config/` — 29 decision(s)
+- `src/torve/domain/` — 23 decision(s)
+- `src/torve/gates/` — 19 decision(s)
 - `tests/` — 1 decision(s)
 - `web/` — 1 decision(s)
 

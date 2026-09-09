@@ -132,6 +132,21 @@ The specification format terminates at the planner: gates, runtime adapters and 
 - Consequence: Format containment cannot break quietly; the contract is the only thing a gate reads about a task
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### D-58.6 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Execution is a directory, `execution/<task>-<attempt>-<instant>.yaml`, one landing per file, written once and never deleted; the loader reads it sorted by instant into `landings`; an identical replay is a no-op and a restarted attempt lands under a new instant; the scope gate exempts the directory
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py` `src/torve/application/decisions.py` `src/torve/gates/scope.py`
+- Consequence: Two candidates of one document never conflict at merge; no landing is refused for a number
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.9 — `ASSUMED` (RFC 0058 — One grammar and the anatomy)
+
+The `decision:<id>` gate names, the pack's decisions file, the log entry's `decision` and the record's subjects carry the global form; the record re-imports once after the conversion, retiring every old subject with the reason naming its replacement
+
+- Paths: `src/torve/gates/runner.py` `src/torve/gates/decisions_reported.py` `src/torve/application/contextpack.py` `src/torve/application/decisions.py`
+- Consequence: The record's history keeps the old ids as retired rows and the new ones as what stands
+
 ## Invariants holding over `src/torve/gates/`
 
 - **I-55.3** (RFC 0055): Every gate in the manifest can be made to fail

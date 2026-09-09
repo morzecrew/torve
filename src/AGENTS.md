@@ -1,13 +1,6 @@
-<!-- torve:managed pages — rendered from the corpus; do not edit by hand -->
+<!-- torve:managed src — rendered from the corpus; do not edit by hand -->
 
-## Decisions governing `pages/`
-
-### D-55.52 — `ASSUMED` (RFC 0055 — Standing decisions)
-
-Documentation under `pages/` is written independently of the corpus — never generated from it, never contradicting an accepted row — and `INDEX.md` is generated and drift-checked, never hand-edited
-
-- Paths: `pages/**` `rfcs/INDEX.md`
-- Consequence: Two axes, versioned differently; a lockfile-grade index cannot drift
+## Decisions governing `src/`
 
 ### D-58.2 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
 
@@ -17,7 +10,7 @@ Every existing identifier converts once through a mapping committed as `.torve/a
 - Consequence: No legacy identifier stands anywhere the check reads; history keeps its words and resolves through the mapping
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-## Invariants holding over `pages/`
+## Invariants holding over `src/`
 
 - **I-58.1** (RFC 0058): Every identifier the corpus defines and every citation the tree carries matches the one grammar, `S-NNNN`, `S-NNNN/<F>-<n>` or `S-NNNN/<key>`; a legacy shape is a check problem
   - Paths: `.torve/specs/**` `src/**` `pages/**`

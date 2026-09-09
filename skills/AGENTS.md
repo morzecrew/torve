@@ -24,4 +24,19 @@ Skills ship as package data under `skills/` and are materialised role-scoped int
 - Consequence: One namespace for the corpus; old prose and test file names keep the old word
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### D-58.2 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Every existing identifier converts once through a mapping committed as `.torve/archive/identifiers.yaml`, applied to the corpus, the archive, `src/`, `pages/`, `skills/`, the README, the local task files and the projections, with "RFC NNNN §n" converted to the section key at that position; a parity script gates the commit and is not committed
+
+- Paths: `.torve/specs/**` `.torve/archive/**` `src/**` `pages/**` `skills/**` `README.md`
+- Consequence: No legacy identifier stands anywhere the check reads; history keeps its words and resolves through the mapping
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.10 — `ASSUMED` (RFC 0058 — One grammar and the anatomy)
+
+The skill and its template, the schemas `torve init` writes, the projections beside the code and the operating page follow the grammar and the anatomy in the same phase that changes them
+
+- Paths: `skills/**` `src/torve/application/colocation.py` `src/torve/cli/init.py` `pages/docs/operating.md`
+- Consequence: Nothing a harness or a person reads names an identifier the check refuses
+
 <!-- /torve:managed -->

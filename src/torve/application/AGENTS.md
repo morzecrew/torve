@@ -434,4 +434,42 @@ The colocated sections, the pack and the skills change in no shape but the word 
 - Paths: `src/torve/application/colocation.py` `src/torve/application/contextpack.py`
 - Consequence: Nothing a harness reads changes shape
 
+### D-58.5 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+`phasing.yaml` holds `phasing` and `contract_example`, author-written and planner-read; a scope amendment touches it and the amendments file alone
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/planner.py`
+- Consequence: Six files per document; the planner's list diffs apart from the prose
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.6 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+Execution is a directory, `execution/<task>-<attempt>-<instant>.yaml`, one landing per file, written once and never deleted; the loader reads it sorted by instant into `landings`; an identical replay is a no-op and a restarted attempt lands under a new instant; the scope gate exempts the directory
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py` `src/torve/application/decisions.py` `src/torve/gates/scope.py`
+- Consequence: Two candidates of one document never conflict at merge; no landing is refused for a number
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.7 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+
+The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`, for amendments, landings, entries, telemetry, run state and their display; the dates that exist convert once to midnight UTC with the loss stated
+
+- Paths: `src/torve/base/clock.py` `src/torve/domain/spec.py` `src/torve/application/telemetry.py` `src/torve/application/runstate.py` `src/torve/application/decisions.py` `src/torve/application/projections.py` `src/torve/cli/spec.py` `src/torve/cli/decisions.py`
+- Consequence: A timeline over amendments, landings and entries sorts on one string
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-58.9 — `ASSUMED` (RFC 0058 — One grammar and the anatomy)
+
+The `decision:<id>` gate names, the pack's decisions file, the log entry's `decision` and the record's subjects carry the global form; the record re-imports once after the conversion, retiring every old subject with the reason naming its replacement
+
+- Paths: `src/torve/gates/runner.py` `src/torve/gates/decisions_reported.py` `src/torve/application/contextpack.py` `src/torve/application/decisions.py`
+- Consequence: The record's history keeps the old ids as retired rows and the new ones as what stands
+
+### D-58.10 — `ASSUMED` (RFC 0058 — One grammar and the anatomy)
+
+The skill and its template, the schemas `torve init` writes, the projections beside the code and the operating page follow the grammar and the anatomy in the same phase that changes them
+
+- Paths: `skills/**` `src/torve/application/colocation.py` `src/torve/cli/init.py` `pages/docs/operating.md`
+- Consequence: Nothing a harness or a person reads names an identifier the check refuses
+
 <!-- /torve:managed -->
