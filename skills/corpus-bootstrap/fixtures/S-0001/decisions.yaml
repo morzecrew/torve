@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1.1
+    grade: LOCKED
+    text: >-
+      Credentials never enter the source tree; secrets are injected from the deployment
+      environment
+    paths: [src/**, .env.example]
+    consequence: >-
+      The repository's history defended this boundary: the survey's secrets gate fired
+      when a key landed in `src/leak.py` and the next landing removed it; crossing
+      it again is expensive to undo
+  - id: D-1.2
+    grade: ASSUMED
+    text: >-
+      Product code lives under `src/**`; operational scripts live under `scripts/**`
+    paths: [src/**, scripts/**]
+    consequence: >-
+      The survey's scope gate fired once on a root-level deploy script and stayed
+      clean on the other four landings; whether the layout is deliberate is the acceptance
+      edit's call
+  - id: D-1.3
+    grade: ASSUMED
+    text: >-
+      Test files are edited only under a task's licence; adding a test is an addition,
+      editing one needs scope
+    paths: [tests/**]
+    consequence: >-
+      The no-test-tampering gate never measured a single landing — no task existed
+      — so this row gives the gate a spec once work is minted
+  - id: D-1.4
+    grade: ASSUMED
+    text: >-
+      Work touching governed areas records its decisions in the task log
+    paths: [.torve/tasks/**, logs/**]
+    consequence: >-
+      The decisions-reported gate never measured a landing; this row is the corpus
+      layer that turns its no-task skip into something that can fire
+  - id: D-1.5
+    grade: ASSUMED
+    text: Execution logs carry the declared drift count
+    paths: [.torve/tasks/**, logs/**]
+    consequence: >-
+      The self-audit gate never measured a landing; this row names the log discipline
+      the gate reads

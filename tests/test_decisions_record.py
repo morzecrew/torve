@@ -5,7 +5,7 @@ corpus on disk, import it into an in-memory log, and check what the second
 import has to say — which for an unchanged corpus is nothing. The one case
 that reaches for the real corpus is the parity test: the record's answer to
 "what governs these paths" against the file reader's, over this
-repository's own 47 documents.
+repository's own corpus and archive.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 from forze.application.execution import DepsRegistry, ExecutionRuntime
+from test_decisions import corpus as spec_corpus
 from test_decisions import document as spec_document
 
 from torve.adapters.eventstore.document import mock_module
@@ -57,25 +58,23 @@ def document(
     superseded_by: str | None = None,
 ) -> Path:
     """One corpus document with the rows the case needs, through the corpus
-    builder every suite shares (RFC 0056 D-56.1), and the corpus directory
+    builder every suite shares (RFC 0057 D-57.1), and the corpus directory
     it was written into."""
 
-    rfc_dir = tmp_path / "rfcs"
-    rfc_dir.mkdir(exist_ok=True)
-    (rfc_dir / f"{number}-a-document.yaml").write_text(
-        spec_document(
-            number,
-            rows,
-            status=status,
-            title=title,
-            retired=retired,
-            superseded_by=superseded_by,
-            implementation="none",
-        ),
-        encoding="utf-8",
+    return spec_corpus(
+        tmp_path,
+        **{
+            number: spec_document(
+                number,
+                rows,
+                status=status,
+                title=title,
+                retired=retired,
+                superseded_by=superseded_by,
+                implementation="none",
+            )
+        },
     )
-
-    return rfc_dir
 
 
 # ....................... #
@@ -176,7 +175,7 @@ def test_a_row_leaving_an_accepted_table_is_recorded_as_retired(tmp_path):
         assert [one.id for one in graph.current()] == ["D-1.1"]
         assert graph.get("D-1.2").retired
         assert len(graph.history("D-1.2")) == 1  # retirement is not a version
-        assert "0001-a-document.yaml" in graph.get("D-1.2").retired_reason
+        assert "S-0001" in graph.get("D-1.2").retired_reason
 
     run(scenario)
 
@@ -259,15 +258,21 @@ def test_a_superseded_document_is_never_imported(tmp_path):
 
 
 def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
-    """D-47.4: a document renamed on disk keeps its identity in the record —
-    `ref` is what moves, and the decisions stay attached."""
+    """D-47.4: the source is keyed by number, so what a document calls
+    itself is free to move. A directory is its identifier alone now
+    (D-57.1), so the slug that used to move is the title — the source is
+    re-imported and the decisions stay attached to `rfc/0001`."""
 
     rfc_dir = document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         await sync(log, rfc_dir)
-        old = rfc_dir / "0001-a-document.yaml"
-        old.rename(rfc_dir / "0001-a-renamed-document.yaml")
+        document(
+            tmp_path,
+            "0001",
+            [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+            title="A renamed document",
+        )
 
         pending = await sync(log, rfc_dir)
 
@@ -275,7 +280,8 @@ def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
 
         graph = await decisions.load(log, partition=PARTITION)
 
-        assert graph.sources["rfc/0001"].ref == "0001-a-renamed-document.yaml"
+        assert graph.sources["rfc/0001"].ref == "S-0001"
+        assert graph.sources["rfc/0001"].title == "A renamed document"
         assert [one.id for one in graph.by_source("rfc/0001")] == ["D-1.1"]
 
     run(scenario)
@@ -285,7 +291,7 @@ def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
 
 
 def test_a_row_the_corpus_checker_would_refuse_is_never_imported(tmp_path):
-    """An import must not record a grade `torve rfc check` would not accept:
+    """An import must not record a grade `torve spec check` would not accept:
     the record would then hold a vocabulary the corpus does not have. The
     loader refuses it by field now, before the importer sees a row."""
 
@@ -411,7 +417,7 @@ def test_the_record_answers_the_paths_question_the_corpus_answers(tmp_path):
     rule is applied — which is exactly what this is meant to catch.
     """
 
-    rfc_dir = Path(__file__).resolve().parents[1] / "rfcs"
+    rfc_dir = Path(__file__).resolve().parents[1] / ".torve" / "specs"
     allow = ["src/torve/application/**", "src/torve/domain/**"]
 
     async def scenario(log):
@@ -446,9 +452,8 @@ def test_the_check_verb_reports_without_writing(tmp_path):
     from torve.cli import app
 
     document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
-    (tmp_path / ".torve").mkdir(exist_ok=True)
     (tmp_path / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\nrfcs:\n  path: rfcs\n", encoding="utf-8"
+        "schema_version: 1\nspecs:\n  path: .torve/specs\n", encoding="utf-8"
     )
 
     checked = CliRunner().invoke(

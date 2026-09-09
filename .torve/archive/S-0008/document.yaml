@@ -1,0 +1,194 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: 0008
+title: Tracker projection
+kind: design
+status: superseded
+implementation: abandoned
+depends_on: ['0003']
+informed_by: []
+supersedes: []
+superseded_by: '0055'
+owner: Lev Litvinov
+description: >-
+  Any task tracker as a presentation surface: outbound projection over the outbox,
+  restricted inbound commands, no authoritative state in the board.
+schema_version: 3
+sections:
+  - key: the-rule-this-document-exists-to-fix-in-place
+    md: |
+      **The tracker is an output port. It never holds authoritative state.**
+
+      Prior art does the opposite — leases live in issue fields, with owner and a UTC timestamp written back and verified by refetch before dispatch. It works, and it is tempting because it needs no database. It is still wrong here, for five specific reasons:
+
+      - **No transaction.** State change and outbox staging cannot be atomic if the state lives in an issue. That reopens the "escalated but nobody was told" window that D-5 closes.
+      - **No fencing.** Refetch-and-verify narrows the race; it does not eliminate it. A stale worker can still write over a new owner.
+      - **Shared rate limits.** Heartbeating every task against the forge spends the budget the agents need for work.
+      - **Append-only is inexpressible.** Issue bodies are edited in place and history is rewritten — exactly what D-22 forbids.
+      - **Permanent coupling** to one vendor's data model.
+
+      Authority stays in the durable run store and the document store. The tracker gets a projection.
+  - key: outbound-another-outbox-destination
+    md: |
+      The delivery mechanism already exists (RFC 0003 §5). Tracker updates are staged in the same transaction as the state change and relayed at-least-once, so projection survives a runner crash and needs no separate sync daemon.
+
+      *Execution note 2026-08-23 (T-0049):* in the local regime, effects derive from the run state file — itself written atomically with every transition — and re-stage idempotently, so a lost outbox is rebuilt from the states, never invented; that is what closes the "escalated but nobody was told" window here. Store-transactional staging joins with the durable-runner integration, behind the same API.
+
+      **At-least-once demands idempotency.** Every projected effect is keyed on `(task_id, state, attempt)` through the idempotency port. Without it, a relay retry posts a second identical comment, and within a week the board is landfill.
+
+      | Engine fact | Tracker effect |
+      | --- | --- |
+      | `Task` minted | issue or card created, linked to its RFC and phase |
+      | state transition | column or status field |
+      | `Attempt` completed | one comment: gate results, cost, duration, `trace_ref` |
+      | `Finding` | inline review comment at `location` |
+      | `escalated` + reason | label from the enumerated vocabulary, assigned to a human |
+      | `ready` | label; the merge lane (RFC 0006) still governs landing |
+
+      One comment per attempt, never per gate. A gate-level firehose is how a board becomes unreadable.
+  - key: inbound-commands-not-state
+    md: |
+      Two-way synchronisation is where systems like this die. The rule:
+
+      **A human dragging a card does not change state — it submits an intent, which the executor may reject.**
+
+      Permitted inbound commands, and nothing else:
+
+      | Command | Effect | Rejected when |
+      | --- | --- | --- |
+      | `retry` | re-queue an escalated task | task is not in `escalated` |
+      | `abandon` | terminal, with reason | task is already terminal |
+      | `approve` | satisfies the approval requirement | review is stale against current head |
+      | `unblock` | clears a dependency hold | dependency is still unmet |
+
+      Each is validated against the real store and may return a refusal, which is posted back as a comment. The board is then wrong for a moment and corrected by the next projection — which is the correct failure mode, because the engine stayed right.
+
+      **Task contracts are never editable from a tracker.** `scope`, `acceptance`, `decisions` and `budget` live in git and change through a reviewed pull request. A field edited in Jira that silently rewidened a scope would defeat the entire specification layer.
+  - key: tracker-content-is-untrusted-input
+    md: |
+      Issue bodies and comments are editable by anyone with access, and agents read them. This is an injection surface, not a data source.
+
+      - Inbound command parsing is **structured and allow-listed** — a fixed command vocabulary, never free-text instruction interpretation.
+      - Text projected into an agent's context is marked as untrusted and never treated as specification. The specification is the task contract.
+      - Command authority is checked against the forge's permissions, not against who typed it.
+  - key: the-port
+    md: |
+      Not `set_status(x)`. State vocabularies are incompatible enough that a setter is a lie:
+
+      ```python
+      class Tracker(Protocol):
+          def reflect(self, task: Task, state: TaskState) -> ReflectResult: ...
+          def comment(self, task_id: TaskId, body: str, key: str) -> None: ...
+          def annotate(self, task_id: TaskId, finding: Finding, key: str) -> None: ...
+          def poll_commands(self, since: datetime) -> list[TrackerCommand]: ...
+      ```
+
+      `ReflectResult` is `applied`, `refused(reason)` or `unsupported`. **A refusal is a logged divergence, not an exception.** Torve's state remains correct whether or not the board accepted it, and persistent refusals surface in `torve context` as a configuration problem rather than as mysterious drift.
+  - key: adapter-cost-by-tracker
+    md: |
+      The API surface is small; the state vocabulary is where the work is.
+
+      - **Linear** — states are IDs and any state can be set directly. Cheapest.
+      - **GitHub Projects v2** — GraphQL with typed fields. Tolerable; the field-option IDs must be resolved once and cached.
+      - **Jira** — status cannot be set directly, only through a **transition**, which the project workflow may refuse by rule. The adapter maps states to transitions and must handle refusal, or the projection silently diverges from reality. This is the case that justifies `ReflectResult` existing.
+  - key: multiple-repositories-one-board
+    md: |
+      A phase spanning services produces tasks in several repositories. The projection groups them under the RFC as the parent unit, so the board shows the phase and its parts rather than a flat list nobody can read across.
+
+      Scheduling across repositories — weights, fair share, pausing a project — belongs to the runner, not here. The board displays the result; it does not decide it.
+  - key: decisions
+    md: |
+      D-8.17 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.16 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.14 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.13 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.12 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.11 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.8 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.7 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.4 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.3 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.2 was retired 2026-09-09; path rot. The identifier is never reused.
+
+      D-8.1 was retired 2026-09-09; path rot. The identifier is never reused.
+  - key: risks
+    md: |
+      - **The board becomes the perceived source of truth.** People trust what they look at. Mitigation: refusals and divergences are visible, and `torve status` is the stated authority in documentation and in escalation comments.
+      - **Comment volume.** Even one per attempt is a lot across many tasks. Watch it; collapse retries into an edited summary comment if needed — the only place where editing rather than appending is acceptable, because it is a projection, not the record.
+      - **Rate limits shared with agents.** Projection is bursty at state transitions. Relay with backoff and a per-forge budget separate from the agents' own.
+  - key: phasing
+    md: |
+      *(Added 2026-08-23 while draft, with the path relocation to RFC 0015's tree
+      — no `tracker/` top-level package. Phase 1 builds the transactional outbox
+      this document rides: RFC 0003 §5 specified it and deferred it for want of a
+      consumer; the projection is that consumer, so the leg lands here, in 0003's
+      tree. Phase 2 is the GitHub Issues adapter (D-8.8) against the lab
+      repository — its live criteria need the fine-grained token to gain
+      **Issues: Read and write** before execution, which is an operator step. The
+      inbound `approve` command stays deferred until promotion approvals exist as
+      engine state (RFC 0006's forge leg); the other three commands land here.)*
+  - key: exit-criteria
+    md: |
+      - One tracker adapter projecting all states, with idempotency verified by deliberately replaying the relay.
+      - Four inbound commands working, including at least one refusal path exercised.
+      - A `reflect` refusal observed, logged, and surfaced without corrupting engine state.
+phasing:
+  - phase: 1
+    title: The outbox the projection rides
+    intent: >-
+      The transactional outbox from RFC 0003 §5, built for its first consumer: effects
+      are staged in the same transaction as the state change they announce, relayed
+      at-least-once by an explicit relay step, and every effect carries an idempotency
+      key so a replay is a no-op rather than a duplicate. The engine's existing events
+      keep flowing unchanged; the outbox is a new, durable leg beside them — staged
+      rows survive a runner crash and relay later, which is the property the projection
+      cannot live without.
+    scope:
+      - src/torve/application/**
+      - src/torve/adapters/**
+      - src/torve/config/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: The GitHub Issues projection
+    intent: >-
+      The Tracker port and its first adapter: reflect maps engine states to issue
+      state and labels and returns applied, refused or unsupported — a refusal is
+      a logged divergence, never an exception; comments are one per attempt, keyed
+      on task, state and attempt through the idempotency rule; findings annotate;
+      escalations label from the enumerated vocabulary and assign. Inbound is the
+      fixed command vocabulary — retry, abandon, unblock — parsed allow-listed from
+      comments, validated against the real store, refusals posted back. Tracker text
+      is untrusted input everywhere. Proven against the lab repository: all states
+      projected, idempotency verified by deliberately replaying the relay, one refusal
+      path exercised.
+    scope:
+      - src/torve/application/**
+      - src/torve/adapters/**
+      - src/torve/cli/**
+      - src/torve/config/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 1

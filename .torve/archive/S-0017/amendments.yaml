@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-24
+    at: '2026-08-22'
+    title: >-
+      docker inside the sandbox (adds §2a, D-17.9–D-17.11)
+    md: |-
+      **Found planning the replay campaign.** A repository whose acceptance
+      battery drives containers — Torve itself — cannot replay its own tasks in a
+      daemonless sandbox, so the roster's most important consumer was excluded
+      from its own measurement.
+
+      **Changed:** §2a specifies `runtime.docker: "" | "socket"` (host socket into
+      every sandbox of the run, docker CLI from the image, off by default), states
+      the trade plainly — socket mode is host-equivalent capability, the
+      `network: host` doctrine one step further — names the nested daemon as the
+      deferred stronger mode, and records that sandbox-started containers are
+      outside the reaper's convention. One exit criterion added: a Torve task
+      replayed green inside a socket-mode sandbox.
+  - id: A-84
+    at: '2026-09-04'
+    title: >-
+      the engine's CLI is part of the base, not the task (amends D-17.8, D-17.2)
+    md: |-
+      **Found wiring RFC 0045's channel.** D-17.8 lists what a thin image carries
+      — base runtime, harness, `git`, `uv` — and that list was written when the
+      only thing an attempt ran was its harness. It no longer is: the prompt tells
+      an attempt to record divergence with `torve log divergence` and to read the
+      engine's notes with `torve log notes`, and no agent image installed `torve`.
+      The instructions named commands the sandbox did not have.
+
+      The engine's own CLI is not task-specific. It is the other half of the
+      harness — the channel through which an attempt reports what it found and
+      learns what the engine knows — and it belongs in the base for the same
+      reason the harness does: baked, reviewed, and part of the digest that joins
+      `config_hash`, rather than injected from the host at run time.
+
+      **Changed:** D-17.8's list gains the engine's CLI, installed into its own
+      environment (`/opt/torve/cli`) with its own interpreter, so an image's
+      `torve` never depends on what the repository under work installs — or on
+      that repository being a Python project. D-17.2's build verb now stages the
+      project into the context it sends, because installing the CLI needs the
+      project and asking an operator to assemble a context by hand was the reason
+      the battery's dependency layer stayed unused. What the context carries is
+      read from the wheel's own declaration rather than listed, since a hand-kept
+      list goes stale the first time the wheel gains package data — it did, during
+      this change. `torve sandbox stage` writes the same context for a builder
+      that is not this process, so what CI publishes is assembled by the same rule
+      as what an operator builds. The definitions still guard on the project's
+      presence, so a bare `docker build` of a definition directory produces a
+      working image without it.
+
+      **Deliberately unchanged:** D-17.3. The engine still never builds mid-run;
+      this makes a build carry more, not happen more often.
+
+      **Known duplication.** The install block is byte-identical in five agent
+      definitions, copied from `.torve/sandbox/_torve-cli.dockerfile` and pinned
+      against it by a test. That is a seam, not a solution: a shared base image is
+      what removes it, and belongs to the sandbox rework rather than to the change
+      that found the gap.
+  - id: A-144
+    at: '2026-09-09'
+    title: >-
+      1 path-rotted row(s) retired by `torve rfc check --fix-rot`
+    changes:
+      - subject: D-17.9
+        field: retired
+        before: >-
+          "socket" — socket mounts the host daemon into every sandbox of the run attempt
+          and gates alike the image supplies the docker CLI off by default. A nested
+          daemon is the named deferred stronger mode. Added by amendment A-24 2026-08-22
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+    md: |-
+      ```yaml changes
+      - subject: D-17.9
+        field: retired
+        before: "\"socket\" — socket mounts the host daemon into every sandbox of the run attempt
+        and gates alike the image supplies the docker CLI off by default. A nested daemon
+        is the named deferred stronger mode. Added by amendment A-24 2026-08-22"
+        after: "path rot: every declared glob matches nothing in the tree"
+      ```
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

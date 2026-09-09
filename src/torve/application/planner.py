@@ -260,6 +260,16 @@ def next_task_number(root: Path, taken: Iterable[str] = ()) -> int:
 # ....................... #
 
 
+def document_number(reference: str) -> str:
+    """The four-digit number a contract's `rfc` names, whatever the path's
+    shape was when it was minted — a directory since RFC 0057, a file
+    before it — so a mint is recognised across the conversion."""
+
+    match = re.search(r"\d{4}", Path(reference).name)
+
+    return match.group(0) if match else ""
+
+
 def _already_minted(
     root: Path, document: str, phases: set[int], board: Board | None = None
 ) -> list[str]:
@@ -269,7 +279,7 @@ def _already_minted(
     store holds the tasks (D-56.9); the files count either way."""
 
     clashes: list[str] = []
-    wanted = str(Path(document).with_suffix(""))
+    wanted = document_number(document)
 
     for view in board.tasks.values() if board is not None else []:
         contract = view.contract
@@ -277,7 +287,7 @@ def _already_minted(
         if contract is None or not contract.rfc or contract.phase not in phases:
             continue
 
-        if str(Path(contract.rfc).with_suffix("")) == wanted:
+        if document_number(contract.rfc) == wanted:
             clashes.append(view.task_id)
 
     tasks_dir = root / layout.TORVE_DIR / "tasks"
@@ -297,7 +307,7 @@ def _already_minted(
 
         record = cast("dict[str, Any]", raw)
 
-        minted = str(Path(str(record.get("rfc", ""))).with_suffix(""))
+        minted = document_number(str(record.get("rfc", "")))
 
         if minted == wanted and record.get("phase") in phases:
             clashes.append(str(record.get("id", path.parent.name)))
@@ -321,7 +331,7 @@ def inherit_decisions(doc: Document) -> list[InheritedDecision]:
         if row.grade not in GRADES:
             raise PlanError(
                 f"{name}: decision {row.id} has grade {row.grade!r} — "
-                "not mintable (run `torve rfc check`)"
+                "not mintable (run `torve spec check`)"
             )
 
         # D-54.4: a row whose check would block must name the test that
@@ -399,7 +409,7 @@ def plan_document(
     a *board* (D-56.9), task numbers and prior mints are read from the
     record as well as from the task directories."""
 
-    files = spec.rfc_files(rfc_dir)
+    files = spec.document_dirs(rfc_dir)
     number = identifier.strip().removesuffix(".yaml").removesuffix(".md")
 
     if number not in files:

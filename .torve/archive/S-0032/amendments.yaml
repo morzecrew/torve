@@ -1,0 +1,92 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-76
+    at: '2026-09-01'
+    title: the buildless surface (amends §5.3)
+    md: |-
+      **Found the day the first bundle shipped.** The React build produced an
+      unreadable page — the operator judged it no better than the CLI — and the
+      rebuild that replaced it needed no framework at all: the whole surface is
+      one dependency-free HTML file of vanilla JS over the two endpoints, with
+      tabs, filters, severity badges and live counts. With the framework gone,
+      the npm-builder toolchain §5.3 prescribed had nothing left to build.
+
+      **Changed:** §5.3 in effect — `web/index.html` is the source and the
+      bundle; `web/scripts/build.sh` copies it into `src/torve/_web/` (D-32.4's
+      shipping mechanism unchanged), and the serve-bundle job now asserts the
+      vendored copy matches the source byte-for-byte and runs the backend
+      suite. D-32.5 is thereby settled as vendored-and-checked — the "first
+      release build" it waited on turned out to be a copy. The rewrite was
+      operator work, outside the lane, disclosed here: a design-quality
+      deliverable the configured executors had already failed once.
+
+      **Deliberately unchanged:** every decision row. Read-only, loopback,
+      projections-verbatim, wheel-shipped — the doctrine held; only the
+      toolchain died.
+  - id: A-77
+    at: '2026-09-01'
+    title: >-
+      the glass dashboard (amends §5.3 again, supersedes A-76's toolchain call)
+    md: |-
+      **Found within hours of A-76.** The buildless page fixed readability and
+      the operator immediately wanted the rest: real data tables with sorting,
+      richer filtering, and a surface that looks deliberate. That is a
+      framework's job after all — the first React attempt failed on design
+      quality, not on React.
+
+      **Changed:** §5.3 in effect — React + Tailwind + TanStack Table under
+      Vite, eight tabs, sortable columns on every table, per-tab filters and
+      chips, expandable findings/proposals with evidence blocks, glass panels
+      over an aurora ground. The build is deterministic per lockfile (verified
+      by double-build diff), so D-32.5's vendored-and-checked call survives
+      with `git diff --exit-code` against a fresh CI build replacing the copy
+      comparison; node stays a CI-and-development concern, the wheel still
+      ships static data (D-32.4 unchanged). Built as operator work like A-76's
+      page, disclosed here.
+
+      **Deliberately unchanged:** every decision row, again. A-76's lesson
+      stands as history: the framework was never the problem, and the vanilla
+      page was the right bridge to knowing what the surface needed.
+  - id: A-123
+    at: '2026-09-05'
+    title: >-
+      The surfaces that re-expose the readers get their source
+    md: |-
+      **Found by the operator, reading the dashboard.** D-32.1 says the served
+      endpoints re-expose the projection functions verbatim, and they did — the
+      file-reading call of each. RFC 0050 gave `why`, `status` and `context` a
+      record source selected by naming a partition, wired it into the three CLI
+      verbs, and left the two surfaces that exist to re-expose those same
+      readers calling them without it. A dashboard therefore answered from one
+      host's files however full the log was, and said `read from — tasks: files`
+      while a board with 273 contracts sat in Postgres.
+
+      Nothing about that was designed. It is D-32.1 working exactly as written:
+      the endpoint is a call into the projection and nothing more, so a *new
+      argument* on the projection reaches the endpoint only when somebody passes
+      it.
+
+      **Changed:** `torve serve` and `torve mcp` take `--partition` and `--dsn`,
+      and pass them into every reader. Two properties are deliberate:
+
+      - **The read is per request, not per process.** A resident server that
+        folded the log at startup would serve a board frozen at boot, which is a
+        worse answer than the files it replaced.
+      - **The envelope already carries the answer.** `context`'s `sources` block
+        names the carrier per block (RFC 0050 A-102), so a page cannot show a
+        number without its provenance being one field away.
+
+      **Also changed, and it is what made the flags usable:** `--dsn` now
+      defaults to the DSN the repository's own configuration names. It names the
+      variable (D-4b), the environment holds the value, and `.env` fills that in
+      for a terminal (A-111) — so `torve status --partition <repo>` reaches the
+      record with no flag at all. Before this, omitting `--dsn` built a mock,
+      read an empty record, and fell back to the files: the safe direction, and
+      silent about a misconfiguration the operator had no way to see.
+
+      One ceiling worth naming rather than fixing: each request folds the
+      partition's whole task history. At this repository's 1,995 events that is
+      cheap, and `since(after=…)` is the incremental read whenever it stops
+      being.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

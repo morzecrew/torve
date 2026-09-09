@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-130
+    at: '2026-09-06'
+    title: §7's documentation was owed by no phase
+    md: |-
+      **Found by the reviewer of T-0281.** §7 assigns the switch's operator
+      documentation to `pages/docs/operating.md` and the pass's landing half to
+      `pages/docs/architecture/execution.md`. Neither phase's `scope` in §12
+      names `pages/` at all, so no minted contract could write either page
+      without leaving its scope — the documentation was assigned to a document
+      and owed by nobody. An operator arming unattended landing had only this
+      RFC to read.
+
+      **Changed:** phase 1's scope gains `pages/docs/operating.md`, and the
+      section written for the switch that landed with it is authored here rather
+      than deferred to a phase that cannot reach it. This is an authoring defect
+      of the kind the skill's rule 3a already names for decision rows — a
+      deliverable whose paths fall outside every phase's scope is the same
+      mistake one level up, and the check that catches it does not exist yet.
+  - id: A-131
+    at: '2026-09-07'
+    title: >-
+      phase 2's acceptance named a command no sandbox can run
+    md: |-
+      **Found by dispatching T-0282.** Phase 2's acceptance listed `uv run torve
+      gates run`. A task's acceptance battery runs *inside* the sandbox, and a
+      sandbox mounts the worktree without a repository: `.git` there is a gitdir
+      pointer at a host path the container has never seen, and nothing rewrites
+      it. That is deliberate — the agent gets a working tree and the engine does
+      the committing — so any command needing git fails, and `torve gates run`
+      needs a diff against base.
+
+      The executor's own tests passed on all three attempts. The engine did
+      everything right: it refused to promote red gates, retried to the ceiling
+      and escalated `poison_ceiling`. It spent 2410 seconds of executor
+      wall-clock proving a command in this document could not succeed.
+
+      **Changed:** phase 2's acceptance drops `torve gates run` for
+      `lint-imports`, which is what phase 1 asked for and what went green. The
+      battery still runs — outside the sandbox, on the candidate, immediately
+      after the agent exits, which is where it always ran. Naming it in a
+      contract only ever asked for it twice, once impossibly.
+
+      **Not fixed here, and larger.** Nine phases across seven documents
+      (0046–0052) carry the same command, none of them ever exercised because
+      that generation was built by hand. The durable fix is a `lint-contract`
+      rule refusing an acceptance command that needs git, so this is caught when
+      a contract is minted rather than after three attempts — that check is
+      where the other six documents get corrected, at the only moment it
+      matters. A-130 was the same defect in a different cell of the same block:
+      a phasing table that mints something unsatisfiable, and no check reading
+      it.
+  - id: A-132
+    at: '2026-09-07'
+    title: >-
+      the phasing block's third defect, and why none of them was caught
+    md: |-
+      **Found by linting the contract by hand.** Phase 2 allows
+      `src/torve/application/feedback.py` and does not allow
+      `tests/test_feedback.py`. The contract lint refuses exactly this — the
+      T-0113 rule, "a module in scope brings its test file" — so the executor
+      could change a module while forbidden to touch its tests.
+
+      **Changed:** phase 2's scope gains the test file.
+
+      **Why this is the third.** A-130 was a deliverable whose paths fell outside
+      every phase's scope. A-131 was an acceptance command no sandbox can run.
+      This is a scope that fails the lint written to catch it. Three mechanical
+      defects in one phasing block, each found by something running rather than
+      by the document being read again.
+
+      **And why none was caught: `torve plan` does not run the contract lint.**
+      `lint_drafts` is called from the three drafting paths — intake, decompose,
+      standing — where a model authors the contract, and never from the minting
+      path, where a reviewed document does. The asymmetry was defensible when it
+      was written: a drafted contract is untrusted, a planned one comes from a
+      document a human accepted. This block is the counter-example. T-0281 fails
+      the same lint with two refusals of its own, minted, executed and landed
+      anyway, and nothing anywhere said so.
+
+      Phase 1's scope is left as it shipped. Amending it now would be bookkeeping
+      on work already landed; what is owed is the check, not the retrofit.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

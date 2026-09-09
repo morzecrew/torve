@@ -26,6 +26,7 @@ from torve.cli import (
     feedback,
     fleet,
     gates,
+    init,
     intake,
     log,
     manager,
@@ -34,7 +35,6 @@ from torve.cli import (
     migrate,
     plan,
     review,
-    rfc,
     run,
     sandbox,
     serve,
@@ -56,7 +56,6 @@ app = typer.Typer(
 )
 gates_app = typer.Typer(no_args_is_help=True, help="Run or verify the gate set.")
 app.add_typer(gates_app, name="gates")
-app.add_typer(rfc.rfc_app, name="rfc")
 app.add_typer(sandbox.sandbox_app, name="sandbox")
 app.add_typer(review.review_app, name="review")
 app.add_typer(fleet.fleet_app, name="fleet")
@@ -64,6 +63,7 @@ app.add_typer(log.log_app, name="log")
 app.add_typer(manager.manager_app, name="manager")
 app.add_typer(decisions.decisions_app, name="decisions")
 app.add_typer(spec.spec_app, name="spec")
+app.command("init")(init.init_cmd)
 
 
 # ....................... #

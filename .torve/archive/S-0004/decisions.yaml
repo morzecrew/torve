@@ -1,0 +1,143 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-4.1
+    grade: LOCKED
+    text: >-
+      Harnesses run inside the sandbox; no harness SDK in the engine process
+    paths: [src/torve/adapters/**]
+    consequence: Otherwise the trust boundary collapses
+  - id: D-4.2
+    grade: ASSUMED
+    text: >-
+      Subscription auth is per worker slot, never per task, never the host config
+      directory
+    paths: [src/torve/adapters/**]
+    consequence: Refresh races and host-client interference
+  - id: D-4.3
+    grade: ASSUMED
+    text: >-
+      Harness selection is decided by measurement on own tasks, not by reputation
+    paths: [.torve/config.yaml]
+    consequence: Requires `config_hash` from RFC 0002
+  - id: D-4.4
+    grade: LOCKED
+    text: Shadow runs precede any live loop
+    paths: [src/torve/application/shadow.py]
+    consequence: The only risk-free source of baseline comparison
+  - id: D-4.5
+    grade: ASSUMED
+    text: >-
+      Telemetry starts as JSONL; record shape is fixed from record one
+    paths: [src/torve/application/telemetry.py]
+    consequence: Storage reversible, shape not
+  - id: D-4.6
+    grade: LOCKED
+    text: >-
+      Provider version is recorded alongside `config_hash`; unpinnable models are
+      one uncontrolled regime
+    paths: [src/torve/application/telemetry.py]
+    consequence: >-
+      Otherwise every before/after comparison is unfounded
+  - id: D-4.7
+    grade: LOCKED
+    text: >-
+      Shadow worktrees carry truncated history and no later refs
+    paths: [src/torve/adapters/workspace/git.py]
+    consequence: >-
+      Leaking the answer invalidates the only risk-free measurement
+  - id: D-4.8
+    grade: LOCKED
+    text: >-
+      Provider allow/deny per repository, enforced before a sandbox exists
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      Data leaves the building; silence is not a policy
+  - id: D-4.9
+    grade: ASSUMED
+    text: >-
+      One harness mechanism serves api, harness and subscription tiers — three auth
+      routes, one command template; telemetry records the adapter that RAN, never
+      what was configured. Added by execution 2026-08-22 — see .torve/tasks/T-0021
+    paths: [src/torve/adapters/agent/harness.py]
+  - id: D-4.10
+    grade: ASSUMED
+    text: >-
+      `never_send` is dispatch-time withholding: bytes leave the worktree before the
+      sandbox exists and return after sync-out; workspaces that carry their own history
+      rely on the truncation guarantee instead, since deletion cannot unsend history.
+      Added by execution 2026-08-22 — see .torve/tasks/T-0021
+    paths: [src/torve/application/runner.py]
+  - id: D-4.11
+    grade: ASSUMED
+    text: >-
+      The session trace lands beside the worktree, one file per attempt; metadata
+      parses from the trailing JSON line, and absence is recorded as null, never invented.
+      Added by execution 2026-08-22 — see .torve/tasks/T-0021
+    paths: [src/torve/adapters/agent/harness.py, src/torve/base/naming.py]
+  - id: D-4.12
+    grade: ASSUMED
+    text: >-
+      Worker slot identity is configuration — one slot per worker process; auth volumes
+      key on it. Added by execution 2026-08-22 — see .torve/tasks/T-0021
+    paths: [src/torve/config/runconfig.py]
+  - id: D-4.13
+    grade: ASSUMED
+    text: >-
+      A shadow run's exit code measures completion of the measurement; the replay's
+      outcome lives in the comparison record, so a red replay is a successful measurement.
+      Added by execution 2026-08-22 — see .torve/tasks/T-0022
+    paths: [src/torve/cli/shadow.py, src/torve/application/shadow.py]
+  - id: D-4.14
+    grade: ASSUMED
+    text: >-
+      Shipped-commit discovery: the Torve-Task trailer first, then a subject-only
+      scan (bodies quote task ids and shadow the true commit); shadow infrastructure
+      derives every name from `shadow-<task-id>`. Revisit the subject fallback when
+      history is squashed. Added by execution 2026-08-22 — see .torve/tasks/T-0022
+    paths: [src/torve/adapters/workspace/git.py, src/torve/base/naming.py]
+  - id: D-4.15
+    grade: ASSUMED
+    text: >-
+      The shadow comparison diffs against the parent sha by construction; an agent
+      committing inside its self-contained clone is legal behaviour, not escape. Added
+      by execution 2026-08-22 — see .torve/tasks/T-0022
+    paths: [src/torve/adapters/workspace/git.py]
+  - id: D-4.16
+    grade: ASSUMED
+    text: >-
+      Sandbox egress follows the host only under an explicit network opt-in, which
+      also forwards the proxy vocabulary; where egress control matters the OpenSandbox
+      vault remains the answer. Added by execution 2026-08-22 — see .torve/tasks/T-0023
+    paths: [src/torve/adapters/runtime/docker.py, src/torve/config/runconfig.py]
+  - id: D-4.18
+    grade: LOCKED
+    text: >-
+      A shadow run's liveness is its host state file, never the durable store: shadow
+      runs register no durable record by design (they are replays, not work), so the
+      reaper treats a torve-labelled sandbox as live when a host run state names it
+      with a fresh heartbeat — in both the local and the durable regime. Added by
+      amendment A-57 2026-08-28
+    paths: [src/torve/application/reaper.py, src/torve/application/shadow.py]
+    consequence: >-
+      Without it, every tick on a patrolled root destroys every shadow sandbox mid-attempt:
+      three campaigns of exit-137 kills read as harness failures before the reaper
+      was found holding the knife
+  - id: D-4.17
+    grade: ASSUMED
+    text: >-
+      The proxy convention is one vocabulary across runtimes, owned by the ports module;
+      per-host egress mode is repository configuration, never a code default. Added
+      by execution 2026-08-22 — see .torve/tasks/T-0024
+    paths: [src/torve/application/ports.py, src/torve/adapters/runtime/docker.py]
+  - id: D-4.19
+    grade: ASSUMED
+    text: >-
+      The regime preimage is recorded: at record time the exact `parts` mapping `config_hash`
+      digested is written, once and only if absent, to `.torve/regimes/<config_hash>.json`
+      — host-local, gitignored, content-addressed by the hash it produces; never a
+      database, never committed. Added by amendment A-72 2026-08-31
+    paths: [src/torve/application/telemetry.py]
+    consequence: >-
+      Every telemetry row's `config_hash` becomes resolvable to inspectable content,
+      and two regimes diff as two files; without it §6a's before/after comparisons
+      name regimes nobody can look inside

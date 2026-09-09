@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-24.1
+    grade: LOCKED
+    text: >-
+      The fleet manifest is operator-side and never lives in a repository under work
+    paths: [src/torve/config/fleet.py]
+    consequence: >-
+      D-13.3 in its purest form: a repository that can declare its own trust class
+      has declared itself trusted
+  - id: D-24.2
+    grade: LOCKED
+    text: >-
+      The escalation pause is decided once for the fleet and passed down; every other
+      leg runs in every root
+    paths: [src/torve/application/fleet.py, src/torve/application/residency.py]
+    consequence: >-
+      The rule exists because one person triages; enforcing it per root enforces it
+      N times against a person who exists once
+  - id: D-24.3
+    grade: LOCKED
+    text: >-
+      No fleet store: aggregation is read-only over roots, and no root's truth ever
+      lives outside it
+    paths: [src/torve/application/fleet.py]
+    consequence: >-
+      D-27's direction of authority one level up, and charter §8a's reversibility
+      requirement — a fleet store would be the first artefact no repository holds
+  - id: D-24.4
+    grade: ASSUMED
+    text: >-
+      Roots tick serially in a deterministic manifest order; `order` is never a priority
+      field
+    paths: [src/torve/application/fleet.py, src/torve/config/fleet.py]
+    consequence: >-
+      Concurrency across roots is RFC 0006 §4's raise, one dimension at a time; a
+      chosen order is a scheduler with opinions
+  - id: D-24.5
+    grade: ASSUMED
+    text: >-
+      A root that fails or is locked out is recorded and the pass continues
+    paths: [src/torve/application/fleet.py]
+    consequence: >-
+      Stopping at the first bad root lets one broken repository silently halt every
+      other — the §2 failure, reintroduced above itself
+  - id: D-24.6
+    grade: ASSUMED
+    text: >-
+      Trust classes (`own`, `reviewed`, `untrusted`) bind per-repository capability,
+      checked before a root is ticked; a root asking for more than its class allows
+      is refused with the class and the setting named
+    paths: [src/torve/config/fleet.py, src/torve/application/fleet.py]
+    consequence: >-
+      Makes D-17.10 checkable rather than remembered; three classes are a guess at
+      granularity, the operator-side location is not
+  - id: D-24.7
+    grade: ASSUMED
+    text: Per-root locks stay; there is no fleet lock
+    paths: [src/torve/application/fleet.py]
+    consequence: >-
+      D-19.2 already handles overlap, and a fleet lock would let one hung root block
+      every other root's reaper and lane
+  - id: D-24.8
+    grade: ASSUMED
+    text: >-
+      `torve fleet status` orders by escalation age across roots — RFC 0006's primary
+      alert given its fleet form
+    paths: [src/torve/cli/fleet.py]
+    consequence: >-
+      The oldest item across the fleet is exactly what per-root alerting cannot report
+  - id: D-24.9
+    grade: LOCKED
+    text: >-
+      A task belongs to exactly one root; no cross-repository task and no cross-root
+      dependency exists
+    paths: [src/torve/application/fleet.py]
+    consequence: >-
+      A change spanning repositories is two tasks and a human, which is what it is
+      when two people do it; a cross-root dependency would need a landing oracle no
+      root owns
+  - id: D-24.11
+    grade: OPEN
+    text: >-
+      Where the fleet event is recorded — every ticked root's telemetry, or an operator-side
+      stream beside the manifest
+    paths: [src/torve/application/fleet.py]
+    consequence: >-
+      Per-root keeps D-24.3 unambiguous; an operator-side stream would be the first
+      host-level record and the first thing a status read could use without walking
+      roots
+retired: [D-24.10]

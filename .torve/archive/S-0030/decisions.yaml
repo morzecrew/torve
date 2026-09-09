@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-30.1
+    grade: LOCKED
+    text: >-
+      A contract without a source document inherits standing rows from every accepted
+      document whose declared paths intersect its `scope.allow`, copied grade-and-paths
+      at write time through the planner's one reader; pathless rows are never standing
+    paths: [src/torve/application/planner.py, src/torve/application/intake.py]
+    consequence: >-
+      The document-less lane stops being the ungoverned one; a second reader here
+      is the drift A-47 removed
+  - id: D-30.2
+    grade: LOCKED
+    text: >-
+      The threshold verdict is deterministic — arithmetic over intersected rows, distinct
+      documents and the size class; no model opinion of risk anywhere in the routing
+    paths: [src/torve/application/planner.py, src/torve/application/intake.py]
+    consequence: >-
+      A model deciding what needs a human is D-2 by another door
+  - id: D-30.3
+    grade: ASSUMED
+    text: >-
+      The rule: `document_required` when the scope crosses LOCKED rows from two or
+      more accepted documents, or the size verdict is `too_large`; thresholds live
+      in configuration beside intake's
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      A starting rule to calibrate against RFC 0022's evidence, not a truth
+  - id: D-30.4
+    grade: ASSUMED
+    text: >-
+      Enforcement is authoring-time only — intake lint error and adoption refusal
+      (exit 3), `lint-contract` advisory for hand-minters; execution and gates never
+      re-check the verdict
+    paths: [src/torve/application/intake.py, src/torve/cli/intake.py]
+    consequence: >-
+      A signed contract was a human's call; convicting it later punishes the signature
+  - id: D-30.5
+    grade: ASSUMED
+    text: >-
+      `torve plan` inheritance is unchanged: the source document's table whole, per
+      D-7.22; standing inheritance is the document-less lane's mechanism
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      Two lanes, one reader, different selections — the asymmetry is the design
+  - id: D-30.6
+    grade: OPEN
+    text: >-
+      Whether document-minted contracts also inherit intersecting standing rows from
+      other accepted documents; decisions-reported silence over cross-document areas
+      in minted work would settle it
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      Silence here fills itself the first time cross-document drift lands unlogged

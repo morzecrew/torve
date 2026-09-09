@@ -83,7 +83,7 @@ def context_cmd(
     root = root.resolve()
     config = load_config(root, config_path)
     report = context_report(
-        root, root / config.rfcs.path, recorded=task_events(dsn_for(root, dsn), partition)
+        root, root / config.specs.path, recorded=task_events(dsn_for(root, dsn), partition)
     )
 
     if fmt is ContextFormat.JSON:

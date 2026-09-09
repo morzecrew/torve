@@ -21,14 +21,14 @@ Coverage is a per-path fact with three values — governed, ungoverned, retired 
 
 A row whose every glob matches nothing on an accepted, implemented document is path rot: reported by `rfc check`, retired by `amend --retire --reason path-rot` (or `check --fix-rot`), recorded as `decision.retired` on import; never automatic on load, never a red on the document
 
-- Paths: `src/torve/application/decisions.py` `src/torve/config/rfc_emit.py`
+- Paths: `src/torve/application/decisions.py` `src/torve/config/spec_emit.py`
 - Consequence: 27 rows today, 8 `LOCKED`, stop rendering as governance while governing nothing
 
 ### D-53.9 — `LOCKED` (RFC 0053 — The item model and the rebuilt corpus)
 
 The importer records every archived document as a source and every archived row as retired; `torve why` and `show` resolve archived identifiers and say they are archived
 
-- Paths: `src/torve/application/decisions.py` `src/torve/cli/rfc.py`
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/spec.py`
 - Consequence: 705 log entries and 139 amendments keep their targets
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -36,7 +36,7 @@ The importer records every archived document as a source and every archived row 
 
 Each reader switches from `rfc_parse` to the model beside its old path with a parity assertion, one at a time, in phase 2; `rfc_parse.py` is deleted in phase 5 only after the archive lands
 
-- Paths: `src/torve/application/decisions.py` `src/torve/cli/rfc.py`
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/spec.py`
 - Consequence: Two owners of the format exist for one bounded window, and the parity test is what bounds it
 
 ### D-54.1 — `LOCKED` (RFC 0054 — Decisions as gates and the projections beside the code)

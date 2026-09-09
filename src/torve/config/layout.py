@@ -1,7 +1,11 @@
 """Where Torve's files live in a consuming repository (RFC 0013, D-13.1;
 one directory per task per charter A-12, D-A.13).
 
-Everything sits under `.torve/` — the root stays clean — and each task owns
+Everything sits under `.torve/` — the root stays clean — the specification
+corpus included (RFC 0057 D-57.3): `specs/` holds the documents, `archive/`
+what once stood, `schemas/` what `torve init` derives from the models; the
+corpus path is `specs.path` in the runner's configuration and its siblings
+follow it. Each task owns
 one directory, `.torve/tasks/T-nnnn/`, holding `contract.yaml` and (once
 anything was written) `log.yaml`. With a store configured the directory is
 a projection (RFC 0056 D-56.9): the board holds the task, `torve plan`
@@ -22,6 +26,7 @@ from pathlib import Path
 # ----------------------- #
 
 TORVE_DIR = ".torve"
+SPECS_DIR = f"{TORVE_DIR}/specs"  # the default of `specs.path` (D-57.3)
 
 
 # ....................... #

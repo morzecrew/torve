@@ -78,7 +78,7 @@ def plan_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
-    rfc_dir = root / config.rfcs.path
+    rfc_dir = root / config.specs.path
 
     if reconcile:
         if identifier is not None:

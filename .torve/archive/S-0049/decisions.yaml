@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-49.1
+    grade: LOCKED
+    text: >-
+      `task.minted` carries the contract it minted; the board carries it, and dispatch
+      reads it from there
+    paths: [src/torve/domain/events.py, src/torve/application/manager.py]
+    consequence: >-
+      A worker needs the record and a worktree, not the repository's task directory,
+      to know what it is running
+  - id: D-49.2
+    grade: LOCKED
+    text: >-
+      A re-mint never transitions a task: `task.minted` moves a subject to queued
+      only the first time it is seen
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      A manager cannot re-queue an escalated task by noticing an edited file — that
+      would be an `escalation.resolved` it has no authority to write
+  - id: D-49.3
+    grade: LOCKED
+    text: A task in flight is never re-minted
+    paths: [src/torve/application/residency.py]
+    consequence: >-
+      The contract an attempt is judged against is the one it started under; a contract
+      changing beneath a running attempt is the corpus hazard from the other direction
+  - id: D-49.4
+    grade: ASSUMED
+    text: >-
+      A contract that differs from the recorded one is re-minted as a new version;
+      an unchanged one appends nothing
+    paths: [src/torve/application/residency.py]
+    consequence: >-
+      The operator's recourse after an escalation — fix the contract, resolve, requeue
+      — works and is recorded; an existing log completes itself on the first pass
+  - id: D-49.5
+    grade: ASSUMED
+    text: >-
+      The fold prefers the recorded contract and falls back to the mint's flat fields;
+      a payload that cannot validate as a `Task` yields a view with no contract rather
+      than an error
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      Events written before this stay readable, and one bad payload cannot take a
+      board down
+  - id: D-49.6
+    grade: ASSUMED
+    text: >-
+      A view with no recorded contract is not dispatchable
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      Unchanged behaviour stated as a rule — the scan already excluded what it could
+      not read — and the board can now say why
+  - id: D-49.7
+    grade: OPEN
+    text: >-
+      Whether the role filter belongs to the importer or the reader. Settled by the
+      first projection that wants to see a review contract
+    paths: [src/torve/application/residency.py]

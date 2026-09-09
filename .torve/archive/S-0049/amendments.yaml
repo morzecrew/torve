@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-96
+    at: '2026-09-05'
+    title: >-
+      The importer takes every role; dispatch is what filters
+    md: |-
+      **Found starting RFC 0050 phase 3.** The scan imported only the roles a
+      worker executes, because the mint's only consumer was dispatch. RFC 0050
+      phase 3 gives it a second consumer with a different appetite: the planning
+      projections read the whole population, and this repository's is 273
+      contracts — 184 implement, 85 review, 4 draft. A record holding 184 of them
+      cannot answer `context`'s task block, its decompositions (which key on a
+      draft's `parent`) or its character calibration; it would answer over two
+      thirds of the corpus and say nothing about the third it dropped.
+
+      **Changed:** D-49.1's scan takes every contract the repository carries.
+      Dispatch is where the role filter belongs and now lives: `dispatchable`
+      refuses a contract whose role is not `implement` or `revert`, so a review
+      or draft row is on the board, carries its contract, and is offered to
+      nobody. That is also the truthful shape — the run that mints a review is
+      the only thing that ever executes one (D-5.2, D-20.2), and a board row for
+      it is a record of work that happened, not an offer.
+
+      Two consequences worth stating. The board grows by every non-dispatchable
+      contract, all of them reading `queued` forever, so `torve manager board`
+      gains a `role` column: the role is what tells a queue entry from a record.
+      And a re-mint pass has to be able to run without a worker taking the first
+      thing it finds — on a repository with a queue that is a real agent and real
+      money — so `torve manager serve` gains `--no-dispatch`, which imports and
+      reclaims and claims nothing.
+
+      The 184 rows already on this repository's board carry no contract at all:
+      every one of them was minted before A-91, and no pass has run since to
+      re-mint. The dry run RFC 0049 measured predicted exactly that. Filling them
+      is one `--no-dispatch` pass, and it is a prerequisite of phase 3 rather
+      than part of it.
+
+      One more thing the first pass found: the `ran` guard — a contract that ran
+      here and landed nothing stays off the board — was written to stop a worker
+      being handed the same unfinished work twice. It is therefore about being
+      offered, and applies only to what can be. Left as it was it skipped 87 of
+      the 89 review and draft contracts, which is the same subset problem one
+      level down. Measured after the change: 273 rows, 184 implement, 85 review,
+      4 draft, 40 of them dispatchable.
+  - id: A-97
+    at: '2026-09-05'
+    title: >-
+      One landing oracle, and the landing a mint could not see
+    md: |-
+      **Found comparing the two carriers.** With every contract imported (A-96),
+      `context` answered from the record over the same 273 tasks as the files —
+      and disagreed about the state of 204 of them. The cause was two oracles for
+      one question. The manager asked `landed_shas`, which reads the engine's own
+      `Torve-Task` trailer and nothing else (D-10.4); the projections ask
+      `shipped_ids`, which also counts a human's citation — `(T-0019)`, a
+      `torve/T-0006` merge (D-7.26). 111 tasks carry the trailer; 202 are shipped.
+      The other 91 were minted as queued, and 40 of them were dispatchable: a
+      manager pass would have handed a worker work somebody finished months ago,
+      which is the exact failure the landing import exists to prevent.
+
+      **Changed:** one oracle, `shipped_landings`, returning id to the commit
+      that shipped it in a single log pass. `shipped_ids` is now its key set, and
+      the manager reads it instead of the trailer alone. The question every
+      caller was really asking is whether the task is finished, and the manager
+      asking it more narrowly than the projections is not a stricter standard —
+      it is a different answer to the same question.
+
+      **Changed:** the landing import reaches a row that is already minted. A
+      first mint records the landing the repository proves; a row minted before
+      the partition could see that landing never got one, and re-minting does not
+      write one (D-49.2). The scan now records it for a row the record has *only
+      ever minted* — queued, no attempt, no landing. Once a task has run here the
+      board outranks the repository, so a human who requeued a landed task is not
+      sent back to `ready` by a scan that found an old commit.
+
+      Measured after the pass: 204 landed on both sides, and two rows left
+      disagreeing. T-0280 ran as a review here and the record only has it minted.
+      T-0096 escalated under v1 — the record never saw it, a commit cites the id,
+      so the record reads it shipped and RFC 0007 phase 4 reads `shipped` where
+      the files read `blocked`. That is A-86's wall in one row, and it is the
+      argument for RFC 0050 D-50.1 rather than a defect in this import.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-26.1
+    grade: LOCKED
+    text: >-
+      Decomposition never mints: the drafter proposes, deterministic lint refuses
+      by name, and children exist only at human adoption under the tick lock
+    paths: [src/torve/application/intake.py, src/torve/application/planner.py]
+    consequence: >-
+      D-20.3 and D-7.1 applied to splitting; a machine that splits its own work decides
+      what work exists
+  - id: D-26.2
+    grade: LOCKED
+    text: >-
+      The union of children scopes fits inside the parent's `scope.allow`; a child
+      escaping the parent scope is refused at lint
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      A decomposition that widens scope is a grant nobody signed, wearing a split
+      as a disguise
+  - id: D-26.3
+    grade: ASSUMED
+    text: >-
+      Children are pairwise scope-disjoint or explicitly dependency-ordered, checked
+      with the planner's glob machinery
+    paths: [src/torve/application/intake.py, src/torve/application/planner.py]
+    consequence: >-
+      D-7.23's rule inside one decomposition; silent overlap serialises in the best
+      case and conflicts in the worst
+  - id: D-26.4
+    grade: ASSUMED
+    text: >-
+      Every parent acceptance command lands on at least one child or on the integration
+      task; a decomposition may distribute the battery, never drop it
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      The parent's acceptance is the definition of done; a split that loses a command
+      redefines done silently
+  - id: D-26.5
+    grade: ASSUMED
+    text: >-
+      `parent` is optional contract data read by projections only; dispatch, lane
+      and store never consult it — ordering is `depends_on` alone
+    paths: [src/torve/domain/task.py, src/torve/application/projections.py]
+    consequence: >-
+      One field buys the grouping a task tree would buy, without a second lifecycle;
+      a future semantic consumer amends or is refused
+  - id: D-26.6
+    grade: ASSUMED
+    text: >-
+      At adoption the parent becomes the integration task: `depends_on` gains every
+      child, scope and full battery stay, and its landing is the decomposition's completion
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      Completion as an ordinary landing with the composed tree verified, instead of
+      a synthetic roll-up state
+  - id: D-26.7
+    grade: ASSUMED
+    text: >-
+      A `too_large` verdict routes: the contract awaits decomposition and dispatch
+      skips it; the operator override is explicit and recorded on the run
+    paths: [src/torve/application/loop.py, src/torve/application/sizing.py]
+    consequence: >-
+      An advisory verdict that changes nothing has been the state since D-2.9 shipped;
+      a heuristic that blocks silently would be worse, so the override is a first-class
+      verb
+  - id: D-26.8
+    grade: LOCKED
+    text: >-
+      Continuation fires only on budget exhaustion — wallclock or tokens — never on
+      a gate conviction, review blocker or any judged escalation; convicted work restarts
+      from base through the revision loop
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      The conviction/exhaustion line is what separates resuming sound work from doubling
+      down on a wrong turn
+  - id: D-26.9
+    grade: ASSUMED
+    text: >-
+      A continued attempt cuts its worktree from the previous candidate tip; diffs,
+      gates and the attempt ceiling are measured exactly as for any attempt, against
+      the original base
+    paths: [src/torve/application/runner.py, src/torve/adapters/workspace/git.py]
+    consequence: >-
+      Continuation changes what an attempt starts from, never what is measured or
+      how many attempts the run gets
+  - id: D-26.10
+    grade: OPEN
+    text: >-
+      What the decomposition prompt carries beyond the parent contract and the tree
+      under scope; execution decides and logs it. Amended by A-64 2026-08-31: decided
+      — the prompt carries the parent's scope.allow, its acceptance and a scope-filtered
+      tree listing; inherited decisions are re-derived at adoption, never carried
+      in the prompt
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      The drafts' quality against prompt size is an empirical trade the first live
+      decompositions should settle
+  - id: D-26.11
+    grade: OPEN
+    text: >-
+      Whether continuation feeds the previous trace tail into the prompt or only the
+      record and commits; execution starts commits-only and logs the evidence. Amended
+      by A-64 2026-08-31: decided — commits-and-record only, no trace tail; widened
+      only if live continuations show commits-only prompts under-informing the next
+      attempt
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      Traces are large and unvetted; the conservative shape first, widened only on
+      evidence
+  - id: D-26.12
+    grade: ASSUMED
+    text: >-
+      Decomposition depth is bounded at two levels; a third is refused with the bound
+      named
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      Two adoption rounds is the budget for misjudging size; past that the source
+      document's phasing was wrong, which is an amendment
+  - id: D-26.13
+    grade: ASSUMED
+    text: >-
+      Sizing thresholds are regraded from `torve rfc health` populations, and the
+      `HistoricalPercentile` arm enters only on that evidence
+    paths: [src/torve/application/sizing.py]
+    consequence: >-
+      A-49 deferred the arm until calibration data existed; RFC 0022 is that data,
+      and guessing new constants would waste it

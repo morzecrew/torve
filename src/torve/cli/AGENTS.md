@@ -6,7 +6,7 @@
 
 The importer records every archived document as a source and every archived row as retired; `torve why` and `show` resolve archived identifiers and say they are archived
 
-- Paths: `src/torve/application/decisions.py` `src/torve/cli/rfc.py`
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/spec.py`
 - Consequence: 705 log entries and 139 amendments keep their targets
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -14,7 +14,7 @@ The importer records every archived document as a source and every archived row 
 
 Each reader switches from `rfc_parse` to the model beside its old path with a parity assertion, one at a time, in phase 2; `rfc_parse.py` is deleted in phase 5 only after the archive lands
 
-- Paths: `src/torve/application/decisions.py` `src/torve/cli/rfc.py`
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/spec.py`
 - Consequence: Two owners of the format exist for one bounded window, and the parity test is what bounds it
 
 ### D-54.6 — `LOCKED` (RFC 0054 — Decisions as gates and the projections beside the code)
@@ -102,7 +102,7 @@ Cadence belongs to the manager's pass; there is no resident scanning loop, and t
 
 Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the model and writes it through one serializer; comments are not preserved and `check` refuses one outside the schema header line; `fmt` survives as `--check` only
 
-- Paths: `src/torve/config/rfc_emit.py` `src/torve/cli/rfc.py`
+- Paths: `src/torve/config/spec_emit.py` `src/torve/cli/spec.py`
 - Consequence: There is no second renderer to drop a field; the `character:` defect closes by construction
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -110,7 +110,7 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 
 `torve rfc schema` writes `rfcs/schema/document.json` from the model, drift-checked by `rfc check`; every document's first line names it; `rfc new` emits 0055's shape with the header line
 
-- Paths: `rfcs/schema/**` `src/torve/cli/rfc.py`
+- Paths: `.torve/schemas/**` `src/torve/cli/spec.py`
 - Consequence: An editor validates a row as it is typed; a new document starts small
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -118,14 +118,14 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 
 `torve rfc list` replaces `INDEX.md`; `torve rfc render NNNN` is the only markdown writer and never the source of anything
 
-- Paths: `src/torve/cli/rfc.py`
+- Paths: `src/torve/cli/spec.py`
 - Consequence: The index is a query, not a file
 
 ### D-57.4 — `LOCKED` (RFC 0057 — The specification is a directory)
 
 `torve spec` absorbs every `torve rfc` verb and `cli/rfc.py` is deleted; the gate is `spec-valid`; the skill is `spec-writer`; `rfc_emit.py` becomes `spec_emit.py`; new prose says specification or document
 
-- Paths: `src/torve/cli/spec.py` `src/torve/cli/rfc.py` `src/torve/config/rfc_emit.py` `skills/**` `.torve/gates.yaml`
+- Paths: `src/torve/cli/spec.py` `src/torve/cli/spec.py` `src/torve/config/spec_emit.py` `skills/**` `.torve/gates.yaml`
 - Consequence: One namespace for the corpus; old prose and test file names keep the old word
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 

@@ -1,17 +1,20 @@
 """The specification's storage, owned by the package (RFC 0007 §3a,
-D-7.12; RFC 0056 D-56.1): a document is one YAML file in the `Document`
-model's own shape, loaded by the model's validator and checked here for
-what the model cannot say — identifier continuity, the dependency graph,
-citations into the archive, path rot, fingerprint drift, and the comment
-the file must not carry.
+D-7.12; RFC 0057 D-57.1): a document is a directory of four YAML files
+split by who writes each — `document.yaml` and `decisions.yaml` the
+author's, `amendments.yaml` the tool's, `execution.yaml` the landing's —
+joined here into the `Document` model by the model's validator and checked
+for what the model cannot say: identifier continuity, the dependency
+graph, citations into the archive, path rot, fingerprint drift, a section
+that carries what a typed list holds, and the comment a file must not
+carry.
 
-Nothing in this module parses anything but YAML. The markdown loader
-that stood here through RFC 0053 converted every document once and was
-deleted with them (D-56.5); `config/rfc_emit.py` is the one writer.
+Nothing in this module parses anything but YAML. `config/spec_emit.py` is
+the one writer.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,22 +25,29 @@ from pydantic import ValidationError
 
 from torve.domain.rfc import GRADES
 from torve.domain.spec import (
+    AMENDMENTS_FILE,
+    DECISIONS_FILE,
+    DOCUMENT_FILE,
+    FILE_FIELDS,
+    FILES,
     SCHEMA_VERSION,
     Corpus,
     Document,
+    file_of,
     is_citation,
 )
 
 # ----------------------- #
 
-RFC_FILENAME = re.compile(r"^(\d{4})-([a-z0-9-]+)\.yaml$")
+# A document's directory is its identifier and nothing else (D-57.1): the
+# title lives in `document.yaml`, and `spec list` shows it.
+DOCUMENT_DIRNAME = re.compile(r"^S-(\d{4})$")
 NUMBER_ONLY = re.compile(r"^\d{4}(\.yaml|\.md)?$")
 
-# The one comment a document carries: its first line, naming the schema an
-# editor validates it against (D-56.6). Everything else is meaning outside
-# the model and is refused (D-56.4).
+# The one comment a file carries: its first line, naming the schema an
+# editor validates it against (D-56.6, D-57.5). Everything else is meaning
+# outside the model and is refused (D-56.4).
 SCHEMA_HEADER = "# yaml-language-server: $schema="
-SCHEMA_RELATIVE = "schema/document.json"
 
 URI_OR_PROTOCOL_RELATIVE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|//)")
 LOCAL_LINK = re.compile(r"\[[^\]]*\]\((?!#)([^)\s]+)")
@@ -45,15 +55,28 @@ LINE_CITE = re.compile(r"(?<![\w/])((?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9_]+):(\d+)")
 FENCED_BLOCK = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
 DECISION_CITE = re.compile(r"\bD-[A-Za-z0-9]+\.\d+[a-z]?\b")
 
-ARCHIVE_RELATIVE = Path("archive") / "rfcs"
+# What a section may not carry (D-57.2): a typed list restated as the fence
+# or table it was lifted from, or an amendment's words under a section key.
+TYPED_KINDS = (
+    "alternatives",
+    "questions",
+    "decision-details",
+    "invariants",
+    "changes",
+    "contract-example",
+)
+TYPED_FENCE = re.compile(r"^```\s*ya?ml\s+(" + "|".join(TYPED_KINDS) + r")\b", re.M)
+TABLE_HEADER = re.compile(r"^\|\s*#\s*\|\s*Grade\s*\|", re.M)
+AMENDMENT_KEY = re.compile(r"^a-\d+(?:-|$)")
 
 
 # ----------------------- #
 
 
 class SpecError(ValueError):
-    """A document that does not load: each message names the file, the
-    list entry and the field — the shape the corpus check reports."""
+    """A document that does not load: each message names the directory, the
+    file, the list entry and the field — the shape the corpus check
+    reports."""
 
     def __init__(self, problems: list[str]) -> None:
         super().__init__("; ".join(problems))
@@ -72,131 +95,194 @@ class CheckReport:
 
 
 # ----------------------- #
-# Files
+# Directories
 
 
-def archive_dir(rfc_dir: Path) -> Path:
-    return rfc_dir.parent / ARCHIVE_RELATIVE
+def archive_dir(spec_dir: Path) -> Path:
+    """The archive beside the corpus (D-57.3): `.torve/archive/` for
+    `.torve/specs/`."""
+
+    return spec_dir.parent / "archive"
 
 
-def rfc_files(rfc_dir: Path) -> dict[str, Path]:
-    """Zero-padded id -> file. Duplicate numbers are reported by check."""
+def schemas_dir(spec_dir: Path) -> Path:
+    """Where `torve init` writes the schemas (D-57.5): `.torve/schemas/`
+    for `.torve/specs/`."""
+
+    return spec_dir.parent / "schemas"
+
+
+def document_dirs(spec_dir: Path) -> dict[str, Path]:
+    """Zero-padded id -> directory. Duplicate numbers are reported by check."""
 
     found: dict[str, Path] = {}
 
-    for path in sorted(rfc_dir.glob("*.yaml")):
-        match = RFC_FILENAME.match(path.name)
+    if not spec_dir.is_dir():
+        return found
 
-        if match:
+    for path in sorted(spec_dir.iterdir()):
+        match = DOCUMENT_DIRNAME.match(path.name)
+
+        if match and path.is_dir():
             found.setdefault(match.group(1), path)
 
     return found
 
 
-def archive_files(rfc_dir: Path) -> dict[str, Path]:
-    """Zero-padded id -> file, over the archive; empty when there is none."""
+def archive_dirs(spec_dir: Path) -> dict[str, Path]:
+    """Zero-padded id -> directory, over the archive; empty when there is
+    none."""
 
-    archive = archive_dir(rfc_dir)
-
-    return rfc_files(archive) if archive.is_dir() else {}
-
-
-def slugify(title: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return document_dirs(archive_dir(spec_dir))
 
 
-def schema_file(rfc_dir: Path) -> Path:
-    """Where `torve rfc schema` writes the model's JSON Schema (D-56.6)."""
-
-    return rfc_dir / SCHEMA_RELATIVE
+def dirname_of(number: str) -> str:
+    return f"S-{number}"
 
 
-def schema_text() -> str:
-    """The model's JSON Schema as the file carries it."""
-
-    import json
-
-    return json.dumps(Document.model_json_schema(), indent=2, sort_keys=True) + "\n"
+# ----------------------- #
+# Schemas
 
 
-def check_schema(rfc_dir: Path) -> tuple[list[str], list[str]]:
+def schema_name(file_name: str) -> str:
+    return file_name.removesuffix(".yaml")
+
+
+def schema_file(spec_dir: Path, file_name: str) -> Path:
+    return schemas_dir(spec_dir) / f"{schema_name(file_name)}.json"
+
+
+def schema_text(file_name: str) -> str:
+    """One file's JSON Schema: the model's schema cut to the fields that
+    file carries (D-57.1), shared definitions kept whole."""
+
+    whole = Document.model_json_schema()
+    fields = FILE_FIELDS[file_name]
+    schema: dict[str, Any] = {
+        "$defs": whole.get("$defs", {}),
+        "additionalProperties": False,
+        "description": f"{file_name} of a specification directory (RFC 0057).",
+        "properties": {k: v for k, v in whole["properties"].items() if k in fields},
+        "required": [k for k in whole.get("required", []) if k in fields],
+        "title": schema_name(file_name),
+        "type": "object",
+    }
+
+    return json.dumps(schema, indent=2, sort_keys=True) + "\n"
+
+
+def schema_header(file_name: str) -> str:
+    """The first line of one file: its schema, relative to the directory —
+    the same two levels up from the corpus and from the archive."""
+
+    return f"{SCHEMA_HEADER}../../schemas/{schema_name(file_name)}.json"
+
+
+def check_schema(spec_dir: Path) -> tuple[list[str], list[str]]:
     """(problems, warnings): a schema file that lags the model is a
     problem — an editor would validate against a shape the engine no
-    longer reads; a corpus that has not written one yet is told to."""
+    longer reads; a corpus that has not written them yet is told to."""
 
-    path = schema_file(rfc_dir)
+    problems: list[str] = []
+    warnings: list[str] = []
 
-    if not path.is_file():
-        return [], [f"{SCHEMA_RELATIVE}: not written yet — `torve rfc schema` writes it (D-56.6)"]
+    for file_name in FILES:
+        path = schema_file(spec_dir, file_name)
+        where = f"schemas/{path.name}"
 
-    if path.read_text(encoding="utf-8") != schema_text():
-        return [
-            (
-                f"{SCHEMA_RELATIVE}: lags the model — it is generated output; "
-                "`torve rfc schema` rewrites it"
+        if not path.is_file():
+            warnings.append(f"{where}: not written yet — `torve init` writes it (D-57.5)")
+        elif path.read_text(encoding="utf-8") != schema_text(file_name):
+            problems.append(
+                f"{where}: lags the model — it is generated output; `torve init` rewrites it"
             )
-        ], []
 
-    return [], []
-
-
-def schema_header(archived: bool = False) -> str:
-    """The first line of a document: the schema, relative to where the
-    document lives."""
-
-    relative = f"../../rfcs/{SCHEMA_RELATIVE}" if archived else SCHEMA_RELATIVE
-
-    return f"{SCHEMA_HEADER}{relative}"
+    return problems, warnings
 
 
 # ----------------------- #
 # Loading
 
 
-def load_document(path: Path, *, archived: bool = False) -> Document:
-    """One document from its file: YAML into the model, every refusal
-    named by file, entry and field (D-53.3). A document of another schema
-    version is refused with the conversion named, never half-read."""
+def _read_file(directory: Path, file_name: str) -> dict[str, Any]:
+    """One of the four files as a mapping, refused when it is not one or
+    carries a key another file owns."""
 
-    where = path.name
+    where = f"{directory.name}/{file_name}"
+    path = directory / file_name
 
     try:
         raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         raise SpecError([f"{where}: not YAML — {str(exc).splitlines()[0]}"]) from None
 
+    if raw is None:
+        return {}
+
     if not isinstance(raw, dict):
-        raise SpecError([f"{where}: the document is not a mapping"])
+        raise SpecError([f"{where}: not a mapping"])
 
     data = cast("dict[str, Any]", raw)
+    problems: list[str] = []
+
+    for key in data:
+        owner = file_of(str(key))
+
+        if owner is None:
+            problems.append(f"{where}: {key}: no file carries it")
+        elif owner != file_name:
+            problems.append(f"{where}: {key} belongs in {owner}")
+
+    if problems:
+        raise SpecError(problems)
+
+    return data
+
+
+def load_document(directory: Path, *, archived: bool = False) -> Document:
+    """One document from its directory: the four files joined and validated
+    as the model, every refusal named by directory, file, entry and field
+    (D-53.3). A document of another schema version is refused with the
+    conversion named, never half-read."""
+
+    where = directory.name
+
+    if not (directory / DOCUMENT_FILE).is_file():
+        raise SpecError([f"{where}: no {DOCUMENT_FILE} — a document is a directory (D-57.1)"])
+
+    data: dict[str, Any] = {}
+
+    for file_name in FILES:
+        if (directory / file_name).is_file():
+            data.update(_read_file(directory, file_name))
+
     version = data.get("schema_version")
 
     if version != SCHEMA_VERSION:
         raise SpecError(
             [
                 (
-                    f"{where}: schema_version {version!r} — this loader reads {SCHEMA_VERSION}; "
-                    "a markdown document converts once through RFC 0056 phase 1"
+                    f"{where}/{DOCUMENT_FILE}: schema_version {version!r} — this loader reads "
+                    f"{SCHEMA_VERSION}; a one-file document converts once through RFC 0057 phase 1"
                 )
             ]
         )
 
-    for key in ("path", "archived"):
-        if key in data:
-            raise SpecError([f"{where}: {key} is the loader's, never written"])
-
     try:
-        return Document.model_validate({**data, "path": str(path), "archived": archived})
+        return Document.model_validate({**data, "path": str(directory), "archived": archived})
     except ValidationError as exc:
-        raise SpecError(
-            [
-                f"{where}: {'.'.join(str(p) for p in e['loc']) or 'document'}: {e['msg']}"
-                for e in exc.errors()
-            ]
-        ) from None
+        problems: list[str] = []
+
+        for error in exc.errors():
+            loc = [str(p) for p in error["loc"]]
+            owner = file_of(loc[0]) if loc else None
+            spot = f"{where}/{owner}" if owner else where
+            problems.append(f"{spot}: {'.'.join(loc) or 'document'}: {error['msg']}")
+
+        raise SpecError(problems) from None
 
 
-def load_corpus(rfc_dir: Path) -> Corpus:
+def load_corpus(spec_dir: Path) -> Corpus:
     """The corpus path and the archive beside it as one `Corpus`. Every
     document's problems are collected before anything is raised, and an
     unresolvable citation anywhere is a problem for the whole load."""
@@ -204,11 +290,8 @@ def load_corpus(rfc_dir: Path) -> Corpus:
     problems: list[str] = []
     documents: list[Document] = []
 
-    for source, archived in ((rfc_dir, False), (archive_dir(rfc_dir), True)):
-        if not source.is_dir():
-            continue
-
-        for _, path in sorted(rfc_files(source).items()):
+    for source, archived in ((spec_dir, False), (archive_dir(spec_dir), True)):
+        for _, path in sorted(document_dirs(source).items()):
             try:
                 documents.append(load_document(path, archived=archived))
             except SpecError as exc:
@@ -227,22 +310,22 @@ def load_corpus(rfc_dir: Path) -> Corpus:
 # Numbers
 
 
-def next_number(rfc_dir: Path) -> int:
+def next_number(spec_dir: Path) -> int:
     """The maximum over corpus and archive, plus one (D-53.10): a number
     retired into the archive is still a number that was cited."""
 
-    taken = [int(n) for n in rfc_files(rfc_dir)] + [int(n) for n in archive_files(rfc_dir)]
+    taken = [int(n) for n in document_dirs(spec_dir)] + [int(n) for n in archive_dirs(spec_dir)]
 
     return max(taken, default=0) + 1
 
 
-def next_amendment(files: dict[str, Path], archived: dict[str, Path] | None = None) -> str:
+def next_amendment(dirs: dict[str, Path], archived: dict[str, Path] | None = None) -> str:
     """The next free global amendment number (D-A.5), derived over the
     corpus and the archive (A-152) — never chosen."""
 
     taken: list[int] = []
 
-    for path in (*files.values(), *(archived or {}).values()):
+    for path in (*dirs.values(), *(archived or {}).values()):
         try:
             doc = load_document(path)
         except SpecError:
@@ -253,7 +336,7 @@ def next_amendment(files: dict[str, Path], archived: dict[str, Path] | None = No
     return f"A-{max(taken, default=0) + 1}"
 
 
-def next_decision(files: dict[str, Path], number: str) -> str:
+def next_decision(dirs: dict[str, Path], number: str) -> str:
     """The next free identifier in one document's own dotted family, scanned
     corpus-wide (D-A.4); retired identifiers count as taken (D-16.1)."""
 
@@ -261,7 +344,7 @@ def next_decision(files: dict[str, Path], number: str) -> str:
     pattern = re.compile(rf"^D-{re.escape(family)}\.(\d+)[a-z]?$")
     taken: list[int] = []
 
-    for path in files.values():
+    for path in dirs.values():
         try:
             doc = load_document(path)
         except SpecError:
@@ -302,14 +385,14 @@ def _cites(ident: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![\w.]){re.escape(ident)}(?![\w.])")
 
 
-def lookup(rfc_dir: Path, identifier: str) -> dict[str, Any] | None:
+def lookup(spec_dir: Path, identifier: str) -> dict[str, Any] | None:
     """One corpus identifier resolved from the same load `check` runs
     (D-7.28): a row as it stands, an invariant, a question, an amendment
     or a document; an archived one answers marked archived (D-53.9). None
     when nothing defines it."""
 
     try:
-        corpus = load_corpus(rfc_dir)
+        corpus = load_corpus(spec_dir)
     except SpecError:
         return None
 
@@ -317,7 +400,7 @@ def lookup(rfc_dir: Path, identifier: str) -> dict[str, Any] | None:
 
 
 def lookup_in(corpus: Corpus, identifier: str) -> dict[str, Any] | None:
-    number = identifier.strip().removesuffix(".yaml").removesuffix(".md")
+    number = identifier.strip().removeprefix("S-").removesuffix(".yaml").removesuffix(".md")
 
     if re.fullmatch(r"\d{1,4}", number):
         doc = corpus.document(number.zfill(4))
@@ -419,7 +502,7 @@ def _document_payload(doc: Document) -> dict[str, Any]:
         "implementation": doc.implementation,
         "depends_on": list(doc.depends_on),
         "superseded_by": doc.superseded_by,
-        "amended_by": list(doc.amended_by),
+        "amended_by": doc.amended_by(),
         "description": doc.description.strip(),
         "sections": [s.key for s in doc.sections],
         "phases": [
@@ -500,82 +583,113 @@ def _glob_matches(root: Path, pattern: str) -> bool:
         return False
 
 
-def check_directory(rfc_dir: Path) -> list[str]:
-    """Only documents live in the corpus path (D-A.17), one per number."""
+def check_directory(spec_dir: Path) -> list[str]:
+    """Only documents live in the corpus path and the archive (D-A.17,
+    I-57.1): one directory per number, holding only the four file names."""
 
     problems: list[str] = []
-    numbers: dict[str, list[str]] = {}
 
-    for entry in sorted(rfc_dir.iterdir()):
-        if entry.name in ("schema",) and entry.is_dir():
+    for base in (spec_dir, archive_dir(spec_dir)):
+        if not base.is_dir():
             continue
 
-        if entry.is_dir():
-            problems.append(
-                f"{entry.name}/: a subdirectory in the corpus path — documents are flat"
-            )
-            continue
+        numbers: dict[str, list[str]] = {}
+        label = "" if base == spec_dir else "archive/"
 
-        if entry.name == "INDEX.md":
-            problems.append("INDEX.md: the index is a query now (`torve rfc list`) — delete it")
-            continue
+        for entry in sorted(base.iterdir()):
+            name = f"{label}{entry.name}"
 
-        if entry.suffix == ".md":
-            problems.append(
-                f"{entry.name}: a markdown document — convert it (RFC 0056 D-56.5); "
-                "the corpus is YAML"
-            )
-            continue
+            if entry.is_dir() and entry.name == "schema":
+                problems.append(f"{name}/: schemas live in `.torve/schemas/` (D-57.5) — delete it")
+                continue
 
-        match = RFC_FILENAME.match(entry.name)
+            if entry.is_file() and entry.suffix in (".yaml", ".md"):
+                problems.append(
+                    f"{name}: a one-file document — a document is a directory of four files "
+                    "(RFC 0057 D-57.1); convert it"
+                )
+                continue
 
-        if match is None:
-            problems.append(f"{entry.name}: not NNNN-slug.yaml — a stray file in the corpus path")
-            continue
+            match = DOCUMENT_DIRNAME.match(entry.name)
 
-        numbers.setdefault(match.group(1), []).append(entry.name)
+            if match is None or not entry.is_dir():
+                problems.append(f"{name}: not S-NNNN/ — a stray entry in the corpus path")
+                continue
 
-    for number, names in sorted(numbers.items()):
-        if len(names) > 1:
-            problems.append(f"RFC {number} is claimed by {len(names)} files: {', '.join(names)}")
+            numbers.setdefault(match.group(1), []).append(entry.name)
+
+            for inner in sorted(entry.iterdir()):
+                if inner.name not in FILES:
+                    problems.append(
+                        f"{name}/{inner.name}: not one of {', '.join(FILES)} — a document "
+                        "directory holds nothing else (I-57.1)"
+                    )
+
+        for number, names in sorted(numbers.items()):
+            if len(names) > 1:
+                problems.append(
+                    f"document {number} is claimed by {len(names)} directories: {', '.join(names)}"
+                )
 
     return problems
 
 
-def check_document(doc: Document, root: Path, rfc_dir: Path) -> tuple[list[str], list[str]]:
+def check_sections(doc: Document) -> list[str]:
+    """A section carries prose and nothing a typed list holds (D-57.2): an
+    empty body, a typed-kind fence, the decisions table or an amendment's
+    identifier as its key is refused with the key named."""
+
+    where = f"{_name(doc)}/{DOCUMENT_FILE}"
+    problems: list[str] = []
+
+    for section in doc.sections:
+        key = section.key
+
+        if AMENDMENT_KEY.match(key):
+            problems.append(
+                f"{where}: section {key!r} is an amendment — its words belong in "
+                f"{AMENDMENTS_FILE} under the entry's `md`"
+            )
+        elif not section.md.strip():
+            problems.append(f"{where}: section {key!r} has no body — a heading is not a section")
+
+        fence = TYPED_FENCE.search(section.md)
+
+        if fence is not None:
+            problems.append(
+                f"{where}: section {key!r} carries a `{fence.group(1)}` fence — that list is "
+                "typed; write it as the list, not as prose"
+            )
+
+        if TABLE_HEADER.search(section.md):
+            problems.append(
+                f"{where}: section {key!r} carries the decisions table — the rows live in "
+                f"{DECISIONS_FILE}"
+            )
+
+    return problems
+
+
+def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str], list[str]]:
     """One document's own problems and warnings, given it loaded."""
 
     where = _name(doc)
     problems: list[str] = []
     warnings: list[str] = []
-    match = RFC_FILENAME.match(where)
+    match = DOCUMENT_DIRNAME.match(where)
 
     if match is not None and match.group(1) != doc.id:
-        problems.append(f"{where}: id {doc.id!r} disagrees with the filename")
-
-    if match is not None:
-        slug_words = {w for w in match.group(2).split("-") if len(w) >= 4}
-        title_words = {w for w in slugify(doc.title).split("-") if len(w) >= 4}
-
-        if slug_words and title_words and not slug_words & title_words:
-            warnings.append(
-                f"{where}: filename slug shares no word with title {doc.title!r} — "
-                "a materially different title is usually a new document (D-A.20)"
-            )
+        problems.append(f"{where}: id {doc.id!r} disagrees with the directory name")
 
     if doc.status == "superseded" and not doc.superseded_by:
         problems.append(f"{where}: superseded, but superseded_by names nothing")
-
-    if [a.id for a in doc.amendments] != list(doc.amended_by):
-        problems.append(
-            f"{where}: amended_by {list(doc.amended_by)} does not match the amendments "
-            f"{[a.id for a in doc.amendments]}"
-        )
 
     keys = [s.key for s in doc.sections]
 
     for key in sorted({k for k in keys if keys.count(k) > 1}):
         problems.append(f"{where}: two sections keyed {key!r} — one of them is misnamed")
+
+    problems += check_sections(doc)
 
     # D-32: for a document not yet built the globs name intended areas;
     # once implemented an unmatched LOCKED glob is rot.
@@ -606,7 +720,7 @@ def check_document(doc: Document, root: Path, rfc_dir: Path) -> tuple[list[str],
             if doc.implementation == "complete":
                 problems.append(
                     f"{where}: LOCKED row {row.id!r} paths glob {pattern!r} matches nothing "
-                    "in the repository (an implemented RFC cites real areas, D-32)"
+                    "in the repository (an implemented document cites real areas, D-32)"
                 )
             else:
                 unbuilt.append(f"{row.id} -> {pattern}")
@@ -630,7 +744,7 @@ def check_document(doc: Document, root: Path, rfc_dir: Path) -> tuple[list[str],
         if not target or URI_OR_PROTOCOL_RELATIVE.match(target):
             continue
 
-        for start in (rfc_dir, root):
+        for start in (spec_dir, root):
             try:
                 resolved = (start / target).resolve()
             except OSError:
@@ -699,30 +813,32 @@ def check_graph(documents: dict[str, Document]) -> tuple[list[str], list[str]]:
     return problems, []
 
 
-def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
-    """The whole of `torve rfc check` over one corpus directory: the
-    directory, every document's load, its own checks, the comments it
-    must not carry, identifiers unique and never reused, citations that
-    resolve into the corpus or the archive, and the graph."""
+def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
+    """The whole of `torve spec check` over one corpus directory: the
+    directory and the archive, every document's load, its own checks, the
+    comments its files must not carry, identifiers unique and never
+    reused, citations that resolve into the corpus or the archive, the
+    graph and the schemas."""
 
     report = CheckReport()
-    report.problems += check_directory(rfc_dir)
+    report.problems += check_directory(spec_dir)
     documents: dict[str, Document] = {}
     archived: dict[str, Document] = {}
 
     for source, is_archive, into in (
-        (rfc_dir, False, documents),
-        (archive_dir(rfc_dir), True, archived),
+        (spec_dir, False, documents),
+        (archive_dir(spec_dir), True, archived),
     ):
-        if not source.is_dir():
-            continue
+        for number, path in sorted(document_dirs(source).items()):
+            for file_name in FILES:
+                if not (path / file_name).is_file():
+                    continue
 
-        for number, path in sorted(rfc_files(source).items()):
-            for line in find_comments(path.read_text(encoding="utf-8")):
-                report.problems.append(
-                    f"{path.name}:{line}: a comment — meaning outside the model; a row that "
-                    "needs a note needs a rationale (D-56.4)"
-                )
+                for line in find_comments((path / file_name).read_text(encoding="utf-8")):
+                    report.problems.append(
+                        f"{path.name}/{file_name}:{line}: a comment — meaning outside the "
+                        "model; a row that needs a note needs a rationale (D-56.4)"
+                    )
 
             try:
                 into[number] = load_document(path, archived=is_archive)
@@ -742,7 +858,7 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
 
     for doc in [documents[n] for n in sorted(documents)]:
         where = _name(doc)
-        problems, warnings = check_document(doc, root, rfc_dir)
+        problems, warnings = check_document(doc, root, spec_dir)
         report.problems += problems
         report.warnings += warnings
 
@@ -771,7 +887,7 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
                         f"({_name(archived[ref])}) — nothing inherits from it (D-53.8)"
                     )
                 else:
-                    report.problems.append(f"{where}: {fname} names {ref!r}, no such RFC")
+                    report.problems.append(f"{where}: {fname} names {ref!r}, no such document")
 
         reported: set[str] = set()
 
@@ -788,7 +904,7 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
     graph_problems, graph_warnings = check_graph(documents)
     report.problems += graph_problems
     report.warnings += graph_warnings
-    schema_problems, schema_warnings = check_schema(rfc_dir)
+    schema_problems, schema_warnings = check_schema(spec_dir)
     report.problems += schema_problems
     report.warnings += schema_warnings
 

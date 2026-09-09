@@ -1,0 +1,174 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: '0006'
+title: Merge train and escalation policy
+kind: design
+status: superseded
+implementation: partial
+depends_on: ['0003']
+informed_by: ['0005']
+supersedes: []
+superseded_by: '0055'
+owner: Lev Litvinov
+description: >-
+  Serialized landing of candidates, promotion criteria, escalation routing, and how
+  human attention is budgeted.
+schema_version: 3
+sections:
+  - key: the-correction-this-document-exists-for
+    md: |
+      "The engine does not merge" is right about responsibility and silent about sequencing. Three independently green pull requests merged back to back can each invalidate the next one's CI, so green at review time does not imply green after landing.
+
+      **`ready` is a serialized lane, not a set.** One candidate at a time rebases onto the current base, waits for current-head CI, and lands. Only this state is capped; earlier states share the global pool so workers stay busy while candidates queue.
+
+      Two refinements worth copying rather than rediscovering:
+
+      - **Skip redundant validation on a clean rebase.** If the branch rebases with no source files changed and already passed its gates, re-running the full local gate buys no new signal — required current-head CI is the enforcement. If the rebase touches source, resolves conflicts, or leaves validation state unknown, the full gate runs again.
+      - **Poll CI with backoff against lightweight endpoints.** The rate-limit budget is shared with the agents themselves.
+
+      What does not change: the engine never resolves a conflict and never merges without the configured approval. A merge conflict is an escalation with reason `merge_conflict`. Serialization orders candidates; it does not assume authority.
+
+      *Amended by A-26 2026-08-23 (registered on the charter):* the escalation is literal. A conflicted rebase aborts, the branch stays exactly as measured, and the run transitions `ready → escalated` with reason `merge_conflict` — the queue's age (D-6.8) starts counting the moment a landing fails, not when a human happens to read the lane report. The `ready → escalated` edge is opened in the charter's §4 table by the same amendment; `ready` stays terminal to the engine everywhere else. Resolution is the standard escalated fork: re-queue to re-run the task against the moved base, or abandon when a human landed the work by hand.
+
+      *Execution note 2026-08-23 (T-0048):* the rebase path releases the candidate's engine worktree first — the run's own worktree pins the task branch, and git refuses a second checkout; a `ready` run's worktree is disposable, its work lives on the branch. A-26's merge-before-reap ordering concerns state files; the lane owns the worktree half itself.
+
+      *Execution note 2026-08-23 (T-0052):* the cleanliness guard scopes to landed content — the engine's own record files (task directories under `.torve/tasks/`, the manifest's telemetry file, the outbox pair) never block the lane, and a refusal names the offending paths. The first standing-team run surfaced the papercut: the runner-minted review contract lands untracked in the root checkout, and a blanket guard made every landing demand a human commit of engine bookkeeping first. The reviewed regime files (`gates.yaml`, `config.yaml`, the sandbox and vendored-skill trees) stay refusable dirt.
+  - key: prevention-beats-ordering
+    md: |
+      Two tasks whose `scope.allow` sets intersect must not run concurrently. That check happens **before dispatch** (RFC 0002 §6), which is strictly better than resolving the collision after both have produced work.
+
+      The merge train handles what gets through anyway — base moving under a long task, shared lockfiles, generated artefacts.
+  - key: promotion
+    md: |
+      ```yaml
+      promotion:
+        require:
+          - gates: green
+          - review: no_blocker_findings
+          - ci: green_on_current_head
+          - approvals: 1
+        quiet_window: 30m        # no new pushes since the last review
+        auto_merge: false        # default; opt in per repository, never globally
+      ```
+
+      **Review freshness is relative to current head.** An approval that predates the last push is not an approval of what would land. Pushing resets the quiet window.
+
+      **Auto-merge stays off by default.** Where enabled, restrict it to a named task class with high test coverage — not a global switch.
+
+      *Execution note 2026-08-24 (T-0060/T-0061):* `approvals` and `quiet_window` landed as flat fields beside `auto_merge` and `require_ci` (the sketch's `require:` list shape was already departed from at T-0048), both zero-disabled. An approval is recorded on the run state as {actor, sha, at} by a commander's `/torve approve` (RFC 0008 D-8.9's authorization applies); the lane counts only approvals of the branch tip as measured at lane start. The quiet window is plain seconds — no duration parser exists and one knob does not justify one.
+
+      *Amended by A-43 2026-08-26:* the `review: no_blocker_findings` criterion becomes a lane predicate (D-6.14). `promotion.require_review` — default false, zero-disabled like its siblings — makes the lane land only a candidate whose producing run recorded a concluded review: `reviewed_by` on the run state, set when the task-gated review survives without a blocker, cleared on every entry to `running` so no verdict outlives the attempt it judged. The check precedes the approvals prompt — a candidate the policy cannot land is never offered for approval — and both lanes enforce it: it is promotion policy, not loop behavior.
+
+      *Execution note 2026-08-23 (T-0048):* `green_on_current_head` reads the LATEST run per workflow for the head sha — a re-run supersedes the run it replaces, and a stale failure must not veto a green rerun; a red run of a different workflow still does. A base push invalidates in-flight merge-ref runs, so a lane consulting pull-request-event CI should expect one retrigger after the base moves.
+  - key: human-attention-is-the-scarce-resource
+    md: |
+      Automated review feeds the bottleneck; it does not relieve it. Three agents produce pull requests faster than one person reads them, and the system quietly converts throughput into review debt.
+
+      So attention is budgeted as explicitly as the gates:
+
+      | Class | Route |
+      | --- | --- |
+      | Green gates, no findings, within scope, small diff | queue for batch review in a window |
+      | Any `blocker` finding | escalate, notify |
+      | `locked_conflict` | escalate, notify — needs a decision, not a fix |
+      | `poison_ceiling`, `budget_exhausted` | escalate, batch |
+      | `gate_infrastructure_failure` | notify the owner of the harness, not the task author |
+
+      **Review windows, not continuous interruption.** Two fixed slots a day beats a notification stream, and the batching is what keeps the practice sustainable.
+
+      **Parallelism raises only when escalation rate is low.** The limiting number is not worker capacity, it is how many pull requests a human can read carefully in a day. Raise one dimension at a time: first task classes, then workers, then repositories.
+  - key: escalation-is-a-first-class-outcome
+    md: |
+      An escalated task is not a failure of the system; it is the system working. The metric to watch is not escalation count but **escalation resolution time** — a queue of stuck tasks nobody triages is the real failure, and it looks identical to success from the runner's side.
+
+      Every escalation carries: reason from the enumerated vocabulary, `trace_ref`, gate results, and the execution-log entries that led to it. Enough to decide without opening a terminal.
+  - key: blocked-dispatch-must-be-visible
+    md: |
+      Overlapping `scope.allow` sets prevent concurrent dispatch (§2). In a repository where most tasks touch a shared route registry or config file, that collapses parallelism toward one and turns the system into an expensive sequential runner.
+
+      Rather than design for this now, make it observable and interruptible:
+
+      - A refusal to dispatch is logged with its cause — `blocked_by_overlap: T-0139 on packages/api/routes.ts` — never a silent wait.
+      - Telemetry counts blocked dispatches per path, so "top contended paths" is a query rather than a hunch.
+      - `torve kill <task-id>` force-terminates a run: sandbox destroyed, lease released, task escalated with reason `killed`.
+
+      If the top contended path turns out to dominate, the answers available then are a dedicated serialized lane for declared hotspots, or moving hotspot edits into their own phase. Neither needs deciding today.
+  - key: engine-health
+    md: |
+      Attempt telemetry describes the work. Nothing so far describes the engine, which means its failures arrive by human report rather than by graph.
+
+      Cheapest viable option, and the recommended one: an `EngineEvent` record written through the same telemetry path as `Attempt`. A second observability system is a second system to operate. If the substrate ships a metric catalog and dashboard stack, that becomes the stage-3 destination behind the same port; OpenTelemetry export is a later option, not a starting point.
+
+      | Signal | Why |
+      | --- | --- |
+      | Queue depth by state | the shape of the backlog |
+      | Lease reclaim rate | workers dying silently |
+      | Sandbox create/destroy failures | runtime health |
+      | Reaper orphan count | cleanup regressions |
+      | Outbox relay lag and retry depth | projection and notification falling behind |
+      | `gate_infrastructure_failure` rate | gates broken versus code broken |
+      | Kill-by-timeout rate | agents ignoring cancellation |
+      | Burn rate against daily cap | budget trajectory |
+
+      Plus `torve doctor` as a preflight: credentials present, sandbox reachable, store migrated, gates resolvable.
+
+      **The signal that matters most is not in the table: escalation queue age.** A queue nobody triages looks identical to success from the runner's side, and is the failure mode most likely to actually happen here.
+  - key: decisions
+    md: |
+      D-6.11 was retired 2026-09-09; path rot. The identifier is never reused.
+  - key: phasing
+    md: |
+      *(Added 2026-08-23 at acceptance, with the path relocation to RFC 0015's
+      tree — no `lane/` package exists. The forge-shaped legs stay deferred with
+      the forge: CI polling with backoff, the approvals/quiet-window promotion
+      fields, and the notifier the outbox feeds (deferred from RFC 0003 D-3.18,
+      deferred again here — there is no channel to notify until one exists;
+      *execution note 2026-08-23 (T-0051):* the channel now exists — RFC 0008's
+      tracker — and the notifier landed through it, D-6.11). In
+      the local regime the operator invoking the lane is the configured approval,
+      and the gate battery is current-head CI.)*
+  - key: exit-criteria
+    md: |
+      - Ten tasks landed through the serialized lane with no post-merge CI break attributable to ordering.
+      - Escalation resolution time recorded for two weeks.
+phasing:
+  - phase: 1
+    title: Prevention, kill, and engine sight
+    intent: >-
+      What must exist before a lane is safe to run: dispatch refuses a task whose
+      scope intersects an active run's, logged with its cause and counted per path
+      through a new EngineEvent record on the existing telemetry path; torve kill
+      force-terminates one run — sandbox destroyed, state escalated as killed; and
+      the escalation queue's age becomes visible in the context projection, because
+      a queue nobody triages looks identical to success from inside the runner.
+    scope: [src/torve/application/**, src/torve/cli/**, src/torve/config/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: The serialized lane
+    intent: >-
+      Ready is a lane, not a set: torve merge processes candidates one at a time —
+      a task branch whose base has not moved lands as it was measured; one whose base
+      moved is rebased and its gate battery re-run over the rebased tree before landing;
+      a conflict escalates as merge_conflict and the lane moves on. The engine never
+      resolves a conflict, and the operator's invocation is the recorded approval.
+      Auto-merge stays off by default in configuration.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/adapters/**
+      - src/torve/cli/**
+      - src/torve/config/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 1

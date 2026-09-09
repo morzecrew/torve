@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 from pydantic import ValidationError
-from test_decisions import document
+from test_decisions import document, place
 
 from torve.application.ports import ExecResult, SandboxHandle
 from torve.application.runstate import RunState
@@ -321,8 +321,9 @@ def test_instantiate_mints_through_adoption_and_records_origin(seeded):
 
 
 def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
-    seeded.write(
-        "rfcs/0012-fixture.yaml",
+    place(
+        seeded.root / layout.SPECS_DIR,
+        "0012",
         document(
             "0012",
             [("D-12.1", "LOCKED", "The rule", "`src/**`")],
@@ -330,7 +331,7 @@ def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
             implementation="none",
         ),
     )
-    seeded.commit("fixture rfc")
+    seeded.commit("fixture spec")
     job = StandingContract.model_validate(job_dict(decisions_from="0012"))
     task_id = instantiate(seeded.root, job, RunnerConfig())
 

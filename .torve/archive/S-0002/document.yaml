@@ -1,0 +1,243 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: '0002'
+title: Gates as a library
+kind: design
+status: superseded
+implementation: complete
+depends_on: ['0001']
+informed_by: []
+supersedes: []
+superseded_by: '0055'
+owner: Lev Litvinov
+description: >-
+  The gate contract, the starting gate set, sabotage verification, and packaging gates
+  as a pip-installed CI dependency — the first shippable increment.
+schema_version: 3
+sections:
+  - key: why-this-ships-first
+    md: |
+      Gates already exist in these repositories — as ad-hoc scripts inside CI configuration, copied between projects, drifting apart. Nothing about them requires an engine.
+
+      Packaging them yields three things immediately, before a line of runner exists:
+
+      - **Copy-paste between repositories stops.** A fix to `scope` ships once, as a version bump, instead of being applied four times and forgotten in a fifth.
+      - **The gate becomes a versioned artefact** rather than an inline shell fragment nobody reviews.
+      - **Baseline metrics start accumulating.** Per-gate hit counts on human and agent PRs alike — the only data that later answers whether any of this helped, and it can only be captured before the rest is introduced.
+  - key: delivery
+    md: |
+      ```bash
+      pip install torve
+      torve gates run --base origin/main          # all gates
+      torve gates run --only scope,acceptance
+      torve gates check                           # the sabotage suite
+      ```
+
+      One CI step per repository. `gates.yaml` at the repository root *(since RFC 0013: `.torve/gates.yaml`, root read as fallback)*. Exit code is the gate outcome; `--format json` emits `GateResult` records for later ingestion.
+  - key: the-gate-contract
+    md: |
+      ```python
+      class Gate(BaseModel):
+          name: str
+          run: str | Literal["@task.acceptance"]
+          input: Literal["worktree", "diff", "task", "log"]
+          state: Literal["shadow", "blocking", "quarantined"]   # §7.3; required, a boolean cannot express shadow or quarantine
+          origin: str                                           # structural | leak/<task> | rfc/<id> — why this gate exists
+          added: date | None
+          timeout: timedelta
+      ```
+
+      *Amended by A-8 2026-08-21: `blocking: bool` replaced by `state`, and `origin` added, before any manifest existed outside this repository — past that point this is a migration rather than an edit.*
+
+      `input` is what makes gates portable across projects: `scope` consumes a diff and knows nothing about the language, `typecheck` consumes a worktree, `decisions-reported` consumes the log plus the task. The gate receives its input prepared and returns a `GateResult`.
+
+      Execution rules:
+
+      - **Ordered cheapest first, fail-fast on the first failure of a `blocking`-state gate.** A thirty-minute e2e never runs on a diff that fails typecheck.
+      - **`shadow` and `quarantined` gates run regardless**, including after a blocking failure — their output is measurement and triage material, and it never affects the exit code (§7.3).
+      - **Every result is persisted** with name, exit code, duration, sha, truncated output and a log reference. A green with no artefact does not count.
+      - **Diffs are computed against `git merge-base`**, not against current base — otherwise `scope` reddens on other people's work that landed mid-task.
+  - key: starting-set
+    md: |
+      Each targets a structural property, so none requires mining past pull requests first.
+
+      | Gate | Input | State | Origin | Catches |
+      | --- | --- | --- | --- | --- |
+      | `scope` | diff | blocking | structural | files outside `allow` or inside `deny` |
+      | `acceptance` | worktree | blocking | structural | completion claimed on red |
+      | `no-test-tampering` | diff | blocking | structural | tests edited where the task did not license it |
+      | `decisions-reported` | log + task | blocking | structural | `LOCKED` area touched with no log entry, or an illegal action for the grade |
+      | `self-audit` | worktree | shadow | structural | author-side blind spots |
+
+      `review` is a gate in spirit but a run in mechanics — see RFC 0005.
+
+      *Added by charter A-11 2026-08-22:* the `acceptance` gate is **skipped** for `role: review`, not passed with an empty list — a review's output is `Finding[]`, not an exit code, and the skip is a property of the role (RFC 0005 §1.1).
+
+      *Added by 0011 A-23 2026-08-22:* the `user-facing-text` gate joins the manifest, entering at `shadow` per D-2.18 with origin `rfc/0011`: user-facing strings — help text, command docstrings, gate output — carry no corpus identifiers. The rule, the surface table and the gate's shape are specified in RFC 0011 §5a; the corresponding sabotage cases include one that must pass (a module docstring citing a decision).
+
+      *Amendment 2026-08-21 (A-2):* every gate implementation lives in the package (`src/torve/gates/`), never in a skill directory — `decisions-reported` in particular is `src/torve/gates/decisions_reported.py`, not a script shipped with `flag-dont-flip`. A gate in a skill directory is per-repository copy-paste, the exact thing this increment removes. The skill keeps one line naming its enforcing gate; the gate reports that an entry is missing, the skill teaches when one should have been written.
+
+      **Everything else accumulates from evidence.** Each time a defect reaches review, either a gate appears or a written decision records that this class is caught by humans. Deriving gates from actual leaks beats designing a set up front, and it is why this list is short.
+  - key: gates-are-themselves-verified
+    md: |
+      `gates/sabotage/` holds one deliberately bad diff per gate. CI applies each and asserts the corresponding gate goes red. A gate that cannot be shown to fail is not a check.
+
+      This is not optional decoration: without it, a gate that silently stops working looks identical to a gate that never fires because the code is clean. Run the suite on every change to the gate package, and once per sprint against the consuming repositories. The suite runs continuously, not once at authoring time, because it is what distinguishes a dead gate from a clean codebase (§7.7).
+
+      Precedent from the `decisions-reported` validator, which ships with four sabotage cases — silence, illegal action, unlocatable evidence, and a valid log — and is only trusted because all four were observed to behave correctly.
+  - key: scope-in-detail
+    md: |
+      The cheapest gate and the one that catches the most common drift.
+
+      ```yaml
+      scope:
+        allow: ["packages/api/**", "tests/api/**"]
+        deny:  ["**/migrations/**", "packages/core/types.ts"]
+      ```
+
+      `deny` wins over `allow`. An empty `allow` means unconstrained, which should be rare and visible in review of the task.
+
+      Second use, free once the first exists: **overlap detection**. Two tasks whose `allow` sets intersect must not run concurrently. Checking this before dispatch prevents the conflict; the merge train (RFC 0006) only resolves the ordering of ones that got through.
+  - key: three-outcomes-gates-need-beyond-pass-and-fail
+    md: |
+      **Flakes.** `acceptance` runs real test suites and real test suites flake. Today a flake is a failed attempt and costs a life from the poison ceiling. It needs its own outcome: a gate that fails and then passes on immediate re-run is `flaky`, does not consume an attempt, and increments a flake counter per command. Commands above a threshold enter a quarantine list and stop blocking until fixed. This is not a risk to monitor — it is a first-week certainty.
+
+      **Escape hatch.** Gates are fail-closed, and sometimes wrong: a `scope` too narrow, an acceptance command broken by infrastructure. With no sanctioned way past, an unsanctioned one appears — someone comments the gate out of CI, and now nobody knows. Per `escape-hatch-policy`:
+
+      ```yaml
+      bypass:
+        requires: human_signature      # never an agent
+        reason: mandatory              # free text, recorded
+        logged_to: logs/<task-id>.yaml   # same append-only log
+        metric: bypass_count_by_gate
+      ```
+
+      A bypass that is counted is data — it tells you which gate is miscalibrated. A bypass that does not exist becomes a workaround you find out about later.
+
+      *Amendment 2026-08-21 (A-3):* the bypass record's shape is stated here and only here — no skill is involved, because **the signer is always a human** and humans read RFCs, not skills. The record: the gate name, a mandatory free-text reason, the signer's identity (the authoring of a reviewed commit carrying the `Torve-Bypass: <gate>: <reason>` trailer, per D-2.11), the commit sha, and a timestamp — appended to the task's execution log and counted per gate (`bypass_count_by_gate`, the `bypass-count` metric). A gate bypassed repeatedly is a signal about the gate, not the person.
+
+      **Secrets.** One more gate, and it belongs in the starting set precisely because its failure class is irreversible once landed: a secret scanner over the diff, blocking, no bypass. Cheap to run, and unlike other gates a miss cannot be fixed by a follow-up commit.
+  - key: task-size
+    md: |
+      Too large a task drifts; too small drowns in overhead. This is the most common way systems like this fail, so it gets a seam rather than a constant.
+
+      ```python
+      class SizePolicy(Protocol):
+          def estimate(self, task: Task) -> SizeVerdict: ...      # before dispatch
+          def observe(self, attempt: Attempt) -> None: ...        # calibration after
+      ```
+
+      Two sides deliberately: the real signal is retrospective (`iterations-to-green`), and an estimator with no feedback never calibrates.
+
+      - v1 adapter — `StaticThresholds`: file count in `allow`, number of acceptance commands, presence of more than one module.
+      - later — `HistoricalPercentile` over telemetry: predicted iterations from similar past tasks.
+
+      Rules of thumb until data exists: iterations-to-green consistently above three means tasks are too large; sandbox time below half of wall-clock time means they are too small to be worth the machinery.
+  - key: where-gates-come-from
+    md: |
+      Three sources, and they behave differently.
+
+      **Structural.** Derived from the task contract with no experience required — `scope`, `acceptance`, `decisions-reported`, `no-test-tampering`, `secrets`. They check properties of the contract rather than knowledge of a particular codebase, which is why they exist on day one and why the starting set in §4 is short.
+
+      **Distilled from leaks.** A defect reached review or production. Per `distill-the-rule` there are exactly two outcomes: a gate appears, or a written decision records that this class is caught by humans. "We will remember" is not one of them. This is the main growth path.
+
+      **Derived from convention documents.** A document states a machine-checkable rule and a gate falls out of it — `source-layout` from the document conventions (charter A-7), `bypass-count` from §6a.
+  - key: five-filters-before-writing-one
+    md: |
+      1. **Deterministic?** If it needs judgement it is a reviewer, not a gate (RFC 0005).
+      2. **Cheaper in seconds than the miss costs?** A ten-minute check for a rare defect does not pay.
+      3. **Can it go red?** If no diff can be written that fails it, it is not a check.
+      4. **Does it have an input?** One of `worktree`, `diff`, `task`, `log`. No data, no gate, however desirable.
+      5. **Will it name what it caught?** Per RFC 0011 §5, "gate failed" is not acceptable output.
+  - key: states
+    md: |
+      ```
+      proposed → shadow → blocking → quarantined → retired
+                    ↑         │
+                    └─────────┘   after a material tightening
+      ```
+
+      **`proposed`** — written, sabotage case written, not yet in any manifest.
+
+      **`shadow`** — runs and reports, blocks nothing. Its false-positive rate is measured here, before it is given the power to stop work. This mirrors the shadow period for the reviewer in RFC 0005 §7, and for the same reason.
+
+      **`blocking`** — promoted against criteria, not against confidence:
+
+      - ran over at least N real changes (start with 30)
+      - fired at least once
+      - false positives below threshold on human assessment
+      - p95 duration acceptable for its position in the ordering
+      - sabotage case green
+
+      **A gate that never fired in shadow is either unnecessary or broken, and only the sabotage suite distinguishes the two.** Sabotage red plus real-world silence means the gate is dead and nobody knew.
+
+      **`quarantined`** — flaking, or calibration has drifted. Does not block, is not removed, so the decision is made on data rather than in irritation.
+
+      **`retired`** — removed from the manifest, implementation and sabotage case deleted together.
+  - key: two-independent-tracks
+    md: |
+      A gate has two lives, and conflating them causes trouble:
+
+      | | Where | Governs |
+      | --- | --- | --- |
+      | Implementation | the `torve` package | the code, its sabotage case, its version |
+      | Activation | the repository's `gates.yaml` | whether it is on, in which state, with what parameters |
+
+      The same gate may be `blocking` in one repository and `shadow` in another. This is necessary: rolling a new gate out to ten projects simultaneously is how ten teams become annoyed at once.
+  - key: manifest-entry
+    md: |
+      ```yaml
+      - name: no-test-tampering
+        state: blocking            # shadow | blocking | quarantined
+        origin: leak/T-0142        # leak/<task> | rfc/<id> | structural
+        added: 2026-08-14
+        input: diff
+        timeout: 30s
+      ```
+
+      `origin` costs one line and answers "why do we have this" for as long as the gate exists. Without it, a gate is eventually removed for the wrong reason or kept for no reason.
+
+      `state` in the manifest, not `blocking: true` — a boolean cannot express shadow or quarantine, and those are where a gate spends its most informative periods.
+  - key: health
+    md: |
+      Per gate, all derivable from attempt telemetry (§8):
+
+      | Metric | Reading |
+      | --- | --- |
+      | hit rate | how often it fires |
+      | bypass count | high means the gate is miscalibrated, not that people are careless |
+      | flake rate | from the `flaky` outcome in §6a |
+      | duration p50/p95 | its cost |
+      | first-attempt pass rate | how well the paired skill is working |
+
+      Review quarterly. A gate nobody has looked at in a year is a gate nobody can justify.
+  - key: retirement
+    md: |
+      Signals:
+
+      - **No fires over a long window, sabotage green.** The defect class stopped occurring or became structurally impossible — types, architecture. Retire.
+      - **No fires, sabotage red.** The gate is broken, not the code clean. Fix, do not retire. *This distinction is the reason the sabotage suite runs continuously rather than once at authoring time.*
+      - **High bypass count.** Narrow its scope or remove it.
+      - **Long quarantine for flakiness.** Rewrite or remove.
+      - **Superseded by an earlier check.** What a type checker now catches need not be caught at runtime.
+
+      **Retirement requires the same evidence as adoption.** Without that rule, the first difficult sprint removes half the checks under the banner of unblocking delivery.
+
+      Retiring a gate retires its sabotage case and shrinks or removes its paired skill (RFC 0009 D-9.5) in the same change — otherwise an instruction survives for a rule that no longer exists.
+  - key: tightening-is-a-new-gate
+    md: |
+      Materially tightening an existing gate produces a different gate as far as telemetry is concerned, and before/after comparisons cannot cross that boundary. `config_hash` (§8) captures it, but a substantial tightening should also go back through `shadow`.
+  - key: telemetry-from-day-one
+    md: |
+      Even without a store, each run appends one JSONL record. Three fields must be right from the first line, because none can be reconstructed later:
+
+      - `schema_version`
+      - `config_hash` — a digest of `gates.yaml`, the skill set, and the tier mapping in force. Without it, "did this gate pay for itself" is unanswerable, because there is no way to tell which runs were under which regime.
+      - decisions **denormalised into the record**, not referenced — a cross-store join is exactly what will not work at this stage.
+  - key: decisions
+    md: |
+      *Provenance note 2026-08-22:* the log-format conventions (the `drift_count` claim D-2.10, the `bypasses:` list D-2.7), the skills placement markers (A-2, A-3) and the corpus-wide Paths column were settled during the T-0005 execution — see .torve/tasks/T-0005.
+  - key: exit-criteria
+    md: |
+      - Five gates green in CI in at least two repositories, applied to human pull requests as well as agent ones.
+      - Sabotage suite passing, and observed to fail when a gate is deliberately broken.
+      - Two weeks of JSONL telemetry with `config_hash` populated — the baseline RFC 0004 will compare against.

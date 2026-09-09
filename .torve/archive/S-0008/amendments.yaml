@@ -1,0 +1,279 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-30
+    at: '2026-08-24'
+    title: a revisited state is a new fact (amends D-8.2)
+    md: |-
+      **Found in operation** — on the first organic retry under the standing
+      schedule. A candidate was reflected `ready` at attempt 1, escalated on a
+      merge conflict (the board correctly retired `state:ready` for
+      `state:escalated:merge_conflict`), was re-queued by the commander, and
+      came back `ready` at the same attempt count. The state effect's key
+      `(task_id, state, attempt)` had already been delivered, so the revisit
+      deduped away — the issue kept wearing the escalation label over a ready
+      candidate, a projection showing yesterday's state.
+
+      **Changed:** the state effect's key gains the run's transition ordinal —
+      the length of the state history that every transition already appends
+      to. Replays still deliver nothing (the ordinal is stable between
+      transitions), but a revisit is a longer history and therefore a new
+      effect. Escalation, notify and attempt effects keep their keys: attempts
+      move between their revisits by construction.
+
+      **Deliberately unchanged:** the outbox mechanism, the ledger, and the
+      at-least-once contract; on upgrade, each task's *current* state is
+      re-reflected once under the new key form — idempotent at the
+      destination, a label re-set and nothing more.
+  - id: A-33
+    at: '2026-08-24'
+    title: >-
+      the board is for humans (amends D-8.14, retires D-8.15, adds D-8.16)
+    md: |-
+      **Operator feedback**, after a day of live operation: review tasks
+      doubled the board and never asked for anything. The doubling fell out of
+      two sound rules composing badly — reviews are tasks (RFC 0005 D-5.9),
+      and every task projected an issue — and the day's earlier decorations
+      (the `review` label, the sub-issue nesting) treated the symptom while
+      the question was the row's existence. A board row exists to solicit
+      human input; a review runs unprompted, its findings matter only in
+      relation to the work it reviewed, and its escalations should interrupt
+      on the work's thread where the retry/abandon decision lives.
+
+      **Changed:** review-role tasks are not projected as issues (D-8.16).
+      A review's attempt summary posts as a comment on its target's issue; a
+      review escalation notifies on the target's thread. The run store keeps
+      the full review record as before — the board just stops mirroring it.
+      The review label and the sub-issue nesting retire with the rows they
+      decorated — built in the morning, measured by evening, deleted honestly.
+
+      **Deliberately unchanged:** D-5.9 (reviews are tasks — projection is
+      what changed, not the task model); the approve refusal for review-role
+      tasks (D-8.14's surviving half); D-8.11's close-out, which now also
+      tidies the legacy review issues out of the board; and the review
+      machinery itself — what runs is untouched, only what is shown.
+  - id: A-36
+    at: '2026-08-25'
+    title: >-
+      the label follows the gap (amends D-8.13, adds D-8.17)
+    md: |-
+      **Found in operation** — after the first batch fully drained, the owner
+      reviewed the board and found landed, closed issues still wearing
+      `needs:approval` beside `state:landed`. The prompt's label had an
+      application path (D-8.13) and no removal path at all: not on the
+      approval it asked for, not on the requeue that superseded its tip, not
+      at the landing. A label that never retires stops carrying information
+      the day it is first applied.
+
+      **Changed:** the label is a claim about the present (D-8.17). Three
+      clears, all idempotent effects through the same outbox: an applied
+      approve command stages removal immediately; the projection stages a
+      clear for any run observed outside ready — keyed on the transition
+      ordinal like every state effect (A-30), and staged only for tasks the
+      ledger shows were ever prompted, so the outbox does not fill with
+      clears for labels never worn; the landings pass stages the backstop
+      clear. The tracker port gains `unlabel`, and a removal of an absent
+      label is absorbed at the destination like every other replay.
+
+      **Deliberately unchanged:** the prompt itself and its per-tip key
+      (D-8.13's core); the single-state-label rule (D-8.12), which was
+      working — `state:*` staleness during a busy drain is delivery lag that
+      self-corrects, not a defect; and the outbox's at-least-once contract.
+  - id: A-40
+    at: '2026-08-25'
+    title: >-
+      revise: the commander's re-queue of a ready candidate (adds D-8.18; the D-8.3
+      vocabulary grows)
+    md: |-
+      **Found in operation** — the disjoint experiment batch produced the
+      corpus's first true line-anchored review finding: an allow-listed
+      reviewer flagged a Major correctness bug in a candidate the task-gated
+      review had passed, verified real against the code. The candidate sat
+      READY. `/torve retry` answered on the board: "retry needs an escalated
+      run; this one is ready" — and the commander's remaining options were
+      approve-the-bug or abandon-the-task. The state machine had no
+      `ready → queued` edge at all: external review findings on a passing
+      candidate had no path back into the loop, and the bug landed.
+
+      **Changed:** the vocabulary gains `revise` (D-8.18). Its apply demands
+      a READY implement-or-revert run, executes the same capture-first
+      cleanup as retry — the pull request's allow-listed review threads and
+      the superseded diff enter the revision record while the candidate
+      still stands, and the branch persists (D-10.10) — then transitions
+      `ready → queued`, the one new edge, minted for exactly this command.
+      The re-run revises on the same pull request; its fresh tip prompts for
+      its own sha-bound approval.
+
+      **Deliberately unchanged:** retry, which keeps its escalated-only
+      contract — the two verbs answer different situations and a shared
+      verb would blur the record; reviews, which are never revised (their
+      re-run rides their target's); approvals, sha-bound as always — a
+      superseded tip's approval counts for nothing; and the review's
+      advisory grade — `revise` is a human judgement about a finding, never
+      an automatic consequence of one.
+  - id: A-92
+    at: '2026-09-05'
+    title: >-
+      the projection is deleted, not deprecated (retires the implementation)
+    md: |-
+      **The owner, 2026-09-05:** *"for a while we can completely wipe github
+      issues projector (tracker projection) — not necessary now (as it's
+      underdeveloped and we would need to rebuild it almost from scratch)."*
+
+      Deleted rather than left inert: `application/tracker.py`,
+      `application/outbox.py`, `cli/tracker.py`, `adapters/tracker/`, the `Tracker`
+      port and its three value objects, `TrackerConfig`, the tick's `poll` and
+      `sync` legs, and the tests for all of it — about 2,600 lines. The
+      `tracker_command` leg of RFC 0022's operator-attention projection goes with
+      them, since no surface produces those events any more.
+
+      **Why deletion rather than deprecation.** The projection was already inert
+      in every repository torve runs: `tracker.kind` is empty by default and this
+      one never set it. Inert code is not free — it is 2,600 lines that every
+      refactor has to be correct about, and this session moved the runner, the
+      board, the decision graph and the task record past it three times. A
+      subsystem nobody runs and everybody has to maintain is worse than one that
+      is gone and recorded.
+
+      **What the deletion also takes, which is the part worth reading.** The
+      tracker carried the *inbound* half: `/torve` commands, the commander
+      approvals D-8.9 authorized, and RFC 0020's intake requests. Deleting the
+      outbound projection without them was not available — they share the port and
+      the poll leg. `torve intake` from the command line survives untouched; what
+      is gone is a request arriving as an issue.
+
+      **What survives, deliberately.** This document, its decisions and its
+      identifiers. D-8.1's rule — the board is a view, never authority — is the
+      one thing a rebuild must not relearn by being burned, and it costs nothing
+      to keep written down. The implementation state is `abandoned`, which is the
+      D-A.11 judgement for exactly this: not a design that failed, a build that
+      stopped being worth its maintenance.
+
+      **A rebuild starts here, not from scratch.** §3's outbound mapping, §4's
+      idempotency rules and the restricted inbound command set are unchanged by
+      the deletion, and A-30/A-33/A-36/A-40 record what the first build learned.
+      The corpus check now warns that six LOCKED globs name modules that do not
+      exist. That is correct and should stay: for an abandoned document the globs
+      name where the build was and where a rebuild would go, and stripping them to
+      silence the warning would delete the one thing that says where.
+  - id: A-143
+    at: '2026-09-09'
+    title: >-
+      12 path-rotted row(s) retired by `torve rfc check --fix-rot`
+    changes:
+      - subject: D-8.1
+        field: retired
+        before: src/torve/application/tracker.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.2
+        field: retired
+        before: >-
+          src/torve/application/outbox.py src/torve/application/tracker.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.3
+        field: retired
+        before: src/torve/application/tracker.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.4
+        field: retired
+        before: src/torve/application/tracker.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.7
+        field: retired
+        before: src/torve/application/tracker.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.8
+        field: retired
+        before: src/torve/adapters/tracker/github.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.11
+        field: retired
+        before: >-
+          src/torve/application/tracker.py src/torve/adapters/tracker/github.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.12
+        field: retired
+        before: src/torve/adapters/tracker/github.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.13
+        field: retired
+        before: >-
+          src/torve/application/tracker.py src/torve/cli/tick.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.14
+        field: retired
+        before: src/torve/application/tracker.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.16
+        field: retired
+        before: src/torve/application/tracker.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+      - subject: D-8.17
+        field: retired
+        before: >-
+          src/torve/application/tracker.py src/torve/adapters/tracker/github.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+    md: |-
+      ```yaml changes
+      - subject: D-8.1
+        field: retired
+        before: src/torve/application/tracker.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.2
+        field: retired
+        before: src/torve/application/outbox.py src/torve/application/tracker.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.3
+        field: retired
+        before: src/torve/application/tracker.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.4
+        field: retired
+        before: src/torve/application/tracker.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.7
+        field: retired
+        before: src/torve/application/tracker.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.8
+        field: retired
+        before: src/torve/adapters/tracker/github.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.11
+        field: retired
+        before: src/torve/application/tracker.py src/torve/adapters/tracker/github.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.12
+        field: retired
+        before: src/torve/adapters/tracker/github.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.13
+        field: retired
+        before: src/torve/application/tracker.py src/torve/cli/tick.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.14
+        field: retired
+        before: src/torve/application/tracker.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.16
+        field: retired
+        before: src/torve/application/tracker.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      - subject: D-8.17
+        field: retired
+        before: src/torve/application/tracker.py src/torve/adapters/tracker/github.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      ```
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

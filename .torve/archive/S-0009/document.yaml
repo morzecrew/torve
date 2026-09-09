@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: 0009
+title: Skills and evals
+kind: design
+status: superseded
+implementation: partial
+depends_on: ['0004']
+informed_by: []
+supersedes: []
+superseded_by: '0055'
+owner: Lev Litvinov
+description: >-
+  Skill routing per role, versioned distribution, trigger collision, and the eval
+  loop that retires skills that do not earn their tokens.
+schema_version: 3
+sections:
+  - key: why-this-needs-a-document
+    md: |
+      Skills are load-bearing: they are how an agent passes a gate on the first attempt instead of the third, and `config_hash` already treats the skill set as part of the regime a measurement belongs to. Yet nothing in this corpus says which skills load for which role, what happens when several fire at once, or how one is retired.
+
+      That is half the quality story living outside the specification.
+
+      **The framing that keeps it honest:** a skill is probabilistic and a gate is not. A skill never provides a guarantee, however well written. Its job is to reduce iterations, and iterations are measurable — so a skill's value is an empirical claim, not a matter of taste.
+  - key: three-clusters-very-different-returns
+    md: |
+      The existing library divides cleanly, and the divisions have different economics.
+
+      | Cluster | Examples | Verdict |
+      | --- | --- | --- |
+      | **Mechanical format** | changelog conventions, commit format, docstring style | Candidates for linters and hooks. A full lookup table burned into context on every run is a script's job. Low uplift, constant cost. |
+      | **Taste and refactoring** | naming, nesting, composition, premature optimisation | Widely-known practice that frontier models largely have. Marginal uplift plausibly near zero; the cluster most likely to fail an eval. |
+      | **Verification discipline** | reproduce-then-fix, reading-isn't-proof, self-audit, failure-path-review, ratchet-what-you-build | **The valuable one.** These encode behaviours models do not exhibit by default — not fixing before reproducing, claiming done without running. High uplift because the fight is against default behaviour, not ignorance. |
+
+      Consequence: cluster C is effectively a verification harness in prose, and it maps directly onto the gates in RFC 0002. Grow it; put A behind hooks; make B prove itself.
+  - key: trigger-collision-is-the-real-cost
+    md: |
+      Two dozen skills with broad triggers means several fire on one diff — naming, self-documenting-code and nesting all match any code review. That multiplies context and can produce contradictory instructions, and neither effect is visible without measurement.
+
+      Two mitigations, in order of preference:
+
+      1. **Role-scoped sets.** A skill declares which roles it applies to; an implement run never loads review skills, and vice versa. Cheap, and removes most collisions outright.
+      2. **Umbrella skills with on-demand references.** One `code-review` entry point that decides which `references/` to pull in, rather than N sibling skills each competing to trigger.
+
+      ```yaml
+      skills:
+        path: .torve/skills
+        sets:
+          implement: [reproduce-then-fix, reading-isnt-proof, flag-dont-flip, self-audit]
+          review:    [failure-path-review, fewer-tests-more-proof]
+          revert:    [reproduce-then-fix]
+        max_in_prompt: 6
+      ```
+
+      `max_in_prompt` is a hard ceiling, not a target. When more match, the set is truncated by declared priority and **the truncation is recorded on the attempt** — otherwise a skill silently stops applying and the telemetry lies.
+  - key: distribution
+    md: |
+      Same problem as gates, same answer: skills ship as a versioned package, not copied directories. A lockfile pins the set per repository, and `config_hash` incorporates it.
+
+      The engine reads skills but does not interpret them — they are passed to the agent adapter, which places them where its harness expects. Portability matters here: the `SKILL.md` convention is honoured by several harnesses, which is what keeps the library from being locked to one vendor.
+  - key: vendored-skills
+    md: |
+      *Added by amendment A-25 2026-08-22.*
+
+      The package ships only the skills Torve parses (A-3), which leaves the rest of a team's library — review checklists, stack conventions, everything in `agent-skills` — with no road into the sandbox. The road is the same one the sandbox definitions took (RFC 0017 §2): **committed, reviewed artefacts in the repository**.
+
+      A repository vendors skills under `.torve/skills-vendor/<name>/`, each a directory with a `SKILL.md`. Role sets in the runner configuration name them exactly as they name shipped skills, and `materialize` resolves each name against package data and the vendor directory together; a name unknown to both stays a configuration error, exit 3.
+
+      Three lines hold the shape:
+
+      - **A name present in both places is a configuration error, refused** — never shadowed in either direction. This structurally enforces the A-3 boundary: a vendored variant of `flag-dont-flip` would drift against the gate that parses its output, which is the exact failure A-3 exists to prevent.
+      - **The vendored tree's content digest joins `config_hash`.** An edited vendored skill is a regime change and the records say so — the image-digest doctrine (RFC 0017, D-17.1) applied to prompt-side inputs.
+      - **This is the task-context channel** (RFC 0017 §3): vendored skills are reviewed repository content instructing the agent about the *work*, which is allowed; what stays forbidden is the repository configuring the *harness* that works on it (D-17.4). Skills materialize per role at dispatch exactly as shipped skills do — a review role gets its review set, an implementation role its own.
+
+      Vendoring is a copy, pinned by review: updating from an upstream library like `agent-skills` is a diff someone reads, not a submodule that moves under the run. If a lockfile-driven sync ever earns its keep, it arrives as tooling around this layout, not as a second channel.
+
+      *Execution note 2026-08-23 (T-0047):* vendoring is inert until a role set names the skill — the repository review gates the content, the configuration names when it applies. The default sets stay shipped-only, so a fresh repository's regime is reproducible from the package alone.
+  - key: evals
+    md: |
+      The question "is this skill worth its tokens" has a machine answer, and the tooling to produce it already exists in the skill repository.
+
+      Per skill:
+
+      - 5–10 prompts that **should** trigger it, 3–5 that should not — trigger precision and recall.
+      - With-skill versus without-skill runs on the same tasks: iterations-to-green, gate failures on first attempt, tokens consumed.
+      - A retirement threshold: a skill whose without-skill baseline matches its with-skill result is deleted, not kept for comfort.
+
+      Two skills' worth of guidance applies to this process itself. `ratchet-what-you-build`: an eval that cannot fail proves nothing, so keep a deliberately mis-triggering prompt in the suite. `distill-the-rule`: when a leak recurs, the choice is a new gate or a new skill — prefer the gate, because a gate is enforcement and a skill is a hope.
+
+      **Run the taste cluster first.** It is the largest, the least likely to survive measurement, and deleting it is the cheapest quality improvement available.
+  - key: skills-and-gates-are-the-same-rule-twice
+    md: |
+      Every rule that matters should exist in both forms, with a fixed division of labour:
+
+      > **The gate is the source of truth. The skill is how the gate is passed on the first attempt.**
+
+      A skill without a gate is a convention. A gate without a skill is a gate that fails a lot and costs iterations. Both, or the rule is not really enforced.
+
+      This also gives a retirement path in the other direction: once a gate exists and its first-attempt pass rate is high, the corresponding skill may be shrinkable to a sentence.
+  - key: exit-criteria
+    md: |
+      - Role-scoped sets configured and truncation events visible in telemetry.
+      - Evals run for the whole library, with at least one skill retired on evidence.
+      - Every cluster-C skill paired with a gate, or an explicit written decision that this class is caught by humans.

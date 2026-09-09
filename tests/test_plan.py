@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from test_decisions import document
+from test_decisions import document, place
 from typer.testing import CliRunner
 
 from torve.application.planner import (
@@ -67,14 +67,13 @@ def phasing(**overrides) -> list[dict]:
     return entries
 
 
-def written(tmp_path: Path, number: str = "0090", title: str = "Widgets", **kwargs) -> Path:
-    slug = title.lower().replace(" ", "-")
-    path = tmp_path / f"{number}-{slug}.yaml"
+def written(spec_dir: Path, number: str = "0090", title: str = "Widgets", **kwargs) -> Path:
+    """One document's `S-NNNN/` directory under *spec_dir* (D-57.1)."""
+
     kwargs.setdefault("rows", TABLE)
     kwargs.setdefault("implementation", "none")
-    path.write_text(document(number, title=title, **kwargs), encoding="utf-8")
 
-    return path
+    return place(spec_dir, number, document(number, title=title, **kwargs))
 
 
 def loaded(tmp_path: Path, **kwargs) -> Document:
@@ -86,8 +85,8 @@ def loaded(tmp_path: Path, **kwargs) -> Document:
 @pytest.fixture
 def plan_repo(tmp_path):
     root = tmp_path / "repo"
-    (root / "rfcs").mkdir(parents=True)
-    (root / ".torve").mkdir()
+    spec_dir = root / ".torve" / "specs"
+    spec_dir.mkdir(parents=True)
 
     def git(*args):
         subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=True)
@@ -98,7 +97,7 @@ def plan_repo(tmp_path):
 
     def write_doc(number: str, title: str, **kwargs) -> None:
         kwargs.setdefault("phasing", PHASING)
-        written(root / "rfcs", number, title, **kwargs)
+        written(spec_dir, number, title, **kwargs)
 
     write_doc("0090", "Widgets")
     (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
@@ -109,7 +108,7 @@ def plan_repo(tmp_path):
 
 def test_minting_inherits_the_table_at_write_time(plan_repo):
     root, _, _ = plan_repo
-    report = plan_document(root, root / "rfcs", "0090")
+    report = plan_document(root, root / ".torve" / "specs", "0090")
     assert [p.task.id for p in report.tasks] == ["T-0001", "T-0002", "T-0003"]
     core = report.tasks[0].task
     assert core.intent == "Build the widget core."
@@ -125,7 +124,7 @@ def test_minting_inherits_the_table_at_write_time(plan_repo):
 
 def test_written_contracts_load_through_the_gates_model(plan_repo):
     root, _, _ = plan_repo
-    report = plan_document(root, root / "rfcs", "0090")
+    report = plan_document(root, root / ".torve" / "specs", "0090")
     written_paths = write_contracts(root, report)
     assert len(written_paths) == 3
     task = load_task(written_paths[0])
@@ -134,9 +133,9 @@ def test_written_contracts_load_through_the_gates_model(plan_repo):
 
 def test_replanning_a_minted_phase_is_refused(plan_repo):
     root, _, _ = plan_repo
-    write_contracts(root, plan_document(root, root / "rfcs", "0090"))
+    write_contracts(root, plan_document(root, root / ".torve" / "specs", "0090"))
     with pytest.raises(PlanError, match="already minted"):
-        plan_document(root, root / "rfcs", "0090")
+        plan_document(root, root / ".torve" / "specs", "0090")
 
 
 def test_draft_documents_are_refused(plan_repo):
@@ -145,7 +144,7 @@ def test_draft_documents_are_refused(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "draft")
     with pytest.raises(PlanError, match="0091 is draft"):
-        plan_document(root, root / "rfcs", "0091")
+        plan_document(root, root / ".torve" / "specs", "0091")
 
 
 def test_a_draft_dependency_is_refused(plan_repo):
@@ -155,7 +154,7 @@ def test_a_draft_dependency_is_refused(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "docs")
     with pytest.raises(PlanError, match="depends on 0091, which is draft"):
-        plan_document(root, root / "rfcs", "0092")
+        plan_document(root, root / ".torve" / "specs", "0092")
 
 
 def test_supersession_is_refused(plan_repo):
@@ -164,7 +163,7 @@ def test_supersession_is_refused(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "superseded")
     with pytest.raises(PlanError, match="superseded"):
-        plan_document(root, root / "rfcs", "0093")
+        plan_document(root, root / ".torve" / "specs", "0093")
 
 
 def test_a_dependency_cycle_is_refused(plan_repo):
@@ -174,15 +173,15 @@ def test_a_dependency_cycle_is_refused(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "cycle")
     with pytest.raises(PlanError, match="cycle"):
-        plan_document(root, root / "rfcs", "0094")
+        plan_document(root, root / ".torve" / "specs", "0094")
 
 
 def test_uncommitted_changes_are_refused(plan_repo):
     root, _, _ = plan_repo
-    doc = next((root / "rfcs").glob("0090-*.yaml"))
+    doc = root / ".torve" / "specs" / "S-0090" / "document.yaml"
     doc.write_text(doc.read_text(encoding="utf-8") + "\nowner: edited\n", encoding="utf-8")
     with pytest.raises(PlanError, match="uncommitted changes"):
-        plan_document(root, root / "rfcs", "0090")
+        plan_document(root, root / ".torve" / "specs", "0090")
 
 
 def test_plan_refuses_a_document_whose_contracts_do_not_lint(plan_repo):
@@ -231,7 +230,7 @@ def test_intersecting_same_phase_scopes_are_refused(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "clash")
     with pytest.raises(PlanError, match="intersect"):
-        plan_document(root, root / "rfcs", "0096")
+        plan_document(root, root / ".torve" / "specs", "0096")
 
 
 def test_a_document_without_phasing_is_not_mintable(plan_repo):
@@ -240,7 +239,7 @@ def test_a_document_without_phasing_is_not_mintable(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "no phasing")
     with pytest.raises(PlanError, match="no phasing"):
-        plan_document(root, root / "rfcs", "0097")
+        plan_document(root, root / ".torve" / "specs", "0097")
 
 
 # ....................... #
@@ -265,7 +264,7 @@ def test_a_phase_depending_on_an_undefined_phase_is_refused(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "dangling")
     with pytest.raises(PlanError, match="which no entry defines"):
-        plan_document(root, root / "rfcs", "0097")
+        plan_document(root, root / ".torve" / "specs", "0097")
 
 
 def test_the_loader_refuses_a_phase_without_an_intent(tmp_path):
@@ -283,7 +282,7 @@ def test_the_loader_refuses_a_grade_outside_the_vocabulary(tmp_path):
 def test_rfc_check_reddens_on_a_phasing_entry_the_model_refuses(plan_repo):
     root, write_doc, _git = plan_repo
     write_doc("0098", "Broken", phasing=[{"phase": 0}])
-    result = CliRunner().invoke(app, ["rfc", "check", "--root", str(root)])
+    result = CliRunner().invoke(app, ["spec", "check", "--root", str(root)])
     assert result.exit_code == 3
     assert "phasing.0" in result.output
 
@@ -353,22 +352,22 @@ def test_standing_decisions_intersect_in_and_out(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "frobs")
 
-    inside = standing_decisions(root / "rfcs", ["src/frob/core.py"])
+    inside = standing_decisions(root / ".torve" / "specs", ["src/frob/core.py"])
     assert [d.id for d in inside] == ["D-91.1"]
 
-    outside = standing_decisions(root / "rfcs", ["src/widget/core.py"])
+    outside = standing_decisions(root / ".torve" / "specs", ["src/widget/core.py"])
     assert [d.id for d in outside] == ["D-90.1"]
 
-    both = standing_decisions(root / "rfcs", ["src/**"])
+    both = standing_decisions(root / ".torve" / "specs", ["src/**"])
     assert [d.id for d in both] == ["D-90.1", "D-91.1"]
 
-    unconstrained = standing_decisions(root / "rfcs", [])
+    unconstrained = standing_decisions(root / ".torve" / "specs", [])
     assert unconstrained == []
 
 
 def test_standing_decisions_copy_grade_and_paths_at_write_time(plan_repo):
     root, _, _ = plan_repo
-    assert standing_decisions(root / "rfcs", ["src/widget/core.py"]) == [
+    assert standing_decisions(root / ".torve" / "specs", ["src/widget/core.py"]) == [
         InheritedDecision(
             id="D-90.1",
             grade="LOCKED",
@@ -383,7 +382,7 @@ def test_standing_decisions_pathless_rows_are_never_standing(plan_repo):
     root, _, _ = plan_repo
     # D-90.2 declares no paths — it governs its own document's work only and
     # can never be standing, even against an allow that would cover anything.
-    rows = standing_decisions(root / "rfcs", ["src/**", "tests/**"])
+    rows = standing_decisions(root / ".torve" / "specs", ["src/**", "tests/**"])
     assert [d.id for d in rows] == ["D-90.1"]
     assert "D-90.2" not in [d.id for d in rows]
 
@@ -408,7 +407,7 @@ def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
     git("add", "-A")
     git("commit", "-qm", "non-standing docs")
 
-    rows = standing_decisions(root / "rfcs", ["src/widget/**"])
+    rows = standing_decisions(root / ".torve" / "specs", ["src/widget/**"])
     assert [d.id for d in rows] == ["D-90.1"]
 
 
@@ -432,7 +431,7 @@ def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
     write_doc("0099", "Personas", phasing=phasing(tier_variant="copywriter"))
     git("add", "-A")
     git("commit", "-qm", "personas")
-    report = plan_document(root, root / "rfcs", "0099")
+    report = plan_document(root, root / ".torve" / "specs", "0099")
     equipped, plain = report.tasks[0].task, report.tasks[1].task
     assert equipped.tier_variant == "copywriter"
     assert plain.tier_variant is None
@@ -458,7 +457,7 @@ def test_minting_copies_character_onto_the_contract(plan_repo):
     write_doc("0098", "Characters", phasing=phasing(character="routine"))
     git("add", "-A")
     git("commit", "-qm", "characters")
-    report = plan_document(root, root / "rfcs", "0098")
+    report = plan_document(root, root / ".torve" / "specs", "0098")
     marked, plain = report.tasks[0].task, report.tasks[1].task
     assert marked.character == "routine"
     assert plain.character is None
@@ -471,7 +470,7 @@ def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
     import yaml
 
     root, _, _ = plan_repo
-    write_contracts(root, plan_document(root, root / "rfcs", "0090"))
+    write_contracts(root, plan_document(root, root / ".torve" / "specs", "0090"))
     contract = next((root / ".torve" / "tasks").glob("T-*/contract.yaml"))
     text = contract.read_text(encoding="utf-8")
     minted = yaml.safe_load(text)
@@ -534,7 +533,7 @@ def test_minting_into_the_record_writes_no_file_and_numbers_from_the_board(plan_
             actor_id="m",
         )
         board = project(await log.since(partition=PARTITION))
-        report = plan_document(root, root / "rfcs", "0090", board=board)
+        report = plan_document(root, root / ".torve" / "specs", "0090", board=board)
 
         assert [p.task.id for p in report.tasks] == ["T-0008", "T-0009", "T-0010"]
 
@@ -550,7 +549,7 @@ def test_minting_into_the_record_writes_no_file_and_numbers_from_the_board(plan_
 
         # a second plan sees the board's mints as minted
         with pytest.raises(PlanError, match="already minted"):
-            plan_document(root, root / "rfcs", "0090", board=board)
+            plan_document(root, root / ".torve" / "specs", "0090", board=board)
 
     run(scenario)
 

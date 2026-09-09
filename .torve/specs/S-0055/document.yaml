@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: '0055'
+title: Standing decisions
+kind: design
+status: accepted
+implementation: complete
+depends_on: []
+informed_by: ['0053']
+supersedes: []
+superseded_by: null
+owner: misery7100
+description: >-
+  The standing baseline for this repository after RFC 0053's archive: the rows that
+  govern the tree as it is, drafted through the brownfield lane from the survey, the
+  gate record and the archive, for the owner to grade and accept.
+schema_version: 3
+sections:
+  - key: summary
+    md: |
+      RFC 0053 archived a corpus of 597 rows in fifty-two documents, half of
+      them never cited and a third never inherited. This document is what stands
+      in their place: roughly sixty rows, grouped by the boundary each one
+      guards, each naming the paths it governs today and citing the archived row
+      or document it descends from.
+
+      The grading follows the skill's doctrine and departs from it in one
+      declared way. `LOCKED` is given only where the repository's own history
+      shows the boundary being defended: a gate that convicted attempts and saw
+      the corrections land (scope 32 times, decisions-reported 61,
+      user-facing-text 28, layering 2, source-layout 4), or a boundary the tree
+      holds as structure with a check that has never let it slip (the five
+      import-linter contracts, the sabotage battery in CI, the authority table on
+      the record). Everything else is `ASSUMED`, including rows the archive held
+      as `LOCKED` for a month: the archived grade is provenance, not evidence,
+      and the acceptance edit is where the owner's judgement re-enters. No row is
+      `OPEN`; the four questions the extraction could not settle are in §3, named.
+
+      The departure: the skill extracts rows from fired gates and corpus gaps
+      alone, and would produce five rows here. This repository is not a
+      stranger's — it has an engine, a record and a graded corpus behind it — so
+      the rows below also draw on the code's own structure and the archive, and
+      §2 says which source each group rests on. D-31.6 leaves the baseline's
+      shape to the first adoption; this is the first adoption, and the shape it
+      chose is one document with provenance in the fence.
+  - key: the-evidence
+    md: |
+      **The gate record.** Over 745 attempt rows, the battery convicted:
+      `decisions-reported` 61, `coverage-delta` 58 (shadow), `scope` 32,
+      `rfc-valid` 29, `user-facing-text` 28, `acceptance` 19, `self-audit` 8
+      (shadow), `source-layout` 4 (shadow), `layering` 2. Every conviction was
+      followed by a correction that landed green under the same gate — the
+      attempt loop's whole design — which is the doctrine's strongest evidence
+      for a defended boundary. The gates that never convicted (`secrets`,
+      `no-test-tampering`) hold boundaries visible in the tree (`.env` ignored,
+      names-never-values in every configuration file, tests under `tests/`),
+      which is the doctrine's second kind of evidence.
+
+      **The tree.** Five layers under `src/torve/` with five import-linter
+      contracts over the whole package; a gate manifest naming a sabotage twin for
+      every entry and a CI job that proves each can fail; an event vocabulary of
+      twenty-one kinds with an authority table refusing a writer that may not;
+      adapters one directory per port; configuration that carries variable names
+      and never values.
+
+      **The archive.** 535 archived rows still name paths that exist. The rows
+      below are the subset that a contract minted tomorrow would need: the ones
+      that say what an executor may not do, where a boundary lies, or what a
+      reader may rely on. A row that described an increment's design rather than
+      a standing rule stays in the archive, resolvable and retired.
+
+      **The survey.** `torve survey --last 40` over `main` was running when this
+      draft was written and its findings are appended to this section when it
+      lands; the extraction expects it to confirm the gate record above (the
+      replay runs the same battery over the same landings) and to add nothing the
+      record does not already show.
+  - key: questions-the-extraction-could-not-settle
+    md: |
+      - **Whether `secrets` and `no-test-tampering` deserve `LOCKED`.** Neither
+        has ever convicted; both hold boundaries the tree shows. The doctrine
+        admits a consistent clean record with structure as lock evidence, and the
+        draft grades them so. The owner may prefer `ASSUMED` until one fires.
+      - **Whether the typing floor is a standing row or a CI fact.** `mypy
+        --strict` and `basedpyright` strict over `src/` block CI and the
+        acceptance fallback; nothing in the archive graded it. Drafted `ASSUMED`
+        as an invariant with its check.
+      - **Whether RFC 0053's own rows should be restated here.** They stand in
+        the corpus path already and are inherited by path intersection; restating
+        them would be the duplication D-A.4 forbids. Not restated.
+      - **Whether the baseline is one document or several.** One, per the
+        skill's recorded shape; the rows below are grouped so a later split by
+        area is a cut, not a rewrite.

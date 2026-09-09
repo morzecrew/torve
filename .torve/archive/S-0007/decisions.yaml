@@ -1,0 +1,223 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-7.1
+    grade: LOCKED
+    text: >-
+      No model calls inside the planner, for any reason
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      The place where they will try to creep in; violation shows up as a new dependency
+  - id: D-7.2
+    grade: LOCKED
+    text: >-
+      `torve plan` accepts only a committed, reviewed document
+    paths: [src/torve/application/planner.py]
+    consequence: The human signature in the loop
+  - id: D-7.3
+    grade: LOCKED
+    text: >-
+      The MCP surface is read-only and never given to an executing agent
+    paths: [src/torve/cli/mcp.py]
+    consequence: >-
+      A writable planning surface is autonomous planning by another route
+  - id: D-7.4
+    grade: OPEN
+    text: Output format of `torve context`
+    paths: [src/torve/application/projections.py]
+    consequence: Markdown, JSON, or both — decided by use
+  - id: D-7.5
+    grade: LOCKED
+    text: >-
+      An empty decision list is legal but must be explicit
+    paths: [src/torve/gates/decisions_reported.py, src/torve/domain/**]
+    consequence: >-
+      Distinguishes "none apply" from "field forgotten"
+  - id: D-7.6
+    grade: LOCKED
+    text: >-
+      `DecisionSource` adapters are deterministic; model-assisted extraction runs
+      outside the engine
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      Keeps D-2 intact while still bootstrapping brownfield repositories
+  - id: D-7.7
+    grade: LOCKED
+    text: >-
+      `torve plan` refuses unless the document and every `depends_on` target are `accepted`
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      Inheriting a grade from a draft breaks the copy-at-write-time guarantee
+  - id: D-7.8
+    grade: LOCKED
+    text: >-
+      `torve plan` takes exactly one document; no sets, no subgraphs, no `--all`
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      Batch planning inherits from documents still being amended — the drift this
+      system removes
+  - id: D-7.9
+    grade: ASSUMED
+    text: '`informed_by` is unenforced'
+    paths: [rfcs/**]
+    consequence: >-
+      A reading hint that blocks is an irritant with no protection attached
+  - id: D-7.10
+    grade: LOCKED
+    text: >-
+      Tasks minted from a document that later becomes `superseded` escalate as `stale_inheritance`;
+      the engine does not rewrite them
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      What to do with in-flight work is a human decision
+  - id: D-7.11
+    grade: ASSUMED
+    text: >-
+      `torve context` renders the RFC graph, not only task state
+    paths: [src/torve/application/projections.py]
+    consequence: The graph's real use is human, not scheduling
+  - id: D-7.12
+    grade: LOCKED
+    text: >-
+      The RFC format is owned by the package; validation does not depend on an installed
+      skill. From RFC 0053 the owner is the model's loader in `src/torve/config/spec.py`,
+      with the parser in `src/torve/config/rfc_parse.py` beside it until phase 5 deletes
+      it (D-53.13)
+    paths: [src/torve/config/rfc_parse.py]
+    consequence: >-
+      Two parsers and no definition is how the planner and the validator drift apart
+    fingerprint: 5f4218d6a9f7f40e/71ed077d6d777502
+  - id: D-7.13
+    grade: LOCKED
+    text: >-
+      `Grade`, `Status` and `Kind` are defined once in `domain/rfc.py` and imported
+      everywhere
+    paths: [src/torve/domain/rfc.py]
+    consequence: >-
+      A duplicated vocabulary eventually gains a member in one copy only
+  - id: D-7.14
+    grade: ASSUMED
+    text: >-
+      `rfc-valid` is a product gate, shipped in the package
+    paths: [src/torve/cli/rfc.py]
+    consequence: >-
+      Any repository writing specs for `torve plan` needs it
+  - id: D-7.15
+    grade: ASSUMED
+    text: >-
+      `torve context` reports asserted `implementation` beside derived per-phase progress,
+      and flags disagreement
+    paths: [src/torve/application/projections.py]
+    consequence: The disagreement is the informative part
+  - id: D-7.16
+    grade: LOCKED
+    text: >-
+      `torve rfc check --with-store` is opt-in; the default check needs no database
+    paths: [src/torve/config/rfc_parse.py]
+    consequence: >-
+      `rfc-valid` is a product gate and must run without infrastructure
+  - id: D-7.17
+    grade: LOCKED
+    text: >-
+      Foreign spec formats are out of scope; `DecisionSource` is the extension point
+      if that changes
+    paths: [src/torve/application/ports.py]
+    consequence: >-
+      A bridged document carries nothing to inherit, so the anti-drift contour is
+      absent rather than degraded
+  - id: D-7.18
+    grade: LOCKED
+    text: >-
+      Only `torve plan`, `torve rfc *` and `RfcDirectory` know the RFC format
+    paths: [src/torve/config/rfc_parse.py, src/torve/cli/rfc.py, pyproject.toml]
+    consequence: >-
+      The format terminating at the planner is what keeps a different source possible
+      at all
+  - id: D-7.19
+    grade: OPEN
+    text: >-
+      `--with-store` lands with the first store-derived check (implementation against
+      derived progress, §4); building the flag before its check is an empty promise
+      in `--help`. Added by execution 2026-08-22 — see .torve/tasks/T-0016
+    paths: [src/torve/config/rfc_parse.py]
+  - id: D-7.20
+    grade: ASSUMED
+    text: >-
+      `torve rfc new` fills its skeleton from the rfc-writer template shipped as package
+      data — authoring content riding the wheel, not a validation dependency (D-7.12
+      governs validation). Added by execution 2026-08-22 — see .torve/tasks/T-0016
+    paths: [src/torve/cli/rfc.py, skills/rfc-writer/**]
+  - id: D-7.21
+    grade: ASSUMED
+    text: >-
+      The Phasing format is a fenced YAML unit list under `## Phasing`, owned by `rfc_parse`
+      like the rest of the format; prose-only sections are legal but unmintable. Added
+      by execution 2026-08-22 — see .torve/tasks/T-0025
+    paths:
+      - src/torve/config/rfc_parse.py
+      - skills/rfc-writer/references/rfc-template.md
+  - id: D-7.22
+    grade: ASSUMED
+    text: >-
+      Minting mechanics: the full decision table is inherited with grade and paths
+      at write time; task ids are the maximum plus one and never reused; an already-minted
+      phase refuses; same-phase scope overlap refuses conservatively. Added by execution
+      2026-08-22 — see .torve/tasks/T-0025
+    paths: [src/torve/application/planner.py]
+  - id: D-7.23
+    grade: ASSUMED
+    text: >-
+      Phase scopes may overlap across phases — dependency order serialises them; only
+      scopes within one phase must be disjoint. Owner-settled from the T-0028 review.
+      Added by execution 2026-08-22 — see .torve/tasks/T-0028
+    paths: [src/torve/application/planner.py]
+  - id: D-7.24
+    grade: ASSUMED
+    text: >-
+      Proposal freshness is derived from corpus citation of the originating task id;
+      promoted rows keep citing their task precisely because this projection reads
+      it. Added by execution 2026-08-22 — see .torve/tasks/T-0026
+    paths: [src/torve/application/projections.py, rfcs/**]
+  - id: D-7.25
+    grade: ASSUMED
+    text: >-
+      The context projections live in `projections.py` — the gates package owns the
+      `context` module name. Added by execution 2026-08-22 — see .torve/tasks/T-0026
+    paths: [src/torve/application/projections.py]
+  - id: D-7.26
+    grade: ASSUMED
+    text: >-
+      A task with no run state whose id a shipping commit cites projects as `shipped`
+      — evidence of record, never a claim the engine ran it; a real run state always
+      outranks the derivation. Added by execution 2026-08-22 — see .torve/tasks/T-0029
+    paths: [src/torve/application/projections.py]
+  - id: D-7.27
+    grade: ASSUMED
+    text: >-
+      `torve rfc graph` renders the corpus as a dependency tree: roots first, a node
+      expands under its first parent and back-references elsewhere, standalone documents
+      appear as bare roots. Two hide rules, recorded by execution: the graph omits
+      accepted-and-complete documents (interior nodes pass through, a footer names
+      them); the programme view hides only note-free settled rows behind a dimmed
+      count. Added by execution 2026-08-22 — see .torve/tasks/T-0032 and T-0034
+    paths: [src/torve/cli/rfc.py, src/torve/cli/context.py]
+  - id: D-7.28
+    grade: ASSUMED
+    text: >-
+      `torve rfc show <identifier>` resolves one corpus identifier — decision, amendment
+      or document — from the single parse the checks run, on demand, no cache and
+      no store; the A-family output names the next free amendment number; an undefined
+      identifier exits 3 naming the nearest family. Added by amendment A-55 2026-08-27
+    paths: [src/torve/cli/rfc.py, src/torve/config/rfc_parse.py]
+    consequence: >-
+      A second parser is the drift D-7.12 exists to prevent, and number allocation
+      by grep is three recorded collisions (A-11, A-12, A-17)
+  - id: D-7.29
+    grade: ASSUMED
+    text: >-
+      The MCP server exposes the same lookup as a second read-only tool, calling the
+      same function; the executor's view is unchanged — decisions still arrive copied
+      into the contract at mint time
+    paths: [src/torve/cli/mcp.py]
+    consequence: >-
+      Two answers to "what does D-n say" — one per surface — would drift exactly as
+      two parsers would (A-47)

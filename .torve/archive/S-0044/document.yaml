@@ -1,0 +1,524 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: '0044'
+title: The manager domain
+kind: design
+status: superseded
+implementation: complete
+depends_on: []
+informed_by: [0019, '0020', '0021', '0027', '0042', '0043']
+supersedes: []
+superseded_by: '0055'
+owner: misery7100
+description: >-
+  The v2 domain: an append-only event log is the system of record for intent and execution,
+  a resident manager owns queues across repositories, workers are stateless claim-pullers,
+  and the repository becomes a projection.
+schema_version: 3
+sections:
+  - key: summary
+    md: |
+      Torve v1 proved a doctrine of contained autonomous execution: graded
+      constraints inherited into task contracts, a gate battery that proves it
+      can fail, an adversarial review lane, a closed escalation vocabulary, and a
+      measurement regime that makes claims checkable. It carried that doctrine on
+      hand-written files in a git repository, and that carrier is now the
+      dominant failure mode: every poison-ceiling in the current measurement
+      window was a *form* conviction — unparseable YAML, evidence grammar,
+      unstaged artifacts — against zero functional ones.
+
+      This RFC moves intent and execution record into an append-only event log,
+      makes the manager resident and durable, makes workers stateless
+      claim-pullers, and demotes the repository to a projection target and work
+      surface. The doctrine ports over unchanged; only its carrier changes. The
+      system stops being a CLI that scans a repository to learn what it knows,
+      and becomes a domain that answers by query and writes the repository as
+      one of its outputs.
+  - key: motivation
+    md: |
+      **The seam is the failure class.** Six poison-ceilings, all form; three
+      escalations where complete, gate-green work failed because a file was
+      written but never staged. A machine interface made of hand-authored YAML
+      cannot be validated at the moment the agent can still act — only after the
+      fact, by a gate, three times, until a ceiling. RFC 0043 patches one path
+      through this; a typed intake deletes the class.
+
+      **Derivation drifts.** RFC 0008's outbox re-derives effects from state on
+      every sweep. That is correct only while the derivation source's shape is
+      frozen: change the state model and every rebuild silently reinterprets
+      history. Recording at write time, with replay as the rebuild path, is
+      strictly stronger and removes an entire category of silent divergence.
+
+      **Scaling has no seam.** Multi-repo means many partitions of one queue;
+      capability scaling means more workers and more seats. Neither is expressible
+      today: the loop is one process per tick on one clone, worktrees are local
+      paths, and the mock store tears under concurrent writers. Every one of these
+      is a property of the carrier, not of the doctrine.
+
+      **Questions cost a repository scan.** The decision graph, the programme
+      view, "what depends on this", "what did we ever decide about this path" —
+      all are re-derived by parsing markdown on every question. They should be
+      queries.
+  - key: current-state
+    md: |
+      Verified against the tree at `d99c8e1`:
+
+      - The layered tree (RFC 0015) is real and enforced by five import-linter
+        contracts under the `layering` gate. `application/` never imports
+        `adapters/`; ports are Protocols in `application/ports.py`. **This
+        survives untouched** — v2 adds modules inside the same layering, it does
+        not fork a parallel tree.
+      - `src/torve/domain/` holds `task.py`, `attempt.py`, `states.py`, `rfc.py`
+        — no event vocabulary yet.
+      - `src/torve/application/intake.py` (RFC 0020) already implements
+        *request → drafting run → human adoption*: a commander's request of any
+        provenance becomes draft contracts through a run, and task ids exist only
+        from the human's adoption signature. **The "source can be anything" seam
+        already exists in one direction**; v2 generalizes and records it.
+      - The `DecisionSource` port was **removed** as speculative (audit A-44–A-54);
+        decisions are read directly from the corpus by `config/rfc_parse.py`
+        today. The port must come back, as the store's read model — its earlier
+        removal was correct for a system with exactly one source.
+      - `migrations/torve/postgres/` contains a README and no migrations: the
+        torve-owned schema is greenfield. The forze substrate's own migrations
+        are separate and already provisioned.
+      - Adapters exist for runtime (docker, opensandbox), agent (harness, fake),
+        store (forze durable), vcs/workspace (git), broker (local), tracker
+        (github). An `eventstore` adapter directory is new; nothing else moves.
+      - `src/torve/gates/evidence.py` already holds the evidence-locatability and
+        grammar validators that the divergence intake must call at write time —
+        the validation logic exists, only its position in time is wrong.
+  - key: goals-non-goals
+    md: |
+      **Goals**
+
+      - One system of record for intent and execution: append-only, typed,
+        versioned, replayable.
+      - Every constraint the doctrine relies on stays enforceable: graded
+        decisions with paths, gate batteries, adversarial review, closed
+        escalation vocabulary, measurement regimes.
+      - A resident manager owning many repositories; stateless workers scaling on
+        seats.
+      - Validation moves to write time wherever an agent could act on the refusal.
+      - v1 stays operational and is retired piece by piece, never in one cut.
+
+      **Non-goals**
+
+      - Rewriting the gates, the review lane, the sizing model or the measurement
+        regime — they are pure services over inputs and port as libraries.
+      - Moving *source code* truth out of git. The repository remains the
+        artifact; only intent and record move.
+      - A hosted multi-tenant product. Single operator, many repositories, is the
+        target of this document.
+      - Choosing a durable-execution vendor. §5.7 makes it an adapter question on
+        purpose.
+  - key: the-event-log
+    md: |
+      One append-only table of typed events is the system of record. Every event
+      carries the same envelope:
+
+      ```yaml
+      id: uuid7                    # time-ordered, the log's total order
+      at: 2026-09-04T12:00:00Z
+      schema_version: 1
+      kind: attempt.finished       # closed vocabulary, one payload model per kind
+      partition: morzecrew/torve   # the repository — see D-44.7
+      subject: {type: task, id: T-0249}
+      actor: {kind: worker, id: w-3}
+      correlation_id: <run>        # what this belongs to
+      causation_id: <event id>     # what caused it
+      payload: {...}               # typed per kind, validated on write
+      ```
+
+      The kind vocabulary is closed the way the escalation enum is closed, and
+      for the same reason: an extensible vocabulary makes history incomparable
+      across time. v1 kinds:
+
+      `source.imported` · `decision.recorded` · `decision.accepted` ·
+      `task.minted` · `task.adopted` · `task.claimed` · `task.released` ·
+      `attempt.started` · `attempt.finished` · `gates.evaluated` ·
+      `divergence.recorded` · `review.recorded` · `blocker.raised` ·
+      `landing.recorded` · `escalation.raised` · `escalation.resolved` ·
+      `message.sent` · `seat.consumed`
+
+      Everything else in the system — run state, the board, the programme view,
+      cost tables, the decision graph — is a **projection**: rebuildable from the
+      log alone, and asserted so by a replay test.
+  - key: the-authority-rule
+    md: |
+      The load-bearing half of D-27 was never "git is truth"; it was *nothing
+      becomes executable intent without a human signature*. That survives as an
+      authority table over `(actor.kind, event.kind)`, enforced by the store on
+      write:
+
+      | Event kind | May be written by |
+      | --- | --- |
+      | `decision.accepted`, `task.adopted` | operator only |
+      | `task.minted`, `task.claimed`, `landing.recorded`, `escalation.*` | manager only |
+      | `attempt.*`, `gates.evaluated`, `review.recorded`, `blocker.raised` | worker only |
+      | `divergence.recorded` | agent, through its worker's intake, validated |
+      | `message.sent` | agent, through its worker's intake, validated; manager or operator, stamped (A-81) |
+      | `source.imported`, `decision.recorded` | operator or manager (never an agent) |
+
+      A write outside the table is refused, and the refusal is itself
+      observable. This is the same discipline as "configuration decides
+      consequences, never the model" (D-2), expressed as write authority.
+  - key: the-truth-boundary-inverted-for-intent
+    md: |
+      | Lives in the store (truth) | Lives in the repository (projection / artifact) |
+      | --- | --- |
+      | sources, decisions, tasks, attempts, verdicts, escalations, landings, messages, seat usage | source code (**git remains truth**) |
+      | the decision graph | materialized contract for the sandbox |
+      | execution history and telemetry | landed divergence log, for the human reading the diff |
+      | queue state and leases | generated decision-graph views (optional, regenerable) |
+
+      Projection is store → repository. The repository is written *by* the
+      engine (materialized contracts in, landing commits out) and read for one
+      purpose: the code under change. A landed contract and log in git are also a
+      durable, human-readable backup of intent — the inversion does not put all
+      eggs in the database, it makes the database authoritative and the repo
+      redundant.
+  - key: the-manager
+    md: |
+      One resident, durable process. It owns:
+
+      - the queue per partition, and dispatch under the invariants that survive
+        from v1 — scope-disjointness of in-flight tasks, dependency satisfied
+        only by a landing, serialized landings per repository;
+      - routing (tier, character, axis, retry variants — RFC 0034's model,
+        unchanged) and seat allocation (RFC 0021's broker, unchanged);
+      - escalation to humans, and the human-signature events that come back.
+
+      Durability comes from the durable-execution port (§5.7), not from
+      process-per-step. This retires the tick doctrine: `torve tick` existed to
+      buy crash-correctness by construction when the loop was fragile, and a
+      durable substrate provides the same property in resident form with
+      observability the tick never had.
+  - key: workers-and-seats
+    md: |
+      A worker holds no assignment state. It claims a task from a partition it is
+      eligible for, materializes the contract into a workspace, runs the
+      harness in a sandbox, runs the battery, runs the review lane, emits events,
+      and either claims again or exits. Any worker can be killed at any moment;
+      the claim expires and the task returns to the queue.
+
+      Capability scaling is worker count × seat inventory (a seat being a harness
+      credential with its own quota and provider policy). Nothing about a worker
+      is repository-specific, which is what makes multi-repo a configuration
+      question instead of a deployment.
+
+      **Agent communication** is a `message.sent` event with a typed payload and
+      a named recipient role — persisted, reviewable, replayable. What stays
+      forbidden is what D-31 was actually protecting: two agents sharing a
+      context window, or one agent's prose becoming another's instructions
+      without passing through a record a human can read. Typed messages through
+      the log are not that.
+  - key: the-typed-divergence-intake
+    md: |
+      The single highest-value slice, and the reason this is not a rewrite for
+      its own sake. Today an agent writes `log.yaml` by hand and learns hours
+      later, from a gate, that its evidence line was malformed or its YAML
+      unparseable. Instead:
+
+      ```console
+      $ torve log divergence --decision D-42.5 --grade OPEN --kind resolved \
+          --class spec-gap --claim "..." --action decided --proposal "..." \
+          --evidence "<path>:<line> — one sentence saying what that line shows"
+      ```
+
+      The engine validates at write time — decision id resolves against the
+      task's inherited set, grade matches the record, evidence is locatable and
+      in grammar (`gates/evidence.py`, the same validators the gate uses) — and
+      refuses with the exact message the gate would have produced, while the
+      agent can still act on it. The accepted entry is a `divergence.recorded`
+      event; `decisions-reported` reads the store; the `log.yaml` in the landing
+      is generated at landing time for the human reading the diff.
+
+      Three failure classes disappear outright: unparseable YAML (the agent never
+      writes YAML), malformed evidence (refused at write), unstaged log (the
+      engine writes the projection, not the agent).
+
+      The intake has two halves, because they run in two places (A-80). The verb
+      runs inside the sandbox, which has no route to the store and must not have
+      one, so acceptance writes the entry into the worktree and stages it. The
+      worker reads those entries host-side after the attempt and records one
+      `divergence.recorded` each. The pin the entry carries (`repo`, `base_sha`)
+      is dropped at dispatch into `.torve/tmp/pin.json`, because a sandbox's
+      `.git` points into a host tree it cannot follow.
+
+      The gate reads the same boundary from the other side (A-82). It runs in a
+      sandbox too, so it cannot query the store either; instead the engine
+      rewrites the worktree's log from the record before each gate pass. The
+      battery reads a file whose provenance is checkable — an entry the store
+      refused never reaches it, and one the store holds appears whether or not the
+      sandbox's copy survived.
+  - key: ports-and-what-binds-first
+    md: |
+      Two ports carry the substrate decisions:
+
+      - `EventStore` — append, read-by-subject, read-since, and the projection
+        cursors. Adapters: in-memory (tests), Postgres (production).
+      - `DurableExecution` — the manager's workflows: dispatch, attempt
+        supervision, timers, retries. forze binds first: it exists, it is
+        understood, and its lease/fence semantics already back v1's runner.
+        Temporal remains a candidate; the question is answered by operational
+        pain, never upfront, and the domain must not name either vendor.
+
+      The schema is ours in both cases. That is the asset; the execution engine
+      is a tenant.
+  - key: what-this-retires-and-what-is-rescued-from-each
+    md: |
+      | Retired | Rescued invariant |
+      | --- | --- |
+      | D-27's direction (git → store for intent) | human signature gates executable intent — now an authority rule (§5.2) |
+      | D-19.1 tick-not-daemon, D-42.6 no resident process | crash-correctness and observability — now from the durable port, verifiably |
+      | D-31 agents never communicate | no shared context, no unreviewable instruction path — now typed events (§5.5) |
+      | D-8.2 derive-don't-record | rebuild-from-truth, never invent — now replay-the-log, which is stronger |
+      | RFC-document-as-required-seam | graded constraints with paths — now first-class records (§5.9) |
+
+      Each retirement is an amendment to its home document, carried by this
+      RFC's acceptance, never a silent overwrite.
+  - key: sources-and-decisions-as-records
+    md: |
+      A `Source` is any provenance: a specification document, an incident, an
+      external audit, a review finding, an operator ask. It carries zero or more
+      `Decision` records — graded `LOCKED` / `ASSUMED` / `OPEN`, path-scoped,
+      versioned, superseding by reference rather than by edit. The grading
+      discipline is preserved verbatim; only the carrier changes.
+
+      The corpus becomes an *importer*: `source.imported` +
+      `decision.recorded` events replayed from `rfcs/`, which keeps every
+      existing document valid and every existing decision id stable. A generated
+      decision-graph view may be written back into the repository for human
+      reading, marked generated, never parsed.
+  - key: alternatives-considered
+    md: |
+      - **Patch v1 in place** (RFC 0043 and siblings). Cheapest, and it does
+        reduce the escalation rate — but it treats the dominant failure class as
+        a sequence of bugs rather than a property of the seam, and it leaves the
+        scaling story unaddressed. Worth landing anyway if v2 slips.
+      - **Fork a new repository.** Clean-room, but it strands the evidence
+        (telemetry, review corpus, eval arms) that makes v2's exit criterion
+        measurable, and it doubles operational surface during migration.
+        Evolving inside the existing layered tree costs nothing that a fork
+        buys.
+      - **Temporal first.** Buys visibility and maturity immediately; costs a
+        cluster or a bill, and couples the first version of the domain to a
+        vendor's primitives before the domain is settled. Deferred deliberately,
+        behind a port.
+  - key: tests
+    md: |
+      - **Replay determinism**: every projection is rebuilt from the log alone
+        and asserted equal to its incrementally-maintained form.
+      - **Authority refusals**: each `(actor, kind)` pair outside the table is
+        refused, with the refusal observable — one red case per row.
+      - **Schema versioning**: an event written at version *n* is readable at
+        *n+1*; a migration that breaks replay is a red test, not a runtime
+        surprise.
+      - **Intake grammar parity**: a divergence refused at write time and the
+        same content convicted by `decisions-reported` produce the *same*
+        message — the validators are shared, and a test pins that they are.
+      - **Manager invariants**: scope-disjoint dispatch, per-repo landing
+        serialization, dependency-by-landing — the v1 rules, re-asserted against
+        the queue.
+      - **Migration exit criterion**: v2 lands its own tasks with a lower
+        escalation rate than v1's form-conviction baseline, measured on the same
+        repository with the same battery. The baseline exists already.
+  - key: docs
+    md: |
+      `pages/` gains a domain page (event schema, authority table, projections)
+      alongside the existing architecture review. The corpus amendments listed in
+      §5.8 ship with acceptance.
+  - key: out-of-scope
+    md: |
+      - Multi-tenant identity and authorization — one operator, many
+        repositories, is this document's ceiling (see D-44.13).
+      - Hosting, packaging, pricing, any product surface beyond the CLI and the
+        manager process.
+      - The tracker's presentation refactor — it becomes an ordinary projection
+        consumer here, and its ergonomics are a separate document.
+      - A UI. The projections make one possible; nothing here requires it.
+  - key: risks
+    md: |
+      - **The rewrite trap.** Mitigated structurally: v2 lands inside the
+        existing layered tree, v1 stays operational, each phase is independently
+        valuable (the intake pays off before the manager exists), and the exit
+        criterion is a measured number rather than a feeling.
+      - **Event schema churn early.** Mitigated by versioning from the first
+        event and by replay tests; accepted as the cost of recording rather than
+        deriving.
+      - **The store becomes a single point of failure.** Real. Mitigated by the
+        repository projection: landed contracts and logs are a human-readable,
+        version-controlled copy of intent, so a lost store costs history and
+        queue state, never the specification.
+      - **The manager becomes a new single point of failure.** Real, and the
+        honest trade for retiring the tick: the durable port must make restart
+        transparent, and the first phase that ships the manager ships its kill
+        test.
+      - **Doctrine loss through retirement.** Each retired decision names the
+        invariant it was protecting (§5.8); a retirement that cannot name one is
+        a mistake, and the table is the review surface for exactly that.
+  - key: unresolved-questions
+    md: |
+      - Identity and authorization beyond a single operator (D-44.13) — settled
+        by the first deployment with two humans or a hosted seat.
+      - Whether every event kind needs a repository projection, or only those a
+        human reads in a diff. Settled by the first phase that lands with the
+        intake in place.
+      - Whether `torve` remains one CLI over both the manager and the worker, or
+        splits. Settled when the first non-local worker runs.
+  - key: phasing
+    md: |
+      The rest stays unphased (A-85), because it is new design rather than
+      consolidation and each piece deserves its own document: the attempt loop as
+      explicit steps rather than a closure, with the naming pass and the sandbox
+      rework that ride with it; sources and decisions as records with the corpus
+      as importer (D-44.8, D-44.9); the projection set that replaces
+      `torve context` and the served tables; the tracker as an ordinary
+      projection consumer; and the multi-partition operation that makes
+      multi-repo real.
+phasing:
+  - phase: 1
+    title: the event log
+    intent: >-
+      The event vocabulary and its store: a closed kind vocabulary with one typed
+      payload model per kind, the envelope (time-ordered id, partition, subject, actor,
+      correlation and causation), `schema_version` on every event, and the write-authority
+      table enforced by the store rather than by its callers. An EventStore port with
+      an in-memory adapter for tests and a Postgres adapter with torve-owned migrations;
+      append, read-by-subject, read-since and projection cursors are the whole surface.
+      Nothing in the running engine consumes it yet — this phase ships the record
+      and its guarantees, with replay equality and one refusal case per authority
+      row as the evidence.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/eventstore/**
+      - migrations/torve/postgres/**
+      - tests/test_events.py
+      - tests/test_eventstore.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_events.py tests/test_eventstore.py
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: the divergence intake
+    intent: >-
+      Divergence stops being hand-authored YAML. A `torve log divergence` verb validates
+      an entry at write time against the task's inherited decisions and the shared
+      evidence validators, refuses with the exact message the gate would have produced,
+      and on acceptance records a `divergence.recorded` event. The decisions-reported
+      gate reads the recorded entries, falling back to the file while both carriers
+      exist, and the landed log file becomes a projection the engine writes at landing
+      time. The parity between a write-time refusal and a gate conviction is pinned
+      by a test that shares the validator, not the string.
+    scope:
+      - src/torve/application/divergence.py
+      - src/torve/cli/log.py
+      - src/torve/gates/decisions_reported.py
+      - src/torve/gates/evidence.py
+      - tests/test_divergence.py
+      - tests/test_decisions_reported.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_divergence.py tests/test_decisions_reported.py
+      - uv run torve gates check
+      - uv run torve rfc check
+    depends_on:
+      - 1
+  - phase: 3
+    title: the manager and the worker
+    intent: >-
+      The resident manager and the stateless worker over the event log: the manager
+      owns per-partition queues, dispatch under scope-disjointness, dependency-by-landing
+      and serialized landings, routing and seat allocation as RFC 0034 and RFC 0021
+      already define them, and escalation to humans; the worker claims, materializes,
+      executes, emits and releases, holding no assignment state so that a kill costs
+      only a lease. Durability comes from the durable-execution port with forze bound;
+      the manager's restart transparency and the worker's kill safety are both tested
+      properties, not claims.
+    scope:
+      - src/torve/application/manager.py
+      - src/torve/application/worker.py
+      - src/torve/cli/manager.py
+      - tests/test_manager.py
+      - tests/test_worker.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_worker.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 2
+    tier_variant: heavy
+  - phase: 4
+    title: one record per attempt
+    intent: >-
+      An attempt is recorded once. Today the same facts are produced twice by two
+      writers — the telemetry row the projections read, and the typed events the board
+      folds — and nothing makes them agree. This phase makes the attempt record one
+      object built once at the moment the attempt ends: the event payload carries
+      everything the row carries, the row is rendered from that payload, and both
+      carriers are written from it. A test pins the rendered row byte-equal to what
+      the current builders produce, so no reader of the stream changes and no projection
+      is rewritten. A run with no store still writes its row, because the record exists
+      before either carrier does.
+    scope:
+      - src/torve/application/telemetry.py
+      - src/torve/application/runner.py
+      - src/torve/domain/events.py
+      - tests/test_runner.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_events.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 3
+  - phase: 5
+    title: one state per run
+    intent: >-
+      A run's state stops being a file the loop maintains and becomes what the log
+      says. `RunState` survives as the in-memory aggregate the attempt loop drives,
+      rebuilt by replay rather than loaded; the state file becomes a cache nothing
+      reads for a decision, and the reaper, the lane and `torve status` read the record.
+      The property to prove is the one the manager already claims: rebuilding a run's
+      state from its events equals the state the loop was holding, including after
+      a kill mid attempt — which is also what finally answers who releases a lease
+      when the worker holding it dies.
+    scope:
+      - src/torve/application/runstate.py
+      - src/torve/application/reaper.py
+      - src/torve/application/manager.py
+      - src/torve/cli/status.py
+      - tests/test_reaper.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reaper.py tests/test_manager.py tests/test_worker.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 4
+    tier_variant: heavy
+  - phase: 6
+    title: one dispatch rule
+    intent: >-
+      The dependency rule, the scope-disjointness rule and the landing serialization
+      exist twice — once as a filesystem scan over contracts and run-state files,
+      once as a fold over the log — and the two are already written to agree by hand.
+      This phase deletes the scan: `torve tick` becomes a bounded call into the manager's
+      own dispatch over the record, or retires as D-44.5 says it should. What must
+      not change is any of the three rules, and the existing dispatch tests are what
+      says so.
+    scope:
+      - src/torve/application/loop.py
+      - src/torve/application/manager.py
+      - src/torve/cli/tick.py
+      - tests/test_tick.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_tick.py tests/test_standing.py tests/test_manager.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 5

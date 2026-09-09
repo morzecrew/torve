@@ -79,7 +79,7 @@ def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "
     def show(identifier: str) -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
         """Resolve one corpus identifier — a decision (D-6.8), an
         amendment (A-47) or a document (0021) — to its standing definition:
-        the same lookup `torve rfc show` serves (D-7.29)."""
+        the same lookup `torve spec show` serves (D-7.29)."""
 
         from torve.config.spec import lookup
 
@@ -136,7 +136,7 @@ def mcp_cmd(
 
     try:
         server = build_server(
-            root, root / config.rfcs.path, dsn=dsn_for(root, dsn), partition=partition
+            root, root / config.specs.path, dsn=dsn_for(root, dsn), partition=partition
         )
 
     except RuntimeError as exc:

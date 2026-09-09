@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-8.5
+    grade: LOCKED
+    text: >-
+      Tracker text is untrusted input and is never treated as specification
+    paths: [src/torve/application/tracker.py, src/torve/adapters/tracker/**]
+    consequence: Injection surface with agent readers
+  - id: D-8.6
+    grade: ASSUMED
+    text: >-
+      `reflect` returns applied/refused/unsupported; refusal is a logged divergence
+    paths: [src/torve/application/ports.py, src/torve/adapters/tracker/**]
+    consequence: Required by Jira-style transition workflows
+  - id: D-8.9
+    grade: ASSUMED
+    text: >-
+      Commands are authorized before they are validated: only actors in `tracker.commanders`
+      apply, an empty list refuses everyone, and refusals are answered on-thread.
+      Added by execution 2026-08-24 — see .torve/tasks/T-0054
+    paths: [src/torve/application/tracker.py, src/torve/config/runconfig.py]
+    consequence: >-
+      The board is an unattended command channel once the standing loop polls it
+  - id: D-8.10
+    grade: ASSUMED
+    text: >-
+      The retry command completes its own re-queue: its apply runs the cleanup callable
+      before the state transitions, and a failed cleanup refuses with the escalation
+      left standing. The loop selects the QUEUED state; the runner admits it. Added
+      by execution 2026-08-24 — see .torve/tasks/T-0059. *Amended by A-37 2026-08-25
+      (registered on RFC 0010, D-10.10): the cleanup is capture-only — the branch
+      persists and the re-run's leased force-push supersedes it, dissolving this row's
+      original stale-branch rationale*
+    paths: [src/torve/application/tracker.py, src/torve/adapters/vcs/git.py]
+    consequence: >-
+      A retried task was stranded: the loop skipped its run record and the stale branch
+      would have refused the re-run's push
+  - id: D-8.15
+    grade: ASSUMED
+    text: >-
+      A review issue nests under its first target's issue as a forge sub-issue. Added
+      by execution 2026-08-24 — see .torve/tasks/T-0068. *Retired by A-33 2026-08-24:
+      review issues no longer exist to nest — the decoration outlived its subject
+      by a day, measured and deleted honestly*
+    consequence: >-
+      The board's top level is the work; the machine's meta-work indents beneath it
+  - id: D-8.18
+    grade: ASSUMED
+    text: >-
+      `revise` is the commander's re-queue of a READY candidate whose review found
+      something worth another attempt: the same capture-first cleanup as retry — the
+      pull request's allow-listed threads and the superseded diff enter the revision
+      record, the branch persists (D-10.10) — then `ready → queued`, an edge the state
+      machine gains for exactly this command; reviews are never revised, and an approval
+      of the superseded tip counts for nothing as always. Added by amendment A-40
+      2026-08-25
+    paths: [src/torve/application/tracker.py, src/torve/domain/states.py]
+    consequence: >-
+      A ready candidate with a confirmed Major finding offered only approve-the-bug
+      or abandon-the-task — the live refusal on the board is this row's origin
+retired:
+  - D-8.1
+  - D-8.2
+  - D-8.3
+  - D-8.4
+  - D-8.7
+  - D-8.8
+  - D-8.11
+  - D-8.12
+  - D-8.13
+  - D-8.14
+  - D-8.16
+  - D-8.17

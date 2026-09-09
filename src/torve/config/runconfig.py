@@ -905,16 +905,17 @@ class SkillsConfig(BaseModel):
 # ....................... #
 
 
-class RfcsConfig(BaseModel):
-    """Where the specification corpus lives (0013 A-16, D-13.7): one path,
-    never a list or a glob — numbering is continuous across a corpus, and two
-    roots mean two counters and a colliding identifier at the first merge
-    (D-A.16). Read from the runner's configuration per D-13.3, never from the
-    repository under work."""
+class SpecsConfig(BaseModel):
+    """Where the specification corpus lives (0013 A-16, D-13.7; RFC 0057
+    D-57.3): one path, never a list or a glob — numbering is continuous
+    across a corpus, and two roots mean two counters and a colliding
+    identifier at the first merge (D-A.16). The archive and the schemas are
+    its siblings. Read from the runner's configuration per D-13.3, never
+    from the repository under work."""
 
     model_config = ConfigDict(extra="forbid")
 
-    path: str = "rfcs"
+    path: str = layout.SPECS_DIR
 
 
 # ....................... #
@@ -1150,7 +1151,17 @@ class RunnerConfig(BaseModel):
     traces: TracesConfig = Field(default_factory=TracesConfig)
     vcs: VcsConfig = Field(default_factory=VcsConfig)
     scm: ScmConfig = Field(default_factory=ScmConfig)
-    rfcs: RfcsConfig = Field(default_factory=RfcsConfig)
+    specs: SpecsConfig = Field(default_factory=SpecsConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _specs_not_rfcs(cls, data: Any) -> Any:
+        # D-57.3: the old key is refused naming the new one, never mapped.
+        if isinstance(data, dict) and "rfcs" in data:
+            raise ValueError("`rfcs` is `specs` since RFC 0057 (D-57.3): rename the key")
+
+        return data
+
     tiers: dict[str, TierConfig] = Field(default_factory=_default_tiers)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     broker: BrokerConfig = Field(default_factory=BrokerConfig)

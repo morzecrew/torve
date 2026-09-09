@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-165
+    at: '2026-09-09'
+    title: >-
+      phases 3 and 4 carry the test files of their modules
+    md: |
+      `torve plan` refused the document: a phase that allows a module must allow its existing test file (the T-0113 rule), and phases 3 and 4 named the modules without them. `tests/test_decisions.py` and `tests/test_spec.py` join phase 3's scope, `tests/test_spec.py` phase 4's. Scope only; no row changes.
+  - id: A-166
+    at: '2026-09-09'
+    title: a document's directory is its identifier
+    changes:
+      - subject: D-57.1
+        field: text
+        before: >-
+          A specification is a directory `NNNN-slug/` of `document.yaml`, `decisions.yaml`,
+          `amendments.yaml` and `execution.yaml`, split by who writes each; an absent
+          file is an empty list; the loader joins them into the one `Document` every
+          reader keeps reading; `schema_version` 3, and 2 is refused
+        after: >-
+          A specification is a directory `S-NNNN/` — the identifier and nothing else
+          — of `document.yaml`, `decisions.yaml`, `amendments.yaml` and `execution.yaml`,
+          split by who writes each; an absent file is an empty list; the loader joins
+          them into the one `Document` every reader keeps reading; `schema_version`
+          3, and 2 is refused
+      - subject: D-57.1
+        field: fingerprint
+        after: d15d8f4d26a17d07/30165c090ea60c7d
+    md: |
+      The owner asked, with the conversion in hand, why a directory should carry a slug when the title lives in `document.yaml` and `spec list` shows it — the task directory is `T-NNNN` and says nothing twice. It should not: the directory is `S-NNNN`, the identifier and nothing else, and the slug warning goes with the slug. D-57.1's text, I-57.1's statement and §5.1 say so; the conversion in phase 1 wrote the corpus this way from the start, so no document was ever named twice.
+  - id: A-167
+    at: '2026-09-09'
+    title: >-
+      phase 1 reaches every reader of the corpus key and the gate runner
+    md: |
+      Five CLI modules read the corpus location through the configuration key (`context`, `decisions`, `intake`, `plan`, `serve`) and rename with it; the gate runner derives a decision gate's origin from the contract's document path and read `S-00` where it wanted four digits — the same reading `planner.document_number` does, applied there; the README names the corpus. All join phase 1's scope. Scope only; no row changes.

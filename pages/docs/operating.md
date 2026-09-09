@@ -32,7 +32,7 @@ shell has not set is filled in.
 | `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
-| `torve rfc check` / `list` / `amend` / `schema` | the corpus surface |
+| `torve spec check` / `list` / `amend`, `torve init` | the corpus surface |
 
 **Retired, and not coming back by that name:** `torve tick` and
 `torve fleet tick`. The standing loop they drove is abandoned (RFC 0019
@@ -69,40 +69,47 @@ enough.
 
 ## The corpus and its archive
 
-A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the shape of the
-engine's own `Document` model: the header facts, the prose as a list of
-sections whose bodies are markdown strings nothing parses, then the
-decisions, invariants, alternatives, questions, phasing and amendments as
-lists. Its first line names `rfcs/schema/document.json`, which `torve rfc
-schema` writes from the model and `torve rfc check` reddens when it lags,
-so an editor with a YAML language server validates a row as it is typed.
-That line is the only comment a document may carry; any other is a check
-problem — a row that needs a note needs a `rationale`.
+A specification is a directory, `.torve/specs/S-NNNN/`, of four YAML
+files split by who writes each: `document.yaml` (the author: the header
+facts, the prose as a list of sections whose bodies are markdown strings
+nothing parses, then alternatives, questions, phasing and the contract
+example), `decisions.yaml` (the author, stamped by the tool: the rows,
+the invariants, the retired identifiers), `amendments.yaml` (written by
+`torve spec amend` and `spec fix`, never by hand) and `execution.yaml`
+(written at landing: what each task found). A file that is absent is an
+empty list; a section's heading is its key. Each file's first line names
+its schema under `.torve/schemas/`, which `torve init` writes from the
+models and `torve spec check` reddens when one lags, so an editor with a
+YAML language server validates a row as it is typed. That line is the only
+comment a file may carry; any other is a check problem — a row that needs
+a note needs a `rationale`. So is a section restating a typed list as a
+fence or a table: the list exists once.
 
-`rfcs/` holds what stands: the documents whose rows contracts inherit.
-`archive/rfcs/` beside it holds what once stood, every filename and
-identifier kept, each document `superseded` and naming what stands for it
-now. `torve rfc archive NUMBER --superseded-by NNNN` is the only way a
-document gets there, and it moves nothing unless the corpus without the
-document checks clean.
+`.torve/specs/` holds what stands: the documents whose rows contracts
+inherit. `.torve/archive/` beside it holds what once stood, every
+directory and identifier kept, each document `superseded` and naming what
+stands for it now. `torve spec archive NUMBER --superseded-by NNNN` is the
+only way a document gets there, and it moves nothing unless the corpus
+without the document checks clean. The corpus path is `specs.path` in the
+runner's configuration; the archive and the schemas are its siblings.
 
 Nothing inherits from the archive, and nothing about it is lost: `torve
-rfc show D-44.12` answers from it and says archived, the check resolves a
+spec show D-44.12` answers from it and says archived, the check resolves a
 citation into it, and the record holds every archived row as retired with
 the archive as the reason. The next document number counts the archive,
-so a number is never reused. There is no index file: `torve rfc list` is
-the index, and `torve rfc render NNNN` writes a markdown page for a
+so a number is never reused. There is no index file: `torve spec list` is
+the index, and `torve spec render NNNN` writes a markdown page for a
 person when one is wanted — the one markdown writer, never the source.
 
 Every verb that changes a document writes it through one serializer:
-`torve rfc new "Title"` creates the smallest document that checks, `add-
+`torve spec new "Title"` creates the smallest document that checks, `add-
 decision` appends a row, `amend NUMBER --title T --row D-x.y --grade G`
 (or `--path`, `--text`, `--retire --reason R`) records the typed diff with
 the prior value on the amendment and re-stamps the row; a grade or paths
 edited by hand afterwards is a check problem, a text edited by hand is a
-warning that `torve rfc fix D-x.y "…"` re-stamps as editorial. A hand-
-written document is legal as it stands — `torve rfc fmt` reports what
-differs from the serializer's form and writes nothing. `torve rfc check`
+warning that `torve spec fix D-x.y "…"` re-stamps as editorial. A hand-
+written document is legal as it stands — `torve spec fmt` reports what
+differs from the serializer's form and writes nothing. `torve spec check`
 also names rows whose declared paths match nothing in the tree; `--fix-
 rot` retires them.
 

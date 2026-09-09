@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-161
+    at: '2026-09-09'
+    title: phase 3 brings the layout test
+  - id: A-162
+    at: '2026-09-09'
+    title: >-
+      phase 1 reaches every reader and every markdown-shaped test
+    md: |
+      §3 counted eleven callers of the loader and the phase named four. The
+      ones it missed read the frontmatter or the table directly rather than
+      the model — `intake._document_owners`, the adoption path from a document,
+      `standing._resolve_rfc_path`, the planner's admission and reconcile
+      legs — and `mcp.show` reaches `lookup`. Sixteen test files build a
+      markdown document by hand to drive them. All join the phase's scope
+      and its battery; a reader that stays on the parser would have no parser
+      to stay on. Scope only; no row changes.
+  - id: A-163
+    at: '2026-09-09'
+    title: >-
+      phase 1 reaches the programme projection and the bootstrap fixture
+    md: |
+      Two more readers of the markdown corpus surfaced when the loader was
+      deleted: `projections._programme` read the frontmatter and the phasing
+      of every document for the programme view, and the corpus-bootstrap
+      skill ships a fixture document its tests parse; `tests/test_context.py`
+      globs the markdown filename. All three join phase 1: the projection
+      reads the model, the fixture converts with the corpus. This
+      amendment is the first written by the YAML `amend` verb, whose own
+      first run appended a duplicate A-162 because the document it read had
+      been converted from a dump taken before A-162 existed — the entry is
+      restored here by hand and this one takes the next number. Scope only;
+      no row changes.
+  - id: A-164
+    at: '2026-09-09'
+    title: >-
+      phase 2 reaches the loader for the schema drift check
+    md: |
+      `check` reddens when the schema file lags the model (D-56.6), and
+      `check` lives in the loader module — the drift check has to sit beside
+      the checks it joins, not in the writer. `src/torve/config/spec.py`
+      joins phase 2's scope. Scope only; no row changes.

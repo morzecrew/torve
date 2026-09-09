@@ -107,8 +107,8 @@ torve context                    # the planning report: tasks, escalations,
 torve mcp                        # the same projections as a read-only MCP server
 torve doctor                     # configuration and environment checks
 torve shadow T-0142              # replay landed work for harness comparison
-torve rfc check                  # validate the specification corpus
-torve rfc show D-6.8             # resolve any corpus identifier
+torve spec check                 # validate the specification corpus
+torve spec show D-6.8            # resolve any corpus identifier
 ```
 
 Every attempt appends one telemetry record stamped with a `config_hash` of
@@ -219,9 +219,12 @@ equipment that differs from their role's default.
 
 ## Design corpus
 
-The full design lives in `rfcs/` as a numbered, cross-checked RFC corpus —
-the same specifications Torve plans and builds itself from. Start with
-`rfcs/0001-torve-charter.md`; `rfcs/INDEX.md` routes the rest.
+The full design lives in `.torve/specs/` as a numbered, cross-checked
+corpus of specifications — the same documents Torve plans and builds itself
+from — with what once stood in `.torve/archive/`. Each document is a
+directory `S-NNNN/` of four YAML files; `torve spec list` routes, `torve
+spec show D-x.y` resolves any identifier, and `torve spec render NNNN`
+writes a page for a person.
 
 ## License
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from test_decisions import corpus, document
+from test_decisions import corpus, document, place
 from typer.testing import CliRunner
 
 from torve.application.colocation import (
@@ -180,7 +180,7 @@ def test_removing_the_last_governing_row_removes_the_section_and_an_empty_file(
     slim = document(
         "0001", [("D-1.1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`")]
     )
-    (rfc_dir / "0001-document-0001.yaml").write_text(slim, encoding="utf-8")
+    place(rfc_dir, "0001", slim)
 
     projection = project(tmp_path, rfc_dir)
 

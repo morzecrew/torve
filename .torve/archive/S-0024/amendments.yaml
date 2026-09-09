@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-63
+    at: '2026-08-31'
+    title: >-
+      trust-class granularity is settled where it stands (amends §5.3)
+    md: |-
+      **From T-0109's execution log, approved.** The `reviewed` class refuses a
+      non-empty `providers.default`; `untrusted` carries no such check because
+      its required `broker.mode: sealed` already forces every provider route
+      through the explicit per-provider table — there is no default-style
+      fallback to refuse. A future repository needing different granularity
+      (a non-empty `providers.repositories` entry keyed to the root's own name,
+      say) amends §5.3; it is never a re-interpretation at the enforcement site.
+  - id: A-61
+    at: '2026-08-30'
+    title: >-
+      phase 1's scope admits the tick it passes the decision to (amends §Phasing)
+    md: |-
+      **Found in the re-minted dispatch, three identical reds.** T-0108 went red
+      on `outside allow: src/torve/application/loop.py` — the phase's own intent
+      says "tick each root … with the decision passed down", and a decision
+      cannot be passed down to a tick whose signature does not take it:
+      `run_tick` gains a keyword-only `fleet_pause`, and the survey leg reuses
+      the escalation count the tick already computes. Both touches were
+      derivable from the intent's own words at authoring; the fence was traced
+      from the module list instead. Third exhibit for rfc-writer's rule.
+
+      **Changed:** phase 1's scope gains `src/torve/application/loop.py`. The
+      minted contracts are re-minted — a changed contract is a new task.
+
+      **Deliberately unchanged:** the scope gate; and phase 2's scope, which
+      consumes the fleet modules only.
+  - id: A-60
+    at: '2026-08-30'
+    title: >-
+      phase 1's scope admits the subcommand registration (amends §Phasing)
+    md: |-
+      **Found in the first dispatch, three identical reds.** T-0103 went red on
+      the scope gate three times running on `outside allow: src/torve/cli/main.py`
+      — four lines registering `torve fleet` on the CLI app, which is the work,
+      not drift: a new verb does not exist until `main.py` mounts it. The same
+      mis-drawn-fence shape as A-56, caught the same way, and rfc-writer's rule
+      that a phase's scope is traced from what the change touches now has its
+      second exhibit: a phase that ships a new CLI verb always touches `main.py`.
+
+      **Changed:** phase 1's scope gains `src/torve/cli/main.py`. The minted
+      contracts are re-minted — a changed contract is a new task.
+
+      **Deliberately unchanged:** phase 2's scope — trust-class refusal lives in
+      the fleet modules and registers nothing new; and the scope gate itself,
+      which did exactly its job.
+  - id: A-108
+    at: '2026-09-05'
+    title: The pause gates a manager pass now
+    md: |-
+      **Found retiring the standing loop (RFC 0019 A-105).** D-24.2's Paths named
+      `application/loop.py`, which is deleted. The decision is unchanged — the
+      escalation pause is decided once for the fleet total and passed down — and
+      what honours it in each root is now `residency.once(paused=...)`, which
+      skips the two legs that can grow the queue.
+
+      `torve fleet tick` goes with the loop. `torve fleet serve` was already its
+      replacement (RFC 0048), enforces the same trust classes before every pass,
+      and re-surveys each round rather than deciding the pause once at startup.
+      The trust cases that reached `enforce_trust` through the tick now ask it
+      directly, which is what they were always about.
+
+      **Changed:** D-24.2's Paths only.
+  - id: A-146
+    at: '2026-09-09'
+    title: >-
+      1 path-rotted row(s) retired by `torve rfc check --fix-rot`
+    changes:
+      - subject: D-24.10
+        field: retired
+        before: src/torve/application/loop.py
+        after: >-
+          path rot: every declared glob matches nothing in the tree
+    md: |-
+      ```yaml changes
+      - subject: D-24.10
+        field: retired
+        before: src/torve/application/loop.py
+        after: "path rot: every declared glob matches nothing in the tree"
+      ```
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

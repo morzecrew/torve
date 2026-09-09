@@ -263,7 +263,7 @@ def serve_cmd(
 
     try:
         server_app = build_app(
-            root, root / config.rfcs.path, dsn=dsn_for(root, dsn), partition=partition
+            root, root / config.specs.path, dsn=dsn_for(root, dsn), partition=partition
         )
         uvicorn = _uvicorn()
 

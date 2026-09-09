@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-50.1
+    grade: LOCKED
+    text: >-
+      A record-backed reader lands beside its file reader, never replacing it, until
+      the record demonstrably holds the runs being asked about
+    paths: [src/torve/application/projections.py]
+    consequence: >-
+      A v1 run keeps answering; the cost is two implementations and a parity test,
+      which is cheaper than a report that is confidently wrong
+  - id: D-50.2
+    grade: LOCKED
+    text: >-
+      Selection is explicit at the call site; the only automatic rule is that a record
+      without the task falls back to the files, never the reverse
+    paths: [src/torve/application/projections.py, src/torve/cli/why.py]
+    consequence: >-
+      A misconfigured partition cannot make a report answer from the wrong source
+      and look right doing it
+  - id: D-50.3
+    grade: ASSUMED
+    text: >-
+      No report's envelope changes: same keys, same values, so the CLI, the MCP tool
+      and the served endpoint are untouched
+    paths: [src/torve/application/projections.py]
+    consequence: >-
+      The move is verifiable by parity rather than by review, which is the only practical
+      check over joins this size
+  - id: D-50.4
+    grade: ASSUMED
+    text: >-
+      Parity is asserted on a real manager-dispatched run, key by key
+    paths: [tests/test_manager_e2e.py]
+    consequence: >-
+      The one place both carriers are populated by the same run; a failure names the
+      key rather than the report
+  - id: D-50.5
+    grade: ASSUMED
+    text: >-
+      `why` moves first, `status` second, `context` and the specification-quality
+      readings last
+    paths:
+      - src/torve/application/projections.py
+      - src/torve/application/specquality.py
+    consequence: >-
+      The smallest join establishes the pattern; the largest one does not get to invent
+      it
+  - id: D-50.6
+    grade: OPEN
+    text: >-
+      What a report should say when the record holds part of a task's history. Settled
+      by the first run that spans the migration

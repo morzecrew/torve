@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-101
+    at: '2026-09-05'
+    title: The status line says why there is no database
+    md: |-
+      **Found taking stock.** `--status` printed `database not configured` for
+      both ways of having no DSN — a mock store, which has no database to
+      migrate, and a postgres store whose variable is unset, which has one nobody
+      named. The CLI knew the difference and threw it away: it caught the
+      `resolve_dsn` error and suppressed it. Reported identically, the two send an
+      operator to different files, and one of them is a shell. This cost a
+      session's owner an hour of believing the command could not reach a database
+      at all.
+
+      **Changed:** `status` takes the sentence to print when there is no DSN, and
+      the caller supplies it, because the caller is the one that knows why. The
+      `resolve_dsn` error keeps its decision citation in a comment rather than in
+      the message, now that the message is something an operator reads.
+
+      Also found: this repository's ledger held `0001_events` and `0001_durable`
+      but not `0002_decisions`, whose index had been created by hand during RFC
+      0047. `torve migrate torve` reconciled the two — the step is
+      `CREATE INDEX IF NOT EXISTS`, so applying it against the index it describes
+      is a no-op that records the row.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

@@ -1,0 +1,284 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: '0001'
+title: 'Torve: charter'
+kind: design
+status: superseded
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: '0055'
+owner: Lev Litvinov
+description: >-
+  Domain model, state machine, ports, and the graded-decision contract every child
+  RFC inherits; deliberately excludes anything shippable.
+schema_version: 3
+sections:
+  - key: what-torve-is
+    md: |
+      A layer that turns a reviewed specification into machine-checkable work, runs agents against it under deterministic gates, and refuses to let anything land that cannot prove it did what it was told.
+
+      **Not an orchestrator.** Board-driven orchestration is solved — worktree per task, dispatch, PR, merge train, dashboards all exist in adjacent systems. Those scale *execution*. The bottleneck is *specification*: a human writes every issue, and nothing learned during execution flows back into the next one.
+
+      Torve's contribution is three things nobody adjacent has:
+
+      1. **Graded decisions with a conflict protocol.** A task inherits its RFC's decisions carrying `LOCKED` / `ASSUMED` / `OPEN`, and the grade dictates what the executor does when reality contradicts the plan: halt, depart and log, or decide and log.
+      2. **Scope as a machine-checked contract.** `allow` / `deny` globs make "touched something it shouldn't have" a red gate, and make conflicting tasks undispatchable in parallel rather than collidable at merge.
+      3. **A closed loop.** Execution facts project back into the session where the next phase is specified.
+
+      **Why this serves the goal.** A standing team is not a queue of workers; it is an organisation with shared knowledge of decisions already made. What makes a new engineer productive is onboarding into what was decided and why. Graded decisions plus an append-only execution log are that onboarding, machine-readable, replayed into every task automatically.
+  - key: document-map
+    md: |
+      Each child RFC is a shippable increment. Ship in order; each is useful standing alone.
+
+      | RFC | Increment | Ships |
+      | --- | --- | --- |
+      | 0002 | Gates as a library | `torve gates` in CI, no runner, no store |
+      | 0003 | Runner and isolation | `torve run` against a fake agent, sandboxed |
+      | 0004 | Agent adapters and tiering | real agents, shadow runs, telemetry |
+      | 0005 | Review as a run | replaces proprietary PR reviewers |
+      | 0006 | Merge train and escalation | serialized landing, attention budget |
+      | 0007 | Planner and context | `torve plan`, `torve context`, MCP |
+      | 0008 | Tracker projection | any board as a presentation surface |
+      | 0009 | Skills and evals | what agents know, versioned and measured |
+      | 0010 | VCS, provenance and revert | how work lands and how it is undone |
+
+      **Decisions are inherited downward, never re-decided.** A child RFC cites `D-n` from this document. If a child needs a charter decision changed, it writes an amendment against 0001 and gets it reviewed — it does not contradict it locally. This is the same rule the engine enforces on tasks, applied to its own specification.
+  - key: domain
+    md: |
+      Modeling an entity on this substrate means a family of four Pydantic models — domain (identity, revision, invariants), create command, update command (merge-patch, all fields optional), read model (may add computed fields or hide some) — wired into a document spec. They are four contracts, not four copies; the divergence is the point.
+
+      **Torve's application is unusual: no aggregate has an update command.**
+
+      | Aggregate | Domain | Create | Update | Read |
+      | --- | --- | --- | --- | --- |
+      | `Task` — the contract | ✓ | ✓ (minted by `torve plan`) | **none** | ✓ |
+      | `Attempt` — one run of any role | ✓ | ✓ (written once, at the end) | **none** | ✓ |
+      | `ReviewFeedback` — the human fields | ✓ | ✓ (after merge) | **none** | ✓ |
+
+      The absence is the design. A task contract that can be patched is a contract that drifts out from under an executor mid-run — **a changed contract is a new task**, minted from a re-reviewed RFC. An attempt that can be edited is an audit trail that cannot be trusted. The only genuinely mutable state — run status, lease, owner, attempt counter — is not modelled here at all; it belongs to the durable run store (§5).
+
+      `GateResult`, `Finding` and `InheritedDecision` have no independent identity or lifecycle and stay value objects.
+
+      ```python
+      class Task(Document):
+          schema_version: int
+          id: TaskId
+          rfc: str | None
+          phase: int
+          role: Literal["implement", "review"]        # see RFC 0005
+          intent: str                                  # one paragraph: what changes and why — never steps (A-11)
+          depends_on: list[TaskId]
+          scope: Scope                                 # allow/deny globs
+          acceptance: list[str]                        # shell commands; exit 0 == satisfied
+          decisions: list[InheritedDecision]
+          budget: Budget                               # iterations, wallclock, tokens
+          tier: Literal["planner", "executor", "reviewer"]
+
+      class InheritedDecision(BaseModel):
+          id: str                                      # D-3, matching the RFC's table
+          grade: Literal["LOCKED", "ASSUMED", "OPEN"]
+          text: str
+          paths: list[str] = []                        # declared area; enables the silence check
+
+      class Attempt(Document):
+          schema_version: int
+          task_id: TaskId
+          role: Literal["implement", "review"]
+          n: int
+          worker_id: str
+          started_at: datetime
+          finished_at: datetime | None
+          gate_results: list[GateResult]
+          findings: list[Finding]
+          outcome: Outcome
+          cost: Cost
+          trace_ref: str | None                        # harness session trace, if any
+          config_hash: str                             # gates + skills + tier mapping in force
+
+      class Finding(BaseModel):
+          severity: Literal["blocker", "major", "minor", "nit"]
+          kind: Literal["spec-drift", "correctness", "test-gap", "security", "style"]
+          location: str                                # file:line
+          claim: str
+          evidence: str                                # must be locatable in diff or gate log
+      ```
+
+      Read models earn their place by diverging: `TaskRead` adds `is_dispatchable` and `blocked_by`, `AttemptRead` adds `duration` and `gates_passed` — both as computed fields **in Python, above the port**, because anything derived below a port is invisible to simulation.
+
+      *Amendment 2026-08-21 (A-4):* task contracts are **derived artefacts**, lockfile-grade — `torve plan` mints them mechanically, and "reviewed intent" overstated it. They belong in git for two reasons stronger than review: **reproducibility** (an attempt pins to a sha, so reconstructing why something landed retrieves exactly the contract the agent saw — replayable in a way no database row is) and **refusability** (the test is not "a human wrote this" but "a human can see it in a diff and refuse it"). The store holds only a reference: `task_id` plus sha.
+  - key: state-machine
+    md: |
+      ```text
+      queued → claimed → running → gated → reviewed → ready
+                            │        │         │
+                            └────────┴─────────┴──→ escalated → (human) → queued | abandoned
+      ```
+
+      1. **Transitions are executed by the runner from facts, never by a model.** Facts are exit codes, gate outcomes, PR status, approval status. An agent reports observations; it never causes a transition.
+      2. **`ready` is not `merged`.** The engine stops at mergeable (RFC 0006).
+      3. **Poison ceiling.** Attempts increment on entry to `running` and are checked before dispatch. Ceiling reached → `escalated`, never another retry.
+      4. **Escalation reasons are enumerated:** `budget_exhausted`, `poison_ceiling`, `locked_conflict`, `merge_conflict`, `blocker_finding`, `gate_infrastructure_failure`, `lease_expired`.
+      5. **`locked_conflict` is terminal by design, not an error** — the one case where a task stops on working code.
+
+      *Amendment 2026-08-21 (D-29, D-30):* the vocabulary above is completed by `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a) and closed as one enum; and `claimed → escalated` is a legal transition, covering a runner that dies between claim and first dispatch.
+
+      *Amendment 2026-08-22 (A-21):* `underspecified` joins the vocabulary — a contract whose execution would require inventing three or more load-bearing decisions halts as a specification defect (0003 A-18), separable in telemetry from `locked_conflict`; both are halts on working judgement, but one indicts the contract and the other the code.
+
+      *Amendment 2026-08-22 (A-22):* `stale_inheritance` joins the vocabulary — a non-terminal task minted from a document that later became superseded carries decisions that no longer stand (0007 §3.3); `torve plan --reconcile` makes the situation visible by escalating it, and what to do with the in-flight work stays a human decision.
+
+      *Amendment 2026-08-23 (A-26):* `ready → escalated` is a legal transition, taken only by the merge lane on a conflicted landing (reason `merge_conflict`, RFC 0006 §1). `ready` stays terminal to the engine — swept by the reaper, refused by `torve kill`, never re-dispatched — but the lane may hand it back to a human.
+  - key: ports
+    md: |
+      | Port | Backed by |
+      | --- | --- |
+      | `TaskStore` | forze durable run store — enqueue, begin, renew, complete, fail, `claim_abandoned`, fenced cancellation |
+      | `Workspace` | git worktree |
+      | `Runtime` | OpenSandbox (RFC 0003) |
+      | `Agent` | fake, API, harness, subscription (RFC 0004) |
+      | `GateRunner` | shell in the task sandbox (RFC 0002) |
+      | `SCM` | `gh` CLI |
+      | `Telemetry` | JSONL → analytics contract (RFC 0004) |
+      | `Notifier` | outbox destination |
+      | `ContextRead` | read-only MCP (RFC 0007) |
+      | `Tracker` | outbound projection, restricted inbound commands (RFC 0008) |
+      | `DecisionSource` | importing standing decisions into new tasks (RFC 0007) |
+      | `SizePolicy` | pre-dispatch size estimate and post-hoc calibration (RFC 0002) |
+      | `PromotionPolicy` | what may land without a human (RFC 0006) |
+      | `Vcs` | commit, branch, sign, revert (RFC 0010) |
+
+      *The `Inference` port was removed by A-11 2026-08-22: a reviewer reached through a separate port stops being a run. The reviewer goes through `Agent` like every other run (RFC 0005).*
+
+      `Workspace` (local git) and `SCM` (remote forge) stay separate — merging them binds the domain to GitHub.
+
+      `TaskStore` is **not written by hand**. The substrate's self-hosted durable tier already provides lease semantics, recovery of abandoned runs, and cancellation that is cooperative on the ask and fenced on the landing — so a stale worker cannot cancel a run out from under its new owner, and if the holder dies carrying the request, recovery lands it without invoking the body. Getting this wrong by hand is the default outcome.
+
+      Consequence for agent adapters: cancellation is observed within one heartbeat interval, and a body that never awaits is bounded only by maximum run duration. Agent processes need their own hard timeout, not merely a cooperative request.
+  - key: where-abstraction-is-allowed
+    md: |
+      Ports are expensive: each is an interface, a mock, a conformance expectation and a place for behaviour to diverge. The rule that keeps this from becoming a framework:
+
+      **Abstract what is replaced wholesale. Never abstract what must stay identical for data to be comparable.**
+
+      | Port justified | Deliberately not a port |
+      | --- | --- |
+      | `Agent`, `Runtime`, `TaskStore`, `Tracker`, `Vcs` | the state machine — pluggability destroys D-5a |
+      | `DecisionSource`, `SizePolicy`, `PromotionPolicy` | the escalation-reason vocabulary — an extensible enum makes telemetry incomparable across time |
+      | `Telemetry`, `Notifier` | gates — declarative config, not an interface |
+      | | the execution-log format — a second format means two parsers and eventual divergence |
+
+      When unsure, ask whether two implementations would ever run in the same organisation. If not, it is configuration.
+  - key: global-budget
+    md: |
+      Per-task budgets bound one task. They do not bound the system: a defect that loops fifty tasks at three dollars each costs a hundred and fifty before anyone notices.
+
+      ```yaml
+      budget:
+        daily_usd: 40
+        weekly_usd: 150
+        on_exhausted: halt_dispatch      # in-flight tasks finish; nothing new starts
+        anomaly: p95_task_cost           # a task above this escalates as cost_anomaly
+      ```
+
+      `halt_dispatch` rather than kill: work already paid for should finish and be inspectable. `cost_anomaly` joins the enumerated escalation reasons.
+  - key: task-contract-and-execution-log
+    md: |
+      The task contract (`tasks/T-nnnn.yaml`) and gate manifest (`gates.yaml`) live in git and arrive in pull requests, because they are reviewed artefacts. Everything generated — attempts, gate results, findings, telemetry — goes through ports into a store.
+
+      Pydantic models are the single source of truth; YAML is their serialization. No hand-maintained JSON Schema until a non-Python consumer exists.
+
+      **Execution log format** — `logs/<task-id>.yaml`, one file per task, append-only, one `entries:` list *(amended by A-1 2026-08-21: serialization moved from markdown with fenced blocks to YAML; every rule below is unchanged)*:
+
+      ```yaml
+      schema_version: 1
+      task: T-0142
+      repo: morzecrew/torve
+      base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7)
+      created_at: 2026-08-20T10:58:03Z
+      drift_count: 0            # the declared claim, checked against entries classed drift
+      entries:
+        - decision: D-3
+          grade: LOCKED
+          kind: contradicted    # contradicted | departed | resolved | blocked
+          at: 2026-08-20T11:04:12Z
+          attempt: 2
+          claim: sessions cannot live in Redis; this deployment has no Redis service
+          evidence: infra/compose.yaml:1-40 — no redis service defined
+          action: halted        # halted | departed | decided
+          notes: |
+            Prose lives inside the entry, never in a sibling document.
+      ```
+
+      Grade and action legality — the conflict protocol as a checkable table:
+
+      | Grade | Legal action | Illegal |
+      | --- | --- | --- |
+      | `LOCKED` | `halted` | anything else |
+      | `ASSUMED` | `departed` | `halted` (over-caution) |
+      | `OPEN` | `decided` | `halted` |
+
+      Two rules that make the log worth keeping: **grade is copied at write time, never resolved at read time** — a log that rewrites its own past is not an audit trail; and **silence is a finding** — the gate fires on the absence of an entry in an area a locked decision declares, because a quiet workaround is not detectable while a missing report trivially is.
+
+      *Amendment 2026-08-21 (D-21b):* the legality table governs contradictions. An entry carries `kind` as above, or the `flag-dont-flip` skill's `class` (`discovery | spec-gap | drift | irreducible`), or both — the axes are orthogonal: `kind` records what happened to the decision, `class` diagnoses whether the design process failed. A `kind: resolved` close-out with `action: decided` attests compliance in an area a `LOCKED` decision declares, which is how the silence check is satisfiable without a conflict.
+  - key: decisions
+    md: |
+      The nineteen corpus-convention decisions that lived here (D-A.1 – D-A.12, D-A.16 – D-A.20) moved to RFC 0016 with their identifiers preserved (A-17). D-A.7 and D-A.13 – D-A.15 stay: they concern task directories, logs and retention, which are engine artefacts.
+  - key: ownership
+    md: |
+      Nothing in this corpus works without names attached, and at this team size that is not bureaucracy — an unnamed duty does not exist.
+
+      | Duty | Meaning |
+      | --- | --- |
+      | Harness owner | receives `gate_infrastructure_failure`, owns the gate package and its sabotage suite |
+      | Escalation triage | works the escalation queue during the day's review windows |
+      | Budget owner | notified on `cost_anomaly` and on daily-cap halt |
+      | Charter owner | the only person who merges amendments to this document |
+
+      One person may hold several. What matters is that each is a name in a file, reviewed like anything else.
+  - key: risks
+    md: |
+      - **The engine becomes a second product.** The realistic failure mode for a small team. Mitigation: a named owner and an explicit weekly time budget, decided before 0003 starts.
+      - **Human review becomes the bottleneck.** Parallel workers outpace one reader; the system quietly produces review debt. Addressed in 0006.
+      - **Gate theatre.** Checks that cost minutes and catch nothing. Addressed in 0002 via the sabotage suite and per-gate hit counts.
+      - **This document read as licence to automate planning.** The planner is where model calls will try to creep in. D-2 is `LOCKED` and its violation shows up in review as a new dependency.
+      - **A second infrastructure dependency** (OpenSandbox). Health indicators are strong but neutrality is younger than the code; re-run `dependency-diligence` before 0003, and keep `Runtime` thin enough that raw Docker remains a fallback.
+  - key: stopping
+    md: |
+      This is a tool built for one team's own use, not a product. It therefore gets no success threshold and no kill metric — measuring an internal tool against a target invents a standard nobody asked for. What it gets instead is a bound on the input and a guarantee that stopping is always cheap.
+  - key: time-budget
+    md: |
+      The scarce resource is attention, not money.
+
+      ```yaml
+      budget:
+        engine_hours_per_week: 6
+        owner: <name>                 # §7.1 charter owner
+        on_overrun: |
+          Three consecutive weeks over budget puts the project into maintenance
+          for the remainder of the current increment: bug fixes only, no new scope.
+      ```
+
+      Nothing to compute and nothing to instrument — either the hours went in or they did not. The rule exists so that overrun becomes a decision rather than a quarter that felt strange in retrospect.
+  - key: reversibility-as-a-design-requirement
+    md: |
+      Stopping is cheap only if nothing valuable is trapped inside the engine. That is currently true and must stay true — it is a requirement, not an accident:
+
+      | Artefact | Lives in | Survives deletion of Torve |
+      | --- | --- | --- |
+      | Gates | the consuming repository's CI | yes |
+      | Task contracts, gate manifests | git | yes |
+      | RFCs and decision tables | git, markdown | yes |
+      | Execution logs | git, markdown | yes |
+      | Skills | a versioned package | yes |
+      | Telemetry | JSONL / analytics store | yes |
+      | The runner | the engine | **no — and that is the only thing** |
+
+      **Therefore: no contract, decision or log ever moves out of git into a database.** The first "it would be more convenient to store task contracts in Postgres" is the change that breaks this, and it will sound reasonable when it arrives. Refuse it. The store holds what the engine generates; git holds what a human reviews. That boundary is what makes every stage a resting point rather than a commitment — abandoning after 0002 leaves gates running in CI, after 0003 a reproducible isolated runner, and so on.
+  - key: pre-recorded-doubts
+    md: |
+      Not metrics, and not thresholds — four qualitative signals written down now so that a later explanation of why everything is fine has something to answer to. Revisit them once a month, alone, in five minutes: debugging Torve has taken more time than product work for three weeks running; the escalation queue has not been empty once in a month; only one person can start and repair the system; and the last three things it caught would have been caught by a human reviewer anyway.
+  - key: out-of-scope-permanently
+    md: |
+      - **Model-side planning and decomposition.** The exact non-determinism this project removes.
+      - **Automatic conflict resolution.** Silently grants a model the right to rewrite other people's work.
+      - **Multi-tenancy.** One team, trusted operators.

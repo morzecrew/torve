@@ -193,8 +193,8 @@ def test_a_check_state_is_closed_vocabulary_and_defaults_to_shadow() -> None:
 
 
 def test_the_loaders_fields_are_never_part_of_the_dump() -> None:
-    doc = _doc("0001", path="rfcs/0001-x.yaml", archived=True)
+    doc = _doc("0001", path=".torve/specs/S-0001", archived=True)
     dumped = doc.model_dump()
 
     assert "path" not in dumped and "archived" not in dumped
-    assert doc.schema_version == 2
+    assert doc.schema_version == 3

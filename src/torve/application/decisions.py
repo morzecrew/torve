@@ -270,7 +270,7 @@ def corpus_sources(rfc_dir: Path) -> dict[str, Source]:
 def load_corpus(rfc_dir: Path) -> Corpus:
     """The corpus and its archive as the model (D-53.1), with the loader's
     refusals raised as `PlanError` so an import never records a grade
-    `torve rfc check` would not accept — the same promise the parser-based
+    `torve spec check` would not accept — the same promise the parser-based
     importer made, kept at the same boundary."""
 
     try:
@@ -286,7 +286,7 @@ def _source_of(doc: Document) -> Source:
     return Source(
         id=corpus_source_id(doc.id),
         kind="specification",
-        ref=str(Path(doc.path).name) if doc.path else f"{doc.id}.yaml",
+        ref=str(Path(doc.path).name) if doc.path else doc.id,
         title=doc.title,
     )
 
@@ -300,7 +300,7 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
     An unchanged corpus returns an empty list — the idempotence that makes
     running this on a schedule safe, and the headline property of the tests.
     Raises `PlanError` on a table the corpus's own checker would refuse, so
-    an import never records a grade `torve rfc check` would not accept.
+    an import never records a grade `torve spec check` would not accept.
 
     Read through the model (D-53.13): a standing document's rows are
     recorded as before; an archived document (D-53.8) is recorded as a
@@ -507,7 +507,7 @@ class RottedRow:
         return (
             f"{self.document}: {self.identifier} ({self.grade}) declares "
             f"{' '.join(self.paths)} and nothing in the tree matches — retire it "
-            f"with `torve rfc amend {self.document[:4]} --retire {self.identifier} "
+            f"with `torve spec amend {self.document.removeprefix('S-')} --retire {self.identifier} "
             "--reason path-rot`"
         )
 
@@ -584,12 +584,12 @@ def fingerprint_drift(corpus: Corpus) -> tuple[list[str], list[str]]:
             if rule and rule_fingerprint(row.grade, row.paths) == rule:
                 warnings.append(
                     f"{where}: {row.id}'s text changed by hand since its last recorded change "
-                    f'(editorial drift) — `torve rfc fix {row.id} "…"` re-stamps it'
+                    f'(editorial drift) — `torve spec fix {row.id} "…"` re-stamps it'
                 )
             else:
                 problems.append(
                     f"{where}: {row.id}'s grade or paths changed by hand since its last recorded "
-                    "change — a row with no history; change it through `torve rfc amend`"
+                    "change — a row with no history; change it through `torve spec amend`"
                 )
 
     return problems, warnings

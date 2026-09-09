@@ -627,7 +627,7 @@ def standing_warnings(tree: Path, contract: Path, rfc_dir: Path | None = None) -
 
     from torve.application.planner import standing_decisions
 
-    standing = standing_decisions(rfc_dir or tree / "rfcs", task.scope.allow)
+    standing = standing_decisions(rfc_dir or tree / layout.SPECS_DIR, task.scope.allow)
     carried = {row.id for row in task.decisions}
     missing = [row for row in standing if row.id not in carried]
 
@@ -736,7 +736,7 @@ def lint_document_threshold(
     the crossings, so the drafter's next iteration can narrow scope, or the
     commander routes the request to authoring instead."""
 
-    rfc_dir = tree / config.rfcs.path
+    rfc_dir = tree / config.specs.path
     errors: list[str] = []
 
     for draft in document.drafts:
@@ -747,7 +747,7 @@ def lint_document_threshold(
         if verdict.verdict == "document_required":
             errors.append(
                 f"{draft.ref}: needs its own document — {'; '.join(verdict.reasons)} — "
-                "split it into an RFC with `torve rfc new`, or narrow scope.allow"
+                "split it into a document with `torve spec new`, or narrow scope.allow"
             )
 
     return errors
@@ -785,8 +785,8 @@ def document_threshold_warnings(
         # The configuration names where the corpus lives; hardcoding it made
         # this advisory glob a directory that need not exist, silently drop
         # the crossings clause, and disagree with the two surfaces that do
-        # read `rfcs.path` — the drafting lint and adopt (T-0209).
-        rfc_dir or tree / config.rfcs.path,
+        # read `specs.path` — the drafting lint and adopt (T-0209).
+        rfc_dir or tree / config.specs.path,
         task.scope,
         task.acceptance,
         config.intake.document_threshold,
@@ -1293,7 +1293,7 @@ def _attempt_intake_draft(
     from torve.application.contextpack import build as build_pack
     from torve.application.contextpack import materialize as materialize_pack
 
-    pack = build_pack(root, root / config.rfcs.path, task, layout.gates_file(root))
+    pack = build_pack(root, root / config.specs.path, task, layout.gates_file(root))
     materialize_pack(worktree, pack)
 
     prompt = build_intake_prompt(
@@ -1641,7 +1641,7 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
 
     doc_path = (root / rfc).resolve()
 
-    if not doc_path.is_file():
+    if not doc_path.is_dir():  # a document is a directory (D-57.1)
         raise ValueError(f"no document at {rfc}")
 
     try:
@@ -1680,7 +1680,7 @@ def _merged_decisions(
     from torve.application.planner import PlanError, standing_decisions
 
     try:
-        standing = standing_decisions(root / config.rfcs.path, scope_allow)
+        standing = standing_decisions(root / config.specs.path, scope_allow)
 
     except PlanError as exc:
         raise ValueError(str(exc)) from exc
@@ -1744,7 +1744,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     # D-30.4: adoption refuses document_required before anything is
     # written — the same check the intake lint already ran, re-run here
     # since a hand-minted drafts file never passed it.
-    rfc_dir = root / config.rfcs.path
+    rfc_dir = root / config.specs.path
 
     for draft in drafts:
         verdict = _threshold_for_scope(
@@ -1754,7 +1754,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
         if verdict.verdict == "document_required":
             raise ValueError(
                 f"{draft.ref}: needs its own document — {'; '.join(verdict.reasons)} — "
-                "split it into an RFC with `torve rfc new`, or narrow scope.allow"
+                "split it into a document with `torve spec new`, or narrow scope.allow"
             )
 
     # A decomposition run names the contract it decomposes as its single

@@ -2,7 +2,7 @@
 name: corpus-bootstrap
 description: Drafting a brownfield adopter's standing-decisions baseline from the survey report — mostly ASSUMED, LOCKED only on defended boundaries, paths on every row, no phasing, one draft document for a human to edit, commit and accept.
 roles: [author]
-gate: rfc-valid
+gate: spec-valid
 ---
 
 > **Specialisation.** Derived from `agent-skills/corpus-bootstrap`, specialised for
@@ -93,7 +93,7 @@ The report is the evidence base; read it before the tree.
 ## The shape this skill records (D-31.6)
 
 The baseline is **one document per adoption**, named
-`NNNN-standing-decisions.yaml` in the corpus directory (`rfcs/` by default),
+the `S-NNNN/` directory in the corpus path (`.torve/specs/` by default),
 with `NNNN` the next free corpus number and the title "Standing decisions".
 Rationale: a first adopter has no areas taxonomy to split by, a single
 document keeps the acceptance ceremony to one commit, and the inheritance
@@ -124,5 +124,5 @@ ratchet, never a purge (D-31.3).
 - `references/draft-template.md` — the corpus-format skeleton the draft is
   written from
 - `fixtures/survey-report.json` — a sample survey report (input)
-- `fixtures/0001-standing-decisions.yaml` — the checkable output shape: the draft
+- `fixtures/S-0001/` — the checkable output shape: the draft
   the doctrine produces from the sample report

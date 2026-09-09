@@ -99,12 +99,12 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
 
 def _corpus_dir(root: Path, config_path: Path | None) -> Path:
     config = load_config(root, config_path)
-    resolved = root / config.rfcs.path
+    resolved = root / config.specs.path
 
     if not resolved.is_dir():
         raise fail(
             f"configuration error: no corpus directory at {resolved} "
-            "(the rfcs.path configuration key)",
+            "(the specs.path configuration key)",
             EXIT_CONFIG,
         )
 

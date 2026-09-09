@@ -1,0 +1,184 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-53.1
+    grade: LOCKED
+    text: >-
+      The specification the engine reads is one pydantic model in `domain/spec.py`,
+      `extra="forbid"`; every reader — planner, importer, check, health, show, intake
+      lint, standing inheritance — consumes the model and never a parser's rows
+    paths: [src/torve/domain/spec.py, src/torve/config/spec.py]
+    consequence: >-
+      Six consumers stop re-shaping rows; a field the author wrote cannot be dropped
+      on the way to the record; D-7.17 stands because the *format* still terminates
+      at `config/` while the model may cross
+    rationale: >-
+      The parser is not wrong; it is the only thing there is. A model gives every
+      consumer the same object and makes "dropped at mint" impossible by construction.
+    cites: [D-7.12, D-7.17, D-A.3]
+  - id: D-53.2
+    grade: LOCKED
+    text: >-
+      Markdown stays the authoring surface and the decision table stays a table (D-A.3);
+      typed additions are fenced YAML blocks the model validates, unknown keys refused
+    paths: [.torve/specs/**, src/torve/config/spec.py]
+    consequence: >-
+      No migration of any existing document to load; the probe's YAML-per-document
+      root is refused with its reason in §5.2
+  - id: D-53.3
+    grade: ASSUMED
+    text: >-
+      Five fenced kinds: `decision-details`, `invariants`, `alternatives`, `questions`,
+      `changes`; prose sections become `DesignSection`s keyed by heading slug and
+      are typed no further
+    paths: [src/torve/domain/spec.py, src/torve/config/spec.py]
+    consequence: >-
+      Typing an argument fragments it; what is typed is what was already a list
+  - id: D-53.4
+    grade: LOCKED
+    text: >-
+      A row's grade or paths change only through `torve rfc amend`, which records
+      the typed diff with the prior value in a `changes` fence under the amendment
+      heading; a grade or paths mismatch against the last recorded change fails `rfc
+      check`. A text-only mismatch is editorial drift: a warning, re-stamped by `torve
+      rfc fix` with the before and after recorded, never an `A-n`
+    paths: [src/torve/config/spec_emit.py, src/torve/config/spec.py]
+    consequence: >-
+      The prior value exists at exactly one moment and is kept on both lanes; a typo
+      costs one command, a regrade costs an amendment, and 12 of 14 already lost by
+      hand-editing are the last
+    rationale: >-
+      Doorstop's per-link fingerprint and reviewed hash are the only precedent for
+      a checkable "changed since you copied it"; the corpus already lost 12 of 14
+      prior values by hand-editing rows.
+    cites: [D-25.1, D-A.4, D-A.5]
+  - id: D-53.5
+    grade: ASSUMED
+    text: >-
+      Every row carries a content fingerprint; a mismatch between a contract's copied
+      row and the row as it stands is reported as *suspect* by `decisions show` and
+      `rfc health`, never as a conviction
+    paths: [src/torve/domain/spec.py, src/torve/application/decisions.py]
+    consequence: >-
+      Copy-at-mint becomes checkable; D-31.3's no-retroactive rule is preserved by
+      making the mismatch a reading, not a red
+  - id: D-53.6
+    grade: LOCKED
+    text: >-
+      Coverage is a per-path fact with three values — governed, ungoverned, retired
+      — computed over decision paths and accepted documents' phase scopes together;
+      ungoverned is never a check failure
+    paths: [src/torve/application/decisions.py]
+    consequence: >-
+      The ratchet's frontier is visible and moves; a directory a phase is changing
+      never reads as ungoverned; blind spots are the default state of a repository,
+      not an error
+  - id: D-53.7
+    grade: ASSUMED
+    text: >-
+      A row whose every glob matches nothing on an accepted, implemented document
+      is path rot: reported by `rfc check`, retired by `amend --retire --reason path-rot`
+      (or `check --fix-rot`), recorded as `decision.retired` on import; never automatic
+      on load, never a red on the document
+    paths: [src/torve/application/decisions.py, src/torve/config/spec_emit.py]
+    consequence: >-
+      27 rows today, 8 `LOCKED`, stop rendering as governance while governing nothing
+  - id: D-53.8
+    grade: LOCKED
+    text: >-
+      A retired document moves to `archive/rfcs/` outside the corpus path, keeping
+      filename and identifier, `status: superseded`, `superseded_by` naming the baseline;
+      nothing reads the archive but the importer and `show`
+    paths: [.torve/archive/**, .torve/specs/**]
+    consequence: >-
+      D-A.18 and D-A.19 are amended to name the archive as the one legal destination
+      of a retirement; every identifier ever cited still resolves
+    rationale: >-
+      Retiring in place keeps 52 documents in every reader's path; deleting breaks
+      705 log entries and 139 amendments; an archive outside the corpus path is the
+      one shape that does neither.
+    cites: [D-A.16, D-A.18, D-A.19]
+  - id: D-53.9
+    grade: LOCKED
+    text: >-
+      The importer records every archived document as a source and every archived
+      row as retired; `torve why` and `show` resolve archived identifiers and say
+      they are archived
+    paths: [src/torve/application/decisions.py, src/torve/cli/spec.py]
+    consequence: >-
+      705 log entries and 139 amendments keep their targets
+  - id: D-53.10
+    grade: LOCKED
+    text: >-
+      The next document number derives as the maximum plus one over the corpus path
+      **and** the archive (D-A.17 extended); identifiers are never reused (D-A.19
+      unchanged)
+    paths: [src/torve/config/spec.py]
+    consequence: >-
+      A gap after the archive is a gap, not a free number
+  - id: D-53.11
+    grade: LOCKED
+    text: >-
+      The baseline is produced by `torve survey` and the corpus-bootstrap skill in
+      a supervised session, never by the engine (D-31.2 unchanged), mostly `ASSUMED`,
+      paths from the tree, no phasing; it is the first document accepted after the
+      archive and governs only contracts minted after (D-31.3 unchanged)
+    paths: [.torve/specs/**]
+    consequence: >-
+      Torve enters itself through the adopter's door; the skill's defects are found
+      on the repository where they are cheapest to fix
+    rationale: >-
+      Every other repository enters this way; the engine's own repository is the one
+      where the lane's defects can be fixed by the person who wrote it.
+    cites: [D-31.2, D-31.3, D-31.6]
+  - id: D-53.12
+    grade: ASSUMED
+    text: >-
+      The rebuild moves `rfcs/` and nothing else: the engine, the record, the task
+      directory, the skills and `gates.yaml` are untouched by the archive
+    paths: [.torve/specs/**, .torve/archive/**]
+    consequence: >-
+      The pivot is of the corpus, not of the engine; the record's 738 rows and every
+      attempt's history stay where they are
+  - id: D-53.13
+    grade: ASSUMED
+    text: >-
+      Each reader switches from `rfc_parse` to the model beside its old path with
+      a parity assertion, one at a time, in phase 2; `rfc_parse.py` is deleted in
+      phase 5 only after the archive lands
+    paths: [src/torve/application/decisions.py, src/torve/cli/spec.py]
+    consequence: >-
+      Two owners of the format exist for one bounded window, and the parity test is
+      what bounds it
+  - id: D-53.14
+    grade: ASSUMED
+    text: >-
+      `domain/spec.py` imports nothing but pydantic and `domain/rfc.py`, so extracting
+      it into its own distribution is a packaging act and never a rewrite
+    paths: [src/torve/domain/spec.py]
+    consequence: >-
+      The model is the reusable half; torve's grades, paths and checks are a profile
+      over it
+  - id: D-53.15
+    grade: ASSUMED
+    text: >-
+      `check` on a row is authored, never derived; a `LOCKED` row without one is reported
+      *soft* by `rfc health`; nothing runs a check in this document
+    paths: [src/torve/domain/spec.py]
+    consequence: >-
+      15 of 19 derived checks in the probe were guesses; running checks as gates is
+      the next document's design
+  - id: D-53.16
+    grade: ASSUMED
+    text: >-
+      The fingerprint covers text, grade and paths; consequence, rationale and check
+      are outside it, since a contract copies the first three at mint and a human
+      reads the rest (Q-53.1, settled in draft)
+    paths: [src/torve/domain/spec.py]
+    consequence: >-
+      An edit to a consequence is free; an edit to what an executor is bound by is
+      recorded
+  - id: D-53.17
+    grade: OPEN
+    text: >-
+      Whether the baseline is one document or several by area (D-31.6, Q-53.2); settled
+      by the grading pass in §5.8

@@ -187,16 +187,18 @@ def write_feedback(root, task_id: str, human_minutes: int) -> None:
 
 def test_the_grade_compared_is_the_one_copied_at_mint_time(tmp_path):
     write_contract(tmp_path, "T-0001", decisions=[("D-1.1", "LOCKED", ["src/a.py"])])
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["grade"] == "LOCKED"
     assert pop["inherited"] == 1
 
 
 def test_populations_are_keyed_by_identifier_not_document(tmp_path):
-    write_contract(tmp_path, "T-0001", rfc="rfcs/0001-a.yaml", decisions=[("D-1.1", "ASSUMED", [])])
+    write_contract(
+        tmp_path, "T-0001", rfc=".torve/specs/S-0001", decisions=[("D-1.1", "ASSUMED", [])]
+    )
     write_contract(tmp_path, "T-0002", rfc=None, decisions=[("D-1.1", "ASSUMED", [])])
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["inherited"] == 2
     assert sorted(pop["inherited_tasks"]) == ["T-0001", "T-0002"]
@@ -213,7 +215,7 @@ def test_a_task_whose_scope_covers_the_paths_is_touched(tmp_path):
         decisions=[("D-1.1", "LOCKED", ["src/widget/**"])],
         scope_allow=["src/widget/core.py"],
     )
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 1
 
@@ -225,7 +227,7 @@ def test_a_task_whose_scope_misses_the_paths_is_not_touched(tmp_path):
         decisions=[("D-1.1", "LOCKED", ["src/widget/**"])],
         scope_allow=["src/other/**"],
     )
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 0
 
@@ -234,14 +236,14 @@ def test_unconstrained_scope_counts_as_touched(tmp_path):
     write_contract(
         tmp_path, "T-0001", decisions=[("D-1.1", "LOCKED", ["src/widget/**"])], scope_allow=[]
     )
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 1
 
 
 def test_a_pathless_decision_is_never_touched(tmp_path):
     write_contract(tmp_path, "T-0001", decisions=[("D-1.1", "ASSUMED", [])], scope_allow=["src/**"])
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 0
 
@@ -258,7 +260,7 @@ def test_decoration_reading_names_both_causes_once_the_floor_is_met(tmp_path):
             decisions=[("D-1.1", "LOCKED", ["src/a.py"])],
             scope_allow=["src/a.py"],
         )
-    report = decision_report(tmp_path, tmp_path / "rfcs", floor=3)
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs", floor=3)
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 3 and pop["cited"] == 0
     assert pop["reading"] == "decoration-or-paths-defect"
@@ -269,7 +271,7 @@ def test_decoration_reading_is_suppressed_below_the_floor(tmp_path):
     write_contract(
         tmp_path, "T-0001", decisions=[("D-1.1", "LOCKED", ["src/a.py"])], scope_allow=["src/a.py"]
     )
-    report = decision_report(tmp_path, tmp_path / "rfcs", floor=3)
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs", floor=3)
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 1 and pop["cited"] == 0
     assert pop["reading"] is None  # denominator printed regardless (D-22.8)
@@ -285,7 +287,7 @@ def test_a_locked_row_never_touched_is_not_decoration(tmp_path):
             decisions=[("D-1.1", "LOCKED", ["src/never-touched.py"])],
             scope_allow=["src/somewhere-else.py"],
         )
-    report = decision_report(tmp_path, tmp_path / "rfcs", floor=3)
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs", floor=3)
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 0
     assert pop["reading"] is None
@@ -301,7 +303,7 @@ def test_assumed_departed_majority_proposes_open(tmp_path):
             scope_allow=["src/a.py"],
         )
         write_log(tmp_path, task_id, [entry("D-1.1", "ASSUMED", "departed")])
-    report = decision_report(tmp_path, tmp_path / "rfcs", floor=3)
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs", floor=3)
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["reading"] == "propose-open"
     assert "3/3" in pop["reading_detail"]
@@ -320,7 +322,7 @@ def test_assumed_departed_minority_asserts_no_reading(tmp_path):
         # (ASSUMED owes no entry when the executor never diverges).
         if i == 1:
             write_log(tmp_path, task_id, [entry("D-1.1", "ASSUMED", "departed")])
-    report = decision_report(tmp_path, tmp_path / "rfcs", floor=3)
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs", floor=3)
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["touched"] == 3
     assert pop["reading"] is None
@@ -335,7 +337,7 @@ def test_open_decided_claims_are_surfaced_without_asserting_identical(tmp_path):
             task_id,
             [entry("D-1.1", "OPEN", "decided", claim=f"claim {i}")],
         )
-    report = decision_report(tmp_path, tmp_path / "rfcs", floor=3)
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs", floor=3)
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["decided"] == 3
     assert pop["reading"] == "review-decided-claims"
@@ -344,23 +346,23 @@ def test_open_decided_claims_are_surfaced_without_asserting_identical(tmp_path):
 
 
 def test_locked_halted_and_amended_reads_as_over_grade(tmp_path):
-    rfcs = tmp_path / "rfcs"
-    rfcs.mkdir()
-    (rfcs / "0001-a.yaml").write_text(
-        document(
-            "0001",
-            [("D-1.1", "LOCKED", "x", "`src/a.py`")],
-            title="A",
-            implementation="none",
-            amendments=[
-                {
-                    "id": "A-1",
-                    "title": "regrading D-1.1 after repeated halts",
-                    "md": "See D-1.1.",
-                }
-            ],
-        ),
-        encoding="utf-8",
+    rfcs = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [("D-1.1", "LOCKED", "x", "`src/a.py`")],
+                title="A",
+                implementation="none",
+                amendments=[
+                    {
+                        "id": "A-1",
+                        "title": "regrading D-1.1 after repeated halts",
+                        "md": "See D-1.1.",
+                    }
+                ],
+            )
+        },
     )
     for i in range(1, 4):
         task_id = f"T-000{i}"
@@ -389,7 +391,7 @@ def test_locked_halted_and_requeued_reads_as_healthy(tmp_path):
         requeued_state(tmp_path, task_id)
         # requeued_state escalates on locked_conflict, not this decision, but
         # the reading only needs the transition shape, not a matching reason.
-    report = decision_report(tmp_path, tmp_path / "rfcs", floor=3)
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs", floor=3)
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["reading"] == "healthy-boundary"
 
@@ -404,7 +406,7 @@ def test_landed_and_abandoned_denominators_are_both_reported(tmp_path):
     land_commit(tmp_path, "T-0001")
     write_contract(tmp_path, "T-0002", decisions=[("D-1.1", "ASSUMED", ["src/a.py"])])
     abandoned_state(tmp_path, "T-0002")
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["inherited"] == 2
     assert pop["inherited_landed"] == 1  # only the ready task counts as landed
@@ -420,7 +422,7 @@ def test_landed_survives_the_reap_sweep_of_the_run_state_file(tmp_path):
     land_commit(tmp_path, "T-0001")
     naming.state_file(tmp_path, "T-0001").unlink()  # the reap sweep
 
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["inherited_landed"] == 1
 
@@ -434,7 +436,7 @@ def test_an_unlisted_entry_is_never_attributed_to_a_declared_row(tmp_path):
     write_log(
         tmp_path, "T-0001", [entry("unlisted", "UNLISTED", "decided", claim="something else")]
     )
-    report = decision_report(tmp_path, tmp_path / "rfcs")
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
     assert pop["cited"] == 0
 
@@ -444,35 +446,37 @@ def test_an_unlisted_entry_is_never_attributed_to_a_declared_row(tmp_path):
 
 
 def test_identifiers_for_document_filters_by_rfc_number(tmp_path):
-    rfcs = tmp_path / "rfcs"
-    rfcs.mkdir()
-    (rfcs / "0001-a.yaml").write_text(
-        document("0001", [("D-1.1", "ASSUMED", "x", "—")], title="A", implementation="none"),
-        encoding="utf-8",
+    rfcs = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001", [("D-1.1", "ASSUMED", "x", "—")], title="A", implementation="none"
+            )
+        },
     )
     assert identifiers_for_document(rfcs, "0001") == {"D-1.1"}
     assert identifiers_for_document(rfcs, "0002") is None
 
 
 # ....................... #
-# CLI surface: `torve rfc health`
+# CLI surface: `torve spec health`
 
 
 def _seed_cli_repo(tmp_path):
-    rfcs = tmp_path / "rfcs"
-    rfcs.mkdir()
-    (rfcs / "0001-a.yaml").write_text(
-        document(
-            "0001", [("D-1.1", "LOCKED", "x", "`src/a.py`")], title="A", implementation="none"
-        ),
-        encoding="utf-8",
+    rfcs = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001", [("D-1.1", "LOCKED", "x", "`src/a.py`")], title="A", implementation="none"
+            )
+        },
     )
     for i in range(1, 4):
         task_id = f"T-000{i}"
         write_contract(
             tmp_path,
             task_id,
-            rfc="rfcs/0001-a.yaml",
+            rfc=".torve/specs/S-0001",
             decisions=[("D-1.1", "LOCKED", ["src/a.py"])],
             scope_allow=["src/a.py"],
         )
@@ -482,7 +486,7 @@ def _seed_cli_repo(tmp_path):
 def test_health_cli_json_carries_the_populations_and_caveat(tmp_path):
     _seed_cli_repo(tmp_path)
     result = CliRunner().invoke(
-        app, ["rfc", "health", "--root", str(tmp_path), "--format", "json", "--floor", "3"]
+        app, ["spec", "health", "--root", str(tmp_path), "--format", "json", "--floor", "3"]
     )
     assert result.exit_code == 0, result.output
     document = json.loads(result.output)
@@ -495,7 +499,7 @@ def test_health_cli_json_carries_the_populations_and_caveat(tmp_path):
 
 def test_health_cli_text_prints_the_caveat_and_floor_and_no_score(tmp_path):
     _seed_cli_repo(tmp_path)
-    result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path), "--floor", "3"])
+    result = CliRunner().invoke(app, ["spec", "health", "--root", str(tmp_path), "--floor", "3"])
     assert result.exit_code == 0, result.output
     assert "quasi-experiment" in result.output
     assert "no single corpus score is computed" in result.output
@@ -507,19 +511,18 @@ def test_health_cli_text_prints_the_caveat_and_floor_and_no_score(tmp_path):
 
 def test_health_cli_filters_by_document(tmp_path):
     _seed_cli_repo(tmp_path)
-    result = CliRunner().invoke(app, ["rfc", "health", "0001", "--root", str(tmp_path)])
+    result = CliRunner().invoke(app, ["spec", "health", "0001", "--root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "D-1.1" in result.output
 
-    missing = CliRunner().invoke(app, ["rfc", "health", "0002", "--root", str(tmp_path)])
+    missing = CliRunner().invoke(app, ["spec", "health", "0002", "--root", str(tmp_path)])
     assert missing.exit_code == 3
-    assert "no RFC" in missing.output
+    assert "no document" in missing.output
 
 
 def test_health_cli_empty_corpus_reports_nothing_inherited(tmp_path):
-    (tmp_path / "rfcs").mkdir()
-    (tmp_path / ".torve").mkdir()
-    result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path)])
+    (tmp_path / ".torve" / "specs").mkdir(parents=True)
+    result = CliRunner().invoke(app, ["spec", "health", "--root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "no decisions inherited" in result.output
 
@@ -883,7 +886,7 @@ def test_dispatch_envelope_cost_follows_the_configured_telemetry_path(tmp_path):
 
 def test_health_cli_corpus_summary_prints_operator_attention_text(tmp_path):
     _seed_cli_repo(tmp_path)
-    result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path)])
+    result = CliRunner().invoke(app, ["spec", "health", "--root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "operator attention" in result.output
     # Each kind prints its own population, and the joined count never prints
@@ -893,7 +896,9 @@ def test_health_cli_corpus_summary_prints_operator_attention_text(tmp_path):
 
 def test_health_cli_corpus_summary_carries_operator_attention_json(tmp_path):
     _seed_cli_repo(tmp_path)
-    result = CliRunner().invoke(app, ["rfc", "health", "--root", str(tmp_path), "--format", "json"])
+    result = CliRunner().invoke(
+        app, ["spec", "health", "--root", str(tmp_path), "--format", "json"]
+    )
     assert result.exit_code == 0, result.output
     document = json.loads(result.output)
     assert document["operator_attention"]["escalations_triaged"] == {"joined": 0, "total": 0}
@@ -904,7 +909,7 @@ def test_health_cli_document_filter_has_no_operator_attention(tmp_path):
     single-document view is decision-level and has no bearing on it."""
     _seed_cli_repo(tmp_path)
     result = CliRunner().invoke(
-        app, ["rfc", "health", "0001", "--root", str(tmp_path), "--format", "json"]
+        app, ["spec", "health", "0001", "--root", str(tmp_path), "--format", "json"]
     )
     assert result.exit_code == 0, result.output
     document = json.loads(result.output)

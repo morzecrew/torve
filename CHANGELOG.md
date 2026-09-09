@@ -14,6 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warns when the reviewer runs the executor's own model — a model
   reviewing its own kind shares its blind spots.
 
+### Changed
+
+- **Breaking (RFC 0057):** a specification is a directory `S-NNNN/` of four
+  YAML files split by who writes each — `document.yaml` and
+  `decisions.yaml` the author's, `amendments.yaml` the tool's,
+  `execution.yaml` the landing's — under `.torve/specs/`, archived to
+  `.torve/archive/`; `schema_version` is 3 and a one-file document is
+  refused naming the conversion. A section is `key` and `md`; its heading
+  is its key, and a section restating a typed list is a check problem.
+- **Breaking:** `torve spec` absorbs every `torve rfc` verb; the gate is
+  `spec-valid`, the configuration key `specs.path` (`rfcs` is refused
+  naming it), the skill `spec-writer`. `torve init` writes the four
+  schemas into `.torve/schemas/`, which every file's first line names.
+
+### Removed
+
+- **Breaking:** the `torve rfc` namespace, `torve rfc schema`, the `rfcs/`
+  and `archive/rfcs/` directories, the `heading` of a section and the
+  `amended_by` field (derived from the amendments).
+
 ### Fixed
 
 - Maintenance batch (T-0131–T-0134, drafted by intake from the operator's

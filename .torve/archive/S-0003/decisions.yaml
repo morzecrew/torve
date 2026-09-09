@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-3.1
+    grade: LOCKED
+    text: v1 is one task, synchronous, no daemon
+    paths: [src/torve/application/runner.py, src/torve/cli/**]
+    consequence: Parallelism only after the single path is boring
+  - id: D-3.2
+    grade: ASSUMED
+    text: '`FakeAgent` is the first adapter built'
+    paths: [src/torve/adapters/agent/fake.py]
+    consequence: >-
+      Depart only if it delays a working loop by more than a day
+  - id: D-3.3
+    grade: ASSUMED
+    text: >-
+      `Runtime` is OpenSandbox, with Docker retained as a fallback
+    paths:
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/adapters/runtime/opensandbox.py
+    consequence: >-
+      Depart if operating the server outweighs the vault and egress controls
+  - id: D-3.4
+    grade: LOCKED
+    text: >-
+      Names for ports, databases, volumes and sandboxes derive from the task id
+    paths: [src/torve/base/naming.py]
+    consequence: Cleanup by convention depends on it entirely
+  - id: D-3.5
+    grade: ASSUMED
+    text: >-
+      Simulation is the primary concurrency-verification tool; each invariant ships
+      with a reachability target and a broken twin
+    paths: [tests/dst_world.py, tests/test_dst.py]
+    consequence: Depart if the harness cannot see the invariants
+  - id: D-3.6
+    grade: ASSUMED
+    text: Mock for tests, Postgres for real runs
+    paths: [src/torve/adapters/store/durable.py]
+    consequence: Substrate property, not a choice
+  - id: D-3.7
+    grade: ASSUMED
+    text: >-
+      Runner configuration lives in `torve.yaml` at the repository root, reviewed
+      like `gates.yaml` but on its own cadence; RFC 0004's tier mapping joins it there.
+      Added by execution 2026-08-21. *(Relocated by D-13.1 2026-08-22: `.torve/config.yaml`,
+      with the root name read as a fallback; substance unchanged.)*
+    paths: [src/torve/config/runconfig.py, src/torve/config/layout.py]
+    consequence: >-
+      Keeps gate manifest and runner knobs on separate release cadences
+  - id: D-3.8
+    grade: ASSUMED
+    text: >-
+      `torve run` executes shell gates in a fresh sandbox from the same image over
+      the same worktree; pure gates run in the engine. Added by execution 2026-08-21
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      An agent-staged PATH shim cannot fake a gate outcome
+  - id: D-3.9
+    grade: ASSUMED
+    text: >-
+      Until RFC 0005 ships, the runner auto-transitions gated → reviewed with the
+      recorded fact "review not configured"; the transition table stays unchanged.
+      Added by execution 2026-08-21
+    paths: [src/torve/application/runner.py]
+    consequence: Review slots in without a state-machine change
+  - id: D-3.10
+    grade: ASSUMED
+    text: >-
+      v1 liveness is a heartbeat in the JSON state file; the reaper escalates stale
+      non-terminal runs as `lease_expired`. Replaced by real leases in T-0004. Added
+      by execution 2026-08-21
+    paths: [src/torve/application/reaper.py]
+    consequence: >-
+      The kill -9 exit criterion holds before the durable store exists
+  - id: D-3.11
+    grade: ASSUMED
+    text: >-
+      The Runtime contract is "workspace in, changed files out": Docker satisfies
+      it by bind mount, OpenSandbox by tar-over-files-API sync; the conformance battery
+      asserts the contract, not the mechanism. Added by execution 2026-08-21
+    paths: [src/torve/application/ports.py, src/torve/adapters/**]
+    consequence: >-
+      Server-side runtimes fit the same port as local ones
+  - id: D-3.12
+    grade: ASSUMED
+    text: >-
+      The opensandbox SDK ships as the optional extra `torve[opensandbox]`; the adapter
+      import-guards it. Added by execution 2026-08-21
+    paths: [pyproject.toml]
+    consequence: >-
+      Consuming repositories do not pay for an adapter they do not use
+  - id: D-3.13
+    grade: ASSUMED
+    text: >-
+      Torve owns the DDL and migrations for the substrate tables it uses, applied
+      by `torve migrate substrate` *(command renamed per 0012-migrations.md; was `torve
+      store provision`)*; the conformance battery against the migrated database is
+      a required gate (A-6). Added by execution 2026-08-21
+    paths: [src/torve/adapters/store/durable.py]
+    consequence: >-
+      The substrate documents schemas but ships no provisioning path
+  - id: D-3.14
+    grade: ASSUMED
+    text: >-
+      Durable status maps to task state as: COMPLETED wraps every engine verdict (ready
+      and escalated alike), FAILED is an unhandled engine exception, CANCELLED is
+      escalation `killed`, TIMED_OUT is `budget_exhausted`. Added by execution 2026-08-21
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      The store records that the run finished deciding, not what it decided
+  - id: D-3.15
+    grade: ASSUMED
+    text: >-
+      Under the in-process mock store the reaper keeps the v1 heartbeat heuristic;
+      under Postgres the lease is the liveness authority via `claim_abandoned`. Added
+      by execution 2026-08-21
+    paths: [src/torve/application/reaper.py]
+    consequence: >-
+      Cross-process durability requires Postgres (D-3.6), stated in configuration
+  - id: D-3.16
+    grade: ASSUMED
+    text: >-
+      `torve reap --force` is the one deliberate use of an unfenced terminal write
+      — an operator override so a stuck system is always drainable. Added by execution
+      2026-08-21
+    paths: [src/torve/application/taskstore.py]
+    consequence: >-
+      Fencing protects runs from stale workers, not from operators
+  - id: D-3.17
+    grade: ASSUMED
+    text: >-
+      Cancel observation latency is one lease heartbeat plus the current port call,
+      bounded by the agent hard timeout. Added by execution 2026-08-21
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      §5's "a body that never awaits" caveat, made concrete
+  - id: D-3.19
+    grade: LOCKED
+    text: >-
+      Context composition is fixed, owned by the runner, and part of `config_hash`;
+      nothing outside the runner may extend it. Added by charter amendment A-11 2026-08-22
+      *(the source patch numbered this D-3.7, already taken)*
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      A context that varies silently makes attempts incomparable
+  - id: D-3.20
+    grade: LOCKED
+    text: >-
+      A log file is created by its first entry; entries are flushed as written. Added
+      by amendment A-13 2026-08-22 *(the source patch numbered this D-3.8, already
+      taken)*
+    paths: [src/torve/application/runner.py, src/torve/gates/decisions_reported.py]
+    consequence: >-
+      Writing at end-of-run from memory loses entries on any abnormal termination
+  - id: D-3.21
+    grade: LOCKED
+    text: >-
+      A missing log and an empty log are equivalent to every reader. Added by amendment
+      A-13 2026-08-22 *(the source patch numbered this D-3.9, already taken)*
+    paths: [src/torve/gates/decisions_reported.py, src/torve/gates/self_audit.py]
+    consequence: >-
+      Otherwise the runner needs a decision about writing, and that decision is a
+      bug waiting to happen
+  - id: D-3.22
+    grade: ASSUMED
+    text: >-
+      The FakeAgent models the convention real agents must follow: its log path and
+      created-by-first-entry behaviour track the canonical layout in lockstep. Added
+      by execution 2026-08-22 — see .torve/tasks/T-0015
+    paths: [src/torve/adapters/agent/fake.py]
+  - id: D-3.23
+    grade: ASSUMED
+    text: >-
+      The reaper sweeps a terminal run's whole footprint — worktree, state file and
+      trace logs — driven by the state files themselves, so a footprint whose worktree
+      is already gone is still collected; escalated runs keep everything for triage.
+      Added by execution 2026-08-22 — see .torve/tasks/T-0030. *Narrowed by amendment
+      A-28 2026-08-24 (registered on RFC 0019, D-19.10): the state file of a READY
+      implement or revert run whose task has not landed on the base is kept — READY
+      is the lane's input; its worktree stays disposable, and review-role READY states
+      remain sweepable*
+    paths: [src/torve/application/reaper.py]
+  - id: D-3.24
+    grade: ASSUMED
+    text: >-
+      The Docker runtime defaults HOME to /tmp when the spec provides none — uid-mapped
+      containers have no home, and tools that cache under it die at /. Added by execution
+      2026-08-22 — see .torve/tasks/T-0022
+    paths: [src/torve/adapters/runtime/docker.py]
+  - id: D-3.25
+    grade: ASSUMED
+    text: >-
+      The reap keeps to its root: every sandbox is labelled with a stable digest of
+      its engine root's resolved path, and the reaper judges only sandboxes wearing
+      its own root — an unlabelled sandbox is a pre-amendment stray, reapable by anyone.
+      Added by amendment A-38 2026-08-25
+    paths: [src/torve/base/naming.py, src/torve/application/reaper.py]
+    consequence: >-
+      Two engines on one daemon reaped each other's containers: the lab's one-minute
+      loop destroyed the dev suite's conformance sandboxes mid-test
+retired: [D-3.18]

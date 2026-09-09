@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from torve.application.telemetry import config_hash
+from torve.config import layout
 from torve.config.runconfig import (
     BrokerConfig,
     RunnerConfig,
@@ -814,3 +815,16 @@ def test_the_review_role_loads_a_shipped_skill_by_default() -> None:
     # `reading-isnt-proof` is vendored in this repository, not shipped, so
     # a package default naming it would refuse every adopter's review.
     assert RunnerConfig().skills.sets["review"] == ["ratchet-what-you-build"]
+
+
+def test_the_corpus_path_defaults_beside_everything_else_under_torve() -> None:
+    # D-57.3: one path, and the archive and the schemas are its siblings —
+    # so the default is the layout constant, not a second spelling of it.
+    assert RunnerConfig().specs.path == layout.SPECS_DIR == ".torve/specs"
+
+
+def test_the_old_rfcs_key_is_refused_naming_specs() -> None:
+    # D-57.3: renamed, never mapped. Silently accepting `rfcs` would point
+    # a converted repository's engine at a corpus that no longer exists.
+    with pytest.raises(ValidationError, match=r"`rfcs` is `specs`"):
+        RunnerConfig.model_validate({"rfcs": {"path": "rfcs"}})

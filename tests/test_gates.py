@@ -406,7 +406,7 @@ def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
     repo.seed()
     repo.task(
         base_task(allow=["src/**"], decisions=_checked("true", twin="tests/test_x.py"))
-        | {"rfc": "rfcs/0054-something.md"},
+        | {"rfc": ".torve/specs/S-0054"},
         log_document(),
     )
     repo.write("src/app.py", "print('x')\n")

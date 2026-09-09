@@ -1,13 +1,13 @@
-"""`torve rfc amend`, `add-decision`, `retire` and `relocate-paths` (RFC 0025
+"""`torve spec amend`, `add-decision`, `retire` and `relocate-paths` (RFC 0025
 §5.3): each is a load-mutate-dump-check transaction that aborts whole on a
-red check, leaving the tree untouched.
+red check, leaving the document's directory untouched.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from test_decisions import document
+from test_decisions import Doc, corpus, document
 from typer.testing import CliRunner
 
 from torve.cli import app
@@ -39,37 +39,38 @@ BROKEN_SECOND_DOC = document(
 
 
 def invoke(root: Path, *args: str):
-    return runner.invoke(app, ["rfc", *args, "--root", str(root)])
+    return runner.invoke(app, ["spec", *args, "--root", str(root)])
 
 
-def seed(tmp_path: Path, *docs: tuple[str, str]) -> Path:
-    """Write (filename, text) documents and return the corpus dir."""
+def seed(tmp_path: Path, *docs: tuple[str, Doc]) -> Path:
+    """Write (number, document) pairs and return the corpus dir."""
 
-    rfcs = tmp_path / "rfcs"
-    rfcs.mkdir(exist_ok=True)
-
-    for name, text in docs:
-        (rfcs / name).write_text(text, encoding="utf-8")
-
-    return rfcs
+    return corpus(tmp_path, **dict(docs))
 
 
 def widget(rfcs: Path):
-    return load_document(rfcs / "0001-widget.yaml")
+    return load_document(rfcs / "S-0001")
+
+
+def files(directory: Path) -> dict[str, str]:
+    """Every file of one document's directory — what "the tree untouched"
+    means now that a document is four files."""
+
+    return {path.name: path.read_text(encoding="utf-8") for path in sorted(directory.iterdir())}
 
 
 # ....................... #
-# rfc amend
+# spec amend
 
 
 def test_amend_appends_derived_number_and_records_amended_by(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC))
+    rfcs = seed(tmp_path, ("0001", DOC))
     result = invoke(tmp_path, "amend", "0001", "--title", "second amendment")
     assert result.exit_code == 0, result.output
     assert "A-2" in result.output
 
     doc = widget(rfcs)
-    assert doc.amended_by == ["A-1", "A-2"]
+    assert doc.amended_by() == ["A-1", "A-2"]
     assert doc.amendments[-1].id == "A-2"
     assert doc.amendments[-1].title == "second amendment"
 
@@ -83,7 +84,7 @@ def test_amend_derives_the_next_number_corpus_wide(tmp_path: Path) -> None:
         implementation="none",
         amendments=[{"id": "A-9", "at": "2026-01-01", "title": "ninth", "md": "Prose.\n"}],
     )
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC), ("0002-other.yaml", second))
+    rfcs = seed(tmp_path, ("0001", DOC), ("0002", second))
 
     result = invoke(tmp_path, "amend", "0001", "--title", "third amendment")
     assert result.exit_code == 0, result.output
@@ -93,21 +94,21 @@ def test_amend_derives_the_next_number_corpus_wide(tmp_path: Path) -> None:
 
 
 def test_amend_aborts_whole_when_the_corpus_does_not_check_clean(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC), ("0002-broken.yaml", BROKEN_SECOND_DOC))
-    before = (rfcs / "0001-widget.yaml").read_text(encoding="utf-8")
+    rfcs = seed(tmp_path, ("0001", DOC), ("0002", BROKEN_SECOND_DOC))
+    before = files(rfcs / "S-0001")
 
     result = invoke(tmp_path, "amend", "0001", "--title", "never lands")
     assert result.exit_code == EXIT_CONFIG
     assert "PROBLEM" in result.output
-    assert (rfcs / "0001-widget.yaml").read_text(encoding="utf-8") == before  # tree untouched
+    assert files(rfcs / "S-0001") == before  # the directory untouched
 
 
 # ....................... #
-# rfc add-decision
+# spec add-decision
 
 
 def test_add_decision_appends_a_row_with_open_grade(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC))
+    rfcs = seed(tmp_path, ("0001", DOC))
     result = invoke(tmp_path, "add-decision", "0001")
     assert result.exit_code == 0, result.output
     assert "D-1.3" in result.output
@@ -118,20 +119,20 @@ def test_add_decision_appends_a_row_with_open_grade(tmp_path: Path) -> None:
 
 
 def test_add_decision_aborts_whole_when_the_corpus_does_not_check_clean(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC), ("0002-broken.yaml", BROKEN_SECOND_DOC))
-    before = (rfcs / "0001-widget.yaml").read_text(encoding="utf-8")
+    rfcs = seed(tmp_path, ("0001", DOC), ("0002", BROKEN_SECOND_DOC))
+    before = files(rfcs / "S-0001")
 
     result = invoke(tmp_path, "add-decision", "0001")
     assert result.exit_code == EXIT_CONFIG
-    assert (rfcs / "0001-widget.yaml").read_text(encoding="utf-8") == before
+    assert files(rfcs / "S-0001") == before
 
 
 # ....................... #
-# rfc retire
+# spec retire
 
 
 def test_retire_removes_the_row_and_records_it_retired(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC))
+    rfcs = seed(tmp_path, ("0001", DOC))
     result = invoke(tmp_path, "retire", "D-1.1")
     assert result.exit_code == 0, result.output
 
@@ -147,7 +148,7 @@ def test_retire_removes_the_row_and_records_it_retired(tmp_path: Path) -> None:
 def test_add_decision_skips_a_retired_identifier_at_the_top_of_the_family(
     tmp_path: Path,
 ) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC))
+    rfcs = seed(tmp_path, ("0001", DOC))
     retired = invoke(tmp_path, "retire", "D-1.2")  # D-1.2 is the family's highest number
     assert retired.exit_code == 0, retired.output
 
@@ -159,27 +160,27 @@ def test_add_decision_skips_a_retired_identifier_at_the_top_of_the_family(
 
 
 def test_retire_refuses_an_unknown_identifier(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001-widget.yaml", DOC))
+    seed(tmp_path, ("0001", DOC))
     result = invoke(tmp_path, "retire", "D-9.9")
     assert result.exit_code == EXIT_CONFIG
     assert "D-9.9" in result.output
 
 
 def test_retire_aborts_whole_when_the_corpus_does_not_check_clean(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC), ("0002-broken.yaml", BROKEN_SECOND_DOC))
-    before = (rfcs / "0001-widget.yaml").read_text(encoding="utf-8")
+    rfcs = seed(tmp_path, ("0001", DOC), ("0002", BROKEN_SECOND_DOC))
+    before = files(rfcs / "S-0001")
 
     result = invoke(tmp_path, "retire", "D-1.1")
     assert result.exit_code == EXIT_CONFIG
-    assert (rfcs / "0001-widget.yaml").read_text(encoding="utf-8") == before
+    assert files(rfcs / "S-0001") == before
 
 
 # ....................... #
-# rfc relocate-paths
+# spec relocate-paths
 
 
 def test_relocate_paths_sweeps_only_matching_rows(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC))
+    rfcs = seed(tmp_path, ("0001", DOC))
     result = invoke(tmp_path, "relocate-paths", "src/thing/**", "src/moved/**")
     assert result.exit_code == 0, result.output
     assert "D-1.1" in result.output
@@ -191,15 +192,15 @@ def test_relocate_paths_sweeps_only_matching_rows(tmp_path: Path) -> None:
 
 
 def test_relocate_paths_with_no_matching_row_is_a_configuration_error(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001-widget.yaml", DOC))
+    seed(tmp_path, ("0001", DOC))
     result = invoke(tmp_path, "relocate-paths", "src/nowhere/**", "src/elsewhere/**")
     assert result.exit_code == EXIT_CONFIG
 
 
 def test_relocate_paths_aborts_whole_when_the_corpus_does_not_check_clean(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path, ("0001-widget.yaml", DOC), ("0002-broken.yaml", BROKEN_SECOND_DOC))
-    before = (rfcs / "0001-widget.yaml").read_text(encoding="utf-8")
+    rfcs = seed(tmp_path, ("0001", DOC), ("0002", BROKEN_SECOND_DOC))
+    before = files(rfcs / "S-0001")
 
     result = invoke(tmp_path, "relocate-paths", "src/thing/**", "src/moved/**")
     assert result.exit_code == EXIT_CONFIG
-    assert (rfcs / "0001-widget.yaml").read_text(encoding="utf-8") == before
+    assert files(rfcs / "S-0001") == before

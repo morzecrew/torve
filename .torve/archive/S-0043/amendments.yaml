@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-87
+    at: '2026-09-04'
+    title: the phase scope owes runconfig its test file
+  - id: A-103
+    at: '2026-09-05'
+    title: The judgement this document never carried
+    md: |-
+      **Found taking stock.** This document was accepted with no `implementation`
+      field at all, so it carried no D-A.11 judgement either way — neither built
+      nor owed, which reads as an oversight rather than a position and leaves the
+      programme view guessing.
+
+      It is built. `ReviewConfig.blocker_revisions` exists with the default this
+      document specifies, the revision loop runs in the attempt, and phase 1's
+      own acceptance passes today
+      (`pytest tests/test_runner.py tests/test_review_run.py tests/test_feedback.py`).
+
+      **Changed:** `implementation: complete`. Nothing normative.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

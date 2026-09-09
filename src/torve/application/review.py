@@ -652,7 +652,7 @@ def run_review(
         effective_skill_sets(tier, review.role, config.skills.sets),
         layout.skills_vendor_dir(copy),
     )
-    pack = build_pack(root, root / config.rfcs.path, target, layout.gates_file(root), replay=True)
+    pack = build_pack(root, root / config.specs.path, target, layout.gates_file(root), replay=True)
     pack["touched.json"] = (
         json.dumps(touched_file(root, target, diff_text), indent=2, sort_keys=True) + "\n"
     )

@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-37.1
+    grade: LOCKED
+    text: >-
+      The engine never reads `state.yaml` content for control flow: shape validation
+      (gate), presence stamping (telemetry), and human display (triage) are the only
+      engine reads; routing stays deterministic over recorded gate outcomes alone
+      (D-34.5, D-4.6)
+    paths: [src/torve/application/runner.py, src/torve/application/projections.py]
+    consequence: >-
+      Any future router or gate wanting state *content* must amend RFC 0034 first;
+      the delete test (D-35.1 transplanted) is the review tripwire
+  - id: D-37.2
+    grade: LOCKED
+    text: >-
+      The carrier is the worktree: state crosses attempts only where the tree crosses
+      (checkpoint → continuation), and every restart-from-base lane discards it unread
+      — D-17.7 is untouched because the file is work product, not memory
+    paths: [src/torve/adapters/agent/harness.py]
+    consequence: >-
+      No sidecar store, no host-side copy, no lane-specific plumbing may be added
+      for this file; a lane's existing trust semantics are its state semantics
+  - id: D-37.3
+    grade: ASSUMED
+    text: >-
+      The file lives at `.torve/tasks/<id>/state.yaml`, tracked, mutable, replaced
+      in place, capped at 24 000 bytes (feedback.md's cap)
+    paths: [src/torve/config/layout.py]
+  - id: D-37.4
+    grade: ASSUMED
+    text: >-
+      The executor schema is the §5.1 shape: envelope (`schema_version`, `task`, `base_sha`
+      pin, `attempt`, `updated_at`) plus optional `plan`/`facts`/`dead_ends`/`blockers`/`handles`;
+      the `attempt-state` skill owns the schema document
+    paths: [skills/attempt-state/**]
+  - id: D-37.5
+    grade: ASSUMED
+    text: >-
+      The discipline is write-ahead — update before each significant action — so a
+      hard timeout leaves last-known-good state for the post-kill `sync_out` to carry
+      out
+    paths: [skills/attempt-state/**]
+  - id: D-37.6
+    grade: ASSUMED
+    text: >-
+      `state-audit` is a shape-only shadow builtin with `input: "state"`: missing
+      → green, malformed / unknown keys / pin mismatch / oversize → red; content is
+      never judged
+    paths: [src/torve/gates/state_audit.py, src/torve/gates/context.py]
+  - id: D-37.7
+    grade: ASSUMED
+    text: >-
+      Every executor attempt carries the maintain-state working rule; the continuation
+      branch adds a pointer at the inherited file with `feedback.md`'s untrusted framing;
+      the revision lane gets no pointer (its tree was discarded)
+    paths: [src/torve/adapters/agent/harness.py]
+  - id: D-37.8
+    grade: ASSUMED
+    text: >-
+      The attempt row's `agent` block gains a `state` sub-block (`present`, `bytes`,
+      `updated_at`, sections), populated beside the existing token counts so handoff
+      payoff is queryable against T-0186's counters
+    paths: [src/torve/application/telemetry.py]
+  - id: D-37.9
+    grade: ASSUMED
+    text: >-
+      Escalation triage (`torve status`, the context projection's escalation bucket)
+      displays `blockers` and leading `next` entries from an escalated run's state
+      when present — display only, per D-37.1
+    paths: [src/torve/application/projections.py, src/torve/cli/status.py]
+  - id: D-37.10
+    grade: OPEN
+    text: >-
+      Whether a landing candidate carries its final `state.yaml` onto the base or
+      strips it: default is land (small, dated, archaeologically useful); implementation
+      observes landing noise and decides, logging the call
+    paths: [src/torve/adapters/agent/harness.py]

@@ -15,7 +15,7 @@ import pytest
 
 from torve.application.skills import available, materialize, skills_root
 from torve.config.runconfig import RunnerConfig
-from torve.config.spec import RFC_FILENAME, load_document
+from torve.config.spec import DOCUMENT_DIRNAME, load_document
 from torve.domain.rfc import GRADES, STATUSES
 
 
@@ -24,7 +24,7 @@ def test_the_four_specialised_skills_ship():
         "corpus-bootstrap",
         "flag-dont-flip",
         "ratchet-what-you-build",
-        "rfc-writer",
+        "spec-writer",
     } <= set(available())
 
 
@@ -125,9 +125,7 @@ def test_the_bootstrap_fixture_draft_is_a_checkable_corpus_document():
     phasing. The fixture stays a draft, because acceptance is the human's
     edit, never the skill's."""
 
-    doc = load_document(
-        skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.yaml"
-    )
+    doc = load_document(skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001")
 
     assert doc.status in STATUSES
     assert doc.status == "draft"
@@ -157,9 +155,10 @@ def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
             encoding="utf-8"
         )
     )
-    draft = (
-        skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.yaml"
-    ).read_text(encoding="utf-8")
+    draft = "".join(
+        one.read_text(encoding="utf-8")
+        for one in sorted((skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001").iterdir())
+    )
 
     for gate in report["summary"]["corpus_adds"]:
         assert gate in draft, f"draft does not address corpus gap {gate}"
@@ -177,14 +176,16 @@ def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
 
 def test_the_bootstrap_skill_records_the_shape_it_chose():
     """The recorded shape (the open question the skill is charged with): one
-    document per adoption, NNNN-standing-decisions.yaml — the skill names the
-    convention, and the output fixture's filename is that shape concrete."""
+    document per adoption, the `S-NNNN/` directory of RFC 0057 — the skill
+    names the convention, and the output fixture's directory is that shape
+    concrete."""
 
     skill = (skills_root() / "corpus-bootstrap" / "SKILL.md").read_text(encoding="utf-8")
-    assert "NNNN-standing-decisions.yaml" in skill
+    assert "S-NNNN" in skill
 
-    fixture = skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.yaml"
-    assert RFC_FILENAME.match(fixture.name)
+    fixture = skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001"
+    assert fixture.is_dir()
+    assert DOCUMENT_DIRNAME.match(fixture.name)
 
 
 # ....................... #

@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-10.1
+    grade: LOCKED
+    text: >-
+      The agent produces code; the runner produces every forge artefact
+    paths: [src/torve/application/runner.py, src/torve/application/ports.py]
+    consequence: The mechanism that makes D-4b achievable
+  - id: D-10.2
+    grade: LOCKED
+    text: >-
+      Commit author is the agent identity, never a human
+    paths: [src/torve/adapters/vcs/git.py]
+    consequence: >-
+      Attributing machine work to a person corrupts blame and review data
+  - id: D-10.3
+    grade: LOCKED
+    text: >-
+      Signing happens outside the sandbox, at the runner boundary
+    paths: [src/torve/adapters/vcs/git.py, src/torve/config/runconfig.py]
+    consequence: The agent cannot hold the key
+  - id: D-10.4
+    grade: LOCKED
+    text: >-
+      Provenance trailers on every commit, including `config_hash`
+    paths: [src/torve/adapters/vcs/git.py, src/torve/application/runner.py]
+    consequence: >-
+      The only durable link from a bad commit back to its regime
+  - id: D-10.5
+    grade: LOCKED
+    text: >-
+      Force-push forbidden within an attempt and everywhere outside the engine-owned
+      candidate namespace. Two sanctioned supersessions, both leased: at landing,
+      the engine republishes its own candidate branch to the landed tip (A-34, registered
+      on RFC 0019 D-19.12); and a new attempt wholly supersedes the prior candidate
+      on the same branch after its review threads are captured (D-5.12) — the capture-first
+      order is what this row's review-freshness purpose demands, and the forge marks
+      superseded line comments outdated rather than losing them. Amended by A-37 2026-08-25
+    paths: [src/torve/application/runner.py, src/torve/adapters/vcs/git.py]
+    consequence: Protects review freshness and line comments
+  - id: D-10.6
+    grade: LOCKED
+    text: >-
+      Pull-request bodies are composed from data, never from agent prose
+    paths: [src/torve/application/forge.py, src/torve/adapters/vcs/git.py]
+    consequence: A self-report is not evidence
+  - id: D-10.7
+    grade: LOCKED
+    text: >-
+      Revert is a role, preferring `git revert`, passing the same gates and the same
+      lane
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/domain/task.py
+      - src/torve/adapters/vcs/git.py
+    consequence: >-
+      An unreviewed emergency path is how the guarantees get bypassed
+  - id: D-10.8
+    grade: ASSUMED
+    text: One commit per attempt
+    paths: [src/torve/adapters/vcs/git.py]
+    consequence: >-
+      Depart if attempts routinely produce unrelated changes — which is itself a task-size
+      finding
+  - id: D-10.9
+    grade: OPEN
+    text: >-
+      Whether review-run artefacts get their own branch or live only as comments
+    consequence: Decided when 0005 ships
+  - id: D-10.10
+    grade: ASSUMED
+    text: >-
+      One pull request per task lifetime: the candidate branch persists across re-queues
+      (a requeue captures, it no longer deletes), each new attempt supersedes the
+      branch with a leased force-push, `open_pr` reuses the branch's open pull request
+      instead of minting another, and the branch dies only at the landing's retirement
+      (D-19.13) — an abandoned task's branch is left for the operator. Added by amendment
+      A-37 2026-08-25
+    paths:
+      - src/torve/adapters/vcs/git.py
+      - src/torve/application/runner.py
+      - src/torve/cli/tick.py
+    consequence: >-
+      A pull request per attempt made a nine-task batch read as thirty-odd PRs; reviewers
+      follow one thread per unit of work
+  - id: D-10.11
+    grade: LOCKED
+    text: >-
+      Candidate publication follows the forge leg: with `open_pr` off the branch stays
+      local — a push is publishing, and on a base never pushed it publishes the whole
+      history. Added by amendment A-58 2026-08-28
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      Two engine-repo landings each published 240+ unpushed commits as a side effect
+      of a configuration that said the forge was not in play

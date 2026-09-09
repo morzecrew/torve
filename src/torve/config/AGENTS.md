@@ -14,7 +14,7 @@ The specification the engine reads is one pydantic model in `domain/spec.py`, `e
 
 Markdown stays the authoring surface and the decision table stays a table (D-A.3); typed additions are fenced YAML blocks the model validates, unknown keys refused
 
-- Paths: `rfcs/**` `src/torve/config/spec.py`
+- Paths: `.torve/specs/**` `src/torve/config/spec.py`
 - Consequence: No migration of any existing document to load; the probe's YAML-per-document root is refused with its reason in §5.2
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -29,7 +29,7 @@ Five fenced kinds: `decision-details`, `invariants`, `alternatives`, `questions`
 
 A row's grade or paths change only through `torve rfc amend`, which records the typed diff with the prior value in a `changes` fence under the amendment heading; a grade or paths mismatch against the last recorded change fails `rfc check`. A text-only mismatch is editorial drift: a warning, re-stamped by `torve rfc fix` with the before and after recorded, never an `A-n`
 
-- Paths: `src/torve/config/rfc_emit.py` `src/torve/config/spec.py`
+- Paths: `src/torve/config/spec_emit.py` `src/torve/config/spec.py`
 - Consequence: The prior value exists at exactly one moment and is kept on both lanes; a typo costs one command, a regrade costs an amendment, and 12 of 14 already lost by hand-editing are the last
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -37,7 +37,7 @@ A row's grade or paths change only through `torve rfc amend`, which records the 
 
 A row whose every glob matches nothing on an accepted, implemented document is path rot: reported by `rfc check`, retired by `amend --retire --reason path-rot` (or `check --fix-rot`), recorded as `decision.retired` on import; never automatic on load, never a red on the document
 
-- Paths: `src/torve/application/decisions.py` `src/torve/config/rfc_emit.py`
+- Paths: `src/torve/application/decisions.py` `src/torve/config/spec_emit.py`
 - Consequence: 27 rows today, 8 `LOCKED`, stop rendering as governance while governing nothing
 
 ### D-53.10 — `LOCKED` (RFC 0053 — The item model and the rebuilt corpus)
@@ -125,7 +125,7 @@ A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's ow
 
 Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the model and writes it through one serializer; comments are not preserved and `check` refuses one outside the schema header line; `fmt` survives as `--check` only
 
-- Paths: `src/torve/config/rfc_emit.py` `src/torve/cli/rfc.py`
+- Paths: `src/torve/config/spec_emit.py` `src/torve/cli/spec.py`
 - Consequence: There is no second renderer to drop a field; the `character:` defect closes by construction
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -139,9 +139,9 @@ With a store configured, `plan` mints into the record and writes no file; dispat
 
 ### D-57.1 — `LOCKED` (RFC 0057 — The specification is a directory)
 
-A specification is a directory `NNNN-slug/` of `document.yaml`, `decisions.yaml`, `amendments.yaml` and `execution.yaml`, split by who writes each; an absent file is an empty list; the loader joins them into the one `Document` every reader keeps reading; `schema_version` 3, and 2 is refused
+A specification is a directory `S-NNNN/` — the identifier and nothing else — of `document.yaml`, `decisions.yaml`, `amendments.yaml` and `execution.yaml`, split by who writes each; an absent file is an empty list; the loader joins them into the one `Document` every reader keeps reading; `schema_version` 3, and 2 is refused
 
-- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py` `src/torve/config/rfc_emit.py`
+- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py` `src/torve/config/spec_emit.py`
 - Consequence: The author's file changes only by the author; `amended_by` is derived and gone; `Document.path` names a directory
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
@@ -165,7 +165,7 @@ The corpus is `.torve/specs/` and the archive `.torve/archive/`; the configurati
 
 `torve spec` absorbs every `torve rfc` verb and `cli/rfc.py` is deleted; the gate is `spec-valid`; the skill is `spec-writer`; `rfc_emit.py` becomes `spec_emit.py`; new prose says specification or document
 
-- Paths: `src/torve/cli/spec.py` `src/torve/cli/rfc.py` `src/torve/config/rfc_emit.py` `skills/**` `.torve/gates.yaml`
+- Paths: `src/torve/cli/spec.py` `src/torve/cli/spec.py` `src/torve/config/spec_emit.py` `skills/**` `.torve/gates.yaml`
 - Consequence: One namespace for the corpus; old prose and test file names keep the old word
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 

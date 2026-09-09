@@ -22,6 +22,7 @@ from torve.application.projections import (
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli import app
+from torve.config.layout import SPECS_DIR
 from torve.domain.states import EscalationReason, TaskState
 
 # ----------------------- #
@@ -30,7 +31,7 @@ from torve.domain.states import EscalationReason, TaskState
 def seed_facts(root):
     """Three minted tasks: one shipped, one escalated underspecified, one
     unstarted — plus a log proposal and two telemetry records."""
-    write_contracts(root, plan_document(root, root / "rfcs", "0090"))
+    write_contracts(root, plan_document(root, root / SPECS_DIR, "0090"))
 
     done = RunState(task_id="T-0001", path=naming.state_file(root, "T-0001"))
     for to in (
@@ -88,7 +89,7 @@ def seed_facts(root):
 def test_context_report_projects_the_facts(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     seed_facts(root)
-    report = context_report(root, root / "rfcs")
+    report = context_report(root, root / SPECS_DIR)
 
     states = {t["id"]: t["state"] for t in report["tasks"]}
     assert states == {"T-0001": "ready", "T-0002": "escalated", "T-0003": "unstarted"}
@@ -117,12 +118,12 @@ def test_context_report_projects_the_facts(plan_repo):  # noqa: F811
 def test_disagreement_is_flagged(plan_repo):  # noqa: F811
     root, _write_doc, _git = plan_repo
     seed_facts(root)
-    doc = next((root / "rfcs").glob("0090-*.yaml"))
+    doc = root / SPECS_DIR / "S-0090" / "document.yaml"
     doc.write_text(
         doc.read_text(encoding="utf-8").replace("implementation: none", "implementation: complete"),
         encoding="utf-8",
     )
-    report = context_report(root, root / "rfcs")
+    report = context_report(root, root / SPECS_DIR)
     entry = next(d for d in report["programme"] if d["rfc"] == "0090")
     assert entry["disagreement"] == "asserted complete, but a phase is not shipped"
 
@@ -134,7 +135,7 @@ def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # n
 
     root, _write_doc, _git = plan_repo
     seed_facts(root)
-    doc = next((root / "rfcs").glob("0090-*.yaml"))
+    doc = root / SPECS_DIR / "S-0090" / "document.yaml"
     body = doc.read_text(encoding="utf-8").replace(
         "implementation: none", "implementation: partial"
     )
@@ -142,7 +143,9 @@ def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # n
 
     # While a phase is short of shipped, `partial` is exactly right and the
     # projection says nothing.
-    entry = next(d for d in context_report(root, root / "rfcs")["programme"] if d["rfc"] == "0090")
+    entry = next(
+        d for d in context_report(root, root / SPECS_DIR)["programme"] if d["rfc"] == "0090"
+    )
     assert entry["disagreement"] is None
 
     # Every task ready: the same three contracts, all landed.
@@ -160,13 +163,15 @@ def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # n
 
         state.save()
 
-    entry = next(d for d in context_report(root, root / "rfcs")["programme"] if d["rfc"] == "0090")
+    entry = next(
+        d for d in context_report(root, root / SPECS_DIR)["programme"] if d["rfc"] == "0090"
+    )
     assert entry["disagreement"] == "asserted partial, but every declared phase shipped"
 
 
 def test_unminted_accepted_document_is_plannable(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
-    report = context_report(root, root / "rfcs")  # nothing minted yet
+    report = context_report(root, root / SPECS_DIR)  # nothing minted yet
     entry = next(d for d in report["programme"] if d["rfc"] == "0090")
     assert entry["plannable"] is True
     assert entry["declared_phases"] == [1, 2]
@@ -214,7 +219,7 @@ def test_settled_documents_leave_the_programme_table_for_a_count(plan_repo):  # 
     root, write_doc, git = plan_repo
     seed_facts(root)
     write_doc("0091", "Doneware", status="accepted", phasing=[])
-    path = root / "rfcs" / "0091-doneware.yaml"
+    path = root / SPECS_DIR / "S-0091" / "document.yaml"
     path.write_text(
         path.read_text().replace("implementation: none", "implementation: complete"),
         encoding="utf-8",
@@ -222,7 +227,7 @@ def test_settled_documents_leave_the_programme_table_for_a_count(plan_repo):  # 
     git("add", "-A")
     git("commit", "-qm", "done doc")
 
-    report = context_report(root, root / "rfcs")
+    report = context_report(root, root / SPECS_DIR)
     # The report itself keeps every document — hiding is presentation.
     assert any(d["rfc"] == "0091" for d in report["programme"])
 
@@ -256,7 +261,7 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
         capture_output=True,
         check=True,
     )
-    report = context_report(root, root / "rfcs")
+    report = context_report(root, root / SPECS_DIR)
     states = {t["id"]: t["state"] for t in report["tasks"]}
     assert states["T-0003"] == "shipped"
     assert states["T-0001"] == "ready"  # a run state still outranks history
@@ -275,7 +280,7 @@ def test_a_consumed_drafting_contract_is_not_unstarted(plan_repo):  # noqa: F811
         "intent: decompose something\nscope: {allow: []}\n",
         encoding="utf-8",
     )
-    report = context_report(root, root / "rfcs")
+    report = context_report(root, root / SPECS_DIR)
     states = {t["id"]: t["state"] for t in report["tasks"]}
     assert states["T-0500"] == "consumed"
 
@@ -302,7 +307,7 @@ def test_costs_are_newest_first_and_carry_the_model(plan_repo):  # noqa: F811
         },
     ]
     telemetry.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
-    report = context_report(root, root / "rfcs")
+    report = context_report(root, root / SPECS_DIR)
     assert [c["task"] for c in report["costs"]] == ["T-0002", "T-0001"]
     assert report["costs"][0]["model"] == "deepseek-chat"
     rendered = render_markdown(report)
@@ -457,14 +462,14 @@ def _spec_quality_doc(report, rfc):
 
 def test_tasks_without_an_rfc_are_excluded_from_document_signals(tmp_path):
     _write_task(tmp_path, "T-0001", rfc=None)
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     assert report["spec_quality"]["documents"] == []
 
 
 def test_minted_counts_every_task_regardless_of_state(tmp_path):
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
     _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     assert _spec_quality_doc(report, "rfcs/0090-a.md")["minted"] == 2
 
 
@@ -476,7 +481,7 @@ def test_children_are_grouped_under_their_parent(tmp_path):
     _write_task(tmp_path, "T-0102", rfc=None, parent="T-0100")
     _write_task(tmp_path, "T-0200", rfc=None)  # no parent: not grouped
 
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     assert report["decompositions"] == {"T-0100": ["T-0101", "T-0102"]}
 
     markdown = render_markdown(report)
@@ -488,7 +493,7 @@ def test_attempts_to_green_only_counts_tasks_that_landed(tmp_path):
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
     _ready_state(tmp_path, "T-0001", attempts=3)
     _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")  # never ran: no run state at all
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     doc = _spec_quality_doc(report, "rfcs/0090-a.md")
     assert doc["attempts_to_green_median"] == 3
     assert doc["attempts_to_green_n"] == 1  # T-0002 contributes nothing: it never went green
@@ -504,7 +509,7 @@ def test_document_indicting_reasons_are_always_on_their_own_line(tmp_path):
     state.transition(TaskState.RUNNING, "t")
     state.escalate(EscalationReason.BLOCKER_FINDING, "d")
     state.save()
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     doc = _spec_quality_doc(report, "rfcs/0090-a.md")
     assert doc["escalations_by_reason"]["underspecified"] == 0
     assert doc["escalations_by_reason"]["stale_inheritance"] == 0
@@ -524,7 +529,7 @@ def test_spec_drift_findings_are_class_drift_log_entries(tmp_path):
             {**_drift_entry("second"), "class": "spec-gap"},
         ],
     )
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     doc = _spec_quality_doc(report, "rfcs/0090-a.md")
     assert doc["drift_count"] == 1
     assert doc["spec_drift_findings"] == [
@@ -537,7 +542,7 @@ def test_human_minutes_and_rework_rate_from_feedback(tmp_path):
     _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
     _write_feedback(tmp_path, "T-0001", 10, rework=False)
     _write_feedback(tmp_path, "T-0002", 30, rework=True)
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     doc = _spec_quality_doc(report, "rfcs/0090-a.md")
     assert doc["human_minutes_median"] == 20
     assert doc["human_minutes_n"] == 2
@@ -549,7 +554,7 @@ def test_feedback_stream_is_append_only_latest_wins(tmp_path):
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
     _write_feedback(tmp_path, "T-0001", 10, rework=False)
     _write_feedback(tmp_path, "T-0001", 25, rework=True)  # a later, corrected entry
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     doc = _spec_quality_doc(report, "rfcs/0090-a.md")
     assert doc["human_minutes_median"] == 25
     assert doc["rework_rate"] == 1.0
@@ -557,7 +562,7 @@ def test_feedback_stream_is_append_only_latest_wins(tmp_path):
 
 def test_no_feedback_reports_none_not_zero(tmp_path):
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     doc = _spec_quality_doc(report, "rfcs/0090-a.md")
     assert doc["human_minutes_median"] is None
     assert doc["rework_rate"] is None
@@ -565,7 +570,7 @@ def test_no_feedback_reports_none_not_zero(tmp_path):
 
 
 def test_spec_quality_caveat_is_the_quasi_experiment_warning(tmp_path):
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     assert "quasi-experiment" in report["spec_quality"]["caveat"]
 
 
@@ -599,7 +604,7 @@ def test_context_cli_renders_specification_quality_in_all_three_formats(tmp_path
 
 
 def test_operator_attention_is_present_with_no_tasks(tmp_path):
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     attention = report["spec_quality"]["operator_attention"]
     assert attention["landed"] == 0
     assert attention["feedback"] == {"joined": 0, "total": 0}
@@ -614,7 +619,7 @@ def test_operator_attention_human_minutes_suppressed_below_the_default_floor(tmp
     _write_feedback(tmp_path, "T-0001", 10, rework=False)
     _write_feedback(tmp_path, "T-0002", 20, rework=False)
 
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     attention = report["spec_quality"]["operator_attention"]
     assert attention["human_minutes_median"] is None  # 2 observations, default floor is 5
     assert attention["human_minutes_n"] == 2  # denominator prints regardless (D-22.8)
@@ -647,13 +652,13 @@ def test_operator_attention_joins_interventions_to_landed_changes(tmp_path):
     _write_feedback(tmp_path, "T-0002", 20, rework=False)  # never landed: raw only
     _write_task(tmp_path, "T-0002", rfc="rfcs/0090-a.md")
 
-    attention = context_report(tmp_path, tmp_path / "rfcs")["spec_quality"]["operator_attention"]
+    attention = context_report(tmp_path, tmp_path / SPECS_DIR)["spec_quality"]["operator_attention"]
     assert attention["landed"] == 1
     assert attention["feedback"] == {"joined": 1, "total": 2}
 
 
 def test_render_markdown_prints_the_operator_attention_line_with_no_documents(tmp_path):
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     markdown = render_markdown(report)
     assert "## Specification quality" in markdown
     assert "operator attention:" in markdown
@@ -761,7 +766,7 @@ def test_only_a_pull_request_blocker_reaches_the_ledger(tmp_path):
     _land_commit(tmp_path, "T-0003")
     _write_review_telemetry(tmp_path, "T-0103", "T-0003", blocker, trigger=None)
 
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
 
     assert {f["target"] for f in report["findings"] if f["severity"] == "blocker"} == {"T-0001"}
 
@@ -782,7 +787,7 @@ def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tm
             {"severity": "blocker", "claim": "unsafe", "evidence": "x.py:3 — bad"},
         ],
     )
-    report = context_report(tmp_path, tmp_path / "rfcs")
+    report = context_report(tmp_path, tmp_path / SPECS_DIR)
     findings = report["findings"]
     # A task-gated blocker is revised in-run or escalates, so it never
     # lands unhandled: non-blocking only, as D-5.15 wrote it. The
@@ -802,7 +807,7 @@ def test_findings_from_unlanded_targets_stay_out(tmp_path):
         "T-0001",
         [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}],
     )
-    assert context_report(tmp_path, tmp_path / "rfcs")["findings"] == []
+    assert context_report(tmp_path, tmp_path / SPECS_DIR)["findings"] == []
 
 
 def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_path):
@@ -813,7 +818,9 @@ def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_pa
         "T-0001",
         [{"severity": "major", "claim": "c", "evidence": "x.py:1 — c"}],
     )
-    assert context_report(tmp_path, tmp_path / "rfcs")["findings"][0]["possibly_addressed"] is False
+    assert (
+        context_report(tmp_path, tmp_path / SPECS_DIR)["findings"][0]["possibly_addressed"] is False
+    )
 
     # The review's own contract cites its id — self-citation must not count.
     task_dir = tmp_path / ".torve" / "tasks" / "T-0101"
@@ -822,7 +829,9 @@ def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_pa
         "schema_version: 1\nid: T-0101\nrole: review\ntargets: [T-0001]\n",
         encoding="utf-8",
     )
-    assert context_report(tmp_path, tmp_path / "rfcs")["findings"][0]["possibly_addressed"] is False
+    assert (
+        context_report(tmp_path, tmp_path / SPECS_DIR)["findings"][0]["possibly_addressed"] is False
+    )
 
     # A later contract citing the review id is evidence the finding was
     # followed up — possibly addressed, never "resolved".
@@ -832,7 +841,9 @@ def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_pa
         "schema_version: 1\nid: T-0102\nintent: address T-0101's major finding\n",
         encoding="utf-8",
     )
-    assert context_report(tmp_path, tmp_path / "rfcs")["findings"][0]["possibly_addressed"] is True
+    assert (
+        context_report(tmp_path, tmp_path / SPECS_DIR)["findings"][0]["possibly_addressed"] is True
+    )
 
 
 def test_findings_render_in_all_three_formats(tmp_path):
@@ -954,7 +965,7 @@ _LABELED_GATES = [
 
 
 def _calibration_rows(root):
-    return {row["task"]: row for row in context_report(root, root / "rfcs")["character"]}
+    return {row["task"]: row for row in context_report(root, root / SPECS_DIR)["character"]}
 
 
 def test_character_calibration_joins_declaration_convictions_attempts_and_tokens(tmp_path):
@@ -1282,7 +1293,7 @@ def seed_why_facts(root):
     one present trace file, and one feedback record. Idempotent: a root can
     be read through as often as a test likes."""
     if not (root / ".torve" / "tasks" / "T-0001" / "contract.yaml").exists():
-        write_contracts(root, plan_document(root, root / "rfcs", "0090"))
+        write_contracts(root, plan_document(root, root / SPECS_DIR, "0090"))
 
     (root / ".torve" / "telemetry.jsonl").write_text(
         "\n".join(json.dumps(r) for r in WHY_ROWS) + "\n", encoding="utf-8"
@@ -1316,7 +1327,7 @@ def test_why_groups_attempts_by_the_attempt_stamp(plan_repo):  # noqa: F811
 
     assert envelope["found"] is True
     assert envelope["task"] == "T-0001"
-    assert envelope["rfc"] == "rfcs/0090-widgets.yaml"
+    assert envelope["rfc"] == f"{SPECS_DIR}/S-0090"
 
     attempts = envelope["attempts"]
     assert [a["attempt"] for a in attempts] == [None, 1, 2]  # chronological

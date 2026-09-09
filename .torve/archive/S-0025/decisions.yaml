@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-25.1
+    grade: LOCKED
+    text: >-
+      The emitter and `fmt` normalise only the structures the parser models — frontmatter,
+      decision tables, phasing fences, amendment headings; body prose passes through
+      byte-for-byte
+    paths: [src/torve/config/rfc_emit.py, src/torve/cli/rfc.py]
+    consequence: >-
+      A formatter that touches prose turns every corpus diff into noise and gets skipped,
+      which is worse than no formatter
+  - id: D-25.2
+    grade: LOCKED
+    text: >-
+      Every authoring verb is one transaction — parse, mutate, emit, regenerate the
+      index, check — and a red check aborts the whole write, leaving the tree untouched
+    paths: [src/torve/cli/rfc.py, src/torve/config/rfc_emit.py]
+    consequence: >-
+      A half-landed structural edit is exactly the defect class this document exists
+      to end
+  - id: D-25.3
+    grade: LOCKED
+    text: >-
+      Verbs write structure and identifiers, never judgement: no verb chooses a grade,
+      drafts decision or amendment prose, or flips `status`/`implementation`. Amended
+      by A-66 2026-08-31: `add-decision` writing `grade: OPEN` is the schema-required
+      non-judgement placeholder, not a chosen grade — OPEN asserts no authority the
+      way LOCKED or ASSUMED would
+    paths: [src/torve/cli/rfc.py]
+    consequence: >-
+      The corpus's value is that a human meant every graded row; a tool that fills
+      skeletons is a planner nobody appointed
+  - id: D-25.4
+    grade: LOCKED
+    text: >-
+      Amendment numbers are derived at write time as maximum plus one corpus-wide,
+      through the parser's `next_amendment`; the verb never accepts a chosen number
+    paths: [src/torve/config/rfc_parse.py, src/torve/cli/rfc.py]
+    consequence: >-
+      D-A.17's doctrine applied to the identifier family that has collided three times
+      by hand
+  - id: D-25.5
+    grade: ASSUMED
+    text: >-
+      Storage stays one `NNNN-slug.md` per document; the authoring surface is the
+      answer to structural fragility, and D-A.18 stands unamended
+    paths: [rfcs/**]
+    consequence: >-
+      The folder alternative trades every citation shape and the one-file diff for
+      attachments nothing needs (§5.5)
+  - id: D-25.6
+    grade: ASSUMED
+    text: >-
+      `rfc retire` executes D-16.1 whole — row removal, `retired:` frontmatter, tombstone
+      stub — and refuses while any citation would stop resolving
+    paths: [src/torve/cli/rfc.py, src/torve/config/rfc_emit.py]
+    consequence: >-
+      A partial retirement is the exact state A-20 was written to prevent
+  - id: D-25.7
+    grade: ASSUMED
+    text: >-
+      `rfc relocate-paths` sweeps Paths cells mechanically and never touches decision
+      text; in-row markers stay hand-written per D-16.4
+    paths: [src/torve/cli/rfc.py]
+    consequence: >-
+      The cell is mechanical and the marker is judgement; one verb doing both would
+      write words nobody meant
+  - id: D-25.8
+    grade: OPEN
+    text: >-
+      Whether `fmt` renumbers sections or only validates numbering; execution proposes
+      with evidence from the first documents touched
+    paths: [src/torve/config/rfc_emit.py]
+    consequence: >-
+      Renumbering rewrites `§N` cross-references corpus-wide — either the feature
+      or the hazard, and the corpus should say which after seeing one real case
+  - id: D-25.9
+    grade: OPEN
+    text: >-
+      Whether a `schema_version: 2` section manifest per kind becomes checkable once
+      the emitter exists; deferred until `fmt` has run over the corpus
+    paths: [src/torve/config/rfc_parse.py]
+    consequence: >-
+      The manifest should be derived from what the emitter observes, not legislated
+      ahead of it
+  - id: D-25.10
+    grade: ASSUMED
+    text: >-
+      Typed example fences extend the phasing pattern one validator at a time, starting
+      with `contract-example` against the task schema; no speculative tags
+    paths: [src/torve/config/rfc_parse.py]
+    consequence: >-
+      A validated example cannot rot; an unvalidated tag is decoration with syntax
+      highlighting

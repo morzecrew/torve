@@ -11,6 +11,7 @@ from exit codes and prepared inputs, never reported by a model.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -91,7 +92,12 @@ def decision_gates(ctx: GateContext) -> list[Gate]:
     if ctx.task is None:
         return []
 
-    document = (ctx.task.rfc or "").rsplit("/", 1)[-1][:4] or "task"
+    # The four digits, whatever shape the path had when the contract was
+    # minted — `S-0054` since RFC 0057, `0054-something.yaml` before it —
+    # so the origin D-54.2 fixes stays `rfc/NNNN#<id>` across the
+    # conversion (the rule `planner.document_number` reads).
+    named = re.search(r"\d{4}", (ctx.task.rfc or "").rsplit("/", 1)[-1])
+    document = named.group(0) if named else "task"
     gates: list[Gate] = []
 
     for row in ctx.task.decisions:

@@ -306,7 +306,7 @@ def lint_contract_cmd(
     # standing rows whose paths this scope crosses warn on the same terms
     # (RFC 0030 §5.1); the advisory existed and nothing printed it (A-110).
     warnings = document_threshold_warnings(root, contract, config) + standing_warnings(
-        root, contract, root / config.rfcs.path
+        root, contract, root / config.specs.path
     )
 
     if fmt is Format.JSON:

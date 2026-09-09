@@ -21,6 +21,9 @@ def test_every_lookup_resolves_under_torve_dir(tmp_path: Path) -> None:
         tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
     )
     assert layout.log_file(tmp_path, "T-1") == (tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml")
+    # The corpus's home too (RFC 0057 D-57.3): the default of `specs.path`,
+    # with the archive and the schemas resolved as its siblings.
+    assert layout.SPECS_DIR == ".torve/specs"
 
 
 def test_runner_config_reads_canonical_location(tmp_path: Path) -> None:

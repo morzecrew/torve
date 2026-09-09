@@ -96,7 +96,6 @@ and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
 - `pages/docs/architecture/` — 0 decision(s)
 - `skills/` — 3 decision(s)
 - `skills/corpus-bootstrap/` — 0 decision(s)
-- `skills/rfc-writer/` — 0 decision(s)
 - `src/torve/` — 3 decision(s)
 - `src/torve/_web/` — 1 decision(s)
 - `src/torve/adapters/` — 2 decision(s)

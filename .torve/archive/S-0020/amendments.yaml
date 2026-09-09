@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-93
+    at: '2026-09-05'
+    title: >-
+      the request surface left with the tracker (amends §5.4, cites A-92)
+    md: |-
+      **Found deleting the tracker (A-92).** §5.4's intake leg is the half of this
+      document that ran inside the tick: claim a commander-filed issue, run the
+      drafting it asks for, project the lint-green drafts back onto the thread the
+      request lives on. Every one of those verbs is the tracker's, so the leg went
+      with it — `intake_leg`, `IntakeDeps`, the claim ledger and the drafts
+      comment.
+
+      **Unchanged, which is most of the document:** the drafting run itself, the
+      lint, the draft schema, adoption and its marker, the refusal that a draft
+      never dispatches without a human's signature (D-20.1). `torve intake` from
+      the command line is untouched and is now the only way a request enters —
+      which is what it always was for an operator at a terminal.
+
+      **What is actually lost:** requests arriving from somewhere other than the
+      operator's own shell. That was the point of §5.4 and it is a real capability,
+      not a tidying. It returns with whatever surface replaces the tracker, and the
+      mechanics it needs are all still here — the leg was thin, and the drafting
+      run it drove is the part that was expensive.
+
+      Implementation is `partial` rather than `complete` for exactly that reason:
+      the document describes a delivery path that no longer has a delivery.
+  - id: A-116
+    at: '2026-09-05'
+    title: >-
+      Two settled rows still graded OPEN, and the board half that left
+    md: |-
+      **Judged in the pass A-113's new flag started.** All three declared phases
+      shipped. `partial` is still right, and the reasons divide into two kinds.
+
+      **Two rows are settled in fact and still graded `OPEN`.** D-20.8's ceiling
+      is `intake.max_drafts: 4` in the configuration model, where the header says
+      the first live run settled it. D-20.10's disposal is settled by operation:
+      the reaper keeps a READY draft, the lane skips it, and adoption is the
+      disposal — the code carries the rule and a test pins it. Recorded here
+      rather than regraded: flagging is mine, flipping a grade is the owner's.
+
+      **Two rows lost their implementation with the tracker (A-92, A-93).**
+
+      - **D-20.5 is unimplemented.** Intake authorization was the commander list
+        and requests arrived as `torve.intake`-labeled issues. Both were the
+        tracker's. `torve intake "<request>"` from the command line is untouched
+        and is now the only door; there is no authorization check on it, because
+        the person typing it is already the operator.
+      - **D-20.6 is unimplemented.** The intake thread's revision loop was
+        `/torve revise`, an inbound command with no surface left to arrive on.
+
+      Phase 2 is `board-intake`, so the phase whose progress reads `shipped` is
+      the phase whose subject was deleted. That is not a contradiction the
+      programme view can see — it counts landed tasks, and those tasks did land.
+      It is the reason a phase count is evidence and not a verdict.
+
+      **Changed:** `implementation: partial` stands, with the drafting run and
+      the lint intact, the board half gone, and two grades owed a regrade.
+  - id: A-133
+    at: '2026-09-07'
+    title: >-
+      the corpus carried a contract lint it had never been run through
+    md: |-
+      **Found by wiring the lint into `torve plan` (RFC 0052 A-132).** `lint_drafts`
+      was called from the three drafting paths — intake, decompose, standing —
+      where a model authors the contract, and never from the minting path, where
+      a reviewed document does. The asymmetry read as principled: a drafted
+      contract is untrusted, a planned one comes from a document a human
+      accepted. What it actually meant is that no phasing block in this corpus
+      had ever been checked.
+
+      Run over the six documents of the v2 generation, the lint refused every
+      one. All six carried `uv run torve gates run` as an acceptance command,
+      which cannot pass inside a sandbox — a sandbox mounts the worktree without
+      a repository, so `.git` there points at a host path the container never
+      sees. Five also allowed a module without its existing test file, the
+      T-0113 rule, whose own origin was an escalation that burned a full poison
+      ceiling. None of it had ever fired, because that generation was built by
+      hand and its phases were never minted.
+
+      **Changed:** the six phasing blocks are corrected — the unrunnable command
+      dropped, the missing test files added, each marked in place. All six plan
+      clean now.
+
+      **Why one amendment and not six.** These documents are `complete`; their
+      phases are built and will not be minted again. The correction is
+      mechanical, touches no decision row, and nothing cites a phasing block
+      after minting — divergence logs cite `D-n`. What is worth recording is not
+      six identical edits but the reason they were all identical: an unchecked
+      input format propagates by imitation, and the eighth author copied the
+      first. The check is what stops that, and it now runs where the contracts
+      are actually made.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-32.1
+    grade: LOCKED
+    text: >-
+      The server re-exposes existing projection functions verbatim and computes nothing
+      of its own; a shape the browser needs is added to the projection, for every
+      surface at once
+    paths: [src/torve/cli/serve.py]
+    consequence: >-
+      One reader, many renderers; a server-side derivation is where the dashboard
+      and the CLI start disagreeing
+  - id: D-32.2
+    grade: LOCKED
+    text: >-
+      v1 is read-only and loopback-only: no mutating endpoint, no host flag, no auth
+      because no reachability; the write path arrives only with its own RFC
+    paths: [src/torve/cli/serve.py]
+    consequence: >-
+      A convenient POST added in a patch is an unauthenticated engine-control channel;
+      this row makes it a corpus conversation instead
+  - id: D-32.3
+    grade: ASSUMED
+    text: >-
+      `torve serve` lives behind the `torve[serve]` extra with starlette and uvicorn,
+      lazy-imported with an instructive refusal — the opensandbox/migrate pattern
+    paths: [pyproject.toml, src/torve/cli/serve.py]
+    consequence: >-
+      Consuming repositories do not pay for a dashboard they do not open
+  - id: D-32.4
+    grade: ASSUMED
+    text: >-
+      The frontend ships as built assets in wheel package data (`torve/_web`), built
+      in CI by the organization's npm-builder image; runtime and install never touch
+      node
+    paths: [pyproject.toml, src/torve/cli/serve.py]
+    consequence: >-
+      Install-time builds are the least reproducible moment in packaging; the skills-data
+      mechanism already proves the alternative
+  - id: D-32.5
+    grade: OPEN
+    text: >-
+      Whether the built bundle is vendored in-repo (hash-checked against source like
+      INDEX.md) or CI-attached at wheel build; the first release build settles it
+    paths: [pyproject.toml]
+    consequence: >-
+      Guessing before the release pipeline exists would design CI from imagination
+  - id: D-32.6
+    grade: ASSUMED
+    text: >-
+      The page polls with a visible projected-at stamp; no push channel
+    paths: [src/torve/cli/serve.py]
+    consequence: >-
+      A dashboard that hides staleness invents liveness; SSE is complexity waiting
+      for a second operator

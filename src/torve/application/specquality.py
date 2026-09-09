@@ -1,4 +1,4 @@
-"""`torve rfc health` — the attribution join and the decision-level report
+"""`torve spec health` — the attribution join and the decision-level report
 (RFC 0022 §5.1, §5.2): telemetry, task logs and contracts, indexed by task
 id, joined to the corpus for the row as it stands and to each contract for
 the row as it was minted.
@@ -78,8 +78,8 @@ from torve.gates.decisions_reported import parse_log
 DEFAULT_FLOOR = 5
 
 # RFC 0004 §6a, reproduced verbatim (D-22.11: printed with the envelope,
-# never paraphrased — the same text D-22.7 requires beside `torve rfc
-# health`). `torve.cli.rfc` and `torve.application.projections` each carry
+# never paraphrased — the same text D-22.7 requires beside `torve spec
+# health`). `torve.cli.spec` and `torve.application.projections` each carry
 # their own copy for the layering reason their own comments give; this is
 # a third copy rather than a move to `torve.base`, which is out of this
 # task's scope.
@@ -388,7 +388,7 @@ def _amendment_cited_ids(rfc_dir: Path) -> set[str]:
 def _corpus(rfc_dir: Path) -> Corpus:
     """The corpus as the model (D-53.13), or an empty one when it does not
     load: the health report is evidence for a human and never the thing
-    that refuses a corpus — `torve rfc check` is."""
+    that refuses a corpus — `torve spec check` is."""
 
     from pydantic import ValidationError
 
@@ -439,7 +439,7 @@ def corpus_shape(root: Path, rfc_dir: Path) -> dict[str, Any]:
 
 def identifiers_for_document(rfc_dir: Path, number: str) -> set[str] | None:
     """Every identifier RFC `number` defines, or None when no such document
-    exists in the corpus — the CLI's `torve rfc health NNNN` filter."""
+    exists in the corpus — the CLI's `torve spec health NNNN` filter."""
 
     doc = _corpus(rfc_dir).document(number)
 

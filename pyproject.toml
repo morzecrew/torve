@@ -102,7 +102,7 @@ source_modules = ["torve.config"]
 forbidden_modules = ["torve.application", "torve.adapters", "torve.cli"]
 
 # 0015 A-19, enforcing 0007's D-7.18: the RFC format terminates at the
-# planner (its owner is `config/spec.py` since RFC 0053 phase 5). A gate or runtime that parses specification documents directly is
+# planner (its owner is `config/spec.py` since RFC 0053 phase 5; the corpus is `.torve/specs/` since RFC 0057). A gate or runtime that parses specification documents directly is
 # how format containment breaks, and it breaks quietly.
 [[tool.importlinter.contracts]]
 name = "The RFC format stays at the planner"

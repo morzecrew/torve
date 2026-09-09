@@ -1,12 +1,12 @@
 # Draft template
 
 The shape every baseline draft takes — one document per adoption, named
-`NNNN-standing-decisions.yaml` in the corpus directory, `NNNN` the next free
+the `S-NNNN/` directory in the corpus path, `NNNN` the next free
 corpus number. Copy the skeleton, replace `<placeholders>`, delete the
 guidance blockquotes. The Decisions table is the document: every row carries
 paths, grades follow the doctrine (mostly `ASSUMED`, `LOCKED` only on
 defended-boundary evidence), and there is no Phasing section. The fixture
-(`fixtures/0001-standing-decisions.yaml`) is this shape filled from the sample
+(`fixtures/S-0001/`) is this shape filled from the sample
 survey report — check your draft against it.
 
 ---

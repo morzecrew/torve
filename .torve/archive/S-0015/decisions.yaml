@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-15.1
+    grade: LOCKED
+    text: >-
+      Five layers — `base`, `domain`, `application`, `adapters`, plus `gates`, `config`,
+      `cli` — with the import directions in §2.1
+    paths: [src/torve/**]
+    consequence: >-
+      A hexagonal design whose tree hides the hexagon teaches that the layering is
+      decorative
+  - id: D-15.2
+    grade: LOCKED
+    text: >-
+      `gates` may import only `domain`, `base` and `config`
+    paths: [src/torve/gates/**, pyproject.toml]
+    consequence: >-
+      This is what keeps RFC 0002's standalone increment standing alone
+  - id: D-15.3
+    grade: LOCKED
+    text: Adapters never import each other
+    paths: [src/torve/adapters/**, pyproject.toml]
+    consequence: >-
+      Two welded adapters make swapping either a rewrite
+  - id: D-15.4
+    grade: LOCKED
+    text: >-
+      Adapters are organised `adapters/<port>/<technology>.py`
+    paths: [src/torve/adapters/**]
+    consequence: >-
+      A name prefix is a flat namespace imitating structure and does not scale
+  - id: D-15.5
+    grade: LOCKED
+    text: >-
+      No module named `models`, `utils`, `helpers`, `common` or `base`; enforced by
+      the `source-layout` gate, not by `layering`
+    paths: [src/torve/gates/source_layout.py]
+    consequence: >-
+      Names that admit anything accumulate everything; this is a path rule, not an
+      import rule
+  - id: D-15.6
+    grade: LOCKED
+    text: >-
+      A module named after a CLI verb lives in `cli/` and holds parsing and rendering
+      only
+    paths: [src/torve/cli/**]
+    consequence: >-
+      Otherwise presentation and logic fuse at the point where they are hardest to
+      separate
+  - id: D-15.7
+    grade: ASSUMED
+    text: '`__init__.py` is a curated lazy front door'
+    paths: [src/torve/__init__.py]
+    consequence: >-
+      Keeps `import torve` cheap for the gates-only path
+  - id: D-15.8
+    grade: LOCKED
+    text: >-
+      §2.1 is enforced by `import-linter` contracts wrapped in the `layering` gate,
+      over the whole package
+    paths: [pyproject.toml, .torve/gates.yaml]
+    consequence: >-
+      A diff-scoped hand-written check misses transitive violations, which is how
+      gate isolation breaks
+  - id: D-15.9
+    grade: ASSUMED
+    text: >-
+      The move happens before any task contract references a path under `src/torve/`
+    paths: [.torve/tasks/**]
+    consequence: >-
+      Moving files invalidates minted `scope.allow` globs
+  - id: D-15.10
+    grade: LOCKED
+    text: >-
+      Product gates and self-development gates are distinct sets; `import-linter`
+      stays a dev dependency
+    paths: [pyproject.toml, .torve/gates.yaml]
+    consequence: >-
+      A check on Torve's internals must never reach a consuming repository's gate
+      run
+  - id: D-15.11
+    grade: ASSUMED
+    text: >-
+      The layer definition outranks the rename table: the gate-input builder and gate
+      runner live in `gates/`, the attempt loop is `application/runner.py`, file-backed
+      RunState is application code, and the target tree reads as the installed view
+      where it conflicts with RFC 0012; the contracts are authoritative — gates may
+      be imported by application and cli. Added by execution 2026-08-22 — see .torve/tasks/T-0014
+    paths: [src/torve/gates/**, src/torve/application/**]
+  - id: D-15.12
+    grade: ASSUMED
+    text: >-
+      Application reaches stores only through injected factories (`StoreFactory` on
+      RunDeps; `reap` takes one); forze wiring lives in the facade and `config_hash`
+      beside the telemetry it stamps. Added by execution 2026-08-22 — see .torve/tasks/T-0014
+    paths: [src/torve/application/**]

@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-18.1
+    grade: LOCKED
+    text: >-
+      The JSON byte-shape is the only machine contract; tests assert human output
+      by content, never layout
+    paths: [tests/**]
+    consequence: >-
+      A layout-pinned test turns every visual improvement into a false regression
+  - id: D-18.2
+    grade: LOCKED
+    text: >-
+      Presentation lives in `cli/` only; application returns data and no Rich renderable
+      crosses the boundary
+    paths: [src/torve/cli/**, src/torve/application/**]
+    consequence: >-
+      The JSON and the human view must not be able to drift
+  - id: D-18.3
+    grade: ASSUMED
+    text: >-
+      One component vocabulary in `torve.cli.console` — header, table, verdict marks,
+      failure detail, closing line — used by every verb
+    paths: [src/torve/cli/**]
+    consequence: >-
+      Bespoke per-verb styling is how ten commands grow ten dialects
+  - id: D-18.4
+    grade: LOCKED
+    text: >-
+      Colour is never the only carrier of a distinction; styling is applied via renderables,
+      never inline markup in data strings
+    paths: [src/torve/cli/**]
+    consequence: >-
+      `--plain` strips styling, never information; bracketed data must not inject
+      styling
+  - id: D-18.5
+    grade: ASSUMED
+    text: >-
+      Verdict marks (`✓ ✗ ∅ ≈ ⤳ !`) are stable vocabulary, kept across releases
+    paths: [src/torve/cli/**]
+    consequence: People learn them the way they learn exit codes
+  - id: D-18.6
+    grade: ASSUMED
+    text: >-
+      `--format markdown` exists only on document-producing commands; `torve context`
+      keeps its pasteable rendering there while `text` becomes rich
+    paths: [src/torve/cli/context.py]
+    consequence: An unavailable format beats a meaningless one
+  - id: D-18.7
+    grade: ASSUMED
+    text: >-
+      One single-line TTY-only live status for long steps; absent under `--plain`,
+      CI and JSON; everything larger stays deferred
+    paths: [src/torve/cli/**]
+    consequence: A silent 28-second wait reads as a hang
+  - id: D-18.8
+    grade: ASSUMED
+    text: >-
+      Tables truncate to the terminal with an explicit `… N more` line; the full data
+      is always in the JSON
+    paths: [src/torve/cli/**]
+    consequence: Wrapped tables are noise wearing structure
+  - id: D-18.9
+    grade: ASSUMED
+    text: >-
+      Notes about a table print after it via the footer component, never as rows —
+      a long note inside the first column sizes the column to the note; unbounded
+      id lists render through `id_list`. Added by execution 2026-08-22 — see .torve/tasks/T-0027
+    paths: [src/torve/cli/**]

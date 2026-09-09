@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: '0003'
+title: Runner and isolation
+kind: design
+status: superseded
+implementation: complete
+depends_on: ['0002']
+informed_by: []
+supersedes: []
+superseded_by: '0055'
+owner: Lev Litvinov
+description: >-
+  `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation,
+  reaper, and the simulation harness that proves the state machine.
+schema_version: 3
+sections:
+  - key: the-increment
+    md: |
+      ```bash
+      torve run T-0142                 # one task, synchronous, exit code is the outcome
+      torve run T-0142 --agent fake    # engine tests, zero model calls
+      torve reap                       # sweep orphaned sandboxes, worktrees, databases
+      torve status
+      ```
+
+      No daemon, no queue, no dashboard, no parallelism. **Make the single path reliable before adding a second one** — debugging races in a system whose sequential path is still wrong is how a month disappears.
+  - key: deliberately-smaller-than-it-wants-to-be
+    md: |
+      The temptation, understanding the architecture whole, is to build eight plugin slots on day one. Don't. First binary: one task, synchronously, state in a JSON file beside the worktree. Parallelism, real storage and escalation arrive when the single run is boring.
+  - key: fake-agent-first
+    md: |
+      `FakeAgent` replays a scripted scenario — write these files, exit with this code. It is the **first adapter implemented**, not the last, because it makes the entire runner testable without spending a token, and it separates "is the runner correct" from "is the agent good".
+
+      Scenarios cover: clean success, gate failure then success, budget exhaustion, crash mid-run, a `LOCKED` conflict written to the log, and a process that ignores cancellation.
+  - key: isolation
+    md: |
+      The sandbox is the unit of lifecycle. Killing it kills everything inside, including grandchildren that called `setsid` — which agent CLIs do, and which no amount of process-group handling in the parent reliably survives.
+
+      **Everything addressable derives from the task id.** Never search for a free port at runtime; two workers race for the same one.
+
+      ```text
+      offset          = hash(task_id) % 100
+      api_port        = 4000 + offset
+      db_name         = task_0142
+      compose_project = t0142
+      worktree        = .wt/T-0142
+      labels          = torve.task=T-0142, torve.run=<uuid>
+      ```
+
+      - **Database:** template database plus `CREATE DATABASE … TEMPLATE`. Migrations run once into the template, not per worker.
+      - **`.env`:** materialised by the runner from a template with the derived port and database substituted. No production secrets enter a worktree.
+      - **Build caches:** shared layer read-only, write layer per task.
+  - key: runtime
+    md: |
+      The `Runtime` port is filled by OpenSandbox rather than raw Docker, for four capabilities this RFC would otherwise hand-roll or accept as risk:
+
+      - **Credential Vault** injects credentials into outbound requests without exposing real secrets to the workload. The most important of the four: an agent can push to a remote without ever holding a token that could be exfiltrated. Retrofitting this later means every token an agent has seen is already suspect — hence D-4b is `LOCKED`.
+      - **Per-sandbox egress control** with an ingress gateway, enforced by the platform rather than a startup script inside the container.
+      - **Strong isolation options** — gVisor, Kata, Firecracker microVM — which move the boundary beyond "shared kernel, trusted repositories only". Not a goal here; the door stops being nailed shut.
+      - **Sandbox-level timeout** at creation, so the platform bounds the lifecycle.
+
+      Cost, stated plainly: this is a server plus a daemon, not a library. For one synchronous run on a laptop, raw Docker is less machinery. The vault is what justifies adopting early anyway. Keep the port thin enough that Docker remains a working fallback.
+  - key: reaper
+    md: |
+      Narrower than in earlier drafts, since sandboxes expire on their own, but not removable: worktrees, template databases and volumes still need cleanup.
+
+      **Convention-driven, not tracked.** A scheduled sweep enumerates by label and prefix, cross-references live leases, and destroys anything without one. This survives a crash of the runner itself, which PID tracking does not. Without it, disk and stale resources accumulate — always, not sometimes.
+
+      *Execution note 2026-08-23 (T-0043):* the sweep collects `ready` footprints on the convention that their landing is settled — merge before reap. A vcs-aware guard (reap refusing a `ready` state whose branch has not landed) is added only if that ordering proves error-prone in practice; the merge lane owns the worktree half itself (RFC 0006 §1).
+  - key: lease-and-cancellation
+    md: |
+      `TaskStore` is a facade over the substrate's durable run store (D-5). What that buys:
+
+      - **Lease expiry, not process liveness, detects a dead worker**, and survives a runner crash.
+      - **Cancellation is cooperative on the ask, fenced on the landing.** Asking twice changes nothing; a stale worker cannot cancel a run out from under its new owner; if the holder dies carrying the request, recovery lands it without invoking the body.
+      - **Backends declare cancellation support explicitly** and the runner refuses a request it cannot deliver — the escalation path fails closed rather than silently.
+
+      Consequence for §3 and RFC 0004: observation latency is one heartbeat, and a body that never awaits is bounded only by maximum run duration. Every agent process gets its own hard timeout on top of the cooperative request.
+
+      Notifications are staged through the outbox in the same transaction as the state change, so "escalated but nobody was told" is not a reachable state.
+  - key: context-assembly
+    md: |
+      *(Added by charter amendment A-11 2026-08-22.)*
+
+      What the runner writes into a sandbox before dispatch. Every layer is versioned, owned, and part of `config_hash`.
+
+      | Layer | Source | Supplies |
+      | --- | --- | --- |
+      | Intent | `intent` on the contract | what is being changed and why |
+      | Constraints | `scope`, `decisions`, `budget` | boundaries, and the conflict protocol |
+      | Criterion | `acceptance` | what "done" is judged by |
+      | How things are done here | role-scoped skills (RFC 0009) | behaviour |
+      | What exists here | the repository's `AGENTS.md` | stack, conventions, how to run tests |
+      | Provenance | `rfc`, `phase` | where to look if the contract is not enough |
+
+      **This is the prompt, decomposed into versioned parts.** The difference from prompting a harness by hand is not that there is less of it — it is that each part has an owner, is checked, and registers in `config_hash`, rather than being rewritten freehand every time.
+
+      **The composition is fixed and belongs to the runner.** Nothing else may add to it: not the agent, not the tracker, not a repository-local override. A context that varies silently makes two attempts incomparable and every telemetry conclusion unfounded.
+
+      Not included, deliberately: other tasks' state, other tasks' escalations, the divergence logs of adjacent work. An executor that can read them is an executor that can argue its way out of its own scope (D-31).
+
+      Also not included, deliberately (A-18): **the source specification document**. The contract is its projection, and an executor that reads the original is reading rejected alternatives — arguments for the decisions that did not survive — along with the phasing of adjacent tasks. Where a rejected alternative genuinely bears on a task, it belongs in `decisions` as a graded row, not as a document to browse.
+  - key: tests
+    md: |
+      Four layers, the first three free of model calls.
+
+      1. **Domain and state machine** — pure unit tests, frozen clock, mock store. Every transition, escalation reason, ceiling, lease expiry, reclaim.
+      2. **Runner against `FakeAgent`** — full loop including sandbox lifecycle, timeouts, reaper, gate ordering, artefact persistence. Fast, always green.
+      3. **Deterministic simulation** — the harness over the operation registry with mock deps. One master seed parametrises interleaving, injected faults, latency, generated inputs and crash points; on a violation the workload is minimised to the smallest failing case and a seed replays it exactly. This replaces the concurrency tests this RFC would otherwise specify by hand.
+
+         | Invariant (must always hold) | Reachability (must sometimes fire) |
+         | --- | --- |
+         | No task reaches `ready` with a blocking gate not green | a gate failed after another had passed |
+         | No two workers hold the same task | a lease expired mid-attempt |
+         | Attempt count never exceeds the ceiling | a crash landed between increment and dispatch |
+         | Every `escalated` task has exactly one delivered notification | the crash landed between state write and relay |
+         | No duplicate PR for one task | a retry followed a push whose result was lost |
+         | An entry written before a crash is on disk (A-13) | the crash landed between an entry write and the end of the run |
+
+         Each scenario keeps a deliberately broken twin — remove the ceiling check, drop the lease — that the oracle must catch and reproduce. A simulation that cannot fail proves nothing.
+
+      4. **Gate sabotage suite** — inherited from RFC 0002.
+
+      Layer 3 proves the engine cannot lie about concurrency; layer 4 proves the gates cannot lie about correctness. Both verified by keeping something broken around on purpose.
+
+      **Caveat that shapes the code:** simulation exercises handlers over the ports, so anything derived below a port — triggers, generated columns, enriched read views — is invisible to it and can produce false positives. Keep scope-overlap computation, gate ordering and escalation classification in Python above the port, where mock and real agree.
+  - key: storage
+    md: |
+      Mock for tests and simulation. **Postgres for any real run** — not a preference, a property of the substrate: the self-hosted durable tier ships on Postgres.
+
+      Migrations belong to the adapter, never the domain. *Amendment 2026-08-21 (A-6):* the original claim here — that substrate tables have their own provisioning path — was inferred and false: the substrate documents schemas in adapter docstrings and ships no migrations. **Torve owns migrations for substrate tables** (outbox, inbox, run store, step store, schedules, idempotency, distributed locks) as well as for its own document tables — one set, Postgres only. The schema contract is enforced by test, not by file: the differential conformance battery runs the same properties against the mock and a real Postgres, and running it against the migrated database is a **required gate**. Substrate schema versions are pinned alongside the forze version — a forze upgrade that changes a schema becomes a migration task, not a silent `pip install -U` — and the pin joins `config_hash`.
+
+      Because all three aggregates are immutable and carry `schema_version` (D-22), migrations are almost always additive — old rows are read by the old shape, no backfill, nothing to rewrite. That is a direct consequence of having no update commands, not a coincidence.
+  - key: decisions
+    md: |
+      D-3.18 was retired 2026-09-09; path rot. The identifier is never reused.
+  - key: exit-criteria
+    md: |
+      - Fake-agent suite green.
+      - Simulation sweep passes with every reachability target fired and every broken twin caught.
+      - `torve reap` provably cleans up after a `kill -9` mid-run.
+      - One task taken end to end to an open pull request, with all artefacts persisted.

@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 
 from torve.application.manager import IN_FLIGHT, Board, TaskView, project
+from torve.application.planner import document_number
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.application.telemetry import TOKEN_FIELDS, record_row
@@ -61,7 +62,7 @@ TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
 
 # RFC 0004 §6a, reproduced verbatim (D-22.7, LOCKED: printed with the report,
 # never paraphrased). `torve.cli.rfc` owns and prints this same text for
-# `torve rfc health`; the layering contract puts `torve.cli` above
+# `torve spec health`; the layering contract puts `torve.cli` above
 # `torve.application`, so this module cannot import it back and the string
 # is copied rather than shared — a wording change updates both call sites.
 QUASI_EXPERIMENT_CAVEAT = (
@@ -984,7 +985,7 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
         if task["rfc"]:
             # keyed without the suffix: a contract minted before RFC 0056
             # names the markdown file the document converted from
-            by_document.setdefault(str(Path(str(task["rfc"])).with_suffix("")), []).append(task)
+            by_document.setdefault(document_number(str(task["rfc"])), []).append(task)
 
     view: list[dict[str, Any]] = []
 
@@ -1006,7 +1007,7 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
         }
         phasing = doc.phasing
         document = str(path.resolve().relative_to(root.resolve()))
-        minted = by_document.get(str(Path(document).with_suffix("")), [])
+        minted = by_document.get(document_number(document), [])
         phases: dict[int, list[str]] = {}
 
         for task in minted:

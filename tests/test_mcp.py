@@ -17,13 +17,14 @@ from typer.testing import CliRunner
 from torve.application.projections import why_report
 from torve.cli import app
 from torve.cli import mcp as mcp_cli
+from torve.config import layout
 
 # ----------------------- #
 
 
 def test_surface_is_three_read_only_queries(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
-    server = mcp_cli.build_server(root, root / "rfcs")
+    server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
 
     tools = asyncio.run(server.list_tools())
 
@@ -33,7 +34,7 @@ def test_surface_is_three_read_only_queries(plan_repo):  # noqa: F811
 
 def test_context_tool_serves_the_report_and_slices(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
-    server = mcp_cli.build_server(root, root / "rfcs")
+    server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
 
     full = asyncio.run(server.call_tool("context", {}))
     report = json.loads(full.content[0].text)
@@ -49,7 +50,7 @@ def test_context_tool_serves_the_report_and_slices(plan_repo):  # noqa: F811
 
 def test_show_tool_resolves_and_refuses(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
-    server = mcp_cli.build_server(root, root / "rfcs")
+    server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
 
     found = asyncio.run(server.call_tool("show", {"identifier": "0090"}))
     document = json.loads(found.content[0].text)
@@ -77,7 +78,7 @@ def test_missing_package_is_a_config_error(plan_repo, monkeypatch):  # noqa: F81
 def test_why_tool_serves_the_envelope_verbatim(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     seed_why_facts(root)
-    server = mcp_cli.build_server(root, root / "rfcs")
+    server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
 
     called = asyncio.run(server.call_tool("why", {"task_id": "T-0001"}))
 
@@ -89,7 +90,7 @@ def test_why_tool_answers_an_unknown_id_with_its_envelope(plan_repo):  # noqa: F
     answers with the same `found: false` envelope it always re-exposes."""
     root, _, _ = plan_repo
     seed_why_facts(root)
-    server = mcp_cli.build_server(root, root / "rfcs")
+    server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
 
     called = asyncio.run(server.call_tool("why", {"task_id": "T-9999"}))
 

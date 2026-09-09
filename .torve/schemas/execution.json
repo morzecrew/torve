@@ -1,0 +1,656 @@
+{
+  "$defs": {
+    "Alternative": {
+      "additionalProperties": false,
+      "description": "One rejected option: the negative space every executor re-proposes\nwhen nobody told it the option was closed.",
+      "properties": {
+        "cites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "option": {
+          "title": "Option",
+          "type": "string"
+        },
+        "rejected_because": {
+          "title": "Rejected Because",
+          "type": "string"
+        }
+      },
+      "required": [
+        "option",
+        "rejected_because"
+      ],
+      "title": "Alternative",
+      "type": "object"
+    },
+    "Amendment": {
+      "additionalProperties": false,
+      "description": "One amendment: its number and date, the typed diff (empty for an\nexecution finding that changed nothing typed), and the words.",
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/Change"
+          },
+          "title": "Changes",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "md": {
+          "default": "",
+          "title": "Md",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Amendment",
+      "type": "object"
+    },
+    "Budget": {
+      "additionalProperties": false,
+      "properties": {
+        "iterations": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Iterations"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens"
+        },
+        "wallclock_minutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wallclock Minutes"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
+    "Change": {
+      "additionalProperties": false,
+      "description": "One typed edit an amendment made (D-53.4): the prior value is read at\namendment time, which is the only moment it exists.",
+      "properties": {
+        "after": {
+          "default": null,
+          "title": "After"
+        },
+        "before": {
+          "default": null,
+          "title": "Before"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "field"
+      ],
+      "title": "Change",
+      "type": "object"
+    },
+    "Decision": {
+      "additionalProperties": false,
+      "description": "One decision row, whole (D-56.2): grade, text and paths \u2014 the three\nfields a contract copies at mint \u2014 with its consequence, rationale,\ncitations, check and the stamp the tool last wrote on it.",
+      "properties": {
+        "check": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Check"
+        },
+        "check_state": {
+          "default": "shadow",
+          "enum": [
+            "shadow",
+            "blocking"
+          ],
+          "title": "Check State",
+          "type": "string"
+        },
+        "check_twin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Check Twin"
+        },
+        "cites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "consequence": {
+          "default": "",
+          "title": "Consequence",
+          "type": "string"
+        },
+        "fingerprint": {
+          "default": "",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "grade": {
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "rationale": {
+          "default": "",
+          "title": "Rationale",
+          "type": "string"
+        },
+        "superseded_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Superseded By"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade",
+        "text"
+      ],
+      "title": "Decision",
+      "type": "object"
+    },
+    "DesignSection": {
+      "additionalProperties": false,
+      "description": "One prose section: the key a log cites and a markdown body the\nengine never parses (D-53.3, D-56.3). The heading is the key and the\nnumber is the position (D-57.2); order is the list's.",
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "md": {
+          "default": "",
+          "title": "Md",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "DesignSection",
+      "type": "object"
+    },
+    "InheritedDecision": {
+      "additionalProperties": false,
+      "description": "One row as a contract carries it (charter \u00a73; RFC 0054 D-54.1): grade,\ntext and paths copied at mint and fingerprinted; `consequence` beside\nthem so the executor gets the reason, and `check` \u2014 a command whose\nexit code judges the row \u2014 which the runner appends to the battery as\na `decision:<id>` gate at `check_state`, with `check_twin` the test\nthat proves the check can fail (D-54.4). A contract minted before\nRFC 0054 loads with the four defaults, which is the old behaviour.",
+      "properties": {
+        "check": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Check"
+        },
+        "check_state": {
+          "default": "shadow",
+          "enum": [
+            "shadow",
+            "blocking"
+          ],
+          "title": "Check State",
+          "type": "string"
+        },
+        "check_twin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Check Twin"
+        },
+        "consequence": {
+          "default": "",
+          "title": "Consequence",
+          "type": "string"
+        },
+        "grade": {
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade",
+        "text"
+      ],
+      "title": "InheritedDecision",
+      "type": "object"
+    },
+    "Invariant": {
+      "additionalProperties": false,
+      "description": "A statement with the paths it holds over and the command that proves\nit.",
+      "properties": {
+        "check": {
+          "title": "Check",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "check"
+      ],
+      "title": "Invariant",
+      "type": "object"
+    },
+    "Phase": {
+      "additionalProperties": false,
+      "description": "One mintable unit of the phasing: what `torve plan` derives a\ncontract from.",
+      "properties": {
+        "acceptance": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Acceptance",
+          "type": "array"
+        },
+        "character": {
+          "default": "",
+          "enum": [
+            "",
+            "structural",
+            "routine"
+          ],
+          "title": "Character",
+          "type": "string"
+        },
+        "depends_on": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "intent": {
+          "minLength": 1,
+          "title": "Intent",
+          "type": "string"
+        },
+        "phase": {
+          "minimum": 1,
+          "title": "Phase",
+          "type": "integer"
+        },
+        "scope": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Scope",
+          "type": "array"
+        },
+        "tier_variant": {
+          "default": "",
+          "title": "Tier Variant",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "phase",
+        "title",
+        "intent",
+        "scope"
+      ],
+      "title": "Phase",
+      "type": "object"
+    },
+    "Question": {
+      "additionalProperties": false,
+      "description": "One entry of a `yaml questions` fence.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "settled_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Settled By"
+        },
+        "status": {
+          "default": "open",
+          "enum": [
+            "open",
+            "settled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "Question",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (RFC 0002 \u00a76).",
+      "properties": {
+        "allow": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allow",
+          "type": "array"
+        },
+        "deny": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Deny",
+          "type": "array"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "description": "The task contract, `.torve/tasks/T-nnnn.yaml` (RFC 0001 \u00a73, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (D-7.5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
+      "properties": {
+        "acceptance": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Acceptance",
+          "type": "array"
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget"
+        },
+        "character": {
+          "anyOf": [
+            {
+              "enum": [
+                "structural",
+                "routine"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Character"
+        },
+        "decisions": {
+          "items": {
+            "$ref": "#/$defs/InheritedDecision"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "intent": {
+          "default": "",
+          "title": "Intent",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "phase": {
+          "default": 0,
+          "title": "Phase",
+          "type": "integer"
+        },
+        "rfc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rfc"
+        },
+        "role": {
+          "default": "implement",
+          "enum": [
+            "implement",
+            "review",
+            "revert",
+            "draft"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Targets",
+          "type": "array"
+        },
+        "tier": {
+          "default": "executor",
+          "enum": [
+            "planner",
+            "executor",
+            "reviewer"
+          ],
+          "title": "Tier",
+          "type": "string"
+        },
+        "tier_variant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tier Variant"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "decisions"
+      ],
+      "title": "Task",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "execution.yaml of a specification directory (RFC 0057).",
+  "properties": {},
+  "required": [],
+  "title": "execution",
+  "type": "object"
+}

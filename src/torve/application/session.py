@@ -352,7 +352,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         worktree,
         build_pack(
             root,
-            root / config.rfcs.path,
+            root / config.specs.path,
             task,
             layout.gates_file(worktree),
             replay=shadow,

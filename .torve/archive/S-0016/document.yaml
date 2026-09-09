@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: '0016'
+title: Specification corpus conventions
+kind: convention
+status: superseded
+implementation: complete
+depends_on: []
+informed_by: []
+supersedes: []
+superseded_by: '0055'
+owner: Lev Litvinov
+description: >-
+  How a specification corpus is organised, numbered, versioned and validated; applies
+  to a repository with no engine in it. Extracted from the charter with identifiers
+  preserved.
+schema_version: 3
+sections:
+  - key: why-this-is-separate-from-the-charter
+    md: |
+      These rules were written into RFC 0001 because there was nowhere else to put them, and the consequences showed up in the numbers: **half the charter's amendments and forty-five per cent of its decisions were about document conventions rather than about Torve.**
+
+      The mismatch is categorical, not merely one of volume. **These rules apply to a repository containing no engine at all.** They govern how a corpus of specifications is kept; Torve happens to consume one. Keeping them in the engine's charter meant every clarification about numbering or indexing amended the document that defines what Torve *is*.
+
+      They also had no prose. They existed only as decision rows and amendment entries — which is why they were hard to follow and kept needing amendment. §2–§7 below are that missing prose; the decisions themselves are unchanged and carry their original identifiers.
+
+      **Identifiers are preserved exactly.** `D-A.7` is still `D-A.7`, now resolving here. Renumbering would break citations in RFCs 0007, 0011, 0013 and 0015 and violate D-A.4, and the `D-A.` prefix was never tied to a document number.
+
+      Four `D-A.*` decisions did **not** move — D-A.7, D-A.13, D-A.14 and D-A.15 are about task directories, logs and retention, which are engine artefacts. They stay in the charter. The prefix marks when a decision was written, not where it belongs; the split is by subject.
+  - key: three-destinations
+    md: |
+      | Kind | Where | Read by |
+      | --- | --- | --- |
+      | Decisions later work inherits | `rfcs/` | agents and authors; machine-validated |
+      | Published documentation | `pages/` | users; versioned with releases, written independently |
+      | One-off procedures | `ops/` | us, until executed |
+
+      **The test:** does it settle decisions that later work must inherit? RFC. Does a user need it? `pages/`. Is it done once and then not needed? `ops/`.
+
+      If an `ops/` document starts accumulating decisions rather than steps, promote the **decisions** into an existing RFC — not the procedure.
+
+      **`pages/` is consistent with the corpus, not derived from it.** Documentation is written independently and in its own voice: a page answers "how do I use this", not "why was this decided". It may not contradict an accepted decision, and it does not restate rationale that lives under a number. The two also move on different axes — RFCs accumulate and carry amendments; a page describes one released version and carries no history. Supporting two releases means two versions of the site, not one page with a history section.
+  - key: frontmatter
+    md: |
+      Structured facts go in YAML frontmatter; prose goes in the body.
+
+      ```yaml
+      ---
+      id: "0016"
+      title: Specification corpus conventions
+      kind: convention          # convention | design
+      status: draft             # draft | accepted | superseded
+      implementation: none      # none | partial | complete | abandoned
+      depends_on: []
+      informed_by: []
+      supersedes: []
+      superseded_by: null
+      amended_by: []
+      retired: []               # identifiers once defined here — removed, never reusable (A-20)
+      owner: <name>
+      schema_version: 1
+      ---
+      ```
+
+      `status` describes the document; `implementation` describes the work, and both are judgements. **There is no progress field.** Execution progress is derived from task state, belongs to the store, and a frontmatter copy would diverge the first time a task escalated.
+
+      **What the edges mean.** `depends_on` constrains *planning readiness*, not task ordering: a document cannot be planned until its dependencies are `accepted`, because its decision table inherits their rows and grades are copied at mint time. Shipping order lives in a phasing table, not in the graph. `informed_by` constrains nothing — it tells a reader what to read first.
+  - key: decision-tables
+    md: |
+      Decisions stay in markdown, not in frontmatter. A decision row carries prose — the statement and the consequence — which is what people argue about in review and belongs where reading happens. Splitting rows from rationale would create two sources of truth inside one document.
+
+      The table parses deterministically because its columns are fixed; what it needs is hard validation rather than another serialization. Identifiers are permanent: divergence logs cite `D-3` forever, so rows are appended and never renumbered.
+  - key: amendment-discipline
+    md: |
+      An accepted RFC is never rewritten in place — divergence logs and telemetry reference text that must still exist. A change to an accepted decision is recorded as an amendment in the `## Amendments` section of the document whose decision it changes (D-A.5), listing secondary edits inside the entry. Numbering is global (`A-1`, `A-2`, …) so an amendment can be cited unambiguously from a log or a commit trailer. Every amendment follows the process this corpus specifies: implementation disagreed with a decision, stopped, and returned to a human — `flag-dont-flip` applied to Torve itself.
+
+      This document's own amendments follow, in the unnumbered `## Amendments` container every document keeps.
+  - key: the-index
+    md: |
+      `INDEX.md` is generated from frontmatter, never hand-edited, and CI-checked by regenerating and comparing — the same discipline as a lockfile.
+
+      It carries **every frontmatter field that aids routing and nothing derived from the store**. Frontmatter sits in the same commit the index is checked against, so `--check` stays deterministic; a store-derived column would make it flake on every task run.
+
+      Rows are grouped by `kind`, with documents that are `accepted` but `abandoned` separated out — that pairing is the most hazardous combination in a corpus, since the decisions are still inherited and there is no implementation.
+  - key: the-corpus-directory
+    md: |
+      One path, configurable, defaulting to `rfcs/`. Never a list, never a glob: numbering is continuous, and two roots mean two counters and a colliding identifier at the first merge.
+
+      Only `NNNN-slug.md` and `INDEX.md`, no subdirectories. The check's message routes an offending file to `pages/` or `ops/` rather than only refusing it — without routing, the file lands in the repository root and the mess has moved rather than gone.
+
+      **The next number is derived** as the maximum plus one. A counter file is state, two branches diverge it, and resolving that conflict gives two documents one number. A parallel-creation race instead surfaces as a duplicate-`id` failure at merge, which is loud rather than silent.
+
+      **Documents are never deleted.** They leave service through `superseded` or `implementation: abandoned`. Amendments, divergence logs and commit trailers cite identifiers, and a reused number silently redirects all of them. Gaps are acceptable; reuse is not.
+  - key: amendments
+    md: |
+      Carried over with the decisions they introduced. Numbering stays global, so citations elsewhere continue to resolve.

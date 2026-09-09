@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-71
+    at: '2026-08-31'
+    title: >-
+      the landedness exception to stage-1 storage (amends D-22.5, cites T-0133)
+    md: |-
+      **Found in T-0133's departure log.** The contract asked `read_tasks` to
+      rederive landedness the way reap and the tracker already do — from the
+      persistent record, not the run-state file the reaper deletes on every
+      terminal run. The only persistent record is git's own `Torve-Task`
+      landing trailer (D-10.4), and reading it takes a git subprocess call —
+      which `_touched`'s docstring (T-0099) had glossed D-22.5 as forbidding
+      for this module. Not knowable from the RFC text at authoring time; it
+      surfaced only once reap's sweep and this report's later read were
+      exercised against the same corpus.
+
+      **Changed:** D-22.5 — the exception noted textually: `TaskFacts.landed`
+      reads the landing trailer via a single batched `git log` call; every
+      other reader in the module stays YAML/JSONL-only. The code already
+      carries this scoping as of T-0133; only the row was unamended.
+  - id: A-67
+    at: '2026-08-31'
+    title: the phase-3 close-out reviewed (cites T-0112)
+    md: |-
+      T-0112's execution log closes out D-22.1 compliant as built, no
+      divergence. Reviewed and accepted with no corpus change; this citation
+      is the disposition — an uncited no-change close-out otherwise waits in
+      the proposals queue forever.
+  - id: A-62
+    at: '2026-08-30'
+    title: the dispatch envelope (adds D-22.11)
+    md: |-
+      **Found watching the 0022–0024 campaign.** Six tasks ran 13–19 minutes on
+      their first attempt with the operator holding no expectation to judge them
+      against — "is this run overrunning?" was unanswerable except by feel,
+      though every input to the answer was already in the telemetry this
+      document reads. The report surfaces answered "how did the corpus do"
+      retrospectively and nothing answered "what should this dispatch cost"
+      prospectively.
+
+      **Changed:** D-22.11 — `torve run` (and the tick's dispatch leg) prints an
+      envelope beside the size verdict: expected attempts, cost and wall
+      minutes for the task's size class, from the same join, with the
+      denominator printed and the reading suppressed below the observation
+      floor. The quasi-experiment caveat prints with it (D-22.7); an envelope
+      is a base rate, never a bound, and nothing in the engine acts on it —
+      the operator does. §Phasing gains phase 3 (dispatch-envelope) carrying
+      exactly this.
+  - id: A-59
+    at: '2026-08-29'
+    title: >-
+      execution's proposals from T-0099/T-0100 approved (amends §5.3, D-22.4, D-22.6,
+      D-22.7)
+    md: |-
+      **Found in the first execution.** Both phases landed with divergence logs
+      proposing corpus corrections; every one is approved here.
+
+      **Changed:**
+
+      - `touched` is defined as scope.allow intersecting the row's declared
+        paths, both denormalised at mint time — never a literal post-hoc diff.
+        The decoration-or-paths-defect reading stays sound because the scope
+        gate already bounds the true diff by scope.allow for any task whose
+        gates passed (D-22.4).
+      - The decoration reading is scoped to `LOCKED` rows explicitly; `ASSUMED`
+        and `OPEN` rows print their raw touched/cited counts with no reading
+        (D-22.4).
+      - §5.3 names the field the corpus carries — log entries classed `drift` —
+        dropping the reference to a `Finding.kind` that never shipped; it states
+        that attempts-to-green is computed over landed tasks only and that
+        rfc-less tasks are excluded from document populations as D-22.9 already
+        excludes them at the decision level.
+      - The printed caveat carries its substance without the corpus coordinate,
+        and `torve.base` is named as the canonical home for the string when a
+        third surface would otherwise have to choose between duplication and
+        breaking the layer contract (D-22.7; today the two surfaces duplicate
+        it knowingly, a wording change updates both).
+      - Authoring doctrine from the mint-time contradiction: a decision whose
+        paths span more than one phase's scope splits into per-surface rows at
+        authoring, so scope.allow can never contradict a decision's own paths
+        again (D-22.6). The general rule belongs to the rfc-writer skill and is
+        recorded there.
+
+      **Deliberately unchanged:** D-22.10 stays `OPEN` — §5.3's landed-only rule
+      is the reporting default T-0100 shipped, not the weighting answer; the
+      distribution still decides.
+  - id: A-73
+    at: '2026-08-31'
+    title: the operator-attention line (adds D-22.12)
+    md: |-
+      **Found in the adoption research of 2026-08-31.** The documented first
+      rejection of every surveyed spec-first tool is fixed-cost ceremony, and
+      this engine's structural answer — agents pay the ceremony, humans sign —
+      currently rests on anecdote: two human comments on a lab thread,
+      remembered. Every input to the real number is already recorded — feedback
+      carries `human_minutes`, tracker commands and approvals ride engine
+      events, landings carry their trailer — and nothing prints attention per
+      landed change.
+
+      **Changed:** D-22.12 — the corpus summary (`torve rfc health` with no
+      number) and the `torve context` section gain the operator-attention line:
+      landed changes in the window and the operator interventions behind them,
+      from the records the engine already writes. No new recorded fields — the
+      §4 non-goal stands. Denominators printed, suppression below the floor,
+      the §6a caveat printed with it (D-22.7). §Phasing gains phase 4
+      (operator-attention-line) carrying exactly this; `implementation` returns
+      to `partial` until it ships.
+  - id: A-118
+    at: '2026-09-05'
+    title: What the two retirements took from the readings
+    md: |-
+      **Judged in the pass A-113's new flag started.** All four declared phases
+      shipped. Two decisions were narrowed by this month's retirements, and one
+      row is open exactly as designed.
+
+      - **D-22.11 is half-implemented, and the surviving half is the one that
+        matters.** The envelope prints on `torve run`, where a person is watching
+        a dispatch they typed. The other printer was the standing loop's dispatch
+        leg, which is deleted (A-105) — and it was already off for a fleet root,
+        so what is gone is one caller of a reading, not the reading.
+      - **D-22.12's population shrank.** The operator-attention line counts
+        interventions behind landed changes; the tracker's commands and approvals
+        were one kind, and no surface produces them since A-92. Feedback minutes
+        and triaged escalations still count, so the line still prints — with a
+        narrower denominator that nothing in the output announces. That is worth
+        knowing before comparing a reading taken today against one from August.
+      - **D-22.10 is open by design.** Whether an abandoned task's entries weigh
+        the same as a landed task's is a question execution answers by reporting
+        both populations, and it still reports both.
+
+      Nothing here moved onto the record in RFC 0050 phase 3, and that was also a
+      judgement rather than an omission: these readings join operator feedback,
+      which has no event kind at all, and a findings ledger whose claims the
+      record does not carry (RFC 0050 A-102). D-22.5's stage-1 storage rule is
+      therefore still exactly what the code does.
+
+      **Changed:** `implementation: partial` stands — the readings are built and
+      their populations are the thing still moving.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*

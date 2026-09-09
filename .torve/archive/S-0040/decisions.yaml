@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-40.1
+    grade: LOCKED
+    text: >-
+      One reader, every renderer: `why_report` computes the envelope and CLI, MCP
+      and serve re-expose it verbatim (D-32.1's doctrine applied to the per-task question)
+    paths:
+      - src/torve/application/projections.py
+      - src/torve/cli/why.py
+      - src/torve/cli/mcp.py
+      - src/torve/cli/serve.py
+    consequence: >-
+      The three surfaces can never disagree; a renderer wanting different facts changes
+      the projection, in one place, for all of them
+  - id: D-40.2
+    grade: LOCKED
+    text: >-
+      The projection reads durable streams only — telemetry, feedback, the contract
+      — never run-state files or trace content; computed on demand, stored nowhere
+      (D-A.12)
+    paths: [src/torve/application/projections.py]
+    consequence: >-
+      The answer is equally complete for a live run, a landed task and a reaped one;
+      a richer answer requires making the fact durable first (0038/0039's route),
+      never reaching into ephemera
+  - id: D-40.3
+    grade: ASSUMED
+    text: >-
+      Attempts group by the 0038 `attempt` stamp; unstamped history groups by timestamp
+      order and is marked `pre_verdict: true` — rendered as partial, never retrofitted
+    paths: [src/torve/application/projections.py]
+  - id: D-40.4
+    grade: ASSUMED
+    text: >-
+      The regime block compares the task against same-`config_hash` attempt rows only
+      and carries `QUASI_EXPERIMENT_CAVEAT` in the envelope itself — a comparator,
+      never a verdict or threshold
+    paths: [src/torve/application/projections.py]
+  - id: D-40.5
+    grade: ASSUMED
+    text: >-
+      The envelope emits data without judgement: no severity ranking, no advice, no
+      anomaly flags; a detector is a separate document that consumes this surface
+    paths: [src/torve/application/projections.py]
+  - id: D-40.6
+    grade: ASSUMED
+    text: >-
+      Unknown task id: `found: false` envelope, CLI exit 3; a readable red history
+      exits 0
+    paths: [src/torve/cli/why.py]

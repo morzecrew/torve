@@ -4,10 +4,11 @@ told apart by field (D-53.4) — the application half of RFC 0053 phase 2,
 tested without a record: the importer's comparison against an empty
 graph is the whole of what it would append.
 
-`document`, `corpus` and `archived` are the corpus builders every suite
-shares (RFC 0056 D-56.1): a document is the model's own shape as YAML,
-written from a plain dict so a test can also write what the model
-refuses."""
+`document`, `corpus`, `place` and `archived` are the corpus builders every
+suite shares (RFC 0057 D-57.1): a document is its four files as text,
+keyed by file name, written from plain dicts so a test can also write
+what the model refuses; `corpus` lays them out as `S-NNNN/` directories
+under `.torve/specs/`, `archived` under `.torve/archive/`."""
 
 from __future__ import annotations
 
@@ -26,13 +27,14 @@ from torve.application.decisions import (
     load_corpus,
     path_rot,
 )
-from torve.config.rfc_emit import amend_row, dump_document, fix_row_text, stamp
-from torve.config.spec import SCHEMA_HEADER, archive_dir, load_document
+from torve.config.spec import archive_dir, load_document, schema_header
+from torve.config.spec_emit import amend_row, dump_document, fix_row_text, stamp
 from torve.domain.events import EventKind
 
 # ----------------------- #
 
 Row = tuple[str, str, str, str] | tuple[str, str, str, str, str]
+Doc = dict[str, str]  # file name -> text, as `corpus` writes it
 
 
 def paths_of(cell: str | list[str]) -> list[str]:
@@ -50,6 +52,14 @@ def paths_of(cell: str | list[str]) -> list[str]:
     return [token for token in (one.strip(",;") for one in cleaned.split()) if token]
 
 
+def as_text(file_name: str, data: dict[str, Any]) -> str:
+    """One file as `corpus` writes it: the schema line, then plain YAML."""
+
+    return f"{schema_header(file_name)}\n" + yaml.safe_dump(
+        data, sort_keys=False, allow_unicode=True, width=1000
+    )
+
+
 def document(
     number: str,
     rows: list[Row],
@@ -63,7 +73,6 @@ def document(
     owner: str = "tester",
     depends_on: list[str] | None = None,
     informed_by: list[str] | None = None,
-    amended_by: list[str] | None = None,
     retired: list[str] | None = None,
     details: dict[str, dict[str, Any]] | None = None,
     sections: list[dict[str, Any]] | None = None,
@@ -71,12 +80,16 @@ def document(
     alternatives: list[dict[str, Any]] | None = None,
     questions: list[dict[str, Any]] | None = None,
     amendments: list[dict[str, Any]] | None = None,
+    editorial: list[dict[str, Any]] | None = None,
     contract_example: dict[str, Any] | None = None,
-    schema_version: int = 2,
+    schema_version: int = 3,
     extra: dict[str, Any] | None = None,
-) -> str:
-    """One document as text: `rows` as (id, grade, text, paths[, consequence]),
-    `details` merged onto the row by id."""
+) -> Doc:
+    """One document as its files: `rows` as (id, grade, text, paths[,
+    consequence]), `details` merged onto the row by id, `extra` merged
+    into `document.yaml`. The rows go to `decisions.yaml`, the amendments
+    and editorial to `amendments.yaml`; a file with nothing to say is not
+    written."""
 
     decisions: list[dict[str, Any]] = []
 
@@ -94,7 +107,7 @@ def document(
         one.update((details or {}).get(ident, {}))
         decisions.append(one)
 
-    data: dict[str, Any] = {
+    head: dict[str, Any] = {
         "id": number,
         "title": title or f"Document {number}",
         "kind": kind,
@@ -104,53 +117,78 @@ def document(
         "informed_by": informed_by or [],
         "supersedes": [],
         "superseded_by": superseded_by,
-        "amended_by": amended_by or [a["id"] for a in (amendments or [])],
-        "retired": retired or [],
         "owner": owner,
         "description": "A document.",
         "schema_version": schema_version,
     }
 
     if sections:
-        data["sections"] = sections
-
-    data["decisions"] = decisions
+        head["sections"] = sections
 
     for name, value in (
-        ("invariants", invariants),
         ("alternatives", alternatives),
         ("questions", questions),
         ("phasing", phasing),
         ("contract_example", contract_example),
-        ("amendments", amendments),
     ):
         if value:
-            data[name] = value
+            head[name] = value
 
-    data.update(extra or {})
+    head.update(extra or {})
 
-    return f"{SCHEMA_HEADER}schema/document.json\n" + yaml.safe_dump(
-        data, sort_keys=False, allow_unicode=True, width=1000
-    )
+    rows_file: dict[str, Any] = {"decisions": decisions}
+
+    for name, value in (("invariants", invariants), ("retired", retired)):
+        if value:
+            rows_file[name] = value
+
+    files: Doc = {"document.yaml": as_text("document.yaml", head)}
+    files["decisions.yaml"] = as_text("decisions.yaml", rows_file)
+
+    tool_file: dict[str, Any] = {}
+
+    for name, value in (("amendments", amendments), ("editorial", editorial)):
+        if value:
+            tool_file[name] = value
+
+    if tool_file:
+        files["amendments.yaml"] = as_text("amendments.yaml", tool_file)
+
+    return files
 
 
-def corpus(tmp_path: Path, **docs: str) -> Path:
-    rfc_dir = tmp_path / "rfcs"
-    rfc_dir.mkdir(exist_ok=True)
+def place(spec_dir: Path, number: str, doc: Doc) -> Path:
+    """One document's directory written (or overwritten) under *spec_dir*;
+    a file the new text lacks is removed, so a shrunken document is the
+    document a test asked for."""
 
-    for number, text in docs.items():
-        (rfc_dir / f"{number}-document-{number}.yaml").write_text(text, encoding="utf-8")
+    directory = spec_dir / f"S-{number}"
+    directory.mkdir(parents=True, exist_ok=True)
 
-    return rfc_dir
+    for stale in directory.iterdir():
+        if stale.name not in doc:
+            stale.unlink()
+
+    for file_name, text in doc.items():
+        (directory / file_name).write_text(text, encoding="utf-8")
+
+    return directory
 
 
-def archived(rfc_dir: Path, number: str, text: str) -> Path:
-    target = archive_dir(rfc_dir)
-    target.mkdir(parents=True, exist_ok=True)
-    path = target / f"{number}-document-{number}.yaml"
-    path.write_text(text, encoding="utf-8")
+def corpus(tmp_path: Path, **docs: Doc) -> Path:
+    """The corpus at `tmp_path/.torve/specs/`, one `S-NNNN/` per document."""
 
-    return path
+    spec_dir = tmp_path / ".torve" / "specs"
+    spec_dir.mkdir(parents=True, exist_ok=True)
+
+    for number, doc in docs.items():
+        place(spec_dir, number, doc)
+
+    return spec_dir
+
+
+def archived(spec_dir: Path, number: str, doc: Doc) -> Path:
+    return place(archive_dir(spec_dir), number, doc)
 
 
 PHASE = {
@@ -207,7 +245,7 @@ def test_an_archived_document_is_a_source_whose_rows_retire_with_the_archive_nam
 
     retired = next(p for p in pending if p.kind is EventKind.DECISION_RETIRED)
 
-    assert retired.payload["reason"] == "archived in 0001-document-0001.yaml, superseded by 0002"
+    assert retired.payload["reason"] == "archived in S-0001, superseded by 0002"
     assert kinds.index((EventKind.DECISION_RECORDED, "D-1.1")) < kinds.index(
         (EventKind.DECISION_RETIRED, "D-1.1")
     )
@@ -309,14 +347,14 @@ def test_path_rot_names_rows_whose_every_glob_matches_nothing(tmp_path: Path) ->
     rotted = path_rot(load_corpus(rfc_dir), tmp_path)
 
     assert [(r.identifier, r.grade) for r in rotted] == [("D-1.3", "ASSUMED")]
-    assert "torve rfc amend 0001 --retire D-1.3 --reason path-rot" in rotted[0].line()
+    assert "torve spec amend 0001 --retire D-1.3 --reason path-rot" in rotted[0].line()
 
 
 # ....................... #
 
 
 def _write(rfc_dir: Path, doc: Any) -> None:
-    (rfc_dir / "0001-document-0001.yaml").write_text(dump_document(doc), encoding="utf-8")
+    place(rfc_dir, "0001", dump_document(doc))
 
 
 def test_fingerprint_drift_tells_a_hand_edited_grade_from_a_hand_edited_text(
@@ -325,9 +363,7 @@ def test_fingerprint_drift_tells_a_hand_edited_grade_from_a_hand_edited_text(
     rfc_dir = corpus(
         tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "A rule.", "`src/a.py`")])}
     )
-    stamped, _ = amend_row(
-        load_document(rfc_dir / "0001-document-0001.yaml"), "D-1.1", grade="ASSUMED"
-    )
+    stamped, _ = amend_row(load_document(rfc_dir / "S-0001"), "D-1.1", grade="ASSUMED")
     _write(rfc_dir, stamped)
 
     assert fingerprint_drift(load_corpus(rfc_dir)) == ([], [])
@@ -366,7 +402,7 @@ def test_a_row_never_stamped_is_never_compared(tmp_path: Path) -> None:
 
 def test_the_stamp_is_the_row_fingerprint_beside_its_rule_fingerprint(tmp_path: Path) -> None:
     rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "x", "`a`")])})
-    (row,) = load_document(rfc_dir / "0001-document-0001.yaml").decisions
+    (row,) = load_document(rfc_dir / "S-0001").decisions
     full, rule = stamp(row).split("/")
 
     assert len(full) == 16 and len(rule) == 16

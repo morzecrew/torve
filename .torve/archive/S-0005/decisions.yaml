@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-5.1
+    grade: LOCKED
+    text: >-
+      Review is a run with `role: review`, not a distinct subsystem
+    paths: [src/torve/application/review.py, src/torve/application/runner.py]
+    consequence: >-
+      Inherits budgets, cancellation, telemetry; reversing duplicates all of it
+  - id: D-5.2
+    grade: LOCKED
+    text: >-
+      The reviewer works in a disposable copy of the target worktree and holds no
+      forge credential; the diff under judgment is composed before the copy exists,
+      nothing written in the copy survives the review, and the runner posts comments
+      (reworded by A-78; was: read-only workspace)
+    paths: [src/torve/application/review.py, src/torve/adapters/runtime/**]
+    consequence: >-
+      An agent that can fix-and-approve is not a reviewer
+  - id: D-5.3
+    grade: LOCKED
+    text: >-
+      The reviewer never receives the author's session trace
+    paths: [src/torve/application/review.py]
+    consequence: Otherwise it audits reasoning, not the change
+  - id: D-5.4
+    grade: ASSUMED
+    text: >-
+      Findings with unlocatable evidence are discarded automatically
+    paths: [src/torve/application/review.py, src/torve/gates/decisions_reported.py]
+    consequence: >-
+      Shared with the execution-log check; remove if it discards true positives
+  - id: D-5.6
+    grade: LOCKED
+    text: >-
+      A seeded-defect corpus gates every prompt or model change
+    paths: [.torve/review-corpus/**, src/torve/cli/review.py]
+    consequence: Prompt tuning without it is guesswork
+  - id: D-5.7
+    grade: ASSUMED
+    text: >-
+      Third-party reviewer removal requires shadow-mode numbers, not preference
+    consequence: Four-step sequence in §7
+  - id: D-5.8
+    grade: ASSUMED
+    text: >-
+      Reviews on pull requests without a task run in degraded mode and are told so
+    paths: [src/torve/application/review.py]
+    consequence: Prevents invented specifications
+  - id: D-5.9
+    grade: LOCKED
+    text: >-
+      Review is minted as a task with `role: review` and `targets`, sharing the contract
+      shape
+    paths: [src/torve/domain/task.py]
+    consequence: A third role must not require a new mechanism
+  - id: D-5.10
+    grade: LOCKED
+    text: >-
+      A review task has no `acceptance`; the gate is skipped for the role
+    paths: [src/torve/gates/acceptance.py, src/torve/domain/task.py]
+    consequence: Its output is findings, not an exit code
+  - id: D-5.11
+    grade: LOCKED
+    text: >-
+      Review tasks are minted by the runner at `gated`, never by the planner
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      Review follows execution; the planner would have to predict it
+  - id: D-5.12
+    grade: ASSUMED
+    text: >-
+      Retry captures revision feedback before the candidate is superseded: the previous
+      candidate's diff and the pull request's `path:line`-anchored review threads
+      from `review.feedback_from` logins — verbatim, whole threads, attributed, size-capped
+      with recorded truncation; an empty allow-list turns the loop off. Added by amendment
+      A-32 2026-08-24. *Amended by A-37 2026-08-25 (registered on RFC 0010, D-10.10):
+      the branch is no longer deleted at requeue — the next attempt's leased force-push
+      supersedes it; capture-first stands unchanged*
+    paths: [src/torve/application/feedback.py, src/torve/adapters/vcs/git.py]
+    consequence: >-
+      A stranger's comment must never reach an agent; a parsed format rots with every
+      vendor redesign
+  - id: D-5.13
+    grade: ASSUMED
+    text: >-
+      A re-run whose task carries a feedback record gets it in the sandbox and its
+      prompt names it as untrusted review data under a contract that still governs
+      — revise, not restart; scope, gates and the sha-bound approval are unchanged,
+      and revision spend stays behind the human retry. Added by amendment A-32 2026-08-24
+    paths: [src/torve/application/runner.py, src/torve/adapters/agent/harness.py]
+    consequence: >-
+      The feedback channel steers attempts, never landings
+  - id: D-5.14
+    grade: ASSUMED
+    text: >-
+      The landing answers the review threads its revision consumed: capture retains
+      each thread's reply address, and the tick's landing leg posts one reply per
+      captured root — composed from records, saying what the loop did (captured, revised,
+      landed as this sha) and never what the finding deserves; each reply carries
+      its idempotency marker so a replay is absorbed at the destination, a failed
+      answer waits for the next tick, and an unconsumed record answers nothing. Added
+      by amendment A-41 2026-08-25
+    paths:
+      - src/torve/application/feedback.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/cli/tick.py
+    consequence: >-
+      A reviewer whose finding vanishes into a merged pull request stops reading;
+      the loop must close its own conversations
+  - id: D-5.15
+    grade: ASSUMED
+    text: >-
+      *(amended A-135, corrected A-137: the ledger admits a blocker from the pull-request
+      trigger, which escalates and revises nothing; task-gated blockers stay out.)*
+      Non-blocking findings get a ledger, not a lifecycle: `torve context` gains "Findings
+      awaiting the operator" — every kept finding from a landed target's review, marked
+      possibly_addressed when a later contract's text cites the review's task id (D-7.24's
+      possibly_landed discipline applied to findings); the engine still mints nothing
+      from a finding, and the operator triages the ledger in batch — per-finding instant
+      minting is a habit, never a requirement. Added by amendment A-75 2026-09-01
+    paths: [src/torve/application/projections.py]
+    consequence: >-
+      A finding recorded into telemetry and read by nobody is a review that ran for
+      nothing; a ledger keeps the operator honest without making the engine decide
+      work exists (D-2)
+  - id: D-5.16
+    grade: ASSUMED
+    text: >-
+      *(narrowed A-139: acceptance commands only — the copy is staged without `.git`,
+      so the battery cannot run there.)* Inside its disposable copy the reviewer may
+      execute the target's acceptance commands and gates; command output it cites
+      is evidence like any path:line, and execution spends the review attempt's own
+      budget and timeout — a battery too slow for the review window is a finding about
+      the battery, never a license to extend the review. Added by amendment A-78 2026-09-01
+    paths: [src/torve/application/review.py]
+    consequence: >-
+      A reviewer that can only read judges tests by their text; one that runs them
+      reports what the change actually does
+  - id: D-5.17
+    grade: ASSUMED
+    text: >-
+      `review.blocks_at` names the severity at or above which a kept finding stops
+      a promotion, default `major`; the finding keeps the grade the reviewer gave
+      it and configuration decides what stops (D-2). Added by amendment A-136 2026-09-08
+    paths: [src/torve/application/review.py, src/torve/config/runconfig.py]
+    consequence: >-
+      Three consecutive reviews graded a pass-killing defect `major` and nothing `blocker`,
+      so the bar that stopped a promotion sat above every severity the reviewer assigns
+retired: [D-5.5]

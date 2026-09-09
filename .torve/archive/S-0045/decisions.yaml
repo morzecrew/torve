@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-45.1
+    grade: LOCKED
+    text: >-
+      A sandbox never holds a store credential; the broker is its only route to the
+      system of record, and every record it contributes is appended by the broker
+      on its behalf
+    paths: [src/torve/adapters/broker/local.py]
+    consequence: >-
+      Direct store access from a sandbox is a design violation, not an optimization
+      — with it the authority table becomes advice
+  - id: D-45.2
+    grade: LOCKED
+    text: >-
+      Identity is stamped from the run-scoped token, never taken from the request:
+      actor kind, partition and subject are the run's own, and a request stating them
+      is ignored on every field
+    paths: [src/torve/adapters/broker/local.py]
+    consequence: >-
+      An agent can only ever write about its own task, as itself; forging is not refused,
+      it is unexpressible
+  - id: D-45.3
+    grade: ASSUMED
+    text: >-
+      The broker emits one `seat.consumed` event per metered provider response, and
+      the aggregate it reports at close equals their sum
+    paths: [src/torve/adapters/broker/local.py]
+    consequence: >-
+      Burn becomes a rate rather than a total; one event per call is accepted volume
+  - id: D-45.4
+    grade: LOCKED
+    text: >-
+      Liveness is derived from the burn stream, never reported by the agent: an attempt
+      with no recent burn is not working, whatever it would say about itself
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      A wedged agent cannot report itself healthy, because it is not asked
+  - id: D-45.5
+    grade: ASSUMED
+    text: >-
+      The intake route carries records the agent may write and nothing else; a kind
+      outside the authority table is refused before anything is appended
+    paths: [src/torve/adapters/broker/local.py]
+    consequence: >-
+      The authority table is enforced at the boundary the untrusted side reaches,
+      not only at the service behind it
+  - id: D-45.6
+    grade: ASSUMED
+    text: >-
+      `torve log divergence` posts through the route when the run has a broker and
+      writes the worktree file when it does not; the landed log is the same projection
+      either way
+    paths: [src/torve/application/divergence.py, src/torve/cli/log.py]
+    consequence: >-
+      A run without a broker behaves exactly as it does today, so the channel is an
+      addition and never a dependency
+  - id: D-45.7
+    grade: ASSUMED
+    text: >-
+      The manager addresses a run by writing a note the harness may read; it is a
+      poll, never a push, and never a prompt edit
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      Mid-run guidance is auditable because it is an event; nothing steers an agent
+      invisibly
+  - id: D-45.8
+    grade: OPEN
+    text: >-
+      Whether a stalled burn stream ends an attempt automatically or only surfaces
+      it. Settled by the first weeks of recorded burn, not by argument

@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from test_decisions import archived, corpus
+from test_decisions import Doc, archived, corpus
 from test_decisions import document as _document
 
 from torve.config.spec import check_corpus, lookup, next_number
@@ -17,7 +17,7 @@ from torve.config.spec import check_corpus, lookup, next_number
 # ----------------------- #
 
 
-def document(number: str, decision: str, *, status: str = "accepted", **kw: Any) -> str:
+def document(number: str, decision: str, *, status: str = "accepted", **kw: Any) -> Doc:
     """One scratch document: the shared builder with this suite's row."""
 
     return _document(
@@ -29,13 +29,13 @@ def document(number: str, decision: str, *, status: str = "accepted", **kw: Any)
     )
 
 
-def seed(tmp_path: Path, standing: dict[str, str], gone: dict[str, str]) -> Path:
-    rfcs = corpus(tmp_path, **standing)
+def seed(tmp_path: Path, standing: dict[str, Doc], gone: dict[str, Doc]) -> Path:
+    specs = corpus(tmp_path, **standing)
 
-    for number, text in gone.items():
-        archived(rfcs, number, text)
+    for number, doc in gone.items():
+        archived(specs, number, doc)
 
-    return rfcs
+    return specs
 
 
 # ----------------------- #
@@ -48,16 +48,15 @@ def test_a_citation_into_the_archive_resolves(tmp_path: Path) -> None:
         sections=[
             {
                 "key": "design",
-                "heading": "Design",
                 "md": "This document builds on D-1.1 and D-1.2.\n",
             }
         ],
     )
-    rfcs = seed(
+    specs = seed(
         tmp_path, {"0002": citing}, {"0001": document("0001", "D-1.1", status="superseded")}
     )
 
-    report = check_corpus(rfcs, tmp_path)
+    report = check_corpus(specs, tmp_path)
 
     assert [p for p in report.problems if "D-1.1" in p] == []
     assert any("cites D-1.2" in p for p in report.problems)
@@ -66,54 +65,54 @@ def test_a_citation_into_the_archive_resolves(tmp_path: Path) -> None:
 def test_a_reference_to_an_archived_number_warns_and_an_unknown_one_refuses(
     tmp_path: Path,
 ) -> None:
-    rfcs = seed(
+    specs = seed(
         tmp_path,
         {"0002": document("0002", "D-2.1", depends_on=["0001"], informed_by=["0009"])},
         {"0001": document("0001", "D-1.1", status="superseded")},
     )
 
-    report = check_corpus(rfcs, tmp_path)
+    report = check_corpus(specs, tmp_path)
 
     assert any("depends_on names 0001, which is archived" in w for w in report.warnings)
-    assert any("informed_by names '0009', no such RFC" in p for p in report.problems)
+    assert any("informed_by names '0009', no such document" in p for p in report.problems)
     assert not any("0001" in p for p in report.problems)
 
 
 def test_the_next_number_derives_over_corpus_and_archive(tmp_path: Path) -> None:
-    rfcs = seed(
+    specs = seed(
         tmp_path,
         {"0002": document("0002", "D-2.1")},
         {"0007": document("0007", "D-7.1", status="superseded")},
     )
 
-    assert next_number(rfcs) == 8  # one derivation, over corpus and archive (D-53.10)
+    assert next_number(specs) == 8  # one derivation, over corpus and archive (D-53.10)
 
 
 def test_lookup_answers_an_archived_identifier_marked_archived(tmp_path: Path) -> None:
-    rfcs = seed(
+    specs = seed(
         tmp_path,
         {"0002": document("0002", "D-2.1")},
         {"0001": document("0001", "D-1.1", status="superseded")},
     )
 
-    live = lookup(rfcs, "D-2.1")
-    gone = lookup(rfcs, "D-1.1")
-    doc = lookup(rfcs, "0001")
+    live = lookup(specs, "D-2.1")
+    gone = lookup(specs, "D-1.1")
+    doc = lookup(specs, "0001")
 
     assert live is not None and live["archived"] is False
     assert gone is not None and gone["archived"] is True
     assert doc is not None and doc["archived"] is True and doc["status"] == "superseded"
-    assert lookup(rfcs, "D-9.9") is None
+    assert lookup(specs, "D-9.9") is None
 
 
 def test_an_archived_document_never_counts_as_standing_in_the_check(tmp_path: Path) -> None:
-    rfcs = seed(
+    specs = seed(
         tmp_path,
         {"0002": document("0002", "D-2.1")},
         {"0001": document("0001", "D-1.1", status="superseded")},
     )
 
-    report = check_corpus(rfcs, tmp_path)
+    report = check_corpus(specs, tmp_path)
 
     assert report.count == 1
     assert report.ok, report.problems

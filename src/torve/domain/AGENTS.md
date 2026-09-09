@@ -125,9 +125,9 @@ Prose is `sections[].md`, a string the engine never parses, with `key` and `head
 
 ### D-57.1 — `LOCKED` (RFC 0057 — The specification is a directory)
 
-A specification is a directory `NNNN-slug/` of `document.yaml`, `decisions.yaml`, `amendments.yaml` and `execution.yaml`, split by who writes each; an absent file is an empty list; the loader joins them into the one `Document` every reader keeps reading; `schema_version` 3, and 2 is refused
+A specification is a directory `S-NNNN/` — the identifier and nothing else — of `document.yaml`, `decisions.yaml`, `amendments.yaml` and `execution.yaml`, split by who writes each; an absent file is an empty list; the loader joins them into the one `Document` every reader keeps reading; `schema_version` 3, and 2 is refused
 
-- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py` `src/torve/config/rfc_emit.py`
+- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py` `src/torve/config/spec_emit.py`
 - Consequence: The author's file changes only by the author; `amended_by` is derived and gone; `Document.path` names a directory
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 

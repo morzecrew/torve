@@ -178,7 +178,7 @@ def _convicts_on(name: str) -> str:
         "user-facing-text": "a corpus coordinate in a user-facing string",
         "source-layout": "a module named for what it is not",
         "layering": "an import against the layer contracts",
-        "rfc-valid": "a corpus document that does not check",
+        "spec-valid": "a corpus document that does not check",
         "coverage-delta": "changed lines below the coverage threshold",
         "spec-projection": "a managed AGENTS.md section that drifted from the corpus",
     }.get(name, "the command exits non-zero")

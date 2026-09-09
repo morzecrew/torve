@@ -1,0 +1,170 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-153
+    at: '2026-09-09'
+    title: phase 1 brings the runner's test file
+    changes:
+      - subject: phase 1
+        field: scope
+        before: >-
+          … tests/test_gates.py tests/test_sabotage.py tests/test_cli.py
+        after: >-
+          … tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py
+    md: |-
+      **Found by `torve plan`.** Phase 1 allows `src/torve/gates/runner.py` and
+      not `tests/test_runner.py`, which the lint the planner now runs (A-132)
+      refuses under the T-0113 rule: a module in scope brings its test file.
+
+      **Changed:** phase 1's scope and acceptance gain `tests/test_runner.py`.
+
+      ```yaml changes
+      - subject: phase 1
+        field: scope
+        before: "… tests/test_gates.py tests/test_sabotage.py tests/test_cli.py"
+        after: "… tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
+      ```
+  - id: A-154
+    at: '2026-09-09'
+    title: phase 1 reaches the event payload
+    changes:
+      - subject: phase 1
+        field: scope
+        before: >-
+          … src/torve/application/decisions.py src/torve/gates/runner.py …
+        after: >-
+          … src/torve/application/decisions.py src/torve/domain/events.py src/torve/gates/runner.py
+          …
+    md: |-
+      **Found by executing phase 1.** D-54.1 says `decision.recorded` carries
+      the consequence and the check, and the payload model that refuses an
+      unknown key lives in `src/torve/domain/events.py`, which the phase's
+      scope did not name.
+
+      **Changed:** phase 1's scope and acceptance gain the events module and
+      its test.
+
+      ```yaml changes
+      - subject: phase 1
+        field: scope
+        before: "… src/torve/application/decisions.py src/torve/gates/runner.py …"
+        after: "… src/torve/application/decisions.py src/torve/domain/events.py src/torve/gates/runner.py …"
+      ```
+  - id: A-155
+    at: '2026-09-09'
+    title: phase 1 reaches the adoption tests
+    changes:
+      - subject: phase 1
+        field: scope
+        before: … tests/test_events.py tests/test_gates.py …
+        after: >-
+          … tests/test_events.py tests/test_intake.py tests/test_standing.py tests/test_gates.py
+          …
+    md: |-
+      **Found by executing phase 1.** Adoption mints through the same
+      `inherit_decisions` the planner uses (A-47), so an adopted contract's rows
+      gain the four fields too, and three adoption tests compare rows whole.
+
+      **Changed:** phase 1's scope and acceptance gain `tests/test_intake.py`.
+
+      ```yaml changes
+      - subject: phase 1
+        field: scope
+        before: "… tests/test_events.py tests/test_gates.py …"
+        after: "… tests/test_events.py tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
+      ```
+  - id: A-156
+    at: '2026-09-09'
+    title: phase 1 reaches the standing tests
+    changes:
+      - subject: phase 1
+        field: scope
+        before: … tests/test_intake.py tests/test_gates.py …
+        after: >-
+          … tests/test_intake.py tests/test_standing.py tests/test_gates.py …
+    md: |-
+      **Found by the shadow coverage gate on phase 1's landing.** The standing
+      maintenance leg mints through the same helper too, and one of its tests
+      compares the minted row whole.
+
+      **Changed:** phase 1's scope and acceptance gain `tests/test_standing.py`.
+
+      ```yaml changes
+      - subject: phase 1
+        field: scope
+        before: "… tests/test_intake.py tests/test_gates.py …"
+        after: "… tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
+      ```
+  - id: A-158
+    at: '2026-09-09'
+    title: phase 2 reaches the working rules
+    changes:
+      - subject: phase 2
+        field: scope
+        before: >-
+          … src/torve/cli/main.py .torve/gates.yaml …; tests … tests/test_manifest.py
+        after: >-
+          … src/torve/cli/main.py src/torve/adapters/agent/harness.py .torve/gates.yaml
+          …; tests … tests/test_manifest.py tests/test_tiering.py
+    md: |-
+      **Found while planning phase 2.** Its intent says the working rules gain
+      one line naming `torve spec` and the pack index; the working rules live in
+      `src/torve/adapters/agent/harness.py`, which phase 1 named and phase 2 did
+      not, and the prompt's tests live in `tests/test_tiering.py`.
+
+      **Changed:** phase 2's scope and acceptance gain both.
+
+      ```yaml changes
+      - subject: phase 2
+        field: scope
+        before: "… src/torve/cli/main.py .torve/gates.yaml …; tests … tests/test_manifest.py"
+        after: "… src/torve/cli/main.py src/torve/adapters/agent/harness.py .torve/gates.yaml …; tests … tests/test_manifest.py tests/test_tiering.py"
+      ```
+  - id: A-159
+    at: '2026-09-09'
+    title: phase 2 renders into every governed directory
+    changes:
+      - subject: phase 2
+        field: scope
+        before: AGENTS.md src/torve/**/AGENTS.md
+        after: '**/AGENTS.md'
+    md: |-
+      **Found by rendering.** The rows govern `migrations/`, `pages/`, `skills/`,
+      `tests/`, `web/` and the source tree; the phase's scope named the source
+      tree's `AGENTS.md` files alone. The projection skips the corpus path
+      (D-A.18), the archive and every hidden directory — the engine's own state
+      under `.torve/` is not where an agent works — and reaches the rest.
+
+      **Changed:** phase 2's scope names `**/AGENTS.md`, which covers the root
+      file too.
+
+      ```yaml changes
+      - subject: phase 2
+        field: scope
+        before: "AGENTS.md src/torve/**/AGENTS.md"
+        after: "**/AGENTS.md"
+      ```
+  - id: A-160
+    at: '2026-09-09'
+    title: phase 3 reaches the working rules
+    changes:
+      - subject: phase 3
+        field: scope
+        before: >-
+          … src/torve/application/projections.py .gitignore …; tests … tests/test_context.py
+        after: >-
+          … src/torve/application/projections.py src/torve/adapters/agent/harness.py
+          .gitignore …; tests … tests/test_context.py tests/test_tiering.py
+    md: |-
+      **Found while planning phase 3.** §5.6 gives the working rules one line
+      naming the pack's index; the rules live in the harness, which phase 2
+      reached (A-158) before the pack existed and phase 3 did not name.
+
+      **Changed:** phase 3's scope and acceptance gain the harness and the
+      prompt's tests.
+
+      ```yaml changes
+      - subject: phase 3
+        field: scope
+        before: "… src/torve/application/projections.py .gitignore …; tests … tests/test_context.py"
+        after: "… src/torve/application/projections.py src/torve/adapters/agent/harness.py .gitignore …; tests … tests/test_context.py tests/test_tiering.py"
+      ```

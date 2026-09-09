@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-21.1
+    grade: LOCKED
+    text: >-
+      A brokered tier names no credential: `api_key_env` must be empty and a non-empty
+      one is a refused configuration, not a warning
+    paths: [src/torve/config/runconfig.py, src/torve/application/runner.py]
+    consequence: >-
+      One item, one channel (D-17.4); a fallback path for the key is the leak the
+      broker exists to remove
+  - id: D-21.2
+    grade: LOCKED
+    text: >-
+      The broker is a port with adapters (`local`, `opensandbox`, `none`); the OpenSandbox
+      vault is an adapter of it, never a prerequisite for it
+    paths: [src/torve/application/ports.py, src/torve/adapters/broker/**]
+    consequence: >-
+      D-4b becomes reachable under the runtime that exists today, and the server integration
+      becomes an adapter rather than a redesign
+  - id: D-21.3
+    grade: ASSUMED
+    text: >-
+      Two modes: `endpoint` (reverse proxy per provider, default bridge) closes custody
+      and metering; `sealed` (internal Docker network shared with the broker) adds
+      containment and requires every other destination declared
+    paths: [src/torve/adapters/runtime/docker.py, src/torve/config/runconfig.py]
+    consequence: >-
+      Custody and containment have different costs and different readiness; conflating
+      them would delay the cheap half behind the expensive one
+  - id: D-21.4
+    grade: LOCKED
+    text: >-
+      Provider routing is enforced twice: `route_provider` at dispatch for the message,
+      the broker at the wire for the fact; a wire refusal for a dispatch-allowed provider
+      is a defect report about the configuration reader
+    paths: [src/torve/config/runconfig.py, src/torve/adapters/broker/**]
+    consequence: >-
+      RFC 0004 §6b currently describes intent; only the wire makes it a property of
+      the run
+  - id: D-21.5
+    grade: ASSUMED
+    text: >-
+      Broker-measured usage is authoritative where it exists; an adapter's self-reported
+      `cost_usd` is recorded beside it and a divergence past tolerance is an engine
+      event
+    paths: [src/torve/application/telemetry.py, src/torve/adapters/broker/**]
+    consequence: >-
+      A number produced by the measured subject cannot detect the subject under-reporting
+  - id: D-21.6
+    grade: ASSUMED
+    text: >-
+      The task's token budget is held by the broker and enforced mid-run: requests
+      past it are refused and the run escalates `cost_anomaly`
+    paths: [src/torve/adapters/broker/**, src/torve/application/runner.py]
+    consequence: >-
+      A budget checked after the fact is a report, not a budget
+  - id: D-21.7
+    grade: LOCKED
+    text: >-
+      The broker keeps counts and metadata, never request or response bodies
+    paths: [src/torve/adapters/broker/**]
+    consequence: >-
+      A prompt archive is a new secret store and a new leak surface, created by the
+      component built to reduce both
+  - id: D-21.8
+    grade: ASSUMED
+    text: >-
+      The broker adapter name and the run's routing join `config_hash`; two runs under
+      different egress regimes are two regimes
+    paths: [src/torve/application/telemetry.py]
+    consequence: >-
+      D-17.1's rule, one artefact over: a comparison across an unrecorded regime change
+      is unfounded
+  - id: D-21.9
+    grade: ASSUMED
+    text: >-
+      `none` stays legal and is the first phase's default, but `torve doctor` names
+      it and states plainly that it leaves D-4b unmet
+    paths: [src/torve/cli/doctor.py, src/torve/config/runconfig.py]
+    consequence: >-
+      Opting out must be a decision someone can be shown making, not a silent default
+  - id: D-21.10
+    grade: OPEN
+    text: >-
+      Whether the `local` adapter is a subprocess or an in-process thread of the runner;
+      execution decides and logs it
+    paths: [src/torve/adapters/broker/**]
+    consequence: >-
+      A subprocess is separately reapable and debuggable; a thread has no lifecycle
+      of its own. The conformance battery is indifferent, so the implementer's evidence
+      is better than this table's guess
+  - id: D-21.11
+    grade: OPEN
+    text: >-
+      Where `sealed` mode's declared pass-through hosts live — the broker block or
+      `runtime`
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      The item is arguably egress policy and arguably sandbox provisioning; the first
+      real sealed repository will make one of the two files unreadable, and that is
+      the answer

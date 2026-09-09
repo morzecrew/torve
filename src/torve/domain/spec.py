@@ -1,11 +1,12 @@
-"""The specification as a model (RFC 0053 §5.1, D-53.1; RFC 0056 D-56.1):
-one pydantic `Document` every reader consumes — planner, importer, check,
-health, show, the intake lint, standing inheritance — and, since RFC
-0056, the shape of the file itself: a document is this model dumped as
-YAML, and nothing parses anything else into it.
+"""The specification as a model (RFC 0053 §5.1, D-53.1; RFC 0056 D-56.1;
+RFC 0057 D-57.1): one pydantic `Document` every reader consumes — planner,
+importer, check, health, show, the intake lint, standing inheritance —
+and the shape of its storage: a document is a directory of four YAML
+files, each holding the slice of this model that one writer owns
+(`FILE_FIELDS`), and nothing parses anything else into it.
 
 This module owns the shape and nothing about the storage: `config/spec.py`
-loads and checks it, `config/rfc_emit.py` writes it, and `domain/rfc.py`
+loads and checks it, `config/spec_emit.py` writes it, and `domain/rfc.py`
 still owns the vocabularies. It imports pydantic, the vocabularies and the
 task contract only (D-53.14), so extracting it into its own distribution
 is a packaging act and never a rewrite.
@@ -29,7 +30,7 @@ from torve.domain.task import Task
 
 # ----------------------- #
 
-SCHEMA_VERSION = 2  # D-56.1: the YAML document; 1 was the markdown document
+SCHEMA_VERSION = 3  # D-57.1: the directory of four files; 2 was the one YAML file
 
 Coverage = Literal["governed", "ungoverned", "retired"]
 CheckState = Literal["shadow", "blocking"]
@@ -170,13 +171,21 @@ class Amendment(Item):
 
 
 class DesignSection(Item):
-    """One prose section: the key a log cites, the heading a reader sees,
-    and a markdown body the engine never parses (D-53.3, D-56.3). Order is
-    the list's."""
+    """One prose section: the key a log cites and a markdown body the
+    engine never parses (D-53.3, D-56.3). The heading is the key and the
+    number is the position (D-57.2); order is the list's."""
 
     key: str
-    heading: str
     md: str = ""
+
+
+def heading_of(key: str) -> str:
+    """The heading a renderer shows for a section key: dashes to spaces,
+    the first letter raised (D-57.2)."""
+
+    words = key.replace("-", " ").strip()
+
+    return words[:1].upper() + words[1:]
 
 
 # ....................... #
@@ -200,11 +209,12 @@ class Phase(Item):
 
 
 class Document(Item):
-    """One specification document, and the shape of its file (D-56.1): the
-    header fields, the prose as keyed sections, the typed lists. `path` and
-    `archived` are the loader's, never written; `archived` marks a document
+    """One specification document, joined from its directory's files
+    (D-57.1): the header fields, the prose as keyed sections, the typed
+    lists. `path` names the directory and `archived` marks a document
     loaded from the archive (D-53.8): every identifier it defines still
-    resolves, and nothing inherits from it."""
+    resolves, and nothing inherits from it. Both are the loader's, never
+    written."""
 
     id: str
     title: str
@@ -215,7 +225,6 @@ class Document(Item):
     informed_by: list[str] = Field(default_factory=list)
     supersedes: list[str] = Field(default_factory=list)
     superseded_by: str | None = None
-    amended_by: list[str] = Field(default_factory=list)
     retired: list[str] = Field(default_factory=list)
     owner: str
     description: str
@@ -231,9 +240,14 @@ class Document(Item):
     phasing: list[Phase] = Field(default_factory=list)
     contract_example: Task | None = None
     amendments: list[Amendment] = Field(default_factory=list)
-    # The editorial lane's record (D-53.4): `torve rfc fix` appends the
+    # The editorial lane's record (D-53.4): `torve spec fix` appends the
     # before and after here, never an amendment number.
     editorial: list[Change] = Field(default_factory=list)
+
+    def amended_by(self) -> list[str]:
+        """The amendment identifiers, derived — never a field (D-57.1)."""
+
+        return [a.id for a in self.amendments]
 
     def decision(self, identifier: str) -> Decision | None:
         return next((d for d in self.decisions if d.id == identifier), None)
@@ -250,6 +264,51 @@ class Document(Item):
         ids.update(self.retired)
 
         return ids
+
+
+# ....................... #
+
+# The directory's files by the hand that writes each (D-57.1): the author's
+# document and rows, the tool's amendments, the landing's execution. A key
+# belongs to exactly one file; the loader joins them into one `Document`
+# and the writer splits it back. `execution.yaml` is typed by phase 3 of
+# RFC 0057; until then it carries nothing.
+DOCUMENT_FILE = "document.yaml"
+DECISIONS_FILE = "decisions.yaml"
+AMENDMENTS_FILE = "amendments.yaml"
+EXECUTION_FILE = "execution.yaml"
+FILES = (DOCUMENT_FILE, DECISIONS_FILE, AMENDMENTS_FILE, EXECUTION_FILE)
+FILE_FIELDS: dict[str, tuple[str, ...]] = {
+    DOCUMENT_FILE: (
+        "id",
+        "title",
+        "kind",
+        "status",
+        "implementation",
+        "depends_on",
+        "informed_by",
+        "supersedes",
+        "superseded_by",
+        "owner",
+        "description",
+        "schema_version",
+        "sections",
+        "alternatives",
+        "questions",
+        "phasing",
+        "contract_example",
+    ),
+    DECISIONS_FILE: ("decisions", "invariants", "retired"),
+    AMENDMENTS_FILE: ("amendments", "editorial"),
+    EXECUTION_FILE: (),
+}
+
+
+def file_of(field_name: str) -> str | None:
+    """Which of the four files carries a field, or None for a field no
+    file carries (the loader's own)."""
+
+    return next((name for name, fields in FILE_FIELDS.items() if field_name in fields), None)
 
 
 # ....................... #

@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-29.1
+    grade: LOCKED
+    text: >-
+      Equipment lives on the tier entry: `skills` fully overrides the role-scoped
+      set when present, `prompt_extras` appends after the charter's base working rules;
+      base rules are not addressable from configuration
+    paths: [src/torve/config/runconfig.py, src/torve/adapters/agent/harness.py]
+    consequence: >-
+      A persona can specialise but never shed an incident-born rule; making base rules
+      removable later reopens every incident that wrote one
+  - id: D-29.2
+    grade: LOCKED
+    text: >-
+      Equipped skill names resolve through the existing materializer with its refusals
+      unchanged — unknown or shipped-and-vendored names refuse dispatch before a sandbox
+      exists
+    paths: [src/torve/application/skills.py, src/torve/application/runner.py]
+    consequence: >-
+      A skill that quietly stops applying makes telemetry lie (D-9.2); fail-closed
+      is what lets an equipped regime be trusted
+  - id: D-29.3
+    grade: ASSUMED
+    text: >-
+      `skills` is a wholesale override, never additive, and rides the profile merge
+      under D-28.4's replace-wholesale rule
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      The effective set is readable in one place at review time; an additive union
+      is where equipment drifts from what anyone wrote down
+  - id: D-29.4
+    grade: ASSUMED
+    text: >-
+      A Phasing entry may carry `tier_variant`, copied verbatim by the planner onto
+      the minted contract; drafters may set it on drafts, and adoption is where a
+      human sees the assignment
+    paths: [src/torve/config/rfc_parse.py, src/torve/application/planner.py]
+    consequence: >-
+      Routing lives in reviewed documents; the engine inferring a variant from task
+      content stays refused (D-2)
+  - id: D-29.5
+    grade: ASSUMED
+    text: >-
+      Doctor prints resolved equipment per tier that differs from its role default
+      and attaches no check
+    paths: [src/torve/cli/doctor.py]
+    consequence: >-
+      Dispatch already owns the refusals; a second, later copy of the same signal
+      would be noise
+  - id: D-29.6
+    grade: OPEN
+    text: >-
+      Whether `review`-role sets are ever overridable per variant; the reviewer's
+      empty set is deliberate (the reviewer reads, it does not build), and the first
+      equipped-reviewer proposal must argue with that doctrine — evidence from the
+      review lane's findings quality would settle it
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      Silence here would get filled by the first convenient configuration

@@ -1,0 +1,191 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-2.1
+    grade: LOCKED
+    text: >-
+      Gates ship as an installed package, not copied scripts
+    paths: [pyproject.toml, src/torve/gates/**]
+    consequence: The whole point of this increment
+  - id: D-2.2
+    grade: LOCKED
+    text: Every gate has a sabotage case; no case, no gate
+    paths: [src/torve/gates/sabotage.py]
+    consequence: Enforced in the package's own CI
+  - id: D-2.3
+    grade: ASSUMED
+    text: >-
+      The starting set is the five above and grows from observed leaks
+    paths: [src/torve/gates/**]
+    consequence: Deliberately not exhaustive
+  - id: D-2.4
+    grade: ASSUMED
+    text: >-
+      Telemetry is JSONL until a query demands otherwise
+    paths: [src/torve/application/telemetry.py]
+    consequence: Storage is reversible, record shape is not
+  - id: D-2.5
+    grade: ASSUMED
+    text: >-
+      Gate manifests live in the consuming repository, not in the package
+    paths: [.torve/gates.yaml]
+    consequence: >-
+      Depart if the same manifest gets duplicated across every repository anyway
+  - id: D-2.6
+    grade: LOCKED
+    text: >-
+      `flaky` is a distinct outcome that does not consume an attempt
+    paths: [src/torve/base/shell.py]
+    consequence: Otherwise flakes silently eat the poison ceiling
+  - id: D-2.7
+    grade: LOCKED
+    text: >-
+      Bypass requires a human signature, a mandatory reason, a log entry and a counter
+    paths: [src/torve/gates/runner.py, src/torve/gates/context.py]
+    consequence: >-
+      An uncounted bypass becomes an invisible workaround
+  - id: D-2.8
+    grade: LOCKED
+    text: Secret scanning blocks and cannot be bypassed
+    paths: [src/torve/gates/secrets.py]
+    consequence: >-
+      The one failure class that a follow-up commit cannot repair
+  - id: D-2.9
+    grade: ASSUMED
+    text: >-
+      Task size is a port with pre-dispatch estimate and post-hoc calibration
+    paths: [src/torve/application/sizing.py]
+    consequence: Static thresholds first; telemetry-driven later
+  - id: D-2.10
+    grade: ASSUMED
+    text: >-
+      `self-audit` is a deterministic log-presence check (input `log`): the execution
+      log must exist and carry a `Drift count` line; agent-side audits arrive with
+      RFC 0004. Added by execution 2026-08-21
+    paths: [src/torve/gates/self_audit.py]
+    consequence: >-
+      Departs from §4's `worktree` input until a runner exists
+  - id: D-2.11
+    grade: LOCKED
+    text: >-
+      The bypass signature is a `Torve-Bypass: <gate>: <reason>` commit trailer; the
+      record carries the commit's author, is counted per gate and appended to the
+      task log; secrets stays exempt. Added by execution 2026-08-21
+    paths: [src/torve/gates/runner.py, src/torve/gates/context.py]
+    consequence: Makes D-2.7 checkable in engine-less CI
+  - id: D-2.12
+    grade: ASSUMED
+    text: >-
+      A test edit is licensed when the file falls inside the task's `scope.allow`;
+      adding a new test file is never tampering. Added by execution 2026-08-21
+    paths: [src/torve/gates/no_test_tampering.py]
+    consequence: Defines the licence `no-test-tampering` checks
+  - id: D-2.13
+    grade: ASSUMED
+    text: >-
+      On runs with no task contract, task- and log-input gates report a recorded `skipped`,
+      never a silent green. Added by execution 2026-08-21
+    paths: [src/torve/gates/contract.py]
+    consequence: >-
+      The degraded mode RFC 0005 §4 names, applied to gates
+  - id: D-2.14
+    grade: ASSUMED
+    text: >-
+      The secret scanner is a built-in high-confidence pattern set; false positives
+      are suppressed only via `secrets.allow_patterns` in the reviewed manifest. Added
+      by execution 2026-08-21
+    paths: [src/torve/gates/secrets.py]
+    consequence: Reviewed configuration, not a run-time bypass
+  - id: D-2.15
+    grade: ASSUMED
+    text: >-
+      The quarantine list is a reviewed manifest key, maintained from flake telemetry
+      until the RFC 0003 store automates the threshold. Added by execution 2026-08-21
+    paths: [src/torve/config/manifest.py]
+    consequence: Keeps §6a's quarantine honest without a store
+  - id: D-2.16
+    grade: ASSUMED
+    text: >-
+      The scope gate implicitly allows the task's own contract and log files, and
+      nothing else. Added by execution 2026-08-21
+    paths: [src/torve/gates/scope.py]
+    consequence: >-
+      Prevents the log-writing deadlock in narrowly-scoped tasks
+  - id: D-2.17
+    grade: ASSUMED
+    text: >-
+      Gate cost for cheapest-first ordering is the declared timeout, ascending, manifest
+      order breaking ties. Added by execution 2026-08-21
+    paths: [src/torve/gates/runner.py]
+    consequence: >-
+      Replace with measured p50 duration once telemetry accumulates
+  - id: D-2.18
+    grade: LOCKED
+    text: >-
+      A gate enters service through `shadow` before it may block. Added by amendment
+      A-8 2026-08-21
+    paths: [.torve/gates.yaml, src/torve/gates/runner.py]
+    consequence: >-
+      A miscalibrated blocking gate teaches people to route around it, and that becomes
+      habit
+  - id: D-2.19
+    grade: LOCKED
+    text: >-
+      Every manifest entry carries `origin` and `state`. Added by amendment A-8 2026-08-21
+    paths: [src/torve/config/manifest.py, .torve/gates.yaml]
+    consequence: >-
+      Provenance is unrecoverable later; a boolean cannot express shadow or quarantine
+  - id: D-2.20
+    grade: LOCKED
+    text: >-
+      Implementation and activation are separate tracks; a gate may be in different
+      states per repository. Added by amendment A-8 2026-08-21
+    paths: [src/torve/config/manifest.py, .torve/gates.yaml]
+    consequence: >-
+      Simultaneous rollout across repositories is how a gate gets rejected everywhere
+      at once
+  - id: D-2.21
+    grade: LOCKED
+    text: >-
+      No fires plus a red sabotage case means broken, not unnecessary. Added by amendment
+      A-8 2026-08-21
+    paths: [src/torve/gates/sabotage.py, tests/test_sabotage.py]
+    consequence: >-
+      The two look identical without the suite; this is why it runs continuously
+  - id: D-2.22
+    grade: LOCKED
+    text: >-
+      Retirement requires the same evidence as adoption. Added by amendment A-8 2026-08-21
+    paths: [.torve/gates.yaml]
+    consequence: >-
+      Otherwise the first hard sprint removes half the checks
+  - id: D-2.23
+    grade: ASSUMED
+    text: >-
+      Promotion criteria: 30 real changes, at least one fire, acceptable false positives
+      and p95, sabotage green. Added by amendment A-8 2026-08-21
+    paths: [.torve/gates.yaml]
+    consequence: Numbers tuned once real rates are known
+  - id: D-2.24
+    grade: ASSUMED
+    text: >-
+      `self-audit` runs at `shadow`, origin structural, and audits only what was written
+      — absence is an empty log and a clean run owes no file; promotion under D-2.23
+      waits for RFC 0004's agent-side audit to give it something to fire on. Added
+      by execution 2026-08-22 — see .torve/tasks/T-0010 and T-0015
+    paths: [.torve/gates.yaml, src/torve/gates/self_audit.py]
+  - id: D-2.25
+    grade: ASSUMED
+    text: >-
+      A deterministic self-development gate may promote to blocking on a clean report
+      plus red-on-demand sabotage in the same increment — D-2.23's soak measures a
+      false-positive rate a deterministic check does not have. Added by execution
+      2026-08-22 — see .torve/tasks/T-0014
+    paths: [.torve/gates.yaml]
+  - id: D-2.26
+    grade: ASSUMED
+    text: >-
+      Gate enforcement of the log's `repo` and `base_sha` pins lands with the next
+      gates increment, schema check plus a red twin; every log since T-0009 carries
+      the fields, so enforcement finds nothing to grandfather. Added by execution
+      2026-08-22 — see .torve/tasks/T-0009
+    paths: [src/torve/gates/decisions_reported.py]
