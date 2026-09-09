@@ -1,0 +1,58 @@
+schema_version: 1
+task: T-0288
+repo: morzecrew/torve
+base_sha: 4167c129ea1d3024987f8b1a3ccc57ef0ac0b05d
+drift_count: 0
+entries:
+- decision: D-53.1
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T09:29:24Z'
+  attempt: 1
+  claim: the model lives in domain/spec.py as pydantic Documents with extra=forbid and the
+    loader in config/spec.py produces it from the markdown corpus; no reader switches in this
+    phase, so the parser stays the owner of every consumer until phase 2, and the parity test
+    over all 53 documents is what licenses the switch
+  evidence: src/torve/domain/spec.py:201 - the Document model with its typed lists; src/torve/config/spec.py:316
+    - load_document builds it from parse_frontmatter, decision_table, parse_phasing and the
+    fences; tests/test_spec_load.py asserts parity per document
+  action: decided
+  notes: 'D-7.17 stands: config/spec.py is the format''s second reader beside rfc_parse for
+    one bounded window (D-53.13); gates and adapters import neither'
+- decision: D-53.2
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T09:29:24Z'
+  attempt: 1
+  claim: markdown stays the authoring surface and the table is read exactly as today through
+    rfc_parse.decision_table; the five fenced kinds are the only additions, each validated
+    against its model with unknown keys refused by fence, entry and field name; a fenced kind
+    the model does not know is refused too
+  evidence: src/torve/config/spec.py:173 - load_fences refuses an unknown kind and validates
+    each known one; src/torve/config/spec.py:65 - the fence-to-model table
+  action: decided
+- decision: D-53.4
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T09:29:25Z'
+  attempt: 1
+  claim: 'this phase lands the read side of the amendment diff only: the changes fence under
+    an A-n heading loads into typed Change entries with before and after, and the fingerprint
+    over text, grade and paths is a computed field on every row; the amend forms that write
+    the diff and the check that compares fingerprints are phase 2''s, as the phasing says'
+  evidence: src/torve/config/spec.py:227 - load_amendments reads the heading, date, title,
+    changes fence and body; src/torve/domain/spec.py:41 - fingerprint over text, grade and
+    sorted paths
+  action: decided
+  notes: rfc_emit.py is in this row's paths and is untouched by design in phase 1
+- decision: D-53.10
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T09:29:25Z'
+  attempt: 1
+  claim: next_number derives the maximum plus one over the corpus path and archive/rfcs beside
+    it; the parser's own derivation is left as it is and the test pins that the two disagree
+    exactly when the archive holds a higher number
+  evidence: src/torve/config/spec.py:421 - next_number over rfc_files of both directories;
+    tests/test_spec_load.py pins 12 versus the parser's 3
+  action: decided
