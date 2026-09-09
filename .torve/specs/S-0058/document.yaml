@@ -1,0 +1,532 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: 0058
+title: One grammar and the anatomy
+kind: design
+status: draft
+implementation: none
+depends_on: ['0057']
+informed_by: ['0053', '0056']
+supersedes: []
+superseded_by: null
+owner: misery7100
+description: >-
+  One document-rooted grammar for every identifier, a typed prose anatomy with the
+  phasing in its own file, execution as a directory of landings, and one instant the
+  engine writes everywhere.
+schema_version: 3
+sections:
+  - key: summary
+    md: |
+      Every item the corpus defines gets one grammar: a document is `S-NNNN`, and
+      everything inside it is `S-NNNN/<local>` — a row `S-0057/D-9`, an invariant
+      `S-0057/I-1`, a question `S-0057/Q-2`, an amendment `S-0057/A-6`, a phase
+      `S-0057/P-3`, a prose section `S-0057/summary`. Inside a document's own files
+      the local half is written alone (`id: D-9`); the document is the namespace,
+      so nothing is spelled twice. Tasks stay `T-NNNN`, a namespace of their own.
+      Every existing identifier converts once through a committed mapping, in the
+      corpus, the archive, the code, the pages, the projections and the record; a
+      legacy identifier anywhere afterwards is a check problem naming its
+      replacement, and `spec show` answers a legacy one from the mapping.
+
+      The anatomy becomes typed: `summary`, `motivation`, `current_state`,
+      `goals`, `non_goals`, `tests` and `risks` are keys of `document.yaml`, the
+      design is a keyed list, extra sections are a capped list, and
+      `description` is gone — `spec list` shows the summary's first sentence.
+      `phasing.yaml` carries the phasing and the contract example. Execution is a
+      directory, one file per landing, so two candidates never write the same
+      line. The engine writes one instant everywhere, `YYYY-MM-DDTHH:MM:SSZ`, from
+      one helper. A LOCKED row whose governed files carry no citation of it is a
+      warning.
+  - key: motivation
+    md: |
+      Four families spell an identifier four ways. `S-0057` is padded, `D-57.9`
+      is not; `I-57.1` and `Q-57.2` follow the rows; `A-166` counts across the
+      whole corpus and lives in one document without saying which. Sections and
+      phases have no identifier at all: the code cites them by position —
+      "RFC 0022 §5" — and phase 1 of RFC 0057 dropped the numbers that made those
+      positions readable. Measured on `fc3714b`:
+
+      | citation shape in `src/` and `pages/` | mentions |
+      | --- | --- |
+      | `D-x.y`, `I-x.y`, `Q-x.y`, `A-n` (checked since 0057 phase 4) | 1,510 |
+      | "RFC NNNN §n" (unchecked, rots on any reorder) | 336 |
+      | charter rows `D-A.n`, a fifth shape, cited 26 times | 13 distinct |
+
+      One grammar was not chosen in RFC 0053 because identifiers were permanent
+      and cited from logs, commits and the record. That was the right rule for a
+      library with users. This one has none yet: nothing outside this repository
+      cites a row, and the record is development data that re-imports in a
+      minute. The cost of two grammars forever is paid every day by every reader;
+      the cost of one renumbering is paid once, now, by a script.
+
+      The prose has an anatomy already and nothing enforces it. Across the five
+      live documents `summary` appears in all, `motivation`, `current-state`,
+      `goals-non-goals`, `tests`, `docs`, `out-of-scope` and `risks` in four;
+      across the 52 archived ones the same keys sit at 63 to 71 percent. Yet the
+      loader sees a flat list of 15 to 19 sections per document and `yq` cannot
+      ask for a motivation. `description` and `summary` both exist: 230 to 275
+      characters against 1,300 to 1,700, one routing line and one paragraph,
+      written twice by hand.
+
+      Every amendment since A-161 — ten of ten — changed a phase's scope, and each
+      rewrote `document.yaml` beside prose that did not move. The phasing is what
+      the planner reads and what execution corrects; it is the one author-written
+      list whose diffs should stand alone.
+
+      `execution.yaml` is one list. Two candidates of one document landing close
+      together each append a landing at the end of that list, and git sees two
+      additions at one spot: the second merge conflicts and the lane escalates. A
+      task re-dispatched with attempts restarting at 1 is refused as "already
+      landed" and the runner, correctly, goes on without the file. The structure
+      does not survive its own boundary conditions.
+
+      The engine writes time in seven spellings: `%Y-%m-%dT%H:%M:%SZ` in 27
+      places, a date alone on amendments and landings, microseconds in two, a
+      display form in one. An amendment on `2026-09-09` and a landing on
+      `2026-09-09` cannot be ordered against a log entry at
+      `2026-09-09T17:06:28Z`; the timeline the execution file exists to give is
+      lost in its own dates.
+  - key: current-state
+    md: |
+      Verified against `fc3714b`.
+
+      - **Identifiers.** `CITATION` in `src/torve/domain/spec.py` admits the four
+        shapes and the charter's `D-A.n`; `DECISION_CITE` and `TREE_CITE` in
+        `src/torve/config/spec.py` scan prose and the tree for them;
+        `next_decision` derives `D-<doc>.<n>` corpus-wide, `next_amendment`
+        derives `A-<n>` corpus-wide; `corpus_source_id` in `domain/source.py`
+        keys a source by document number; `decision:<id>` names a shadow gate
+        per checked row in `gates/runner.py` and the pack; `check_entry` in
+        `gates/decisions_reported.py` reads a log entry's `decision` as text and
+        its grade from the vocabulary. Fifteen source files carry an id-shaped
+        regex or literal.
+      - **The anatomy.** `Document.sections` is a flat list of `key` and `md`;
+        `description` is a required header field read by `spec list`, `show`,
+        the render and the console; `phasing` and `contract_example` live in
+        `document.yaml` beside the prose.
+      - **Execution.** `execution.yaml` holds `landings`, a list; `decisions.land`
+        refuses a second landing of the same task and attempt; `landing_events`
+        replays the list into the record.
+      - **Time.** `Amendment.at` and `Landing.at` are `date`; `LogEntry.at` is a
+        string in the log's instant form; `telemetry.py` and `runstate.py` write
+        their own; `cli/spec.py` and `cli/decisions.py` call `date.today()`.
+      - **The record.** Decision subjects are recorded under the row's id; a row
+        an accepted document no longer carries is recorded as retired, which is
+        what the importer will do to every old id once.
+  - key: goals
+    md: |
+      One grammar for every item the corpus defines and every citation of it,
+      document-rooted, with the local half alone inside the document. A typed
+      anatomy a query can ask for and a check can require. The planner's list in
+      its own file. An execution directory that lands under concurrency. One
+      instant. A link gated in both directions.
+  - key: non-goals
+    md: |
+      Changing what a row means (grade semantics, paths, check, fingerprint,
+      silence: RFC 0053 and 0054). Changing task identifiers or the task
+      directory. Keeping legacy identifiers readable anywhere but through the
+      mapping (`spec show` answers them; nothing else does). Retention of the
+      mapping past the first release — Q-1. The library extraction, which
+      follows this document and is smaller for it.
+  - key: the-grammar
+    md: |
+      One shape for everything the corpus defines:
+
+      | item | global identifier | written inside its document as |
+      | --- | --- | --- |
+      | document | `S-0057` | `id: '0057'` |
+      | decision | `S-0057/D-9` | `id: D-9` |
+      | invariant | `S-0057/I-1` | `id: I-1` |
+      | question | `S-0057/Q-2` | `id: Q-2` |
+      | amendment | `S-0057/A-6` | `id: A-6` |
+      | phase | `S-0057/P-3` | `phase: 3` |
+      | prose section | `S-0057/summary`, `S-0057/the-grammar` | the key |
+      | task | `T-0306` | its own namespace, unchanged |
+
+      The local half is `<F>-<n>` with a numeric `n` that is never reused within
+      the document (`retired` keeps the taken ones); a prose key is
+      `[a-z0-9-]+` and never matches a family shape, and keys are unique across
+      the typed prose, the design list and the extras. The document number is
+      the namespace: `S-0057/D-9` says where to look, and `D-9` inside
+      `S-0057/decisions.yaml` says nothing twice. `cites` lists, `superseded_by`,
+      `settled_by`, `check_twin`-style references and every log entry's
+      `decision` carry the global form; a document's own rows may cite their
+      siblings by the local form, which the loader expands. Amendments are
+      numbered per document; their order in time is their instant (§5.6), which
+      the global counter never gave.
+
+      `CITATION` becomes the one regex, `^S-\d{4}(?:/(?:[DIQAP]-\d+|[a-z0-9-]+))?$`;
+      `check_tree`, `check_cites`, `cites` and `show` read it and nothing else.
+  - key: the-mapping-and-the-conversion
+    md: |
+      Every identifier that exists on the day converts once, by a mapping the
+      conversion writes and commits as `.torve/archive/identifiers.yaml`:
+
+      ```yaml
+      D-57.9: S-0057/D-9
+      A-166: S-0057/A-6
+      D-A.10: S-0016/D-24
+      ```
+
+      Rows keep their local number where they had one (`D-57.9` is `D-9`);
+      the charter's `D-A.n` rows, which live in the archived 0016 with their
+      letters, take numbers after 0016's own; amendments take their position
+      within their document. The mapping is applied to the corpus, the archive,
+      every file under `src/`, `pages/`, `skills/` and the root's `README.md`,
+      the local contracts and logs under `.torve/tasks/`, and the projections
+      are re-rendered. "RFC NNNN §n" in the tree converts to the section key
+      that stood at that position on the day, read from the schema-2 dump;
+      where no key stands (a table, a phasing fence long gone) the citation
+      becomes the document alone. A parity script proves every item of the
+      dump reappears under its new identifier, and is not committed.
+
+      Afterwards a legacy identifier anywhere the check reads — the corpus, the
+      tree — is a problem naming its replacement from the mapping; `spec show
+      D-57.9` answers the mapped row and says which it was; commit trailers,
+      telemetry and the record's history keep what they said, being history,
+      and `spec cites` reads them through the mapping. The record re-imports:
+      every old subject is recorded as retired with the reason "renumbered to
+      …", every new one recorded, the execution files replayed under the new
+      ids.
+  - key: the-anatomy
+    md: |
+      `document.yaml` carries the prose as keys, not a list:
+
+      ```yaml
+      id: '0058'
+      title: …
+      kind: design
+      status: accepted
+      implementation: none
+      depends_on: ['0057']
+      informed_by: []
+      supersedes: []
+      superseded_by: null
+      owner: …
+      schema_version: 4
+      summary: |            # required once accepted; its first sentence routes
+      motivation: |         # required once accepted
+      current_state: |      # required once accepted
+      goals: |              # required once accepted
+      non_goals: |          # required once accepted
+      design:               # at least one entry once accepted
+        - key: the-grammar
+          md: |
+      tests: |              # required once accepted
+      docs: |               # optional
+      out_of_scope: |       # optional
+      risks: |              # required once accepted
+      sections:             # extras, at most 8, keys unique document-wide
+        - key: exit-criteria
+          md: |
+      alternatives: […]
+      questions: […]
+      ```
+
+      A draft may leave any of them empty; `check` requires the seven and one
+      design entry of an accepted document, and refuses a ninth extra, an
+      extra keyed like a typed name or a family, and any prose carrying a
+      typed list (D-57.2 unchanged). `description` is dropped: `spec list`, the
+      pack and the render show the summary's first sentence, and `check` warns
+      when that sentence runs past 300 characters. The 57 documents convert by
+      key: the keys named above lift into the typed fields, everything under
+      the old design container stays a design entry in order, the rest is
+      extras, and a document with more than eight extras keeps the first eight
+      and folds the remainder into the last as subheadings, named in the
+      conversion's notes.
+  - key: the-planners-file
+    md: |
+      `phasing.yaml` holds `phasing` and `contract_example` and nothing else:
+      author-written, planner-read, and the file a scope amendment touches
+      alone. The split by writer (D-57.1) bends once and deliberately: the
+      phasing is the one list the author writes that execution rewrites, and
+      its diffs deserve to stand apart from prose that never moves. Six files
+      per document, then — `document`, `decisions`, `phasing`, `amendments`,
+      the `execution/` directory — and the directory check knows them all.
+  - key: the-execution-directory
+    md: |
+      `execution/` replaces `execution.yaml`: one file per landing, named
+      `<task>-<attempt>-<instant>.yaml` — `T-0306-1-20260909T204112Z.yaml` —
+      holding one `Landing`. A landing is written, never rewritten, and never
+      deleted; the loader reads the directory sorted by instant into
+      `Document.landings`, so every reader of phase 3 is unchanged. Two
+      candidates landing at once add two files and no line of either is the
+      other's: the merge never conflicts. A task whose attempts restarted lands
+      again under a new instant; an identical replay — same task, attempt and
+      entries — is a no-op, which keeps `torve log land` idempotent by hand. The
+      scope gate exempts `<document>/execution/**` as it exempted the file.
+  - key: the-instant
+    md: |
+      `torve.base.clock.stamp()` returns the one instant the engine writes,
+      `YYYY-MM-DDTHH:MM:SSZ` in UTC, and every writer calls it: amendments and
+      landings (`at` becomes an instant, not a date), log entries, telemetry,
+      run state, the display of any of them. `Amendment.at` and `Landing.at`
+      convert once from a date to midnight UTC, with the loss stated in the
+      conversion's notes: the day is known, the second is not. A timeline over
+      amendments, landings and entries then sorts on one string.
+  - key: the-backlink
+    md: |
+      The forward link — code cites a row — is gated since 0057: unknown
+      reddens, retired warns. The backlink — a row names its paths — is
+      `paths` and `spec cites`. What neither gates is silence: an agent that
+      removes the comment leaves a governed file that no longer says why. So
+      `check` warns for a LOCKED row whose declared paths match files, none of
+      which cites it. A warning, never a problem: a row governing generated or
+      binary files has nowhere to be cited from, and a warning is what the
+      author reads before deciding.
+  - key: tests
+    md: |
+      - **The grammar.** `CITATION` admits every shape of the table and nothing
+        legacy; a local `D-9` in a sibling's `cites` expands to the global form;
+        `next_decision` and `next_amendment` count per document; a key shaped
+        like a family is refused.
+      - **The conversion.** Parity over every item of the schema-3 dump under its
+        mapped identifier; a legacy identifier in the tree is a problem naming
+        the replacement; `spec show D-57.9` answers the mapped row; the record
+        after re-import holds every new id and every old one retired.
+      - **The anatomy.** An accepted document missing a typed key or a design
+        entry is refused with the key named; a draft is not; a ninth extra, an
+        extra keyed `summary` or `D-1` is refused; the summary's first sentence
+        is what `list` shows and what warns past 300 characters.
+      - **The files.** `phasing.yaml` loads and dumps apart; a scope amendment
+        writes it and nothing else; `execution/` reads in instant order; two
+        landings of one document written by two tasks merge clean; a replay is a
+        no-op; a restarted attempt lands under a new name.
+      - **The instant.** Every writer goes through `stamp()`; a date in an
+        amendment or a landing is refused after the conversion; the timeline
+        sorts.
+      - **The backlink.** A LOCKED row whose governed files carry no citation
+        warns; one whose file cites it does not; an ASSUMED row never warns.
+  - key: docs
+    md: |
+      `pages/docs/operating.md` describes the grammar, the six files, the
+      mapping and the instant; the spec-writer skill and its template are
+      rewritten for the typed anatomy and `phasing.yaml`; `CHANGELOG.md` carries
+      the breaking entries. The projections beside the code render the global
+      form in their headings.
+  - key: out-of-scope
+    md: |
+      Task identifiers (`T-NNNN`) as a document-rooted family — Q-2, and the
+      task directory is the record's (RFC 0056). The library extraction. A
+      section tree. Any change to what a row means.
+  - key: risks
+    md: |
+      - **A renumbering misses a citation the mapping never saw** (a string
+        built at runtime, a test fixture). Mitigation: the check reddens on a
+        legacy shape anywhere in the tree; tests are ported by hand under the
+        new builders.
+      - **The typed anatomy stiffens a document that wanted another shape.**
+        Mitigation: eight extras, and a draft may leave every key empty; the
+        requirement is acceptance's.
+      - **A directory of landings grows to hundreds of files.** Mitigation: it is
+        what happened, one file each, and the archive takes them with the
+        document; nothing reads them but the loader and `cites`.
+      - **Midnight UTC on old amendments reads as a fact.** Mitigation: the
+        conversion's notes say which instants are days, and nothing sorts
+        within a day across an amendment and an entry of the same date.
+  - key: unresolved-questions
+    md: |
+      Whether the mapping stays readable after the first release, so a
+      citation in a foreign repository's history still resolves, or is deleted
+      with the release notes naming the renumbering (Q-1). Whether tasks
+      become `S-NNNN/T-n` when the task directory leaves the tree for good
+      (Q-2).
+alternatives:
+  - option: >-
+      keep every identifier and add `S-NNNN/<key>` anchors for sections only
+    rejected_because: >-
+      two grammars forever, paid by every reader, to save a script run once before
+      any release exists
+  - option: >-
+      padded flat identifiers, the document number zero-filled inside every row's
+      id
+    rejected_because: >-
+      sections and phases still have no home; the document is the namespace, so spell
+      it once and root everything under it
+  - option: a colon, `S-0057:D-9`
+    rejected_because: >-
+      it reads as a namespace, not a location, and the gate name already spends the
+      colon on `decision:`
+  - option: keep the global amendment counter
+    rejected_because: >-
+      the one item not rooted in its document, and its order in time is the instant's
+      to give
+  - option: one execution file holding a list
+    rejected_because: >-
+      two candidates appending at the same spot conflict at merge, and a restarted
+      attempt collides on its number; the phase-3 shape that this document replaces
+  - option: dates on amendments and landings
+    rejected_because: >-
+      a date cannot be ordered against an entry's instant on the same day, and a timeline
+      is what the execution file is for
+  - option: >-
+      keep `description` and derive it from the summary
+    rejected_because: >-
+      two spellings of one thing; the first sentence of a summary written to route
+      is the routing line
+  - option: unlimited extra sections
+    rejected_because: >-
+      the cap is what keeps the anatomy the anatomy; a document that needs more has
+      a design list and a second document
+  - option: tasks as `S-NNNN/T-n`
+    rejected_because: >-
+      a task is minted by a phase but landed against a document it may outlive; the
+      task directory is the record's (RFC 0056), and the question waits for that to
+      settle (Q-2)
+questions:
+  - id: Q-58.1
+    text: >-
+      Whether the mapping stays readable after the first release, or is deleted with
+      the release notes naming the renumbering
+  - id: Q-58.2
+    text: >-
+      Whether tasks become document-rooted (`S-NNNN/T-n`) once the task directory
+      has left the tree for good
+phasing:
+  - phase: 1
+    title: one grammar
+    intent: >-
+      `CITATION` becomes the one grammar, document-rooted, with the local half written
+      alone inside a document and expanded by the loader; `next_decision` and `next_amendment`
+      count per document; `check_cites`, `check_tree`, `cites` and `show` read the
+      grammar and answer a legacy identifier through the mapping. Every existing identifier
+      converts once by the mapping the conversion writes to `.torve/archive/identifiers.yaml`
+      — the corpus, the archive, every citation in `src/`, `pages/`, `skills/` and
+      the README with "RFC NNNN §n" mapped to the section key at that position, the
+      local task files, the schemas and the projections; a parity script over every
+      item of the schema-3 dump gates the commit and is not committed. The gate names,
+      the pack, the log entry's `decision` and the record's subjects carry the global
+      form and the record re-imports. Every test's fixtures write the grammar; the
+      skill's template and the operating page say it.
+    scope:
+      - src/**
+      - pages/**
+      - skills/**
+      - .claude/skills/**
+      - README.md
+      - CHANGELOG.md
+      - .torve/specs/**
+      - .torve/archive/**
+      - .torve/schemas/**
+      - '**/AGENTS.md'
+      - tests/**
+    acceptance:
+      - uv run pytest
+      - uv run torve spec check
+      - uv run torve spec project --check
+      - uv run lint-imports --config pyproject.toml
+    character: structural
+  - phase: 2
+    title: the anatomy
+    intent: >-
+      `document.yaml` carries the prose as typed keys with the design a keyed list
+      and the extras capped at eight; `description` is dropped and the summary's first
+      sentence routes; `phasing.yaml` holds the phasing and the contract example;
+      `schema_version` becomes 4 and 3 is refused naming this document. Every document
+      converts once by key, the conversion's notes naming any document whose extras
+      were folded; the loader, the writers, the planner, the pack, the render, `list`,
+      the skill's template, the schemas and the operating page follow; the parity
+      script is not committed.
+    scope:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/config/spec_emit.py
+      - src/torve/cli/spec.py
+      - src/torve/cli/init.py
+      - src/torve/cli/console.py
+      - src/torve/application/planner.py
+      - src/torve/application/intake.py
+      - src/torve/application/contextpack.py
+      - src/torve/application/colocation.py
+      - src/torve/application/projections.py
+      - .torve/specs/**
+      - .torve/archive/**
+      - .torve/schemas/**
+      - skills/spec-writer/**
+      - skills/corpus-bootstrap/**
+      - pages/docs/operating.md
+      - CHANGELOG.md
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+      - tests/test_rfc_emit.py
+      - tests/test_rfc_check.py
+      - tests/test_rfc_fmt.py
+      - tests/test_rfc_verbs.py
+      - tests/test_rfc_show.py
+      - tests/test_rfc_archive.py
+      - tests/test_decisions.py
+      - tests/test_cli_spec.py
+      - tests/test_cli_decisions.py
+      - tests/test_plan.py
+      - tests/test_intake.py
+      - tests/test_contextpack.py
+      - tests/test_colocation.py
+      - tests/test_context.py
+      - tests/test_skills.py
+      - tests/test_cli.py
+      - tests/test_console.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py
+        tests/test_rfc_check.py tests/test_rfc_fmt.py tests/test_rfc_verbs.py tests/test_rfc_show.py
+        tests/test_rfc_archive.py tests/test_decisions.py tests/test_cli_spec.py tests/test_cli_decisions.py
+        tests/test_plan.py tests/test_intake.py tests/test_contextpack.py tests/test_colocation.py
+        tests/test_context.py tests/test_skills.py tests/test_cli.py
+      - uv run torve spec check
+      - uv run torve spec project --check
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: execution and the instant
+    intent: >-
+      `execution/` replaces the file: one landing per `<task>-<attempt>-<instant>.yaml`,
+      written once, read sorted by instant, an identical replay a no-op, the scope
+      gate exempting the directory; `torve.base.clock.stamp()` is the one instant
+      and every writer — amendments, landings, entries, telemetry, run state, the
+      display in `spec` and `decisions` — calls it, the existing dates converting
+      once to midnight UTC with the loss stated; `check` warns for a LOCKED row whose
+      governed files carry no citation of it. The schemas and the operating page follow.
+    scope:
+      - src/torve/base/clock.py
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/config/spec_emit.py
+      - src/torve/application/decisions.py
+      - src/torve/application/divergence.py
+      - src/torve/application/telemetry.py
+      - src/torve/application/runstate.py
+      - src/torve/application/projections.py
+      - src/torve/cli/spec.py
+      - src/torve/cli/decisions.py
+      - src/torve/cli/log.py
+      - src/torve/cli/init.py
+      - src/torve/gates/scope.py
+      - .torve/specs/**
+      - .torve/archive/**
+      - .torve/schemas/**
+      - pages/docs/operating.md
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+      - tests/test_rfc_emit.py
+      - tests/test_rfc_check.py
+      - tests/test_decisions.py
+      - tests/test_decisions_record.py
+      - tests/test_divergence.py
+      - tests/test_runner.py
+      - tests/test_gates.py
+      - tests/test_cli_spec.py
+      - tests/test_cli_decisions.py
+      - tests/test_telemetry.py
+      - tests/test_runstate.py
+      - tests/test_context.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py
+        tests/test_rfc_check.py tests/test_decisions.py tests/test_decisions_record.py
+        tests/test_divergence.py tests/test_runner.py tests/test_gates.py tests/test_cli_spec.py
+        tests/test_cli_decisions.py tests/test_telemetry.py tests/test_runstate.py
+        tests/test_context.py
+      - uv run torve spec check
+    depends_on:
+      - 1

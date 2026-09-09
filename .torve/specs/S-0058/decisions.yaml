@@ -1,0 +1,158 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-58.1
+    grade: LOCKED
+    text: >-
+      Every item the corpus defines has one global identifier, `S-NNNN/<local>` —
+      `D-n`, `I-n`, `Q-n`, `A-n`, `P-n` or a prose key — and is written inside its
+      own document by the local half alone; the document is the namespace, amendments
+      included, and tasks stay `T-NNNN`
+    paths: [src/torve/domain/spec.py, src/torve/config/spec.py]
+    consequence: >-
+      One regex reads every citation; nothing is spelled twice; sections and phases
+      become citable
+    rationale: >-
+      four families spelled four ways, and the two items cited most from code — sections
+      — had no identifier at all
+  - id: D-58.2
+    grade: LOCKED
+    text: >-
+      Every existing identifier converts once through a mapping committed as `.torve/archive/identifiers.yaml`,
+      applied to the corpus, the archive, `src/`, `pages/`, `skills/`, the README,
+      the local task files and the projections, with "RFC NNNN §n" converted to the
+      section key at that position; a parity script gates the commit and is not committed
+    paths: [.torve/specs/**, .torve/archive/**, src/**, pages/**, skills/**, README.md]
+    consequence: >-
+      No legacy identifier stands anywhere the check reads; history keeps its words
+      and resolves through the mapping
+    rationale: >-
+      no release exists; the record and every citation are this repository's own,
+      and a renumbering is a script once rather than two grammars forever
+  - id: D-58.3
+    grade: LOCKED
+    text: >-
+      `check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar;
+      a legacy identifier in the corpus or the tree is a problem naming its replacement,
+      `spec show` answers a legacy identifier from the mapping and says which it was,
+      and `cites` reads commit trailers and the record's history through it
+    paths: [src/torve/config/spec.py, src/torve/cli/spec.py]
+    consequence: >-
+      A citation written the old way after the conversion cannot survive a check
+    cites: [D-57.9, D-57.10]
+  - id: D-58.4
+    grade: LOCKED
+    text: >-
+      `document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`,
+      `goals`, `non_goals`, `tests`, `risks` required of an accepted document, `docs`
+      and `out_of_scope` optional, `design` a keyed list with at least one entry once
+      accepted, `sections` the extras capped at eight — with keys unique document-wide
+      and never a family shape; `description` is dropped and the summary's first sentence
+      routes
+    paths:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/config/spec_emit.py
+    consequence: >-
+      `yq .motivation` answers; a document without a motivation cannot be accepted;
+      the routing line is written once
+    rationale: >-
+      the anatomy already stood in four of five live documents and nothing enforced
+      it
+  - id: D-58.5
+    grade: LOCKED
+    text: >-
+      `phasing.yaml` holds `phasing` and `contract_example`, author-written and planner-read;
+      a scope amendment touches it and the amendments file alone
+    paths: [src/torve/domain/spec.py, src/torve/application/planner.py]
+    consequence: >-
+      Six files per document; the planner's list diffs apart from the prose
+    cites: [D-57.1]
+  - id: D-58.6
+    grade: LOCKED
+    text: >-
+      Execution is a directory, `execution/<task>-<attempt>-<instant>.yaml`, one landing
+      per file, written once and never deleted; the loader reads it sorted by instant
+      into `landings`; an identical replay is a no-op and a restarted attempt lands
+      under a new instant; the scope gate exempts the directory
+    paths:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/config/spec_emit.py
+      - src/torve/application/decisions.py
+      - src/torve/gates/scope.py
+    consequence: >-
+      Two candidates of one document never conflict at merge; no landing is refused
+      for a number
+    cites: [D-57.7]
+  - id: D-58.7
+    grade: LOCKED
+    text: >-
+      The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`,
+      for amendments, landings, entries, telemetry, run state and their display; the
+      dates that exist convert once to midnight UTC with the loss stated
+    paths:
+      - src/torve/base/clock.py
+      - src/torve/domain/spec.py
+      - src/torve/application/telemetry.py
+      - src/torve/application/runstate.py
+      - src/torve/application/decisions.py
+      - src/torve/application/projections.py
+      - src/torve/cli/spec.py
+      - src/torve/cli/decisions.py
+    consequence: >-
+      A timeline over amendments, landings and entries sorts on one string
+    rationale: >-
+      27 writers already agreed on the instant; seven did not, and the seven are the
+      ones a timeline needs
+  - id: D-58.8
+    grade: ASSUMED
+    text: >-
+      `check` warns for a LOCKED row whose declared paths match files none of which
+      cites it
+    paths: [src/torve/config/spec.py]
+    consequence: >-
+      A comment an agent deletes is heard; a row over generated files reads a warning
+      and decides
+  - id: D-58.9
+    grade: ASSUMED
+    text: >-
+      The `decision:<id>` gate names, the pack's decisions file, the log entry's `decision`
+      and the record's subjects carry the global form; the record re-imports once
+      after the conversion, retiring every old subject with the reason naming its
+      replacement
+    paths:
+      - src/torve/gates/runner.py
+      - src/torve/gates/decisions_reported.py
+      - src/torve/application/contextpack.py
+      - src/torve/application/decisions.py
+    consequence: >-
+      The record's history keeps the old ids as retired rows and the new ones as what
+      stands
+  - id: D-58.10
+    grade: ASSUMED
+    text: >-
+      The skill and its template, the schemas `torve init` writes, the projections
+      beside the code and the operating page follow the grammar and the anatomy in
+      the same phase that changes them
+    paths:
+      - skills/**
+      - src/torve/application/colocation.py
+      - src/torve/cli/init.py
+      - pages/docs/operating.md
+    consequence: >-
+      Nothing a harness or a person reads names an identifier the check refuses
+  - id: D-58.11
+    grade: OPEN
+    text: >-
+      Whether the mapping stays readable after the first release or is deleted with
+      the release notes naming the renumbering
+    paths: [.torve/archive/**]
+    consequence: Decided at the first release, logged
+invariants:
+  - id: I-58.1
+    statement: >-
+      Every identifier the corpus defines and every citation the tree carries matches
+      the one grammar, `S-NNNN`, `S-NNNN/<F>-<n>` or `S-NNNN/<key>`; a legacy shape
+      is a check problem
+    paths: [.torve/specs/**, src/**, pages/**]
+    check: uv run torve spec check
