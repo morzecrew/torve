@@ -8,7 +8,7 @@ depends_on: ["0016", "0031", "0047"]
 informed_by: ["0007", "0022", "0025", "0030", "0049"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-140"]
+amended_by: ["A-140", "A-152"]
 owner: misery7100
 description: >-
   The specification becomes a typed item model the engine reads instead of a document it parses; the tool writes every amendment as a diff; coverage becomes a fact; and the corpus is archived and rebuilt through the brownfield lane on this repository.
@@ -670,13 +670,12 @@ refuses. Phase 4 is reserved for it in prose and absent from the fence.
   intent: >-
     `rfc_parse.py` is deleted along with its parity harness, the import-linter contract that named it is re-pointed at `config/spec.py` so the format still terminates at the planner, and the rfc-writer skill is rewritten for the five fenced kinds and the `amend` forms, its references updated, its symlinks under `.claude/skills` and `.agents/skills` intact. After this phase there is one owner of the format and it is the loader.
   scope:
-    - "src/torve/config/rfc_parse.py"
+    - "src/torve/**"  # A-152: every importer of the parser
     - "pyproject.toml"
     - "skills/rfc-writer/**"
-    - "tests/test_spec_load.py"
-    - "tests/test_layering.py"
+    - "tests/**"  # A-152: every test that named it
   acceptance:
-    - "uv run pytest tests/test_spec_load.py tests/test_layering.py"
+    - "uv run pytest"
     - "uv run lint-imports --config pyproject.toml"
     - "uv run torve rfc check"
   depends_on: [3]
@@ -728,4 +727,28 @@ readers still switch beside the parser, and phase 5 still deletes it.
   field: units
   before: 1
   after: 2
+```
+
+### A-152 — 2026-09-09 — phase 5 reaches every importer
+**Found while planning phase 5.** Deleting `rfc_parse.py` is not a
+deletion: fourteen modules under `src/torve/` and eight test modules
+import it, and the format's functions — the frontmatter reader, the table
+reader, `check_corpus`, `build_index`, `lookup` — are what the loader,
+the emitter, the planner, the lint and every CLI verb call. "One owner of
+the format" means those functions live in `config/spec.py` and every
+importer says so, which is a rename in every one of them. The phase as
+written allowed the parser's own file and two tests; it could not touch
+the importers, so it could not be executed as scoped.
+
+**Changed:** phase 5's scope is `src/torve/**` and `tests/**` beside the
+manifest and the skill, and its acceptance is the whole suite. D-53.13 is
+unchanged: the parser is deleted after the archive landed, which it has.
+The functions move whole; nothing about what they check changes, and the
+parity test that licensed the switch now pins one module against itself.
+
+```yaml changes
+- subject: phase 5
+  field: scope
+  before: "src/torve/config/rfc_parse.py pyproject.toml skills/rfc-writer/** tests/test_spec_load.py tests/test_layering.py"
+  after: "src/torve/** pyproject.toml skills/rfc-writer/** tests/**"
 ```
