@@ -38,6 +38,7 @@ from torve.application.ports import (
     Runtime,
     SandboxSpec,
 )
+from torve.application.review import SchemaRefusal, schema_refusal
 from torve.application.runstate import RunState
 from torve.application.telemetry import broker_block, engine_event
 from torve.base import naming
@@ -137,8 +138,10 @@ def parse_drafts(output: str) -> DraftsDocument | None:
     try:
         return DraftsDocument.model_validate(last)
 
-    except ValidationError:
-        return None
+    except ValidationError as exc:
+        # D-54.15: a document the drafter wrote but the model refuses is a
+        # lint refusal naming the field, and rides the next prompt as one.
+        raise SchemaRefusal(schema_refusal(exc, "drafts document")) from None
 
 
 # ....................... #
@@ -1037,6 +1040,7 @@ def build_intake_prompt(
     feedback: str | None = None,
     facts: str = "",
     parent: Task | None = None,
+    pack_index: str = "",
 ) -> str:
     """The drafter's whole input: the request, the tree, the ceiling, and —
     on a retry — the lint's exact refusals. The calibration paragraph
@@ -1051,12 +1055,23 @@ def build_intake_prompt(
     document at adoption (D-20.9's existing rule, unchanged), so carrying
     a second copy into the prompt would buy nothing but tokens."""
 
-    paths = _tree_paths(tree)
+    # D-54.16: the pack's index stands where 400 filenames used to; the
+    # drafter reads the tree itself and asks `torve spec paths` what rows a
+    # candidate scope would cross. Without a pack (a caller composing the
+    # prompt bare) the top of the tree is named, and nothing more.
+    if pack_index:
+        tree_block = (
+            "## What the engine knows\n\n"
+            f"{pack_index.rstrip()}\n\n"
+            "The tree is yours to read. Before settling a draft's scope, run\n"
+            "`torve spec paths <path>` on each directory it would touch: the\n"
+            "answer is the decisions and invariants governing it, and a split\n"
+            "is proposed against the rows it would cross, not a list of names.\n"
+        )
+    else:
+        top = sorted({p.parts[0] for p in _tree_paths(tree)})
+        tree_block = "## The repository tree\n\n" + "\n".join(f"- {name}" for name in top) + "\n"
 
-    if parent is not None:
-        paths = [p for p in paths if _matched(p, parent.scope.allow)]
-
-    listing = "\n".join(sorted(str(p) for p in paths)[:400])
     retry_block = ""
 
     if lint_errors:
@@ -1115,12 +1130,7 @@ read-only; read it to write honest file scopes and acceptance commands.
 
 {request}
 {parent_block}{feedback_block}{facts_block}
-## The repository tree
-
-```text
-{listing}
-```
-{retry_block}
+{tree_block}{retry_block}
 ## What to produce
 
 {rules_block.format(max_drafts=max_drafts)} Each draft carries: `ref`
@@ -1282,6 +1292,12 @@ def _attempt_intake_draft(
         workspace_read_only=True,
     )
 
+    from torve.application.contextpack import build as build_pack
+    from torve.application.contextpack import materialize as materialize_pack
+
+    pack = build_pack(root, root / config.rfcs.path, task, layout.gates_file(root))
+    materialize_pack(worktree, pack)
+
     prompt = build_intake_prompt(
         task.intent,
         worktree,
@@ -1290,6 +1306,7 @@ def _attempt_intake_draft(
         feedback,
         facts=execution_facts(root, config),
         parent=parent,
+        pack_index=pack["index.md"],
     )
 
     handle = runtime.create(spec, worktree)
@@ -1503,20 +1520,29 @@ def run_intake(
 
     try:
         for _ in range(budget):
-            result, document = _attempt_intake_draft(
-                root,
-                worktree,
-                task,
-                config,
-                runtime,
-                agent,
-                tier,
-                state,
-                lint_errors,
-                feedback,
-                parent,
-                broker_handle,
-            )
+            try:
+                result, document = _attempt_intake_draft(
+                    root,
+                    worktree,
+                    task,
+                    config,
+                    runtime,
+                    agent,
+                    tier,
+                    state,
+                    lint_errors,
+                    feedback,
+                    parent,
+                    broker_handle,
+                )
+            except SchemaRefusal as exc:
+                # D-54.15: refused by the field it fails on, and told so on
+                # the next attempt exactly as a lint refusal is.
+                unparseable = False
+                lint_errors = [str(exc)]
+                state.transition(TaskState.GATED, f"drafts refused: {exc}"[:200])
+                state.save()
+                continue
 
             if document is None:
                 unparseable = True

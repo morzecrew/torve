@@ -885,7 +885,7 @@ def _default_skill_sets() -> dict[str, list[str]]:
 
     return {
         "implement": ["flag-dont-flip", "ratchet-what-you-build"],
-        "review": [],
+        "review": ["ratchet-what-you-build"],
         "revert": ["flag-dont-flip"],
     }
 

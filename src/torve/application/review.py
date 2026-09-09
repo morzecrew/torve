@@ -47,6 +47,7 @@ from torve.config import layout
 from torve.config.runconfig import (
     RunnerConfig,
     agent_timeout_for,
+    effective_skill_sets,
     image_for,
     sandbox_timeout_for,
     tier_for,
@@ -167,6 +168,15 @@ attempt. Do not spend the window discovering that.
 
 {gates_summary}
 
+## What the engine knows
+
+`.torve/context/index.md` in this workspace lists what the engine wrote
+for this review from the record and the tree, with no model and nothing
+the author of the change wrote. `touched.json` there names the decision
+rows whose paths this diff intersects, the last battery's coverage of the
+changed lines, and what prior reviews found on this task. Nothing in it
+outranks the contract above.
+
 ## The diff
 
 The complete diff under review is staged at `.torve/tmp/review.diff` in
@@ -201,6 +211,9 @@ unread.
 Your final output must be exactly one JSON document, nothing after it:
 
 {{"findings": [{{"severity": "major", "claim": "...", "evidence": "path.py:12 — ..."}}]}}
+
+Each finding is validated against `.torve/context/schema/finding.json`; a
+document that fails it is refused by the field it fails on, not read.
 
 An empty list is a valid, complete review: {{"findings": []}}
 """
@@ -336,12 +349,140 @@ ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 # ....................... #
 
 
+class SchemaRefusal(ValueError):
+    """A document the engine found but the model refused (D-54.15): the
+    message names the field and the rule, as a lint refusal does — never
+    recorded as unparseable, which is the word for no document at all."""
+
+
+def schema_refusal(exc: ValidationError, root: str) -> str:
+    """`findings[0].severity: Input should be 'blocker', ...` — the first
+    error, located by its path, is what the agent can act on; the count
+    says whether fixing it is enough."""
+
+    errors = exc.errors()
+    first = errors[0]
+    where = ".".join(str(part) for part in first["loc"])
+    more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
+
+    return f"{root}.{where}: {first['msg']}{more}" if where else f"{root}: {first['msg']}{more}"
+
+
+# ....................... #
+
+
+def _changed_lines(diff_text: str) -> dict[str, set[int]]:
+    """New-side line numbers the diff adds or changes, by path."""
+
+    changed: dict[str, set[int]] = {}
+    path = ""
+
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            path = line.split(" b/", 1)[-1] if " b/" in line else ""
+            changed.setdefault(path, set())
+        elif line.startswith("@@ ") and path:
+            hunk = re.search(r"\+(\d+)(?:,(\d+))?", line)
+
+            if hunk is not None:
+                start, count = int(hunk.group(1)), int(hunk.group(2) or "1")
+                changed[path].update(range(start, start + count))
+
+    return changed
+
+
+def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:
+    """`touched.json` (D-54.13): the rows whose paths the diff intersects,
+    the last battery's coverage of the changed lines, and the findings
+    prior reviews recorded on this target — engine facts about the diff,
+    none of them the author's voice."""
+
+    from xml.etree import ElementTree
+
+    from pathspec import GitIgnoreSpec
+
+    from torve.application.specquality import telemetry_file
+
+    changed = _changed_lines(diff_text)
+    rows = [
+        {
+            "id": row.id,
+            "grade": row.grade,
+            "text": row.text,
+            "check": row.check,
+            "files": sorted(hits),
+        }
+        for row in target.decisions
+        if row.paths
+        for hits in [[p for p in changed if GitIgnoreSpec.from_lines(row.paths).match_file(p)]]
+        if hits
+    ]
+
+    coverage: list[dict[str, Any]] = []
+    report = root / "coverage.xml"
+
+    if report.is_file():
+        try:
+            tree = ElementTree.parse(report)
+        except ElementTree.ParseError:
+            tree = None
+
+        if tree is not None:
+            for cls in tree.iter("class"):
+                filename = cls.get("filename") or ""
+                path = filename if filename.startswith("src/") else f"src/{filename}"
+                lines = changed.get(path)
+
+                if not lines:
+                    continue
+
+                hit = {
+                    int(ln.get("number") or 0)
+                    for ln in cls.iter("line")
+                    if ln.get("hits") not in (None, "0")
+                }
+                coverage.append({"path": path, "changed": len(lines), "covered": len(lines & hit)})
+
+    prior: list[dict[str, Any]] = []
+    stream = telemetry_file(root)
+
+    if stream.is_file():
+        for line in stream.read_text(encoding="utf-8").splitlines():
+            try:
+                record = cast("dict[str, Any]", json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+            if record.get("kind") == "review" and record.get("target") == target.id:
+                prior.append(
+                    {
+                        "review": record.get("task_id"),
+                        "at": record.get("at"),
+                        "findings": record.get("findings") or [],
+                        "unparseable": bool(record.get("unparseable")),
+                    }
+                )
+
+    return {
+        "schema_version": 1,
+        "changed_paths": sorted(changed),
+        "decisions": rows,
+        "coverage": coverage,
+        "prior_reviews": prior,
+    }
+
+
+# ....................... #
+
+
 def parse_findings(output: str) -> list[Finding] | None:
     """The last JSON document with a `findings` key anywhere in the output,
     parsed and validated; None when no such document exists — recorded as
-    unparseable, never invented as clean. Harness output is hostile ground:
-    ANSI escapes are stripped and the document may span lines or be followed
-    by session chatter, so balanced decoding wins over line splitting."""
+    unparseable, never invented as clean. A document that exists but fails
+    the model raises `SchemaRefusal` naming the field (D-54.15). Harness
+    output is hostile ground: ANSI escapes are stripped and the document
+    may span lines or be followed by session chatter, so balanced decoding
+    wins over line splitting."""
 
     text = ANSI.sub("", output)
     decoder = json.JSONDecoder()
@@ -382,8 +523,8 @@ def parse_findings(output: str) -> list[Finding] | None:
     try:
         return _FindingsDocument.model_validate(last).findings
 
-    except ValidationError:
-        return None
+    except ValidationError as exc:
+        raise SchemaRefusal(schema_refusal(exc, "findings document")) from None
 
 
 # ....................... #
@@ -397,6 +538,7 @@ class ReviewOutcome:
     kept: list[Finding] = field(default_factory=list)
     discarded: list[str] = field(default_factory=list)
     unparseable: bool = False
+    refusal: str | None = None
 
 
 # ....................... #
@@ -494,6 +636,31 @@ def run_review(
     diff_path = copy / ".torve" / "tmp" / "review.diff"
     diff_path.parent.mkdir(parents=True, exist_ok=True)
     diff_path.write_text(elide_diff_bulk(diff_text), encoding="utf-8")
+
+    # D-54.13: the reviewer reads the pack too — built for the target, as a
+    # replay, so no model-authored entry enters — plus `touched.json`, the
+    # engine's facts about this diff. The copy carried the executor's skill
+    # set; the review role's own replaces it (D-54.14).
+    from torve.application.contextpack import build as build_pack
+    from torve.application.contextpack import materialize as materialize_pack
+    from torve.application.skills import materialize as materialize_skills
+
+    shutil.rmtree(copy / ".torve" / "skills", ignore_errors=True)
+    materialize_skills(
+        review.role,
+        copy / ".torve" / "skills",
+        effective_skill_sets(tier, review.role, config.skills.sets),
+        layout.skills_vendor_dir(copy),
+    )
+    pack = build_pack(root, root / config.rfcs.path, target, layout.gates_file(root), replay=True)
+    pack["touched.json"] = (
+        json.dumps(touched_file(root, target, diff_text), indent=2, sort_keys=True) + "\n"
+    )
+    pack["index.md"] += (
+        "- `touched.json` — the rows this diff intersects, coverage of the changed lines,"
+        " and prior findings on this task\n"
+    )
+    materialize_pack(copy, pack)
 
     spec = SandboxSpec(
         name=naming.sandbox_name(review.id, state.run_id) + "-a1",
@@ -595,8 +762,14 @@ def run_review(
         broker.usage(broker_handle) if broker is not None and broker_handle is not None else None
     )
 
-    findings = parse_findings(result.output)
-    unparseable = findings is None
+    refusal: str | None = None
+
+    try:
+        findings = parse_findings(result.output)
+    except SchemaRefusal as exc:
+        findings, refusal = None, str(exc)
+
+    unparseable = findings is None and refusal is None
     kept: list[Finding] = []
     discarded: list[str] = []
 
@@ -616,7 +789,9 @@ def run_review(
     stopping = STOPS_AT[config.review.blocks_at]
     blockers = [f for f in kept if f.severity in stopping]
 
-    if unparseable:
+    if refusal is not None:
+        fact = f"review output refused: {refusal}"
+    elif unparseable:
         fact = "review output unparseable — no findings recorded"
     elif blockers:
         fact = f"review found {len(blockers)} finding(s) at or above {config.review.blocks_at}"
@@ -640,6 +815,7 @@ def run_review(
         "findings": [f.model_dump() for f in kept],
         "discarded": discarded,
         "unparseable": unparseable,
+        "refusal": refusal,
         "agent": {
             "tier": review.tier,
             "adapter": getattr(agent, "kind", tier.adapter),
@@ -690,6 +866,7 @@ def run_review(
         kept=kept,
         discarded=discarded,
         unparseable=unparseable,
+        refusal=refusal,
     )
 
 
@@ -989,6 +1166,17 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
             )
 
             return None
+
+    if outcome.refusal is not None:
+        # D-54.15: a document that fails the schema is refused by name —
+        # the reviewer had one attempt, so the refusal escalates as the
+        # verdict it could not deliver, never as a clean review.
+        state.escalate(
+            EscalationReason.GATE_INFRASTRUCTURE_FAILURE,
+            f"{outcome.review_id}: review output refused: {outcome.refusal}",
+        )
+
+        return None
 
     if outcome.unparseable:
         # Fail closed (D-5.4): a verdict that cannot be read must

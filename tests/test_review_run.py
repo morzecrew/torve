@@ -26,14 +26,20 @@ from torve.adapters.store.durable import open_store
 from torve.application.dispatch import RunDeps
 from torve.application.feedback import feedback_file
 from torve.application.ports import AgentResult, BrokerHandle, BrokerUsage
-from torve.application.review import build_review_prompt, parse_findings, run_review
+from torve.application.review import (
+    SchemaRefusal,
+    build_review_prompt,
+    parse_findings,
+    run_review,
+    touched_file,
+)
 from torve.application.runner import run_task
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.runconfig import ReviewConfig, RunnerConfig, RuntimeConfig, TierConfig
 from torve.domain.attempt import Finding
 from torve.domain.states import TaskState
-from torve.domain.task import Task
+from torve.domain.task import InheritedDecision, Task
 
 
 def reviewer_output(findings: list[dict[str, str]]) -> str:
@@ -745,7 +751,15 @@ def test_parse_findings_takes_the_last_document():
     )
     assert found == [Finding(severity="nit", claim="c", evidence="e")]
     assert parse_findings("no document here") is None
-    assert parse_findings('{"findings": "not a list"}') is None
+
+    # D-54.15: a document that exists but fails the model is refused by the
+    # field it fails on — never folded into "unparseable", which is the
+    # word for no document at all.
+    with pytest.raises(SchemaRefusal, match=r"findings document\.findings: Input should be"):
+        parse_findings('{"findings": "not a list"}')
+
+    with pytest.raises(SchemaRefusal, match=r"findings\.0\.severity"):
+        parse_findings('{"findings": [{"severity": "huge", "claim": "c", "evidence": "e"}]}')
 
 
 def test_parse_findings_unwraps_a_harness_result_envelope():
@@ -953,3 +967,151 @@ def test_a_reviewer_tier_without_clocks_keeps_the_globals(review_rig):
     assert reviewer.contexts and reviewer.contexts[0].timeout_s == 900
     review_specs = _review_sandbox_specs(runtime, state.reviewed_by)
     assert review_specs and all(s.timeout_s == 1500 for s in review_specs)
+
+
+# ....................... #
+# RFC 0054 §5.8: what the reviewer reads besides the diff
+
+
+def test_the_prompt_points_at_the_pack_and_the_schema():
+    target = Task(id="T-0001", intent="Build the widget.", decisions=[])
+    prompt = " ".join(build_review_prompt(target, "diff --git", []).split())
+
+    assert ".torve/context/index.md" in prompt
+    assert "touched.json" in prompt
+    assert ".torve/context/schema/finding.json" in prompt
+
+
+class PackReadingReviewer:
+    """Reads the copy while it exists: the pack, touched.json and the
+    review role's skills are gone with the copy after the run."""
+
+    kind = "harness"
+
+    def __init__(self) -> None:
+        self.seen: dict[str, str] = {}
+
+    def run(self, ctx):
+        context = ctx.workspace / ".torve" / "context"
+        self.seen = {
+            path.name: path.read_text(encoding="utf-8")
+            for path in context.iterdir()
+            if path.is_file()
+        }
+        self.seen["skills"] = ",".join(
+            sorted(p.name for p in (ctx.workspace / ".torve" / "skills").iterdir())
+        )
+        return AgentResult(exit_code=0, output=reviewer_output([]))
+
+
+def test_the_reviewer_gets_the_pack_touched_and_its_own_skills(repo):
+    repo.seed()
+    target, review, worktree = review_inputs(repo)
+    target.decisions = [
+        InheritedDecision(id="D-1.1", grade="LOCKED", text="app stays", paths=["src/app.py"]),
+        InheritedDecision(id="D-1.2", grade="LOCKED", text="elsewhere", paths=["docs/**"]),
+    ]
+    # the executor's skills travel with the copy; the review set replaces them
+    (worktree / ".torve" / "skills" / "flag-dont-flip").mkdir(parents=True)
+    reviewer = PackReadingReviewer()
+
+    run_review(
+        repo.root,
+        worktree,
+        target,
+        review,
+        RunnerConfig(),
+        MockRuntime(),
+        reviewer,
+        "diff --git a/src/app.py b/src/app.py\n@@ -1,1 +1,2 @@\n x = 1\n+y = 2\n",
+        [],
+        "digest",
+    )
+
+    touched = json.loads(reviewer.seen["touched.json"])
+    assert touched["changed_paths"] == ["src/app.py"]
+    assert [row["id"] for row in touched["decisions"]] == ["D-1.1"]
+    assert touched["prior_reviews"] == []
+    assert "touched.json" in reviewer.seen["index.md"]
+    # a replay: nothing model-authored, not even this task's own attempts
+    assert "attempts.json" not in reviewer.seen
+    assert reviewer.seen["skills"] == "ratchet-what-you-build"
+    # the pack died with the copy
+    assert not (worktree / ".torve" / "context").exists()
+
+
+def test_touched_file_reads_coverage_and_prior_reviews(repo):
+    repo.seed()
+    target = Task(id="T-9001", intent="x", decisions=[])
+    (repo.root / "coverage.xml").write_text(
+        '<coverage><packages><package><classes><class filename="app.py">'
+        '<lines><line number="1" hits="1"/><line number="2" hits="0"/><line number="3" hits="1"/>'
+        "</lines></class></classes></package></packages></coverage>",
+        encoding="utf-8",
+    )
+    (repo.root / ".torve" / "telemetry.jsonl").write_text(
+        json.dumps(
+            {
+                "kind": "review",
+                "task_id": "T-0227",
+                "target": "T-9001",
+                "at": "2026-09-09T00:00:00Z",
+                "findings": [{"severity": "major", "claim": "c", "evidence": "src/app.py:1 — e"}],
+            }
+        )
+        + "\n"
+        + json.dumps({"kind": "review", "task_id": "T-0228", "target": "T-0002", "findings": []})
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = touched_file(
+        repo.root, target, "diff --git a/src/app.py b/src/app.py\n@@ -1,2 +2,2 @@\n+a\n+b\n"
+    )
+
+    assert payload["coverage"] == [{"path": "src/app.py", "changed": 2, "covered": 1}]
+    assert [p["review"] for p in payload["prior_reviews"]] == ["T-0227"]
+    assert payload["prior_reviews"][0]["findings"][0]["severity"] == "major"
+
+
+def test_a_shape_failure_is_refused_by_field_never_unparseable(review_rig):
+    repo, _runtime, deps_for = review_rig
+    reviewer = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=reviewer_output(
+                    [{"severity": "huge", "claim": "c", "evidence": "src/app.py:1 — e"}]
+                ),
+            )
+        ]
+    )
+
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert "refused" in state.escalation.detail
+    assert "findings.0.severity" in state.escalation.detail
+    assert "unparseable" not in state.escalation.detail
+
+    # the outcome and its record carry the refusal, not an unparseable row
+    target, review, worktree = review_inputs(repo)
+    outcome = run_review(
+        repo.root,
+        worktree,
+        target,
+        review,
+        RunnerConfig(),
+        MockRuntime(),
+        SequencedReviewer(
+            [reviewer_output([{"severity": "huge", "claim": "c", "evidence": "src/app.py:1 — e"}])]
+        ),
+        "diff --git a/src/app.py b/src/app.py\n+x = 1\n",
+        [],
+        "digest",
+    )
+
+    assert outcome.unparseable is False
+    assert outcome.refusal is not None and "findings.0.severity" in outcome.refusal
+    assert outcome.fact.startswith("review output refused: ")

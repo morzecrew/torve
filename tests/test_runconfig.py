@@ -807,3 +807,10 @@ def test_remote_broker_proxy_is_silent_for_sealed():
     # an address the sealed wiring does not use.
     sealed = BrokerConfig(adapter="local", mode="sealed", network="torve-sealed")
     assert remote_broker_proxy(sealed) == ""
+
+
+def test_the_review_role_loads_a_shipped_skill_by_default() -> None:
+    # D-54.14 as landed: the shipped skill declaring the role reaches it.
+    # `reading-isnt-proof` is vendored in this repository, not shipped, so
+    # a package default naming it would refuse every adopter's review.
+    assert RunnerConfig().skills.sets["review"] == ["ratchet-what-you-build"]

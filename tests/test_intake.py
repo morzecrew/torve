@@ -15,6 +15,7 @@ from torve.application.intake import (
     DraftsDocument,
     ThresholdVerdict,
     adopt,
+    build_intake_prompt,
     document_threshold,
     document_threshold_warnings,
     drafts_file,
@@ -157,8 +158,15 @@ def test_parse_unwraps_a_harness_result_envelope():
 def test_parse_without_a_drafts_document_is_none():
     assert parse_drafts("no json here") is None
     assert parse_drafts(json.dumps({"findings": []})) is None
-    # A drafts key with an invalid shape is unparseable, not repaired.
-    assert parse_drafts(json.dumps({"drafts": [{"no": "ref"}]})) is None
+
+
+def test_parse_refuses_an_invalid_shape_by_field():
+    # D-54.15: a drafts document that fails the model is a refusal naming
+    # the field, not repaired and not "unparseable".
+    from torve.application.review import SchemaRefusal
+
+    with pytest.raises(SchemaRefusal, match=r"drafts document\.drafts\.0\.ref: Field required"):
+        parse_drafts(json.dumps({"drafts": [{"no": "ref"}]}))
 
 
 # ----------------------- #
@@ -810,6 +818,43 @@ def test_run_intake_feeds_lint_refusals_into_the_retry(seeded):
     assert "refused by the lint" in agent.prompts[1]
     assert "T-0113" in agent.prompts[1]
     assert RunState.load(naming.state_file(seeded.root, task.id)).state is TaskState.READY
+
+
+def test_run_intake_feeds_a_schema_refusal_into_the_retry(seeded):
+    config = RunnerConfig()
+    task = mint_intake_task(seeded.root, "add things", config)
+    agent = ScriptedAgent(
+        [
+            json.dumps({"drafts": [{"intent": "no ref"}]}),
+            output_for(draft_dict()),
+        ]
+    )
+    outcome = run_intake(seeded.root, seeded.root, task, config, StubRuntime(), agent, "digest")
+
+    assert outcome.attempts == 2
+    assert not outcome.unparseable
+    assert "refused by the lint" in agent.prompts[1]
+    assert "drafts document.drafts.0.ref: Field required" in agent.prompts[1]
+    assert RunState.load(naming.state_file(seeded.root, task.id)).state is TaskState.READY
+
+
+def test_the_drafter_reads_the_pack_index_not_a_listing(seeded):
+    config = RunnerConfig()
+    task = mint_intake_task(seeded.root, "add a widget", config)
+    agent = ScriptedAgent([output_for(draft_dict())])
+    run_intake(seeded.root, seeded.root, task, config, StubRuntime(), agent, "digest")
+
+    prompt = agent.prompts[0]
+    assert "What the engine knows" in prompt
+    assert "torve spec paths" in prompt
+    assert "## The repository tree" not in prompt
+    assert (seeded.root / ".torve" / "context" / "index.md").is_file()
+    assert (seeded.root / ".torve" / "context" / "schema" / "draft.json").is_file()
+
+    # composed bare, the prompt names the top of the tree and nothing more
+    bare = build_intake_prompt("add a widget", seeded.root, 3)
+    assert "## The repository tree" in bare and "- src" in bare
+    assert "src/app.py" not in bare
 
 
 def test_run_intake_spent_budget_escalates(seeded):
