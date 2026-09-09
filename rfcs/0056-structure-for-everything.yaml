@@ -8,7 +8,7 @@ depends_on: ['0053', '0054']
 informed_by: [0049, '0050', '0055']
 supersedes: []
 superseded_by: null
-amended_by: [A-161, A-162, A-163]
+amended_by: [A-161, A-162, A-163, A-164]
 retired: []
 owner: misery7100
 description: >-
@@ -715,6 +715,7 @@ phasing:
       - tests/test_rfc_emit.py
       - tests/test_rfc_check.py
       - tests/test_cli.py
+      - src/torve/config/spec.py
     acceptance:
       - >-
         uv run pytest tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_cli.py
@@ -848,3 +849,12 @@ amendments:
       been converted from a dump taken before A-162 existed — the entry is
       restored here by hand and this one takes the next number. Scope only;
       no row changes.
+  - id: A-164
+    at: '2026-09-09'
+    title: >-
+      phase 2 reaches the loader for the schema drift check
+    md: |
+      `check` reddens when the schema file lags the model (D-56.6), and
+      `check` lives in the loader module — the drift check has to sit beside
+      the checks it joins, not in the writer. `src/torve/config/spec.py`
+      joins phase 2's scope. Scope only; no row changes.
