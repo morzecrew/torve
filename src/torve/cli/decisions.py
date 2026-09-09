@@ -1,5 +1,5 @@
 """`torve decisions` — the decision graph the record holds, and the import
-that fills it (RFC 0047 §5.4). Parsing and rendering only (D-15.6); the fold
+that fills it (S-0047/the-query). Parsing and rendering only (S-0015/D-6); the fold
 and the comparison are `torve.application.decisions`.
 
 `import` is idempotent by construction: it compares the corpus to what the
@@ -84,7 +84,7 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
     from torve.adapters.eventstore.document import mock_module, postgres_module
 
     # The runtime narrates itself on stdout, and stdout is where this verb's
-    # JSON goes. Warnings and worse, on stderr (D-15.6).
+    # JSON goes. Warnings and worse, on stderr (S-0015/D-6).
     configure_logging(level="warning", stream=sys.stderr)
 
     module = await postgres_module(dsn) if dsn else mock_module()
@@ -140,7 +140,7 @@ async def _import(
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
         pending = import_corpus(await load(log, partition=partition), rfc_dir)
-        # RFC 0057 D-57.8: what every execution file holds and the record
+        # S-0057 S-0057/D-8: what every execution file holds and the record
         # lacks — an agent's entries and the manager's landing, replayed
         # under the actor each kind names.
         corpus = load_corpus(rfc_dir)
@@ -356,7 +356,7 @@ def show_cmd(
 
 
 def _coverage(root: Path, config_path: Path | None, globs: list[str]) -> dict[str, str]:
-    """Coverage per glob from the corpus and its archive (D-53.6); an
+    """Coverage per glob from the corpus and its archive (S-0053/D-6); an
     unreadable corpus answers nothing rather than failing the record read."""
 
     from pydantic import ValidationError

@@ -1,20 +1,20 @@
-"""`torve review` — the reviewer regression corpus (RFC 0005 §6, D-5.6):
+"""`torve review` — the reviewer regression corpus (S-0005/measuring-the-reviewer-the-actual-advantage, S-0005/D-6):
 seeded-defect cases under `.torve/review-corpus/<case>/`, replayed through
 the reviewer tier; a prompt or model change that drops a catch is a
-regression. Parsing and rendering only (D-15.6); the review machinery lives
+regression. Parsing and rendering only (S-0015/D-6); the review machinery lives
 in `torve.application.review`.
 
 A case directory holds `case.yaml` (intent, inherited decisions, the
 expected findings, an optional degraded flag), `diff.patch` (the seeded
 change the reviewer judges), and `tree/` (the workspace the evidence must
 locate against). A clean case expects nothing — the reviewer's permission
-to say "clean" (RFC 0005 §5) is itself regression-tested.
+to say "clean" (S-0005/calibration) is itself regression-tested.
 
-The corpus grows from escapes, not only seeds (RFC 0036 §5.3, D-36.4):
+The corpus grows from escapes, not only seeds (S-0036/escapes-mint-corpus-entries, S-0036/D-4):
 `torve review corpus add <fixing-commit>` scaffolds an entry from the
 commit pair — the defective landing located by its `Torve-Task:` trailer,
 the fixing commit's parent extracted as the tree — and refuses an entry
-whose finding paragraph its operator has not yet written (D-36.5). The
+whose finding paragraph its operator has not yet written (S-0036/D-5). The
 scaffold's git plumbing stays in this module because the decision names
 this file; the review machinery it seeds stays in `torve.application.review`.
 """
@@ -399,7 +399,7 @@ def _defective_landing(
     root: Path, fixing_sha: str, message: str, defect: str | None
 ) -> tuple[str, str]:
     """Resolve the pair's other commit: the landing that shipped the defect,
-    found by its task trailer among the fixing commit's ancestors (D-36.5).
+    found by its task trailer among the fixing commit's ancestors (S-0036/D-5).
     Returns (landing sha, defective task id); refusals carry the
     instruction — the caller's numbers are already the scaffold's."""
 
@@ -435,7 +435,7 @@ def _defective_landing(
         # substring match, and TASK_ID admits `T-\\d{4,}`, so asking for
         # T-0142 matched a landing trailered `Torve-Task: T-01429` and
         # scaffolded a corpus entry against an unrelated commit instead of
-        # refusing as D-36.5 requires (T-0265).
+        # refusing as S-0036/D-5 requires (T-0265).
         "--extended-regexp",
         f"--grep=^Torve-Task: {defect_id}$",
     )

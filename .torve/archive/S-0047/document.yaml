@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0047'
+id: S-0047
 title: Sources and decisions as records
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0044']
-informed_by: ['0007', '0016', '0020', '0022', '0030']
+depends_on: [S-0044]
+informed_by: [S-0007, S-0016, S-0020, S-0022, S-0030]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   The corpus becomes an importer rather than the only reader: a source is any provenance
@@ -19,7 +19,7 @@ sections:
   - key: summary
     md: |
       Three event kinds — `source.imported`, `decision.recorded`,
-      `decision.accepted` — have existed since RFC 0044 phase 1 and nothing writes
+      `decision.accepted` — have existed since S-0044 phase 1 and nothing writes
       them. Meanwhile every question about a decision is answered by re-reading the
       corpus off disk and re-parsing it, and every question about a decision's
       *history* is answered by `git log`.
@@ -33,7 +33,7 @@ sections:
       authored, and contract minting still reads it.
   - key: motivation
     md: |
-      **A decision's history is not in the engine.** "When did D-27.7 become
+      **A decision's history is not in the engine.** "When did S-0027/D-7 become
       LOCKED, and what was it before?" is answerable today only by `git log -p` over
       `rfcs/`, by a human, reading diffs. The engine that enforces the grade cannot
       say when the grade arrived. Every amendment in the corpus — 88 of them —
@@ -45,18 +45,18 @@ sections:
       result is thrown away. The parse is correct and the repetition is invisible
       today because the corpus is 46 documents on a local disk; it is the wrong
       shape for a manager holding several partitions, which is the direction
-      RFC 0044 committed to.
+      S-0044 committed to.
 
       **Provenance other than a document cannot carry a decision.** An incident, an
       audit, a review finding and an operator ask all produce decisions in practice,
-      and all of them have to become an RFC first or else be lost. D-44.8 says the
+      and all of them have to become an RFC first or else be lost. S-0044/D-8 says the
       task cites its source for provenance, never for parsing — but `Task.rfc` is
       a *path into the repository*, and `residency.mint` writes
       `source_id = task.rfc or "operator"`, which is a filename or a literal
       string. There is no source to join to.
 
-      **Nothing else can be built on it.** RFC 0022's decision populations, the why
-      projection's decision leg, and the multi-partition operation RFC 0044 §12
+      **Nothing else can be built on it.** S-0022's decision populations, the why
+      projection's decision leg, and the multi-partition operation S-0044/phasing
       names all want a decision they can join to. Each is currently a filesystem
       scan that a second node cannot run.
   - key: current-state
@@ -69,8 +69,8 @@ sections:
         authority rows. `DecisionRecorded` carries `grade`, `text`, `paths`,
         `source_id` and `supersedes`. Nothing writes any of them.
       - There is no `src/torve/domain/source.py` and no
-        `src/torve/application/decisions.py` — both paths are named by D-44.8 and
-        D-44.9 and neither exists.
+        `src/torve/application/decisions.py` — both paths are named by S-0044/D-8 and
+        S-0044/D-9 and neither exists.
       - `EventLog` (`src/torve/application/eventlog.py`) has exactly two reads:
         `history(subject_id)` and `since(after, partition)`. Both cap at 1000 rows.
         `manager.project` folds `since(partition=...)`, so a partition folds its
@@ -81,7 +81,7 @@ sections:
         when any declared path intersects the task's `scope.allow`, via
         `globs_intersect`; rows with no declared paths never stand; draft and
         superseded documents are never read.
-      - `rfc_parse.decision_section` is the one parser of the table (A-47), and
+      - `rfc_parse.decision_section` is the one parser of the table (S-0007/A-3), and
         `rfc_parse.retired_identifiers` already reads the `retired:` frontmatter
         `torve rfc retire` writes.
   - key: goals-non-goals
@@ -107,7 +107,7 @@ sections:
       - **Not building the other importers.** The `Source` model admits an
         incident, an audit, a review finding and an operator ask; one importer
         ships. Three importers for one corpus is speculative work.
-      - **Not a second generated view.** D-44.9 permits one; `INDEX.md` already is
+      - **Not a second generated view.** S-0044/D-9 permits one; `INDEX.md` already is
         one, and nothing yet reads a second.
       - **Not a store dependency.** Every reader that works without a store today
         still works without one after this.
@@ -130,7 +130,7 @@ sections:
 
       The id is `<namespace>/<slug>`: the namespace is the importer's and the slug
       is stable within it. For the corpus the slug is the document number, which
-      already never changes and never gets reused (D-A.6). That is what makes
+      already never changes and never gets reused (S-0016/D-17). That is what makes
       `decision.recorded.source_id` a join rather than a filename — a document
       renamed on disk keeps its source id, and `Source.ref` is the thing that
       moves.
@@ -144,12 +144,12 @@ sections:
       backwards, so it is stated rather than left to the reader:
 
       - **A new record on the same subject is a new version of that decision.**
-        `D-27.7` regraded from `ASSUMED` to `LOCKED` is a second
-        `decision.recorded` with `subject_id="D-27.7"`. Its current state is the
+        `S-0027/D-7` regraded from `ASSUMED` to `LOCKED` is a second
+        `decision.recorded` with `subject_id="S-0027/D-7"`. Its current state is the
         last one; its version is how many there have been; its history is all of
         them, which is exactly the question `git log -p` answers today.
-      - **`supersedes` is an edge to a *different* decision.** `D-14.13` retired in
-        favour of `A-44` is a record on one subject naming another. It is not how a
+      - **`supersedes` is an edge to a *different* decision.** `S-0014/D-13` retired in
+        favour of `S-0014/A-1` is a record on one subject naming another. It is not how a
         regrade is expressed, and using it that way would make every version count
         wrong.
 
@@ -157,7 +157,7 @@ sections:
       either been retired deliberately (`torve rfc retire` writes the `retired:`
       frontmatter) or dropped by accident, and a projection that treats absence as
       retirement cannot tell those apart — nor could it once a source is an
-      incident rather than a file. This RFC therefore adds one kind to RFC 0044's
+      incident rather than a file. This RFC therefore adds one kind to S-0044's
       closed vocabulary:
 
       ```python
@@ -171,7 +171,7 @@ sections:
       Authority: `operator` and `manager`, the same row `decision.recorded`
       carries — retiring a decision is the same act as recording one, from the same
       two actors. Nothing else in the table moves. It ships as an amendment to
-      RFC 0044 with this document's acceptance, the same way A-83 widened
+      S-0044 with this document's acceptance, the same way S-0045/A-1 widened
       `message.sent`.
   - key: the-importer
     md: |
@@ -194,7 +194,7 @@ sections:
       | document new or its title/ref changed | — | `source.imported` |
 
       A draft document imports nothing: its decisions do not stand, which is
-      already the rule everywhere else (D-7.7, D-30.1). A document that later
+      already the rule everywhere else (S-0007/D-7, S-0030/D-1). A document that later
       becomes accepted imports then, and the record's first version of each of its
       rows is the one that was accepted — which is the honest answer, since a
       draft's rows were never in force.
@@ -254,7 +254,7 @@ sections:
       - **Absence means retired.** No new kind, no amendment. It fails the moment a
         source is not a file — an incident does not "stop containing" a decision —
         and it cannot distinguish a deliberate retirement from a table someone
-        broke. Deriving a fact the engine could record is the antipattern RFC 0044
+        broke. Deriving a fact the engine could record is the antipattern S-0044
         exists to retire.
       - **Import at mint time, transparently.** Every `torve plan` would refresh
         the record. It hides a write inside a read, makes minting need a store, and
@@ -303,7 +303,7 @@ sections:
   - key: out-of-scope
     md: |
       - **Minting from the record.** What would change the answer: tasks becoming
-        records (RFC 0044 §12), which makes the mint a record-to-record operation
+        records (S-0044/phasing), which makes the mint a record-to-record operation
         with no file in the middle — at which point the import is no longer an
         extra step between a signature and a contract, it is the only step.
       - **`torve rfc health` reading the record.** Its populations join decisions
@@ -327,7 +327,7 @@ sections:
         with the parity test as the guard. It stops being two answers when the
         file reader is deleted, which §8 gates on tasks becoming records.
       - **The vocabulary growing by habit.** One kind is added here with an
-        argument for it. The closed vocabulary is a feature (RFC 0044 §5.1) and the
+        argument for it. The closed vocabulary is a feature (S-0044/the-event-log) and the
         amendment cost is what keeps it closed; this document should be read as
         evidence that the cost was paid, not that it is small.
       - **Import ordering.** Two importers running concurrently could both decide a
@@ -350,7 +350,7 @@ phasing:
     title: the record and the importer
     intent: >-
       A `Source` domain model with namespaced stable ids, `decision.retired` added
-      to RFC 0044's vocabulary and authority table by amendment, and a decisions module
+      to S-0044's vocabulary and authority table by amendment, and a decisions module
       holding both halves of the record: the fold that turns `source.imported` / `decision.recorded`
       / `decision.retired` events into current state, version history and supersession
       edges, and the corpus importer that compares an accepted document's table to

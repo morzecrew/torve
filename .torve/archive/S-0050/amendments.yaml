@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-95
+  - id: A-1
     at: '2026-09-05'
     title: A run, over a board that also holds history
     md: |-
       **Found executing phase 2.** §5.4 called `status` the easy one — "the board
       already is it" — and the fold was indeed free. What was not free is the
       population. The board carries every task a partition has ever minted, and
-      RFC 0049 D-49.1 mints landed history too: on this repository's first pass
+      S-0049 S-0049/D-1 mints landed history too: on this repository's first pass
       the manager minted 184 contracts and recorded 184 landings from the trailer,
       so a board-backed `status` that reported every non-queued row answered with
       184 `ready` rows and buried the one run that was actually live.
@@ -30,15 +30,15 @@ amendments:
       live log this repository reports one run from the record and three from the
       files: the record's is the only task the manager dispatched, and the files
       also hold a v1 escalation and a hand-run landing that no partition ever saw.
-      That is A-86's wall with a number on it, and it is why D-50.1 holds.
+      That is S-0044/A-5's wall with a number on it, and it is why S-0050/D-1 holds.
 
       **Changed:** §5.4's account of `status` gains its population rule — a run is
       an attempt recorded or a task the engine holds, plus any escalation — and
       §10's first unresolved question is settled: `status` keeps its own report.
 
       Phases 1 and 2 have landed. Phase 3 remains, and its first block —
-      `context`'s tasks and programme — is the one RFC 0049 already made a fold.
-  - id: A-98
+      `context`'s tasks and programme — is the one S-0049 already made a fold.
+  - id: A-2
     at: '2026-09-05'
     title: >-
       Phase 3's first block, and what the other two still owe
@@ -46,7 +46,7 @@ amendments:
       **Landed.** `context`'s task block reads the record: every contract the
       partition holds, its state, attempts, escalation and the two cross-links
       (`parent`, `targets`) that decompositions and reviews are read through. It
-      is a fold rather than a swap, which is what A-96 and A-97 had to make true
+      is a fold rather than a swap, which is what S-0049/A-1 and S-0049/A-2 had to make true
       first — a record holding two thirds of the contracts and a third of the
       landings would have answered over a population nobody chose.
 
@@ -68,7 +68,7 @@ amendments:
       reading rather than a source swap. Everything except the task block still
       reads files, which for the corpus and the programme is not a limitation —
       the corpus *is* files.
-  - id: A-102
+  - id: A-3
     at: '2026-09-05'
     title: >-
       The last two blocks, and the two that stay on files
@@ -77,10 +77,10 @@ amendments:
       health, the character calibration and the harness populations — take rows
       rather than a path, and `context_report` renders those rows once from
       whichever carrier was selected. That deleted four copies of the same parse
-      loop, which is the shape §5.2 predicted: A-85 made the row a rendering of
+      loop, which is the shape §5.2 predicted: S-0044/A-4 made the row a rendering of
       the payload, so nothing had to be re-derived, only re-sourced. The
       divergence half moved the same way and reuses the engine's own `entry_of`
-      — the worktree's `log.yaml` is a projection of those events (A-82), so the
+      — the worktree's `log.yaml` is a projection of those events (S-0044/A-3), so the
       reader that folds the events and the one that parses the file it wrote
       cannot disagree about what an entry is.
 
@@ -93,19 +93,19 @@ amendments:
       document's scope says it does not touch what the engine records.
 
       **Added: `sources`.** The envelope names which carrier answered each block
-      and how many attempt rows it had. This is D-50.3's one deliberate
+      and how many attempt rows it had. This is S-0050/D-3's one deliberate
       exception, and it exists because of what the live comparison showed: the
       record holds 10 attempt rows where the files hold 636, 1 proposal where the
       files hold 225, and `$10.62` of spend against `$242.87`. Every one of those
       numbers is correct about the record and wrong about the repository, and
-      nothing in the report distinguished the two. D-50.2 keeps selection at the
+      nothing in the report distinguished the two. S-0050/D-2 keeps selection at the
       call site; this makes the consequence of the selection readable. The text
       and markdown renderers print it above the first count, because the reader
       who needs it most is a planning session that will otherwise quote the
       figure.
 
-      That leaves D-50.6 answered in the narrow case that actually arose: a
+      That leaves S-0050/D-6 answered in the narrow case that actually arose: a
       report over a partial record says so, in a line, rather than merging
       carriers or refusing.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

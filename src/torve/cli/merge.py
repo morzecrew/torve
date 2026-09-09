@@ -1,5 +1,5 @@
-"""`torve merge` — the serialized lane (RFC 0006 §1, D-6.1). Parsing and
-rendering only (D-15.6); the lane lives in `torve.application.lane`. The
+"""`torve merge` — the serialized lane (S-0006/the-correction-this-document-exists-for, S-0006/D-1). Parsing and
+rendering only (S-0015/D-6); the lane lives in `torve.application.lane`. The
 operator's invocation is the recorded approval (§3); `--dry-run` previews
 the queue without moving anything, per the house convention.
 """

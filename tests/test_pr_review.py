@@ -1,8 +1,8 @@
-"""RFC 0005 §4, the forge leg: review on pull-request open and update,
+"""S-0005/triggers, the forge leg: review on pull-request open and update,
 including pull requests no agent wrote — skip rules, one review per head
 (the pull regime's debounce), degraded mode without a task contract told
-so explicitly (D-5.8), and the runner posting the findings comment while
-the reviewer holds no forge credential (D-5.2)."""
+so explicitly (S-0005/D-8), and the runner posting the findings comment while
+the reviewer holds no forge credential (S-0005/D-2)."""
 
 from __future__ import annotations
 
@@ -135,7 +135,7 @@ def test_an_organic_pr_reviews_degraded_and_posts_one_comment(root):
     outcome = run(root, scm, vcs, agent=agent)
 
     assert outcome.action == "reviewed" and outcome.review_id is not None
-    # D-5.8: told so explicitly, never an invented specification.
+    # S-0005/D-8: told so explicitly, never an invented specification.
     assert "degraded mode" in agent.prompts[0]
     # The runner posted, keyed to pr and head.
     number, body, key = scm.comments[0]
@@ -254,7 +254,7 @@ def test_ghscm_pr_info_parses_the_forge_shape(monkeypatch):
 
 
 def test_ghscm_review_threads_allow_lists_roots_and_keeps_replies(monkeypatch):
-    # D-5.12: a stranger's root comment never reaches an agent; replies
+    # S-0005/D-12: a stranger's root comment never reaches an agent; replies
     # in a kept thread ride along — they carry resolution.
     listed = json.dumps([{"number": 12}])
     comments = json.dumps(
@@ -291,7 +291,7 @@ def test_ghscm_review_threads_allow_lists_roots_and_keeps_replies(monkeypatch):
     )
     assert len(threads) == 1
     assert threads[0]["path"] == "a.py"
-    # The reply address rides the capture (D-5.14, A-41).
+    # The reply address rides the capture (S-0005/D-14, A-41).
     assert threads[0]["id"] == 1 and threads[0]["pr"] == 12
     assert [c["author"] for c in threads[0]["comments"]] == ["coderabbitai[bot]", "Misery7100"]
     # An empty allow-list is off — no forge calls at all.
@@ -301,7 +301,7 @@ def test_ghscm_review_threads_allow_lists_roots_and_keeps_replies(monkeypatch):
 
 
 def test_answer_captured_threads_posts_once_and_absorbs_replays(monkeypatch):
-    # D-5.14 (A-41): one reply per captured root, marker-deduped at the
+    # S-0005/D-14 (A-41): one reply per captured root, marker-deduped at the
     # destination — a thread already marked is skipped, not re-answered.
     existing = json.dumps([{"id": 5, "body": "old reply\n\n<!-- torve-key:answer:5 -->"}])
     calls = scripted_gh(monkeypatch, {"replies": "{}", "pulls/12/comments": existing})
@@ -437,7 +437,7 @@ def test_delete_remote_branch_over_a_local_origin(tmp_path: Path) -> None:
 
 
 def test_republish_branch_moves_the_candidate_to_its_landed_tip(tmp_path: Path) -> None:
-    # D-19.12 (A-34): a rebased landing republishes its branch — a leased
+    # S-0019/D-12 (A-34): a rebased landing republishes its branch — a leased
     # ref update in the engine-owned namespace, at landing time only, so
     # the forge recognizes the base push as the merge.
     origin = tmp_path / "origin.git"
@@ -471,9 +471,9 @@ def test_republish_branch_moves_the_candidate_to_its_landed_tip(tmp_path: Path) 
 
 
 def test_push_supersedes_only_when_asked(tmp_path: Path) -> None:
-    # D-10.10 (A-37): a new attempt supersedes the task's persistent
+    # S-0010/D-10 (A-37): a new attempt supersedes the task's persistent
     # branch under lease; without supersede the push stays additive —
-    # which is how the base is pushed (D-19.9), pinned by the refusal.
+    # which is how the base is pushed (S-0019/D-9), pinned by the refusal.
     origin = tmp_path / "origin.git"
     subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
     repo = tmp_path / "repo"
@@ -496,7 +496,7 @@ def test_push_supersedes_only_when_asked(tmp_path: Path) -> None:
 
 
 def test_retire_pr_defers_to_the_forge_then_falls_back(monkeypatch):
-    # D-19.13 (A-34): a landing the forge marked merged needs no close;
+    # S-0019/D-13 (A-34): a landing the forge marked merged needs no close;
     # one still open after the grace closes with the landing note — the
     # T-0072 close-out as fallback; no pull request retires as "absent".
     merged = json.dumps([{"number": 31, "state": "MERGED"}])

@@ -1,4 +1,4 @@
-"""RFC 0051: the queue is the log, and delivery is a recorded fact.
+"""S-0051: the queue is the log, and delivery is a recorded fact.
 
 What is worth testing here is not the delivery — an adapter's HTTP is its
 own business — but the two properties the design rests on: an escalation
@@ -76,7 +76,7 @@ def test_the_queue_is_an_escalation_with_no_recorded_delivery():
 
 
 def test_a_terminal_failure_drains_the_queue_too():
-    """D-51.7: the failure is recorded precisely so the queue drains. An
+    """S-0051/D-7: the failure is recorded precisely so the queue drains. An
     escalation nobody could page about is still on the board."""
 
     raised = escalation()
@@ -86,7 +86,7 @@ def test_a_terminal_failure_drains_the_queue_too():
 
 
 def test_a_batch_class_escalation_never_pages():
-    """D-51.8, RFC 0006 §4: paging on everything is how a pager stops being
+    """S-0051/D-8, S-0006/human-attention-is-the-scarce-resource: paging on everything is how a pager stops being
     read. Underspecification waits to be looked at."""
 
     assert undelivered([escalation("underspecified")], now=NOW) == []
@@ -105,7 +105,7 @@ def test_the_notification_carries_the_escalations_own_id_and_age():
     one = undelivered([raised], now=NOW)[0]
 
     # The dedup key is the escalation's id, which is what makes this a
-    # delivery *of* something (D-51.6).
+    # delivery *of* something (S-0051/D-6).
     assert one.event_id == str(raised.id)
     assert one.age_s == pytest.approx(7200)
 
@@ -230,7 +230,7 @@ def test_a_refusal_a_retry_will_not_fix_is_recorded_immediately():
 
 
 def test_the_inert_destination_drains_without_delivering():
-    """D-51.4: a repository that configured silence must not accumulate a
+    """S-0051/D-4: a repository that configured silence must not accumulate a
     queue forever — the delivery that went nowhere is recorded as what it
     was."""
 
@@ -249,7 +249,7 @@ def test_the_inert_destination_drains_without_delivering():
 
 
 def test_only_the_manager_may_record_a_delivery():
-    """A page is the loop's act, not an attempt's (D-51.1's authority row)."""
+    """A page is the loop's act, not an attempt's (S-0051/D-1's authority row)."""
 
     from torve.domain.events import UnauthorizedWrite
 
@@ -269,7 +269,7 @@ def test_only_the_manager_may_record_a_delivery():
 
 
 # ....................... #
-# The webhook adapter (RFC 0051 phase 2), against a real local server —
+# The webhook adapter (S-0051 phase 2), against a real local server —
 # the wire is the contract, so a stub of it proves nothing.
 # ....................... #
 
@@ -302,7 +302,7 @@ def notification(**kw) -> Notification:
 
 
 def test_the_webhook_posts_the_idempotency_key_on_the_wire():
-    """D-51.6: the escalation's own id is what a destination dedups on, so
+    """S-0051/D-6: the escalation's own id is what a destination dedups on, so
     it must actually reach the destination."""
 
     from http.server import BaseHTTPRequestHandler

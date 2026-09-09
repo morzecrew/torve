@@ -6,7 +6,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-57.2
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T17:06:28Z'
         claim: >-
@@ -18,7 +18,7 @@ landings:
           src/torve/config/spec.py:520 - check_sections; src/torve/domain/spec.py:182
           - heading_of
         action: decided
-      - decision: D-57.3
+      - decision: D-3
         grade: LOCKED
         at: '2026-09-09T17:06:28Z'
         claim: >-
@@ -31,7 +31,7 @@ landings:
           src/torve/config/runconfig.py:908 - SpecsConfig and the refusal of rfcs;
           src/torve/config/spec.py:99 - archive_dir and schemas_dir as siblings
         action: decided
-      - decision: D-57.9
+      - decision: D-9
         grade: LOCKED
         at: '2026-09-09T17:06:30Z'
         claim: >-
@@ -40,7 +40,7 @@ landings:
         evidence: >-
           src/torve/config/spec.py:1 - no scan of tracked files
         action: decided
-      - decision: D-57.5
+      - decision: D-5
         grade: LOCKED
         at: '2026-09-09T17:07:00Z'
         claim: >-
@@ -56,7 +56,7 @@ landings:
         notes: >-
           phase 2 grows init to the contract, the log, the configuration, the manifest
           and the ignore file; phase 1 writes only what the document needs
-      - decision: D-57.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T17:07:20Z'
         claim: >-
@@ -72,12 +72,12 @@ landings:
           holds; src/torve/domain/spec.py:270 - FILE_FIELDS
         action: decided
         notes: >-
-          the directory carries the identifier and nothing else (A-166): the slug
-          said what document.yaml and spec list already say; document.yaml and decisions.yaml
-          are always written so a new document shows where the rows go, the tool's
-          and the landing's files appear with their first entry and never shrink to
-          nothing
-      - decision: D-57.4
+          the directory carries the identifier and nothing else (S-0057/A-2): the
+          slug said what document.yaml and spec list already say; document.yaml and
+          decisions.yaml are always written so a new document shows where the rows
+          go, the tool's and the landing's files appear with their first entry and
+          never shrink to nothing
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T17:07:20Z'
         claim: >-
@@ -92,9 +92,10 @@ landings:
         action: decided
         notes: >-
           domain/rfc.py keeps its module name: it owns the vocabularies, is imported
-          from eleven modules, and D-57.4 names the emitter and the CLI only — renaming
-          it is a follow-up if anyone wants it; test file names keep rfc per §4
-      - decision: D-57.6
+          from eleven modules, and S-0057/D-4 names the emitter and the CLI only —
+          renaming it is a follow-up if anyone wants it; test file names keep rfc
+          per §4
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T17:07:21Z'
         claim: >-
@@ -119,7 +120,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-57.5
+      - decision: D-5
         grade: LOCKED
         at: '2026-09-09T17:36:52Z'
         claim: >-
@@ -143,9 +144,9 @@ landings:
           the contract's schema line assumes the default layout (../../schemas from
           the task directory): the planner reads no configuration, so a relocated
           specs.path leaves the editor's pointer dangling and nothing else; the review-corpus
-          trace-log glob rides .torve/.gitignore as an operator line until RFC 0056
+          trace-log glob rides .torve/.gitignore as an operator line until S-0056
           phase 4 moves the corpus
-      - decision: D-57.4
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T17:40:38Z'
         claim: >-
@@ -160,7 +161,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-57.7
+      - decision: D-7
         grade: LOCKED
         at: '2026-09-09T17:54:51Z'
         claim: >-
@@ -181,10 +182,10 @@ landings:
         action: decided
         notes: >-
           the runner's landing rides in the candidate commit, so its commit field
-          is empty and the candidate's trailers are the join (A-169); the entry's
+          is empty and the candidate's trailers are the join (S-0057/A-5); the entry's
           defaults — kind resolved, class discovery, attempt 1 — are not written,
           as every other list's defaults are not
-      - decision: D-57.8
+      - decision: D-8
         grade: ASSUMED
         at: '2026-09-09T17:54:52Z'
         claim: >-
@@ -201,7 +202,7 @@ landings:
           the authority table admits no operator for these kinds and events.py is
           outside this phase; the import replays the carrier under the actors the
           kinds name and says so in actor_id
-      - decision: D-57.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T17:54:52Z'
         claim: >-
@@ -209,7 +210,7 @@ landings:
           landings; the loader, the files and every reader are as phase 1 left them
         evidence: src/torve/domain/spec.py:222 - LogEntry
         action: decided
-      - decision: D-57.2
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T17:54:52Z'
         claim: >-
@@ -218,7 +219,7 @@ landings:
         evidence: >-
           src/torve/domain/spec.py:180 - DesignSection as phase 1 left it
         action: decided
-      - decision: D-57.5
+      - decision: D-5
         grade: LOCKED
         at: '2026-09-09T17:54:53Z'
         claim: >-
@@ -228,7 +229,7 @@ landings:
         evidence: >-
           src/torve/cli/init.py:60 - TaskLog.model_json_schema
         action: decided
-      - decision: D-57.6
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T17:54:53Z'
         claim: >-
@@ -237,7 +238,7 @@ landings:
         evidence: >-
           .torve/specs/S-0057/execution.yaml:1 - the folded landings
         action: decided
-      - decision: D-57.3
+      - decision: D-3
         grade: LOCKED
         at: '2026-09-09T17:58:48Z'
         claim: >-
@@ -251,7 +252,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-57.9
+      - decision: D-9
         grade: LOCKED
         at: '2026-09-09T18:08:11Z'
         claim: >-
@@ -269,7 +270,7 @@ landings:
           the first run on this repository found one unknown identifier: an invented
           example in the verb's own docstring, which reads as intended — the check
           starts green with five retired-row warnings
-      - decision: D-57.10
+      - decision: D-10
         grade: ASSUMED
         at: '2026-09-09T18:08:11Z'
         claim: >-
@@ -279,7 +280,7 @@ landings:
           and the commits whose Torve-Decisions trailer grades it
         evidence: src/torve/cli/spec.py:1250 - cites_cmd
         action: decided
-      - decision: D-57.11
+      - decision: D-11
         grade: ASSUMED
         at: '2026-09-09T18:08:12Z'
         claim: >-
@@ -288,7 +289,7 @@ landings:
           not complete; a document without phasing is silent
         evidence: src/torve/config/spec.py:878 - check_landings
         action: decided
-      - decision: D-57.13
+      - decision: D-13
         grade: OPEN
         at: '2026-09-09T18:08:12Z'
         claim: >-
@@ -299,8 +300,9 @@ landings:
         action: decided
         notes: >-
           the trailers are the join for a runner's landing whose commit field is empty
-          (A-169), so reading them is what makes the landing's side of the link whole
-      - decision: D-57.4
+          (S-0057/A-5), so reading them is what makes the landing's side of the link
+          whole
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T18:08:13Z'
         claim: >-
@@ -308,7 +310,7 @@ landings:
           the gate and the skill are as phase 1 left them
         evidence: src/torve/cli/spec.py:1250 - the one new verb
         action: decided
-      - decision: D-57.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T18:08:13Z'
         claim: >-
@@ -317,7 +319,7 @@ landings:
         evidence: >-
           src/torve/config/spec.py:240 - load_document unchanged
         action: decided
-      - decision: D-57.2
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T18:08:13Z'
         claim: >-
@@ -326,7 +328,7 @@ landings:
         evidence: >-
           src/torve/config/spec.py:520 - check_sections as phase 1 left it
         action: decided
-      - decision: D-57.3
+      - decision: D-3
         grade: LOCKED
         at: '2026-09-09T18:14:10Z'
         claim: >-
@@ -335,7 +337,7 @@ landings:
         evidence: >-
           .torve/specs/S-0057/execution.yaml:1 - the landing the verb wrote
         action: decided
-      - decision: D-57.6
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T18:14:10Z'
         claim: >-

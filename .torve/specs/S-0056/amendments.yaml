@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-161
+  - id: A-1
     at: '2026-09-09'
     title: phase 3 brings the layout test
-  - id: A-162
+  - id: A-2
     at: '2026-09-09'
     title: >-
       phase 1 reaches every reader and every markdown-shaped test
@@ -16,7 +16,7 @@ amendments:
       markdown document by hand to drive them. All join the phase's scope
       and its battery; a reader that stays on the parser would have no parser
       to stay on. Scope only; no row changes.
-  - id: A-163
+  - id: A-3
     at: '2026-09-09'
     title: >-
       phase 1 reaches the programme projection and the bootstrap fixture
@@ -28,16 +28,16 @@ amendments:
       globs the markdown filename. All three join phase 1: the projection
       reads the model, the fixture converts with the corpus. This
       amendment is the first written by the YAML `amend` verb, whose own
-      first run appended a duplicate A-162 because the document it read had
-      been converted from a dump taken before A-162 existed — the entry is
+      first run appended a duplicate S-0056/A-2 because the document it read had
+      been converted from a dump taken before S-0056/A-2 existed — the entry is
       restored here by hand and this one takes the next number. Scope only;
       no row changes.
-  - id: A-164
+  - id: A-4
     at: '2026-09-09'
     title: >-
       phase 2 reaches the loader for the schema drift check
     md: |
-      `check` reddens when the schema file lags the model (D-56.6), and
+      `check` reddens when the schema file lags the model (S-0056/D-6), and
       `check` lives in the loader module — the drift check has to sit beside
       the checks it joins, not in the writer. `src/torve/config/spec.py`
       joins phase 2's scope. Scope only; no row changes.

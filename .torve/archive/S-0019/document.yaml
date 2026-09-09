@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0019
+id: S-0019
 title: The standing loop
 kind: design
 status: superseded
 implementation: abandoned
-depends_on: ['0003', '0006', 0008]
-informed_by: ['0005', '0007', '0017']
+depends_on: [S-0003, S-0006, S-0008]
+informed_by: [S-0005, S-0007, S-0017]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   The bounded tick that makes the team standing: drain one queued task, process the
@@ -19,27 +19,27 @@ schema_version: 3
 sections:
   - key: the-condition-in-d-3-1-is-met
     md: |
-      RFC 0003 locked v1 to one task, synchronous, no daemon, with its own exit
+      S-0003 locked v1 to one task, synchronous, no daemon, with its own exit
       clause: *parallelism only after the single path is boring*. The single
       path is now boring in the only sense that matters — a task travels
       sandbox → gates → review → provenance → pull request → CI-gated lane →
       tracker → notifier with no step requiring improvisation, demonstrated
       live end to end. What remains starved is everything that needs volume:
-      RFC 0006 §7 wants ten landings and two weeks of resolution times, RFC
-      0009 §5 wants replay volume, RFC 0005 §7 wants a shadow period. All of
+      S-0006/exit-criteria wants ten landings and two weeks of resolution times, RFC
+      S-0009/evals wants replay volume, S-0005/replacing-the-third-party-reviewer wants a shadow period. All of
       them wait on the same bottleneck, and it is not the engine — it is that
       nothing happens between operator invocations.
 
       This RFC does **not** cash in the parallelism clause. It cashes in the
       smaller thing the clause implies must come first: the engine keeps
       working — one task at a time, exactly as today — when nobody is typing.
-      D-3.1's row stands unamended; a tick is one synchronous invocation of
+      S-0003/D-1's row stands unamended; a tick is one synchronous invocation of
       the machinery that already exists.
   - key: a-tick-not-a-daemon
     md: |
       The loop is a bounded verb: `torve tick` performs one pass and exits.
       Cadence belongs to the environment — cron, a CI schedule, a systemd
-      timer — exactly as RFC 0005's pull-request trigger settled for events:
+      timer — exactly as S-0005's pull-request trigger settled for events:
       the engine holds no resident consumer; the environment delivers.
 
       The daemon was considered and rejected. A resident process needs
@@ -61,7 +61,7 @@ sections:
       2. **Lane** — process ready candidates, only under the approval switch
          (§5b), and **before the reaper runs**: `ready` is terminal to the
          engine and therefore sweepable, so a reap ahead of the lane destroys
-         the lane's own input. This is A-26's merge-before-reap ordering,
+         the lane's own input. This is S-0001/A-9's merge-before-reap ordering,
          applied inside the tick.
       3. **Reap** — collect terminal footprints before dispatch, so the
          scope-overlap check sees a corpse-free picture and the new run
@@ -76,30 +76,30 @@ sections:
          middle.
 
       A tick with nothing to do at any leg does nothing there and says so
-      (§8). The order is a decision (D-19.3), not an accident: lane before
+      (§8). The order is a decision (S-0019/D-3), not an accident: lane before
       reap keeps the lane's input alive; reap before dispatch keeps the
       scope-overlap check honest; poll first lets a human's overnight intent
       win the slot; sync last makes the board a postcondition.
 
-      *Amendment note (A-27, 2026-08-24):* the order as accepted was reap,
+      *Amendment note (S-0019/A-1, 2026-08-24):* the order as accepted was reap,
       poll, dispatch, lane, sync — reap first "so the tick starts from a true
       picture". The second live tick disproved it: the reaper swept a READY
       candidate's state between the dispatch that produced it and the lane
-      that would have landed it, exactly the failure A-26's merge-before-reap
+      that would have landed it, exactly the failure S-0001/A-9's merge-before-reap
       rule already named. The list above is the amended order.
   - key: what-queued-means
     md: |
-      The loop drains work; it never creates it (D-19.8). A task is queued
+      The loop drains work; it never creates it (S-0019/D-8). A task is queued
       when all of the following hold, readable from the file system alone:
 
       - a contract exists under the tasks directory with role `implement` or
-        `revert` — reviews stay runner-minted (RFC 0005 D-5.11), and the
+        `revert` — reviews stay runner-minted (S-0005 S-0005/D-11), and the
         planner tier's contracts are not executable work;
       - no run state exists for it — a task that ran and reached any state,
         terminal or not, is not re-dispatched by the loop; re-entry into the
         queue is a human act (`retry` via the board, or a re-mint);
       - every `depends_on` entry has landed on the base — its trailer in
-        history, nothing less. *Amended by A-31 2026-08-24: as accepted this
+        history, nothing less. *Amended by S-0019/A-4 2026-08-24: as accepted this
         bullet also admitted a `ready` dependency, which the approvals regime
         broke — a candidate can now dwell ready-but-unlanded for hours while
         it waits for a human, and a dependent dispatched in that window
@@ -116,21 +116,21 @@ sections:
       telemetry is append-only, survives the reaper, and keeps the rule
       readable from the file system alone.
 
-      *Amendment note 2026-08-24 (A-29, executed as T-0064):* the record the
+      *Amendment note 2026-08-24 (S-0019/A-3, executed as T-0064):* the record the
       previous note settled on is still host truth — state files and telemetry
       are unversioned, so a fresh clone holds neither and sees the entire
       landed history as queued. Selection therefore asks the repository before
       it trusts the host: a task whose landing trailer is already in base
       history is never queued, whatever run records the host holds. The oracle
-      is the same one the reaper (D-19.10) and the dependency check already
+      is the same one the reaper (S-0019/D-10) and the dependency check already
       consult; it is asked only of tasks the host records would otherwise
       select, so the common tick still reads local files alone.
 
       *Execution note 2026-08-24 (T-0059):* the re-entry this section names is
       now mechanical end to end: a `QUEUED` run state — the state a board
       `retry` leaves behind — is queued, dependencies still checked, and the
-      retry's apply deletes the task's stale remote branch first (RFC 0008
-      D-8.10) so the re-run's push is not refused by the previous attempt's
+      retry's apply deletes the task's stale remote branch first (S-0008
+      S-0008/D-10) so the re-run's push is not refused by the previous attempt's
       history. Any other existing state remains untouchable by the loop.
 
       Selection among queued tasks is by ascending task id — deterministic,
@@ -141,7 +141,7 @@ sections:
       schedule.
   - key: two-budgets-the-loop-must-respect
     md: |
-      **a. Attention (D-19.5).** RFC 0006 named escalation queue age the
+      **a. Attention (S-0019/D-5).** S-0006 named escalation queue age the
       primary alert because a queue nobody triages looks identical to success
       from inside the runner. A standing loop makes that failure mode worse:
       it can manufacture escalations faster than a person clears them. So
@@ -152,24 +152,24 @@ sections:
       keeps the board and the notifier current. The queue may drain during a
       pause; it may not grow by the loop's own hand.
 
-      **b. Approval (D-19.6).** In the local regime the operator invoking
+      **b. Approval (S-0019/D-6).** In the local regime the operator invoking
       `torve merge` is the recorded approval. A scheduler invoking the lane is
       nobody's approval — so the tick's lane leg runs only when
-      `promotion.auto_merge` is true. That switch has existed since RFC 0006
-      precisely for this moment (D-6.2: off by default, opt-in per repository
+      `promotion.auto_merge` is true. That switch has existed since S-0006
+      precisely for this moment (S-0006/D-2: off by default, opt-in per repository
       and task class); the loop adds no second knob and grants itself nothing.
       With auto-merge off, ready candidates accumulate, the board shows them,
       and landing stays a human act.
   - key: concurrency-and-reentry
     md: |
-      One tick at a time per root (D-19.2): the tick takes a lock file under
+      One tick at a time per root (S-0019/D-2): the tick takes a lock file under
       the engine's state directory, and an invocation that finds it held exits
       as a clean no-op — recorded, exit code success, nothing done. Cron
       overlap is a certainty over enough weeks; it must be boring.
 
       A stale lock — holder dead, age past the configured tick budget — is
       broken loudly: the takeover is an engine event naming the stale holder,
-      never a silent steal. Below the lock, RFC 0006's D-6.9 still stands:
+      never a silent steal. Below the lock, S-0006's S-0006/D-9 still stands:
       dispatch keys durable runs by task and generation, so even a broken
       double-fire converges on a single claim. The lock is the mechanism;
       convergence is the backstop.
@@ -198,7 +198,7 @@ sections:
       questions then have telemetry answers: a healthy idle system shows a
       heartbeat of honest noops; a dead scheduler shows silence; a stalled
       intake shows the pause reason repeating. The distinction between quiet
-      and dead is the entire point of recording noops (D-19.7).
+      and dead is the entire point of recording noops (S-0019/D-7).
 
       `torve status` gains nothing new: the loop has no state of its own to
       show — the store already is the state, which is what "the tick never
@@ -210,9 +210,9 @@ sections:
         intake at the first unhandled failure by default. The loop cannot
         spend faster than the scheduler fires it.
       - **Approval dilution.** The lane leg is inert without the existing
-        opt-in (D-19.6); nothing else in a tick lands anything.
+        opt-in (S-0019/D-6); nothing else in a tick lands anything.
       - **Silent stall.** Mitigated by noop heartbeats and the pause reason in
-        every event; the operator's alert remains queue age (D-6.8), now with
+        every event; the operator's alert remains queue age (S-0006/D-8), now with
         a mechanical response attached.
       - **Forge rate limits.** A tick's forge traffic is bounded (one run's
         pushes, one sync, one poll); cadence is the throttle. Not designed for
@@ -221,22 +221,22 @@ sections:
       - **The loop as planner.** The standing failure mode of agent systems —
         the machine inventing its own backlog. Structurally excluded: the
         tick reads contracts and commands, both minted by humans or by the
-        planner a human invoked (D-19.8).
+        planner a human invoked (S-0019/D-8).
   - key: decisions
     md: |
-      D-19.14 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0019/D-14 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-19.8 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0019/D-8 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-19.6 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0019/D-6 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-19.4 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0019/D-4 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-19.3 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0019/D-3 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-19.2 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0019/D-2 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-19.1 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0019/D-1 was retired 2026-09-09; path rot. The identifier is never reused.
   - key: exit-criteria
     md: |
       - A seeded backlog of at least three contracts drains on a schedule with
@@ -249,7 +249,7 @@ sections:
       - With auto-merge off, a scheduled tick leaves a ready candidate
         unlanded and visible on the board.
       - A week of tick events in which noops, pauses and work are
-        distinguishable by query alone — and RFC 0006 §7's landing count
+        distinguishable by query alone — and S-0006/exit-criteria's landing count
         measurably advanced by loop-landed tasks.
 phasing:
   - phase: 1

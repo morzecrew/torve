@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0033'
+id: S-0033
 title: Published harness images
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0017']
-informed_by: ['0003', '0004', '0021', 0028]
+depends_on: [S-0017]
+informed_by: [S-0003, S-0004, S-0021, S-0028]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   The in-repo sandbox definitions for claude, dsh and mimo published to ghcr.io with
@@ -31,9 +31,9 @@ sections:
   - key: motivation
     md: |
       - **The OpenSandbox runtime requires a registry.** Its adapter refuses
-        `build_image` by design; live-server work (RFC 0003, condition fired
+        `build_image` by design; live-server work (S-0003, condition fired
         2026-08-31) is image-delivery-blocked until something is published.
-      - **Zero-config onboarding is otherwise a lie.** RFC 0028's profiles made
+      - **Zero-config onboarding is otherwise a lie.** S-0028's profiles made
         the wiring one reference — but the reference points at a local image the
         operator must build from a definition they must copy. A ghcr reference
         plus a profile is the first genuinely configuration-free tier.
@@ -49,7 +49,7 @@ sections:
     md: |
       - Five definitions under `.torve/sandbox/` (`battery`, `claude`, `dsh`,
         `mimo`, `opencode`); `torve sandbox build` builds them and reports
-        digests; the digest joins `config_hash` at dispatch (D-17.1), so a
+        digests; the digest joins `config_hash` at dispatch (S-0017/D-1), so a
         mutated tag cannot silently merge regimes — verified doctrine, not
         intent.
       - `tier.image` and `runtime.image` accept arbitrary references already;
@@ -76,7 +76,7 @@ sections:
       **Non-goals**
 
       - **Requiring these images.** No engine behavior may ever be conditioned
-        on an in-house image (D-33.1). A stock upstream image plus a longer
+        on an in-house image (S-0033/D-1). A stock upstream image plus a longer
         command template must always work.
       - **Publishing the battery.** It mounts the docker socket in dogfood and
         its contents are repository-shaped; publishing it invites using it as a
@@ -97,7 +97,7 @@ sections:
       changes under an unchanged harness version (a toolkit fix, a base bump).
       The engine's identity story is untouched: whatever tag a configuration
       names, the digest is resolved at dispatch and joins `config_hash` —
-      D-17.1 already guarantees two digests under one tag are two regimes.
+      S-0017/D-1 already guarantees two digests under one tag are two regimes.
   - key: versions-as-build-arguments
     md: |
       Each Dockerfile takes its harness version as an `ARG` with a pinned
@@ -110,7 +110,7 @@ sections:
 
       The default is the published version; CI passes nothing. A bump is a
       one-line diff a reviewer reads as "this is a harness upgrade". claude and
-      mimo gain the same shape for their installers (D-33.3) — closing the
+      mimo gain the same shape for their installers (S-0033/D-3) — closing the
       unpinned installs §3 names.
   - key: the-opt-torve-toolkit
     md: |
@@ -127,7 +127,7 @@ sections:
       variability from environment — never from parsing the contract or
       touching `.torve/`. A utility that wants task context has become a
       harness feature and belongs upstream or in the engine, not in an image
-      (D-33.4). Command templates in profiles shorten accordingly; the old
+      (S-0033/D-4). Command templates in profiles shorten accordingly; the old
       paths keep working through the transition via symlinks in the same image
       revision that introduces the new ones.
   - key: the-publish-job
@@ -152,9 +152,9 @@ sections:
         splits build-source from test-source permanently. platform-images
         remains prior art and base-image supplier.
       - **One mega-image with all harnesses.** Smaller matrix, and it destroys
-        the identity doctrine — harness identity is *the image* (D-17.4), and a
+        the identity doctrine — harness identity is *the image* (S-0017/D-4), and a
         shared image makes every harness upgrade a regime change for all three.
-      - **Mutable version tags (`:0.1.1`).** Refused: D-17.1 protects the
+      - **Mutable version tags (`:0.1.1`).** Refused: S-0017/D-1 protects the
         engine from tag mutation, but humans read tags, and a re-pushed tag
         lies to them even when the hash catches it.
   - key: tests
@@ -198,10 +198,10 @@ sections:
         tag, never `latest`; `latest` exists for kicking tires.
       - **ghcr outage blocks dispatch** for configurations naming remote
         references. Accepted plainly: the mitigation is the one-command local
-        build parity (D-33.1's consequence), not a mirror.
+        build parity (S-0033/D-1's consequence), not a mirror.
   - key: unresolved-questions
     md: |
-      - D-33.6 (below): whether published images embed their definition's git
+      - S-0033/D-6 (below): whether published images embed their definition's git
         sha as a label for provenance-by-inspection; the first debugging
         session against a pulled image settles how much it is worth.
   - key: phasing
@@ -209,17 +209,17 @@ sections:
       *(Phase 2 split into phases 2–3 on 2026-09-01, pre-mint: sizing routed
       the original combined phase `too_large`.)*
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: toolkit-and-args
     intent: >-
       The three publishable definitions converge on the conventions: harness installs
-      behind pinned-default ARGs (D-33.3), the existing utilities moved under /opt/torve
-      with symlinks at their old paths for one transition revision (D-33.4), and the
-      definition-level tests — the ARG-pin check and the toolkit existence checks
-      — joining the sandbox battery. Profile command templates in the README examples
-      shorten to the toolkit paths.
+      behind pinned-default ARGs (S-0033/D-3), the existing utilities moved under
+      /opt/torve with symlinks at their old paths for one transition revision (S-0033/D-4),
+      and the definition-level tests — the ARG-pin check and the toolkit existence
+      checks — joining the sandbox battery. Profile command templates in the README
+      examples shorten to the toolkit paths.
     scope:
       - .torve/sandbox/claude/**
       - .torve/sandbox/dsh/**
@@ -233,8 +233,8 @@ phasing:
     title: publish-workflow
     intent: >-
       The ghcr publish job: buildx over the three definitions on manual or tag-shaped
-      triggers, the immutable tag scheme with re-push refusal (D-33.2), conformance
-      battery as the gate (D-33.5), linux/amd64 only. README gains the ghcr quickstart
+      triggers, the immutable tag scheme with re-push refusal (S-0033/D-2), conformance
+      battery as the gate (S-0033/D-5), linux/amd64 only. README gains the ghcr quickstart
       with a full version tag.
     scope: [.github/workflows/**, README.md]
     acceptance:

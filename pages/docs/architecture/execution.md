@@ -20,8 +20,8 @@ those queued would hand a worker somebody's finished work.
 
 A task is dispatchable when this partition's board carries it as queued, its
 dependencies have **landed** (a run that reached `ready` without landing
-satisfies nothing — A-29, A-31), and nothing sharing its scope is in flight
-(A-39). Scope disjointness is conservative: what is provably shared
+satisfies nothing — S-0019/A-3, S-0019/A-4), and nothing sharing its scope is in flight
+(S-0019/A-6). Scope disjointness is conservative: what is provably shared
 serializes, and an unconstrained allow-set clashes with everything, because
 a task that may touch anything can prove itself disjoint from nothing.
 

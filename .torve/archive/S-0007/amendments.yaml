@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-69
+  - id: A-1
     at: '2026-08-31'
     title: >-
       the contract carries a title; the intent dumps as a block
@@ -16,7 +16,7 @@ amendments:
       prefers it over the intent's first line. Multiline strings dump as
       literal blocks. Contracts minted before this carry no title and land
       under the old fallback.
-  - id: A-55
+  - id: A-2
     at: '2026-08-27'
     title: >-
       the identifier lookup: `torve rfc show` and its MCP face (amends §3a, §5)
@@ -24,8 +24,8 @@ amendments:
       **Found in corpus authoring.** Every artefact in this system cites corpus
       identifiers — divergence logs cite decisions, escalations name them, task
       contracts inherit them, amendments amend them — and the only way to resolve
-      one has been grep. The corpus itself records the cost three times: A-11,
-      A-12 and A-17 each carry a note that their source patch chose an amendment
+      one has been grep. The corpus itself records the cost three times: S-0001/A-4,
+      S-0001/A-5 and S-0001/A-6 each carry a note that their source patch chose an amendment
       number already taken, discovered at review rather than at allocation. The
       day this was written, a planning session drafting four RFCs re-derived the
       free number and the D-21 family collision by grepping the directory — the
@@ -36,34 +36,34 @@ amendments:
       decision (row, grade, paths, consequence, defining and citing documents,
       tombstone), an amendment (document, heading, touched rows, and the next free
       A-number beside the family), or a document (frontmatter, implementation
-      state, phases). It reads the same parse `torve rfc check` runs (D-7.12;
-      A-47's one-reader rule), on demand, with no cache. §5's server gains a
-      second read-only tool over the same function. Rows D-7.28 and D-7.29 record
+      state, phases). It reads the same parse `torve rfc check` runs (S-0007/D-12;
+      S-0007/A-3's one-reader rule), on demand, with no cache. §5's server gains a
+      second read-only tool over the same function. Rows S-0007/D-28 and S-0007/D-29 record
       both.
 
-      **Deliberately unchanged:** D-7.3 stands — the surface stays read-only and
+      **Deliberately unchanged:** S-0007/D-3 stands — the surface stays read-only and
       is never wired into an execution sandbox; executors keep receiving decisions
-      copied into the contract at mint time (D-31), and the lookup adds nothing to
+      copied into the contract at mint time (S-0001/D-29), and the lookup adds nothing to
       what a sandbox sees. Full-text search is refused: grep exists, and the verb
       answers identifiers, not questions.
-  - id: A-47
+  - id: A-3
     at: '2026-08-27'
     title: >-
-      one decision-table reader, one inheritance helper (amends §6a, retires D-7.6's
+      one decision-table reader, one inheritance helper (amends §6a, retires S-0007/D-6's
       adapter)
     md: |-
       **Found in a whole-repository audit for over-engineering.** Three implementations read a document's decision table and produced inherited rows: `torve plan`'s inline loop, adoption's `_inherit_decisions`, and the `RfcDirectory` adapter behind the `DecisionSource` port. Two more parsed the markdown table itself — `decision_rows` for the validator and `decision_table` for minting, thirty lines apart, differing in whether a four-column row survives and passing the header verdict back as an integer repeated on every row.
 
       **`RfcDirectory` and `DecisionSource` had no production caller at all** — the port was never used as an annotation and the adapter was reached only from its own test. What it did, the planner already did, with one behavioural difference nobody had chosen: it dropped pathless rows, and the planner keeps them.
 
-      **Changed:** one `inherit_decisions(text, name)` in the planner is what both `torve plan` and adoption mint from — if they can drift, they will, and a contract that inherited different grades depending on which door it came through is the failure D-7.7 is guarding against. One `decision_section` parses the table; `decision_table` is its minting face, and the validator takes the section, which tells "no Decisions section" apart from "a header with no rows under it" and carries the header verdict once.
+      **Changed:** one `inherit_decisions(text, name)` in the planner is what both `torve plan` and adoption mint from — if they can drift, they will, and a contract that inherited different grades depending on which door it came through is the failure S-0007/D-7 is guarding against. One `decision_section` parses the table; `decision_table` is its minting face, and the validator takes the section, which tells "no Decisions section" apart from "a header with no rows under it" and carries the header verdict once.
 
       **The port is retired,** not replaced. §6a's requirement stands — standing decisions are read deterministically from committed documents, and model-assisted extraction stays outside the engine — but it is met by a function, not by a seam with one side.
-  - id: A-113
+  - id: A-4
     at: '2026-09-05'
     title: The assertion nothing could contradict
     md: |-
-      **Found asking which documents still owe work.** D-7.15 puts the asserted
+      **Found asking which documents still owe work.** S-0007/D-15 puts the asserted
       `implementation` beside derived per-phase progress so the two can be seen
       to disagree. Two shapes of disagreement were checked — asserted `complete`
       with a phase short of shipped, and asserted `none` with something shipped —
@@ -86,39 +86,39 @@ amendments:
       0023 could be `complete` and never once have run. What the flag says is
       "the phases are done and the assertion says otherwise — settle it", and a
       person settles it by reading the document, not by trusting this count.
-  - id: A-151
+  - id: A-5
     at: '2026-09-09'
     title: the format's owner is the loader
     changes:
-      - subject: D-7.12
+      - subject: D-12
         field: text
         before: >-
           The RFC format is owned by the package; validation does not depend on an
           installed skill
         after: >-
           The RFC format is owned by the package; validation does not depend on an
-          installed skill. From RFC 0053 the owner is the model's loader in `src/torve/config/spec.py`,
+          installed skill. From S-0053 the owner is the model's loader in `src/torve/config/spec.py`,
           with the parser in `src/torve/config/rfc_parse.py` beside it until phase
-          5 deletes it (D-53.13)
-      - subject: D-7.12
+          5 deletes it (S-0053/D-13)
+      - subject: D-12
         field: fingerprint
         after: 5f4218d6a9f7f40e/71ed077d6d777502
     md: |-
-      **By RFC 0053 phase 3.** The rule stands — the format is the package's
+      **By S-0053 phase 3.** The rule stands — the format is the package's
       and needs no skill — and its owner moves: the model's loader in
-      `src/torve/config/spec.py` is what every reader consumes (D-53.1), the
-      parser stays beside it with archive awareness (A-140) until phase 5
+      `src/torve/config/spec.py` is what every reader consumes (S-0053/D-1), the
+      parser stays beside it with archive awareness (S-0053/A-1) until phase 5
       deletes it, and the import-linter contract that keeps the format out of
       gates and adapters follows the owner then.
       ```yaml changes
-      - subject: "D-7.12"
+      - subject: "S-0007/D-12"
         field: "text"
         before: "The RFC format is owned by the package; validation does not depend on an installed skill"
-        after: "The RFC format is owned by the package; validation does not depend on an installed skill. From RFC 0053 the owner is the model's loader in `src/torve/config/spec.py`, with the parser in `src/torve/config/rfc_parse.py` beside it until phase 5 deletes it (D-53.13)"
-      - subject: "D-7.12"
+        after: "The RFC format is owned by the package; validation does not depend on an installed skill. From S-0053 the owner is the model's loader in `src/torve/config/spec.py`, with the parser in `src/torve/config/rfc_parse.py` beside it until phase 5 deletes it (S-0053/D-13)"
+      - subject: "S-0007/D-12"
         field: "fingerprint"
         before: null
         after: "5f4218d6a9f7f40e/71ed077d6d777502"
       ```
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

@@ -1,4 +1,4 @@
-"""The decision graph, and the corpus as one importer of it (RFC 0047).
+"""The decision graph, and the corpus as one importer of it (S-0047).
 
 Two halves that meet at a fold. `project` turns the record's source and
 decision events into current state, version history and supersession edges;
@@ -6,22 +6,22 @@ decision events into current state, version history and supersession edges;
 which events the difference calls for. Nothing here writes: the importer
 returns the events and the caller appends them, so a dry run is the same
 comparison with the write skipped and `--check` cannot drift from what a
-real import would do (D-47.5).
+real import would do (S-0047/D-5).
 
 The one distinction worth stating twice, because getting it backwards makes
-every count wrong and the error invisible (D-47.1): a second
+every count wrong and the error invisible (S-0047/D-1): a second
 `decision.recorded` on the same subject is a **new version of that
 decision** — the regrade a corpus amendment performs. `supersedes` names a
 **different** decision that this one replaces. They are different edges in
 the graph and neither expresses the other.
 
 Retirement is recorded, never inferred from a row that stopped appearing
-(D-47.2, A-89). Absence cannot tell a deliberate retirement from a table
+(S-0047/D-2, S-0044/A-6). Absence cannot tell a deliberate retirement from a table
 someone broke, and for a source that is an incident rather than a file it
 means nothing at all.
 
 What this does *not* do: minting. A contract still copies its grades at
-write time from the document a human committed (D-47.3). The paths rule is
+write time from the document a human committed (S-0047/D-3). The paths rule is
 shared with `planner.standing_decisions` rather than reimplemented, so the
 record's answer and the corpus's differ only by staleness — which is a fact
 about when someone last imported, and is what the parity test measures.
@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 
 # What an importer is allowed to say about a corpus document. Draft and
 # superseded documents are never read: their decisions do not stand, which
-# is already the rule at every other reader (D-7.7, D-30.1, D-47.6).
+# is already the rule at every other reader (S-0007/D-7, S-0030/D-1, S-0047/D-6).
 ACCEPTED = "accepted"
 
 
@@ -82,7 +82,7 @@ class DecisionState:
     retired: bool = False
     retired_reason: str = ""
     supersedes: str | None = None
-    consequence: str = ""  # D-54.1: carried since RFC 0054
+    consequence: str = ""  # S-0054/D-1: carried since S-0054
     check: str | None = None
 
 
@@ -132,11 +132,11 @@ class Graph:
 
     def for_paths(self, globs: list[str]) -> list[DecisionState]:
         """The decisions in force whose declared paths cross `globs` — the
-        standing-inheritance rule (RFC 0030 §5.1), from the same
+        standing-inheritance rule (S-0030/standing-inheritance), from the same
         `globs_intersect` that rule calls.
 
         Rows without declared paths are never standing: they govern their
-        own document's work only (D-30.1). Conservative on purpose — a false
+        own document's work only (S-0030/D-1). Conservative on purpose — a false
         inclusion costs a few contract lines, a false exclusion costs the
         silence check.
         """
@@ -200,7 +200,7 @@ def project(events: Iterable[EventRecord]) -> Graph:
                 continue
 
             # Retirement does not add a version — the decision's text and
-            # grade are the ones it retired at (D-47.1).
+            # grade are the ones it retired at (S-0047/D-1).
             history = graph.versions[event.subject_id]
             history[-1] = _retired(standing, str(payload.get("reason", "")))
 
@@ -233,13 +233,13 @@ def _retired(state: DecisionState, reason: str) -> DecisionState:
 @dataclass(frozen=True)
 class PendingEvent:
     """One event an import would append. Returned rather than written so a
-    dry run and a real one are the same comparison (D-47.5)."""
+    dry run and a real one are the same comparison (S-0047/D-5)."""
 
     kind: EventKind
     subject_type: SubjectType
     subject_id: str
     payload: dict[str, Any]
-    # Who the record names (D-57.8): a landing's entries were an agent's
+    # Who the record names (S-0057/D-8): a landing's entries were an agent's
     # and its landing the manager's; the importer replays a carrier, it
     # does not become either.
     actor_kind: ActorKind | None = None
@@ -261,7 +261,7 @@ def corpus_sources(rfc_dir: Path) -> dict[str, Source]:
 
     Importable is accepted and not superseded — the same admission
     `standing_decisions` applies, because a draft's rows were never in force
-    and recording them would date them wrongly (D-47.6).
+    and recording them would date them wrongly (S-0047/D-6).
     """
 
     return {
@@ -275,7 +275,7 @@ def corpus_sources(rfc_dir: Path) -> dict[str, Source]:
 
 
 def load_corpus(rfc_dir: Path) -> Corpus:
-    """The corpus and its archive as the model (D-53.1), with the loader's
+    """The corpus and its archive as the model (S-0053/D-1), with the loader's
     refusals raised as `PlanError` so an import never records a grade
     `torve spec check` would not accept — the same promise the parser-based
     importer made, kept at the same boundary."""
@@ -309,10 +309,10 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
     Raises `PlanError` on a table the corpus's own checker would refuse, so
     an import never records a grade `torve spec check` would not accept.
 
-    Read through the model (D-53.13): a standing document's rows are
-    recorded as before; an archived document (D-53.8) is recorded as a
+    Read through the model (S-0053/D-13): a standing document's rows are
+    recorded as before; an archived document (S-0053/D-8) is recorded as a
     source and every row it carries is retired with the archive named as
-    the reason (D-53.9), so an identifier cited from the archive still
+    the reason (S-0053/D-9), so an identifier cited from the archive still
     resolves in the record.
     """
 
@@ -357,7 +357,7 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
 
     # An archived document: its source is recorded so the archive is a
     # provenance the record knows, and every row it still carries retires
-    # with the archive as the reason (D-53.9). A row already retired stays
+    # with the archive as the reason (S-0053/D-9). A row already retired stays
     # as it was — the first reason is the true one.
     for source_id in sorted(archived_docs):
         doc = archived_docs[source_id]
@@ -401,9 +401,26 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
     retired_where = {
         ident: Path(doc.path).name for doc in corpus.documents for ident in doc.retired if doc.path
     }
+    renumbered = spec.load_mapping(rfc_dir)
 
     for state in graph.current():
-        if state.id in seen or state.source_id not in sources:
+        if state.id in seen:
+            continue
+
+        # S-0058 S-0058/D-2, S-0058/D-9: a subject recorded under the old grammar
+        # retires once, naming what it became; its source did too.
+        if state.id in renumbered and not state.retired:
+            pending.append(
+                PendingEvent(
+                    kind=EventKind.DECISION_RETIRED,
+                    subject_type=SubjectType.DECISION,
+                    subject_id=state.id,
+                    payload={"reason": f"renumbered to {renumbered[state.id]}"},
+                )
+            )
+            continue
+
+        if state.source_id not in sources:
             continue
 
         where = retired_where.get(state.id)
@@ -429,7 +446,7 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
 
 
 def _row_payload(row: Decision, source_id: str) -> dict[str, Any]:
-    """What `decision.recorded` carries (D-54.1): grade, text and paths as
+    """What `decision.recorded` carries (S-0054/D-1): grade, text and paths as
     before, and beside them the consequence and the check, so a reader of
     the record gets the reason and the command the corpus wrote."""
 
@@ -473,7 +490,7 @@ def _governs(globs: list[str], path: str) -> bool:
 
 
 def coverage(corpus: Corpus, path: str) -> Coverage:
-    """One of three for any path (D-53.6): governed — a standing row's
+    """One of three for any path (S-0053/D-6): governed — a standing row's
     paths or an accepted document's phase scope reaches it; retired — only
     archived documents' rows ever did; ungoverned — nothing, which is the
     ratchet's frontier and never a finding."""
@@ -503,7 +520,7 @@ def coverage(corpus: Corpus, path: str) -> Coverage:
 
 @dataclass(frozen=True)
 class RottedRow:
-    """A row whose every glob matches nothing in the tree (D-53.7)."""
+    """A row whose every glob matches nothing in the tree (S-0053/D-7)."""
 
     document: str
     identifier: str
@@ -514,7 +531,7 @@ class RottedRow:
         return (
             f"{self.document}: {self.identifier} ({self.grade}) declares "
             f"{' '.join(self.paths)} and nothing in the tree matches — retire it "
-            f"with `torve spec amend {self.document.removeprefix('S-')} --retire {self.identifier} "
+            f"with `torve spec amend {self.document} --row {self.identifier} --retire "
             "--reason path-rot`"
         )
 
@@ -533,7 +550,7 @@ def path_rot(corpus: Corpus, root: Path) -> list[RottedRow]:
     """Every standing row on an accepted, implemented document whose globs
     all match nothing under *root* — governance that governs nothing. A
     document not yet implemented names areas that do not exist yet, which
-    is intent, not rot (D-32)."""
+    is intent, not rot (S-0001/D-32)."""
 
     rotted: list[RottedRow] = []
 
@@ -567,7 +584,7 @@ def fingerprint_drift(corpus: Corpus) -> tuple[list[str], list[str]]:
     """(problems, warnings) over every row the tool has ever stamped: a
     grade or paths change by hand is a problem — a row with no history —
     and a text-only change is editorial drift, a warning that names the
-    verb that re-stamps it (D-53.4). A row never stamped is not compared:
+    verb that re-stamps it (S-0053/D-4). A row never stamped is not compared:
     the corpus's existing rows have no recorded change to differ from."""
 
     problems: list[str] = []
@@ -607,7 +624,7 @@ def fingerprint_drift(corpus: Corpus) -> tuple[list[str], list[str]]:
 
 async def load(log: EventLog, *, partition: str) -> Graph:
     """The partition's decision graph, read by subject type rather than by
-    folding its whole execution history (D-47.7)."""
+    folding its whole execution history (S-0047/D-7)."""
 
     sources = await log.of_subject_type(SubjectType.SOURCE, partition=partition)
     decisions = await log.of_subject_type(SubjectType.DECISION, partition=partition)
@@ -628,7 +645,7 @@ async def record_all(
 ) -> int:
     """Append what an import decided, in order. The authority table refuses
     an actor that may not write these kinds before any store sees the write
-    (D-44.2) — an agent importing a corpus is not a thing that happens."""
+    (S-0044/D-2) — an agent importing a corpus is not a thing that happens."""
 
     count = 0
 
@@ -662,9 +679,9 @@ def land(
     entries: list[dict[str, Any]] | None = None,
 ) -> Path:
     """The landing appended to the execution file of the document the
-    contract names (RFC 0057 D-57.7) — here rather than in `divergence`,
+    contract names (S-0057 S-0057/D-7) — here rather than in `divergence`,
     which the agent harness imports and which therefore may not reach the
-    corpus (the planner-boundary contract, 0015 A-19): the task, its phase and attempt,
+    corpus (the planner-boundary contract, 0015 S-0015/A-1): the task, its phase and attempt,
     when and by whom, the commit when the lander knows it, and the log's
     entries — the worktree's log by default, or the entries given (the
     record's, read by `torve log land --partition`). Staged, so the commit
@@ -717,7 +734,7 @@ def land(
 def landing_events(
     corpus: Corpus, recorded: Mapping[str, Sequence[EventRecord]]
 ) -> list[PendingEvent]:
-    """RFC 0057 D-57.8: the divergence and landing events every execution
+    """S-0057 S-0057/D-8: the divergence and landing events every execution
     file holds — live and archived alike — and the record lacks, so a clone
     without a store rebuilds the same record from the tree. *recorded* is
     each landed task's history; an entry is known by its attempt, row and

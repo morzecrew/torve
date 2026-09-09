@@ -1,5 +1,5 @@
-"""`torve migrate` — parsing and rendering only (D-15.6); the histories live
-in `torve.application.migrate` (RFC 0012: owner-grouped, forward-only).
+"""`torve migrate` — parsing and rendering only (S-0015/D-6); the histories live
+in `torve.application.migrate` (S-0012: owner-grouped, forward-only).
 """
 
 from __future__ import annotations

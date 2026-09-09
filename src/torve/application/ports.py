@@ -1,4 +1,4 @@
-"""The runner's ports (RFC 0001 §5, RFC 0003): Workspace, Runtime, Agent, and
+"""The runner's ports (S-0001/ports, S-0003): Workspace, Runtime, Agent, and
 the minimal Vcs/Scm pair. Abstract what is replaced wholesale; the state
 machine, gate ordering and escalation vocabulary stay above these seams.
 
@@ -8,9 +8,9 @@ server-side runtime syncs it), and after `sync_out` the host-side workspace
 holds whatever the sandbox produced. The conformance battery asserts the
 contract, not the mechanism.
 
-Credentials never enter a spec's env from here (D-4b): adapters receive names
+Credentials never enter a spec's env from here (S-0001/D-13): adapters receive names
 of things, not secrets, and outbound credentials are the vault's job
-(RFC 0003 §4.1).
+(S-0003/runtime).
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 # Opens the durable run store for a given configuration. The adapters provide
 # the real one; the loop and the reaper receive it injected, never imported
-# (RFC 0015 §2.1: application does not import adapters).
+# (S-0015/permitted-imports: application does not import adapters).
 StoreFactory = Callable[["StoreConfig"], Awaitable["DurableRunStorePort"]]
 
 # The standard proxy convention: a sandbox on the host's egress path must see
@@ -50,17 +50,17 @@ class SandboxSpec:
     name: str
     image: str
     labels: dict[str, str]
-    timeout_s: float  # platform-enforced lifecycle bound (RFC 0003 §4.1)
+    timeout_s: float  # platform-enforced lifecycle bound (S-0003/runtime)
     env: dict[str, str] = field(default_factory=dict)
     workdir: str = "/work"
     # Names of variables the runtime forwards from its own environment — the
-    # value never enters the spec (D-4b), the runtime is the boundary.
+    # value never enters the spec (S-0001/D-13), the runtime is the boundary.
     env_passthrough: tuple[str, ...] = ()
     # Named auth volume -> mount path, read-write because token refresh
-    # writes (RFC 0004 §2, D-4.2). One per worker slot, never the host
+    # writes (S-0004/subscription-authentication, S-0004/D-2). One per worker slot, never the host
     # config directory.
     volumes: dict[str, str] = field(default_factory=dict)
-    # A reviewer physically cannot fix-and-approve (RFC 0005 §2, D-5.2):
+    # A reviewer physically cannot fix-and-approve (S-0005/what-makes-review-independent-rather-than-ceremonial, S-0005/D-2):
     # the workspace bind mounts read-only. Host-side writes (the staged
     # prompt, the trace) stay visible through the mount.
     workspace_read_only: bool = False
@@ -119,7 +119,7 @@ class Runtime(Protocol):
 
     def resolve_image(self, image: str) -> str | None:
         """The image's content digest, or None when this runtime cannot
-        resolve the reference (RFC 0017 §2, D-17.1: the digest is the
+        resolve the reference (S-0017/the-image-is-an-input-not-an-environment, S-0017/D-1: the digest is the
         identity; an unresolved image is recorded as unresolved, never
         invented)."""
 
@@ -128,7 +128,7 @@ class Runtime(Protocol):
     def build_image(self, context: Path, tag: str) -> str:
         """Build the definition at *context* under *tag* and return the
         digest. An operator action invoked by `torve sandbox build` only —
-        the engine never builds mid-run (D-17.3)."""
+        the engine never builds mid-run (S-0017/D-3)."""
 
         ...
 
@@ -156,15 +156,15 @@ class AgentContext:
     runtime: Runtime
     workdir: str
     timeout_s: float
-    # Context composition is the runner's (D-3.19): when the runner hands a
+    # Context composition is the runner's (S-0003/D-19): when the runner hands a
     # composed prompt — the review input, assembled without the author's
-    # trace (D-5.3) — the adapter stages it verbatim instead of building one.
+    # trace (S-0005/D-3) — the adapter stages it verbatim instead of building one.
     prompt: str | None = None
-    # The run's broker handle (RFC 0021 §5.1): a base URL per routed
+    # The run's broker handle (S-0021/the-port): a base URL per routed
     # provider and the run-scoped token, substituted into the tier command.
     # None when no broker adapter is in force.
     broker: BrokerHandle | None = None
-    # Continuation (RFC 0026 D-26.8/9): the previous attempt ended on budget
+    # Continuation (S-0026 S-0026/D-8/9): the previous attempt ended on budget
     # exhaustion and this worktree was cut from its own candidate tip rather
     # than base. The agent-facing prompt names this plainly; nothing else in
     # the loop branches on it.
@@ -179,9 +179,9 @@ class AgentResult:
     exit_code: int | None
     output: str
 
-    # None of these can be reconstructed after the fact (RFC 0004 §6):
+    # None of these can be reconstructed after the fact (S-0004/telemetry-staged):
     # model_version is whatever version string the provider returned — None
-    # marks an uncontrolled regime (D-4.6); trace_ref turns escalation triage
+    # marks an uncontrolled regime (S-0004/D-6); trace_ref turns escalation triage
     # from archaeology into replay (§4). A trace is never gate evidence.
     cost_usd: float | None = None
     model_version: str | None = None
@@ -200,7 +200,7 @@ class AgentResult:
 class Agent(Protocol):
     # Which adapter this is ("fake", "api", "harness", "subscription") — the
     # telemetry records what actually ran, not what the tier configured
-    # (RFC 0004 §6: an --agent fake override must not masquerade as a model).
+    # (S-0004/telemetry-staged: an --agent fake override must not masquerade as a model).
     kind: str
 
     def run(self, ctx: AgentContext) -> AgentResult: ...
@@ -211,14 +211,14 @@ class Agent(Protocol):
 
 @dataclass(frozen=True)
 class BrokerRoute:
-    """One routed provider (RFC 0021 §5): the wire destination and the name
+    """One routed provider (S-0021): the wire destination and the name
     of the environment variable holding the key in the broker's own
-    environment — names, never values (D-4b)."""
+    environment — names, never values (S-0001/D-13)."""
 
     provider: str
     upstream: str  # the provider's real base URL
     key_env: str  # env var name; the value lives only in the broker's process
-    via_proxy: bool = False  # A-70: the broker tunnels this upstream through https_proxy
+    via_proxy: bool = False  # S-0021/A-1: the broker tunnels this upstream through https_proxy
 
 
 # ....................... #
@@ -226,7 +226,7 @@ class BrokerRoute:
 
 @dataclass(frozen=True)
 class BrokerRouting:
-    """The run's routing (RFC 0021 §5.4, D-21.4): every provider this run's
+    """The run's routing (S-0021/metering-and-the-number-the-subject-did-not-write, S-0021/D-4): every provider this run's
     agents may use, dispatch-checked before the broker opens. The broker
     exposes one loopback route per routed provider and refuses anything
     else at the wire."""
@@ -242,7 +242,7 @@ class BrokerRouting:
 
 @dataclass(frozen=True)
 class BrokerBudget:
-    """The run's token bound (RFC 0021 §5.4): the task contract's
+    """The run's token bound (S-0021/metering-and-the-number-the-subject-did-not-write): the task contract's
     `budget.tokens`, held by the broker and enforced mid-run — requests past
     it are refused and the run escalates `cost_anomaly`. None is unbounded."""
 
@@ -254,14 +254,14 @@ class BrokerBudget:
 
 @dataclass(frozen=True)
 class BrokerHandle:
-    """What the sandbox needs and nothing else (RFC 0021 §5.1): a base URL
+    """What the sandbox needs and nothing else (S-0021/the-port): a base URL
     per routed provider and a per-run bearer token the broker issued and
     revokes at close. Both are operator non-secret knobs — they ride the
-    tier command inline (RFC 0017 §3), never a spec env."""
+    tier command inline (S-0017/configuration-routes-by-nature), never a spec env."""
 
     token: str
     base_urls: dict[str, str] = field(default_factory=dict)
-    # The intake route's base URL (RFC 0045 §5.2), empty when the run has no
+    # The intake route's base URL (S-0045/the-intake-route), empty when the run has no
     # channel. The same server and the same token: what separates this from
     # a provider route is the path, and what separates it from a store
     # credential is that the sandbox can only ask, never write directly.
@@ -276,7 +276,7 @@ class BrokerHandle:
 
 @dataclass(frozen=True)
 class BrokerUsage:
-    """Counts and metadata only (D-21.7): request count, token counts per
+    """Counts and metadata only (S-0021/D-7): request count, token counts per
     provider where the provider reports them, wall time, refusals by cause,
     the broker's measured cost where the provider reports one, and which
     providers were refused for routing. The broker never keeps request or
@@ -295,11 +295,11 @@ class BrokerUsage:
 
 @dataclass(frozen=True)
 class BurnEvent:
-    """One metered provider response (RFC 0045 §5.1): the provider's own
+    """One metered provider response (S-0045/liveness-is-the-burn-stream): the provider's own
     numbers, as the wire reported them. Emitted per call rather than summed
     at close, because a rate is the form the question "is this attempt
     working?" is actually asked in — and an attempt with no recent burn is
-    not working, whatever it would say about itself (D-45.4)."""
+    not working, whatever it would say about itself (S-0045/D-4)."""
 
     provider: str
     tokens: int
@@ -318,7 +318,7 @@ BurnSink = Callable[[BurnEvent], None]
 @dataclass(frozen=True)
 class AttemptFact:
     """One thing that became true inside a run, carried out at the moment it
-    did (RFC 0044 D-44.3).
+    did (S-0044 S-0044/D-3).
 
     The runner loops attempts internally: one dispatch can be three attempts
     under three tiers with three gate verdicts. Summarising that afterwards
@@ -342,7 +342,7 @@ AttemptSink = Callable[[AttemptFact], None]
 
 # Called host-side between an attempt and the gate pass that judges it: it
 # records whatever the attempt wrote into the system of record and rewrites
-# the worktree's log from what the record then holds (RFC 0044 A-82). Unlike
+# the worktree's log from what the record then holds (S-0044 S-0044/A-3). Unlike
 # the sinks above this one may raise and may block — the gate is fail-closed,
 # and a battery that cannot verify what it is judging must not run.
 JournalSync = Callable[[Path], None]
@@ -352,13 +352,13 @@ JournalSync = Callable[[Path], None]
 
 
 class RunChannel(Protocol):
-    """The run's own route into the system of record (RFC 0045 §5.2).
+    """The run's own route into the system of record (S-0045/the-intake-route).
 
     Built host-side for one run and handed to the broker, which is why
     identity cannot be forged: the channel already knows whose run it is, so
     a request never states its actor, partition or subject and could not be
-    believed if it did (D-45.2). The broker calls this on behalf of a
-    sandbox that holds no store credential of its own (D-45.1).
+    believed if it did (S-0045/D-2). The broker calls this on behalf of a
+    sandbox that holds no store credential of its own (S-0045/D-1).
     """
 
     def record(self, kind: str, payload: dict[str, Any]) -> None:
@@ -368,7 +368,7 @@ class RunChannel(Protocol):
         ...
 
     def notes(self) -> list[dict[str, Any]]:
-        """The notes addressed to this run, oldest first (D-45.7). A poll —
+        """The notes addressed to this run, oldest first (S-0045/D-7). A poll —
         nothing here interrupts an agent."""
 
         ...
@@ -387,7 +387,7 @@ class RunChannel(Protocol):
 
 
 class Broker(Protocol):
-    """The egress broker port (RFC 0021 §5.1): holds every provider
+    """The egress broker port (S-0021/the-port): holds every provider
     credential the run needs, exposes one loopback route per routed
     provider, injects the key and meters at the wire, and refuses requests
     past the run's budget. Adapters: `local` (a reverse proxy the runner
@@ -396,7 +396,7 @@ class Broker(Protocol):
     `none` (today's behaviour, named explicitly).
 
     The handle's fields reach the sandbox through the tier command — the
-    channel RFC 0017 §3 assigns to operator non-secret knobs."""
+    channel S-0017/configuration-routes-by-nature assigns to operator non-secret knobs."""
 
     name: str  # "local" | "opensandbox" | "none"
 
@@ -411,7 +411,7 @@ class Broker(Protocol):
 
     def usage(self, handle: BrokerHandle) -> BrokerUsage:
         """Live counters, mid-run: the runner reads them to escalate
-        `cost_anomaly` while the run is still in progress (D-21.6)."""
+        `cost_anomaly` while the run is still in progress (S-0021/D-6)."""
 
         ...
 
@@ -422,10 +422,10 @@ class Broker(Protocol):
 
 
 class Vcs(Protocol):
-    """Local git at the runner boundary (RFC 0010 §2): the agent produces a
+    """Local git at the runner boundary (S-0010/two-ports-deliberately-separate): the agent produces a
     tree, the runner produces the commit — author is the agent identity,
     committer is Torve, and the signing key, when configured, never enters
-    a sandbox (D-10.3)."""
+    a sandbox (S-0010/D-3)."""
 
     def commit_all(
         self, worktree: Path, message: str, author: str | None = None, sign_key: str | None = None
@@ -448,7 +448,7 @@ class Vcs(Protocol):
 
 
 class LaneVcs(Protocol):
-    """The serialized lane's git surface (RFC 0006 §1): ancestry questions,
+    """The serialized lane's git surface (S-0006/the-correction-this-document-exists-for): ancestry questions,
     a rebase in a disposable worktree, and the fast-forward landing. The
     lane never resolves a conflict — a conflicted rebase aborts."""
 
@@ -487,7 +487,7 @@ class Scm(Protocol):
 
 @dataclass
 class PrInfo:
-    """One pull request as the forge reports it (RFC 0005 §4): enough to
+    """One pull request as the forge reports it (S-0005/triggers): enough to
     apply the skip rules and locate the head, nothing more."""
 
     number: int
@@ -504,7 +504,7 @@ class PrInfo:
 
 
 class PrScm(Protocol):
-    """The PR-review trigger's forge surface (RFC 0005 §4, D-5.2): the
+    """The PR-review trigger's forge surface (S-0005/triggers, S-0005/D-2): the
     runner reads the pull request and posts the findings comment; the
     reviewer itself never holds a forge credential."""
 
@@ -538,7 +538,7 @@ class PrVcs(Protocol):
 
 
 class CiStatus(Protocol):
-    """The remote's CI verdict for one commit (RFC 0006 §3): the lane's
+    """The remote's CI verdict for one commit (S-0006/promotion): the lane's
     `ci: green_on_current_head` requirement consults this before landing.
     The adapter owns the polling — backoff against a lightweight endpoint,
     because the rate budget is shared with the agents (§1) — and returns a
@@ -554,13 +554,13 @@ class CiStatus(Protocol):
 
 @dataclass(frozen=True)
 class Notification:
-    """One escalation, addressed (RFC 0051 §5.3).
+    """One escalation, addressed (S-0051/the-port).
 
     Composed from records and from nothing else: the reason and detail are
     what the escalation recorded, never a finding's own words, because the
     engine does not judge what a finding said. `event_id` is the
     escalation's own, which is what makes this a delivery *of* something
-    and what a destination dedups on (D-51.6).
+    and what a destination dedups on (S-0051/D-6).
     """
 
     task_id: str
@@ -577,7 +577,7 @@ class Notification:
 
 class TransientDelivery(RuntimeError):
     """The destination might take this later — a timeout, a 5xx, a refused
-    connection. Recorded nowhere and retried on the next pass (D-51.6); a
+    connection. Recorded nowhere and retried on the next pass (S-0051/D-6); a
     refusal a retry will not fix raises RuntimeError instead."""
 
 
@@ -585,7 +585,7 @@ class TransientDelivery(RuntimeError):
 
 
 class Notifier(Protocol):
-    """One destination for a notification (RFC 0051 D-51.3).
+    """One destination for a notification (S-0051 S-0051/D-3).
 
     The domain never names a destination: webhook, email or pager is an
     adapter behind this, and adding one is a wiring edit. `deliver` returns

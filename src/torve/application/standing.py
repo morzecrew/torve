@@ -1,21 +1,21 @@
-"""Standing maintenance (RFC 0023): a committed contract under
+"""Standing maintenance (S-0023): a committed contract under
 `.torve/standing/`, a deterministic trigger the tick evaluates with no
-agent — exit code or digest comparison as the answer (D-23.2) — and
-instantiation through RFC 0020 §5.3's adoption path, unchanged (D-23.4).
+agent — exit code or digest comparison as the answer (S-0023/D-2) — and
+instantiation through S-0020/adoption's adoption path, unchanged (S-0023/D-4).
 The tick never decides that work exists; it recognises a condition a
 human already committed an answer to. Any predicate outcome that is not a
-clean verdict mints nothing (D-23.3): the leg fails closed toward not
+clean verdict mints nothing (S-0023/D-3): the leg fails closed toward not
 creating work.
 
 Phase 2 (T-0102) adds the `command` predicate's sibling — `path-digest`,
 a content digest compared against the digest recorded at the job's last
-firing, due when it differs — and the fourth of D-23.6's bounds:
-self-disable after `strike_limit` consecutive non-landings. D-23.6's
+firing, due when it differs — and the fourth of S-0023/D-6's bounds:
+self-disable after `strike_limit` consecutive non-landings. S-0023/D-6's
 config knob (`standing.strike_limit`) was assigned to
 `src/torve/config/runconfig.py`, which sits outside this phase's own
 scope (both the RFC's phasing block and this task's minted contract
 restrict it to this file, `.torve/standing/**` and `tests/**`) — departed
-per D-23.6 (ASSUMED) to a per-job `strike_limit` field on
+per S-0023/D-6 (ASSUMED) to a per-job `strike_limit` field on
 `StandingContract` instead, logged in this task's `log.yaml`.
 """
 
@@ -53,7 +53,7 @@ _SANDBOX_UNSAFE = re.compile(r"[^a-z0-9_.-]")
 
 
 class Trigger(BaseModel):
-    """One predicate (D-23.8, A-68): `command` runs a shell line in the
+    """One predicate (S-0023/D-8, S-0023/A-1): `command` runs a shell line in the
     sandbox, exit code as the answer; `path-digest` digests every file
     `paths` reaches (gitwildmatch, the same dialect `Scope.allow` uses) and
     is due when that digest differs from the one recorded at the job's last
@@ -91,9 +91,9 @@ class Trigger(BaseModel):
 
 
 class StandingContract(BaseModel):
-    """One recurring job (RFC 0023 §5.1): a task contract minus its id,
+    """One recurring job (S-0023/the-standing-contract): a task contract minus its id,
     with a trigger where a phasing block would be. `name` keys the bounds
-    below across firings, so two files must never share one (D-23.5's
+    below across firings, so two files must never share one (S-0023/D-5's
     comparability depends on it)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -105,10 +105,10 @@ class StandingContract(BaseModel):
     decisions_from: str | None = None
     cooldown_hours: float = 0.0
     max_open: int = 1
-    # D-23.6's fourth bound: self-disable after this many consecutive
-    # non-landings. RFC 0023 names it as a global `standing.strike_limit`
+    # S-0023/D-6's fourth bound: self-disable after this many consecutive
+    # non-landings. S-0023 names it as a global `standing.strike_limit`
     # default; this phase's scope excludes src/torve/config/runconfig.py,
-    # so it lives here instead, per job (departed, D-23.6, see log.yaml).
+    # so it lives here instead, per job (departed, S-0023/D-6, see log.yaml).
     strike_limit: int = 3
 
     # ....................... #
@@ -134,7 +134,7 @@ class StandingContract(BaseModel):
 
 
 class PredicateError(RuntimeError):
-    """A predicate outcome that is not a clean exit code (D-23.3): the
+    """A predicate outcome that is not a clean exit code (S-0023/D-3): the
     caller mints nothing and records an engine event — never a quiet
     'not due'."""
 
@@ -143,8 +143,8 @@ class PredicateError(RuntimeError):
 
 
 def load_standing_contracts(root: Path) -> tuple[list[StandingContract], list[str]]:
-    """Every committed job under `.torve/standing/` (D-23.1), or none — an
-    empty or absent directory is off, not misconfigured (D-23.7)."""
+    """Every committed job under `.torve/standing/` (S-0023/D-1), or none — an
+    empty or absent directory is off, not misconfigured (S-0023/D-7)."""
 
     directory = layout.standing_dir(root)
 
@@ -177,7 +177,7 @@ def load_standing_contracts(root: Path) -> tuple[list[StandingContract], list[st
     if len(set(names)) != len(names):
         errors.append(
             "duplicate standing job name(s) — each name must be unique "
-            "across .torve/standing/ (D-23.5's comparability depends on it)"
+            "across .torve/standing/ (S-0023/D-5's comparability depends on it)"
         )
 
     return jobs, errors
@@ -187,7 +187,7 @@ def load_standing_contracts(root: Path) -> tuple[list[StandingContract], list[st
 
 
 def lint_job_body(root: Path, job: StandingContract) -> list[str]:
-    """RFC 0020's contract lint, unchanged (D-23.9): the body below
+    """S-0020's contract lint, unchanged (S-0023/D-9): the body below
     `trigger` is exactly a task contract minus its id, checked the same
     way a drafted contract is before a human ever sees it."""
 
@@ -225,7 +225,7 @@ def _path_digest(root: Path, patterns: list[str]) -> str:
 
 def _flake_over_threshold(root: Path, threshold: int) -> bool:
     """Any gate command whose accumulated `flaky_count_by_command` reaches
-    *threshold* and is not already quarantined in the gate manifest (A-68):
+    *threshold* and is not already quarantined in the gate manifest (S-0023/A-1):
     read with the engine's own parsers — the manifest loader and the
     telemetry stream — never a regex over YAML."""
 
@@ -268,11 +268,11 @@ def _flake_over_threshold(root: Path, threshold: int) -> bool:
 def evaluate_predicate(
     job: StandingContract, root: Path, config: RunnerConfig, runtime: Runtime
 ) -> bool:
-    """True when due (D-23.2): a sandbox and an exit code for `command`; a
+    """True when due (S-0023/D-2): a sandbox and an exit code for `command`; a
     content digest compared against the last firing's, no sandbox needed,
     for `path-digest` — both read only committed inputs, no model, no
     network. Anything a `command` predicate cannot cleanly exit is a
-    PredicateError (D-23.3), never invented as 'not due'."""
+    PredicateError (S-0023/D-3), never invented as 'not due'."""
 
     if job.trigger.kind == "path-digest":
         current = _path_digest(root, job.trigger.paths)
@@ -314,18 +314,16 @@ def evaluate_predicate(
 
 
 def _resolve_rfc_path(root: Path, config: RunnerConfig, identifier: str) -> str:
-    """`decisions_from` names an RFC id (RFC 0023 §5.1's `"0012"`), resolved
+    """`decisions_from` names an RFC id (S-0023/the-standing-contract's `"0012"`), resolved
     the same way `torve plan` resolves one — `inherit_decisions` (reached
     through adoption) reads a path, not a bare number."""
 
     from torve.config import spec
 
-    files = spec.document_dirs(root / config.specs.path)
-    number = identifier.strip().removesuffix(".yaml").removesuffix(".md")
-    found = files.get(number)
+    found = spec.document_dir(root / config.specs.path, identifier)
 
     if found is None:
-        raise ValueError(f"no RFC {identifier!r} under {config.specs.path}")
+        raise ValueError(f"no document {identifier!r} under {config.specs.path}")
 
     return str(found.resolve().relative_to(root.resolve()))
 
@@ -334,11 +332,11 @@ def _resolve_rfc_path(root: Path, config: RunnerConfig, identifier: str) -> str:
 
 
 def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
-    """RFC 0020 §5.3's adoption path, unchanged (D-23.4): a scratch drafts
+    """S-0020/adoption's adoption path, unchanged (S-0023/D-4): a scratch drafts
     file carries the job's fixed body through `intake.adopt`, so id
     assignment, the commit and `inherit_decisions` all run through the one
     path that already closes the id race under the tick lock. The new
-    instance's sidecar records its origin (D-23.10)."""
+    instance's sidecar records its origin (S-0023/D-10)."""
 
     from torve.application.intake import adopt, drafts_file
 
@@ -370,7 +368,7 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
         encoding="utf-8",
     )
 
-    # The tick that calls this leg already holds the lock (D-19.2); adopt's
+    # The tick that calls this leg already holds the lock (S-0019/D-2); adopt's
     # own acquire would deadlock against it.
     try:
         (new_id,) = adopt(root, scratch, config, assume_lock=True)
@@ -409,7 +407,7 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
 
 def _job_instances(root: Path, name: str) -> list[tuple[str, datetime, dict[str, Any]]]:
     """(task_id, fired_at, sidecar record) for every instance this job has
-    minted. The sidecar `standing.json` is the firing ledger (D-23.11,
+    minted. The sidecar `standing.json` is the firing ledger (S-0023/D-11,
     decided): it sits under `.torve/tasks/`, an engine record exempt from
     the lane's dirty-tree check exactly like a minted contract, so
     cooldown, max_open and the path-digest baseline never depend on
@@ -467,7 +465,7 @@ def _consecutive_non_landings(
     instances: list[tuple[str, datetime, dict[str, Any]]],
     landed: Callable[[str], bool],
 ) -> int:
-    """D-23.6's fourth bound: the trailing streak of instances that
+    """S-0023/D-6's fourth bound: the trailing streak of instances that
     concluded without landing. Walked newest-first — a landing ends the
     streak (the job is healthy again), an abandoned instance extends it,
     and an instance still open has not concluded either way, so it is
@@ -495,9 +493,9 @@ def _open_count(
     instances: list[tuple[str, datetime, dict[str, Any]]],
     landed: Callable[[str], bool],
 ) -> int:
-    """Instances neither landed nor abandoned (D-23.11, decided): an
+    """Instances neither landed nor abandoned (S-0023/D-11, decided): an
     escalated instance is unresolved work and counts toward `max_open` —
-    the reading RFC 0023's unresolved question favoured."""
+    the reading S-0023's unresolved question favoured."""
 
     count = 0
 
@@ -524,10 +522,10 @@ def standing_leg(
     runtime: Runtime,
     landed: Callable[[str], bool],
 ) -> tuple[str, bool]:
-    """The tick's standing leg (RFC 0023 §5.4): evaluate every committed
+    """The tick's standing leg (S-0023/bounds-because-this-is-the-leg-that-can-grow): evaluate every committed
     job's predicate and mint at most `loop.standing_max_per_tick`
     instances, each bounded by its own cooldown, max_open and strike
-    limit. The escalation pause (D-23.6's first bound) is the caller's
+    limit. The escalation pause (S-0023/D-6's first bound) is the caller's
     job — `run_tick` calls this leg from inside the same conditional that
     gates dispatch, so a paused tick evaluates no predicate at all."""
 
@@ -590,12 +588,12 @@ def standing_leg(
             fired.append(f"{job.name}->{instantiate(root, job, config)}")
 
         except ValueError as exc:
-            # D-23.3's rule, one step later than it was written: the leg
+            # S-0023/D-3's rule, one step later than it was written: the leg
             # fails closed toward not creating work, and an instantiation
             # a human would have to fix is exactly that. Found live — a job
             # whose body crosses four documents' locked decisions is
-            # refused by the threshold (RFC 0030), and the refusal used to
-            # leave the manager's whole pass dead (A-128).
+            # refused by the threshold (S-0030), and the refusal used to
+            # leave the manager's whole pass dead (S-0044/A-11).
             engine_event(root, "standing_instantiate_refused", {"job": job.name, "error": str(exc)})
             errors.append(f"{job.name}: {exc}")
 

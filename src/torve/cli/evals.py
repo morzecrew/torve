@@ -1,10 +1,10 @@
-"""`torve eval` — the RFC 0009 §5 eval loop: parsing and rendering only
-(D-15.6); the arms live in `torve.application.evals` over the shadow
-machinery (RFC 0004 §5 — nothing merges, D-4.4). Exit codes follow the
+"""`torve eval` — the S-0009/evals eval loop: parsing and rendering only
+(S-0015/D-6); the arms live in `torve.application.evals` over the shadow
+machinery (S-0004/shadow-runs — nothing merges, S-0004/D-4). Exit codes follow the
 shadow doctrine: a completed eval exits 0 whatever the arms measured, 3
 is a configuration problem, 4 an infrastructure failure. The paired
-configuration eval takes the candidate arm's override — an image (RFC 0027
-D-27.7) or a tier variant (RFC 0034 D-34.10) — and both arms run the agent
+configuration eval takes the candidate arm's override — an image (S-0027
+S-0027/D-7) or a tier variant (S-0034 S-0034/D-10) — and both arms run the agent
 their own configuration resolves, through the CLI's factory.
 """
 
@@ -158,7 +158,7 @@ def eval_cmd(
             assert tier is not None
             # Refuse before any spend: the candidate config validates the
             # override — an image or variant the seat already resolves, an
-            # unknown variant, or a combined override (D-27.7, D-34.10).
+            # unknown variant, or a combined override (S-0027/D-7, S-0034/D-10).
             candidate = candidate_config(config, tier, image=image, variant=variant)
             incumbent_agent = build_tier_agent(config, root, tier)
             candidate_agent = build_tier_agent(candidate, root, tier)
@@ -176,7 +176,7 @@ def eval_cmd(
     # keeps the seat's, the candidate arm builds its own from the resolved
     # override through the CLI's factory — a candidate differing in model,
     # command, adapter or image runs as itself in every respect, never as
-    # the incumbent's agent under a candidate label (D-34.10).
+    # the incumbent's agent under a candidate label (S-0034/D-10).
     deps = RunDeps(
         workspace=GitWorkspace(root),
         runtime=runtime_for(config, None),
@@ -249,7 +249,7 @@ def eval_cmd(
         if record["baseline_matched"] is None:
             # Nothing was compared, and saying "baseline matched" here is how
             # a skill gets deleted on the evidence of a replay that measured
-            # nothing (A-125).
+            # nothing (S-0009/A-5).
             why = (
                 "the seat is a fake adapter, so no model ran"
                 if record.get("simulated")

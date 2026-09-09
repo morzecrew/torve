@@ -1,7 +1,7 @@
-"""RFC 0004 phase 2: shadow runs. The load-bearing property is D-4.7 — a
+"""S-0004 phase 2: shadow runs. The load-bearing property is S-0004/D-7 — a
 shadow workspace holds truncated history and no refs beyond the replayed
 task's parent, so the agent cannot read the answer out of the repository's
-future — and D-4.4's "never merging" is a construction fact: the landing hook
+future — and S-0004/D-4's "never merging" is a construction fact: the landing hook
 records prose, no vcs call exists on the shadow path."""
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from torve.gates.context import load_task
 from torve.gates.sabotage import TASK_ID, base_task
 
 # ----------------------- #
-# The truncated clone (D-4.7)
+# The truncated clone (S-0004/D-7)
 
 
 def scratch_history(tmp_path):
@@ -287,7 +287,7 @@ def test_shadow_without_a_findable_commit_exits_3(tmp_path):
 
 
 # ....................... #
-# The warm-state exclusion (D-35.3): a tier's `cache_volume` is ignored
+# The warm-state exclusion (S-0035/D-3): a tier's `cache_volume` is ignored
 # under `shadow=True` — the replay measures the cold truth, and an eval
 # comparing arms never compares caches.
 

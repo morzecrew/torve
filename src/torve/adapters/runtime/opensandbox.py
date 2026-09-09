@@ -1,6 +1,6 @@
-"""Runtime port over OpenSandbox (D-3.3) — the platform the RFCs adopt for
+"""Runtime port over OpenSandbox (S-0003/D-3) — the platform the RFCs adopt for
 its credential vault, per-sandbox egress control, strong isolation options and
-platform-enforced timeout (RFC 0003 §4.1).
+platform-enforced timeout (S-0003/runtime).
 
 OpenSandbox is a server with a files/commands API and no bind mounts, so this
 adapter satisfies the "workspace in, changed files out" contract by syncing:
@@ -28,16 +28,16 @@ tests/opensandbox_stub.py), against the Docker daemon for the twin
 adapter, and — when TORVE_OPENSANDBOX_TEST_DOMAIN names a server —
 against that real one, where the two assertions the stub cannot vouch for
 join the contract: platform timeout collecting a sandbox, and label-scoped
-enumeration with destroy-by-id across connections (RFC 0041 §5.1). A
+enumeration with destroy-by-id across connections (S-0041/live-conformance). A
 live/stub disagreement is a stub defect, never a relaxed assertion.
 
 Both legs of the sync round trip book their bytes and seconds to the
-attempt's transfer ledger (RFC 0041 §5.3) — the seed at `create`, the pipe
+attempt's transfer ledger (S-0041/the-transfer-measured) — the seed at `create`, the pipe
 at `sync_out` — so the remote tax is a measured number before anyone
 optimizes it.
 
 Under remote endpoint mode (`broker.bind`, optionally `broker.advertise` —
-RFC 0041 §5.4) the sandbox's proxy env is composed from the broker's
+S-0041/the-broker-reachable) the sandbox's proxy env is composed from the broker's
 advertised address instead of forwarded from the runner: the host's loopback
 and bridge-gateway addresses mean nothing to a sandbox on another machine,
 so the configured address takes the derivation's place, the broker itself
@@ -189,8 +189,8 @@ class OpenSandboxRuntime:
         self, config: OpenSandboxConfig, sdk: Any | None = None, docker_mode: str = ""
     ) -> None:
         if docker_mode:
-            # RFC 0017 §2a, D-17.10: the refusal stands — the live-server
-            # integration (RFC 0041) weighed it and kept docker-in-sandbox a
+            # S-0017/docker-inside-the-sandbox, S-0017/D-10: the refusal stands — the live-server
+            # integration (S-0041) weighed it and kept docker-in-sandbox a
             # non-goal; a battery driving containers uses the Docker runtime.
             raise ValueError(
                 "the opensandbox runtime refuses docker access in any mode — "
@@ -216,7 +216,7 @@ class OpenSandboxRuntime:
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
         if CACHE_MOUNT in spec.volumes.values():
-            # D-35.5: refused loudly until a server-side analog exists —
+            # S-0035/D-5: refused loudly until a server-side analog exists —
             # never a quiet cold fallback, which would let a run measure a
             # different regime than the tier configured.
             raise RuntimeError(
@@ -230,8 +230,8 @@ class OpenSandboxRuntime:
         if spec.volumes:
             raise RuntimeError(
                 "OpenSandbox has no per-slot auth volumes — subscription adapters "
-                "need the Docker runtime (D-4.2); OpenSandbox credentials belong "
-                "to its vault (RFC 0003 §4.1)"
+                "need the Docker runtime (S-0004/D-2); OpenSandbox credentials belong "
+                "to its vault (S-0003/runtime)"
             )
 
         # Passthrough resolves here, at the API boundary — the last host-side
@@ -266,7 +266,7 @@ class OpenSandboxRuntime:
             metadata={**spec.labels, "torve.name": spec.name},
         )
 
-        # The seed leg, timed and counted (D-41.5): host-side tar, the
+        # The seed leg, timed and counted (S-0041/D-5): host-side tar, the
         # base64 payload through the files API, and the in-sandbox unpack
         # are one cost with one number. A spec with no task label cannot be
         # attributed to any attempt row, so it books nothing — visibly.
@@ -376,9 +376,9 @@ class OpenSandboxRuntime:
     def resolve_image(self, image: str) -> str | None:
         # The server pulls from a registry, so a digest-pinned reference
         # carries its identity in the name — on a pull platform the pinned
-        # reference is the resolution, not a stand-in for one (RFC 0041
+        # reference is the resolution, not a stand-in for one (S-0041
         # §5.2). Anything else resolves to nothing and records as an
-        # unresolved regime: never invented (D-17.1).
+        # unresolved regime: never invented (S-0017/D-1).
         if "@sha256:" in image:
             return "sha256:" + image.rsplit("@sha256:", 1)[1]
 

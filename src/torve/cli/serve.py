@@ -1,10 +1,12 @@
 """`torve serve` — a loopback, read-only HTTP surface over the projections
-the CLI already renders (RFC 0032 §5): starlette and uvicorn behind the
+the CLI already renders (S-0032): starlette and uvicorn behind the
 `torve[serve]` extra, lazily imported and refused without it exactly like
-the mcp and migrate extras (D-32.3). Three JSON endpoints re-expose the
-projection functions verbatim (D-32.1) and / serves the shipped bundle
-(D-32.4); the bind is 127.0.0.1 unconditionally — there is no host flag to
-get wrong (D-32.2).
+the mcp and migrate extras (S-0032/D-3). Three JSON endpoints re-expose the
+projection functions verbatim (S-0032/D-1) and / serves the shipped bundle
+(S-0032/D-4); the bind is 127.0.0.1 unconditionally — there is no host flag to
+get wrong (S-0032/D-2).
+
+References: S-0032/A-3.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ if TYPE_CHECKING:
 
 # ----------------------- #
 
-# Loopback-only by construction (D-32.2): BIND_HOST is the only bind this
+# Loopback-only by construction (S-0032/D-2): BIND_HOST is the only bind this
 # verb knows, and no host flag exists to override it. v1 has no auth; the
 # whole security posture is the loopback interface.
 BIND_HOST = "127.0.0.1"
@@ -43,7 +45,7 @@ _IMPORT_HINT = (
     "starlette and uvicorn are not installed — install the extra: pip install 'torve[serve]'"
 )
 
-# A checkout with no bundle is a build gap the 404 names (D-32.4): the
+# A checkout with no bundle is a build gap the 404 names (S-0032/D-4): the
 # runtime never runs node, so an unbuilt tree must say what to do instead
 # of failing opaquely.
 _BUNDLE_HINT = (
@@ -65,7 +67,7 @@ LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "[::1]", "::1")
 
 
 def _http() -> SimpleNamespace:
-    """The starlette surface behind the serve extra (D-32.3): imported
+    """The starlette surface behind the serve extra (S-0032/D-3): imported
     lazily so a gates-only install never pays for the dashboard's stack,
     and a missing extra is a config error naming the install, never a
     stack trace."""
@@ -95,7 +97,7 @@ def _http() -> SimpleNamespace:
 
 
 def _uvicorn() -> Any:
-    """uvicorn, the second half of the serve extra (D-32.3) — refused with
+    """uvicorn, the second half of the serve extra (S-0032/D-3) — refused with
     the same instruction as a missing starlette, so a partially installed
     extra degrades identically."""
 
@@ -110,7 +112,7 @@ def _uvicorn() -> Any:
 
 
 def _bundle_root() -> Path | None:
-    """The shipped frontend — wheel package data at torve/_web (D-32.4),
+    """The shipped frontend — wheel package data at torve/_web (S-0032/D-4),
     with a development checkout's source tree as the fallback; None when
     the bundle was never built. The runtime never runs node; a missing
     bundle is a build gap the 404 names, not a server error."""
@@ -133,7 +135,7 @@ def _bundle_root() -> Path | None:
 
 def _records_for(dsn: str, partition: str) -> list[Any] | None:
     """This partition's task facts, or None when none was named — the same
-    selection rule every CLI reader takes (D-50.2)."""
+    selection rule every CLI reader takes (S-0050/D-2)."""
 
     from torve.cli.options import task_events
 
@@ -145,15 +147,15 @@ def _records_for(dsn: str, partition: str) -> list[Any] | None:
 
 def build_app(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "") -> Any:
     """A starlette app re-exposing the projections the CLI already renders
-    and serving the shipped bundle. The server derives nothing of its own:
-    a shape the browser needs is added to the projection, and every
-    surface renders it at once. Any, like `mcp.build_server`: starlette is
-    an optional extra, so its classes never appear at runtime.
+     and serving the shipped bundle. The server derives nothing of its own:
+     a shape the browser needs is added to the projection, and every
+     surface renders it at once. Any, like `mcp.build_server`: starlette is
+     an optional extra, so its classes never appear at runtime.
 
-    With a partition, every endpoint reads the record the way the CLI's
-    `--partition` does, and per request rather than at startup: a resident
-    server that folded the log once would serve a board frozen at boot
-    (A-123). Without one, the same file readers the CLI falls back to.
+     With a partition, every endpoint reads the record the way the CLI's
+     `--partition` does, and per request rather than at startup: a resident
+     server that folded the log once would serve a board frozen at boot
+    . Without one, the same file readers the CLI falls back to.
     """
 
     http = _http()
@@ -162,7 +164,7 @@ def build_app(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "") 
         return _records_for(dsn, partition)
 
     def api_context(request: Request) -> Any:
-        # The re-exposure rule (D-32.1): this handler is a call into the
+        # The re-exposure rule (S-0032/D-1): this handler is a call into the
         # projection function, nothing more — a field the page needs is
         # added to the projection, not derived here.
         from torve.application.projections import context_report
@@ -211,7 +213,7 @@ def build_app(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "") 
     else:
 
         def missing(request: Request) -> Any:
-            # Instructive, not decorative (D-32.4): the failure mode is a
+            # Instructive, not decorative (S-0032/D-4): the failure mode is a
             # build gap, and the 404 names it instead of pretending the
             # dashboard exists.
             return http.PlainTextResponse(_BUNDLE_HINT, status_code=404)

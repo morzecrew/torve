@@ -1,6 +1,6 @@
--- Torve: the decision graph's read (RFC 0047 §5.5, D-47.7). Owner: torve —
+-- Torve: the decision graph's read (S-0047/the-read-that-does-not-fold-an-execution-log, S-0047/D-7). Owner: torve —
 -- this file changes for torve's own reasons, never for a forze upgrade
--- (D-12.1). Forward-only (D-12.4).
+-- (S-0012/D-1). Forward-only (S-0012/D-4).
 --
 -- Sources and decisions grow with the corpus; attempts, gates and burn grow
 -- with execution. `torve_event_partition` serves the board, which wants a

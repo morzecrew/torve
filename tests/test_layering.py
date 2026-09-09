@@ -1,8 +1,8 @@
-"""Sabotage for the `layering` gate (RFC 0015 §6.2): one red case, one green
+"""Sabotage for the `layering` gate (S-0015/the-gate-wraps-the-tool): one red case, one green
 twin, plus the front door's import-weight rule (§9).
 
 This suite lives in the repository, not in the shipped sabotage set: layering
-is a self-development gate and `import-linter` is a dev dependency (D-15.10),
+is a self-development gate and `import-linter` is a dev dependency (S-0015/D-10),
 so a consuming repository's `torve gates check` never depends on it.
 
 What is checked here is the *wiring* — that the manifest entry runs
@@ -135,7 +135,7 @@ def test_clean_package_passes(repo):
 
 
 def test_import_torve_stays_cheap():
-    # RFC 0015 §9: the gates-only path must not pay for the runner. With the
+    # S-0015/exit-criteria: the gates-only path must not pay for the runner. With the
     # front door gone (A-45) this holds because nothing in `torve/__init__.py`
     # imports downward — this is the check that keeps it that way.
     code = (

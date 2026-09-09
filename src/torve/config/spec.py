@@ -1,5 +1,5 @@
-"""The specification's storage, owned by the package (RFC 0007 §3a,
-D-7.12; RFC 0057 D-57.1): a document is a directory of four YAML files
+"""The specification's storage, owned by the package (S-0007/format-validation,
+S-0007/D-12; S-0057 S-0057/D-1): a document is a directory of four YAML files
 split by who writes each — `document.yaml` and `decisions.yaml` the
 author's, `amendments.yaml` the tool's, `execution.yaml` the landing's —
 joined here into the `Document` model by the model's validator and checked
@@ -32,42 +32,60 @@ from torve.domain.spec import (
     FILE_FIELDS,
     FILES,
     SCHEMA_VERSION,
+    SECTION_KEY,
     Corpus,
     Document,
+    document_id,
     file_of,
     is_citation,
+    number_of,
+    qualify,
 )
 
 # ----------------------- #
 
-# A document's directory is its identifier and nothing else (D-57.1): the
+# A document's directory is its identifier and nothing else (S-0057/D-1): the
 # title lives in `document.yaml`, and `spec list` shows it.
 DOCUMENT_DIRNAME = re.compile(r"^S-(\d{4})$")
-NUMBER_ONLY = re.compile(r"^\d{4}(\.yaml|\.md)?$")
 
 # The one comment a file carries: its first line, naming the schema an
-# editor validates it against (D-56.6, D-57.5). Everything else is meaning
-# outside the model and is refused (D-56.4).
+# editor validates it against (S-0056/D-6, S-0057/D-5). Everything else is meaning
+# outside the model and is refused (S-0056/D-4).
 SCHEMA_HEADER = "# yaml-language-server: $schema="
 
 URI_OR_PROTOCOL_RELATIVE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|//)")
 LOCAL_LINK = re.compile(r"\[[^\]]*\]\((?!#)([^)\s]+)")
 LINE_CITE = re.compile(r"(?<![\w/])((?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9_]+):(\d+)")
 FENCED_BLOCK = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
-DECISION_CITE = re.compile(r"\bD-[A-Za-z0-9]+\.\d+[a-z]?\b")
 
-# A citation as code and docs spell it (D-57.9): a dotted row (or the
-# charter's D-A.n), an invariant, a question, an amendment — never the bare
-# `D-n`, which prose uses for other things. Scanned over what git tracks
-# under these roots and names; never tests or skills, whose fixtures
-# invent identifiers by design.
-TREE_CITE = re.compile(
-    r"(?<![\w.])(D-[A-Za-z0-9]+\.\d+[a-z]?|I-\d+\.\d+|Q-\d+\.\d+|A-\d+)(?![\w.])"
+# A citation as prose, code and docs spell it (S-0058/D-1, S-0057/D-9): the global
+# form — a document, or a document and one of its items or prose keys —
+# and, in a document's own prose, the bare local half of its own items.
+# Scanned over what git tracks under these roots and names; never tests
+# or skills, whose fixtures invent identifiers by design.
+GLOBAL_CITE = re.compile(
+    r"(?<![\w/-])(S-\d{4}(?:/(?:[DIQAP]-\d+|[a-z0-9][a-z0-9-]*))?)(?![\w/-]|\.\w)"
 )
+LOCAL_CITE = re.compile(r"(?<![\w/.-])([DIQA]-\d+)(?![\w/-]|\.\d)")
+# What stood before the one grammar (S-0058/D-2, S-0058/D-3): a dotted row or the
+# charter's `D-A.n`, a dotted invariant or question, a global amendment
+# number, and "RFC NNNN" with or without a section — each answered by the
+# mapping the conversion wrote.
+LEGACY_CITE = re.compile(
+    r"(?<![\w/-])(D-[A-Za-z0-9]+\.\d+[a-z]?|I-\d+\.\d+|Q-\d+\.\d+|"
+    r"RFC 0\d{3}(?: §[\d.]+[a-z]?)?)(?![\w/-]|\.\d)"
+)
+# A bare amendment number is a local inside a document's own prose and a
+# legacy global counter anywhere else — code has no document to be local to.
+TREE_LEGACY_CITE = re.compile(r"(?<![\w/-])(A-\d+)(?![\w/-]|\.\d)")
 SCAN_ROOTS = ("src/", "pages/")
 SCAN_NAMES = ("AGENTS.md", "CLAUDE.md", "README.md")
+# Test data that invents identifiers by design, as the user-facing-text
+# gate already exempts it.
+SCAN_EXCLUDE = ("src/torve/gates/sabotage.py",)
+MAPPING_FILE = "identifiers.yaml"
 
-# What a section may not carry (D-57.2): a typed list restated as the fence
+# What a section may not carry (S-0057/D-2): a typed list restated as the fence
 # or table it was lifted from, or an amendment's words under a section key.
 TYPED_KINDS = (
     "alternatives",
@@ -111,14 +129,14 @@ class CheckReport:
 
 
 def archive_dir(spec_dir: Path) -> Path:
-    """The archive beside the corpus (D-57.3): `.torve/archive/` for
+    """The archive beside the corpus (S-0057/D-3): `.torve/archive/` for
     `.torve/specs/`."""
 
     return spec_dir.parent / "archive"
 
 
 def schemas_dir(spec_dir: Path) -> Path:
-    """Where `torve init` writes the schemas (D-57.5): `.torve/schemas/`
+    """Where `torve init` writes the schemas (S-0057/D-5): `.torve/schemas/`
     for `.torve/specs/`."""
 
     return spec_dir.parent / "schemas"
@@ -148,6 +166,48 @@ def archive_dirs(spec_dir: Path) -> dict[str, Path]:
     return document_dirs(archive_dir(spec_dir))
 
 
+def document_dir(spec_dir: Path, reference: str) -> Path | None:
+    """The directory of one document by any spelling of its identifier, in
+    the corpus or the archive; None when none."""
+
+    try:
+        number = number_of(reference)
+    except ValueError:
+        return None
+
+    return document_dirs(spec_dir).get(number) or archive_dirs(spec_dir).get(number)
+
+
+def load_mapping(spec_dir: Path) -> dict[str, str]:
+    """The renumbering the conversion wrote (S-0058/D-2): every identifier that
+    stood before the one grammar, and what it became. Empty when the corpus
+    never had one."""
+
+    path = archive_dir(spec_dir) / MAPPING_FILE
+
+    if not path.is_file():
+        return {}
+
+    raw: Any = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+    return {str(k): str(v) for k, v in cast("dict[Any, Any]", raw).items()}
+
+
+def legacy_hint(mapping: dict[str, str], legacy: str) -> str:
+    """What a legacy citation should say now, from the mapping; a name for
+    the mapping when it has nothing."""
+
+    if legacy in mapping:
+        return f"write {mapping[legacy]}"
+
+    stem = legacy.split(" §", 1)[0]
+
+    if stem.startswith("RFC "):
+        return f"write {document_id(stem[4:])} with the section's key"
+
+    return f"nothing in {MAPPING_FILE} maps it — it never stood"
+
+
 def dirname_of(number: str) -> str:
     return f"S-{number}"
 
@@ -166,14 +226,14 @@ def schema_file(spec_dir: Path, file_name: str) -> Path:
 
 def schema_text(file_name: str) -> str:
     """One file's JSON Schema: the model's schema cut to the fields that
-    file carries (D-57.1), shared definitions kept whole."""
+    file carries (S-0057/D-1), shared definitions kept whole."""
 
     whole = Document.model_json_schema()
     fields = FILE_FIELDS[file_name]
     schema: dict[str, Any] = {
         "$defs": whole.get("$defs", {}),
         "additionalProperties": False,
-        "description": f"{file_name} of a specification directory (RFC 0057).",
+        "description": f"{file_name} of a specification directory (S-0057).",
         "properties": {k: v for k, v in whole["properties"].items() if k in fields},
         "required": [k for k in whole.get("required", []) if k in fields],
         "title": schema_name(file_name),
@@ -203,7 +263,7 @@ def check_schema(spec_dir: Path) -> tuple[list[str], list[str]]:
         where = f"schemas/{path.name}"
 
         if not path.is_file():
-            warnings.append(f"{where}: not written yet — `torve init` writes it (D-57.5)")
+            warnings.append(f"{where}: not written yet — `torve init` writes it (S-0057/D-5)")
         elif path.read_text(encoding="utf-8") != schema_text(file_name):
             problems.append(
                 f"{where}: lags the model — it is generated output; `torve init` rewrites it"
@@ -254,13 +314,13 @@ def _read_file(directory: Path, file_name: str) -> dict[str, Any]:
 def load_document(directory: Path, *, archived: bool = False) -> Document:
     """One document from its directory: the four files joined and validated
     as the model, every refusal named by directory, file, entry and field
-    (D-53.3). A document of another schema version is refused with the
+    (S-0053/D-3). A document of another schema version is refused with the
     conversion named, never half-read."""
 
     where = directory.name
 
     if not (directory / DOCUMENT_FILE).is_file():
-        raise SpecError([f"{where}: no {DOCUMENT_FILE} — a document is a directory (D-57.1)"])
+        raise SpecError([f"{where}: no {DOCUMENT_FILE} — a document is a directory (S-0057/D-1)"])
 
     data: dict[str, Any] = {}
 
@@ -275,7 +335,7 @@ def load_document(directory: Path, *, archived: bool = False) -> Document:
             [
                 (
                     f"{where}/{DOCUMENT_FILE}: schema_version {version!r} — this loader reads "
-                    f"{SCHEMA_VERSION}; a one-file document converts once through RFC 0057 phase 1"
+                    f"{SCHEMA_VERSION}; a one-file document converts once through S-0057 phase 1"
                 )
             ]
         )
@@ -323,7 +383,7 @@ def load_corpus(spec_dir: Path) -> Corpus:
 
 
 def next_number(spec_dir: Path) -> int:
-    """The maximum over corpus and archive, plus one (D-53.10): a number
+    """The maximum over corpus and archive, plus one (S-0053/D-10): a number
     retired into the archive is still a number that was cited."""
 
     taken = [int(n) for n in document_dirs(spec_dir)] + [int(n) for n in archive_dirs(spec_dir)]
@@ -331,44 +391,27 @@ def next_number(spec_dir: Path) -> int:
     return max(taken, default=0) + 1
 
 
-def next_amendment(dirs: dict[str, Path], archived: dict[str, Path] | None = None) -> str:
-    """The next free global amendment number (D-A.5), derived over the
-    corpus and the archive (A-152) — never chosen."""
+def _next_local(doc: Document, family: str, taken_from: list[str]) -> str:
+    """The next free local identifier of one family in one document (S-0058/D-1);
+    retired identifiers count as taken (S-0016/D-1)."""
 
-    taken: list[int] = []
+    pattern = re.compile(rf"^{re.escape(doc.id)}/{family}-(\d+)$")
+    taken = [int(m.group(1)) for ident in taken_from if (m := pattern.match(ident))]
 
-    for path in (*dirs.values(), *(archived or {}).values()):
-        try:
-            doc = load_document(path)
-        except SpecError:
-            continue
-
-        taken += [int(a.id[2:]) for a in doc.amendments if re.fullmatch(r"A-\d+", a.id)]
-
-    return f"A-{max(taken, default=0) + 1}"
+    return f"{family}-{max(taken, default=0) + 1}"
 
 
-def next_decision(dirs: dict[str, Path], number: str) -> str:
-    """The next free identifier in one document's own dotted family, scanned
-    corpus-wide (D-A.4); retired identifiers count as taken (D-16.1)."""
+def next_amendment(doc: Document) -> str:
+    """The next free amendment number of one document, local — `A-n` —
+    derived, never chosen."""
 
-    family = str(int(number))
-    pattern = re.compile(rf"^D-{re.escape(family)}\.(\d+)[a-z]?$")
-    taken: list[int] = []
+    return _next_local(doc, "A", [a.id for a in doc.amendments])
 
-    for path in dirs.values():
-        try:
-            doc = load_document(path)
-        except SpecError:
-            continue
 
-        for ident in (*(row.id for row in doc.decisions), *doc.retired):
-            match = pattern.match(ident)
+def next_decision(doc: Document) -> str:
+    """The next free decision number of one document, local — `D-n`."""
 
-            if match:
-                taken.append(int(match.group(1)))
-
-    return f"D-{family}.{max(taken, default=0) + 1}"
+    return _next_local(doc, "D", [*(row.id for row in doc.decisions), *doc.retired])
 
 
 # ----------------------- #
@@ -392,23 +435,24 @@ def _prose(doc: Document) -> str:
 
 
 def _cites(ident: str) -> re.Pattern[str]:
-    # As a word: not inside a longer identifier, not a dotted child (D-2
-    # must not match inside D-2.10), not a digit-extended sibling.
+    # As a word: not inside a longer identifier, not a dotted child (S-0001/D-10
+    # must not match inside S-0002/D-10), not a digit-extended sibling.
     return re.compile(rf"(?<![\w.]){re.escape(ident)}(?![\w.])")
 
 
 def lookup(spec_dir: Path, identifier: str) -> dict[str, Any] | None:
     """One corpus identifier resolved from the same load `check` runs
-    (D-7.28): a row as it stands, an invariant, a question, an amendment
-    or a document; an archived one answers marked archived (D-53.9). None
-    when nothing defines it."""
+    (S-0007/D-28): a row as it stands, an invariant, a question, an amendment
+    or a document; an archived one answers marked archived (S-0053/D-9); a
+    legacy identifier answers through the mapping and says what it was
+    (S-0058/D-3). None when nothing defines it."""
 
     try:
         corpus = load_corpus(spec_dir)
     except SpecError:
         return None
 
-    return lookup_in(corpus, identifier)
+    return lookup_in(corpus, identifier, load_mapping(spec_dir))
 
 
 def cited_in(corpus: Corpus, identifier: str) -> list[str]:
@@ -430,13 +474,27 @@ def cited_in(corpus: Corpus, identifier: str) -> list[str]:
     ]
 
 
-def lookup_in(corpus: Corpus, identifier: str) -> dict[str, Any] | None:
-    number = identifier.strip().removeprefix("S-").removesuffix(".yaml").removesuffix(".md")
+def lookup_in(
+    corpus: Corpus, identifier: str, mapping: dict[str, str] | None = None
+) -> dict[str, Any] | None:
+    identifier = identifier.strip()
 
-    if re.fullmatch(r"\d{1,4}", number):
-        doc = corpus.document(number.zfill(4))
+    if mapping and identifier in mapping:
+        found = lookup_in(corpus, mapping[identifier])
 
-        return None if doc is None else _document_payload(doc)
+        if found is not None:
+            found["was"] = identifier
+
+        return found
+
+    if "/" not in identifier:
+        doc = corpus.document(identifier)
+
+        if doc is not None:
+            return _document_payload(doc)
+
+        if not identifier.startswith("S-"):
+            return None
 
     cites = _cites(identifier)
     cited_by = [_name(d) for d in corpus.documents if cites.search(_prose(d))]
@@ -527,6 +585,7 @@ def _document_payload(doc: Document) -> dict[str, Any]:
     return {
         "kind": "document",
         "identifier": doc.id,
+        "number": number_of(doc.id),
         "file": _name(doc),
         "title": doc.title,
         "status": doc.status,
@@ -550,7 +609,7 @@ def _document_payload(doc: Document) -> dict[str, Any]:
 
 def check_cites(corpus: Corpus) -> list[str]:
     """Every `cites` entry of every row and alternative resolves to an
-    identifier the corpus or the archive defines (RFC 0053 §6)."""
+    identifier the corpus or the archive defines (S-0053/tests)."""
 
     defined = corpus.defined_identifiers()
     problems: list[str] = []
@@ -574,7 +633,7 @@ def find_comments(text: str) -> list[int]:
     """Line numbers (1-based) of every comment but the schema header. A
     line is a comment when dropping it — or its ` #…` tail — leaves the
     loaded document unchanged: a `#` inside a block scalar changes what
-    loads, a comment never does (D-56.4)."""
+    loads, a comment never does (S-0056/D-4)."""
 
     lines = text.splitlines()
 
@@ -615,8 +674,8 @@ def _glob_matches(root: Path, pattern: str) -> bool:
 
 
 def check_directory(spec_dir: Path) -> list[str]:
-    """Only documents live in the corpus path and the archive (D-A.17,
-    I-57.1): one directory per number, holding only the four file names."""
+    """Only documents live in the corpus path and the archive (S-0016/D-24,
+    S-0057/I-1): one directory per number, holding only the four file names."""
 
     problems: list[str] = []
 
@@ -630,14 +689,19 @@ def check_directory(spec_dir: Path) -> list[str]:
         for entry in sorted(base.iterdir()):
             name = f"{label}{entry.name}"
 
+            if entry.is_file() and entry.name == MAPPING_FILE and base != spec_dir:
+                continue  # the renumbering (S-0058/D-2) lives beside the archive
+
             if entry.is_dir() and entry.name == "schema":
-                problems.append(f"{name}/: schemas live in `.torve/schemas/` (D-57.5) — delete it")
+                problems.append(
+                    f"{name}/: schemas live in `.torve/schemas/` (S-0057/D-5) — delete it"
+                )
                 continue
 
             if entry.is_file() and entry.suffix in (".yaml", ".md"):
                 problems.append(
                     f"{name}: a one-file document — a document is a directory of four files "
-                    "(RFC 0057 D-57.1); convert it"
+                    "(S-0057 S-0057/D-1); convert it"
                 )
                 continue
 
@@ -653,7 +717,7 @@ def check_directory(spec_dir: Path) -> list[str]:
                 if inner.name not in FILES:
                     problems.append(
                         f"{name}/{inner.name}: not one of {', '.join(FILES)} — a document "
-                        "directory holds nothing else (I-57.1)"
+                        "directory holds nothing else (S-0057/I-1)"
                     )
 
         for number, names in sorted(numbers.items()):
@@ -666,7 +730,7 @@ def check_directory(spec_dir: Path) -> list[str]:
 
 
 def check_sections(doc: Document) -> list[str]:
-    """A section carries prose and nothing a typed list holds (D-57.2): an
+    """A section carries prose and nothing a typed list holds (S-0057/D-2): an
     empty body, a typed-kind fence, the decisions table or an amendment's
     identifier as its key is refused with the key named."""
 
@@ -675,6 +739,12 @@ def check_sections(doc: Document) -> list[str]:
 
     for section in doc.sections:
         key = section.key
+
+        if not SECTION_KEY.match(key):
+            problems.append(
+                f"{where}: section key {key!r} — a key is lower-case words and dashes, never "
+                "a family shape (S-0058/D-1)"
+            )
 
         if AMENDMENT_KEY.match(key):
             problems.append(
@@ -701,15 +771,52 @@ def check_sections(doc: Document) -> list[str]:
     return problems
 
 
+def prose_citations(doc: Document, resolvable: set[str], mapping: dict[str, str]) -> list[str]:
+    """Every citation the document's prose makes that nothing defines
+    (S-0058/D-1, S-0058/D-3): a global identifier no document holds, a bare local
+    the document itself does not define, a legacy shape answered by the
+    mapping. One problem per identifier."""
+
+    prose = _prose(doc)
+    where = _name(doc)
+    problems: list[str] = []
+    reported: set[str] = set()
+
+    for match in GLOBAL_CITE.finditer(prose):
+        cited = match.group(1)
+
+        if cited not in resolvable and cited not in reported:
+            reported.add(cited)
+            problems.append(f"{where}: cites {cited}, which no document in the corpus defines")
+
+    for match in LOCAL_CITE.finditer(prose):
+        cited = qualify(doc.id, match.group(1))
+
+        if cited not in resolvable and cited not in reported:
+            reported.add(cited)
+            problems.append(
+                f"{where}: cites {match.group(1)}, which this document does not define ({cited})"
+            )
+
+    for match in LEGACY_CITE.finditer(prose):
+        cited = match.group(1)
+
+        if cited not in reported:
+            reported.add(cited)
+            problems.append(
+                f"{where}: cites {cited} in the old grammar — {legacy_hint(mapping, cited)} (S-0058/D-3)"
+            )
+
+    return problems
+
+
 def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str], list[str]]:
     """One document's own problems and warnings, given it loaded."""
 
     where = _name(doc)
     problems: list[str] = []
     warnings: list[str] = []
-    match = DOCUMENT_DIRNAME.match(where)
-
-    if match is not None and match.group(1) != doc.id:
+    if DOCUMENT_DIRNAME.match(where) and where != doc.id:
         problems.append(f"{where}: id {doc.id!r} disagrees with the directory name")
 
     if doc.status == "superseded" and not doc.superseded_by:
@@ -720,10 +827,17 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
     for key in sorted({k for k in keys if keys.count(k) > 1}):
         problems.append(f"{where}: two sections keyed {key!r} — one of them is misnamed")
 
+    # S-0016/D-15: a local written twice by hand is two rows under one name.
+    own = [row.id for row in doc.decisions] + [i.id for i in doc.invariants]
+    own += [q.id for q in doc.questions] + [a.id for a in doc.amendments]
+
+    for ident in sorted({i for i in own if own.count(i) > 1}):
+        problems.append(f"{where}: {doc.local(ident)} is defined twice — identifiers are unique")
+
     problems += check_sections(doc)
     warnings += check_landings(doc)
 
-    # D-32: for a document not yet built the globs name intended areas;
+    # S-0001/D-32: for a document not yet built the globs name intended areas;
     # once implemented an unmatched LOCKED glob is rot.
     check_globs = doc.status == "accepted" and doc.implementation != "none" and not doc.archived
     unbuilt: list[str] = []
@@ -752,7 +866,7 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
             if doc.implementation == "complete":
                 problems.append(
                     f"{where}: LOCKED row {row.id!r} paths glob {pattern!r} matches nothing "
-                    "in the repository (an implemented document cites real areas, D-32)"
+                    "in the repository (an implemented document cites real areas, S-0001/D-32)"
                 )
             else:
                 unbuilt.append(f"{row.id} -> {pattern}")
@@ -760,7 +874,7 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
     if unbuilt:
         warnings.append(
             f"{where}: {len(unbuilt)} LOCKED glob(s) name unbuilt areas — intended modules "
-            "awaiting implementation (D-32): " + "; ".join(unbuilt)
+            "awaiting implementation (S-0001/D-32): " + "; ".join(unbuilt)
         )
 
     for row in doc.decisions:
@@ -793,7 +907,7 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
         if (root / cite.group(1)).is_file():
             problems.append(
                 f"{where}: cites {cite.group(1)}:{cite.group(2)} — line numbers rot at the "
-                "first refactor above them (0007 §3a); cite the path alone"
+                "first refactor above them (S-0007/format-validation); cite the path alone"
             )
 
     return problems, warnings
@@ -821,15 +935,17 @@ def tracked_files(root: Path) -> list[str]:
     return [
         name
         for name in done.stdout.split("\0")
-        if name and (name.startswith(SCAN_ROOTS) or Path(name).name in SCAN_NAMES)
+        if name
+        and name not in SCAN_EXCLUDE
+        and (name.startswith(SCAN_ROOTS) or Path(name).name in SCAN_NAMES)
     ]
 
 
-def tree_citations(root: Path) -> list[tuple[str, int, str]]:
-    """Every citation-shaped identifier in the scanned files, as
-    (file, line, identifier), in file order."""
+def tree_citations(root: Path) -> list[tuple[str, int, str, bool]]:
+    """Every citation in the scanned files, as (file, line, identifier,
+    legacy), in file order: the global grammar, and what stood before it."""
 
-    found: list[tuple[str, int, str]] = []
+    found: list[tuple[str, int, str, bool]] = []
 
     for name in tracked_files(root):
         try:
@@ -838,13 +954,17 @@ def tree_citations(root: Path) -> list[tuple[str, int, str]]:
             continue
 
         for number, line in enumerate(text.splitlines(), start=1):
-            found += [(name, number, match.group(1)) for match in TREE_CITE.finditer(line)]
+            found += [(name, number, m.group(1), False) for m in GLOBAL_CITE.finditer(line)]
+            found += [(name, number, m.group(1), True) for m in LEGACY_CITE.finditer(line)]
+            found += [(name, number, m.group(1), True) for m in TREE_LEGACY_CITE.finditer(line)]
 
     return found
 
 
-def check_tree(root: Path, corpus: Corpus) -> tuple[list[str], list[str]]:
-    """RFC 0057 D-57.9: every identifier the code and the docs cite resolves
+def check_tree(
+    root: Path, corpus: Corpus, spec_dir: Path | None = None
+) -> tuple[list[str], list[str]]:
+    """S-0057 S-0057/D-9: every identifier the code and the docs cite resolves
     over the corpus and the archive — an identifier nothing defines is a
     problem naming its line, a retired one a warning, an archived one
     clean, history being what a comment may cite. One finding per file and
@@ -852,29 +972,35 @@ def check_tree(root: Path, corpus: Corpus) -> tuple[list[str], list[str]]:
 
     defined = corpus.defined_identifiers()
     retired = {ident for doc in corpus.documents for ident in doc.retired}
+    mapping = load_mapping(spec_dir) if spec_dir is not None else {}
     problems: list[str] = []
     warnings: list[str] = []
     seen: set[tuple[str, str]] = set()
 
-    for name, line, ident in tree_citations(root):
+    for name, line, ident, legacy in tree_citations(root):
         if (name, ident) in seen or (ident in defined and ident not in retired):
             continue
 
         seen.add((name, ident))
 
-        if ident in retired:
-            warnings.append(f"{name}:{line}: cites {ident}, which is retired (D-57.9)")
+        if legacy:
+            problems.append(
+                f"{name}:{line}: cites {ident} in the old grammar — "
+                f"{legacy_hint(mapping, ident)} (S-0058/D-3)"
+            )
+        elif ident in retired:
+            warnings.append(f"{name}:{line}: cites {ident}, which is retired (S-0057/D-9)")
         else:
             problems.append(
                 f"{name}:{line}: cites {ident}, which no document in the corpus or the "
-                "archive defines (D-57.9)"
+                "archive defines (S-0057/D-9)"
             )
 
     return problems, warnings
 
 
 def check_landings(doc: Document) -> list[str]:
-    """RFC 0057 D-57.11: the status field and the execution file agree —
+    """S-0057 S-0057/D-11: the status field and the execution file agree —
     complete with a phase no landing covers, or every phase landed and not
     complete, is a warning."""
 
@@ -891,7 +1017,7 @@ def check_landings(doc: Document) -> list[str]:
         return [
             (
                 f"{where}: implementation complete, but phase(s) {missing} have no landing in "
-                f"{EXECUTION_FILE} (D-57.11)"
+                f"{EXECUTION_FILE} (S-0057/D-11)"
             )
         ]
 
@@ -899,7 +1025,7 @@ def check_landings(doc: Document) -> list[str]:
         return [
             (
                 f"{where}: every phase has landed and implementation is {doc.implementation!r} — "
-                "mark it complete, or say in a section why not (D-57.11)"
+                "mark it complete, or say in a section why not (S-0057/D-11)"
             )
         ]
 
@@ -908,7 +1034,7 @@ def check_landings(doc: Document) -> list[str]:
 
 def check_graph(documents: dict[str, Document]) -> tuple[list[str], list[str]]:
     """Cycles in `depends_on` are problems, and so is an accepted document
-    depending on one that is not accepted (D-A.10)."""
+    depending on one that is not accepted (S-0016/D-20)."""
 
     edges = {n: [d for d in doc.depends_on if d in documents] for n, doc in documents.items()}
     problems: list[str] = []
@@ -946,7 +1072,7 @@ def check_graph(documents: dict[str, Document]) -> tuple[list[str], list[str]]:
             if status != "accepted":
                 problems.append(
                     f"{_name(doc)}: accepted but depends_on {target} which is {status} — "
-                    "no inheritance from a non-accepted document (D-A.10)"
+                    "no inheritance from a non-accepted document (S-0016/D-20)"
                 )
 
     return problems, []
@@ -969,6 +1095,8 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
         (archive_dir(spec_dir), True, archived),
     ):
         for number, path in sorted(document_dirs(source).items()):
+            number = document_id(number)
+
             for file_name in FILES:
                 if not (path / file_name).is_file():
                     continue
@@ -976,7 +1104,7 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
                 for line in find_comments((path / file_name).read_text(encoding="utf-8")):
                     report.problems.append(
                         f"{path.name}/{file_name}:{line}: a comment — meaning outside the "
-                        "model; a row that needs a note needs a rationale (D-56.4)"
+                        "model; a row that needs a note needs a rationale (S-0056/D-4)"
                     )
 
             try:
@@ -987,7 +1115,8 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
     report.count = len(documents)
     corpus = Corpus(documents=[*documents.values(), *archived.values()])
     report.problems += check_cites(corpus)
-    resolvable = corpus.defined_identifiers() | {f"D-{n}" for n in archived}
+    resolvable = corpus.defined_identifiers()
+    mapping = load_mapping(spec_dir)
     retired: dict[str, str] = {}
     seen: dict[str, str] = {}
 
@@ -1005,12 +1134,12 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
             if ident in seen:
                 report.problems.append(
                     f"{where}: identifier {ident!r} already used in {seen[ident]} — "
-                    "identifiers are permanent and corpus-unique (D-A.4)"
+                    "identifiers are permanent and corpus-unique (S-0016/D-15)"
                 )
             elif ident in retired:
                 report.problems.append(
                     f"{where}: defines {ident}, which {retired[ident]} retired — "
-                    "identifiers are never reused (D-A.19, D-16.1)"
+                    "identifiers are never reused (S-0016/D-26, S-0016/D-1)"
                 )
 
             seen[ident] = where
@@ -1023,27 +1152,17 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
                 if ref in archived:
                     report.warnings.append(
                         f"{where}: {fname} names {ref}, which is archived "
-                        f"({_name(archived[ref])}) — nothing inherits from it (D-53.8)"
+                        f"({_name(archived[ref])}) — nothing inherits from it (S-0053/D-8)"
                     )
                 else:
                     report.problems.append(f"{where}: {fname} names {ref!r}, no such document")
 
-        reported: set[str] = set()
-
-        for cite in DECISION_CITE.finditer(_prose(doc)):
-            cited = cite.group(0)
-
-            if cited not in resolvable and cited not in reported:
-                reported.add(cited)
-                report.problems.append(
-                    f"{where}: cites {cited}, which no document in the corpus defines "
-                    "and no `retired` list records"
-                )
+        report.problems += prose_citations(doc, resolvable, mapping)
 
     graph_problems, graph_warnings = check_graph(documents)
     report.problems += graph_problems
     report.warnings += graph_warnings
-    tree_problems, tree_warnings = check_tree(root, corpus)
+    tree_problems, tree_warnings = check_tree(root, corpus, spec_dir)
     report.problems += tree_problems
     report.warnings += tree_warnings
     schema_problems, schema_warnings = check_schema(spec_dir)

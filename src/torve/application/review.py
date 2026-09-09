@@ -1,15 +1,15 @@
-"""Review as a run (RFC 0005): the runner mints the review task when its
-target's gates go green (D-5.11), composes the reviewer's input — the diff,
+"""Review as a run (S-0005): the runner mints the review task when its
+target's gates go green (S-0005/D-11), composes the reviewer's input — the diff,
 the target's contract, its inherited decisions and the gate results, never
-the author's session trace (D-5.3) — and drives one attempt in a disposable
-copy of the target worktree (D-5.2 as reworded by A-78). The reviewer runs the
-battery it is judging inside that copy (D-5.16); nothing written in it
+the author's session trace (S-0005/D-3) — and drives one attempt in a disposable
+copy of the target worktree (S-0005/D-2 as reworded by S-0005/A-4). The reviewer runs the
+battery it is judging inside that copy (S-0005/D-16); nothing written in it
 survives the review. Findings come back as data; unlocatable evidence is
-discarded before anyone sees it (D-5.4), a surviving blocker escalates the
+discarded before anyone sees it (S-0005/D-4), a surviving blocker escalates the
 target as blocker_finding, and configuration — never the model — decided
-that consequence (D-2).
+that consequence (S-0001/D-10).
 
-v1 drives a single attempt (`budget: iterations: 1`, RFC 0005 §1.1) with the
+v1 drives a single attempt (`budget: iterations: 1`, S-0005/the-review-contract) with the
 same sandbox mechanics and telemetry shape as any run; the multi-attempt
 loop for reviews arrives when a reviewer earns retries.
 """
@@ -61,8 +61,8 @@ from torve.gates.evidence import CITATION, filter_findings
 
 
 def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Task:
-    """Runner-minted at gated (D-5.11): the same contract shape with a
-    different role (D-5.9), decisions inherited from the target, one
+    """Runner-minted at gated (S-0005/D-11): the same contract shape with a
+    different role (S-0005/D-9), decisions inherited from the target, one
     iteration. The planner never mints these — review follows execution."""
 
     from torve.application.planner import next_task_number
@@ -103,7 +103,7 @@ def build_review_prompt(
     gate_results: list[GateResult],
     degraded: bool = False,
 ) -> str:
-    """The reviewer's whole input (D-5.3: no author trace, ever). The
+    """The reviewer's whole input (S-0005/D-3: no author trace, ever). The
     calibration paragraph is deliberate — this reviewer sees a diff after
     green gates, where clean is the normal outcome; without permission to
     say so it manufactures work.
@@ -119,10 +119,10 @@ def build_review_prompt(
     decisions = "\n".join(f"- {d.id} [{d.grade}] {d.text}" for d in target.decisions) or "- none"
 
     # The battery by name: told what the change was judged green on, the
-    # reviewer can run that same battery rather than guess at it (D-5.16).
+    # reviewer can run that same battery rather than guess at it (S-0005/D-16).
     acceptance = "\n".join(f"- {command}" for command in target.acceptance) or "- none declared"
 
-    # A-79: the prompt points at the staged diff instead of embedding it —
+    # S-0005/A-5: the prompt points at the staged diff instead of embedding it —
     # a diff carrying vendored bulk exceeds any context, and a reviewer with
     # tools reads lazily. A short head rides along as orientation only,
     # elided the same way the staged file is.
@@ -286,7 +286,7 @@ def transient_api_failure(output: str) -> bool:
 
 def stage_review_copy(worktree: Path, copy: Path) -> Path:
     """The reviewer's workspace: a copy of the target worktree it may write in
-    and run (D-5.2 as reworded by A-78), destroyed with its sandbox.
+    and run (S-0005/D-2 as reworded by S-0005/A-4), destroyed with its sandbox.
 
     Staged only once the review's whole input exists, so nothing read into the
     judgment can be something the reviewer then wrote. And `.git` does not
@@ -311,7 +311,7 @@ def stage_review_copy(worktree: Path, copy: Path) -> Path:
 
 
 def destroy_review_copy(copy: Path) -> None:
-    """Nothing written in the copy survives the review (D-5.2): the reviewer's
+    """Nothing written in the copy survives the review (S-0005/D-2): the reviewer's
     edits, its build output, its scratch all die with its sandbox.
 
     `ignore_errors` is the point, not the omission of one: a cleanup that
@@ -350,7 +350,7 @@ ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 class SchemaRefusal(ValueError):
-    """A document the engine found but the model refused (D-54.15): the
+    """A document the engine found but the model refused (S-0054/D-15): the
     message names the field and the rule, as a lint refusal does — never
     recorded as unparseable, which is the word for no document at all."""
 
@@ -392,7 +392,7 @@ def _changed_lines(diff_text: str) -> dict[str, set[int]]:
 
 
 def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:
-    """`touched.json` (D-54.13): the rows whose paths the diff intersects,
+    """`touched.json` (S-0054/D-13): the rows whose paths the diff intersects,
     the last battery's coverage of the changed lines, and the findings
     prior reviews recorded on this target — engine facts about the diff,
     none of them the author's voice."""
@@ -479,7 +479,7 @@ def parse_findings(output: str) -> list[Finding] | None:
     """The last JSON document with a `findings` key anywhere in the output,
     parsed and validated; None when no such document exists — recorded as
     unparseable, never invented as clean. A document that exists but fails
-    the model raises `SchemaRefusal` naming the field (D-54.15). Harness
+    the model raises `SchemaRefusal` naming the field (S-0054/D-15). Harness
     output is hostile ground: ANSI escapes are stripped and the document
     may span lines or be followed by session chatter, so balanced decoding
     wins over line splitting."""
@@ -546,10 +546,10 @@ class ReviewOutcome:
 
 def blocker_threads(blockers: list[Finding], review_id: str) -> list[dict[str, Any]]:
     """A revision's critique, in the feedback record's thread shape (RFC
-    0043 D-43.2): one thread per blocker, the review id as its single
+    0043 S-0043/D-2): one thread per blocker, the review id as its single
     comment's author, the claim and its evidence as the body. Evidence that
     resolves to a path:line anchors the thread there; a backticked command
-    with its output (D-5.16) locates without a filesystem coordinate at
+    with its output (S-0005/D-16) locates without a filesystem coordinate at
     all, so the thread carries no path/line and renders anchor-less — the
     same honest "?:-" `render_feedback` already gives an address-less
     thread."""
@@ -591,7 +591,7 @@ def run_review(
     trigger: str = "task_gated",
 ) -> ReviewOutcome:
     """One review attempt in a disposable copy of the target worktree, which
-    the reviewer may run and write in (D-5.2 as reworded by A-78). Produces the
+    the reviewer may run and write in (S-0005/D-2 as reworded by S-0005/A-4). Produces the
     review's run state and telemetry record; the caller applies the consequence
     to the target.
 
@@ -609,10 +609,10 @@ def run_review(
 
     image = image_for(config, tier)
 
-    # The reviewer's whole input, composed first (D-5.3: no author trace,
+    # The reviewer's whole input, composed first (S-0005/D-3: no author trace,
     # ever) — after this line the diff under judgment is text in a string, and
     # no state the copy can reach has any part in it. The diff itself is
-    # staged as a file in the copy below (A-79): a diff carrying a vendored
+    # staged as a file in the copy below (S-0005/A-5): a diff carrying a vendored
     # bundle exceeds any prompt, and a reviewer with tools reads lazily.
     prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded)
 
@@ -624,11 +624,11 @@ def run_review(
     saved_executor_trace = executor_trace.read_bytes() if executor_trace.is_file() else None
 
     # Only now does the reviewer get a tree: a copy of the target worktree at
-    # the review's own conventional address (D-3.4), writable, and destroyed
+    # the review's own conventional address (S-0003/D-4), writable, and destroyed
     # with its sandbox.
     copy = stage_review_copy(worktree, naming.worktree(root, review.id))
 
-    # A-79: the diff rides the copy as a file, not the prompt — composed
+    # S-0005/A-5: the diff rides the copy as a file, not the prompt — composed
     # above, before the copy existed, so the guarantee is unchanged; the
     # prompt names the path and the reviewer reads what it needs. Vendored
     # bulk is elided even here: reading a minified bundle killed a review
@@ -637,10 +637,10 @@ def run_review(
     diff_path.parent.mkdir(parents=True, exist_ok=True)
     diff_path.write_text(elide_diff_bulk(diff_text), encoding="utf-8")
 
-    # D-54.13: the reviewer reads the pack too — built for the target, as a
+    # S-0054/D-13: the reviewer reads the pack too — built for the target, as a
     # replay, so no model-authored entry enters — plus `touched.json`, the
     # engine's facts about this diff. The copy carried the executor's skill
-    # set; the review role's own replaces it (D-54.14).
+    # set; the review role's own replaces it (S-0054/D-14).
     from torve.application.contextpack import build as build_pack
     from torve.application.contextpack import materialize as materialize_pack
     from torve.application.skills import materialize as materialize_skills
@@ -667,8 +667,8 @@ def run_review(
         image=image,
         labels=naming.labels(review.id, state.run_id, root),
         # The reviewer seat carries its own clock when its tier names one
-        # (RFC 0035 §5.3, D-35.6): absent falls through to the globals. That
-        # clock is also the bound on whatever the reviewer executes (D-5.16) —
+        # (S-0035/the-tier-clock, S-0035/D-6): absent falls through to the globals. That
+        # clock is also the bound on whatever the reviewer executes (S-0005/D-16) —
         # no budget or timeout of its own exists to widen it.
         timeout_s=sandbox_timeout_for(config, tier),
         env_passthrough=tuple(tier.api_key_env),
@@ -713,7 +713,7 @@ def run_review(
         state.save()
 
         # The copy goes with the sandbox: whatever the reviewer wrote, built
-        # or broke reaches no one, because it is no longer anywhere (D-5.2).
+        # or broke reaches no one, because it is no longer anywhere (S-0005/D-2).
         destroy_review_copy(copy)
 
         # The reviewer's session may have been written over the executor's
@@ -728,7 +728,7 @@ def run_review(
     # The review's session lives under its own id — which, since the copy sits
     # at the review's own worktree address, is the name the harness gives it
     # here. The write keeps that true for an adapter that named its trace
-    # somewhere else, and the record's root-relative trace_ref (D-39.1) then
+    # somewhere else, and the record's root-relative trace_ref (S-0039/D-1) then
     # points at evidence that survives the review and the reap alike, until
     # the store's own retention takes it. This writer reaches the store
     # through `trace_file`, the one helper that ensures the directory exists
@@ -776,13 +776,13 @@ def run_review(
     if findings is not None:
         # Evidence resolves against the tree under judgment, never against the
         # copy: a `path:line` the reviewer could only produce by writing there
-        # is a coordinate about its own scratch, not about the change (D-5.4,
-        # D-5.2). A backticked command with its output locates without a
+        # is a coordinate about its own scratch, not about the change (S-0005/D-4,
+        # S-0005/D-2). A backticked command with its output locates without a
         # filesystem at all — that is the shape execution evidence takes
-        # inside the copy (D-5.16).
+        # inside the copy (S-0005/D-16).
         kept, discarded = filter_findings(findings, worktree)
 
-    # What stops a promotion is configuration's, not the reviewer's (D-2):
+    # What stops a promotion is configuration's, not the reviewer's (S-0001/D-10):
     # `review.blocks_at` says which grades count, and `blocker` alone is the
     # behaviour every reading before it had. The findings themselves keep the
     # grade the reviewer gave them, here and in the record.
@@ -808,7 +808,7 @@ def run_review(
         "task_id": review.id,
         "target": target.id,
         # Which trigger produced this review, because the two have different
-        # lifecycles and the record could not tell them apart (A-137): a
+        # lifecycles and the record could not tell them apart (S-0005/A-9): a
         # task-gated blocker is revised in-run or escalates, a
         # pull-request one is reported and stops nothing.
         "trigger": trigger,
@@ -831,14 +831,14 @@ def run_review(
             "ended_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "wall_time_s": round(_time.monotonic() - review_clock, 3),
             # The reviewer's token counts, flat beside cost (T-0186) — only
-            # the reported ones, absent keys omitted (D-4.6).
+            # the reported ones, absent keys omitted (S-0004/D-6).
             **token_counts,
-            # The image tag beside the adapter (D-17.4) — the cost table's
+            # The image tag beside the adapter (S-0017/D-4) — the cost table's
             # harness column reads it; the attempt records already carry it.
             "image": image,
             "shadow": False,
             # The reviewer spends the run's budget on the same handle; its
-            # counts ride the record beside the adapter's report (D-21.5).
+            # counts ride the record beside the adapter's report (S-0021/D-5).
             **(
                 {"broker": broker_block(broker.name, broker_usage)}
                 if broker is not None and broker_usage is not None
@@ -871,7 +871,7 @@ def run_review(
 
 
 # ----------------------- #
-# The pull-request trigger (RFC 0005 §4): review on open and update,
+# The pull-request trigger (S-0005/triggers): review on open and update,
 # including pull requests no agent wrote.
 
 PR_LEDGER = "pr-reviews.jsonl"
@@ -915,7 +915,7 @@ def _reviewed_heads(root: Path) -> set[tuple[int, str]]:
 def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome, degraded: bool) -> str:
     """Composed from the review's records, never the reviewer's prose —
     and posted by the runner: the reviewer holds no forge credential
-    (D-5.2)."""
+    (S-0005/D-2)."""
 
     lines = [f"torve review — {review_id} · head {head_sha[:12]} · {outcome.fact}"]
 
@@ -923,7 +923,7 @@ def _pr_comment(review_id: str, head_sha: str, outcome: ReviewOutcome, degraded:
         lines.append(
             "reviewed without a task contract — degraded input: no "
             "scope, no inherited decisions; spec-drift findings "
-            "unavailable (D-5.8)"
+            "unavailable (S-0005/D-8)"
         )
 
     ordered = outcome.blockers + [f for f in outcome.kept if f.severity != "blocker"]
@@ -947,11 +947,11 @@ def review_pull_request(
     token: str | None = None,
     broker: Broker | None = None,
 ) -> PrReviewOutcome:
-    """RFC 0005 §4: skip rules first (draft, zero changed files, configured
+    """S-0005/triggers: skip rules first (draft, zero changed files, configured
     authors, not open); one review per head — the pull regime's debounce,
     since rapid pushes collapse into whatever head is current when the
     trigger fires and a head reviews at most once; then degraded or
-    task-informed input (D-5.8) and the findings posted back as one
+    task-informed input (S-0005/D-8) and the findings posted back as one
     marker-deduped comment. Task state is never mutated here — blockers on
     a task-gated run escalate on that path; this one reports."""
 
@@ -1005,7 +1005,7 @@ def review_pull_request(
     workdir = root / naming.WORKTREE_DIR / f"{review.id}.pr"
     vcs.worktree_at(root, head_sha, workdir)
 
-    # The reviewer's provider rides the same broker as any run (RFC 0021):
+    # The reviewer's provider rides the same broker as any run (S-0021):
     # the review sandbox sees the broker's URL and the run-scoped token,
     # never a key.
     broker_handle: BrokerHandle | None = None
@@ -1040,7 +1040,7 @@ def review_pull_request(
             # This path reports and never touches task state, so nothing
             # escalates and nothing revises: the record has to say so, or a
             # blocker found here is indistinguishable from one the
-            # task-gated loop already dealt with (A-137).
+            # task-gated loop already dealt with (S-0005/A-9).
             trigger="pull_request",
         )
 
@@ -1092,14 +1092,14 @@ def review_pull_request(
 # ....................... #
 
 
-# A surviving blocker's revision fact (RFC 0043 D-43.1) starts with this —
+# A surviving blocker's revision fact (S-0043 S-0043/D-1) starts with this —
 # `_blocker_revisions_spent` is the only reader, so generation and counting
 # can never drift apart. Mirrors `_WALLCLOCK_MARKER` above.
 _BLOCKER_REVISION_MARKER = "review blocker (revision "
 
 
 def _blocker_revisions_spent(state: RunState) -> int:
-    """D-43.1: how much of the run's `blocker_revisions` budget a surviving
+    """S-0043/D-1: how much of the run's `blocker_revisions` budget a surviving
     blocker has already spent — every revision fact `review_hook_fn` appends
     without a transition (the state stays GATED, retried), counted across
     the run's whole history, never just the last attempt."""
@@ -1111,7 +1111,7 @@ def _blocker_revisions_spent(state: RunState) -> int:
 
 
 def reviewer_for(run: Dispatch) -> Agent:
-    """The reviewer this run judges with (RFC 0005). Resolved before the
+    """The reviewer this run judges with (S-0005). Resolved before the
     broker opens as well as at the step itself, so a run configured for
     review with no reviewer wired fails at setup rather than after an
     attempt has already been paid for."""
@@ -1128,9 +1128,9 @@ def reviewer_for(run: Dispatch) -> Agent:
 
 
 async def review_step(run: Dispatch, state: RunState) -> str | None:
-    """Judge the gate-green candidate (D-5.11). Returns the fact for the
+    """Judge the gate-green candidate (S-0005/D-11). Returns the fact for the
     reviewed transition, None when the run must not land — a blocker inside
-    its revision budget retries in place (D-43.1), and a spent budget, an
+    its revision budget retries in place (S-0043/D-1), and a spent budget, an
     unparseable verdict or a broker refusal escalates the target."""
 
     review_task = mint_review_task(run.root, run.task)
@@ -1152,7 +1152,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
     )
 
     # The reviewer spends the same run budget: a refusal there is the
-    # same cost_anomaly, stopped on the run that overspent (D-21.6).
+    # same cost_anomaly, stopped on the run that overspent (S-0021/D-6).
     broker, handle = run.deps.broker, run.broker_handle
 
     if broker is not None and handle is not None:
@@ -1168,7 +1168,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
             return None
 
     if outcome.refusal is not None:
-        # D-54.15: a document that fails the schema is refused by name —
+        # S-0054/D-15: a document that fails the schema is refused by name —
         # the reviewer had one attempt, so the refusal escalates as the
         # verdict it could not deliver, never as a clean review.
         state.escalate(
@@ -1179,7 +1179,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         return None
 
     if outcome.unparseable:
-        # Fail closed (D-5.4): a verdict that cannot be read must
+        # Fail closed (S-0005/D-4): a verdict that cannot be read must
         # not promote — "no findings recorded" once waved a review
         # carrying two blockers straight to ready.
         state.escalate(
@@ -1199,9 +1199,9 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         budget = run.config.review.blocker_revisions
 
         if spent < budget:
-            # RFC 0043 D-43.1/D-43.2: the blockers and the convicted
-            # candidate diff ride the RFC 0005 §4a feedback record —
-            # the existing D-5.13 plant/frame mechanics carry it into
+            # S-0043 S-0043/D-1/D-43.2: the blockers and the convicted
+            # candidate diff ride the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback record —
+            # the existing S-0005/D-13 plant/frame mechanics carry it into
             # the next attempt with no new delivery path.
             capture_feedback(
                 run.root,
@@ -1228,7 +1228,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         return None
 
     # The verdict the lane's require_review predicate reads
-    # (D-6.14, A-43); cleared on the next entry to running.
+    # (S-0006/D-14, S-0006/A-3); cleared on the next entry to running.
     state.reviewed_by = outcome.review_id
 
     return f"{outcome.fact} ({outcome.review_id})"

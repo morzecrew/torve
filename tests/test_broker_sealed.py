@@ -1,4 +1,4 @@
-"""RFC 0021 phase 2 — sealed mode (T-0106, D-21.3): containment on top of
+"""S-0021 phase 2 — sealed mode (T-0106, S-0021/D-3): containment on top of
 custody. The sandbox joins an internal Docker network shared with the
 broker, so no destination is reachable except through it, and every
 non-provider host the run legitimately needs is declared and CONNECTed
@@ -392,7 +392,7 @@ def routing_for(upstream_url: str) -> BrokerRouting:
 
 
 # ....................... #
-# Configuration (D-21.3, D-21.11)
+# Configuration (S-0021/D-3, S-0021/D-11)
 
 
 def test_sealed_requires_a_broker_on_the_wire():
@@ -417,7 +417,7 @@ def test_endpoint_refuses_sealed_only_fields():
 
 
 def test_sealed_refuses_the_remote_endpoint_address_knobs():
-    # D-41.6: bind and advertise replace a derivation that exists for
+    # S-0041/D-6: bind and advertise replace a derivation that exists for
     # endpoint runs; sealed mode's address is the internal network's
     # gateway at a name-derived port — a configured address would have a
     # sealed run pretending a topology it does not have.
@@ -435,7 +435,7 @@ def test_pass_through_entries_are_hosts_not_urls():
 
 
 def test_pass_through_may_not_shadow_a_routed_provider():
-    # D-21.4: a destination cannot be both a routed provider (key injected,
+    # S-0021/D-4: a destination cannot be both a routed provider (key injected,
     # metered) and an uninspected pass-through — the wire enforcement would
     # be bypassable.
     with pytest.raises(ValidationError, match="routed provider host"):
@@ -463,7 +463,7 @@ def test_sealed_runner_needs_the_docker_runtime_and_the_shared_network():
 
 
 def test_sealed_runner_refuses_the_host_daemon_socket():
-    # D-17.10: a socket is host-equivalent capability — the exact trust
+    # S-0017/D-10: a socket is host-equivalent capability — the exact trust
     # sealed containment exists to remove.
     with pytest.raises(ValidationError, match=r"refuses runtime\.docker: socket"):
         RunnerConfig(
@@ -523,7 +523,7 @@ def test_sealed_reuses_an_operator_network_and_never_removes_it(
 def test_sealed_refuses_a_network_that_is_not_internal(
     fake_docker, provider_upstream, sealed_network, monkeypatch
 ):
-    # D-21.3 fail-closed: an existing network of that name that is not
+    # S-0021/D-3 fail-closed: an existing network of that name that is not
     # internal is a refused configuration, never a silent endpoint run on a
     # network that can reach the outside.
     monkeypatch.setenv(KEY_ENV, "k-123-secret")
@@ -541,7 +541,7 @@ def test_sealed_open_fails_loudly_when_the_network_cannot_be_created(
     fake_docker, provider_upstream, sealed_network, monkeypatch
 ):
     # The broker is the run's only egress; a sealed run whose network
-    # cannot be provisioned must refuse to start (RFC 0021 §9: the failure
+    # cannot be provisioned must refuse to start (S-0021/risks: the failure
     # is loud, never a fallback to a less isolated path).
     monkeypatch.setenv(KEY_ENV, "k-123-secret")
     _, upstream_url = provider_upstream
@@ -580,7 +580,7 @@ def test_sealed_connect_tunnels_a_declared_host(
     sock.close()
 
     usage = broker.close(handle)
-    assert usage.requests == 1  # the tunnel is counted, never its bytes (D-21.7)
+    assert usage.requests == 1  # the tunnel is counted, never its bytes (S-0021/D-7)
     assert usage.refusals == {}
 
 
@@ -611,7 +611,7 @@ def test_sealed_connect_refuses_an_undeclared_host(
 def test_sealed_connect_refuses_a_provider_host(
     fake_docker, provider_upstream, sealed_network, monkeypatch
 ):
-    # D-21.4: a routed provider's host is never a pass-through — its
+    # S-0021/D-4: a routed provider's host is never a pass-through — its
     # traffic must travel the route, key injected and metered.
     monkeypatch.setenv(KEY_ENV, "k-123-secret")
     _, upstream_url = provider_upstream
@@ -817,13 +817,13 @@ def test_runtime_non_sealed_network_keeps_forwarding_the_host_proxy(
     args = fake_docker.run_args()
 
     # host mode forwards the proxy convention by NAME — the value rides the
-    # invoking environment, never the spec (D-4b)
+    # invoking environment, never the spec (S-0001/D-13)
     assert "HTTPS_PROXY" in args
     assert "http://127.0.0.1:9999" not in args
 
 
 # ....................... #
-# End to end against the real daemon (RFC 0021 §6): a sandbox on the
+# End to end against the real daemon (S-0021/tests): a sandbox on the
 # internal network cannot reach an undeclared host, and the refusal names
 # the destination.
 

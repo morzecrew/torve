@@ -1,4 +1,4 @@
-"""The DST world (RFC 0003 §6 layer 3, D-3.5): the real `drive_attempts` loop
+"""The DST world (S-0003/tests layer 3, S-0003/D-5): the real `drive_attempts` loop
 and the real TaskStore over the mock durable store, driven concurrently by
 simulated operations. The hooks are simulated (instant agents, scripted
 gates); the loop, the transitions, the store and the fences are the shipped
@@ -158,7 +158,7 @@ class World:
 
         # Zombies live on their own task id: recovery re-running an abandoned
         # task while a fresh dispatch of the same task runs is a dispatch-layer
-        # concern (RFC 0006), not this simulation's mutual-exclusion claim.
+        # concern (S-0006), not this simulation's mutual-exclusion claim.
         record = await self.taskstore.enqueue(
             {
                 "task": "T-Z",

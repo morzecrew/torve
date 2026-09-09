@@ -2,7 +2,7 @@
 
 What the engine can see while a run is in progress, and what it deliberately
 cannot
-([RFC 0045](https://github.com/morzecrew/torve/blob/main/rfcs/0045-the-live-channel.md)).
+([S-0045](https://github.com/morzecrew/torve/blob/main/rfcs/0045-the-live-channel.md)).
 
 Before this existed, a running attempt was opaque: the engine started a
 container, waited, and learned everything at once when the process ended.
@@ -30,13 +30,13 @@ $ torve manager board morzecrew/torve --dsn "$TORVE_PG_DSN"
 
 The aggregate the broker reports at close equals what the events sum to, so
 the two views of one run's spending cannot disagree. Whether a stalled
-stream should also *end* an attempt is deliberately unanswered (D-45.8) —
+stream should also *end* an attempt is deliberately unanswered (S-0045/D-8) —
 the board surfaces it, nothing acts on it, and the decision waits for
 recorded burn to argue from rather than for an argument.
 
 ## The sandbox writes through the broker, never to the store
 
-A sandbox holds no store credential and never will (D-45.1). With one, the
+A sandbox holds no store credential and never will (S-0045/D-1). With one, the
 authority table would become advice: anything holding the connection can
 write anything.
 
@@ -50,7 +50,7 @@ request carries content and nothing else:
   appended.
 
 Forging is not refused — it is unexpressible, because the channel was built
-for one run and there is no field in which to say otherwise (D-45.2).
+for one run and there is no field in which to say otherwise (S-0045/D-2).
 
 The same route reads back. A sandbox posting through the channel never sees
 its own entries in the worktree, since the engine writes that file at the

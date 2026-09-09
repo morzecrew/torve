@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-39.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Traces live under `<root>/.torve/traces/` from the first byte, referenced root-relative;
@@ -12,30 +12,31 @@ decisions:
     consequence: >-
       Triage actually outlives the workspace; every future reader may assume one home
       and a resolvable relative ref or an honest "reaped"
-  - id: D-39.2
+  - id: D-2
     grade: LOCKED
     text: >-
       The trace store is local: torve never commits, uploads or transmits a trace;
-      trace content never enters a prompt (D-5.3) and never drives control flow
+      trace content never enters a prompt (S-0005/D-3) and never drives control flow
     paths: [src/torve/application/reaper.py, src/torve/adapters/agent/harness.py]
     consequence: >-
-      D-21.7's no-bodies doctrine stays about egress; a mechanism that ships traces
+      S-0021/D-7's no-bodies doctrine stays about egress; a mechanism that ships traces
       off-host is a new document with a trust story
-  - id: D-39.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       Retention is `traces.keep_days` and `traces.max_mb` in runner configuration,
       enforced oldest-first at the reaper's existing pass; defaults 30 and 512 pending
       the owner's read of dogfood volume
     paths: [src/torve/config/runconfig.py, src/torve/application/reaper.py]
-  - id: D-39.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       The burn profile is derived by the harness adapter from all JSON lines of the
       output it already holds — turns, tool calls, top turns by output tokens — riding
-      the agent block under D-4.6's absent-stays-absent regime; no stream, no block
+      the agent block under S-0004/D-6's absent-stays-absent regime; no stream, no
+      block
     paths: [src/torve/adapters/agent/harness.py, src/torve/application/telemetry.py]
-  - id: D-39.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       Torve imposes no trace format: the store keeps profile output verbatim, and

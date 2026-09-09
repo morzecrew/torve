@@ -1,7 +1,7 @@
-"""`torve shadow` — replay a completed task from its parent commit (RFC 0004
-§5). Parsing and rendering only (D-15.6); the loop lives in
+"""`torve shadow` — replay a completed task from its parent commit (S-0004
+§5). Parsing and rendering only (S-0015/D-6); the loop lives in
 `torve.application.shadow`. The workspace is a truncated-history clone
-(D-4.7) and nothing is ever merged from a shadow run (D-4.4).
+(S-0004/D-7) and nothing is ever merged from a shadow run (S-0004/D-4).
 
 The exit code reports the measurement, not the replay's fortunes: a red
 replay is a successful measurement of a red outcome, so a completed replay
@@ -110,14 +110,14 @@ def shadow_cmd(
 
     task = load_task(task_file)
     config = load_config(root, config_path)
-    # RFC 0034 D-34.3: resolved once, before anything reads the tier this
+    # S-0034 S-0034/D-3: resolved once, before anything reads the tier this
     # replay routes and runs under — the same shape a live dispatch resolves.
     task = resolve_character_tier(config, task)
 
     try:
         tier = tier_for(config, tier_name_for(task))
 
-        # Same dispatch-time routing as a live run (D-4.8): a shadow replay
+        # Same dispatch-time routing as a live run (S-0004/D-8): a shadow replay
         # sends the repository to the provider exactly like a live one.
         if agent_name is None:
             route_provider(config.providers, repository_name(root), tier.provider)

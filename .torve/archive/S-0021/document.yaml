@@ -1,18 +1,18 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0021'
+id: S-0021
 title: The egress broker
 kind: design
 status: superseded
 implementation: partial
-depends_on: ['0003', '0004']
-informed_by: ['0001', '0013', '0017']
+depends_on: [S-0003, S-0004]
+informed_by: [S-0001, S-0013, S-0017]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Credential custody and outbound traffic for a sandbox: the agent holds no provider
-  key and the broker injects, routes and meters at the wire — closing D-4b under Docker
-  today, with the OpenSandbox vault as one adapter rather than a prerequisite.
+  key and the broker injects, routes and meters at the wire — closing S-0001/D-13
+  under Docker today, with the OpenSandbox vault as one adapter rather than a prerequisite.
 schema_version: 3
 sections:
   - key: summary
@@ -29,7 +29,7 @@ sections:
       internal Docker network whose only reachable address is the broker.
   - key: motivation
     md: |
-      D-4b is `LOCKED` and reads: agents never hold real credentials; outbound
+      S-0001/D-13 is `LOCKED` and reads: agents never hold real credentials; outbound
       secrets are injected by the runtime's vault. The plumbing honours it and the
       outcome does not.
 
@@ -44,9 +44,9 @@ sections:
         sandbox cannot reach an arbitrary destination.
       - `route_provider` in `src/torve/config/runconfig.py` is a dispatch-time
         assertion over configuration. Nothing observes where the sandbox actually
-        connects, so RFC 0004 §6b's routing is a promise about intent rather than a
+        connects, so S-0004/provider-routing-and-data-boundaries's routing is a promise about intent rather than a
         property of the run.
-      - D-17.6 classifies a remote MCP endpoint as an egress destination under
+      - S-0017/D-6 classifies a remote MCP endpoint as an egress destination under
         provider routing. No mechanism makes that classification bite.
       - `AgentResult.cost_usd` is the harness's own report of its own spend. The
         `cost_anomaly` reason therefore rests on the measured subject's testimony,
@@ -54,7 +54,7 @@ sections:
 
       Composed, those five say the same thing: the security and economic properties
       the corpus already decided are, in the shipped regime, descriptions of a
-      configuration file rather than facts about a process. RFC 0017 §2 says what
+      configuration file rather than facts about a process. S-0017/the-image-is-an-input-not-an-environment says what
       OpenSandbox adds — "the vault, egress control" — it adds at execution time.
       Waiting for a server that does not yet exist leaves a `LOCKED` charter
       decision unmet indefinitely, which is a worse outcome than building the
@@ -72,7 +72,7 @@ sections:
       - `PROXY_ENV` in `src/torve/application/ports.py` already carries the standard
         proxy variables into a spec, for the case of a host-side proxy or VPN. The
         convention the broker needs is therefore already in the port.
-      - The four-harness roster runs on configuration alone (RFC 0017 §1), and every
+      - The four-harness roster runs on configuration alone (S-0017/two-gaps-found-by-measurement), and every
         harness on it takes a base-URL or endpoint setting through the tier command
         — which is why the `endpoint` mode of §5.2 needs no TLS interception.
       - Telemetry records `agent` (adapter, model, provider version) per run and
@@ -98,9 +98,9 @@ sections:
         packets and stays exactly as it is.
       - **Auditing prompt content.** The broker sees request bodies and must not
         keep them: a stored prompt archive is a new secret store and a new leak
-        surface. Counts and metadata only (D-21.7).
+        surface. Counts and metadata only (S-0021/D-7).
       - **Subscription-harness authentication.** OAuth flows on the slot volume
-        (D-4.2) are unchanged; they are session state, not an outbound credential
+        (S-0004/D-2) are unchanged; they are session state, not an outbound credential
         the engine issues.
   - key: the-port
     md: |
@@ -116,7 +116,7 @@ sections:
       routed provider, and a per-run bearer token the broker issued and will revoke
       at `close`. `BrokerUsage` carries request count, token counts per provider
       where the provider reports them, wall time, and the count of refusals by
-      cause. The handle's fields reach the sandbox through the channel RFC 0017 §3
+      cause. The handle's fields reach the sandbox through the channel S-0017/configuration-routes-by-nature
       already assigns to operator non-secret knobs — inline in the tier command —
       because a broker URL and a run-scoped token are exactly that: not identity,
       not task context, not a standing secret.
@@ -133,14 +133,14 @@ sections:
       forever: a repository the operator runs on their own machine against their own
       key may reasonably decline the extra process. What is not legal is `none` by
       accident — `torve doctor` reports the broker adapter in force and says plainly
-      that `none` leaves D-4b unmet.
+      that `none` leaves S-0001/D-13 unmet.
   - key: two-modes-because-custody-and-containment-are-different-problems
     md: |
       **`endpoint` (phase 1).** The broker is a reverse proxy, one route per
       configured provider. The tier command's endpoint setting is substituted with
       the broker's URL; `api_key_env` on a brokered tier must be empty and a
       non-empty one is a refused configuration, not a warning — a second channel for
-      a secret is the D-17.4 failure. The sandbox keeps the default bridge, so it
+      a secret is the S-0017/D-4 failure. The sandbox keeps the default bridge, so it
       can still reach the internet; what it cannot do is take a key with it. This
       closes custody and metering and is honest about not closing exfiltration.
 
@@ -154,7 +154,7 @@ sections:
       escalates as a configuration error rather than silently succeeding through a
       path nobody meant to leave open.
 
-      Sealed mode is what makes RFC 0017 D-17.10's sentence checkable: a repository
+      Sealed mode is what makes S-0017 S-0017/D-10's sentence checkable: a repository
       the operator does not trust as their own shell can be run at all, because the
       capability it is granted is enumerable.
   - key: routing-enforced-twice-deliberately
@@ -181,13 +181,13 @@ sections:
       progress, on the run that overspent, rather than in a report about last week.
   - key: what-this-does-not-change
     md: |
-      Gates never read broker output as evidence (D-3's boundary is untouched: the
+      Gates never read broker output as evidence (S-0001/D-11's boundary is untouched: the
       broker is infrastructure, not a gate). Review isolation is unchanged. The
       workspace, skills materialisation and the image are untouched — a brokered run
       and an unbrokered one differ in the tier command line and in nothing else the
       agent can see. `config_hash` gains the broker adapter name and the routing
       block, because two runs under different egress regimes are two regimes
-      (D-17.1's rule, one artefact over).
+      (S-0017/D-1's rule, one artefact over).
   - key: alternatives-considered
     md: |
       - **Wait for the OpenSandbox vault.** Its trade is that a `LOCKED` charter
@@ -198,7 +198,7 @@ sections:
         server arrives.
       - **A TLS-intercepting forward proxy as the default.** It would cover
         harnesses with hard-coded endpoints, at the cost of a CA in every image —
-        harness identity drift (RFC 0017 §2), a permanent debugging surface, and a
+        harness identity drift (S-0017/the-image-is-an-input-not-an-environment), a permanent debugging surface, and a
         trust anchor inside a container running someone else's model. Kept only as
         the mechanism `sealed` uses for pass-through hosts, where `CONNECT` without
         interception is enough.
@@ -210,7 +210,7 @@ sections:
         number comes from somewhere the agent does not control.
   - key: tests
     md: |
-      The conformance battery RFC 0003 already runs against both runtime adapters
+      The conformance battery S-0003 already runs against both runtime adapters
       gains a broker family, asserted identically for `local` and for the
       OpenSandbox stub: a brokered run's sandbox environment contains no name from
       the broker's key set; a request to an unrouted provider is refused with the
@@ -219,12 +219,12 @@ sections:
       integration test can assert cheaply: a sandbox on the internal network fails
       to reach a host that is not declared, and the failure names the destination.
 
-      Sabotage-suite discipline (RFC 0002 §7) applies to the refusals: a broker that
+      Sabotage-suite discipline (S-0002) applies to the refusals: a broker that
       never refuses anything is indistinguishable from an absent broker, so each
       refusal path gets a red-on-demand case.
   - key: docs
     md: |
-      The `.torve/config.yaml` reference gains the `broker` block. RFC 0017 §3's
+      The `.torve/config.yaml` reference gains the `broker` block. S-0017/configuration-routes-by-nature's
       channel table gains one row — the broker handle as an operator non-secret knob
       — and its "an operator secret" row is amended by this document's execution to
       say that under a broker the secret has no sandbox-side channel at all. The
@@ -241,7 +241,7 @@ sections:
         the default bridge. Declaring them is what `sealed` mode is for, and pulling
         it forward would make phase 1 a network project.
       - **Advisory and feed inputs.** A CVE feed or a release watcher is an inbound
-        network dependency with its own trust question; it belongs to RFC 0023's
+        network dependency with its own trust question; it belongs to S-0023's
         triggers and is refused here.
       - **Rate limiting and retry policy.** The broker is positioned to do both and
         will not: retries are the harness's business, and a broker that retries
@@ -262,7 +262,7 @@ sections:
         when something is wrong.
       - **Metering that quietly disagrees with the invoice.** Providers report
         usage inconsistently. The number is for comparison between runs, not for
-        accounting; RFC 0004 §6a's quasi-experiment warning applies unchanged.
+        accounting; S-0004/measurement-defects-to-fix-before-trusting-a-number's quasi-experiment warning applies unchanged.
   - key: unresolved-questions
     md: |
       - Whether `sealed` mode's declared pass-through hosts belong in the broker
@@ -277,10 +277,10 @@ sections:
         It cannot be chosen before there are two weeks of pairs to look at.
   - key: decisions
     md: |
-      > Numbering note: the charter's `D-21a`–`D-21d` are the execution-log family,
+      > Numbering note: the charter's `S-0001/D-17`–`S-0001/D-31` are the execution-log family,
       > written before `D-A.*` closed, and are unrelated to this document's
       > `D-21.n`. The corpus rule is mechanical — RFC number to prefix — and
-      > renumbering either family would orphan citations (D-A.4).
+      > renumbering either family would orphan citations (S-0016/D-15).
   - key: exit-criteria
     md: |
       - A brokered run whose sandbox environment demonstrably contains no provider
@@ -331,8 +331,8 @@ phasing:
       every non-provider host the run legitimately needs is declared and CONNECTed
       without inspection. An undeclared destination fails loudly and the run escalates
       as a configuration error rather than succeeding through a path nobody meant
-      to leave open. This is what makes D-17.10's trust sentence checkable for a repository
-      the operator does not trust as their own shell.
+      to leave open. This is what makes S-0017/D-10's trust sentence checkable for
+      a repository the operator does not trust as their own shell.
     scope:
       - src/torve/adapters/runtime/**
       - src/torve/adapters/broker/**

@@ -66,7 +66,7 @@ the corpus's own files — task logs, the manifest — the globs are
 
 The baseline has no `## Phasing` section, and no section that could be read
 as one. The engine mints tasks from Phasing sections; the baseline is not a
-plan and D-31.2 leaves the engine no surface for it. If the adoption needs
+plan and S-0031/D-2 leaves the engine no surface for it. If the adoption needs
 sequenced work, that is a design document's job, written after the baseline
 accepts — never a phase inside it.
 

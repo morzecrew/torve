@@ -1,4 +1,4 @@
-"""Where a decision came from (RFC 0044 D-44.8, RFC 0047 §5.1).
+"""Where a decision came from (S-0044 S-0044/D-8, S-0047/a-source-is-provenance-not-a-document).
 
 A source is any provenance carrying zero or more decisions: a specification
 document, an incident, an audit, a review finding, an operator's ask. The
@@ -7,7 +7,7 @@ settles something settles it as surely as a document does, and before this
 existed the only way for it to count was to become an RFC first.
 
 The task is the execution unit and cites its source for provenance, never
-for parsing (D-44.8): `Task.rfc` stays a path to the document a contract was
+for parsing (S-0044/D-8): `Task.rfc` stays a path to the document a contract was
 written against, and the source id is what a record joins on.
 """
 
@@ -32,9 +32,9 @@ CORPUS_NAMESPACE = "rfc"
 class Source:
     """One provenance, identified so a record can join to it.
 
-    `id` is `<namespace>/<slug>` and is stable under renaming (D-47.4): the
+    `id` is `<namespace>/<slug>` and is stable under renaming (S-0047/D-4): the
     corpus's slug is the document number, which never changes and is never
-    reused (D-A.6). `ref` is where the source currently lives, and `ref` is
+    reused (S-0016/D-17). `ref` is where the source currently lives, and `ref` is
     the field that moves when a file is renamed — which is the whole reason
     the id is not the path.
     """
@@ -48,9 +48,11 @@ class Source:
 # ....................... #
 
 
-def corpus_source_id(number: str) -> str:
-    """The source id of one corpus document, from its number alone — the
-    caller does not need the file, because the file's name is not part of
-    the identity."""
+def corpus_source_id(reference: str) -> str:
+    """The source id of one corpus document: its own identifier, `S-NNNN`
+    (S-0058/D-1), from any spelling of it — the caller does not need the file,
+    because the file's name is not part of the identity."""
 
-    return f"{CORPUS_NAMESPACE}/{number}"
+    from torve.domain.spec import document_id
+
+    return document_id(reference)

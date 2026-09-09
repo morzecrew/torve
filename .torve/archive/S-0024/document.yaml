@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0024'
+id: S-0024
 title: Fleet — one department, many repositories
 kind: design
 status: superseded
 implementation: complete
-depends_on: [0008, '0013', 0019]
-informed_by: ['0001', '0004', '0006', '0017', '0021', '0022']
+depends_on: [S-0008, S-0013, S-0019]
+informed_by: [S-0001, S-0004, S-0006, S-0017, S-0021, S-0022]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Running the standing loop over several repositories from one operator's attention:
@@ -26,7 +26,7 @@ sections:
       keeps: survey every root's escalation queue, decide the pause once for the
       fleet, then tick each root in its own regime with that decision passed down.
       The manifest also carries a trust class per repository, which is the first
-      mechanism that makes RFC 0017's "never combined with repositories the operator
+      mechanism that makes S-0017's "never combined with repositories the operator
       does not trust as their own shell" a check rather than a sentence.
   - key: motivation
     md: |
@@ -34,22 +34,22 @@ sections:
       hand or by separate schedules. The design does not scale past that, and it
       fails in a specific way rather than a vague one.
 
-      - **The attention budget is per-root.** D-19.5 pauses intake while a root's
+      - **The attention budget is per-root.** S-0019/D-5 pauses intake while a root's
         escalation queue holds `loop.pause_escalations` runs, because a queue nobody
         triages must stop the machine rather than the person. With N roots the rule
         is enforced N times against a person who exists once. Four roots each holding
         one escalation is four paused-but-otherwise-fine systems and one operator
         with four things to triage and no view that says so.
-      - **RFC 0006's primary alert is queue age (D-6.8), and it has no fleet form.**
+      - **S-0006's primary alert is queue age (S-0006/D-8), and it has no fleet form.**
         The alert fires per root, so the oldest item across the fleet is exactly the
         thing nothing reports.
       - **The corpus already assumes a population of repositories trusted
-        differently.** RFC 0004 §6b keys provider routing by repository name;
-        RFC 0017 D-17.10 says socket mode is "never combined with repositories the
+        differently.** S-0004/provider-routing-and-data-boundaries keys provider routing by repository name;
+        S-0017 S-0017/D-10 says socket mode is "never combined with repositories the
         operator does not trust as they trust their own shell". Neither has anywhere
         to write down which repository is which, so both are enforced by the
         operator remembering.
-      - **RFC 0008 §6 already settled "multiple repositories, one board".** The
+      - **S-0008/multiple-repositories-one-board already settled "multiple repositories, one board".** The
         projection side is done. Nothing on the loop side matches it.
   - key: current-state
     md: |
@@ -61,7 +61,7 @@ sections:
       - `route_provider` takes a repository name and a provider and refuses at
         dispatch. The repository name is a string in the config of the repository
         itself, which means the repository under work supplies its own routing key.
-      - RFC 0013's layout is deliberately per-repository, and D-13.3 states the rule
+      - S-0013's layout is deliberately per-repository, and S-0013/D-3 states the rule
         this document needs in the other direction: the repository under work
         configures nothing about the engine that works on it.
   - key: goals-non-goals
@@ -79,7 +79,7 @@ sections:
       - **Multi-tenancy.** Charter §9, permanently. This is one operator with
         several repositories, not several operators.
       - **Parallel roots.** The fleet ticks serially. Concurrency across roots is
-        RFC 0006 §4's parallelism raise — one dimension at a time, after a measured
+        S-0006/human-attention-is-the-scarce-resource's parallelism raise — one dimension at a time, after a measured
         escalation rate — and raising two dimensions at once would make the
         measurement meaningless.
       - **Cross-repository tasks.** A task belongs to exactly one root. A change
@@ -102,7 +102,7 @@ sections:
       ```
 
       It is the one artefact that is *about* repositories rather than in one, and
-      that is why it cannot live in any of them: D-13.3 says the repository under
+      that is why it cannot live in any of them: S-0013/D-3 says the repository under
       work configures nothing about the engine, and a repository declaring its own
       trust class is the same failure in its purest form. The manifest is the
       operator's file, on the operator's machine, beside their other operational
@@ -110,7 +110,7 @@ sections:
 
       `order` is deterministic and is not a priority field. A fleet that ticks roots
       in a chosen order is one config change away from being a scheduler with
-      opinions, which is the second planner RFC 0019 refused.
+      opinions, which is the second planner S-0019 refused.
   - key: torve-fleet-tick
     md: |
       Four legs, and only the second is new behaviour:
@@ -121,7 +121,7 @@ sections:
          `attention.pause_escalations`, every root's dispatch leg is suppressed for
          this pass. Every other leg runs everywhere: poll may apply the retry that
          clears the queue, lanes may land what is already clean, sync keeps boards
-         current. This is D-19.5 lifted one level with no new semantics — the queue
+         current. This is S-0019/D-5 lifted one level with no new semantics — the queue
          may drain by the fleet's hand and may not grow by it.
       3. **Tick each root in order**, in the root's own regime and under the root's
          own lock, with the pause decision passed down. A root whose lock is held
@@ -143,11 +143,11 @@ sections:
       | --- | --- | --- |
       | `own` | `runtime.docker: socket`, any `network` | — |
       | `reviewed` | no socket | an explicit provider allowlist, not the default |
-      | `untrusted` | no socket, no `network: host` | RFC 0021's broker in sealed mode |
+      | `untrusted` | no socket, no `network: host` | S-0021's broker in sealed mode |
 
       A root whose own configuration asks for more than its class allows is refused
       before its tick, with the class and the offending setting named. This is the
-      first mechanism that makes D-17.10's sentence checkable, and it is
+      first mechanism that makes S-0017/D-10's sentence checkable, and it is
       deliberately placed where the repository cannot argue with it.
 
       The three classes are a guess at the useful granularity and are graded
@@ -155,16 +155,16 @@ sections:
       operator's file.
   - key: one-board-many-roots
     md: |
-      RFC 0008 §6 already covers projection across repositories, and the sync leg is
+      S-0008/multiple-repositories-one-board already covers projection across repositories, and the sync leg is
       per root and unchanged. Two additions, both small: an escalation notification
       names its root, and `torve fleet status` reads every root's run records into
-      one table sorted by escalation age — which is RFC 0006's primary alert (D-6.8)
+      one table sorted by escalation age — which is S-0006's primary alert (S-0006/D-8)
       given its missing fleet form.
   - key: aggregation-is-read-only-and-there-is-no-fleet-store
     md: |
       `torve fleet status` reads; nothing writes across roots. No aggregated
       database, no fleet-level state file, no cache. Each root stays authoritative
-      for itself, which is D-27's direction of authority applied one level up: the
+      for itself, which is S-0001/D-24's direction of authority applied one level up: the
       fleet may read every root, and no root's truth ever lives outside it.
 
       This is a reversibility requirement, not an aesthetic one. Charter §8a's table
@@ -179,16 +179,16 @@ sections:
         share an attention budget, so the safety property that makes the loop
         standing is enforced N times against one person. Kept as the fallback — a
         fleet tick is one entry replacing N, and deleting it restores N.
-      - **A fleet daemon.** Rejected for D-19.1's reasons, which do not change one
+      - **A fleet daemon.** Rejected for S-0019/D-1's reasons, which do not change one
         level up: a resident process needs supervision, restart policy and a
         liveness story, and a dead cron entry is visible silence while a wedged
         daemon looks alive.
       - **A fleet-level lock instead of per-root locks.** Its trade is simplicity
         against correctness: per-root locks already handle the overlap case
-        (D-19.2), and a fleet lock would let one hung root block every other's
+        (S-0019/D-2), and a fleet lock would let one hung root block every other's
         reaper and lane, which is worse than the problem it solves.
       - **Trust declared in each repository's own config.** Its trade is that the
-        file sits next to the settings it governs, at the price of D-13.3 — a
+        file sits next to the settings it governs, at the price of S-0013/D-3 — a
         repository that can declare itself trusted has declared itself trusted.
   - key: tests
     md: |
@@ -209,10 +209,10 @@ sections:
       will read the first fleet-wide pause as a bug.
   - key: out-of-scope
     md: |
-      - **Concurrent roots.** Named as the obvious extension and gated on RFC 0006
+      - **Concurrent roots.** Named as the obvious extension and gated on S-0006
         §4's measured escalation rate, exactly as in-root parallelism was.
       - **A fleet planner or a fleet corpus.** There is no such thing: the planner
-        is per corpus and each repository has its own. RFC 0022's report is
+        is per corpus and each repository has its own. S-0022's report is
         per-corpus for the same reason, and a fleet-level quality view would compare
         populations that share nothing.
       - **Remote roots.** Every root is a directory on the operator's machine.
@@ -253,7 +253,7 @@ sections:
         general answer and is more machinery than two repositories justify.
   - key: decisions
     md: |
-      D-24.10 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0024/D-10 was retired 2026-09-09; path rot. The identifier is never reused.
   - key: exit-criteria
     md: |
       - Two roots ticked by one scheduled entry, each landing work in its own
@@ -294,10 +294,10 @@ phasing:
     intent: >-
       Trust classes enforced against each root's own configuration before the root
       is ticked, so that the capabilities the corpus already grants unevenly — socket
-      mode, host networking, provider routing breadth, and RFC 0021's broker mode
-      where it exists — are refused when a repository asks for more than its class
-      allows, naming the class and the setting. This is what turns D-17.10 from a
-      sentence an operator remembers into a refusal an operator reads.
+      mode, host networking, provider routing breadth, and S-0021's broker mode where
+      it exists — are refused when a repository asks for more than its class allows,
+      naming the class and the setting. This is what turns S-0017/D-10 from a sentence
+      an operator remembers into a refusal an operator reads.
     scope: [src/torve/config/fleet.py, src/torve/application/fleet.py, tests/**]
     acceptance:
       - uv run ruff check src tests

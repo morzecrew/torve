@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0038
+id: S-0038
 title: The attempt verdict
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0002', '0004', '0006']
-informed_by: ['0021', '0026', '0034', '0037']
+depends_on: [S-0002, S-0004, S-0006]
+informed_by: [S-0021, S-0026, S-0034, S-0037]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Every attempt ends in exactly one durable telemetry row stamped with its attempt
@@ -48,12 +48,12 @@ sections:
         state file. The current stream holds 85 engine events and not one
         escalation record, while the 0034 audit counts three poison ceilings
         across two models. `run_task` constructs a fresh `RunState` per
-        dispatch and its first save overwrites the prior history (RFC 0037
+        dispatch and its first save overwrites the prior history (S-0037
         §3), and the reaper deletes the file at terminal sweep — the reason a
         task needed a human is unrecoverable precisely after the human is
         done with it.
       - **An attempt can end with no row at all.** A broker budget refusal
-        escalates mid-attempt (D-21.6) and stops the loop before the gates
+        escalates mid-attempt (S-0021/D-6) and stops the loop before the gates
         run; the red-agent record fires only on `timed_out or exit_code != 0`,
         so an agent that exits 0 into a refused escalation leaves spend with
         no record — the same class of hole the red-path record was added to
@@ -74,13 +74,13 @@ sections:
       - `RunState.escalate` (`src/torve/application/runstate.py`) sets a
         field and nothing else; `engine_event`
         (`src/torve/application/telemetry.py`) already exists as the durable
-        path for exactly this kind of fact (D-6.7) and already resolves the
+        path for exactly this kind of fact (S-0006/D-7) and already resolves the
         stream location manifest-or-default.
       - The escalation vocabulary is closed and projected onto exit codes
-        (`src/torve/domain/states.py`, D-11.4) — the reason taxonomy this
+        (`src/torve/domain/states.py`, S-0011/D-4) — the reason taxonomy this
         document reuses rather than invents.
       - Retry-rung selection reads the attempt's recorded gate outcomes
-        (D-34.5); the verdict adds a summary of facts already recorded, never
+        (S-0034/D-5); the verdict adds a summary of facts already recorded, never
         a new routing input.
   - key: goals-non-goals
     md: |
@@ -92,17 +92,17 @@ sections:
       - Every attempt's row joins deterministically to its trace file and its
         continuation chain by attempt number.
       - Escalation reasons and details survive re-dispatch and reap.
-      - RFC 0040's per-task timeline can be built from the stream alone.
+      - S-0040's per-task timeline can be built from the stream alone.
 
       **Non-goals**
 
-      - No change to routing — D-34.5 stands; the verdict is derived from the
+      - No change to routing — S-0034/D-5 stands; the verdict is derived from the
         same recorded facts, and no selector reads it.
       - No mirroring of the full `history[]` transition list into the stream —
         the verdict and the escalation event carry the triage-bearing facts;
         wholesale mirroring is noise until a reader demonstrates the need
         (named in §8).
-      - No new stream or store — D-2.4 stands: JSONL until a query demands
+      - No new stream or store — S-0002/D-4 stands: JSONL until a query demands
         otherwise, and this document's queries do not.
   - key: the-attempt-number
     md: |
@@ -110,7 +110,7 @@ sections:
       already restamped per attempt, so it rides every record the attempt
       appends: the gate-run row, the red-agent row, and the shadow row's
       attempt records alike. This is the join key the trace filename
-      (`<task>.a<attempt>.trace.log`) has carried alone since RFC 0004 §4.
+      (`<task>.a<attempt>.trace.log`) has carried alone since S-0004/why-the-agent-port-earns-its-existence.
   - key: the-verdict
     md: |
       Every attempt ends in **exactly one** row, and that row carries a
@@ -123,8 +123,8 @@ sections:
       | `gates_red` | agent exited 0, gate report nonzero |
       | `agent_timeout` | `result.timed_out` |
       | `agent_error` | agent exited nonzero |
-      | `broker_refused` | the attempt hook escalated on the broker's budget refusal (D-21.6) |
-      | `halted` | the halted divergence entry (RFC 0001 §4) |
+      | `broker_refused` | the attempt hook escalated on the broker's budget refusal (S-0021/D-6) |
+      | `halted` | the halted divergence entry (S-0001/state-machine) |
       | `gate_infrastructure` | the gates hook raised (`GATE_INFRASTRUCTURE_FAILURE`) |
 
       Where the loop today ends an attempt without appending anything (the
@@ -137,7 +137,7 @@ sections:
 
       The verdict is engine-authored — derived from exec results, gate report
       exit codes and escalation state, never from model output — so it does
-      not extend the self-reported regime D-4.6 governs; it summarizes what
+      not extend the self-reported regime S-0004/D-6 governs; it summarizes what
       the engine itself observed.
   - key: the-escalation-event
     md: |
@@ -159,12 +159,12 @@ sections:
   - key: alternatives-considered
     md: |
       - **Verdict inside the agent block** — rejected: the block is the
-        adapter's self-reported territory (D-4.6); the verdict is the
+        adapter's self-reported territory (S-0004/D-6); the verdict is the
         engine's observation and sits beside `exit_code` at the top level,
         where the gate report's facts already live.
       - **Appending the escalation event at each call site** — rejected:
         twenty-two sites is twenty-one chances to miss one; the invariant
-        belongs where the field is set. Execution may depart (D-38.4's grade)
+        belongs where the field is set. Execution may depart (S-0038/D-4's grade)
         if a state without a resolvable root turns up.
       - **A schema_version bump** — rejected: every key is additive, readers
         already treat absence as unreported, and a bump would force every
@@ -179,10 +179,10 @@ sections:
       unwritable stream, and still sets the field first. Replay: a test
       asserting the verdict is derivable from the row's other recorded fields
       — the vocabulary adds convenience, never information the row does not
-      already imply (keeps D-34.5's determinism argument honest).
+      already imply (keeps S-0034/D-5's determinism argument honest).
   - key: docs
     md: |
-      RFC 0004 §6's record documentation gains the `attempt` and `verdict`
+      S-0004/telemetry-staged's record documentation gains the `attempt` and `verdict`
       keys and the escalation event shape. No migration notes: old rows simply
       lack the keys, and every reader named in this document treats absence as
       pre-0038.
@@ -190,9 +190,9 @@ sections:
     md: |
       - Mirroring `history[]` transitions into the stream — the escalation
         event carries the triage-bearing endpoint; full mirroring returns if
-        RFC 0040's timeline demonstrably starves without it.
-      - The per-task join and rendering of these facts — RFC 0040.
-      - Trace retention — RFC 0039; this document only makes the join key
+        S-0040's timeline demonstrably starves without it.
+      - The per-task join and rendering of these facts — S-0040.
+      - Trace retention — S-0039; this document only makes the join key
         durable.
       - A `COST_ANOMALY` detector — the reason exists unraised in
         `src/torve/domain/states.py`; wiring a detector is actuation, its own
@@ -220,19 +220,19 @@ sections:
       One phase, one unit — the three changes share the runner's attempt loop
       and separating them would manufacture a dependency.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: the attempt verdict
     intent: >-
-      The agent block stamps its attempt number (D-38.4); every path out of the attempt
-      hook appends exactly one row (D-38.1) carrying an engine-derived verdict from
-      the closed vocabulary (D-38.2, D-38.3), subsuming the inline red-agent append;
-      RunState.escalate appends the durable escalation engine event best-effort from
-      its single call site (D-38.5). All keys additive (D-38.6). Tests: one per verdict
-      value, the one-attempt-one-row invariant, the broker-refused row that today
-      does not exist, the escalate append and its best-effort failure mode, and the
-      replay test deriving each verdict from the row's other fields.
+      The agent block stamps its attempt number (S-0038/D-4); every path out of the
+      attempt hook appends exactly one row (S-0038/D-1) carrying an engine-derived
+      verdict from the closed vocabulary (S-0038/D-2, S-0038/D-3), subsuming the inline
+      red-agent append; RunState.escalate appends the durable escalation engine event
+      best-effort from its single call site (S-0038/D-5). All keys additive (S-0038/D-6).
+      Tests: one per verdict value, the one-attempt-one-row invariant, the broker-refused
+      row that today does not exist, the escalate append and its best-effort failure
+      mode, and the replay test deriving each verdict from the row's other fields.
     scope:
       - src/torve/application/runner.py
       - src/torve/application/runstate.py

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0045'
+id: S-0045
 title: The live channel
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0044']
-informed_by: ['0021', 0039, '0041']
+depends_on: [S-0044]
+informed_by: [S-0021, S-0039, S-0041]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   A run becomes observable while it runs: the broker meters liveness from the burn
@@ -44,7 +44,7 @@ sections:
       - Every escalation arrived complete: the first moment the engine could act
         was after the work was already lost.
 
-      RFC 0044 phase 2 made an agent's divergence entry engine-written, which
+      S-0044 phase 2 made an agent's divergence entry engine-written, which
       removed a class of malformed records — but it kept the record inside the
       worktree until sync_out, because there was no mediated channel to anywhere
       else. That was the right floor and the wrong ceiling: the entry exists at
@@ -54,19 +54,19 @@ sections:
       Verified against the tree at `fbf2b47`:
 
       - `src/torve/adapters/broker/local.py` runs as a thread of the runner for
-        the life of the run (D-21.10). It holds provider keys in its own
+        the life of the run (S-0021/D-10). It holds provider keys in its own
         environment and injects them at the wire; the sandbox never sees one.
       - It authenticates with a run-scoped token, and already knows which run it
         is serving — so the run's task, partition and attempt are facts the
         broker holds and a caller does not state.
       - It meters every provider response (`BrokerUsage`: requests, tokens per
         provider, wall time, refusals, cost where reported) — counts and metadata
-        only, never bodies (D-21.7). Usage is aggregated per run and read at
+        only, never bodies (S-0021/D-7). Usage is aggregated per run and read at
         close.
       - It already serves three topologies: loopback, an internal Docker network
-        addressed by its gateway (sealed mode, D-21.3), and a remote
-        bind/advertise pair (D-41.6). A route added here inherits all three.
-      - The event log and its authority table exist (RFC 0044): agents may write
+        addressed by its gateway (sealed mode, S-0021/D-3), and a remote
+        bind/advertise pair (S-0041/D-6). A route added here inherits all three.
+      - The event log and its authority table exist (S-0044): agents may write
         `divergence.recorded` and `message.sent`; workers may write
         `seat.consumed`.
       - What does not exist: any route from a sandbox to the store, any per-call
@@ -87,7 +87,7 @@ sections:
 
       - Reading, rewriting or injecting prompts. The broker sees provider traffic
         because it must route it; that is not a licence to author it.
-      - Replacing durable traces (RFC 0039). A trace is the full stream after the
+      - Replacing durable traces (S-0039). A trace is the full stream after the
         fact; this is a small number of typed facts during.
       - Streaming agent internals, tool calls or file diffs out of the sandbox.
       - Any change to what an agent may write. The authority table already
@@ -120,14 +120,14 @@ sections:
       - `actor.kind` is stamped `agent`, never taken from the request;
       - `partition` and `subject` are the run's own, so a record can only ever be
         about the task the sandbox was dispatched for;
-      - the kind is checked against the authority table (D-44.2) before anything
+      - the kind is checked against the authority table (S-0044/D-2) before anything
         is appended, so the two kinds an agent may write are the two it can write.
 
       `torve log divergence` posts through this route when the run has one, and
       writes the worktree file when it does not — the file remains the landed
       projection either way, so a run with no broker behaves exactly as it does
       today. The entry is checked before it is sent, by the same shared checks
-      (D-44.10): a malformed entry is refused in the sandbox and never reaches
+      (S-0044/D-10): a malformed entry is refused in the sandbox and never reaches
       the wire.
 
       A store credential still never enters a sandbox. That is the difference
@@ -155,7 +155,7 @@ sections:
       outcome; what changes is that the engine now has grounds.
   - key: one-amendment-to-the-authority-table
     md: |
-      `message.sent` is agent-only in RFC 0044's table, which was written when the
+      `message.sent` is agent-only in S-0044's table, which was written when the
       only sender imagined was an agent. A note from the manager is the same kind
       of record with a different sender, and the sender is stamped, so the table
       widens to admit `manager` and `operator`. Nothing else changes: an agent
@@ -169,7 +169,7 @@ sections:
         trust boundary nowhere — the sidecar is inside — while adding a process,
         its lifecycle, and its failure modes.
       - **Parsing the agent's stream host-side.** Needs no new channel, and is
-        the derive-don't-record antipattern RFC 0044 retired: it sees only what
+        the derive-don't-record antipattern S-0044 retired: it sees only what
         the agent chose to print, and re-interprets it through whatever the
         parser believes this week.
       - **An agent-emitted heartbeat.** Fails in the case that motivates it.
@@ -194,12 +194,12 @@ sections:
   - key: docs
     md: |
       `pages/` gains a page on what the engine can see during a run and what it
-      deliberately cannot. The RFC 0044 amendment in §5.4 ships with acceptance.
+      deliberately cannot. The S-0044 amendment in §5.4 ships with acceptance.
   - key: out-of-scope
     md: |
       - Prompt authorship or mutation of any kind, including "helpful" injection
         of notes into the next request. A note is read by an agent that asks.
-      - Streaming the trace live (RFC 0039 covers the durable stream after the
+      - Streaming the trace live (S-0039 covers the durable stream after the
         fact); this channel carries typed facts, not output.
       - Cross-run visibility for agents. A sandbox sees its own run and nothing
         else, which the stamped subject enforces rather than documents.
@@ -215,7 +215,7 @@ sections:
         run. Accepted deliberately: they are small, they are the liveness signal,
         and a burn rate cannot be reconstructed from a total.
       - **Notes read as instructions.** A note is untrusted review data under the
-        same framing the feedback record already carries (D-5.13); an agent that
+        same framing the feedback record already carries (S-0005/D-13); an agent that
         treats one as authority over its contract is the failure the framing
         exists to prevent.
       - **The broker becomes load-bearing for more than routing.** It already is:
@@ -230,8 +230,8 @@ sections:
   - key: phasing
     md: |
       Phase 3 — notes, and stopping an attempt on evidence — waits on the manager
-      RFC 0044 declares, because there is no actor to write a note or weigh a
-      stalled stream until it exists. Its decisions (D-45.4, D-45.7) name
+      S-0044 declares, because there is no actor to write a note or weigh a
+      stalled stream until it exists. Its decisions (S-0045/D-4, S-0045/D-7) name
       `src/torve/application/manager.py` for that reason.
 phasing:
   - phase: 1

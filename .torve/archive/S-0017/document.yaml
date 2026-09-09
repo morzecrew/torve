@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0017'
+id: S-0017
 title: Sandbox provisioning and harness configuration
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0003', '0004']
-informed_by: ['0013', '0016']
+depends_on: [S-0003, S-0004]
+informed_by: [S-0013, S-0016]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   How a sandbox image comes to exist and how a harness's configuration reaches it:
@@ -23,7 +23,7 @@ sections:
       **Images are ambient.** The four harness images were hand-built in a
       temporary directory and addressed by mutable tag. One of them was rebuilt
       twice in a single afternoon under the same name, and nothing in `config_hash`
-      noticed — a silent regime change of exactly the kind D-4.6 exists to catch,
+      noticed — a silent regime change of exactly the kind S-0004/D-6 exists to catch,
       except the drifting artefact was the sandbox rather than the model. A tag
       answers "what does this name point at right now"; a measurement needs "what
       was this sandbox, exactly, when the number was produced".
@@ -33,7 +33,7 @@ sections:
       wherever the day's experiment put them. It worked — four harnesses run on
       configuration alone — but "wherever it landed" is how a secret ends up in an
       image layer or a repository ends up configuring the engine that works on it
-      (the D-13.3 failure, one level down).
+      (the S-0013/D-3 failure, one level down).
   - key: the-image-is-an-input-not-an-environment
     md: |
       A sandbox image is part of the regime a run belongs to, with the same
@@ -63,7 +63,7 @@ sections:
       adds at execution time, not at image identity time.
   - key: docker-inside-the-sandbox
     md: |
-      *Added by amendment A-24 2026-08-22.*
+      *Added by amendment S-0017/A-1 2026-08-22.*
 
       A repository whose acceptance battery itself drives containers — Torve is
       the first: its tests build sandboxes, create volumes, run the conformance
@@ -109,15 +109,15 @@ sections:
       | The item is… | Channel | Examples |
       | --- | --- | --- |
       | harness identity | baked into the image | provider blocks, permission presets, stdio MCP definitions |
-      | task context | the workspace at dispatch | contract prompt, `AGENTS.md`, skills materialized per role (D-9.7) — vendored ones included (0009 §4a, A-25) |
-      | an operator secret | env passthrough, names only (D-4b) | `DEEPSEEK_API_KEY`, OAuth tokens |
+      | task context | the workspace at dispatch | contract prompt, `AGENTS.md`, skills materialized per role (S-0009/D-7) — vendored ones included (S-0009/vendored-skills, S-0009/A-2) |
+      | an operator secret | env passthrough, names only (S-0001/D-13) | `DEEPSEEK_API_KEY`, OAuth tokens |
       | operator non-secret knobs | inline in the tier command | model flags, `HOME`, endpoint URLs |
-      | session state | the per-slot volume (D-4.2) | subscription credentials, token refresh, memory if enabled |
+      | session state | the per-slot volume (S-0004/D-2) | subscription credentials, token refresh, memory if enabled |
 
       Two rules fall out. A secret never has a second channel: not in an image
       layer, not in a committed file, not in a repository the agent can read. And
       the repository under work configures nothing about the harness that works on
-      it (D-13.3 extended one level down): a repo-carried harness config file is a
+      it (S-0013/D-3 extended one level down): a repo-carried harness config file is a
       prompt-injection surface wearing a config extension.
 
       Should a harness ever need per-tier configuration *files* that are neither
@@ -132,7 +132,7 @@ sections:
 
       A remote MCP endpoint is an egress destination: repository contents flow to
       it exactly as they flow to a model provider. It therefore falls under
-      provider routing (D-4.8) — named in the runner's configuration, allowed or
+      provider routing (S-0004/D-8) — named in the runner's configuration, allowed or
       denied per repository, enforced at dispatch — and is never configured from
       the repository under work. An MCP server that both runs locally and calls
       out (a proxy) is classified by where the data goes: remote.
@@ -141,20 +141,20 @@ sections:
       Memory is where three standing decisions meet, and all three push the same
       way:
 
-      - **D-31:** agents do not communicate. A memory store readable by more than
+      - **S-0001/D-29:** agents do not communicate. A memory store readable by more than
         one slot is a communication channel with a euphemism. Memory, where it
         exists, is per-slot — one slot, one volume, no sharing.
-      - **Measurement (0004 §6a):** a memory-carrying agent's run N depends on
+      - **Measurement (S-0004/measurement-defects-to-fix-before-trusting-a-number):** a memory-carrying agent's run N depends on
         runs 1..N−1. Shadow replays exist to produce comparable numbers, so a
         shadow run never mounts memory — the replay measures the harness, not the
         accumulated season.
-      - **The contract is the interface (D-1.7):** an executor that needs run N−1
+      - **The contract is the interface (S-0001/D-7):** an executor that needs run N−1
         to understand run N has a contract that failed to say what changes and
         why. Memory off is the default for executor tiers; enabling it is a
         per-tier decision made knowingly, and it lives on the slot's volume.
   - key: decisions
     md: |
-      D-17.9 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0017/D-9 was retired 2026-09-09; path rot. The identifier is never reused.
   - key: exit-criteria
     md: |
       - The current four-harness roster rebuilt from committed definitions under
@@ -162,5 +162,5 @@ sections:
       - `torve doctor` observed red on a configured-but-absent image.
       - One shadow replay whose record's image digest differs after a deliberate
         rebuild — the drift the hash now catches, demonstrated.
-      - *(A-24)* One replay of a Torve task whose acceptance battery drives
+      - *(S-0017/A-1)* One replay of a Torve task whose acceptance battery drives
         containers, green inside a `docker: socket` sandbox.

@@ -6,7 +6,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-56.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T15:32:01Z'
         claim: >-
@@ -20,7 +20,7 @@ landings:
           src/torve/config/spec.py:121 - the loader is the validator; a version other
           than 2 is refused before validation
         action: decided
-      - decision: D-56.2
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T15:32:01Z'
         claim: >-
@@ -32,7 +32,7 @@ landings:
           src/torve/application/planner.py:283 - inherit_decisions over the model's
           rows
         action: decided
-      - decision: D-56.3
+      - decision: D-3
         grade: LOCKED
         at: '2026-09-09T15:32:02Z'
         claim: >-
@@ -41,7 +41,7 @@ landings:
           for citations, links and line numbers with fenced blocks stripped
         evidence: src/torve/domain/spec.py:171 - the section model
         action: decided
-      - decision: D-56.4
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T15:32:02Z'
         claim: >-
@@ -63,7 +63,7 @@ landings:
           not a failure; fix_row_text keeps the markdown-era guard and accepts the
           hand-edited text as it now reads when the row is unstamped, refusing only
           a row already stamped as it is
-      - decision: D-56.5
+      - decision: D-5
         grade: LOCKED
         at: '2026-09-09T15:32:02Z'
         claim: >-
@@ -82,9 +82,10 @@ landings:
           than as a committed pytest, because the loader it needs is deleted by the
           same commit it gates; its result is recorded here and the live-corpus canonical-form
           test in tests/test_rfc_emit.py is what stays. One defect: the JSON dump
-          was taken before A-162 was written, so the converted 0056 lacked it and
-          the first YAML amend appended a duplicate A-162 — restored by hand in A-163
-      - decision: D-56.7
+          was taken before S-0056/A-2 was written, so the converted 0056 lacked it
+          and the first YAML amend appended a duplicate S-0056/A-2 — restored by hand
+          in S-0056/A-3
+      - decision: D-7
         grade: ASSUMED
         at: '2026-09-09T15:32:03Z'
         claim: >-
@@ -93,7 +94,7 @@ landings:
           the row's phasing places it
         evidence: src/torve/cli/rfc.py:818 - the list verb
         action: decided
-      - decision: D-56.8
+      - decision: D-8
         grade: ASSUMED
         at: '2026-09-09T15:32:03Z'
         claim: >-
@@ -104,7 +105,7 @@ landings:
           src/torve/application/colocation.py:202 - the section renders from the model's
           row and document
         action: decided
-      - decision: D-56.6
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T15:38:37Z'
         claim: >-
@@ -115,7 +116,7 @@ landings:
         evidence: >-
           src/torve/config/spec.py:106 - schema_header names the file phase 2 writes
         action: decided
-      - decision: D-56.9
+      - decision: D-9
         grade: LOCKED
         at: '2026-09-09T15:38:38Z'
         claim: >-
@@ -126,14 +127,14 @@ landings:
           src/torve/application/planner.py:283 - inherit_decisions over the model;
           write_contracts unchanged
         action: decided
-      - decision: D-56.10
+      - decision: D-10
         grade: LOCKED
         at: '2026-09-09T15:38:38Z'
         claim: >-
           no task directory is deleted here; the only task files this change touches
-          are T-0300's own contract, re-minted over the scope A-162 and A-163 widened,
-          and its log; the deletion of every archived document's task directory is
-          phase 3's unit
+          are T-0300's own contract, re-minted over the scope S-0056/A-2 and S-0056/A-3
+          widened, and its log; the deletion of every archived document's task directory
+          is phase 3's unit
         evidence: >-
           .torve/tasks/T-0300/contract.yaml:1 - the re-minted contract, minted by
           the phase-1 header
@@ -144,7 +145,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-56.6
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T15:48:44Z'
         claim: >-
@@ -161,7 +162,7 @@ landings:
           a missing schema is a warning, not a problem: a corpus in a fixture or a
           fresh repository has not written one yet and the header line does not need
           the file to exist for the loader
-      - decision: D-56.7
+      - decision: D-7
         grade: ASSUMED
         at: '2026-09-09T15:48:45Z'
         claim: >-
@@ -175,9 +176,9 @@ landings:
           - the render verb
         action: decided
         notes: >-
-          Q-56.1 is settled by shipping render in phase 2: it cost one function, and
-          the docs pages can be generated from it when wanted
-      - decision: D-56.4
+          S-0056/Q-1 is settled by shipping render in phase 2: it cost one function,
+          and the docs pages can be generated from it when wanted
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T15:48:45Z'
         claim: >-
@@ -188,7 +189,7 @@ landings:
           src/torve/config/rfc_emit.py:447 - the markdown projection beside the one
           serializer
         action: decided
-      - decision: D-56.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T15:48:46Z'
         claim: >-
@@ -197,7 +198,7 @@ landings:
         evidence: >-
           src/torve/config/spec.py:114 - schema_text from the model
         action: decided
-      - decision: D-56.5
+      - decision: D-5
         grade: LOCKED
         at: '2026-09-09T15:53:19Z'
         claim: >-
@@ -206,7 +207,7 @@ landings:
         evidence: >-
           rfcs/schema/document.json:1 - the model's JSON Schema, drift-checked
         action: decided
-      - decision: D-56.10
+      - decision: D-10
         grade: LOCKED
         at: '2026-09-09T15:53:20Z'
         claim: >-
@@ -221,7 +222,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-56.9
+      - decision: D-9
         grade: LOCKED
         at: '2026-09-09T16:08:46Z'
         claim: >-
@@ -242,7 +243,7 @@ landings:
           fence is the board's overlaps check at dispatch, and torve run of one task
           loses the file fence for record-only siblings — runner.py is outside this
           phase's scope, noted for the operator
-      - decision: D-56.10
+      - decision: D-10
         grade: LOCKED
         at: '2026-09-09T16:08:46Z'
         claim: >-
@@ -258,7 +259,7 @@ landings:
         notes: >-
           the deletion itself and the untracking are the one destructive step of this
           phase and are done as a separate commit by hand
-      - decision: D-56.2
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T16:12:27Z'
         claim: >-

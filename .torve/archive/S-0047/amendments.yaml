@@ -1,15 +1,15 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-100
+  - id: A-1
     at: '2026-09-05'
     title: The board's row cap, closed
     md: |-
       §8 recorded the board's 1000-row cap as a defect this document found and
-      declined to own. RFC 0044 A-99 closes it: every read on the log pages to
+      declined to own. S-0044 S-0044/A-9 closes it: every read on the log pages to
       the end, `TruncatedRead` is gone, and the `limit` arguments §5 describes no
-      longer exist. D-47.7 still holds and for its original reason — reading the
+      longer exist. S-0047/D-7 still holds and for its original reason — reading the
       decision graph by subject type keeps a corpus-sized slice cheap as
       execution grows — but it is now an efficiency argument rather than a
       correctness one.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

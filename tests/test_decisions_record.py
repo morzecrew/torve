@@ -1,4 +1,4 @@
-"""Sources and decisions as records (RFC 0047).
+"""Sources and decisions as records (S-0047).
 
 The importer's contract is a comparison, so most of these build a small
 corpus on disk, import it into an in-memory log, and check what the second
@@ -58,7 +58,7 @@ def document(
     superseded_by: str | None = None,
 ) -> Path:
     """One corpus document with the rows the case needs, through the corpus
-    builder every suite shares (RFC 0057 D-57.1), and the corpus directory
+    builder every suite shares (S-0057 S-0057/D-1), and the corpus directory
     it was written into."""
 
     return spec_corpus(
@@ -98,9 +98,9 @@ async def sync(log: EventLog, rfc_dir: Path) -> list[decisions.PendingEvent]:
 def test_an_unchanged_corpus_imports_nothing_the_second_time(tmp_path):
     """Idempotence is the property that makes running this on a schedule
     safe, and it is asserted on the returned events, so it holds for the dry
-    run and the real one alike (D-47.5)."""
+    run and the real one alike (S-0047/D-5)."""
 
-    rfc_dir = document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         first = await sync(log, rfc_dir)
@@ -118,15 +118,15 @@ def test_an_unchanged_corpus_imports_nothing_the_second_time(tmp_path):
 
 
 def test_a_regrade_is_a_new_version_of_the_same_decision(tmp_path):
-    """D-47.1: a second record on the same subject is a version, not a
+    """S-0047/D-1: a second record on the same subject is a version, not a
     supersession. `current` holds one, `history` holds both, and the version
     count is what a reader asking "when did this become LOCKED" reads."""
 
-    rfc_dir = document(tmp_path, "0001", [("D-1.1", "ASSUMED", "A rule.", "`src/a.py`")])
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "ASSUMED", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         await sync(log, rfc_dir)
-        document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+        document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
 
         pending = await sync(log, rfc_dir)
 
@@ -135,9 +135,9 @@ def test_a_regrade_is_a_new_version_of_the_same_decision(tmp_path):
         graph = await decisions.load(log, partition=PARTITION)
 
         assert len(graph.current()) == 1
-        assert [one.grade for one in graph.history("D-1.1")] == ["ASSUMED", "LOCKED"]
-        assert [one.version for one in graph.history("D-1.1")] == [1, 2]
-        assert graph.get("D-1.1").grade == "LOCKED"
+        assert [one.grade for one in graph.history("S-0001/D-1")] == ["ASSUMED", "LOCKED"]
+        assert [one.version for one in graph.history("S-0001/D-1")] == [1, 2]
+        assert graph.get("S-0001/D-1").grade == "LOCKED"
 
     run(scenario)
 
@@ -146,36 +146,39 @@ def test_a_regrade_is_a_new_version_of_the_same_decision(tmp_path):
 
 
 def test_a_row_leaving_an_accepted_table_is_recorded_as_retired(tmp_path):
-    """D-47.2: absence is not the record. The decision leaves `current` and
-    keeps its history, so "what happened to D-1.2" has an answer."""
+    """S-0047/D-2: absence is not the record. The decision leaves `current` and
+    keeps its history, so "what happened to S-0001/D-2" has an answer."""
 
     rfc_dir = document(
         tmp_path,
         "0001",
         [
-            ("D-1.1", "LOCKED", "A rule.", "`src/a.py`"),
-            ("D-1.2", "ASSUMED", "Another.", "`src/b.py`"),
+            ("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`"),
+            ("S-0001/D-2", "ASSUMED", "Another.", "`src/b.py`"),
         ],
     )
 
     async def scenario(log):
         await sync(log, rfc_dir)
         document(
-            tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")], retired=["D-1.2"]
+            tmp_path,
+            "0001",
+            [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")],
+            retired=["S-0001/D-2"],
         )
 
         pending = await sync(log, rfc_dir)
 
         assert [(one.kind, one.subject_id) for one in pending] == [
-            (EventKind.DECISION_RETIRED, "D-1.2")
+            (EventKind.DECISION_RETIRED, "S-0001/D-2")
         ]
 
         graph = await decisions.load(log, partition=PARTITION)
 
-        assert [one.id for one in graph.current()] == ["D-1.1"]
-        assert graph.get("D-1.2").retired
-        assert len(graph.history("D-1.2")) == 1  # retirement is not a version
-        assert "S-0001" in graph.get("D-1.2").retired_reason
+        assert [one.id for one in graph.current()] == ["S-0001/D-1"]
+        assert graph.get("S-0001/D-2").retired
+        assert len(graph.history("S-0001/D-2")) == 1  # retirement is not a version
+        assert "S-0001" in graph.get("S-0001/D-2").retired_reason
 
     run(scenario)
 
@@ -189,7 +192,7 @@ def test_a_retired_row_that_comes_back_is_recorded_again(tmp_path):
     terminal — a retired state compared as if it were current would leave
     the decision permanently invisible."""
 
-    rfc_dir = document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         await sync(log, rfc_dir)
@@ -198,15 +201,15 @@ def test_a_retired_row_that_comes_back_is_recorded_again(tmp_path):
 
         assert (await decisions.load(log, partition=PARTITION)).current() == []
 
-        document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+        document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
         pending = await sync(log, rfc_dir)
 
         assert [one.kind for one in pending] == [EventKind.DECISION_RECORDED]
 
         graph = await decisions.load(log, partition=PARTITION)
 
-        assert [one.id for one in graph.current()] == ["D-1.1"]
-        assert len(graph.history("D-1.1")) == 2
+        assert [one.id for one in graph.current()] == ["S-0001/D-1"]
+        assert len(graph.history("S-0001/D-1")) == 2
 
     run(scenario)
 
@@ -215,21 +218,21 @@ def test_a_retired_row_that_comes_back_is_recorded_again(tmp_path):
 
 
 def test_a_draft_imports_nothing_and_the_same_document_accepted_imports_at_version_one(tmp_path):
-    """D-47.6: a draft's rows were never in force, so recording them would
+    """S-0047/D-6: a draft's rows were never in force, so recording them would
     date them wrongly — the record's version 1 is the row as accepted."""
 
     rfc_dir = document(
-        tmp_path, "0001", [("D-1.1", "OPEN", "Undecided.", "`src/a.py`")], status="draft"
+        tmp_path, "0001", [("S-0001/D-1", "OPEN", "Undecided.", "`src/a.py`")], status="draft"
     )
 
     async def scenario(log):
         assert await sync(log, rfc_dir) == []
 
-        document(tmp_path, "0001", [("D-1.1", "LOCKED", "Decided.", "`src/a.py`")])
+        document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "Decided.", "`src/a.py`")])
         await sync(log, rfc_dir)
 
         graph = await decisions.load(log, partition=PARTITION)
-        history = graph.history("D-1.1")
+        history = graph.history("S-0001/D-1")
 
         assert [one.version for one in history] == [1]
         assert history[0].grade == "LOCKED"
@@ -244,7 +247,7 @@ def test_a_superseded_document_is_never_imported(tmp_path):
     rfc_dir = document(
         tmp_path,
         "0001",
-        [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+        [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")],
         superseded_by="0002",
     )
 
@@ -258,19 +261,19 @@ def test_a_superseded_document_is_never_imported(tmp_path):
 
 
 def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
-    """D-47.4: the source is keyed by number, so what a document calls
+    """S-0047/D-4: the source is keyed by number, so what a document calls
     itself is free to move. A directory is its identifier alone now
-    (D-57.1), so the slug that used to move is the title — the source is
-    re-imported and the decisions stay attached to `rfc/0001`."""
+    (S-0057/D-1), so the slug that used to move is the title — the source is
+    re-imported and the decisions stay attached to `S-0001`."""
 
-    rfc_dir = document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         await sync(log, rfc_dir)
         document(
             tmp_path,
             "0001",
-            [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+            [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")],
             title="A renamed document",
         )
 
@@ -280,9 +283,9 @@ def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
 
         graph = await decisions.load(log, partition=PARTITION)
 
-        assert graph.sources["rfc/0001"].ref == "S-0001"
-        assert graph.sources["rfc/0001"].title == "A renamed document"
-        assert [one.id for one in graph.by_source("rfc/0001")] == ["D-1.1"]
+        assert graph.sources["S-0001"].ref == "S-0001"
+        assert graph.sources["S-0001"].title == "A renamed document"
+        assert [one.id for one in graph.by_source("S-0001")] == ["S-0001/D-1"]
 
     run(scenario)
 
@@ -295,7 +298,7 @@ def test_a_row_the_corpus_checker_would_refuse_is_never_imported(tmp_path):
     the record would then hold a vocabulary the corpus does not have. The
     loader refuses it by field now, before the importer sees a row."""
 
-    rfc_dir = document(tmp_path, "0001", [("D-1.1", "PROBABLY", "A rule.", "`src/a.py`")])
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "PROBABLY", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         graph = await decisions.load(log, partition=PARTITION)
@@ -310,10 +313,10 @@ def test_a_row_the_corpus_checker_would_refuse_is_never_imported(tmp_path):
 
 
 def test_an_agent_may_not_import(tmp_path):
-    """The authority table refuses before any store sees the write (D-44.2).
+    """The authority table refuses before any store sees the write (S-0044/D-2).
     An agent importing a corpus is not a thing that happens."""
 
-    rfc_dir = document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         graph = await decisions.load(log, partition=PARTITION)
@@ -337,10 +340,10 @@ def test_an_agent_may_not_import(tmp_path):
 
 
 def test_the_decision_read_does_not_fold_the_execution_log(tmp_path):
-    """D-47.7: the corpus-sized slice, not the partition's whole tail. A log
+    """S-0047/D-7: the corpus-sized slice, not the partition's whole tail. A log
     carrying attempts must not put them in front of a decision query."""
 
-    rfc_dir = document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         await sync(log, rfc_dir)
@@ -358,14 +361,14 @@ def test_the_decision_read_does_not_fold_the_execution_log(tmp_path):
 
         read = await log.of_subject_type(SubjectType.DECISION, partition=PARTITION)
 
-        assert [one.subject_id for one in read] == ["D-1.1"]
+        assert [one.subject_id for one in read] == ["S-0001/D-1"]
         # And the partition's whole tail does carry them, so the narrow read
         # is doing the narrowing rather than the store having nothing to give.
         assert len(await log.since(partition=PARTITION)) == 7
 
         graph = await decisions.load(log, partition=PARTITION)
 
-        assert [one.id for one in graph.current()] == ["D-1.1"]
+        assert [one.id for one in graph.current()] == ["S-0001/D-1"]
 
     run(scenario)
 
@@ -438,7 +441,7 @@ def test_the_record_answers_the_paths_question_the_corpus_answers(tmp_path):
 
 def test_the_check_verb_reports_without_writing(tmp_path):
     """`--check` and a real import are the same comparison with the write
-    skipped (D-47.5), which only means anything if the check writes nothing.
+    skipped (S-0047/D-5), which only means anything if the check writes nothing.
 
     Run against the mock, so the record is empty at process start and the
     whole corpus reads as pending — which is also what the verb should say
@@ -451,7 +454,7 @@ def test_the_check_verb_reports_without_writing(tmp_path):
 
     from torve.cli import app
 
-    document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
+    document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
     (tmp_path / ".torve" / "config.yaml").write_text(
         "schema_version: 1\nspecs:\n  path: .torve/specs\n", encoding="utf-8"
     )
@@ -473,12 +476,12 @@ def test_the_check_verb_reports_without_writing(tmp_path):
 
 
 # ----------------------- #
-# RFC 0057 D-57.8: the execution file is a carrier the import replays once
+# S-0057 S-0057/D-8: the execution file is a carrier the import replays once
 
 
 def test_a_landing_is_recorded_once_under_the_actors_its_kinds_name(tmp_path):
     entry = {
-        "decision": "D-1.1",
+        "decision": "S-0001/D-1",
         "grade": "LOCKED",
         "claim": "held",
         "evidence": "src/a.py:1 - x",
@@ -498,7 +501,7 @@ def test_a_landing_is_recorded_once_under_the_actors_its_kinds_name(tmp_path):
         **{
             "0001": spec_document(
                 "0001",
-                [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+                [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")],
                 implementation="none",
                 landings=[landing],
             )

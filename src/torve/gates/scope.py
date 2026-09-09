@@ -1,4 +1,4 @@
-"""`scope` — files outside `allow` or inside `deny` (RFC 0002 §6).
+"""`scope` — files outside `allow` or inside `deny` (S-0002/scope-in-detail).
 
 deny wins over allow; an empty allow means unconstrained. The task's scope
 governs when a task exists; the manifest's scope otherwise. The task's own
@@ -21,12 +21,12 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     implicit: set[str] = set()
 
     if ctx.task is not None:
-        # Canonical and legacy locations alike (RFC 0013, A-12): the gate
+        # Canonical and legacy locations alike (S-0013, S-0001/A-5): the gate
         # judges repositories on either side of the layout migrations.
         implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/contract.yaml")
         implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/log.yaml")
 
-        # RFC 0057 D-57.7: the landing goes beside the rows it cites, in
+        # S-0057 S-0057/D-7: the landing goes beside the rows it cites, in
         # the execution file of the document the contract names — written
         # by the engine at landing, so it is the task's own like its log.
         if ctx.task.rfc:

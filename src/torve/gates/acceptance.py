@@ -1,9 +1,9 @@
-"""`acceptance` — completion claimed on red (RFC 0002 §4).
+"""`acceptance` — completion claimed on red (S-0002/starting-set).
 
 Commands come from the task contract (`@task.acceptance`); on runs with no
 task, from the gate's `commands` list in the manifest. Quarantined commands
 run and are recorded, but their failures stop blocking until fixed
-(RFC 0002 §6a).
+(S-0002/three-outcomes-gates-need-beyond-pass-and-fail).
 """
 
 from __future__ import annotations

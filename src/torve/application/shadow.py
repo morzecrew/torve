@@ -1,12 +1,12 @@
-"""Shadow runs (RFC 0004 §5): replay an already-completed task from the
+"""Shadow runs (S-0004/shadow-runs): replay an already-completed task from the
 parent of the commit that shipped it, never merging, and compare against what
 actually shipped. This is the only risk-free source of baseline numbers, it
-precedes any live loop (D-4.4), and it is where the gate set is tuned — not
+precedes any live loop (S-0004/D-4), and it is where the gate set is tuned — not
 before.
 
 The loop is `drive_attempts` — the same code a live run executes — over the
 same sandbox-and-gates hooks, with two differences: the workspace is a
-truncated clone the CLI's ShadowWorkspace built (D-4.7: no refs beyond the
+truncated clone the CLI's ShadowWorkspace built (S-0004/D-7: no refs beyond the
 parent, so the agent cannot read the answer out of history), and the landing
 hook records a fact instead of committing — nothing a shadow run produces
 ever reaches a branch.
@@ -97,7 +97,7 @@ def run_shadow(
 
     state.transition(TaskState.CLAIMED, f"shadow replay of {resolved[:10]} from {parent[:10]}")
 
-    # `shadow=True` is where the warm-state exclusion rides (D-35.3): the
+    # `shadow=True` is where the warm-state exclusion rides (S-0035/D-3): the
     # hooks below compose no cache mount under it, so the replay measures
     # the cold truth and an eval comparing arms never compares caches —
     # whatever cache_volume the task's tier names.
@@ -122,7 +122,7 @@ def run_shadow(
 
     async def land(_state: RunState, _digest: str) -> str:
         # The one divergence from a live run's hooks: nothing is committed,
-        # nothing is pushed — a shadow run never merges (D-4.4).
+        # nothing is pushed — a shadow run never merges (S-0004/D-4).
         return "shadow measurement recorded; nothing merged"
 
     hooks = AttemptHooks(
@@ -137,7 +137,7 @@ def run_shadow(
 
     manifest_path = layout.gates_file(workspace)
     # The replay's image identity, resolved the same way a live dispatch
-    # resolves it (D-17.1) — a rebuild between two replays is two regimes.
+    # resolves it (S-0017/D-1) — a rebuild between two replays is two regimes.
     image_digest = deps.runtime.resolve_image(
         image_for(config, tier_for(config, tier_name_for(task)))
     )
@@ -175,7 +175,7 @@ def run_shadow(
     record["overlap_files"] = sorted(shadow_files & shipped_files)
 
     if annotation is not None:
-        # The caller's measurement context — the eval loop (RFC 0009 §5)
+        # The caller's measurement context — the eval loop (S-0009/evals)
         # marks its arm here so the population stays separable.
         record["eval"] = annotation
 

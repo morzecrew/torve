@@ -1,4 +1,4 @@
-"""One battery, every Runtime adapter (RFC 0003; a decision logged in T-0003).
+"""One battery, every Runtime adapter (S-0003; a decision logged in T-0003).
 
 The contract under test is "workspace in, changed files out" plus lifecycle
 and labels — not the mechanism. Docker runs against the real daemon (skipped
@@ -110,7 +110,7 @@ def test_listing_and_destroy_by_id(runtime_case):
 
 
 # ....................... #
-# Authentication routes (RFC 0004 §1, §2) — Docker-only: OpenSandbox refuses
+# Authentication routes (S-0004/adapters, §2) — Docker-only: OpenSandbox refuses
 # volumes by contract, and its env passthrough resolves in the stub below.
 
 
@@ -137,7 +137,7 @@ def test_docker_env_passthrough_carries_the_value_not_the_spec(docker_case, monk
     runtime, workspace = docker_case
     monkeypatch.setenv("TORVE_TEST_KEY", "s3cr3t-value")
     spec = auth_spec(env_passthrough=("TORVE_TEST_KEY", "TORVE_TEST_ABSENT"))
-    assert "s3cr3t-value" not in str(spec)  # the value never enters the spec (D-4b)
+    assert "s3cr3t-value" not in str(spec)  # the value never enters the spec (S-0001/D-13)
     handle = runtime.create(spec, workspace)
     try:
         seen = runtime.exec(handle, 'printf "%s" "$TORVE_TEST_KEY"', 30)
@@ -147,7 +147,7 @@ def test_docker_env_passthrough_carries_the_value_not_the_spec(docker_case, monk
 
 
 def test_docker_auth_volume_outlives_the_sandbox(docker_case):
-    """The D-4.2 property: sandboxes are ephemeral, the slot's volume is not —
+    """The S-0004/D-2 property: sandboxes are ephemeral, the slot's volume is not —
     a token refresh written by one run is there for the next."""
     import os
 
@@ -209,7 +209,7 @@ def test_opensandbox_refuses_volumes(tmp_path):
 
 
 # ....................... #
-# Docker inside the sandbox (RFC 0017 §2a): socket mode mounts the host
+# Docker inside the sandbox (S-0017/docker-inside-the-sandbox): socket mode mounts the host
 # daemon knowingly; the default mounts nothing; opensandbox refuses.
 
 
@@ -245,7 +245,7 @@ def test_opensandbox_refuses_docker_in_any_mode():
 
 
 def test_docker_read_only_workspace_physically_refuses_writes(docker_case):
-    # D-5.2: the reviewer cannot fix-and-approve — the mount itself refuses.
+    # S-0005/D-2: the reviewer cannot fix-and-approve — the mount itself refuses.
     runtime, workspace = docker_case
     (workspace / "code.py").write_text("x = 1\n", encoding="utf-8")
     handle = runtime.create(auth_spec(workspace_read_only=True), workspace)

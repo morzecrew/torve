@@ -1,12 +1,12 @@
 """What one attempt does inside its sandbox, and the mechanical leg that
-does it without one (RFC 0046 §5.2).
+does it without one (S-0046/the-steps).
 
 Everything here is a step over a `Dispatch`: the regime advance a conviction
 routes, the agent session itself, the revert leg — which is the same leg with
 `git revert` where the agent would be — and the halted check the loop reads
 after either.
 
-The order of an attempt's endings is load-bearing (D-38.1). A broker refusal,
+The order of an attempt's endings is load-bearing (S-0038/D-1). A broker refusal,
 a halted divergence entry and a failed exit are inspected in the order the
 loop acts on them, so the verdict on the row is the ending that actually
 stopped the run; an attempt that goes on to a gate pass writes no row here,
@@ -73,7 +73,7 @@ from torve.domain.task import Task
 
 
 def previous_attempt_gate_red(state: RunState) -> bool:
-    """D-27.11: whether the attempt about to dispatch follows a gate-red.
+    """S-0027/D-11: whether the attempt about to dispatch follows a gate-red.
     `_attempt_loop` appends a "gates red: ..." fact without a transition
     (the state stays GATED, retried), so it sits one slot behind this
     attempt's own "attempt N dispatched" entry — never the last one."""
@@ -86,7 +86,7 @@ def previous_attempt_gate_red(state: RunState) -> bool:
 
 # The fixed severity order of the gate axes, most severe first: retry
 # selection resolves the rung of the most severe axis present among a red
-# attempt's convictions (D-34.5). This order is this module's rule, not the
+# attempt's convictions (S-0034/D-5). This order is this module's rule, not the
 # vocabulary's — the manifest lists the same words in corpus order, and
 # importing that list here would let a re-listing silently move the ladder.
 AXIS_SEVERITY: tuple[GateAxis, ...] = ("functional", "boundary", "compliance", "form")
@@ -97,7 +97,7 @@ def retry_rung_for(
     outcomes: Iterable[GateResult],
     gate_axes: Mapping[str, GateAxis],
 ) -> str:
-    """The rung the red attempt's recorded gate outcomes resolve to (D-34.5):
+    """The rung the red attempt's recorded gate outcomes resolve to (S-0034/D-5):
     the seat's axis→rung mapping read at the most severe axis present among
     the attempt's convictions — outcome and state, the two fields every
     telemetry row carries; never a trace, a gate output or model text, so a
@@ -110,7 +110,7 @@ def retry_rung_for(
     nothing — reads as functional, the fail-safe every unlabeled gate shares:
     route the retry up, never sideways.
 
-    A boundary conviction resolves no rung (D-34.7), and its presence masks
+    A boundary conviction resolves no rung (S-0034/D-7), and its presence masks
     the lighter axes below compliance: a broken fence outranks the work's
     retry. The operator repairs it with a disclosed chore commit, not a
     heavier model. An axis the mapping names nothing for resolves no rung
@@ -139,7 +139,7 @@ def _retry_gate_axes(worktree: Path) -> Mapping[str, GateAxis]:
     convicted — the same file the gate pass loaded, so selection classifies
     each conviction exactly as its declaration labels it. A missing or
     unreadable manifest maps nothing: every failing gate then reads as the
-    unlabeled default, functional, the fail-safe that routes up (D-34.4)."""
+    unlabeled default, functional, the fail-safe that routes up (S-0034/D-4)."""
 
     manifest_path = layout.gates_file(worktree)
 
@@ -160,7 +160,7 @@ def _retry_gate_axes(worktree: Path) -> Mapping[str, GateAxis]:
 
 def advance_tier(run: Dispatch, state: RunState) -> Agent:
     """Resolve the regime this attempt runs under and return the Agent that
-    will run it (D-27.11).
+    will run it (S-0027/D-11).
 
     One rung, routed by the conviction: the attempt after a gate-red resolves
     the tier the red attempt's recorded gate outcomes select — the seat's
@@ -171,7 +171,7 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
 
     Never fabricated. This only advances when the CLI wired an agent factory
     to actually build the resolved tier's Agent, so telemetry never stamps a
-    tier that did not produce the work (D-27.1).
+    tier that did not produce the work (S-0027/D-1).
     """
 
     seat_name = tier_name_for(run.task)
@@ -203,7 +203,7 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
 
 
 def _withhold_never_send(worktree: Path, globs: list[str]) -> dict[Path, bytes]:
-    """Lift `never_send` files out of the worktree for the attempt (RFC 0004
+    """Lift `never_send` files out of the worktree for the attempt (S-0004
     §6b): the sandbox mounts the worktree, so anything present may reach the
     provider. A worktree's `.git` is a host-side pointer the sandbox cannot
     follow, so removal here is removal from the sandbox's world. Contents are
@@ -243,8 +243,8 @@ def _restore_never_send(withheld: dict[Path, bytes]) -> None:
 
 def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
     """(env_passthrough, volumes) for the tier's authentication route (RFC
-    0004 §1): key names for api and harness, a per-slot volume for
-    subscription (D-4.2), nothing for fake."""
+    S-0004/adapters): key names for api and harness, a per-slot volume for
+    subscription (S-0004/D-2), nothing for fake."""
 
     if tier.adapter in ("api", "harness"):
         return tuple(tier.api_key_env), {}
@@ -262,7 +262,7 @@ def _record_broker_usage(
     state: RunState, broker: Broker, broker_handle: BrokerHandle, agent_meta: dict[str, Any]
 ) -> None:
     """Stamps the attempt's broker usage into `agent_meta` and escalates on a
-    budget refusal (D-21.6) — observed in progress, on the run that
+    budget refusal (S-0021/D-6) — observed in progress, on the run that
     overspent, since the next request would be refused too."""
 
     usage = broker.usage(broker_handle)
@@ -282,7 +282,7 @@ def _record_broker_usage(
 async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     """One attempt: compose the sandbox, run the agent in it, record how it
     ended. The sandbox dies in the `finally` whatever happens — a cancelled
-    task cannot await its own cleanup (D-4)."""
+    task cannot await its own cleanup (S-0001/D-12)."""
 
     deps, config, task = run.deps, run.config, run.task
     root, worktree, shadow, resume = run.root, run.worktree, run.shadow, run.resume
@@ -294,7 +294,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     run.meta.update(
         tier=run.tier_name,
         # The attempt number, restamped where tier/adapter/model
-        # already are (D-38.4): `attempts` incremented on entry to
+        # already are (S-0038/D-4): `attempts` incremented on entry to
         # running, so it names the attempt about to run.
         attempt=state.attempts,
         adapter=run_kind,
@@ -305,7 +305,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     )
 
     # The attempt's identity is settled here and nowhere earlier: the
-    # tier a conviction routed to (D-27.11) is resolved above, so this
+    # tier a conviction routed to (S-0027/D-11) is resolved above, so this
     # is the first moment the record would be true.
     emit(
         run,
@@ -317,16 +317,16 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     )
 
     # The runner composes the sandbox's context: the role's skill set is
-    # written from package data at dispatch (A-3) — the agent does not
+    # written from package data at dispatch (S-0009/A-1) — the agent does not
     # "have skills installed", and nothing is checked into the repository.
     # Vendored skills resolve from the worktree's committed vendor
-    # directory beside package data (RFC 0009 §4a) — reviewed repository
+    # directory beside package data (S-0009/vendored-skills) — reviewed repository
     # content instructing the agent about the work.
     #
-    # RFC 0029 D-29.1/D-29.3: the resolved tier's `skills` — when set —
+    # S-0029 S-0029/D-1/D-29.3: the resolved tier's `skills` — when set —
     # overrides the role-scoped set wholesale, for this role only; the
-    # materializer's own resolution and refusals are untouched (D-29.2).
-    # D-56.9: with a store, the contract is the board's; the worktree gets
+    # materializer's own resolution and refusals are untouched (S-0029/D-2).
+    # S-0056/D-9: with a store, the contract is the board's; the worktree gets
     # a projection of it for the gates and the log verbs, beside the
     # skills and the pack. A tracked contract (the file mode) is left as is.
     from torve.application.planner import project_contract
@@ -340,7 +340,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         layout.skills_vendor_dir(worktree),
     )
 
-    # The context pack (RFC 0054 §5.6, D-54.10): the facts the corpus
+    # The context pack (S-0054/the-context-pack, S-0054/D-10): the facts the corpus
     # cannot carry, written host-side from the record and the tree with no
     # model, beside the skills. A shadow run gets the time-invariant files
     # only, so a replay reads what the live attempt could have read and
@@ -359,7 +359,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         ),
     )
 
-    # The revision loop (RFC 0005 §4a, D-5.13): a retry's feedback
+    # The revision loop (S-0005/the-revision-loop-added-by-a-32-2026-08-24, S-0005/D-13): a retry's feedback
     # record travels into the sandbox beside the skills; the prompt
     # names it as untrusted review data.
     from torve.application.feedback import feedback_file
@@ -378,7 +378,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     # adapter, not the agent adapter, is what makes a sandbox warm, so a
     # fake adapter's live sandbox carries it too. Empty under shadow, and
     # the gate battery reads the same function, so a pass can never judge
-    # a warmer or colder tree than the attempt ran in (D-35.3).
+    # a warmer or colder tree than the attempt ran in (S-0035/D-3).
     volumes = {**volumes, **cache_volumes(run)}
     infra_id = naming.shadow_id(task.id) if shadow else task.id
 
@@ -386,8 +386,8 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
         image=run.image,
         labels=naming.labels(infra_id, state.run_id, root),
-        # The resolved tier's clock when it names one (RFC 0035 §5.3,
-        # D-35.6): the heavy rung raises its own bound without touching
+        # The resolved tier's clock when it names one (S-0035/the-tier-clock,
+        # S-0035/D-6): the heavy rung raises its own bound without touching
         # the global the gate passes and every untiered lane keep.
         timeout_s=sandbox_timeout_for(config, run.tier),
         env_passthrough=env_passthrough,
@@ -418,7 +418,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 workdir=spec.workdir,
                 # Same resolution as the sandbox bound above: one tier,
                 # one clock, for both the agent and the platform over it
-                # (D-35.6).
+                # (S-0035/D-6).
                 timeout_s=agent_timeout_for(config, run.tier),
                 broker=run.broker_handle,
                 resume=resume,
@@ -437,7 +437,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         )
         # The attempt's self-reported token counts ride the same block
         # (T-0186): only the counts the adapter reported — absent keys
-        # stay absent, never zeroed (D-4.6's self-reported regime).
+        # stay absent, never zeroed (S-0004/D-6's self-reported regime).
         #
         # Cleared first, because `run.meta` is one dict for the whole run
         # (T-0187): "absent stays absent" holds within an attempt and not
@@ -448,22 +448,22 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
             run.meta.pop(stale, None)
 
         run.meta.update(agent_token_counts(result))
-        # The burn profile rides the block beside those totals (RFC 0039
+        # The burn profile rides the block beside those totals (S-0039
         # §5.3): what the adapter derived at capture time from the
         # store's full bytes; a stream with no per-turn facts contributes
-        # no key at all — no stream, no block (D-39.4).
+        # no key at all — no stream, no block (S-0039/D-4).
         run.meta.update(agent_burn(result))
 
         # The broker's live counts ride the attempt record beside the
-        # adapter's self-report (D-21.5). A budget refusal escalates in
-        # progress, on the run that overspent (D-21.6): the next request
+        # adapter's self-report (S-0021/D-5). A budget refusal escalates in
+        # progress, on the run that overspent (S-0021/D-6): the next request
         # would be refused too, so the loop stops here.
         broker, wire = deps.broker, run.broker_handle
 
         if broker is not None and wire is not None:
             _record_broker_usage(state, broker, wire, run.meta)
 
-        # Every path out of this hook ends in exactly one row (D-38.1).
+        # Every path out of this hook ends in exactly one row (S-0038/D-1).
         # The endings are inspected in the order the loop itself reads
         # them — escalation first, then the halted divergence entry,
         # then the agent's own failure — so the verdict on the row is
@@ -472,7 +472,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         record: dict[str, Any] = {}
 
         if state.escalation is not None:
-            # The broker refused the run's budget mid-attempt (D-21.6):
+            # The broker refused the run's budget mid-attempt (S-0021/D-6):
             # the spend happened, the gates will never run, and until
             # now this was the ending that recorded nothing at all.
             record = attempt_row(
@@ -484,7 +484,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
             )
 
         elif _log_has_halted_entry(worktree, task.id):
-            # The halted divergence entry (RFC 0001 §4): terminal by
+            # The halted divergence entry (S-0001/state-machine): terminal by
             # design, and today it ends the attempt silently.
             record = attempt_row(
                 run,
@@ -495,12 +495,12 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
             )
 
         elif result.timed_out or result.exit_code != 0:
-            # RFC 0004 §6: the spend happened even though the gates will
+            # S-0004/telemetry-staged: the spend happened even though the gates will
             # never run for this attempt — without a record here, a
             # budget-killed or timed-out attempt's cost vanishes from
             # every projection (four ~$4 first attempts were missing
             # from cost-and-iterations when this was found). This is
-            # that record, now carrying its verdict (D-38.3).
+            # that record, now carrying its verdict (S-0038/D-3).
             record = attempt_row(
                 run,
                 "agent_timeout" if result.timed_out else "agent_error",
@@ -508,7 +508,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 timed_out=result.timed_out,
             )
 
-        # One record, both carriers (A-85). An ending that produced a
+        # One record, both carriers (S-0044/A-4). An ending that produced a
         # telemetry row emits that same row's content; an attempt that
         # goes on to a gate pass has no ending of its own to describe,
         # so it reports only what it spent and the gate's record is the
@@ -533,10 +533,10 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
     finally:
         # Synchronous on purpose: a cancelled task cannot await its own
-        # cleanup, and the sandbox must die regardless (D-4).
+        # cleanup, and the sandbox must die regardless (S-0001/D-12).
         deps.runtime.destroy(handle)
         _restore_never_send(withheld)
-        # The planted record was for this attempt's eyes (D-5.13,
+        # The planted record was for this attempt's eyes (S-0005/D-13,
         # T-0076): it leaves the tree before the gates measure it —
         # the feedback channel steers the attempt, never the candidate,
         # and a planted file the scope gate can see would fail every
@@ -581,7 +581,7 @@ def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
 def halted(run: Dispatch) -> bool:
     """A LOCKED conflict is written to the log as a halted entry; the loop
     reads the fact from the file, so the agent cannot cause the transition
-    directly. The A-1 YAML log is parsed, not pattern-matched."""
+    directly. The S-0001/A-1 YAML log is parsed, not pattern-matched."""
 
     return _log_has_halted_entry(run.worktree, run.task.id)
 
@@ -591,7 +591,7 @@ def halted(run: Dispatch) -> bool:
 
 class RevertConflict(RuntimeError):
     """A dependent-commit conflict while reverting: escalates as
-    merge_conflict (RFC 0010 §7) — Torve does not resolve it."""
+    merge_conflict (S-0010/revert-as-a-role) — Torve does not resolve it."""
 
 
 # ....................... #
@@ -634,7 +634,7 @@ def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
 
 def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str]) -> None:
     """Every revert emits resolved entries against the inherited decisions
-    (RFC 0010 §7): the reason work was undone reaches the next planning
+    (S-0010/revert-as-a-role): the reason work was undone reaches the next planning
     session as data, not folklore. Machine-written — a mechanical revert has
     no agent to write one."""
 
@@ -673,7 +673,7 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
 
 
 def revert_leg(run: Dispatch) -> Callable[[RunState], Awaitable[AgentResult]]:
-    """Revert is mechanical (RFC 0010 §7, D-10.7): the runner executes `git
+    """Revert is mechanical (S-0010/revert-as-a-role, S-0010/D-7): the runner executes `git
     revert` itself — no agent, no attempt sandbox. The gates still run in
     theirs and the landing carries the revert's own provenance.
 
@@ -684,7 +684,7 @@ def revert_leg(run: Dispatch) -> Callable[[RunState], Awaitable[AgentResult]]:
     shas = _revert_targets(run.task, run.deps.vcs, run.worktree)
 
     async def run_revert(state: RunState) -> AgentResult:
-        # The mechanical attempt still stamps its number (D-38.4): its gate
+        # The mechanical attempt still stamps its number (S-0038/D-4): its gate
         # record joins the trace convention like any other.
         run.meta["attempt"] = state.attempts
         done = await asyncio.to_thread(run.deps.vcs.revert, run.worktree, shas)

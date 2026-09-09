@@ -1,6 +1,6 @@
 """End to end against the real Docker daemon (skipped where there is none):
 one task through claim -> sandbox -> fake agent -> gates-in-fresh-sandbox ->
-commit -> ready, and the RFC 0003 exit criterion that `torve reap` provably
+commit -> ready, and the S-0003 exit criterion that `torve reap` provably
 cleans up after a `kill -9` mid-run."""
 
 from __future__ import annotations
@@ -156,7 +156,7 @@ def test_reap_cleans_up_after_kill_nine(repo):
 
 
 def test_the_sandbox_receives_no_rfc_document(repo):
-    # 0003 §5a as amended by A-18: `rfc` on the contract is provenance — a
+    # S-0003/context-assembly as amended by A-18: `rfc` on the contract is provenance — a
     # reference, never the document. The task names a specification that does
     # not exist anywhere; a runner that tried to read or copy it would fail,
     # and the worktree the sandbox sees must contain no corpus at all.
@@ -178,7 +178,7 @@ def test_the_sandbox_receives_no_rfc_document(repo):
 
 
 def test_log_entry_written_before_failure_is_on_disk(repo):
-    # A-13/D-3.20: the log is created by its first entry, flushed as written —
+    # S-0003/A-2/D-3.20: the log is created by its first entry, flushed as written —
     # an abnormal end must not lose what the agent honestly wrote.
     seed_run_repo(repo)
     entry = (
@@ -197,7 +197,7 @@ def test_log_entry_written_before_failure_is_on_disk(repo):
 
 
 def test_harness_tier_end_to_end(repo):
-    """RFC 0004 §1 through the whole loop: the executor tier maps to an api
+    """S-0004/adapters through the whole loop: the executor tier maps to an api
     adapter, routing admits the provider, the harness command runs inside the
     sandbox against the staged prompt, and the attempt record carries the
     adapter block plus a trace_ref (§6)."""

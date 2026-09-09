@@ -1,4 +1,4 @@
-"""The event log over forze's document plane (RFC 0044 §5.1, §5.2).
+"""The event log over forze's document plane (S-0044/the-event-log, §5.2).
 
 Every case runs against the in-memory adapter, which is the same document
 port the Postgres adapter implements — the swap is a deps module, so what
@@ -114,13 +114,13 @@ def test_an_unauthorized_write_never_reaches_the_store():
                 EventKind.DECISION_ACCEPTED,
                 partition=PARTITION,
                 subject_type=SubjectType.DECISION,
-                subject_id="D-44.1",
+                subject_id="S-0044/D-1",
                 actor_kind=ActorKind.AGENT,
                 actor_id="agent-1",
             )
 
         # The refusal is the domain's, so nothing was written on the way to it.
-        assert await log.history("D-44.1") == []
+        assert await log.history("S-0044/D-1") == []
 
     run(scenario)
 
@@ -144,6 +144,6 @@ def test_a_malformed_payload_never_reaches_the_store():
 
 
 def test_the_spec_declares_no_update_command():
-    # RFC 0044 D-44.1: append-only is enforced by the spec, so the adapter
+    # S-0044 S-0044/D-1: append-only is enforced by the spec, so the adapter
     # exposes no update port for anything to call by accident.
     assert not EVENT_SPEC.supports_update()

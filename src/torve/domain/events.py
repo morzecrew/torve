@@ -1,16 +1,16 @@
-"""The event vocabulary (RFC 0044 §5.1, §5.2): what the engine records and
+"""The event vocabulary (S-0044/the-event-log, §5.2): what the engine records and
 who may record it.
 
 The log is the system of record for intent and execution — every other view
-of engine state is a projection rebuilt from it (D-44.1). Events are written
-at the moment the fact occurs and never derived afterwards (D-44.3), which
+of engine state is a projection rebuilt from it (S-0044/D-1). Events are written
+at the moment the fact occurs and never derived afterwards (S-0044/D-3), which
 is why the vocabulary is closed the way the escalation enum is closed: an
 extensible kind list makes history incomparable across time, and a payload
 that grew a field silently makes replay lie. Adding a kind is an RFC
 amendment, not a code change.
 
-Write authority is domain knowledge, not adapter policy (D-44.2): the
-authority table below is what makes the human signature RFC 0027 protected
+Write authority is domain knowledge, not adapter policy (S-0044/D-2): the
+authority table below is what makes the human signature S-0027 protected
 survive the move of truth out of git. An agent cannot write an acceptance
 whatever its prompt says, because the application service refuses the write
 before any store sees it.
@@ -44,7 +44,7 @@ SCHEMA_VERSION = 1
 class ActorKind(StrEnum):
     """Who is writing. The operator is a human signature; the manager owns
     the queue; a worker executes; an agent speaks only through the intake
-    its worker runs (RFC 0044 §5.2)."""
+    its worker runs (S-0044/the-authority-rule)."""
 
     OPERATOR = "operator"
     MANAGER = "manager"
@@ -91,7 +91,7 @@ class EventKind(StrEnum):
 
 # ....................... #
 
-# RFC 0044 §5.2. Acceptance and adoption are the human's alone — that pair is
+# S-0044 §5.2. Acceptance and adoption are the human's alone — that pair is
 # the whole of what the old git-holds-truth rule was protecting. Queue and
 # landing facts belong to the manager because it is the only actor that can
 # know them; execution facts belong to the worker for the same reason. An
@@ -106,7 +106,7 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     EventKind.TASK_ADOPTED: frozenset({ActorKind.OPERATOR}),
     EventKind.TASK_CLAIMED: frozenset({ActorKind.MANAGER}),
     EventKind.TASK_RELEASED: frozenset({ActorKind.MANAGER}),
-    # A-134: sending a reviewed candidate back is the operator's alone, for
+    # S-0044/A-13: sending a reviewed candidate back is the operator's alone, for
     # ESCALATION_RESOLVED's reason — an agent that could return its own
     # judged work could route around every verdict it disliked.
     EventKind.TASK_RETURNED: frozenset({ActorKind.OPERATOR}),
@@ -119,11 +119,11 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     EventKind.LANDING_RECORDED: frozenset({ActorKind.MANAGER}),
     EventKind.ESCALATION_RAISED: frozenset({ActorKind.MANAGER, ActorKind.WORKER}),
     EventKind.ESCALATION_RESOLVED: frozenset({ActorKind.OPERATOR}),
-    # A-81: a note from the manager or the operator is the same record with
+    # S-0044/A-2: a note from the manager or the operator is the same record with
     # a different sender, and the sender is stamped rather than claimed.
     EventKind.MESSAGE_SENT: frozenset({ActorKind.AGENT, ActorKind.MANAGER, ActorKind.OPERATOR}),
     EventKind.SEAT_CONSUMED: frozenset({ActorKind.WORKER}),
-    # D-51.1: the relay runs inside the manager's pass, so the manager is
+    # S-0051/D-1: the relay runs inside the manager's pass, so the manager is
     # who delivered it. A worker never writes this — a page is the loop's
     # act, not an attempt's.
     EventKind.NOTIFICATION_SENT: frozenset({ActorKind.MANAGER}),
@@ -132,7 +132,7 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
 
 # ----------------------- #
 
-# One payload model per kind (D-44.1). Fields are what v1 already records in
+# One payload model per kind (S-0044/D-1). Fields are what v1 already records in
 # its telemetry and run states — transcription, not invention — and the
 # record's own actor and subject are never repeated here.
 
@@ -156,7 +156,7 @@ class DecisionRecorded(BaseModel):
     paths: list[str] = Field(default_factory=list)
     source_id: str
     supersedes: str | None = None
-    # RFC 0054 D-54.1: the reason the row exists and the command that
+    # S-0054 S-0054/D-1: the reason the row exists and the command that
     # judges it travel with the row; a record written before carries neither.
     consequence: str = ""
     check: str | None = None
@@ -175,7 +175,7 @@ class DecisionAccepted(BaseModel):
 
 
 class DecisionRetired(BaseModel):
-    """A-89: a decision leaving force is recorded, never inferred from a row
+    """S-0044/A-6: a decision leaving force is recorded, never inferred from a row
     that stopped appearing. Absence cannot tell a deliberate retirement from
     a table someone broke, and it means nothing at all for a source that is
     an incident rather than a file."""
@@ -190,7 +190,7 @@ class DecisionRetired(BaseModel):
 
 
 class TaskMinted(BaseModel):
-    """A-91: minting places a contract on a partition (§5.3), so the contract
+    """S-0044/A-8: minting places a contract on a partition (§5.3), so the contract
     is what the event carries.
 
     `title` and `source_id` are the board's own derivations — a fallback
@@ -206,7 +206,7 @@ class TaskMinted(BaseModel):
     source_id: str
     phase: int = 0
     depends_on: list[str] = Field(default_factory=list)
-    # The `Task` model's own dump. Empty for a mint written before A-91 —
+    # The `Task` model's own dump. Empty for a mint written before S-0044/A-8 —
     # readers treat that as a view with no contract rather than an error.
     contract: dict[str, Any] = Field(default_factory=dict)
 
@@ -243,7 +243,7 @@ class TaskReleased(BaseModel):
 
 
 class TaskReturned(BaseModel):
-    """A reviewed candidate sent back for revision (A-134). Distinct from
+    """A reviewed candidate sent back for revision (S-0044/A-13). Distinct from
     `TaskReleased`, which is a holder letting go of a lease: this is work
     that was done, judged and refused, and the two must stay tellable
     apart. `note` is what the next attempt is briefed with."""
@@ -270,7 +270,7 @@ class AttemptStarted(BaseModel):
 
 
 class AttemptFinished(BaseModel):
-    """One attempt, as it ended (RFC 0044 A-85).
+    """One attempt, as it ended (S-0044 S-0044/A-4).
 
     The fields below `cost_usd` are the attempt record the engine has always
     written to its telemetry stream, carried here because they are the same
@@ -310,7 +310,7 @@ class AttemptFinished(BaseModel):
 
 
 class GatesEvaluated(BaseModel):
-    """One gate pass, and the attempt it judged (RFC 0044 A-85).
+    """One gate pass, and the attempt it judged (S-0044 S-0044/A-4).
 
     Same rule as `AttemptFinished`: this is the record the telemetry stream
     has always carried for an attempt that reached its battery, written once
@@ -354,7 +354,7 @@ def gate_outcomes(payload: Mapping[str, Any]) -> dict[str, str]:
 
 # ....................... #
 
-# The v1 divergence entry, transcribed (RFC 0001 §7, the flag-dont-flip
+# The v1 divergence entry, transcribed (S-0001/decisions, the flag-dont-flip
 # vocabulary the decisions-reported gate enforces). The intake validates an
 # entry against these same words at write time, and a parity test pins this
 # vocabulary against the gate's own sets so the two cannot drift apart.
@@ -436,7 +436,7 @@ class EscalationResolved(BaseModel):
 
 
 class MessageSent(BaseModel):
-    """RFC 0044 D-44.4: an agent influences another agent only as a record a
+    """S-0044 S-0044/D-4: an agent influences another agent only as a record a
     human can read. There is no channel that bypasses this model."""
 
     model_config = ConfigDict(extra="forbid")
@@ -461,21 +461,21 @@ class SeatConsumed(BaseModel):
 
 
 class NotificationSent(BaseModel):
-    """One delivery of one escalation (RFC 0051 D-51.1).
+    """One delivery of one escalation (S-0051 S-0051/D-1).
 
     `subject` is the escalation event's own id, which is both what makes
     this a delivery *of* something and the idempotency key the destination
-    dedups on (D-51.6). `receipt` is the destination's own handle for what
+    dedups on (S-0051/D-6). `receipt` is the destination's own handle for what
     it accepted — a delivery nobody can point at afterwards is
     indistinguishable from one that never happened.
 
-    Every attempt is recorded, not only the ones that worked (A-126):
+    Every attempt is recorded, not only the ones that worked (S-0051/A-1):
     `outcome` is `delivered`, `retrying` when the destination might take it
     later, or `failed` once the attempts are spent. The count of rows is
     what the retry ceiling is derived from, so a relay that recorded only
     successes could never reach it.
 
-    `delivered` and `failed` both drain the queue (D-51.7) — an escalation
+    `delivered` and `failed` both drain the queue (S-0051/D-7) — an escalation
     nobody could page about is still on the board where it always was.
     """
 
@@ -518,7 +518,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
 
 # ----------------------- #
 
-# The aggregate (RFC 0044 §5.1). Identity, revision and timestamps come from
+# The aggregate (S-0044/the-event-log). Identity, revision and timestamps come from
 # the document base — `created_at` is the event's own clock, so the record
 # carries no second one. There is deliberately no update command: a spec
 # without one exposes no update port at all, which is how "append-only" is
@@ -591,7 +591,7 @@ class UnauthorizedWrite(Exception):
 
 
 def check_authority(actor: ActorKind, kind: EventKind) -> None:
-    """RFC 0044 D-44.2. The service calls this before it builds a record, so
+    """S-0044 S-0044/D-2. The service calls this before it builds a record, so
     an unauthorized write never reaches a store to be refused there — the
     rule is the domain's, and no adapter can be permissive on its own."""
 

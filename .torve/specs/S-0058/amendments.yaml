@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-09'
+    title: >-
+      phase 1 reaches every tracked file the grammar touches
+    md: |
+      The mapping rewrites every citation git tracks, and the phase named the roots it expected — `src/`, `pages/`, `skills/`, the tests, the README — while the manifest's comments, the standing contracts, `pyproject.toml`, the migrations' READMEs and the web README cite rows too. They join phase 1's scope. Scope only; no row changes.

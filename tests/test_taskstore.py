@@ -1,5 +1,5 @@
 """TaskStore semantics over the mock store: leases, fencing, cancellation and
-the reaper's expiry verdict — the behaviors RFC 0003 §5 buys from the
+the reaper's expiry verdict — the behaviors S-0003/lease-and-cancellation buys from the
 substrate (D-5), asserted from torve's side of the seam."""
 
 from __future__ import annotations

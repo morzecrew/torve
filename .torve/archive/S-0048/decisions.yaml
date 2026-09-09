@@ -1,15 +1,15 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-48.1
+  - id: D-1
     grade: LOCKED
     text: >-
       The root-to-partition binding is declared in the fleet manifest, never derived
       and never read from the root under work
     paths: [src/torve/config/fleet.py]
     consequence: >-
-      A repository cannot choose its own board, which is D-13.3 applied to the one
-      field that decides where its contracts are minted
-  - id: D-48.2
+      A repository cannot choose its own board, which is S-0013/D-3 applied to the
+      one field that decides where its contracts are minted
+  - id: D-2
     grade: LOCKED
     text: >-
       The resident loop refuses a manifest entry with no partition, before that repository
@@ -18,25 +18,25 @@ decisions:
     consequence: >-
       A partition nobody wrote down is a board nobody chose; the refusal is per repository
       so one missing field does not stop a fleet
-  - id: D-48.3
+  - id: D-3
     grade: ASSUMED
     text: >-
-      The fleet loop reuses RFC 0024's rules unchanged: the manifest's deterministic
+      The fleet loop reuses S-0024's rules unchanged: the manifest's deterministic
       order, trust enforced before each pass, one failing repository recorded and
       skipped, one attention budget for the fleet
     paths: [src/torve/application/fleet.py]
     consequence: >-
       v2 inherits every decision the fleet already made rather than making them again
       differently
-  - id: D-48.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       The pause skips minting and nothing else; work already on a board runs to completion
     paths: [src/torve/application/residency.py]
     consequence: >-
-      D-19.5's rule as it stands — the queue may drain during a pause, it may not
-      grow — and a pause never interrupts an attempt
-  - id: D-48.5
+      S-0019/D-5's rule as it stands — the queue may drain during a pause, it may
+      not grow — and a pause never interrupts an attempt
+  - id: D-5
     grade: ASSUMED
     text: >-
       Escalations are counted as the union by task id of the board's and the run-state
@@ -45,7 +45,7 @@ decisions:
     consequence: >-
       Correct across the migration, where a repository has both carriers, and a task
       in both is one task to triage
-  - id: D-48.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       Partitions are served in sequence, one pass each per round
@@ -54,7 +54,7 @@ decisions:
       Multi-repo becomes operable now; a long attempt delays other partitions' next
       pass, which is the measurement that decides whether concurrency is worth its
       cost
-  - id: D-48.7
+  - id: D-7
     grade: OPEN
     text: >-
       Whether the resident loop grows a single-repository filter. Settled by whether

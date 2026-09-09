@@ -1,19 +1,19 @@
 """`decisions-reported` — a LOCKED area touched with no log entry, or an
-illegal action for the grade (RFC 0002 §4; format RFC 0001 §6 as amended by
-A-1: `logs/<task-id>.yaml`, one `entries:` list, YAML only — the converter
+illegal action for the grade (S-0002/starting-set; format S-0001/task-contract-and-execution-log as amended by
+S-0001/A-1: `logs/<task-id>.yaml`, one `entries:` list, YAML only — the converter
 owned compatibility and died with it).
 
 Checks: schema (required fields, vocabularies, UTC timestamp, positive
 attempt, kind or class present), legality (the action the grade licenses,
-both ways, with the D-21b close-out exemptions), evidence (locatable file
+both ways, with the S-0001/D-26 close-out exemptions), evidence (locatable file
 ranges or commands carrying output), drift (the declared `drift_count`
 against entries classed drift), and silence (every LOCKED decision whose
 declared paths the diff touched has an entry citing it; no paths — skipped,
 never passed).
 
-A missing log is an empty log (A-13, D-3.21) — the silence check still
+A missing log is an empty log (S-0003/A-2, S-0003/D-21) — the silence check still
 applies to it — and a contract declaring `decisions: []` passes explicitly
-(D-7.5). The log also carries a `bypasses:` list (D-2.7); its items are
+(S-0007/D-5). The log also carries a `bypasses:` list (S-0002/D-7); its items are
 records, not divergences, and are validated only for shape.
 """
 
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(?:Z|\+00:00)$")
 # The locator's CITATION without the end anchor — the diagnosis needs to know
-# where the leading citation ends, not whether the whole line is one (D-5.4).
+# where the leading citation ends, not whether the whole line is one (S-0005/D-4).
 CITATION_PREFIX = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?")
 REQUIRED = ("decision", "grade", "at", "attempt", "claim", "evidence", "action")
 OPTIONAL = ("kind", "class", "proposal", "notes")
@@ -181,7 +181,7 @@ def _is_grammar_rejection(evidence: str) -> bool:
     one (neither a path:line citation nor a backticked command), as opposed
     to a locatable-format line pointing at a missing or out-of-range path.
     Mirrors the locator's own branches with its own regexes, so the
-    judgement cannot drift from it (D-5.4)."""
+    judgement cannot drift from it (S-0005/D-4)."""
 
     if BACKTICKED.match(evidence):
         return False
@@ -237,7 +237,7 @@ def _check_evidence(index: int, entry: dict[str, Any], root: Path) -> list[str]:
     if not evidence:
         return []  # already reported by the schema check
 
-    # One locator, two consumers (D-5.4): this check and the review findings
+    # One locator, two consumers (S-0005/D-4): this check and the review findings
     # filter share the mechanism in gates/evidence.py. The judgement is the
     # locator's; when it rejects the grammar, the message here teaches the
     # repair instead of only naming the failure.
@@ -257,7 +257,7 @@ def _check_evidence(index: int, entry: dict[str, Any], root: Path) -> list[str]:
 
 def check_entry(entry: dict[str, Any], root: Path, *, index: int = 0) -> list[str]:
     """Every per-entry check this gate applies, for a caller holding one
-    entry rather than a log (RFC 0044 D-44.10).
+    entry rather than a log (S-0044 S-0044/D-10).
 
     The intake calls this before it writes, so an agent is refused while it
     can still act, in the words the gate would have used hours later. Parity
@@ -341,7 +341,7 @@ def owed(
         if decision.grade != "LOCKED":
             continue
 
-        # D-54.3: a row with a check is proven by the battery in the same
+        # S-0054/D-3: a row with a check is proven by the battery in the same
         # pass — green or red, the gate's verdict is the finding, and an
         # attestation would be prose restating an exit code.
         if decision.check:
@@ -386,12 +386,12 @@ SHA_SHAPE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
 def check_pin(document: dict[str, Any]) -> list[str]:
-    """D-A.7 (A-70): the log opens with `repo` and `base_sha`, so its
+    """S-0001/D-36 (S-0021/A-1): the log opens with `repo` and `base_sha`, so its
     path:line evidence resolves against the commit the work started from.
     Public for the same reason `check_entry` is: the intake checks the
     document it is about to write, so a pin this gate would convict is
     reported while someone can still act on it.
-    The pin has been part of the format since A-7 and voluntary in the
+    The pin has been part of the format since S-0016/A-1 and voluntary in the
     gate; agent-written logs omitted it until the gate demanded it."""
 
     problems: list[str] = []
@@ -423,7 +423,7 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         return NO_TASK
 
     if ctx.log_text is None or not ctx.log_text.strip():
-        # A missing log is an empty log (A-13, D-3.21) — the file is created
+        # A missing log is an empty log (S-0003/A-2, S-0003/D-21) — the file is created
         # by writing, so only the silence check can convict its absence: a
         # touched LOCKED area with no entry is a violation exactly as it
         # would be in a written log without the matching entry.

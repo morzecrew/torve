@@ -1,4 +1,4 @@
-"""Revision feedback (RFC 0005 §4a, A-32): what a retry carries forward.
+"""Revision feedback (S-0005/the-revision-loop-added-by-a-32-2026-08-24, S-0005/A-2): what a retry carries forward.
 
 The record holds the previous candidate's diff and the pull request's
 line-anchored review threads from allow-listed logins — verbatim and
@@ -6,7 +6,7 @@ whole, because reviewer formats are incompatible and replies carry
 resolution; attributed, because a later eval will ask which reviewer
 earns its seat; size-capped with the truncation written into the record,
 never silently absorbed. The re-run's prompt names the file as untrusted
-review data under a contract that still governs (D-5.13).
+review data under a contract that still governs (S-0005/D-13).
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from torve.config import layout
 FEEDBACK_FILE = "feedback.md"
 FEEDBACK_THREADS = "feedback-threads.json"
 # Bytes of rendered threads-and-diff a record may hold; past it the
-# record says so (D-5.12) — a silently dropped finding makes it lie.
+# record says so (S-0005/D-12) — a silently dropped finding makes it lie.
 FEEDBACK_CAP = 24_000
 
 
@@ -37,7 +37,7 @@ def feedback_file(root: Path, task_id: str) -> Path:
 
 
 def threads_file(root: Path, task_id: str) -> Path:
-    """The captured threads' reply addresses (D-5.14, A-41): pending
+    """The captured threads' reply addresses (S-0005/D-14, S-0005/A-3): pending
     until the landing that consumed the record answers them."""
 
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_THREADS
@@ -100,7 +100,7 @@ def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str
     record either way: a stale record from an earlier revision round must
     not brief the next attempt as if current, and a stale reply address
     must not have the next landing answer threads it never addressed.
-    Captured threads also leave their reply addresses (D-5.14, A-41) so
+    Captured threads also leave their reply addresses (S-0005/D-14, S-0005/A-3) so
     the landing that consumes this record can answer them."""
 
     path = feedback_file(root, task_id)

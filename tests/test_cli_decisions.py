@@ -1,5 +1,5 @@
 """`torve decisions paths` states coverage per glob beside the rows the
-record holds (D-53.6): governed, ungoverned or retired, from the corpus and
+record holds (S-0053/D-6): governed, ungoverned or retired, from the corpus and
 its archive, with a corpus that does not load answering nothing rather than
 failing the record read."""
 
@@ -23,14 +23,14 @@ def test_paths_prints_coverage_per_glob(tmp_path: Path) -> None:
         tmp_path,
         **{
             "0001": document(
-                "0001", [("D-1.1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=[PHASE]
+                "0001", [("S-0001/D-1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=[PHASE]
             )
         },
     )
     archived(
         rfc_dir,
         "0000",
-        document("0000", [("D-0.1", "LOCKED", "x", "`src/old/**`")], status="superseded"),
+        document("0000", [("S-0000/D-1", "LOCKED", "x", "`src/old/**`")], status="superseded"),
     )
 
     result = runner.invoke(
@@ -62,7 +62,7 @@ def test_paths_prints_coverage_per_glob(tmp_path: Path) -> None:
 
 
 def test_paths_text_rendering_names_the_frontier(tmp_path: Path) -> None:
-    corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "x", "—")])})
+    corpus(tmp_path, **{"0001": document("0001", [("S-0001/D-1", "OPEN", "x", "—")])})
 
     result = runner.invoke(
         app, ["decisions", "paths", "lab", "src/anything.py", "--root", str(tmp_path)]
@@ -73,7 +73,7 @@ def test_paths_text_rendering_names_the_frontier(tmp_path: Path) -> None:
 
 
 def test_a_corpus_that_does_not_load_answers_no_coverage(tmp_path: Path) -> None:
-    corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "MAYBE", "x", "—")])})
+    corpus(tmp_path, **{"0001": document("0001", [("S-0001/D-1", "MAYBE", "x", "—")])})
 
     result = runner.invoke(
         app,
@@ -85,7 +85,7 @@ def test_a_corpus_that_does_not_load_answers_no_coverage(tmp_path: Path) -> None
 
 
 # ----------------------- #
-# RFC 0057 D-57.8: `decisions import --check` sees every execution file
+# S-0057 S-0057/D-8: `decisions import --check` sees every execution file
 
 
 def test_import_check_lists_the_landings_the_record_lacks(tmp_path: Path) -> None:
@@ -95,7 +95,7 @@ def test_import_check_lists_the_landings_the_record_lacks(tmp_path: Path) -> Non
         "at": "2026-09-09",
         "entries": [
             {
-                "decision": "D-1.1",
+                "decision": "S-0001/D-1",
                 "grade": "LOCKED",
                 "claim": "held",
                 "evidence": "src/a.py:1 - x",
@@ -108,7 +108,7 @@ def test_import_check_lists_the_landings_the_record_lacks(tmp_path: Path) -> Non
         **{
             "0001": document(
                 "0001",
-                [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+                [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")],
                 implementation="none",
                 landings=[landing],
             )

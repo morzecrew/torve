@@ -11,7 +11,7 @@ leg against that one (tests/test_sandbox_images.py) and asserts two things
 this file cannot vouch for — the platform's own timeout collecting a sandbox,
 and enumeration and destroy-by-id across connections. Where the live leg
 fails and the stub leg passes, the stub is what lies: correct the stub,
-never the assertion (RFC 0041 §5.1).
+never the assertion (S-0041/live-conformance).
 """
 
 from __future__ import annotations

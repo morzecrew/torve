@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-55.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Models never decide what work exists or whether it is finished; the runner executes
@@ -13,8 +13,8 @@ decisions:
     consequence: >-
       A reviewer's severity is data whose consequence configuration sets; the planner
       invokes no model at all
-    cites: [D-2, D-38.2]
-  - id: D-55.2
+    cites: [S-0001/D-10, S-0038/D-2]
+  - id: D-2
     grade: LOCKED
     text: >-
       Gates execute outside the agent session against the working tree it leaves behind;
@@ -22,8 +22,8 @@ decisions:
     paths: [src/torve/gates/**, src/torve/application/runner.py]
     consequence: >-
       The battery is the acceptance; a green the agent claims is not one
-    cites: [D-3]
-  - id: D-55.3
+    cites: [S-0001/D-11]
+  - id: D-3
     grade: LOCKED
     text: >-
       The sandbox is the unit of lifecycle; the engine never executes agent code on
@@ -31,8 +31,8 @@ decisions:
     paths: [src/torve/adapters/runtime/**, src/torve/application/session.py]
     consequence: >-
       Killing a worker costs its lease and nothing else
-    cites: [D-4]
-  - id: D-55.4
+    cites: [S-0001/D-12]
+  - id: D-4
     grade: LOCKED
     text: >-
       Agents hold no provider credentials; the broker injects them at its own boundary,
@@ -45,8 +45,8 @@ decisions:
     consequence: >-
       A sandbox that is compromised leaks nothing it was not given; a committed file
       never holds a secret
-    cites: [D-4b, '0021']
-  - id: D-55.5
+    cites: [S-0001/D-13, S-0021]
+  - id: D-5
     grade: LOCKED
     text: >-
       Agents do not communicate; executor memory is off by default, per slot when
@@ -55,8 +55,8 @@ decisions:
     consequence: >-
       Shared memory is a communication channel with a euphemism; a remembered replay
       is an incomparable number
-    cites: [D-31, D-17.7]
-  - id: D-55.6
+    cites: [S-0001/D-29, S-0017/D-7]
+  - id: D-6
     grade: ASSUMED
     text: >-
       Escalation reasons are a closed enum mapped to exit codes; `locked_conflict`
@@ -65,8 +65,8 @@ decisions:
     paths: [src/torve/domain/states.py, src/torve/cli/options.py]
     consequence: >-
       A new reason is an amendment and a code path, never a free string
-    cites: [D-11.4, A-21, A-22]
-  - id: D-55.7
+    cites: [S-0011/D-4, S-0001/A-7, S-0001/A-8]
+  - id: D-7
     grade: LOCKED
     text: >-
       A task contract is immutable once minted: a changed contract is a new task,
@@ -76,8 +76,8 @@ decisions:
     consequence: >-
       An executor's contract cannot drift out from under it; `torve plan` refuses
       to re-mint over minted phases and leaves the decision to a person
-    cites: [A-4, 0049]
-  - id: D-55.8
+    cites: [S-0001/A-2, S-0049]
+  - id: D-8
     grade: ASSUMED
     text: >-
       Contracts are derived artefacts committed under `.torve/tasks/`; the task directory
@@ -86,8 +86,8 @@ decisions:
     consequence: >-
       Reproducible from a sha, refusable in a diff; the file is authored, the record
       is read
-    cites: [A-4, 0049]
-  - id: D-55.9
+    cites: [S-0001/A-2, S-0049]
+  - id: D-9
     grade: LOCKED
     text: >-
       A contract copies its rows' grade, text and paths at mint time; a grade is never
@@ -95,8 +95,8 @@ decisions:
     paths: [src/torve/application/planner.py, src/torve/domain/task.py]
     consequence: >-
       A regrade never rewrites the judgement of a task that ran under the old grade
-    cites: [D-7.22, D-22.2]
-  - id: D-55.10
+    cites: [S-0007/D-22, S-0022/D-2]
+  - id: D-10
     grade: LOCKED
     text: >-
       Silence is a finding: a `LOCKED` row whose declared paths a diff touches without
@@ -105,8 +105,8 @@ decisions:
     consequence: >-
       Sixty-one convictions and their corrections are the record of this boundary
       being held
-    cites: [D-32]
-  - id: D-55.11
+    cites: [S-0001/D-32]
+  - id: D-11
     grade: ASSUMED
     text: >-
       A divergence entry is written only through `torve log divergence`, validated
@@ -118,8 +118,8 @@ decisions:
       - .torve/tasks/**
     consequence: >-
       A hand-edited log is refused by the same code that gates it
-    cites: [D-2.10, '0045']
-  - id: D-55.12
+    cites: [S-0002/D-10, S-0045]
+  - id: D-12
     grade: ASSUMED
     text: >-
       An empty decision list on a contract is legal and explicit; "none apply" is
@@ -127,8 +127,8 @@ decisions:
     paths: [src/torve/gates/decisions_reported.py, src/torve/domain/task.py]
     consequence: >-
       The document-less lane is governed by standing inheritance, not by silence
-    cites: [D-7.5]
-  - id: D-55.13
+    cites: [S-0007/D-5]
+  - id: D-13
     grade: ASSUMED
     text: >-
       Evidence must locate — a `path:line` inside the repository or a command with
@@ -138,8 +138,8 @@ decisions:
     consequence: >-
       Locating eliminates fabricated coordinates, not fabricated claims; the reviewer
       and the log share the rule
-    cites: [D-2.10]
-  - id: D-55.14
+    cites: [S-0002/D-10]
+  - id: D-14
     grade: ASSUMED
     text: >-
       The gate manifest lives in the consuming repository at `.torve/gates.yaml`;
@@ -148,8 +148,8 @@ decisions:
     paths: [.torve/gates.yaml, src/torve/config/manifest.py]
     consequence: >-
       Promotion is a separate act with a number behind it, never a default
-    cites: [D-2.5, D-2.18]
-  - id: D-55.15
+    cites: [S-0002/D-5, S-0002/D-18]
+  - id: D-15
     grade: LOCKED
     text: >-
       Every gate names a sabotage twin that proves it can fail; a manifest that names
@@ -158,8 +158,8 @@ decisions:
     consequence: >-
       A gate nobody has seen fail is decoration; the battery carries zero grandfather
       exceptions
-    cites: [D-36.3]
-  - id: D-55.16
+    cites: [S-0036/D-3]
+  - id: D-16
     grade: ASSUMED
     text: >-
       Every gate runs on every pass, cheapest first, never short-circuiting; the retry
@@ -168,8 +168,8 @@ decisions:
     consequence: >-
       A replay of the rows reproduces the tier choice exactly; the severity ladder
       stays meaningful
-    cites: [D-34.4, D-34.5]
-  - id: D-55.17
+    cites: [S-0034/D-4, S-0034/D-5]
+  - id: D-17
     grade: LOCKED
     text: >-
       Scope is a contract: `allow` and `deny` globs make a touch outside them a red
@@ -178,8 +178,8 @@ decisions:
     consequence: >-
       Thirty-two convictions and their corrections; a collision is refused at dispatch,
       never discovered at merge
-    cites: [D-1.7]
-  - id: D-55.18
+    cites: [S-0001/D-7]
+  - id: D-18
     grade: LOCKED
     text: >-
       Secrets never enter the tree; the `secrets` gate reads added lines and is the
@@ -188,15 +188,15 @@ decisions:
     consequence: >-
       The boundary has never been crossed in 745 attempts and the tree holds it as
       structure
-    cites: [D-2.8]
-  - id: D-55.19
+    cites: [S-0002/D-8]
+  - id: D-19
     grade: ASSUMED
     text: >-
       An existing test is edited only under the contract's licence; adding a test
       is an addition, editing one needs scope
     paths: [src/torve/gates/no_test_tampering.py, tests/**]
     consequence: A green earned by weakening the suite is a red
-  - id: D-55.20
+  - id: D-20
     grade: ASSUMED
     text: >-
       Acceptance is a list of shell commands, exit 0 meaning satisfied, run in the
@@ -205,8 +205,8 @@ decisions:
     paths: [src/torve/gates/acceptance.py, src/torve/application/intake.py]
     consequence: >-
       The lint refuses such a command at mint rather than after three attempts
-    cites: [A-131]
-  - id: D-55.21
+    cites: [S-0052/A-2]
+  - id: D-21
     grade: ASSUMED
     text: >-
       A bypass is a `Torve-Bypass: <gate>: <reason>` commit trailer, counted per gate
@@ -214,7 +214,7 @@ decisions:
     paths: [src/torve/gates/runner.py, src/torve/application/telemetry.py]
     consequence: >-
       Every waiver is a recorded fact with a name on it
-  - id: D-55.22
+  - id: D-22
     grade: LOCKED
     text: >-
       User-facing strings carry no corpus coordinates: whoever runs the command has
@@ -223,8 +223,8 @@ decisions:
     consequence: >-
       Twenty-eight convictions and their corrections; the audience rule is a gate,
       not a style
-    cites: [D-11.11]
-  - id: D-55.23
+    cites: [S-0011/D-11]
+  - id: D-23
     grade: LOCKED
     text: >-
       Five layers — `base`, `domain`, `application`, `adapters`, `cli`, beside `gates`
@@ -233,8 +233,8 @@ decisions:
     paths: [src/torve/**, pyproject.toml]
     consequence: >-
       The hexagon is visible in the tree and mechanically held
-    cites: [D-15.1, D-15.8]
-  - id: D-55.24
+    cites: [S-0015/D-1, S-0015/D-8]
+  - id: D-24
     grade: LOCKED
     text: >-
       `gates` imports only `domain`, `base` and `config`; the gates-only install stands
@@ -242,16 +242,16 @@ decisions:
     paths: [src/torve/gates/**, pyproject.toml]
     consequence: >-
       The first shippable increment keeps shipping alone
-    cites: [D-15.2]
-  - id: D-55.25
+    cites: [S-0015/D-2]
+  - id: D-25
     grade: LOCKED
     text: >-
       Adapters never import each other and are organised `adapters/<port>/<technology>.py`
     paths: [src/torve/adapters/**]
     consequence: >-
       Swapping one adapter is never a rewrite of another
-    cites: [D-15.3, D-15.4]
-  - id: D-55.26
+    cites: [S-0015/D-3, S-0015/D-4]
+  - id: D-26
     grade: LOCKED
     text: >-
       The specification format terminates at the planner: gates, runtime adapters
@@ -260,8 +260,8 @@ decisions:
     consequence: >-
       Format containment cannot break quietly; the contract is the only thing a gate
       reads about a task
-    cites: [D-7.17]
-  - id: D-55.27
+    cites: [S-0007/D-17]
+  - id: D-27
     grade: ASSUMED
     text: >-
       No module is named `models`, `utils`, `helpers`, `common` or `base` below the
@@ -269,8 +269,8 @@ decisions:
       gate reads it
     paths: [src/torve/**]
     consequence: Names that admit anything accumulate everything
-    cites: [D-15.5, D-14.11]
-  - id: D-55.28
+    cites: [S-0015/D-5, S-0014/D-11]
+  - id: D-28
     grade: ASSUMED
     text: >-
       A module named after a CLI verb lives under `cli/` and holds parsing and rendering
@@ -278,8 +278,8 @@ decisions:
     paths: [src/torve/cli/**]
     consequence: >-
       Logic and presentation stay separable where they are hardest to separate
-    cites: [D-15.6, D-18.2]
-  - id: D-55.29
+    cites: [S-0015/D-6, S-0018/D-2]
+  - id: D-29
     grade: ASSUMED
     text: >-
       Application code reaches stores only through injected factories; substrate wiring
@@ -287,8 +287,8 @@ decisions:
     paths: [src/torve/application/**]
     consequence: >-
       Anything derived below a port is invisible to simulation
-    cites: [D-15.12]
-  - id: D-55.30
+    cites: [S-0015/D-12]
+  - id: D-30
     grade: ASSUMED
     text: >-
       Everything Torve owns in a consuming repository lives under `.torve/`; the gate
@@ -302,16 +302,16 @@ decisions:
       - src/torve/config/layout.py
     consequence: >-
       A worked-on repository cannot configure the engine working on it
-    cites: [D-13.3]
-  - id: D-55.31
+    cites: [S-0013/D-3]
+  - id: D-31
     grade: ASSUMED
     text: >-
       Providers a repository's contents may reach are enforced at dispatch, before
       a sandbox exists; an empty default denies every real provider
     paths: [src/torve/config/runconfig.py, src/torve/application/dispatch.py]
     consequence: Silence is not a policy; it is a closed door
-    cites: [D-4.8]
-  - id: D-55.32
+    cites: [S-0004/D-8]
+  - id: D-32
     grade: ASSUMED
     text: >-
       A tier resolves through profiles in the operator's own configuration directory,
@@ -319,8 +319,8 @@ decisions:
       rather than falls back
     paths: [src/torve/config/runconfig.py, src/torve/application/skills.py]
     consequence: Resolution is fail-closed throughout
-    cites: [0028, 0029]
-  - id: D-55.33
+    cites: [S-0028, S-0029]
+  - id: D-33
     grade: ASSUMED
     text: >-
       Configuration routes by nature — identity in the image, task context in the
@@ -330,8 +330,8 @@ decisions:
     consequence: >-
       A second channel for a secret is a leak; a repository-carried harness config
       is an injection surface
-    cites: [D-17.4]
-  - id: D-55.34
+    cites: [S-0017/D-4]
+  - id: D-34
     grade: ASSUMED
     text: >-
       A stdio MCP server is image content; a remote MCP endpoint is an egress destination
@@ -341,8 +341,8 @@ decisions:
     consequence: >-
       Files in the worktree carry task context; reach into the record is the planner's
       alone
-    cites: [D-17.6]
-  - id: D-55.35
+    cites: [S-0017/D-6]
+  - id: D-35
     grade: ASSUMED
     text: >-
       Sandbox images are digest-pinned inputs to a run; an image the eval ledger has
@@ -351,8 +351,8 @@ decisions:
     paths: [.torve/sandbox/**, src/torve/application/dispatch.py, .torve/evals.jsonl]
     consequence: >-
       Numbers from different images are never silently compared
-    cites: ['0017', '0027']
-  - id: D-55.36
+    cites: [S-0017, S-0027]
+  - id: D-36
     grade: ASSUMED
     text: >-
       Skills ship as package data under `skills/` and are materialised role-scoped
@@ -361,8 +361,8 @@ decisions:
     paths: [skills/**, .torve/skills-vendor/**, src/torve/application/skills.py]
     consequence: >-
       What an agent knows is versioned and named, never ambient
-    cites: [D-9.12]
-  - id: D-55.37
+    cites: [S-0009/D-12]
+  - id: D-37
     grade: LOCKED
     text: >-
       A fact is an event of a closed kind vocabulary with an authority table; an agent
@@ -372,8 +372,8 @@ decisions:
     consequence: >-
       An audit trail that can be edited cannot be trusted; the authority table refuses
       before any store sees the write
-    cites: [D-44.2]
-  - id: D-55.38
+    cites: [S-0044/D-2]
+  - id: D-38
     grade: ASSUMED
     text: >-
       The manager holds nothing between passes and rebuilds its view from the record;
@@ -384,8 +384,8 @@ decisions:
       - src/torve/application/residency.py
     consequence: >-
       A restart is a re-read, never a recovery procedure
-    cites: ['0044']
-  - id: D-55.39
+    cites: [S-0044]
+  - id: D-39
     grade: ASSUMED
     text: >-
       Retirement of a decision is recorded, never inferred from a row that stopped
@@ -394,8 +394,8 @@ decisions:
     paths: [src/torve/application/decisions.py]
     consequence: >-
       Absence cannot tell a retirement from a broken table
-    cites: [D-47.1, D-47.2]
-  - id: D-55.40
+    cites: [S-0047/D-1, S-0047/D-2]
+  - id: D-40
     grade: ASSUMED
     text: >-
       A landing is recorded from the `Torve-Task` trailer on the commit; git log is
@@ -403,8 +403,8 @@ decisions:
     paths: [src/torve/adapters/vcs/git.py, src/torve/application/runner.py]
     consequence: >-
       A session-authored landing enters the record the same way an agent's does
-    cites: [D-10.4]
-  - id: D-55.41
+    cites: [S-0010/D-4]
+  - id: D-41
     grade: ASSUMED
     text: >-
       Every attempt appends one telemetry row stamped with the `config_hash` of the
@@ -417,8 +417,8 @@ decisions:
     consequence: >-
       Numbers from different regimes are never silently compared; a mute row is a
       mute row
-    cites: [D-4.6, D-38.2]
-  - id: D-55.42
+    cites: [S-0004/D-6, S-0038/D-2]
+  - id: D-42
     grade: ASSUMED
     text: >-
       Every read of the log pages; no reader folds a truncated prefix as if it were
@@ -426,8 +426,8 @@ decisions:
     paths: [src/torve/application/eventlog.py]
     consequence: >-
       The board once decided dispatch over a third of its tasks missing
-    cites: [A-99]
-  - id: D-55.43
+    cites: [S-0044/A-9]
+  - id: D-43
     grade: ASSUMED
     text: >-
       Migrations are owner-grouped, forward-only SQL under `migrations/`; the substrate
@@ -436,8 +436,8 @@ decisions:
     paths: [migrations/**, src/torve/application/migrate.py, src/torve/cli/doctor.py]
     consequence: >-
       A substrate surface change fails at the pin bump, not in production
-    cites: ['0012']
-  - id: D-55.44
+    cites: [S-0012]
+  - id: D-44
     grade: ASSUMED
     text: >-
       `torve plan` is deterministic and invokes no model; it mints from exactly one
@@ -446,8 +446,8 @@ decisions:
     paths: [src/torve/application/planner.py, src/torve/cli/plan.py]
     consequence: >-
       What to do with existing tasks is a human decision
-    cites: [D-7.22, D-49.1]
-  - id: D-55.45
+    cites: [S-0007/D-22, S-0049/D-1]
+  - id: D-45
     grade: ASSUMED
     text: >-
       Nothing inherits from a document that is not `accepted`; a contract without
@@ -455,8 +455,8 @@ decisions:
     paths: [src/torve/application/planner.py, src/torve/application/intake.py]
     consequence: >-
       The document-less lane is governed; a draft's rows never stand
-    cites: [D-A.10, D-30.5]
-  - id: D-55.46
+    cites: [S-0016/D-20, S-0030/D-5]
+  - id: D-46
     grade: ASSUMED
     text: >-
       A draft passes the deterministic lint before adoption — non-empty intent and
@@ -467,8 +467,8 @@ decisions:
     consequence: >-
       A defect the lint names at drafting costs nothing; the same defect at attempt
       three cost 2410 seconds once
-    cites: [D-20.3, A-131, A-132]
-  - id: D-55.47
+    cites: [S-0020/D-3, S-0052/A-2, S-0052/A-3]
+  - id: D-47
     grade: ASSUMED
     text: >-
       A contract the size estimate calls `too_large` routes to a decomposition run
@@ -477,8 +477,8 @@ decisions:
     paths: [src/torve/application/sizing.py, src/torve/application/intake.py]
     consequence: >-
       Oversized work is split at drafting time, where the tree is in view
-    cites: ['0026']
-  - id: D-55.48
+    cites: [S-0026]
+  - id: D-48
     grade: ASSUMED
     text: >-
       The poison ceiling is checked before dispatch and reaching it escalates, never
@@ -489,8 +489,8 @@ decisions:
       - .torve/config.yaml
     consequence: >-
       An attempt is spent on a chance, never on a certainty
-    cites: ['0034']
-  - id: D-55.49
+    cites: [S-0034]
+  - id: D-49
     grade: LOCKED
     text: >-
       Review is a second run role in its own sandbox; the reviewer never receives
@@ -500,8 +500,8 @@ decisions:
     consequence: >-
       Reviewer independence is from the author's reasoning; engine facts about the
       diff are not the author's
-    cites: [D-5.3]
-  - id: D-55.50
+    cites: [S-0005/D-3]
+  - id: D-50
     grade: LOCKED
     text: >-
       The engine never resolves a merge conflict and never lands without the configured
@@ -510,8 +510,8 @@ decisions:
     consequence: >-
       A conflict against an unmoved base is the same conflict, and re-queueing it
       is a loop
-    cites: [D-6, D-52.5]
-  - id: D-55.51
+    cites: [S-0001/D-16, S-0052/D-5]
+  - id: D-51
     grade: ASSUMED
     text: >-
       A landing commit carries `Torve-Task`, `Torve-Attempt`, `Torve-Agent`, `Torve-Config`
@@ -521,8 +521,8 @@ decisions:
     consequence: >-
       What landed, under which regime, inheriting which rows, is readable from git
       alone
-    cites: ['0010']
-  - id: D-55.52
+    cites: [S-0010]
+  - id: D-52
     grade: ASSUMED
     text: >-
       Documentation under `pages/` is written independently of the corpus — never
@@ -531,8 +531,8 @@ decisions:
     paths: [pages/**, rfcs/INDEX.md]
     consequence: >-
       Two axes, versioned differently; a lockfile-grade index cannot drift
-    cites: [D-A.1a, D-A.6]
-  - id: D-55.53
+    cites: [S-0016/D-10, S-0016/D-17]
+  - id: D-53
     grade: ASSUMED
     text: >-
       Commit messages follow gitmoji plus Conventional Commits with the type taken
@@ -541,7 +541,7 @@ decisions:
     paths: [.agents/skills/gitmoji-conventional/**]
     consequence: >-
       Release tooling reads the type; `git blame` reads the body
-  - id: D-55.54
+  - id: D-54
     grade: ASSUMED
     text: >-
       CI is the battery: `torve gates check` proves every gate can fail and `torve
@@ -549,16 +549,16 @@ decisions:
       request runs the manifest's fallback commands
     paths: [.github/workflows/ci.yml, .torve/gates.yaml]
     consequence: There is no second definition of green
-    cites: ['0002']
-  - id: D-55.55
+    cites: [S-0002]
+  - id: D-55
     grade: ASSUMED
     text: >-
       The web bundle is vendored under `src/torve/_web/` and the release job rebuilds
       it from `web/` and fails when the committed bundle differs
     paths: [src/torve/_web/**, web/**, .github/workflows/publish.yml]
     consequence: A stale bundle cannot ship silently
-    cites: [D-32.5]
-  - id: D-55.56
+    cites: [S-0032/D-5]
+  - id: D-56
     grade: ASSUMED
     text: >-
       Cadence belongs to the manager's pass; there is no resident scanning loop, and
@@ -567,8 +567,8 @@ decisions:
     paths: [src/torve/application/residency.py, src/torve/cli/manager.py]
     consequence: >-
       One process to run and supervise; a pause stops what advances the repository
-    cites: [A-105, A-106]
-  - id: D-55.57
+    cites: [S-0019/A-8, S-0023/A-2]
+  - id: D-57
     grade: ASSUMED
     text: >-
       Standing maintenance is a committed contract under `.torve/standing/` with a
@@ -576,16 +576,16 @@ decisions:
     paths: [.torve/standing/**, src/torve/application/standing.py]
     consequence: >-
       A job that fires is a fact with a bound, never a daemon's habit
-    cites: ['0023']
-  - id: D-55.58
+    cites: [S-0023]
+  - id: D-58
     grade: ASSUMED
     text: >-
       The review corpus under `.torve/review-corpus/` grows from post-merge escapes,
       and reviewer regressions are measured by replaying it
     paths: [.torve/review-corpus/**, src/torve/application/review.py]
     consequence: A reviewer's calibration is a measured quantity
-    cites: ['0036']
-  - id: D-55.59
+    cites: [S-0036]
+  - id: D-59
     grade: ASSUMED
     text: >-
       Strict typing is a floor over `src/`: `mypy --strict` and `basedpyright` strict
@@ -594,7 +594,7 @@ decisions:
     paths: [src/torve/**, pyproject.toml]
     consequence: >-
       A substrate surface change fails at the type check
-  - id: D-55.60
+  - id: D-60
     grade: ASSUMED
     text: >-
       Every attempt runs on a worktree seeded with the base sha pinned host-side,
@@ -608,26 +608,26 @@ decisions:
     consequence: >-
       What an agent saw is reconstructible; what it reasoned is never an input to
       another agent
-    cites: [D-17.4, 0039]
+    cites: [S-0017/D-4, S-0039]
 invariants:
-  - id: I-55.1
+  - id: I-1
     statement: >-
       The five layer contracts hold over the whole package
     paths: [src/torve/**, pyproject.toml]
     check: uv run lint-imports --config pyproject.toml
-  - id: I-55.2
+  - id: I-2
     statement: The corpus and its archive check clean
     paths: [rfcs/**, archive/**]
     check: uv run torve rfc check
-  - id: I-55.3
+  - id: I-3
     statement: Every gate in the manifest can be made to fail
     paths: [.torve/gates.yaml, src/torve/gates/**]
     check: uv run torve gates check
-  - id: I-55.4
+  - id: I-4
     statement: The typing floor over src holds
     paths: [src/torve/**]
     check: uv run mypy src && uv run basedpyright src
-  - id: I-55.5
+  - id: I-5
     statement: The suite is green
     paths: [src/torve/**, tests/**]
     check: uv run pytest

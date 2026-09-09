@@ -1,7 +1,7 @@
-"""Notifications (RFC 0051): how a recorded escalation reaches a person who
+"""Notifications (S-0051): how a recorded escalation reaches a person who
 is not looking at the dashboard.
 
-The queue is the log (D-51.2). An escalation whose event id appears in no
+The queue is the log (S-0051/D-2). An escalation whose event id appears in no
 `notification.sent` is undelivered — a fold over two kinds, not a second
 store — which is why no dual write is possible: if the escalation
 committed, the queue has it. That matters here more than anywhere else,
@@ -11,7 +11,7 @@ silence, and silence is indistinguishable from nothing having happened.
 What the fold gives up against a real outbox is `available_at` backoff and
 a processing lease. The first is replaced by an attempt count derived from
 what is already recorded; the second is unnecessary while one manager runs
-a partition, and RFC 0051 §10 names the moment it stops being.
+a partition, and S-0051/unresolved-questions names the moment it stops being.
 """
 
 from __future__ import annotations
@@ -33,11 +33,11 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 # How many deliveries one escalation earns before the relay stops trying
-# (D-51.7). A queue that retries forever is a queue that never drains, and
+# (S-0051/D-7). A queue that retries forever is a queue that never drains, and
 # the escalation is still on the board either way.
 MAX_ATTEMPTS = 5
 
-# The escalation reasons that interrupt a person (RFC 0006 §4, D-51.8).
+# The escalation reasons that interrupt a person (S-0006/human-attention-is-the-scarce-resource, S-0051/D-8).
 # Everything else is board-visible and waits to be looked at: paging on
 # every escalation is how a pager stops being read.
 INTERRUPT_REASONS = frozenset(
@@ -56,7 +56,7 @@ INTERRUPT_REASONS = frozenset(
 
 
 def _interrupts(event: EventRecord) -> bool:
-    """Whether this escalation is one that interrupts (D-51.8). An unknown
+    """Whether this escalation is one that interrupts (S-0051/D-8). An unknown
     reason interrupts: a reason nobody has classified is more likely to be
     new than to be routine, and the cost of asking is one page."""
 
@@ -76,12 +76,12 @@ def undelivered(
     events: Sequence[EventRecord], *, now: datetime | None = None
 ) -> list[Notification]:
     """Every escalation this partition has raised and not delivered, oldest
-    first (D-51.2).
+    first (S-0051/D-2).
 
     Delivered means a `notification.sent` naming the escalation's id with a
     settled outcome — `delivered`, or the terminal `failed` that is
-    recorded precisely so the queue drains (D-51.7). A `retrying` row is an
-    attempt rather than an answer and leaves the escalation owed (A-126).
+    recorded precisely so the queue drains (S-0051/D-7). A `retrying` row is an
+    attempt rather than an answer and leaves the escalation owed (S-0051/A-1).
     A resolved escalation is *not* filtered out: it
     was somebody's turn when it was raised, and a page that arrives after
     the resolution is late rather than wrong.
@@ -90,7 +90,7 @@ def undelivered(
     moment = now or datetime.now(UTC)
     # `retrying` is an attempt, not an answer: it records that a delivery
     # was tried and may be tried again, so it must not drain the queue
-    # (A-126). Only a settled outcome does.
+    # (S-0051/A-1). Only a settled outcome does.
     settled = {
         str(event.payload.get("subject") or "")
         for event in events
@@ -150,14 +150,14 @@ async def relay(
     """Deliver what is owed, and record what was delivered. Returns the
     task ids paged.
 
-    The recording follows the delivery, never precedes it (D-51.6): a crash
+    The recording follows the delivery, never precedes it (S-0051/D-6): a crash
     in between redelivers, which is the failure this document chooses over
     the alternative of recording a page that never went out.
 
     A transient failure records a `retrying` attempt, which leaves the
     escalation owed and gives the next pass its count; once the count
     reaches the ceiling the attempt is recorded `failed` instead, and the
-    queue drains (D-51.7).
+    queue drains (S-0051/D-7).
     """
 
     facts = list(events) if events is not None else await log.since(partition=partition)
@@ -171,7 +171,7 @@ async def relay(
 
         except TransientDelivery as exc:
             # The attempt happened, so it is recorded — a relay that wrote
-            # nothing here could never derive its own retry count (A-126).
+            # nothing here could never derive its own retry count (S-0051/A-1).
             spent = attempt >= max_attempts
             await _record(
                 log,

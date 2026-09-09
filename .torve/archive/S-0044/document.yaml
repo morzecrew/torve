@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0044'
+id: S-0044
 title: The manager domain
 kind: design
 status: superseded
 implementation: complete
 depends_on: []
-informed_by: [0019, '0020', '0021', '0027', '0042', '0043']
+informed_by: [S-0019, S-0020, S-0021, S-0027, S-0042, S-0043]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   The v2 domain: an append-only event log is the system of record for intent and execution,
@@ -39,10 +39,10 @@ sections:
       escalations where complete, gate-green work failed because a file was
       written but never staged. A machine interface made of hand-authored YAML
       cannot be validated at the moment the agent can still act — only after the
-      fact, by a gate, three times, until a ceiling. RFC 0043 patches one path
+      fact, by a gate, three times, until a ceiling. S-0043 patches one path
       through this; a typed intake deletes the class.
 
-      **Derivation drifts.** RFC 0008's outbox re-derives effects from state on
+      **Derivation drifts.** S-0008's outbox re-derives effects from state on
       every sweep. That is correct only while the derivation source's shape is
       frozen: change the state model and every rebuild silently reinterprets
       history. Recording at write time, with replay as the rebuild path, is
@@ -62,19 +62,19 @@ sections:
     md: |
       Verified against the tree at `d99c8e1`:
 
-      - The layered tree (RFC 0015) is real and enforced by five import-linter
+      - The layered tree (S-0015) is real and enforced by five import-linter
         contracts under the `layering` gate. `application/` never imports
         `adapters/`; ports are Protocols in `application/ports.py`. **This
         survives untouched** — v2 adds modules inside the same layering, it does
         not fork a parallel tree.
       - `src/torve/domain/` holds `task.py`, `attempt.py`, `states.py`, `rfc.py`
         — no event vocabulary yet.
-      - `src/torve/application/intake.py` (RFC 0020) already implements
+      - `src/torve/application/intake.py` (S-0020) already implements
         *request → drafting run → human adoption*: a commander's request of any
         provenance becomes draft contracts through a run, and task ids exist only
         from the human's adoption signature. **The "source can be anything" seam
         already exists in one direction**; v2 generalizes and records it.
-      - The `DecisionSource` port was **removed** as speculative (audit A-44–A-54);
+      - The `DecisionSource` port was **removed** as speculative (audit S-0014/A-1–S-0009/A-3);
         decisions are read directly from the corpus by `config/rfc_parse.py`
         today. The port must come back, as the store's read model — its earlier
         removal was correct for a system with exactly one source.
@@ -121,7 +121,7 @@ sections:
       at: 2026-09-04T12:00:00Z
       schema_version: 1
       kind: attempt.finished       # closed vocabulary, one payload model per kind
-      partition: morzecrew/torve   # the repository — see D-44.7
+      partition: morzecrew/torve   # the repository — see S-0044/D-7
       subject: {type: task, id: T-0249}
       actor: {kind: worker, id: w-3}
       correlation_id: <run>        # what this belongs to
@@ -145,7 +145,7 @@ sections:
       log alone, and asserted so by a replay test.
   - key: the-authority-rule
     md: |
-      The load-bearing half of D-27 was never "git is truth"; it was *nothing
+      The load-bearing half of S-0001/D-24 was never "git is truth"; it was *nothing
       becomes executable intent without a human signature*. That survives as an
       authority table over `(actor.kind, event.kind)`, enforced by the store on
       write:
@@ -156,12 +156,12 @@ sections:
       | `task.minted`, `task.claimed`, `landing.recorded`, `escalation.*` | manager only |
       | `attempt.*`, `gates.evaluated`, `review.recorded`, `blocker.raised` | worker only |
       | `divergence.recorded` | agent, through its worker's intake, validated |
-      | `message.sent` | agent, through its worker's intake, validated; manager or operator, stamped (A-81) |
+      | `message.sent` | agent, through its worker's intake, validated; manager or operator, stamped (S-0044/A-2) |
       | `source.imported`, `decision.recorded` | operator or manager (never an agent) |
 
       A write outside the table is refused, and the refusal is itself
       observable. This is the same discipline as "configuration decides
-      consequences, never the model" (D-2), expressed as write authority.
+      consequences, never the model" (S-0001/D-10), expressed as write authority.
   - key: the-truth-boundary-inverted-for-intent
     md: |
       | Lives in the store (truth) | Lives in the repository (projection / artifact) |
@@ -184,8 +184,8 @@ sections:
       - the queue per partition, and dispatch under the invariants that survive
         from v1 — scope-disjointness of in-flight tasks, dependency satisfied
         only by a landing, serialized landings per repository;
-      - routing (tier, character, axis, retry variants — RFC 0034's model,
-        unchanged) and seat allocation (RFC 0021's broker, unchanged);
+      - routing (tier, character, axis, retry variants — S-0034's model,
+        unchanged) and seat allocation (S-0021's broker, unchanged);
       - escalation to humans, and the human-signature events that come back.
 
       Durability comes from the durable-execution port (§5.7), not from
@@ -208,7 +208,7 @@ sections:
 
       **Agent communication** is a `message.sent` event with a typed payload and
       a named recipient role — persisted, reviewable, replayable. What stays
-      forbidden is what D-31 was actually protecting: two agents sharing a
+      forbidden is what S-0001/D-29 was actually protecting: two agents sharing a
       context window, or one agent's prose becoming another's instructions
       without passing through a record a human can read. Typed messages through
       the log are not that.
@@ -220,7 +220,7 @@ sections:
       unparseable. Instead:
 
       ```console
-      $ torve log divergence --decision D-42.5 --grade OPEN --kind resolved \
+      $ torve log divergence --decision S-0042/D-5 --grade OPEN --kind resolved \
           --class spec-gap --claim "..." --action decided --proposal "..." \
           --evidence "<path>:<line> — one sentence saying what that line shows"
       ```
@@ -237,7 +237,7 @@ sections:
       writes YAML), malformed evidence (refused at write), unstaged log (the
       engine writes the projection, not the agent).
 
-      The intake has two halves, because they run in two places (A-80). The verb
+      The intake has two halves, because they run in two places (S-0044/A-1). The verb
       runs inside the sandbox, which has no route to the store and must not have
       one, so acceptance writes the entry into the worktree and stages it. The
       worker reads those entries host-side after the attempt and records one
@@ -245,7 +245,7 @@ sections:
       is dropped at dispatch into `.torve/tmp/pin.json`, because a sandbox's
       `.git` points into a host tree it cannot follow.
 
-      The gate reads the same boundary from the other side (A-82). It runs in a
+      The gate reads the same boundary from the other side (S-0044/A-3). It runs in a
       sandbox too, so it cannot query the store either; instead the engine
       rewrites the worktree's log from the record before each gate pass. The
       battery reads a file whose provenance is checkable — an entry the store
@@ -269,10 +269,10 @@ sections:
     md: |
       | Retired | Rescued invariant |
       | --- | --- |
-      | D-27's direction (git → store for intent) | human signature gates executable intent — now an authority rule (§5.2) |
-      | D-19.1 tick-not-daemon, D-42.6 no resident process | crash-correctness and observability — now from the durable port, verifiably |
-      | D-31 agents never communicate | no shared context, no unreviewable instruction path — now typed events (§5.5) |
-      | D-8.2 derive-don't-record | rebuild-from-truth, never invent — now replay-the-log, which is stronger |
+      | S-0001/D-24's direction (git → store for intent) | human signature gates executable intent — now an authority rule (§5.2) |
+      | S-0019/D-1 tick-not-daemon, S-0042/D-6 no resident process | crash-correctness and observability — now from the durable port, verifiably |
+      | S-0001/D-29 agents never communicate | no shared context, no unreviewable instruction path — now typed events (§5.5) |
+      | S-0008/D-2 derive-don't-record | rebuild-from-truth, never invent — now replay-the-log, which is stronger |
       | RFC-document-as-required-seam | graded constraints with paths — now first-class records (§5.9) |
 
       Each retirement is an amendment to its home document, carried by this
@@ -292,7 +292,7 @@ sections:
       reading, marked generated, never parsed.
   - key: alternatives-considered
     md: |
-      - **Patch v1 in place** (RFC 0043 and siblings). Cheapest, and it does
+      - **Patch v1 in place** (S-0043 and siblings). Cheapest, and it does
         reduce the escalation rate — but it treats the dominant failure class as
         a sequence of bugs rather than a property of the seam, and it leaves the
         scaling story unaddressed. Worth landing anyway if v2 slips.
@@ -331,7 +331,7 @@ sections:
   - key: out-of-scope
     md: |
       - Multi-tenant identity and authorization — one operator, many
-        repositories, is this document's ceiling (see D-44.13).
+        repositories, is this document's ceiling (see S-0044/D-13).
       - Hosting, packaging, pricing, any product surface beyond the CLI and the
         manager process.
       - The tracker's presentation refactor — it becomes an ordinary projection
@@ -359,7 +359,7 @@ sections:
         a mistake, and the table is the review surface for exactly that.
   - key: unresolved-questions
     md: |
-      - Identity and authorization beyond a single operator (D-44.13) — settled
+      - Identity and authorization beyond a single operator (S-0044/D-13) — settled
         by the first deployment with two humans or a hosted seat.
       - Whether every event kind needs a repository projection, or only those a
         human reads in a diff. Settled by the first phase that lands with the
@@ -368,11 +368,11 @@ sections:
         splits. Settled when the first non-local worker runs.
   - key: phasing
     md: |
-      The rest stays unphased (A-85), because it is new design rather than
+      The rest stays unphased (S-0044/A-4), because it is new design rather than
       consolidation and each piece deserves its own document: the attempt loop as
       explicit steps rather than a closure, with the naming pass and the sandbox
       rework that ride with it; sources and decisions as records with the corpus
-      as importer (D-44.8, D-44.9); the projection set that replaces
+      as importer (S-0044/D-8, S-0044/D-9); the projection set that replaces
       `torve context` and the served tables; the tracker as an ordinary
       projection consumer; and the multi-partition operation that makes
       multi-repo real.
@@ -431,11 +431,11 @@ phasing:
     intent: >-
       The resident manager and the stateless worker over the event log: the manager
       owns per-partition queues, dispatch under scope-disjointness, dependency-by-landing
-      and serialized landings, routing and seat allocation as RFC 0034 and RFC 0021
-      already define them, and escalation to humans; the worker claims, materializes,
-      executes, emits and releases, holding no assignment state so that a kill costs
-      only a lease. Durability comes from the durable-execution port with forze bound;
-      the manager's restart transparency and the worker's kill safety are both tested
+      and serialized landings, routing and seat allocation as S-0034 and S-0021 already
+      define them, and escalation to humans; the worker claims, materializes, executes,
+      emits and releases, holding no assignment state so that a kill costs only a
+      lease. Durability comes from the durable-execution port with forze bound; the
+      manager's restart transparency and the worker's kill safety are both tested
       properties, not claims.
     scope:
       - src/torve/application/manager.py
@@ -507,9 +507,9 @@ phasing:
       exist twice — once as a filesystem scan over contracts and run-state files,
       once as a fold over the log — and the two are already written to agree by hand.
       This phase deletes the scan: `torve tick` becomes a bounded call into the manager's
-      own dispatch over the record, or retires as D-44.5 says it should. What must
-      not change is any of the three rules, and the existing dispatch tests are what
-      says so.
+      own dispatch over the record, or retires as S-0044/D-5 says it should. What
+      must not change is any of the three rules, and the existing dispatch tests are
+      what says so.
     scope:
       - src/torve/application/loop.py
       - src/torve/application/manager.py

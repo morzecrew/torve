@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/torve/base/`
 
-### D-58.7 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+### S-0058/D-7 — `LOCKED` (One grammar and the anatomy)
 
 The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`, for amendments, landings, entries, telemetry, run state and their display; the dates that exist convert once to midnight UTC with the loss stated
 

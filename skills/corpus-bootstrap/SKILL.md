@@ -24,7 +24,7 @@ The engine never reads this skill's output while it is a draft. It only ever
 reads the committed, human-accepted document, through the standing
 inheritance layer: from acceptance, every row whose declared paths intersect
 a contract's scope rides into that contract at mint time, and nothing else
-(D-31.2). There is no engine surface for the baseline at all — which is the
+(S-0031/D-2). There is no engine surface for the baseline at all — which is the
 point: a skill can be supervised, edited and refused in a diff; an engine
 surface would drift.
 
@@ -65,7 +65,7 @@ Four rules, in order of how much damage breaking them does:
 
 4. **No phasing.** The baseline is a set of standing rows, not work to
    sequence. A Phasing section would make the engine mint tasks from a
-   baseline document — exactly the engine surface D-31.2 refuses. The
+   baseline document — exactly the engine surface S-0031/D-2 refuses. The
    baseline answers "how is this repository governed"; sequencing is another
    document's job, and the draft has no `## Phasing` section.
 
@@ -90,7 +90,7 @@ The report is the evidence base; read it before the tree.
   landing and whose silence is the no-task skip. The report already names
   them; every one of them becomes a candidate `ASSUMED` row.
 
-## The shape this skill records (D-31.6)
+## The shape this skill records (S-0031/D-6)
 
 The baseline is **one document per adoption**, named
 the `S-NNNN/` directory in the corpus path (`.torve/specs/` by default),
@@ -113,7 +113,7 @@ The extraction produces a **draft**. The human then:
 Nothing the engine reads exists before that commit, and nothing the engine
 reads after it is this skill's doing: standing inheritance copies grade and
 paths at mint time and the battery convicts only work minted after — a
-ratchet, never a purge (D-31.3).
+ratchet, never a purge (S-0031/D-3).
 
 ## References
 

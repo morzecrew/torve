@@ -1,4 +1,4 @@
-"""Shell execution with the flaky protocol (RFC 0002 §6a, D-2.6).
+"""Shell execution with the flaky protocol (S-0002/three-outcomes-gates-need-beyond-pass-and-fail, S-0002/D-6).
 
 A command that fails and then passes on immediate re-run is `flaky`: recorded,
 counted, and not a red result — otherwise flakes silently eat the poison
@@ -20,7 +20,7 @@ OUTPUT_LIMIT = 8000
 
 # One execution of one command: (command, timeout_s) -> (exit code | None on
 # timeout, combined output). The flaky protocol sits above this seam, so it is
-# identical whether the command runs on the host or in a sandbox (D-3, D-4).
+# identical whether the command runs on the host or in a sandbox (S-0001/D-11, S-0001/D-12).
 ExecuteOnce = Callable[[str, float], tuple[int | None, str]]
 
 

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-28.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Profiles live in the operator's config directory beside the fleet manifest,
@@ -8,10 +8,10 @@ decisions:
       only
     paths: [src/torve/config/runconfig.py]
     consequence: >-
-      D-13.3 extended to agent definitions: the repo cannot ship or alter an engine-side
+      S-0013/D-3 extended to agent definitions: the repo cannot ship or alter an engine-side
       incantation; moving profiles repo-side later means re-opening the fleet trust
       model
-  - id: D-28.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Resolution is a raw-mapping merge inside `load_runner_config`, before validation,
@@ -22,7 +22,7 @@ decisions:
       Regime identity is content, never name — an edited profile is a new regime on
       every referencing root; changing to name-based hashing later silently merges
       regimes and breaks every cross-root comparison
-  - id: D-28.3
+  - id: D-3
     grade: LOCKED
     text: >-
       Any resolution failure — missing file, non-mapping body, unknown key, invalid
@@ -32,19 +32,19 @@ decisions:
     consequence: >-
       A tier that silently ran without its profile is a regime change nobody chose;
       fail-closed is what lets a profile edit be trusted as fleet-wide
-  - id: D-28.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       One merge level: profile plus local overrides; no profile-to-profile inheritance,
-      and list fields replace wholesale rather than concatenate. Amended by A-74 2026-09-01:
-      `profile` also accepts a list of names, merged left to right under the same
-      shallow rule before local overrides — a tier composing flat layers (wiring kit,
-      equipment kit), never a profile referencing a profile
+      and list fields replace wholesale rather than concatenate. Amended by S-0028/A-1
+      2026-09-01: `profile` also accepts a list of names, merged left to right under
+      the same shallow rule before local overrides — a tier composing flat layers
+      (wiring kit, equipment kit), never a profile referencing a profile
     paths: [src/torve/config/runconfig.py]
     consequence: >-
       Inheritance re-creates drift inside the library; concatenating `api_key_env`
       across files assembles a credential channel by accident
-  - id: D-28.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       A profile body may be partial and is checked only for key validity at merge
@@ -53,7 +53,7 @@ decisions:
     consequence: >-
       Skeleton profiles (image+command, per-root model) stay expressible; validating
       profiles standalone would refuse them
-  - id: D-28.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       Doctor prints per-tier profile provenance and attaches no check; unreferenced
@@ -62,7 +62,7 @@ decisions:
     consequence: >-
       Resolution already fails loudly at load; a doctor warning would be a second,
       later copy of the same signal
-  - id: D-28.6
+  - id: D-6
     grade: OPEN
     text: >-
       Whether `reviewed` and `untrusted` trust classes must take tiers exclusively

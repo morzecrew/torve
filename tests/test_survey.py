@@ -1,4 +1,4 @@
-"""The survey (RFC 0031 phase 1): the load-bearing properties pinned here are
+"""The survey (S-0031 phase 1): the load-bearing properties pinned here are
 the fixture-history outcomes — fired, clean and no-corpus-skip each
 represented, the first-parent walk pinned against a merge-heavy history — the
 read-only contract (the target tree byte-identical after a run, no `.wt`
@@ -262,7 +262,7 @@ def test_survey_exits_zero_on_fired_history(tmp_path):
 
 
 # ....................... #
-# The read-only contract (D-31.1)
+# The read-only contract (S-0031/D-1)
 
 
 def _tree_snapshot(root: Path) -> list[tuple[object, ...]]:

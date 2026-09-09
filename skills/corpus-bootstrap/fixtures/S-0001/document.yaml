@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0001'
+id: S-0001
 title: Standing decisions
 kind: design
 status: draft
@@ -46,8 +46,8 @@ sections:
     md: |-
       | # | Grade | Decision | Paths | Consequence |
       | --- | --- | --- | --- | --- |
-      | D-1.1 | `LOCKED` | Credentials never enter the source tree; secrets are injected from the deployment environment | `src/**` `.env.example` | The repository's history defended this boundary: the survey's secrets gate fired when a key landed in `src/leak.py` and the next landing removed it; crossing it again is expensive to undo |
-      | D-1.2 | `ASSUMED` | Product code lives under `src/**`; operational scripts live under `scripts/**` | `src/**` `scripts/**` | The survey's scope gate fired once on a root-level deploy script and stayed clean on the other four landings; whether the layout is deliberate is the acceptance edit's call |
-      | D-1.3 | `ASSUMED` | Test files are edited only under a task's licence; adding a test is an addition, editing one needs scope | `tests/**` | The no-test-tampering gate never measured a single landing — no task existed — so this row gives the gate a spec once work is minted |
-      | D-1.4 | `ASSUMED` | Work touching governed areas records its decisions in the task log | `.torve/tasks/**` `logs/**` | The decisions-reported gate never measured a landing; this row is the corpus layer that turns its no-task skip into something that can fire |
-      | D-1.5 | `ASSUMED` | Execution logs carry the declared drift count | `.torve/tasks/**` `logs/**` | The self-audit gate never measured a landing; this row names the log discipline the gate reads |
+      | S-0001/D-1 | `LOCKED` | Credentials never enter the source tree; secrets are injected from the deployment environment | `src/**` `.env.example` | The repository's history defended this boundary: the survey's secrets gate fired when a key landed in `src/leak.py` and the next landing removed it; crossing it again is expensive to undo |
+      | S-0001/D-2 | `ASSUMED` | Product code lives under `src/**`; operational scripts live under `scripts/**` | `src/**` `scripts/**` | The survey's scope gate fired once on a root-level deploy script and stayed clean on the other four landings; whether the layout is deliberate is the acceptance edit's call |
+      | S-0001/D-3 | `ASSUMED` | Test files are edited only under a task's licence; adding a test is an addition, editing one needs scope | `tests/**` | The no-test-tampering gate never measured a single landing — no task existed — so this row gives the gate a spec once work is minted |
+      | S-0001/D-4 | `ASSUMED` | Work touching governed areas records its decisions in the task log | `.torve/tasks/**` `logs/**` | The decisions-reported gate never measured a landing; this row is the corpus layer that turns its no-task skip into something that can fire |
+      | S-0001/D-5 | `ASSUMED` | Execution logs carry the declared drift count | `.torve/tasks/**` `logs/**` | The self-audit gate never measured a landing; this row names the log discipline the gate reads |

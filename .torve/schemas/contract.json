@@ -45,7 +45,7 @@
     },
     "InheritedDecision": {
       "additionalProperties": false,
-      "description": "One row as a contract carries it (charter \u00a73; RFC 0054 D-54.1): grade,\ntext and paths copied at mint and fingerprinted; `consequence` beside\nthem so the executor gets the reason, and `check` \u2014 a command whose\nexit code judges the row \u2014 which the runner appends to the battery as\na `decision:<id>` gate at `check_state`, with `check_twin` the test\nthat proves the check can fail (D-54.4). A contract minted before\nRFC 0054 loads with the four defaults, which is the old behaviour.",
+      "description": "One row as a contract carries it (charter \u00a73; S-0054 S-0054/D-1): grade,\ntext and paths copied at mint and fingerprinted; `consequence` beside\nthem so the executor gets the reason, and `check` \u2014 a command whose\nexit code judges the row \u2014 which the runner appends to the battery as\na `decision:<id>` gate at `check_state`, with `check_twin` the test\nthat proves the check can fail (S-0054/D-4). A contract minted before\nS-0054 loads with the four defaults, which is the old behaviour.",
       "properties": {
         "check": {
           "anyOf": [
@@ -120,7 +120,7 @@
     },
     "Scope": {
       "additionalProperties": false,
-      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (RFC 0002 \u00a76).",
+      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
       "properties": {
         "allow": {
           "items": {
@@ -142,7 +142,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "The task contract, `.torve/tasks/T-nnnn.yaml` (RFC 0001 \u00a73, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (D-7.5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
+  "description": "The task contract, `.torve/tasks/T-nnnn.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
   "properties": {
     "acceptance": {
       "items": {

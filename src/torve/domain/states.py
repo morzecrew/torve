@@ -1,12 +1,12 @@
-"""The task lifecycle (RFC 0001 §4), pure and above the ports — simulation
+"""The task lifecycle (S-0001/state-machine), pure and above the ports — simulation
 exercises handlers over ports, so anything derived below one is invisible to
-it (RFC 0003 §6). Transitions are executed by the runner from facts, never by
+it (S-0003/tests). Transitions are executed by the runner from facts, never by
 a model; an agent reports observations, it never causes a transition.
 
-The escalation vocabulary is deliberately closed (RFC 0001 §5.1): an
+The escalation vocabulary is deliberately closed (S-0001/where-abstraction-is-allowed): an
 extensible enum makes telemetry incomparable across time. It is §4's list
-plus `cost_anomaly` (§5.2), `killed` (RFC 0006 §5a), `underspecified`
-(charter A-21) and `stale_inheritance` (charter A-22); any further addition
+plus `cost_anomaly` (§5.2), `killed` (S-0006/blocked-dispatch-must-be-visible), `underspecified`
+(charter S-0001/A-7) and `stale_inheritance` (charter S-0001/A-8); any further addition
 is an RFC amendment, not a code change.
 """
 
@@ -42,18 +42,18 @@ class EscalationReason(StrEnum):
     COST_ANOMALY = "cost_anomaly"
     KILLED = "killed"
     # A contract needing three or more load-bearing decisions invented is a
-    # specification defect (0003 A-18); the fix is an amendment and a
+    # specification defect (0003 S-0003/A-3); the fix is an amendment and a
     # re-mint, never a retry.
     UNDERSPECIFIED = "underspecified"
     # A non-terminal task minted from a document that later became superseded
-    # (0007 §3.3, charter A-22): its inherited decisions no longer stand.
+    # (S-0007/supersession-after-minting, charter S-0001/A-8): its inherited decisions no longer stand.
     # Re-mint from the superseding document or abandon — never retry.
     STALE_INHERITANCE = "stale_inheritance"
 
 
 # ....................... #
 
-# The escalation vocabulary projected onto exit codes (RFC 0011 §3, D-11.4).
+# The escalation vocabulary projected onto exit codes (S-0011/exit-codes, S-0011/D-4).
 # One taxonomy, two views: a new exit code requires a new escalation reason
 # and vice versa, so the projection lives here beside the enum it projects.
 # Codes above 5 stay unassigned — reserve, never reuse.
@@ -84,8 +84,8 @@ EXIT_BY_REASON: dict[EscalationReason, int] = {
 # claimed -> escalated covers a runner that died between claim and first
 # dispatch — the reaper's lease_expired verdict needs a legal exit from
 # claimed (a decision logged in T-0003).
-# ready -> escalated is the lane's conflict edge (charter A-26, RFC 0006
-# D-6.10): a candidate whose rebase conflicts is handed back to a human
+# ready -> escalated is the lane's conflict edge (charter S-0001/A-9, S-0006
+# S-0006/D-10): a candidate whose rebase conflicts is handed back to a human
 # with reason merge_conflict; no other actor takes this edge.
 TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.QUEUED: frozenset({TaskState.CLAIMED}),
@@ -93,7 +93,7 @@ TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.RUNNING: frozenset({TaskState.GATED, TaskState.ESCALATED}),
     TaskState.GATED: frozenset({TaskState.REVIEWED, TaskState.RUNNING, TaskState.ESCALATED}),
     TaskState.REVIEWED: frozenset({TaskState.READY, TaskState.ESCALATED}),
-    # ready → queued is the commander's revise (RFC 0008 D-8.18, A-40):
+    # ready → queued is the commander's revise (S-0008 S-0008/D-18, S-0008/A-4):
     # a review finding on a passing candidate re-enters the loop by a
     # human's explicit act, never by the loop's own hand.
     TaskState.READY: frozenset({TaskState.ESCALATED, TaskState.QUEUED}),

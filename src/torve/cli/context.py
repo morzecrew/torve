@@ -1,6 +1,6 @@
-"""`torve context` — parsing and rendering only (D-15.6); the projections
+"""`torve context` — parsing and rendering only (S-0015/D-6); the projections
 live in `torve.application.projections`. Three renderings of one report
-(D-7.4, D-18.6): rich tables for reading in place (the default), markdown
+(S-0007/D-4, S-0018/D-6): rich tables for reading in place (the default), markdown
 for pasting into a planning session, JSON for machines. `--format markdown`
 exists here and only here — this is the one document-producing command.
 """
@@ -74,8 +74,8 @@ def context_cmd(
     With a partition named, the task block comes from that partition's log
     and every other block from this repository's own files. A log holding
     no contract falls back to the files, never the other way round."""
-    # The document-signals section is RFC 0022 §5.3 and the character
-    # calibration is RFC 0034 §5.5 (D-34.8); the docstring is help text and
+    # The document-signals section is S-0022/document-level-report and the character
+    # calibration is S-0034/calibration-projected (S-0034/D-8); the docstring is help text and
     # carries no corpus coordinates.
 
     from torve.application.projections import context_report, render_markdown
@@ -318,7 +318,7 @@ def _render_rich(report: dict[str, Any]) -> None:
 
         for name, gate in sorted(report["gates"].items()):
             # Lifetime beside the last few runs: a rate that is moving is a
-            # different fact from a rate that is high (A-124).
+            # different fact from a rate that is high (S-0004/A-4).
             recent_runs = gate.get("recent_runs", 0)
             recent = f"{gate.get('recent_failures', 0)}/{recent_runs}" if recent_runs else "—"
             gates.add_row(

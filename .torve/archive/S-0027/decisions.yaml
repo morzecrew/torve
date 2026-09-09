@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-27.1
+  - id: D-1
     grade: LOCKED
     text: >-
       No run executes under configuration generated for that run: harness configuration
@@ -9,7 +9,7 @@ decisions:
     consequence: >-
       Per-run configuration is per-run regimes — shadow comparison, evals and spec-quality
       attribution all lose their denominators in one move, however good the configurator
-  - id: D-27.2
+  - id: D-2
     grade: LOCKED
     text: >-
       No agent writes harness configuration its own run consumes: sandbox definitions
@@ -18,8 +18,8 @@ decisions:
     paths: [src/torve/application/runner.py, src/torve/config/runconfig.py]
     consequence: >-
       Whatever steers the agent must not steer the sandbox's own containment; the
-      worktree channels stay task-context only per D-17.4
-  - id: D-27.3
+      worktree channels stay task-context only per S-0017/D-4
+  - id: D-3
     grade: ASSUMED
     text: >-
       Tier variants are dotted entries in the `tiers` mapping (`seat.variant`), selected
@@ -29,7 +29,7 @@ decisions:
     consequence: >-
       A variant refines a seat and rides the existing tiers digest into the hash —
       per-task-class configuration with zero new identity mechanism
-  - id: D-27.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       The configurator is a drafting run producing an ordinary task through intake
@@ -38,7 +38,7 @@ decisions:
     consequence: >-
       A configuration change as a task inherits gates, review, approval and provenance
       for free; a parallel path would maintain all four twice
-  - id: D-27.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       The fact feed widens `execution_facts` with per-tier populations — attempts,
@@ -50,24 +50,24 @@ decisions:
       The noticing is the expensive part today; the populations exist in records nobody
       assembles, and an unlabelled self-reported cost would launder the measured subject's
       testimony
-  - id: D-27.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       Configuration-change lint is deterministic: diff confined to configuration surfaces,
       schema parse, changed images build clean, doctor green; building at lint is
-      not a D-17.3 violation
+      not a S-0017/D-3 violation
     paths: [src/torve/application/intake.py]
     consequence: >-
       Refusal by name at the drafting gate, and the mid-run-build prohibition stays
       about the dispatch path where it belongs
-  - id: D-27.7
+  - id: D-7
     grade: LOCKED
     text: >-
       A candidate configuration displaces the incumbent default only through a paired
       replay verdict recorded in the eval ledger citing both digests; landing a change
       never silently changes the department's regime. A repository rebuilding its
       own engine may set `unmeasured_images: allow`, which dispatches and records
-      the unmeasured regime rather than refusing it (amendment A-88 2026-09-04)
+      the unmeasured regime rather than refusing it (amendment S-0027/A-2 2026-09-04)
     paths:
       - src/torve/application/evals.py
       - src/torve/config/runconfig.py
@@ -75,7 +75,7 @@ decisions:
     consequence: >-
       The obligation sits at displacement so urgent fixes land freely — what is forbidden
       is the unmeasured default, not the unmeasured variant
-  - id: D-27.8
+  - id: D-8
     grade: OPEN
     text: >-
       The replay battery's composition and refresh cadence; execution proposes from
@@ -84,18 +84,18 @@ decisions:
     consequence: >-
       A battery too small proves nothing and too large never runs; the first campaign's
       cost is the only honest sizing input
-  - id: D-27.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       Prompt-side channels remain the per-task degree of freedom: skills and task
-      context evolve under RFC 0009, and this document adds no per-task harness variation
+      context evolve under S-0009, and this document adds no per-task harness variation
       beyond variant selection
     paths: [src/torve/application/skills.py]
     consequence: >-
       Most of a "configured harness" gain is prompt-side and already instrumented;
       duplicating that freedom on the harness side would split one question across
       two measurement systems
-  - id: D-27.11
+  - id: D-11
     grade: ASSUMED
     text: >-
       A tier may name `retry_variant`, one rung: the attempt after a gate-red resolves
@@ -106,15 +106,15 @@ decisions:
       The build attempt and the feedback attempt are measurably different work; one
       committed rung keeps the regime enumerable where a free ladder would explode
       the hash space
-  - id: D-27.10
+  - id: D-10
     grade: OPEN
     text: >-
       Whether a sandbox definition records a pointer to the verdict that installed
       it as default, letting `torve doctor` name an unmeasured default. Amended by
-      A-65 2026-08-31: decided against the pointer — doctor matches the resolved digest
-      against the ledger's config-eval records directly; the pointer field earns its
-      file only when "the verdict that installed this default" must be told apart
-      from "any verdict that measured this digest"
+      S-0027/A-1 2026-08-31: decided against the pointer — doctor matches the resolved
+      digest against the ledger's config-eval records directly; the pointer field
+      earns its file only when "the verdict that installed this default" must be told
+      apart from "any verdict that measured this digest"
     paths: [.torve/sandbox/**, src/torve/cli/doctor.py]
     consequence: >-
       The displacement rule is only as visible as its records; execution decides whether

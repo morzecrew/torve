@@ -1,6 +1,6 @@
-"""RFC 0026: `estimate_scope`'s three rules of thumb, and `has_children`,
+"""S-0026: `estimate_scope`'s three rules of thumb, and `has_children`,
 which decides whether a too_large verdict routes a second time once a
-decomposition has already been adopted (D-26.6). The rule that joined them
+decomposition has already been adopted (S-0026/D-6). The rule that joined them
 is the board's now (`manager.dispatchable`), so the standalone predicate is
 gone with the scan that called it (A-110)."""
 
@@ -44,7 +44,7 @@ def test_estimate_scope_too_large_on_module_count():
 def test_tests_are_not_a_module():
     """Every minted phase carries tests/** beside its code — a count that
     included them called every task in the repository too_large, which
-    D-26.7's route turned from a wrong number into a blocked dispatch."""
+    S-0026/D-7's route turned from a wrong number into a blocked dispatch."""
     verdict = sizing.estimate_scope(Scope(allow=["src/a.py", "tests/a.py"]), [])
     assert verdict.size == "ok"
 

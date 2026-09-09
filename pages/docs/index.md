@@ -40,7 +40,7 @@ work.
    assumptions that are still single-node, and what each would cost.
 
 Two older pages are kept as [records of decisions](decisions/deep-pass.md):
-the external review that produced RFC 0044, and the tracker-outbox argument
+the external review that produced S-0044, and the tracker-outbox argument
 it settled. They are dated and marked; they are not documentation of what
 the engine does now.
 

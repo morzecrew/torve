@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-33.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Published images are a convenience, never a requirement: no engine behavior
@@ -11,17 +11,17 @@ decisions:
     consequence: >-
       The moment an engine feature needs an in-house image, the images stop being
       infrastructure and become a moat — including for ourselves
-  - id: D-33.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Tags are immutable `<harness-version>-r<image-rev>` and CI refuses to re-push
       an existing tag; `latest` floats as convenience; the digest remains the only
-      identity the engine trusts (D-17.1 unchanged)
+      identity the engine trusts (S-0017/D-1 unchanged)
     paths: [.github/workflows/**]
     consequence: >-
       Humans read tags even though the engine reads digests; a re-pushed tag lies
       to the reader the hash cannot protect
-  - id: D-33.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       Every harness install in a published definition goes through an `ARG` with a
@@ -31,7 +31,7 @@ decisions:
     consequence: >-
       The f68f4e7 incident as a convention: a rebuild that upgrades a harness silently
       is a regime change nobody chose
-  - id: D-33.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       The `/opt/torve/` toolkit is thin by rule: single-file utilities, variability
@@ -41,7 +41,7 @@ decisions:
     consequence: >-
       Toolkit-as-API is the calcification risk; the rule keeps the interface small
       enough to version by image revision
-  - id: D-33.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       Publishing happens from this repository's CI, gated by the same conformance
@@ -51,7 +51,7 @@ decisions:
     consequence: >-
       Splitting build-source from test-source is permanent drift; the battery gating
       the publish is what makes a pulled image mean something
-  - id: D-33.6
+  - id: D-6
     grade: OPEN
     text: >-
       Whether images carry their definition's git sha as an OCI label for provenance-by-inspection;

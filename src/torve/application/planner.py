@@ -1,6 +1,6 @@
-"""`torve plan` — the deterministic minter (RFC 0007 §3). One accepted,
+"""`torve plan` — the deterministic minter (S-0007/torve-plan). One accepted,
 committed specification in; implement-task contracts out. No model call at
-any point, for any reason (D-7.1): the planner is a projection of decisions
+any point, for any reason (S-0007/D-1): the planner is a projection of decisions
 someone already made, and the absence of that capability — not policy — is
 what keeps it from growing into an autonomous orchestrator (§2).
 
@@ -8,20 +8,20 @@ Admission (§3.1) refuses by name with a configuration error: a draft has no
 settled decisions to inherit, an unsettled dependency breaks the
 copy-grade-at-write-time guarantee, a superseded document's decisions no
 longer stand, and a cycle means the readiness order is fiction. Exactly one
-document per invocation (§3.2, D-7.8) — batch planning inherits from
+document per invocation (§3.2, S-0007/D-8) — batch planning inherits from
 documents still being amended, which is the drift this system removes.
 
 The minted contract copies the document's decision table verbatim — grade
 and declared paths at write time — and takes intent, scope and acceptance
 from the Phasing entry. Dry-run is the default (D-11's convention): minting
 writes `.torve/tasks/T-nnnn/contract.yaml`, ids derived max+1 and never
-reused, the same discipline as RFC numbering (D-A.17 by analogy).
+reused, the same discipline as RFC numbering (S-0016/D-24 by analogy).
 
 Beside `inherit_decisions` sits the document-less lane's mechanism,
-`standing_decisions` (RFC 0030): rows of every accepted document whose
+`standing_decisions` (S-0030): rows of every accepted document whose
 declared paths intersect a contract's scope, copied at write time the same
 way. `torve plan` itself is unchanged — a document's own table is inherited
-whole (D-7.22); standing inheritance is what adoption and the contract lint
+whole (S-0007/D-22); standing inheritance is what adoption and the contract lint
 read.
 """
 
@@ -40,7 +40,7 @@ from torve.application import sizing
 from torve.config import layout, spec
 from torve.domain.attempt import SizeVerdict
 from torve.domain.rfc import GRADES
-from torve.domain.spec import Corpus, Document, Phase
+from torve.domain.spec import Corpus, Document, Phase, document_id, number_of
 from torve.domain.task import InheritedDecision, Scope, Task
 
 if TYPE_CHECKING:
@@ -75,7 +75,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _require_committed(root: Path, doc: Path) -> None:
-    """Only a committed, reviewed document is admissible (D-7.2): the commit
+    """Only a committed, reviewed document is admissible (S-0007/D-2): the commit
     is the human signature in the loop, and planning uncommitted text plans
     something nobody reviewed."""
 
@@ -93,7 +93,7 @@ def _require_committed(root: Path, doc: Path) -> None:
     if dirty.stdout.strip():
         raise PlanError(
             f"{doc.name} has uncommitted changes — `torve plan` accepts only the "
-            "committed, reviewed text (D-7.2)"
+            "committed, reviewed text (S-0007/D-2)"
         )
 
 
@@ -104,30 +104,30 @@ def _admit(corpus: Corpus, number: str) -> None:
     doc = corpus.document(number)
 
     if doc is None or doc.archived:
-        raise PlanError(f"RFC {number} is not in the corpus path")
+        raise PlanError(f"{number} is not in the corpus path")
 
     if doc.status != "accepted":
         raise PlanError(
-            f"RFC {number} is {doc.status} — a {doc.status} document "
+            f"{number} is {doc.status} — a {doc.status} document "
             "has no settled decisions to inherit (§3.1)"
         )
 
     if doc.superseded_by:
         raise PlanError(
-            f"RFC {number} is superseded by {doc.superseded_by} — its decisions no longer stand"
+            f"{number} is superseded by {doc.superseded_by} — its decisions no longer stand"
         )
 
     for dep in doc.depends_on:
         target = corpus.document(dep)
 
         if target is None:
-            raise PlanError(f"RFC {number} depends on {dep}, which does not exist")
+            raise PlanError(f"{number} depends on {dep}, which does not exist")
 
         if target.status != "accepted":
             raise PlanError(
-                f"RFC {number} depends on {dep}, which is {target.status} — "
+                f"{number} depends on {dep}, which is {target.status} — "
                 "inheriting a grade from an unsettled document breaks the "
-                "copy-at-write-time guarantee (D-7.7)"
+                "copy-at-write-time guarantee (S-0007/D-7)"
             )
 
     # A cycle reachable from this document (§3.1) — DFS over depends_on.
@@ -182,9 +182,9 @@ class PlanReport:
 
 
 def scopes_clash(left: list[str], right: list[str]) -> bool:
-    """Whether two tasks may not run at the same time (A-39, D-19.14).
+    """Whether two tasks may not run at the same time (S-0019/A-6, S-0019/D-14).
 
-    An empty allow-set is unconstrained (RFC 0002 §6), and a task that may
+    An empty allow-set is unconstrained (S-0002/scope-in-detail), and a task that may
     touch anything can prove itself disjoint from nothing — so it clashes
     with every other task, including another unconstrained one. Everything
     else is `globs_intersect`'s conservative overlap.
@@ -236,7 +236,7 @@ def globs_intersect(left: list[str], right: list[str]) -> bool:
 
 def next_task_number(root: Path, taken: Iterable[str] = ()) -> int:
     """Max over the task directories and *taken* (the board's ids, when a
-    store holds the tasks — D-56.9), plus one; never reused."""
+    store holds the tasks — S-0056/D-9), plus one; never reused."""
 
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     numbers = [0]
@@ -260,14 +260,16 @@ def next_task_number(root: Path, taken: Iterable[str] = ()) -> int:
 # ....................... #
 
 
-def document_number(reference: str) -> str:
-    """The four-digit number a contract's `rfc` names, whatever the path's
-    shape was when it was minted — a directory since RFC 0057, a file
-    before it — so a mint is recognised across the conversion."""
+def document_of(reference: str) -> str:
+    """The document a contract's `rfc` names, as `S-NNNN`, whatever the
+    path's shape was when it was minted — a directory since S-0057, a
+    file before it — so a mint is recognised across the conversions; the
+    empty string when the reference names none."""
 
-    match = re.search(r"\d{4}", Path(reference).name)
-
-    return match.group(0) if match else ""
+    try:
+        return document_id(reference)
+    except ValueError:
+        return ""
 
 
 def _already_minted(
@@ -276,10 +278,10 @@ def _already_minted(
     """Task ids whose contracts already cite this document and one of these
     phases — minting twice mints duplicate work, and what to do with the
     first batch is a human decision. The board's contracts count when a
-    store holds the tasks (D-56.9); the files count either way."""
+    store holds the tasks (S-0056/D-9); the files count either way."""
 
     clashes: list[str] = []
-    wanted = document_number(document)
+    wanted = document_of(document)
 
     for view in board.tasks.values() if board is not None else []:
         contract = view.contract
@@ -287,7 +289,7 @@ def _already_minted(
         if contract is None or not contract.rfc or contract.phase not in phases:
             continue
 
-        if document_number(contract.rfc) == wanted:
+        if document_of(contract.rfc) == wanted:
             clashes.append(view.task_id)
 
     tasks_dir = root / layout.TORVE_DIR / "tasks"
@@ -307,7 +309,7 @@ def _already_minted(
 
         record = cast("dict[str, Any]", raw)
 
-        minted = document_number(str(record.get("rfc", "")))
+        minted = document_of(str(record.get("rfc", "")))
 
         if minted == wanted and record.get("phase") in phases:
             clashes.append(str(record.get("id", path.parent.name)))
@@ -322,7 +324,7 @@ def inherit_decisions(doc: Document) -> list[InheritedDecision]:
     """The document's rows as a contract inherits them (§3.1): grade and
     paths copied at write time, so the executor sees what stood when the
     task was minted. One implementation — `torve plan` and adoption mint
-    the same rows or the two drift (A-47)."""
+    the same rows or the two drift (S-0007/A-3)."""
 
     name = Path(doc.path).name if doc.path else doc.id
     decisions: list[InheritedDecision] = []
@@ -334,12 +336,12 @@ def inherit_decisions(doc: Document) -> list[InheritedDecision]:
                 "not mintable (run `torve spec check`)"
             )
 
-        # D-54.4: a row whose check would block must name the test that
+        # S-0054/D-4: a row whose check would block must name the test that
         # proves the check can fail — the manifest's twin rule, one level up.
         if row.check_state == "blocking" and not row.check_twin:
             raise PlanError(
                 f"{name}: decision {row.id} has a blocking check and no check_twin — "
-                "not mintable (D-54.4)"
+                "not mintable (S-0054/D-4)"
             )
 
         decisions.append(
@@ -375,13 +377,13 @@ def load_corpus(rfc_dir: Path) -> Corpus:
 
 
 def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedDecision]:
-    """The document-less lane's inheritance (RFC 0030 §5.1): every accepted
+    """The document-less lane's inheritance (S-0030/standing-inheritance): every accepted
     document's rows are read through the same one reader `inherit_decisions`
-    is (A-47), and a row is inherited when any of its declared paths
+    is (S-0007/A-3), and a row is inherited when any of its declared paths
     intersects `scope_allow` (`globs_intersect`, conservative — a false
     inclusion costs a few contract lines, a false exclusion costs the
     silence check). Rows without declared paths are never standing — they
-    govern their own document's work only (D-30.1). Draft, superseded and
+    govern their own document's work only (S-0030/D-1). Draft, superseded and
     archived documents are never read: their decisions do not stand.
     Deterministic: corpus order, then document order."""
 
@@ -406,21 +408,20 @@ def plan_document(
 ) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
     any refusal (§3.1) — each names the offending document or entry. With
-    a *board* (D-56.9), task numbers and prior mints are read from the
+    a *board* (S-0056/D-9), task numbers and prior mints are read from the
     record as well as from the task directories."""
 
     files = spec.document_dirs(rfc_dir)
-    number = identifier.strip().removesuffix(".yaml").removesuffix(".md")
 
-    if number not in files:
-        matches = [n for n, p in files.items() if p.name == identifier or p.stem == number]
+    try:
+        number = document_id(identifier)
+    except ValueError:
+        raise PlanError(f"{identifier!r} names no document") from None
 
-        if len(matches) == 1:
-            number = matches[0]
-        else:
-            raise PlanError(f"no RFC {identifier!r} under {rfc_dir}")
+    if number_of(number) not in files:
+        raise PlanError(f"no document {number} under {rfc_dir}")
 
-    doc_path = files[number]
+    doc_path = files[number_of(number)]
 
     _require_committed(root, doc_path)
     corpus = load_corpus(rfc_dir)
@@ -504,7 +505,7 @@ def plan_document(
 
 
 class _ContractDumper(yaml.SafeDumper):
-    """Multiline strings as literal blocks (A-69): the default single-quoted
+    """Multiline strings as literal blocks (S-0007/A-1): the default single-quoted
     style writes every newline as a blank-line escape, and a contract's
     intent read like a double-spaced telegram."""
 
@@ -533,13 +534,13 @@ def write_contract(root: Path, task: Task, title: str = "", *, minted_by: str = 
         raise PlanError(f"{path} already exists — task ids are never reused")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    # D-57.5: the first line names the schema `torve init` writes, two
+    # S-0057/D-5: the first line names the schema `torve init` writes, two
     # levels up from the task directory in the default layout.
     header = f"{spec.SCHEMA_HEADER}../../schemas/contract.json\n"
     header += (
         f"# Minted by `torve plan {minted_by}` — phase {task.phase}: {title}\n"
         if minted_by
-        else "# Projected from the record for this attempt (RFC 0056 D-56.9): the board "
+        else "# Projected from the record for this attempt (S-0056 S-0056/D-9): the board "
         "holds the task; this file is what the gates and the log verbs read.\n"
     )
     document = task.model_dump()
@@ -550,7 +551,7 @@ def write_contract(root: Path, task: Task, title: str = "", *, minted_by: str = 
 
 
 def write_contracts(root: Path, report: PlanReport) -> list[Path]:
-    """The file mode (D-56.9): one directory per task under the root."""
+    """The file mode (S-0056/D-9): one directory per task under the root."""
 
     return [
         write_contract(root, planned.task, planned.title, minted_by=report.number)
@@ -559,7 +560,7 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
 
 
 def project_contract(worktree: Path, task: Task) -> Path | None:
-    """D-56.9: the contract the board holds, written into the worktree for
+    """S-0056/D-9: the contract the board holds, written into the worktree for
     the attempt that reads it — the gates, `torve log owed`, the log
     beside it. A worktree that already carries the file (the file mode,
     where the contract is tracked) is left alone; None says so."""
@@ -573,7 +574,7 @@ def project_contract(worktree: Path, task: Task) -> Path | None:
 async def mint_contracts(
     log: EventLog, report: PlanReport, *, partition: str, actor_id: str = "plan"
 ) -> list[str]:
-    """D-56.9: mint into the record and write no file — the same mint the
+    """S-0056/D-9: mint into the record and write no file — the same mint the
     manager's importer records, so a task planned here and a task scanned
     from a file are the same row on the board."""
 
@@ -593,7 +594,7 @@ async def mint_contracts(
 @dataclass(frozen=True)
 class StaleTask:
     """One non-terminal task whose source document became superseded (§3.3,
-    charter A-22)."""
+    charter S-0001/A-8)."""
 
     task_id: str
     document: str
@@ -607,7 +608,7 @@ class StaleTask:
 
 def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask]:
     """Mark every non-terminal task minted from a superseded document,
-    escalating each as `stale_inheritance` (D-7.10, charter A-22). Nothing is
+    escalating each as `stale_inheritance` (S-0007/D-10, charter S-0001/A-8). Nothing is
     deleted or rewritten — what to do with in-flight work is a human
     decision, and this verb records a fact about a task's inheritance rather
     than touching a running aggregate (§2). A task that never ran gains a
@@ -656,7 +657,7 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
 
         detail = (
             f"minted from {document}, superseded by {by or 'an unset successor'} "
-            "(charter A-22): its inherited decisions no longer stand"
+            "(charter S-0001/A-8): its inherited decisions no longer stand"
         )
 
         state_path = naming.state_file(root, task_id)

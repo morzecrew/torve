@@ -1,4 +1,4 @@
-"""The run loop over mock ports (RFC 0003 §6 layer 2, minus the sandbox):
+"""The run loop over mock ports (S-0003/tests layer 2, minus the sandbox):
 every escalation reason the loop can produce, the retry path, and the facts
 recorded on the way. Gate outcomes are scripted by patching the gate pass —
 the real gate integration is exercised in test_run_integration.py.
@@ -145,9 +145,9 @@ def task_for(repo, iterations=None):
 
 
 def _telemetry(repo):
-    """The stream split the way RFC 0038 says readers split it: attempt
+    """The stream split the way S-0038 says readers split it: attempt
     rows (each one an attempt's ending and verdict) and engine records,
-    which carry no agent block. Absent keys read as pre-0038 (D-38.6)."""
+    which carry no agent block. Absent keys read as pre-0038 (S-0038/D-6)."""
     path = repo.root / ".torve" / "telemetry.jsonl"
     lines = [json.loads(line) for line in path.read_text().splitlines()] if path.is_file() else []
     rows = [r for r in lines if r.get("kind") != "engine"]
@@ -234,8 +234,8 @@ def test_poison_ceiling_never_retries_past_the_ceiling(rig):
     assert state.escalation.reason == "poison_ceiling"
     assert state.attempts == 3
     assert len(runtime.created) == 3
-    # RFC 0038 D-38.1: each crashed attempt ended in exactly one row, and
-    # D-38.5: the ceiling escalation itself lands a durable engine event —
+    # S-0038 S-0038/D-1: each crashed attempt ended in exactly one row, and
+    # S-0038/D-5: the ceiling escalation itself lands a durable engine event —
     # the reason a task needed a human outlives the state file.
     rows, events = _telemetry(repo)
     assert [r["verdict"] for r in rows] == ["agent_error"] * 3
@@ -251,7 +251,7 @@ def test_iteration_budget_escalates_as_budget_exhausted(rig):
     state = run_task(repo.root, task_for(repo, iterations=1), RunnerConfig(), deps)
     assert state.escalation.reason == "budget_exhausted"
     assert state.attempts == 1
-    # D-26.8: attempt-count exhaustion is judgement on the work (repeated
+    # S-0026/D-8: attempt-count exhaustion is judgement on the work (repeated
     # crashes), not a clock running out — no continuation checkpoint.
     assert not vcs.commits
 
@@ -265,7 +265,7 @@ def test_wallclock_budget_escalates_and_checkpoints(rig):
     assert state.escalation.reason == "budget_exhausted"
     assert state.escalation.detail.startswith("wallclock budget exhausted")
     assert state.attempts == 0  # exhausted before the first dispatch
-    # D-26.9: the checkpoint is what gives a continuation a candidate tip.
+    # S-0026/D-9: the checkpoint is what gives a continuation a candidate tip.
     assert len(vcs.commits) == 1
     assert vcs.commits[0].startswith(f"torve checkpoint {task.id}:")
     assert f"Torve-Checkpoint: {task.id}" in vcs.commits[0]
@@ -273,7 +273,7 @@ def test_wallclock_budget_escalates_and_checkpoints(rig):
 
 
 def test_cost_anomaly_is_continuable_iterations_budget_is_not():
-    # Pure unit coverage of the eligibility rule itself (D-26.8): tokens
+    # Pure unit coverage of the eligibility rule itself (S-0026/D-8): tokens
     # continue, attempt-count exhaustion never does.
     from torve.application.runstate import Escalation
 
@@ -287,7 +287,7 @@ def test_cost_anomaly_is_continuable_iterations_budget_is_not():
 
 
 def test_should_resume_ignores_a_stale_escalation_after_a_non_escalation_requeue():
-    # D-26.9: `escalation` is never cleared, so a run that escalated on
+    # S-0026/D-9: `escalation` is never cleared, so a run that escalated on
     # budget exhaustion long ago, landed READY, and was later auto-requeued
     # by the lane over a conflict (READY -> QUEUED, never touching
     # ESCALATED again) must not resume from that dead episode.
@@ -417,9 +417,9 @@ def test_agent_timeout_is_a_failed_attempt_not_a_crash(rig):
     assert state.state is TaskState.READY
     assert state.attempts == 2
     assert any("hard timeout" in event["fact"] for event in state.history)
-    # RFC 0038 D-38.1/D-38.3: the timed-out attempt's row names its own
+    # S-0038 S-0038/D-1/D-38.3: the timed-out attempt's row names its own
     # ending — the `timed_out` flag that used to be the only clue is now
-    # beside a verdict, stamped with the attempt number (D-38.4).
+    # beside a verdict, stamped with the attempt number (S-0038/D-4).
     rows, _events = _telemetry(repo)
     timed = rows[0]
     assert timed["verdict"] == "agent_timeout"
@@ -435,7 +435,7 @@ def test_locked_conflict_is_terminal_by_design(rig):
     assert state.state is TaskState.ESCALATED
     assert state.escalation.reason == "locked_conflict"
     assert not vcs.commits  # stopped on working code, nothing landed
-    # RFC 0038 D-38.1: the halt used to end the attempt with no row at
+    # S-0038 S-0038/D-1: the halt used to end the attempt with no row at
     # all — the spend vanished. It now lands the red-agent shape, with the
     # `halted` verdict and the escalation reason beside it.
     rows, _events = _telemetry(repo)
@@ -454,7 +454,7 @@ def test_gate_infrastructure_failure_escalates(rig, monkeypatch):
     monkeypatch.setattr(run_module, "run_gate_pass", broken_gates)
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
     assert state.escalation.reason == "gate_infrastructure_failure"
-    # D-38.1: the gates-hook exception is an attempt ending too — the row
+    # S-0038/D-1: the gates-hook exception is an attempt ending too — the row
     # says the agent exited 0 and the gate report never completed.
     rows, _events = _telemetry(repo)
     assert [r["verdict"] for r in rows] == ["gate_infrastructure"]
@@ -592,7 +592,7 @@ def test_run_refuses_a_review_contract_at_the_front_door(repo):
 
 
 def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
-    # D-5.13 (T-0076): the planted feedback record is for the agent's eyes
+    # S-0005/D-13 (T-0076): the planted feedback record is for the agent's eyes
     # only — present in the worktree while the attempt runs, gone before the
     # gates measure the tree. A record the scope gate could see would fail
     # every revision against its own contract, and a record that survived to
@@ -624,7 +624,7 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
 
 
 def test_retry_variant_resolves_after_a_gate_red_and_stamps_its_own_tier(rig, monkeypatch):
-    """RFC 0027 §5.1a, D-27.11: the attempt after a gate-red resolves the
+    """S-0027/5-1a-the-attempt-ladder, S-0027/D-11: the attempt after a gate-red resolves the
     named retry_variant, not the tier that just ran; each attempt's telemetry
     row stamps the tier actually dispatched under, and the retry_variant's
     Agent is only ever built through the wired factory — never fabricated."""
@@ -685,7 +685,7 @@ def test_retry_variant_resolves_after_a_gate_red_and_stamps_its_own_tier(rig, mo
 
 
 def test_no_retry_agent_wired_means_retry_variant_never_fires(rig):
-    """D-27.11: a configured retry_variant with no factory wired (dispatch
+    """S-0027/D-11: a configured retry_variant with no factory wired (dispatch
     never built one — tests, or a CLI path that didn't ask) must not
     fabricate an Agent; every attempt keeps running under the task's own
     tier, today's behaviour."""
@@ -709,7 +709,7 @@ def test_no_retry_agent_wired_means_retry_variant_never_fires(rig):
 
 
 def test_worktree_config_edits_never_reach_dispatch(rig, monkeypatch):
-    """RFC 0027 §5.5, D-27.2: sandbox definitions and tier blocks resolve
+    """S-0027/the-refusal, S-0027/D-2: sandbox definitions and tier blocks resolve
     from the root at dispatch, never from the worktree under work. An agent
     that plants a hostile `.torve/config.yaml` in its own worktree — the one
     channel it can write to — must not steer the retry it hands off to: the
@@ -736,7 +736,7 @@ def test_worktree_config_edits_never_reach_dispatch(rig, monkeypatch):
         def run(self, ctx):
             # The one act available to the agent: writing into its own
             # worktree. A hostile edit here must never be read back by the
-            # engine — the whole point of D-27.2's refusal.
+            # engine — the whole point of S-0027/D-2's refusal.
             hostile = ctx.workspace / ".torve" / "config.yaml"
             hostile.parent.mkdir(parents=True, exist_ok=True)
             hostile.write_text(
@@ -757,7 +757,7 @@ def test_worktree_config_edits_never_reach_dispatch(rig, monkeypatch):
 
 
 def test_no_forge_leg_means_no_push(rig):
-    """D-10.11 (A-58): with open_pr off the candidate branch stays local —
+    """S-0010/D-11 (A-58): with open_pr off the candidate branch stays local —
     a push is publishing, and on a base never pushed it publishes the
     whole history. The run still commits and reaches ready."""
     repo, deps, _runtime, vcs, _ = rig
@@ -804,10 +804,10 @@ def test_an_empty_implement_diff_is_a_red_attempt_retried_to_the_ceiling(repo):
     facts = [event["fact"] for event in state.history]
     assert facts.count("gates red: empty diff against base — no changes produced") == 2
 
-    # RFC 0004 §6: the spend of each refused attempt survives as a red
+    # S-0004/telemetry-staged: the spend of each refused attempt survives as a red
     # record — two attempts, two red gate records, each stamped with its
-    # attempt number and verdict (RFC 0038). The ceiling escalation rides
-    # the same stream as an engine event (D-38.5).
+    # attempt number and verdict (S-0038). The ceiling escalation rides
+    # the same stream as an engine event (S-0038/D-5).
     rows, events = _telemetry(repo)
     assert len(rows) == 2
     assert all(r["task_id"] == "T-9001" and r["exit_code"] == 1 for r in rows)

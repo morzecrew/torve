@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-57.1
+  - id: D-1
     grade: LOCKED
     text: >-
       A specification is a directory `S-NNNN/` — the identifier and nothing else —
@@ -19,7 +19,7 @@ decisions:
       Amendments and execution grow forever and are machine-written; keeping them
       in the file a person authors makes every spec diff mostly machine output
     fingerprint: d15d8f4d26a17d07/30165c090ea60c7d
-  - id: D-57.2
+  - id: D-2
     grade: LOCKED
     text: >-
       A section is `key` and `md`; the heading is rendered from the key and the number
@@ -28,8 +28,8 @@ decisions:
     paths: [src/torve/domain/spec.py, src/torve/config/spec.py]
     consequence: >-
       A typed list exists in one place; a heading cannot disagree with its key
-    cites: [D-56.3]
-  - id: D-57.3
+    cites: [S-0056/D-3]
+  - id: D-3
     grade: LOCKED
     text: >-
       The corpus is `.torve/specs/` and the archive `.torve/archive/`; the configuration
@@ -43,8 +43,8 @@ decisions:
       Every input torve reads is under `.torve/`; the root carries no torve directory
     rationale: >-
       The task directory and the telemetry file are already carriers under `.torve/`
-      (RFC 0056); the documents were the last input outside it
-  - id: D-57.4
+      (S-0056); the documents were the last input outside it
+  - id: D-4
     grade: LOCKED
     text: >-
       `torve spec` absorbs every `torve rfc` verb and `cli/rfc.py` is deleted; the
@@ -59,9 +59,9 @@ decisions:
     consequence: >-
       One namespace for the corpus; old prose and test file names keep the old word
     rationale: >-
-      The code has called it spec since RFC 0053; the documents are neither requested
+      The code has called it spec since S-0053; the documents are neither requested
       nor commented on
-  - id: D-57.5
+  - id: D-5
     grade: LOCKED
     text: >-
       `torve init` writes `.torve/schemas/*.json` from every model torve reads from
@@ -80,8 +80,8 @@ decisions:
       An editor validates any torve YAML as it is typed; an adopting repository ignores
       the right files without copying a block; `init` is the initialisation there
       is
-    cites: [D-56.6]
-  - id: D-57.6
+    cites: [S-0056/D-6]
+  - id: D-6
     grade: LOCKED
     text: >-
       Every live and archived document converts once — refused sections and headings
@@ -91,8 +91,8 @@ decisions:
     paths: [.torve/specs/**, .torve/archive/**]
     consequence: >-
       Fifty-seven directories; no document anywhere else
-    cites: [D-56.5]
-  - id: D-57.7
+    cites: [S-0056/D-5]
+  - id: D-7
     grade: LOCKED
     text: >-
       `execution.yaml` holds landings — task, phase, attempt, time, agent, the commit
@@ -108,9 +108,9 @@ decisions:
     consequence: >-
       Every clone carries what execution found, beside the rows it informs; the task
       directory carries nothing git keeps
-    cites: [D-56.9, D-56.10]
+    cites: [S-0056/D-9, S-0056/D-10]
     fingerprint: 6a281147d0744d9e/cd640ff2ccdc791f
-  - id: D-57.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       `torve decisions import` reads every execution file, live and archived, and
@@ -119,8 +119,8 @@ decisions:
     paths: [src/torve/application/decisions.py, src/torve/cli/decisions.py]
     consequence: >-
       A clone without a store rebuilds the same record from the tree
-    cites: [D-56.11]
-  - id: D-57.9
+    cites: [S-0056/D-11]
+  - id: D-9
     grade: LOCKED
     text: >-
       `spec check` resolves every citation-shaped identifier in tracked files under
@@ -131,7 +131,7 @@ decisions:
     consequence: >-
       A comment that cites a row is checked like a `cites` list; an identifier can
       never be invented in the code
-  - id: D-57.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       `torve spec cites IDENT` lists the code lines, landings, amendments and documents
@@ -139,7 +139,7 @@ decisions:
     paths: [src/torve/cli/spec.py]
     consequence: >-
       The row's side of the link is a query, not a grep
-  - id: D-57.11
+  - id: D-11
     grade: ASSUMED
     text: >-
       `spec check` warns when `implementation: complete` names a phase no landing
@@ -147,7 +147,7 @@ decisions:
     paths: [src/torve/config/spec.py]
     consequence: >-
       The status field and the execution file cannot drift apart silently
-  - id: D-57.12
+  - id: D-12
     grade: ASSUMED
     text: >-
       The colocated sections, the pack and the skills change in no shape but the word
@@ -156,8 +156,8 @@ decisions:
       - src/torve/application/colocation.py
       - src/torve/application/contextpack.py
     consequence: Nothing a harness reads changes shape
-    cites: [D-56.8]
-  - id: D-57.13
+    cites: [S-0056/D-8]
+  - id: D-13
     grade: OPEN
     text: >-
       Whether `spec cites` also reads the `Torve-Decisions` trailers of the commit
@@ -165,7 +165,7 @@ decisions:
     paths: [src/torve/cli/spec.py]
     consequence: Decided by whoever executes phase 4, logged
 invariants:
-  - id: I-57.1
+  - id: I-1
     statement: >-
       `.torve/specs/` and `.torve/archive/` hold only `S-NNNN/` directories, and a
       directory holds only the four file names

@@ -1,4 +1,4 @@
-"""`torve mcp` — the planner's read surface (RFC 0007 §5, D-7.3): a
+"""`torve mcp` — the planner's read surface (S-0007/mcp-as-the-read-surface, S-0007/D-3): a
 read-only MCP server over the projections, served on stdio for a planning
 session on the operator's machine. Queries only — no write tool is
 registered, and nothing wires this server into an execution sandbox. The
@@ -42,8 +42,8 @@ def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "
 
     def recorded() -> list[Any] | None:
         """This partition's task facts, or None when none was named — the
-        same selection rule every other reader takes (D-50.2), read per
-        call so a long-lived session sees what has happened since (A-123)."""
+        same selection rule every other reader takes (S-0050/D-2), read per
+        call so a long-lived session sees what has happened since (S-0032/A-3)."""
 
         from torve.cli.options import task_events
 
@@ -77,9 +77,9 @@ def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "
 
     @server.tool(annotations=types.ToolAnnotations(readOnlyHint=True))  # type: ignore[untyped-decorator]
     def show(identifier: str) -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
-        """Resolve one corpus identifier — a decision (D-6.8), an
-        amendment (A-47) or a document (0021) — to its standing definition:
-        the same lookup `torve spec show` serves (D-7.29)."""
+        """Resolve one corpus identifier — a decision (S-0006/D-8), an
+        amendment (S-0007/A-3) or a document (0021) — to its standing definition:
+        the same lookup `torve spec show` serves (S-0007/D-29)."""
 
         from torve.config.spec import lookup
 
@@ -104,7 +104,7 @@ def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "
         # The projection verbatim: this tool derives nothing of its own, and
         # an unknown id is the found:false envelope, not an error — the exit
         # code that distinguishes a typo lives on the CLI, not the read
-        # surface (D-40.1, D-40.6).
+        # surface (S-0040/D-1, S-0040/D-6).
         events = recorded()
 
         return why_report(

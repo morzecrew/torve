@@ -1,4 +1,4 @@
-"""The manager over the real store, end to end (RFC 0044 §5.4, §5.5).
+"""The manager over the real store, end to end (S-0044/the-manager, §5.5).
 
 Everything else about the manager is asserted over the mock document
 adapter, which is the same port and therefore the same code path — but the
@@ -48,7 +48,7 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
     # Two attempts on purpose: the first writes the wrong file and the
     # acceptance gate convicts it, the second writes the right one. One
     # dispatch, two attempts, and the log has to say so — a summary written
-    # once per dispatch is the defect this asserts against (D-44.3).
+    # once per dispatch is the defect this asserts against (S-0044/D-3).
     agent = FakeAgent(
         [
             {"writes": {"src/other.py": "WRONG = True\n"}, "exit": 0},
@@ -123,7 +123,7 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
     # The full sha, not the abbreviation the history prints for a human.
     assert len(board.tasks[TASK_ID].landed_sha or "") == 40
 
-    # RFC 0050 D-50.4: the one place both carriers were written by the same
+    # S-0050 S-0050/D-4: the one place both carriers were written by the same
     # run, so the one place the two `why` readers can be held against each
     # other. Key by key, so a failure names the key rather than the report.
     from_files = why_report(repo.root, TASK_ID)

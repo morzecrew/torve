@@ -1,11 +1,11 @@
-"""The serialized merge lane (RFC 0006 §1, D-6.1): ready is a lane, not a
+"""The serialized merge lane (S-0006/the-correction-this-document-exists-for, S-0006/D-1): ready is a lane, not a
 set. One candidate at a time — a task branch whose base has not moved lands
 exactly as it was measured (a rebase that changes nothing buys no new
 signal); one whose base moved is rebased in a disposable worktree and its
 gate battery re-runs over the rebased tree before landing, which is review
-freshness against current head (D-6.3) in the local regime, where the
+freshness against current head (S-0006/D-3) in the local regime, where the
 battery is current-head CI. A conflicted rebase aborts and escalates the
-run — `ready -> escalated`, reason `merge_conflict` (charter A-26, D-6.10),
+run — `ready -> escalated`, reason `merge_conflict` (charter S-0001/A-9, S-0006/D-10),
 the one edge out of ready and the lane's alone — so the escalation queue's
 age starts counting the moment a landing fails. The branch stays exactly
 as measured; the engine never resolves a conflict, and the lane moves on
@@ -14,7 +14,7 @@ re-queue to re-run against the moved base, or abandon when a human
 landed the work by hand.
 
 The operator's invocation is the recorded approval; each outcome rides the
-telemetry stream as an engine event (D-6.7).
+telemetry stream as an engine event (S-0006/D-7).
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def ready_candidates(root: Path) -> list[RunState]:
 
 def _awaits_adoption(root: Path, task_id: str) -> bool:
     """A READY draft run is intake's output, not the lane's input
-    (RFC 0020, D-20.1): it has no branch and nothing to land — adoption
+    (S-0020, S-0020/D-1): it has no branch and nothing to land — adoption
     consumes it. Anything unreadable stays a candidate; the lane's own
     no-branch handling reports it rather than hiding it."""
 
@@ -149,7 +149,7 @@ def _engine_record(root: Path, rel: str) -> bool:
 
     return rel in {
         telemetry_rel,
-        # The tick's own lock (RFC 0019) must not dirty the lane
+        # The tick's own lock (S-0019) must not dirty the lane
         # leg running inside the tick that holds it; the
         # pr-reviews ledger is the same class of record.
         f"{layout.TORVE_DIR}/{LOCK}",
@@ -162,7 +162,7 @@ def _engine_record(root: Path, rel: str) -> bool:
 
 
 def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
-    """One sha-bound approval (RFC 0006 §3, T-0060): recorded on the run
+    """One sha-bound approval (S-0006/promotion, T-0060): recorded on the run
     state, deduped by (actor, sha) — approving the same tip twice is one
     approval, and an approval of a superseded tip stays in the record but
     counts for nothing at the lane. Returns False on the dedupe."""
@@ -197,15 +197,15 @@ def _dispose_conflict(
     results: list[LaneResult],
     found_by: str,
 ) -> None:
-    """The A-35 disposal, shared by the landing's real conflict and the
-    pre-approval probe (D-6.13, A-42): escalate — the record and the
+    """The S-0006/A-1 disposal, shared by the landing's real conflict and the
+    pre-approval probe (S-0006/D-13, S-0006/A-2): escalate — the record and the
     queue-age alarm stand — then capture, keep the branch, re-queue. A
     refused cleanup leaves the escalation standing for the human."""
 
     state.escalate(
         EscalationReason.MERGE_CONFLICT,
         f"rebase onto {base!r} conflicts ({found_by}); capturing for the "
-        "revision loop and re-queueing (A-35)",
+        "revision loop and re-queueing (S-0006/A-1)",
     )
 
     try:
@@ -280,17 +280,17 @@ def _superseded_diff(root: Path, base_tip: str, branch_tip: str) -> str:
 
 def conflict_disposal(root: Path, vcs: LaneVcs) -> Callable[[str], str]:
     """The disposal a landing leg hands `process_lane` as `on_conflict`
-    (RFC 0052 §5.3): the superseded candidate's diff rides the task's
+    (S-0052/a-conflict-disposes-of-itself): the superseded candidate's diff rides the task's
     feedback record before the branch is ever replaced, so the next
     attempt sees what it collided with.
 
     The forge-thread half is deliberately absent — the review allow-list
     that drove it retired with the standing loop, and its capture is
-    owed by RFC 0005's D-5.12, not silently skipped here: the record
+    owed by S-0005's S-0005/D-12, not silently skipped here: the record
     says "none captured" rather than implying there was nothing to say.
     The branch is kept — landing never deletes a candidate; only the
     human fork does. Re-queue stays bound to the moved base tip
-    (D-6.12); that bound lives in the lane's own disposal path, so a
+    (S-0006/D-12); that bound lives in the lane's own disposal path, so a
     caller cannot loosen it through this factory.
 
     The manual lane passes nothing: `torve merge` escalates as it always
@@ -320,7 +320,7 @@ def conflict_disposal(root: Path, vcs: LaneVcs) -> Callable[[str], str]:
 def _review_missing(
     root: Path, state: RunState, require_review: bool, dry_run: bool, branch: str, branch_tip: str
 ) -> LaneResult | None:
-    """§3's review criterion as a lane predicate (D-6.14, A-43): the
+    """§3's review criterion as a lane predicate (S-0006/D-14, S-0006/A-3): the
     producing run recorded no concluded review — refused before CI is
     polled and before the approvals prompt, so a candidate the policy
     cannot land is never offered for approval."""
@@ -345,7 +345,7 @@ def _review_missing(
 def _ci_not_green(
     root: Path, ci: CiStatus | None, dry_run: bool, task_id: str, branch: str, branch_tip: str
 ) -> LaneResult | None:
-    """ci: green_on_current_head (RFC 0006 §3): the remote's verdict for
+    """ci: green_on_current_head (S-0006/promotion): the remote's verdict for
     the tip the remote actually saw. Only "success" lands; a rebased tree
     is additionally judged by the local battery in `_regate`."""
 
@@ -377,7 +377,7 @@ def _conflicting_probe(
     probe_base: str,
     on_conflict: Callable[[str], str] | None,
 ) -> bool:
-    """The probe precedes the prompt (D-6.13, A-42): true when a wired
+    """The probe precedes the prompt (S-0006/D-13, S-0006/A-2): true when a wired
     disposal would find this tip provably conflicting against the current
     base before anyone is asked to approve it."""
 
@@ -412,7 +412,7 @@ def _approvals_satisfied(
         return True
 
     task_id = state.task_id
-    # Sha-bound (D-6.3): only approvals of the tip as measured now count —
+    # Sha-bound (S-0006/D-3): only approvals of the tip as measured now count —
     # an approval of a superseded tip approves nothing.
     current = [a for a in state.approvals if a.get("sha") == branch_tip]
 
@@ -504,7 +504,7 @@ def _land_fast_forward(
 
         return
 
-    # D-19.11 (A-28): the landing may carry the task's own records — an
+    # S-0019/D-11 (S-0019/A-2): the landing may carry the task's own records — an
     # untracked byte-identical root copy is adopted, never a reason for
     # git to refuse the fast-forward.
     vcs.adopt_identical(root, branch_tip)
@@ -535,9 +535,9 @@ def _handle_rebase_conflict(
     engine_event(root, "lane_conflict", {"task": task_id, "base": base})
 
     if on_conflict is not None and state.conflict_base != base_tip:
-        # D-6.10 as amended by A-35: the escalation's standard disposal is
+        # S-0006/D-10 as amended by S-0006/A-1: the escalation's standard disposal is
         # mechanical, so the loop applies it in place — bounded by
-        # progress: once per base tip (D-6.12); a repeat against an
+        # progress: once per base tip (S-0006/D-12); a repeat against an
         # unmoved base falls through to the human fork below.
         _dispose_conflict(
             root, state, task_id, branch, base, base_tip, on_conflict, results, found_by="rebase"

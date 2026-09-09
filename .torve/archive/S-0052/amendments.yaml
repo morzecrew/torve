@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-130
+  - id: A-1
     at: '2026-09-06'
     title: §7's documentation was owed by no phase
     md: |-
@@ -18,7 +18,7 @@ amendments:
       of the kind the skill's rule 3a already names for decision rows — a
       deliverable whose paths fall outside every phase's scope is the same
       mistake one level up, and the check that catches it does not exist yet.
-  - id: A-131
+  - id: A-2
     at: '2026-09-07'
     title: >-
       phase 2's acceptance named a command no sandbox can run
@@ -48,10 +48,10 @@ amendments:
       rule refusing an acceptance command that needs git, so this is caught when
       a contract is minted rather than after three attempts — that check is
       where the other six documents get corrected, at the only moment it
-      matters. A-130 was the same defect in a different cell of the same block:
+      matters. S-0052/A-1 was the same defect in a different cell of the same block:
       a phasing table that mints something unsatisfiable, and no check reading
       it.
-  - id: A-132
+  - id: A-3
     at: '2026-09-07'
     title: >-
       the phasing block's third defect, and why none of them was caught
@@ -64,8 +64,8 @@ amendments:
 
       **Changed:** phase 2's scope gains the test file.
 
-      **Why this is the third.** A-130 was a deliverable whose paths fell outside
-      every phase's scope. A-131 was an acceptance command no sandbox can run.
+      **Why this is the third.** S-0052/A-1 was a deliverable whose paths fell outside
+      every phase's scope. S-0052/A-2 was an acceptance command no sandbox can run.
       This is a scope that fails the lint written to catch it. Three mechanical
       defects in one phasing block, each found by something running rather than
       by the document being read again.
@@ -82,4 +82,4 @@ amendments:
       Phase 1's scope is left as it shipped. Amending it now would be bookkeeping
       on work already landed; what is owed is the check, not the retrofit.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

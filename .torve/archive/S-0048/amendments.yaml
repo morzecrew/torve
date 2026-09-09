@@ -1,18 +1,18 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-110
+  - id: A-1
     at: '2026-09-05'
     title: The pause rule was written and never asked
     md: |-
       **Found sweeping for dead code after the standing loop's retirement
-      (A-105).** The sweep's real finding was not dead code. It was four things
+      (S-0019/A-8).** The sweep's real finding was not dead code. It was four things
       that had been *written, tested and never called* — the same failure the
       standing leg turned out to be, in four more places.
 
-      **D-48.5's union.** `escalated_tasks` counts a repository's escalations
+      **S-0048/D-5's union.** `escalated_tasks` counts a repository's escalations
       across both carriers, has its own test, and nothing called it: `survey`
       still counted run-state files. A fleet was therefore blind to every
-      escalation the manager had raised — which, since RFC 0044, is all of them.
+      escalation the manager had raised — which, since S-0044, is all of them.
       The survey takes the boards now; the composition root folds them once a
       round, and `escalated_count` is deleted rather than left as the tempting
       wrong answer.
@@ -24,12 +24,12 @@ amendments:
       `serve_fleet` re-surveys every round.
 
       **The standing advisory printed nowhere.** `intake.standing_warnings` is
-      RFC 0030 §5.1's reading, and `torve lint-contract` rendered only the
+      S-0030/standing-inheritance's reading, and `torve lint-contract` rendered only the
       document-threshold half. Both warn on the same terms; both print now.
 
       **`promotion.approvals` had become a trap.** The lane counts sha-bound
       approvals of the tip it is about to land, and the only surface that ever
-      recorded one was the tracker's `/torve approve` (deleted, A-92). Setting
+      recorded one was the tracker's `/torve approve` (deleted, S-0008/A-5). Setting
       the knob above 0 would have waited forever, silently. `torve approve
       <task>` is the surface now — the same `record_approval`, bound to the same
       tip, deduped the same way.
@@ -48,22 +48,22 @@ amendments:
       **A second pass, over configuration and adapters.** Two knobs were dead:
       `promotion.auto_merge`, whose only reader was the tick's lane leg, and
       `review.feedback_from`, the revision loop's forge allow-list, whose only
-      reader was the lane's automatic conflict disposal (A-35's `on_conflict`).
+      reader was the lane's automatic conflict disposal (S-0006/A-1's `on_conflict`).
       Both are deleted — a knob that cannot change anything is worse than absent,
       because somebody sets it and waits.
 
-      That disposal is a capability A-105 failed to name: on a merge conflict the
+      That disposal is a capability S-0019/A-8 failed to name: on a merge conflict the
       loop captured the forge's review threads and the candidate diff into the
       next attempt's feedback record and re-queued. `torve merge` escalates and
-      leaves it for a human, which is D-6.10's documented manual behaviour, so
+      leaves it for a human, which is S-0006/D-10's documented manual behaviour, so
       nothing is broken — but the automatic half is gone with its caller.
 
       Left in place deliberately: five methods on the forge adapter whose only
       caller left with the loop — `review_threads`, `answer_captured_threads`,
       `close_pr`, `retire_pr`, `delete_remote_branch`. They are working, tested
       GitHub primitives, and the lane rework that wants them is a named future
-      (RFC 0006). Naming them here is the point: the next sweep should find this
+      (S-0006). Naming them here is the point: the next sweep should find this
       paragraph rather than rediscover them as a surprise, and a rebuild should
       find the code rather than the API documentation.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

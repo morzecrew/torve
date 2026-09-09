@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-3
+  - id: A-1
     at: '2026-08-21'
     title: >-
-      skills whose format Torve parses ship with Torve (adds D-9.7)
+      skills whose format Torve parses ship with Torve (adds S-0009/D-7)
     md: |-
       **Found in implementation.** A skill and its gate encode one rule in two forms. Versioned separately, they drift: the gate tightens in the package, the skill in another repository does not know, and agents write to the old rule and redden on every task.
 
@@ -13,35 +13,35 @@ amendments:
 
       **Distribution: none required on the engine path.** The runner writes the role-scoped skill set into the sandbox from package data at dispatch time; nothing is checked into the consuming repository, so nothing can drift, and the skill version is the Torve version by construction. No bespoke installer.
 
-      **Consequence for D-9.3:** `config_hash` includes the Torve package version, not only the `agent-skills` lockfile — otherwise upgrading Torve silently changes the regime and telemetry does not notice.
-  - id: A-25
+      **Consequence for S-0009/D-3:** `config_hash` includes the Torve package version, not only the `agent-skills` lockfile — otherwise upgrading Torve silently changes the regime and telemetry does not notice.
+  - id: A-2
     at: '2026-08-22'
     title: >-
-      vendored skills reach the sandbox as reviewed content (adds §4a, D-9.11–D-9.13)
+      vendored skills reach the sandbox as reviewed content (adds §4a, S-0009/D-11–S-0009/D-13)
     md: |-
-      **Found asking how the rest of the library gets in.** A-3 drew the boundary — Torve ships only what it parses — but left everything on the far side of it (review checklists, stack conventions, the `agent-skills` library) with no road into the sandbox.
+      **Found asking how the rest of the library gets in.** S-0009/A-1 drew the boundary — Torve ships only what it parses — but left everything on the far side of it (review checklists, stack conventions, the `agent-skills` library) with no road into the sandbox.
 
-      **Changed:** §4a — the sandbox-definition doctrine applied to skills. Vendored skills are committed under `.torve/skills-vendor/<name>/` and resolve by name beside shipped skills at materialization; a collision with a shipped skill is refused, structurally protecting the A-3 unit-of-versioning; the vendored tree's digest joins `config_hash`. The channel is task context (RFC 0017 §3) — repository content instructing the agent about the work, which is allowed, as distinct from the repository configuring the harness, which is not (D-17.4).
-  - id: A-54
+      **Changed:** §4a — the sandbox-definition doctrine applied to skills. Vendored skills are committed under `.torve/skills-vendor/<name>/` and resolve by name beside shipped skills at materialization; a collision with a shipped skill is refused, structurally protecting the S-0009/A-1 unit-of-versioning; the vendored tree's digest joins `config_hash`. The channel is task context (S-0017/configuration-routes-by-nature) — repository content instructing the agent about the work, which is allowed, as distinct from the repository configuring the harness, which is not (S-0017/D-4).
+  - id: A-3
     at: '2026-08-27'
     title: >-
-      the specialisation rules come in from `ops/` (amends A-3, adds D-9.14)
+      the specialisation rules come in from `ops/` (amends S-0009/A-1, adds S-0009/D-14)
     md: |-
-      **Found deleting the executed procedure.** `ops/skill-specialisation.md` was executed on 2026-08-21 and kept past its deletion (D-A.1b), because four of its rules were still normative and had nowhere else to live. That is exactly the case §2 of RFC 0016 names: when a procedure accumulates decisions rather than steps, the decisions are promoted into an RFC and the procedure goes.
+      **Found deleting the executed procedure.** `ops/skill-specialisation.md` was executed on 2026-08-21 and kept past its deletion (S-0016/D-11), because four of its rules were still normative and had nowhere else to live. That is exactly the case §2 of S-0016 names: when a procedure accumulates decisions rather than steps, the decisions are promoted into an RFC and the procedure goes.
 
-      **Adds D-9.14,** carrying the four rules intact:
+      **Adds S-0009/D-14,** carrying the four rules intact:
 
-      - **The ownership test.** Does Torve parse what this skill produces? If not, it stays upstream. This is A-3's boundary restated as a test rather than as a list, so it answers the next candidate without an amendment.
+      - **The ownership test.** Does Torve parse what this skill produces? If not, it stays upstream. This is S-0009/A-1's boundary restated as a test rather than as a list, so it answers the next candidate without an amendment.
       - **No install step.** The runner writes the role-scoped set into the sandbox from package data at dispatch; nothing is checked into the consuming repository, so nothing can drift.
       - **The mandatory header.** A specialised skill states in its own first lines that it is a specialisation and what it diverges from — these are not forks kept in sync, they are supposed to diverge, and the divergence is deliberate from the first commit or it is discovered later as drift.
-      - **The homonym lesson.** Before moving a skill, check that the Torve concept it maps to is the same concept and not the same word. `escape-hatch-policy` was on A-3's list and removed on review: Torve parses bypass records, and that skill does not produce them.
+      - **The homonym lesson.** Before moving a skill, check that the Torve concept it maps to is the same concept and not the same word. `escape-hatch-policy` was on S-0009/A-1's list and removed on review: Torve parses bypass records, and that skill does not produce them.
 
-      **Note on A-3's wording.** A-3 cites `RfcDirectory` as the parser of `rfc-writer`'s output. That adapter was retired by RFC 0007 A-47; the parser is `torve.config.rfc_parse`, reached by `torve plan`, `torve rfc check` and adoption. A-3's text stands as written — amendments record what was decided when — and this note is the correction.
-  - id: A-122
+      **Note on S-0009/A-1's wording.** S-0009/A-1 cites `RfcDirectory` as the parser of `rfc-writer`'s output. That adapter was retired by S-0007 S-0007/A-3; the parser is `torve.config.rfc_parse`, reached by `torve plan`, `torve rfc check` and adoption. S-0009/A-1's text stands as written — amendments record what was decided when — and this note is the correction.
+  - id: A-4
     at: '2026-09-05'
     title: One skill evaluated of four, and none retired
     md: |-
-      **Judged in the pass A-113's new flag started.** The machinery is built and
+      **Judged in the pass S-0007/A-4's new flag started.** The machinery is built and
       the header is accurate about it: `torve eval` runs with/without-skill
       shadow arms, the ledger records them, per-skill telemetry attribution
       works, vendored skills resolve and join `config_hash`. What §8 asks for is
@@ -53,7 +53,7 @@ amendments:
         `rfc-writer` — and one has been evaluated, once, in August, with the
         baseline matched and the deletion left to the operator. Nothing has been
         retired. The seven rows in the evals ledger since are `config-eval`
-        entries from RFC 0027's harness work, not skill arms; a reader counting
+        entries from S-0027's harness work, not skill arms; a reader counting
         ledger lines would conclude otherwise, which is why this says so.
       - **"Every cluster-C skill paired with a gate, or an explicit written
         decision"** has no evidence either way in this tree.
@@ -67,16 +67,16 @@ amendments:
 
       **Changed:** `implementation: partial` stands, with the outstanding work
       named as campaign rather than build.
-  - id: A-125
+  - id: A-5
     at: '2026-09-06'
     title: >-
       The eval ran, measured nothing, and said the skill had not earned its tokens
     md: |-
-      **Found running A-122's owed evals.** The library was read against the
+      **Found running S-0009/A-4's owed evals.** The library was read against the
       record first, and the reading changed what "the whole library" can mean.
 
       **Two of the four shipped skills have never once been materialized.** Over
-      226 attempts that name what they loaded (D-9.14), the record shows
+      226 attempts that name what they loaded (S-0009/D-14), the record shows
       `flag-dont-flip` 226 times, `ratchet-what-you-build` 225, and a vendored
       `reading-isnt-proof` twice. `rfc-writer` and `corpus-bootstrap`: never.
       The cause is a role that does not exist — the default sets keyed
@@ -87,7 +87,7 @@ amendments:
       `skills/rfc-writer/references/rfc-template.md` is what `torve rfc new`
       reads to create every document in this corpus, and
       `skills/corpus-bootstrap/fixtures/` carries the survey report and expected
-      output RFC 0031's tests read. They are **packaged assets shaped like
+      output S-0031's tests read. They are **packaged assets shaped like
       skills**: unreachable as instructions, load-bearing as files. The dead
       `author` key is removed; the directories stay, and this records what they
       are so the next reader does not delete them for the reason I nearly did.
@@ -102,7 +102,7 @@ amendments:
       Both arms scored zero because this repository's committed configuration
       runs every tier on the `fake` adapter with every provider denied — a safe
       default so a stray `torve run` here calls nobody. Each replay took 0.4
-      seconds and cost nothing. Nothing about the skill was measured, and D-9.4
+      seconds and cost nothing. Nothing about the skill was measured, and S-0009/D-4
       would have deleted it on that.
 
       **Changed, twice, both the same defect in different clothes:**
@@ -112,7 +112,7 @@ amendments:
         is `0 >= 0 and 9 <= 9` — true. It is now `None` when neither arm
         completed a task: a comparison needs something to compare.
       - The record carries `simulated`, true when the executor seat is a fake
-        adapter, and a simulated eval never produces a verdict. D-4.6 already
+        adapter, and a simulated eval never produces a verdict. S-0004/D-6 already
         says a fake adapter is neither spend nor conviction and the cost and
         quality projections already exclude its rows; the eval loop was the one
         reader that did not.
@@ -130,7 +130,7 @@ amendments:
 
       **Its third criterion is met, and provable.** Every skill in the library
       declares a `gate:` — `rfc-valid`, `decisions-reported`, `gates-sabotage`,
-      `rfc-index` — which is D-9.7's skill-and-gate-as-one-unit holding across
+      `rfc-index` — which is S-0009/D-7's skill-and-gate-as-one-unit holding across
       all four.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

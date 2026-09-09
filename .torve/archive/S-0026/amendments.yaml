@@ -1,16 +1,16 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-64
+  - id: A-1
     at: '2026-08-31'
     title: >-
-      execution's resolutions of the two open rows approved (amends D-26.10, D-26.11)
+      execution's resolutions of the two open rows approved (amends S-0026/D-10, S-0026/D-11)
     md: |-
       **From T-0110's and T-0111's execution logs, approved.** The decomposition
       prompt carries the parent's scope.allow, acceptance and a scope-filtered
       tree listing — inherited decisions are re-derived at adoption rather than
-      trusted from a prompt (D-26.10). Continuation feeds the next attempt
+      trusted from a prompt (S-0026/D-10). Continuation feeds the next attempt
       commits-and-record only, no trace tail — the worktree is the truth the
       next attempt needs, and the tail is widened only if live continuations
-      show commits-only prompts under-informing it (D-26.11).
+      show commits-only prompts under-informing it (S-0026/D-11).
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

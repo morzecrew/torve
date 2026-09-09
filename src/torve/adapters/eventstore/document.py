@@ -1,4 +1,4 @@
-"""Event log persistence (RFC 0044 §5.7): the two deps modules the log's
+"""Event log persistence (S-0044/ports-and-what-binds-first): the two deps modules the log's
 document spec resolves through.
 
 Nothing here decides anything. The authority table and the payload models
@@ -10,7 +10,7 @@ package imports `forze_mock` or `forze_postgres`.
 
 The relation is provisioned by `migrations/torve/postgres`, torve's own
 history — forze documents schemas and ships no migrations, so torve owns
-them (A-6, D-12.1). Column names must match the model's field names; the
+them (S-0003/A-1, S-0012/D-1). Column names must match the model's field names; the
 schema check `PostgresDocumentSchemaSpec` describes is the guard against
 the two drifting.
 """
@@ -49,7 +49,7 @@ async def postgres_module(
     dsn: str, *, schema: str = SCHEMA, relation: str = RELATION
 ) -> DepsModule:
     """The real log. The client is opened here rather than by a caller
-    because a handler may never open a connection (forze's rule and RFC 0015
+    because a handler may never open a connection (forze's rule and S-0015
     §2.1's, arriving at the same place from different directions)."""
 
     from forze_postgres import PostgresClient, PostgresDepsModule, PostgresDocumentConfig

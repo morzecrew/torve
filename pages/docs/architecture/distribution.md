@@ -14,10 +14,10 @@ list.
 
 | Assumption | Was | Now |
 | --- | --- | --- |
-| the scheduler is whoever invoked `torve run` | a tick on cron, one node | a resident manager per partition, restart-transparent because its whole view is a fold over the record (D-44.5). The tick is retired; `torve merge` and `torve reap` keep their verbs |
+| the scheduler is whoever invoked `torve run` | a tick on cron, one node | a resident manager per partition, restart-transparent because its whole view is a fold over the record (S-0044/D-5). The tick is retired; `torve merge` and `torve reap` keep their verbs |
 | two writers tear the JSONL store | serial queues, by necessity | Postgres behind the document port; the mock stays for tests |
-| assignment state lives in the runner | a killed run needed a reaper to notice | a worker holds a lease and nothing else; the manager reclaims it from the record when it goes quiet (D-44.6) |
-| the tick's dispatch rules are the only ones | a filesystem scan | the same rules over the record, and the scan is deleted — the oversize skip and the already-ran test were the last two to move (RFC 0019 A-105) |
+| assignment state lives in the runner | a killed run needed a reaper to notice | a worker holds a lease and nothing else; the manager reclaims it from the record when it goes quiet (S-0044/D-6) |
+| the tick's dispatch rules are the only ones | a filesystem scan | the same rules over the record, and the scan is deleted — the oversize skip and the already-ran test were the last two to move (S-0019 S-0019/A-8) |
 | the planning reports read one host's files | a scan of `.torve/` and `.wt/` | `why`, `status` and `context` answer from the record when a partition is named, and name the carrier they used |
 | one manager, one repository | a process and a hand-typed partition per repo | one resident process over the operator's fleet manifest, which now names the board each root mints onto |
 | the corpus is only readable by re-parsing it | every reader walked `rfcs/` and re-parsed each document | the corpus is imported into the record; decisions are versioned subjects answered by query |
@@ -29,7 +29,7 @@ list.
 | --- | --- | --- | --- |
 | 1 | worktrees on the local filesystem are the work surface | runner, workspace adapter | executors run on remote sandboxes with no shared filesystem |
 | 2 | landings serialize through one `main` on one clone | merge lane, operator chain | any second lander — and this is the throughput wall, not a bug |
-| 5 | the broker binds loopback routes into local sandboxes | broker adapter | remote sandboxes — RFC 0041 added bind and advertise for exactly this |
+| 5 | the broker binds loopback routes into local sandboxes | broker adapter | remote sandboxes — S-0041 added bind and advertise for exactly this |
 | 6 | host proxy and `.env` passthrough shape egress | run configuration, docker adapter | a fleet node with different egress |
 | 7 | attempt budgets reset per dispatch | runner | re-dispatch across nodes multiplies the reset |
 
@@ -41,7 +41,7 @@ that half, so it is deleted rather than ported — if it is wanted it belongs
 on the lane, not on a loop nobody schedules.
 
 Item 3 was the tracker's outbox, and it is gone rather than answered: the
-whole tracker projection was deleted in September 2026 (RFC 0008 A-92) — it
+whole tracker projection was deleted in September 2026 (S-0008 S-0008/A-5) — it
 was inert in every repository torve runs, and 2,600 lines nobody runs and
 everybody must maintain is worse than a subsystem that is gone and recorded.
 The design survives in its document for whoever rebuilds it.
@@ -50,7 +50,7 @@ Item 4 — run state and telemetry as files — is crossed off. `torve why`,
 `torve status` and `torve context` answer from the record when a partition
 is named and say in the report which carrier answered, and the two surfaces
 that re-expose them — the served dashboard and the MCP tool — take the same
-partition and read it per request (RFC 0032 A-123). `--dsn` defaults to the
+partition and read it per request (S-0032 S-0032/A-3). `--dsn` defaults to the
 DSN the configuration names, so naming the partition is the whole of it.
 
 What stays on files by shape rather than by schedule: the findings ledger,

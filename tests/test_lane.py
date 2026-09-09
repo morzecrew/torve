@@ -1,4 +1,4 @@
-"""RFC 0006 phase 2: the serialized lane over real git — fast-forward as
+"""S-0006 phase 2: the serialized lane over real git — fast-forward as
 measured, rebase-and-regate when the base moved, conflict reported and left
 for a human."""
 
@@ -118,7 +118,7 @@ def test_a_conflict_escalates_the_run_and_leaves_the_branch_for_a_human(lane_rep
 
 
 def test_the_loop_disposes_of_a_conflict_through_the_revision_loop(lane_repo):
-    # D-6.10 as amended by A-35, bounded by D-6.12: with a disposal wired
+    # S-0006/D-10 as amended by A-35, bounded by S-0006/D-12: with a disposal wired
     # (the standing loop's), a conflict against a fresh base tip escalates
     # — the record and the queue-age alarm stand — and is re-queued in
     # place, the disposal capturing and dropping the branch; a repeat
@@ -192,7 +192,7 @@ def conflicting_candidate(root: Path, task_id: str) -> str:
 
 
 def test_the_wired_disposal_captures_the_collided_diff_before_requeuing(lane_repo):
-    # The restored disposal (RFC 0052 §5.3) is the loop's minus the forge
+    # The restored disposal (S-0052/a-conflict-disposes-of-itself) is the loop's minus the forge
     # half: the next attempt's feedback record holds the superseded
     # candidate's diff, the thread section says "none captured" rather
     # than implying the capture was complete, and the branch is kept.
@@ -257,7 +257,7 @@ def test_a_candidate_with_undecodable_bytes_still_disposes_and_the_pass_goes_on(
 
 
 def test_the_wired_disposal_still_requeues_only_on_a_moved_base(lane_repo):
-    # D-6.12 is the lane's bound, not the disposal's — wiring the real
+    # S-0006/D-12 is the lane's bound, not the disposal's — wiring the real
     # one must not loosen it: a second conflict against the SAME base
     # tip escalates for the human and re-captures nothing.
     conflicting_candidate(lane_repo, "T-7008")
@@ -357,7 +357,7 @@ def test_engine_records_beside_real_dirt_still_refuse(lane_repo):
 
 
 # ....................... #
-# ci: green_on_current_head (RFC 0006 §3): with a CI port supplied, only a
+# ci: green_on_current_head (S-0006/promotion): with a CI port supplied, only a
 # remote-green branch tip lands; anything else refuses without touching git.
 
 
@@ -438,7 +438,7 @@ def test_the_ticks_own_lock_never_blocks_the_lane(lane_repo):
 
 
 def test_the_lane_adopts_identical_untracked_records_the_landing_carries(lane_repo):
-    # D-19.11 (A-28): the provenance commit carries the task's contract;
+    # S-0019/D-11 (A-28): the provenance commit carries the task's contract;
     # an untracked byte-identical root copy must not refuse the landing.
     git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7015"), "main")
     contract_dir = lane_repo / ".torve" / "tasks" / "T-7015"
@@ -481,11 +481,11 @@ def test_a_differing_untracked_record_still_refuses_the_landing(lane_repo):
     assert git(lane_repo, "log", "--oneline", "-1").endswith("init")
 
 
-# Promotion approvals and the quiet window (RFC 0006 §3, T-0060).
+# Promotion approvals and the quiet window (S-0006/promotion, T-0060).
 
 
 def test_a_conflicting_tip_is_never_offered_for_approval(lane_repo):
-    # D-6.13 (A-42): the probe precedes the prompt — with a disposal
+    # S-0006/D-13 (A-42): the probe precedes the prompt — with a disposal
     # wired and the base moved conflictingly, an unapproved candidate
     # re-queues at probe time; no approval is requested, none can burn.
     candidate(lane_repo, "T-7030", "app.py", "candidate = 30\n")
@@ -518,7 +518,7 @@ def test_a_conflicting_tip_is_never_offered_for_approval(lane_repo):
 
 def test_a_clean_probe_still_prompts_for_approval(lane_repo):
     # A moved base with no conflict changes nothing: the prompt goes out
-    # and the approval is honoured through the landing's rebase (D-6.3).
+    # and the approval is honoured through the landing's rebase (S-0006/D-3).
     candidate(lane_repo, "T-7031", "other.py", "o = 31\n")
     (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
     git(lane_repo, "add", "-A")
@@ -530,7 +530,7 @@ def test_a_clean_probe_still_prompts_for_approval(lane_repo):
 
 
 def test_the_manual_lane_never_probes(lane_repo):
-    # D-6.12: without a wired disposal (the operator's lane), the probe
+    # S-0006/D-12: without a wired disposal (the operator's lane), the probe
     # stays off — a conflicting unapproved candidate just reports short.
     candidate(lane_repo, "T-7032", "app.py", "candidate = 32\n")
     (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
@@ -584,7 +584,7 @@ def test_an_approval_of_a_superseded_tip_counts_for_nothing(lane_repo):
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
     old_tip = git(lane_repo, "rev-parse", naming.branch("T-7022"))
     record_approval(lane_repo, "T-7022", "operator", old_tip)
-    # The branch moves after the approval — D-6.3: review freshness is
+    # The branch moves after the approval — S-0006/D-3: review freshness is
     # relative to current head.
     git(lane_repo, "checkout", "-q", naming.branch("T-7022"))
     (lane_repo / "twentytwo.py").write_text("t = 23\n", encoding="utf-8")
@@ -639,7 +639,7 @@ def test_the_quiet_window_refuses_a_fresh_tip_and_passes_an_old_one(lane_repo):
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"
 
 
-# The review predicate (RFC 0006 §3, D-6.14, A-43).
+# The review predicate (S-0006/promotion, S-0006/D-14, A-43).
 
 
 def _events(root: Path) -> list[dict]:
@@ -671,7 +671,7 @@ def test_a_recorded_review_verdict_lands(lane_repo):
 
 
 def test_review_missing_precedes_the_approvals_prompt(lane_repo):
-    # D-6.14: a candidate the policy cannot land is never offered for
+    # S-0006/D-14: a candidate the policy cannot land is never offered for
     # approval — the refusal fires before the approvals check.
     candidate(lane_repo, "T-7042", "fortytwo.py", "f = 42\n")
     results = process_lane(lane_repo, GitLane(), require_review=True, approvals_required=1)
@@ -692,7 +692,7 @@ def test_require_review_flows_from_configuration(lane_repo):
 
 
 def test_reviewed_by_round_trips_and_dies_with_the_next_attempt(tmp_path):
-    # D-6.14: no verdict outlives the attempt it judged — entry to
+    # S-0006/D-14: no verdict outlives the attempt it judged — entry to
     # running clears it, exactly where attempts increment.
     state = RunState(task_id="T-7044", path=tmp_path / "T-7044.state.json")
     state.transition(TaskState.CLAIMED, "claimed")

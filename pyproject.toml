@@ -22,7 +22,7 @@ postgres = ["forze[postgres]>=0.6.0"]
 migrate = ["yoyo-migrations>=9"]
 # The planning session's read surface — never installed into an executor image.
 mcp = ["mcp>=1.2"]
-# The loopback dashboard's HTTP stack (RFC 0032 §5) — lazy-imported behind
+# The loopback dashboard's HTTP stack (S-0032) — lazy-imported behind
 # the extra, so a gates-only install never pays for it.
 serve = ["starlette>=1.0", "uvicorn>=0.30"]
 
@@ -31,8 +31,8 @@ torve = "torve.cli:main"
 
 [dependency-groups]
 dev = [
-    # Backs the layering gate (RFC 0015, D-15.8). Dev-only on purpose
-    # (D-15.10): a check on Torve's internals never ships to consumers.
+    # Backs the layering gate (S-0015, S-0015/D-8). Dev-only on purpose
+    # (S-0015/D-10): a check on Torve's internals never ships to consumers.
     "import-linter>=2",
     "forze[dst,postgres]>=0.6.0",
     "basedpyright>=1.31",
@@ -50,7 +50,7 @@ dev = [
     "bandit>=1.9.4",
     "zizmor>=1.29.0",
     "pre-commit>=4.6.2",
-    # Back the coverage-delta gate (RFC 0036 §5.1). Dev-only like
+    # Back the coverage-delta gate (S-0036/the-coverage-delta-gate). Dev-only like
     # import-linter: a check on this repository's own test evidence never
     # ships to consumers.
     "pytest-cov>=7.1.0",
@@ -65,14 +65,14 @@ build-backend = "hatchling.build"
 packages = ["src/torve"]
 
 [tool.hatch.build.targets.wheel.force-include]
-# The specialised skills ship inside the wheel (A-3, D-9.7): skill and gate
+# The specialised skills ship inside the wheel (S-0009/A-1, S-0009/D-7): skill and gate
 # are one unit of versioning by construction.
 "skills" = "torve/_skills"
 # Migrations ship as package data (rfcs/0012-migrations.md §2): a wheel that knows how
 # to migrate but has nothing to migrate with is discovered at first deployment.
 "migrations" = "torve/_migrations"
 
-# RFC 0015 §6 (D-15.8): the layer rules as import-linter contracts, wrapped by
+# S-0015/enforcement-the-layering-gate (S-0015/D-8): the layer rules as import-linter contracts, wrapped by
 # the `layering` gate. `gates` and `config` sit beside the main stack — they
 # do not fit a total order, so they get their own forbidden contracts.
 [tool.importlinter]
@@ -101,8 +101,8 @@ type = "forbidden"
 source_modules = ["torve.config"]
 forbidden_modules = ["torve.application", "torve.adapters", "torve.cli"]
 
-# 0015 A-19, enforcing 0007's D-7.18: the RFC format terminates at the
-# planner (its owner is `config/spec.py` since RFC 0053 phase 5; the corpus is `.torve/specs/` since RFC 0057). A gate or runtime that parses specification documents directly is
+# 0015 S-0015/A-1, enforcing 0007's S-0007/D-18: the RFC format terminates at the
+# planner (its owner is `config/spec.py` since S-0053 phase 5; the corpus is `.torve/specs/` since S-0057). A gate or runtime that parses specification documents directly is
 # how format containment breaks, and it breaks quietly.
 [[tool.importlinter.contracts]]
 name = "The RFC format stays at the planner"
@@ -131,8 +131,8 @@ target-version = "py311"
 extend-exclude = [".agents", ".claude"]
 
 [tool.ruff.lint]
-# forze's selection (RFC 0014 D-14.9): two codebases read by the same people
-# should not differ in mechanics. T20 enforces RFC 0011's boundary — print is
+# forze's selection (S-0014 S-0014/D-9): two codebases read by the same people
+# should not differ in mechanics. T20 enforces S-0011's boundary — print is
 # the CLI's output contract and belongs nowhere else.
 select = [
     "E",
@@ -217,7 +217,7 @@ timeout_method = "thread"
 # Kept for the editor only (pylance/cursorpyright read it), so what a
 # developer sees inline agrees with what the gate checks. Nothing in CI or
 # the acceptance battery runs it: `mypy` is the one type checker of record
-# (A-51) — two strict checkers over one tree bought disagreement, not depth.
+# (S-0014/A-2) — two strict checkers over one tree bought disagreement, not depth.
 include = ["src"]
 ignore = ["tests", "scripts", "skills", ".venv", ".wt"]
 typeCheckingMode = "strict"

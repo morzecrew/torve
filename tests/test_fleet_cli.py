@@ -1,5 +1,5 @@
 """`torve fleet tick` / `torve fleet status` — manifest resolution and
-per-root wiring (RFC 0024). The mechanism itself (survey, shared pause,
+per-root wiring (S-0024). The mechanism itself (survey, shared pause,
 order, failure-recorded continuation) is exercised at the application layer
 in test_fleet.py; these tests cover the CLI's own plumbing."""
 

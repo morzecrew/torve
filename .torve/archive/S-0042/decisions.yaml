@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-42.1
+  - id: D-1
     grade: LOCKED
     text: >-
       One composition root in `src/torve/cli/assembly.py` produces every dep bundle;
@@ -13,26 +13,26 @@ decisions:
     consequence: >-
       A fourth copy of the wiring is a review reject; every future entrypoint (serve
       write path, resident engine, remote profile) starts as one new consumer
-  - id: D-42.2
+  - id: D-2
     grade: LOCKED
     text: >-
       The extraction is behaviour-preserving and layering-preserving: same bundles,
       same ports, no `lint-imports` change, front-door policy stays in the verbs
     paths: [src/torve/cli/assembly.py]
     consequence: >-
-      RFC 0015 §2.1 stands untouched; anyone needing assembly below `cli` is asking
-      the §5.4 question, not a wiring question
-  - id: D-42.3
+      S-0015/permitted-imports stands untouched; anyone needing assembly below `cli`
+      is asking the §5.4 question, not a wiring question
+  - id: D-3
     grade: ASSUMED
     text: >-
       Tick shutdown runs forze's quiesce plane over what the tick started; recovery
       becomes the substrate's step at tick start, replacing the ad hoc invocation
       with identical semantics
     paths: [src/torve/application/loop.py, src/torve/application/taskstore.py]
-  - id: D-42.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       Substrate machinery is adopted only where it displaces a hand-rolled equivalent
       behind an existing port; adoption without displacement is refused
     paths: [src/torve/application/taskstore.py]
-retired: [D-42.5, D-42.6]
+retired: [D-5, D-6]

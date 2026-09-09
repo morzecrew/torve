@@ -6,7 +6,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-53.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T09:29:24Z'
         claim: >-
@@ -22,9 +22,10 @@ landings:
           parity per document
         action: decided
         notes: >-
-          D-7.17 stands: config/spec.py is the format's second reader beside rfc_parse
-          for one bounded window (D-53.13); gates and adapters import neither
-      - decision: D-53.2
+          S-0007/D-17 stands: config/spec.py is the format's second reader beside
+          rfc_parse for one bounded window (S-0053/D-13); gates and adapters import
+          neither
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T09:29:24Z'
         claim: >-
@@ -36,7 +37,7 @@ landings:
           src/torve/config/spec.py:173 - load_fences refuses an unknown kind and validates
           each known one; src/torve/config/spec.py:65 - the fence-to-model table
         action: decided
-      - decision: D-53.4
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T09:29:25Z'
         claim: >-
@@ -52,7 +53,7 @@ landings:
         action: decided
         notes: >-
           rfc_emit.py is in this row's paths and is untouched by design in phase 1
-      - decision: D-53.10
+      - decision: D-10
         grade: LOCKED
         at: '2026-09-09T09:29:25Z'
         claim: >-
@@ -69,7 +70,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-53.4
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T09:47:18Z'
         claim: >-
@@ -81,8 +82,8 @@ landings:
           number; rfc check reads a grade-or-paths mismatch as a problem and a text
           mismatch as a warning naming fix. The stamp lives in frontmatter rather
           than a model field because the model's file is outside this phase's scope
-          and D-A.2 already puts structured facts there; the standalone retire verb
-          stays beside amend --retire until phase 5 deletes it
+          and S-0016/D-13 already puts structured facts there; the standalone retire
+          verb stays beside amend --retire until phase 5 deletes it
         evidence: >-
           src/torve/config/rfc_emit.py:426 - amend_row replaces the field, stamps
           and returns the diff; src/torve/config/rfc_emit.py:490 - fix_row_text re-stamps
@@ -94,7 +95,7 @@ landings:
           the settle form for questions named in §5.4 is not built: questions live
           in a prose fence and nothing reads a settlement yet; recorded as its own
           entry
-      - decision: D-53.6
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T09:47:18Z'
         claim: >-
@@ -108,7 +109,7 @@ landings:
           then the archive; tests/test_decisions.py pins a phase-only governed path
           and a retired one
         action: decided
-      - decision: D-53.9
+      - decision: D-9
         grade: LOCKED
         at: '2026-09-09T09:47:18Z'
         claim: >-
@@ -123,7 +124,7 @@ landings:
           rows, invariants, questions and archived documents; tests/test_rfc_check.py
           archives a document and shows its row
         action: decided
-      - decision: D-53.7
+      - decision: D-7
         grade: ASSUMED
         at: '2026-09-09T09:47:19Z'
         claim: >-
@@ -135,7 +136,7 @@ landings:
           documents; src/torve/cli/rfc.py:214 - _model_findings adds it to check;
           the live corpus reports 25 such rows today
         action: decided
-      - decision: D-53.13
+      - decision: D-13
         grade: ASSUMED
         at: '2026-09-09T09:47:19Z'
         claim: >-
@@ -181,16 +182,16 @@ landings:
         at: '2026-09-09T09:47:20Z'
         claim: >-
           the settle form of amend (settling a question by a task or amendment) named
-          in RFC 0053 §5.4 is not built: questions live in a prose-side yaml fence
-          the emitter does not model, and no reader consumes a settlement yet; the
-          fence can be hand-edited and the loader validates it
+          in S-0053/the-tool-writes-the-diff is not built: questions live in a prose-side
+          yaml fence the emitter does not model, and no reader consumes a settlement
+          yet; the fence can be hand-edited and the loader validates it
         evidence: >-
           src/torve/config/rfc_emit.py:426 - the forms built are grade, paths, text
           and retire
         action: decided
         proposal: >-
           add a questions fence rewriter to the emitter when a reader of settlements
-          exists (rfc health or the pack of RFC 0054); until then the fence is authored
+          exists (rfc health or the pack of S-0054); until then the fence is authored
           like any other typed section
   - task: T-0290
     phase: 3
@@ -198,7 +199,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-53.8
+      - decision: D-8
         grade: LOCKED
         at: '2026-09-09T10:13:53Z'
         claim: >-
@@ -214,8 +215,8 @@ landings:
         notes: >-
           0055 does not exist yet: superseded_by is not among the references the check
           resolves, and the baseline is the next number over corpus and archive by
-          D-53.10; the first document created after this landing takes it
-      - decision: D-53.2
+          S-0053/D-10; the first document created after this landing takes it
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T10:13:53Z'
         claim: >-
@@ -225,18 +226,18 @@ landings:
           before the move, so the record reads them retired for rot and not for the
           archive
         evidence: >-
-          archive/rfcs/0016-corpus-conventions.md:1 - A-148 to A-150 with their changes
-          fences; archive/rfcs/0007-planner-context.md:1 - A-151
+          archive/rfcs/0016-corpus-conventions.md:1 - S-0016/A-8 to S-0016/A-10 with
+          their changes fences; archive/rfcs/0007-planner-context.md:1 - S-0007/A-5
         action: decided
         notes: >-
           two emitter defects found on the way and fixed on the document-less lane
           first: T-0293 (a long value folded into invalid YAML) and T-0294 (the archive
           transaction could not see the archive)
-      - decision: D-53.11
+      - decision: D-11
         grade: LOCKED
         at: '2026-09-09T10:13:53Z'
         claim: >-
-          the baseline is not written by this phase: D-31.2 keeps corpus-bootstrap
+          the baseline is not written by this phase: S-0031/D-2 keeps corpus-bootstrap
           a supervised act, and this landing leaves the corpus path with 0053 and
           0054 so that act has an empty standing set to draft into; the record has
           been brought level with the archive first so the survey's own reads are
@@ -245,7 +246,7 @@ landings:
           rfcs/INDEX.md:1 - two documents and no baseline; the record import wrote
           the archived sources and retirements
         action: decided
-      - decision: D-53.12
+      - decision: D-12
         grade: ASSUMED
         at: '2026-09-09T10:13:54Z'
         claim: >-
@@ -261,7 +262,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-53.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T13:26:01Z'
         claim: >-
@@ -274,7 +275,7 @@ landings:
           - check_corpus, unchanged in what it checks; pyproject.toml:115 - the contract
           names the new owner
         action: decided
-      - decision: D-53.2
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T13:26:01Z'
         claim: >-
@@ -284,19 +285,19 @@ landings:
           src/torve/config/spec.py:1690 - load_document over the parser's readers
           in the same module
         action: decided
-      - decision: D-53.4
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T13:26:01Z'
         claim: >-
           the amend forms are untouched; the emitter imports the format from spec
           now, and the amendment number the verb derives counts the archive's headings,
-          which the corpus-only derivation did not — A-152 was numbered by hand because
-          of it
+          which the corpus-only derivation did not — S-0053/A-2 was numbered by hand
+          because of it
         evidence: >-
           src/torve/config/spec.py:956 - next_amendment over corpus and archive; tests/test_rfc_show.py
           pins the derivation
         action: decided
-      - decision: D-53.9
+      - decision: D-9
         grade: LOCKED
         at: '2026-09-09T13:26:02Z'
         claim: >-
@@ -306,7 +307,7 @@ landings:
           src/torve/application/decisions.py:41 - the import from spec; tests/test_rfc_archive.py
           pins lookup over the archive
         action: decided
-      - decision: D-53.10
+      - decision: D-10
         grade: LOCKED
         at: '2026-09-09T13:26:02Z'
         claim: >-
@@ -317,7 +318,7 @@ landings:
           src/torve/config/spec.py:1785 - next_number; tests/test_rfc_archive.py asserts
           8 over a corpus of one and an archive of one
         action: decided
-      - decision: D-53.13
+      - decision: D-13
         grade: ASSUMED
         at: '2026-09-09T13:26:03Z'
         claim: >-
@@ -344,7 +345,7 @@ landings:
         proposal: >-
           no row: a naming choice inside one module; the skill's references name none
           of these functions
-      - decision: D-53.6
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T13:31:57Z'
         claim: >-
@@ -360,13 +361,13 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-53.10
+      - decision: D-10
         grade: LOCKED
         at: '2026-09-09T09:58:58Z'
         claim: >-
           the row is satisfied by the loader's derivation, which torve rfc new already
           calls; the parser's own next_number stays corpus-only because phase 1's
-          parity test pins that difference and phase 5 deletes the parser — A-140's
+          parity test pins that difference and phase 5 deletes the parser — S-0053/A-1's
           wording named the parser's derivation, and this entry records that the loader's
           is the one in force
         evidence: >-
@@ -388,6 +389,6 @@ landings:
           src/torve/config/rfc_parse.py:1018 - _lookup_in over corpus then archive
         action: decided
         proposal: >-
-          no row needed: this is A-140's unit executed as written; phase 5 carries
+          no row needed: this is S-0053/A-1's unit executed as written; phase 5 carries
           the archive-aware resolution into the loader's check when the parser is
           deleted

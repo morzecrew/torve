@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-83
+  - id: A-1
     at: '2026-09-04'
     title: >-
-      phase 3 lands as surfacing, not stopping (records D-45.7, defers D-45.8)
+      phase 3 lands as surfacing, not stopping (records S-0045/D-7, defers S-0045/D-8)
     md: |-
       **Found executing phase 3.** §12 leaves phase 3 unphased because there was
       no actor to write a note or weigh a stalled stream. The manager exists now,
@@ -15,13 +15,13 @@ amendments:
       back through the same broker route the records travel, and the harness
       prompt tells the agent it is a poll. Nothing interrupts an attempt, and a
       note the agent never reads is still a recorded fact about what the engine
-      tried to say (D-45.7).
+      tried to say (S-0045/D-7).
 
       **Stopping is deliberately not built.** The board now carries what the burn
       stream says — when a task last spent anything, what it has spent, and
       whether an in-flight attempt has gone quiet longer than the reading's window
-      — which is D-45.4 in full: liveness is derived, never reported, and a wedged
-      agent is not asked. What the engine does *not* do is act on it. D-45.8 says
+      — which is S-0045/D-4 in full: liveness is derived, never reported, and a wedged
+      agent is not asked. What the engine does *not* do is act on it. S-0045/D-8 says
       the auto-stop question is settled by recorded burn rather than by argument,
       and there is no recorded burn yet: this is the instrument, and the decision
       waits for its readings.
@@ -33,15 +33,15 @@ amendments:
 
       **Changed:** nothing in the decision table. §12's note that phase 3 waits on
       the manager is spent; what replaces it is this entry.
-  - id: A-104
+  - id: A-2
     at: '2026-09-05'
     title: The judgement this document never carried
     md: |-
       **Found taking stock.** Accepted with no `implementation` field, so no
-      D-A.11 judgement — the same gap RFC 0043 carried, found in the same pass.
+      S-0016/D-21 judgement — the same gap S-0043 carried, found in the same pass.
 
       Both phases are built. Burn events reach the log through `burn_sink` and
-      the board reads liveness from them (D-45.4); the authenticated intake route
+      the board reads liveness from them (S-0045/D-4); the authenticated intake route
       takes divergence records from a sealed sandbox and the notes route backs
       `torve manager note`. Both phases' acceptance passes today
       (`pytest tests/test_broker.py tests/test_divergence.py tests/test_broker_sealed.py`).
@@ -55,4 +55,4 @@ amendments:
 
       **Changed:** `implementation: complete`. Nothing normative.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

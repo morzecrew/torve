@@ -35,8 +35,8 @@ shell has not set is filled in.
 | `torve spec check` / `list` / `amend`, `torve init` | the corpus surface |
 
 **Retired, and not coming back by that name:** `torve tick` and
-`torve fleet tick`. The standing loop they drove is abandoned (RFC 0019
-A-105); the manager runs its legs. Nothing scheduled the tick anyway.
+`torve fleet tick`. The standing loop they drove is abandoned (S-0019
+S-0019/A-8); the manager runs its legs. Nothing scheduled the tick anyway.
 
 ## Which carrier answers a report
 
@@ -91,6 +91,16 @@ comment a file may carry; any other is a check problem — a row that needs
 a note needs a `rationale`. So is a section restating a typed list as a
 fence or a table: the list exists once.
 
+Every item has one identifier: the document is `S-NNNN`, and each of its
+rows, invariants, questions, amendments, phases and prose sections is
+`S-NNNN/D-n`, `S-NNNN/I-n`, `S-NNNN/Q-n`, `S-NNNN/A-n`, `S-NNNN/P-n` or
+`S-NNNN/<key>`. Inside its own files a document writes its own items by
+the local half alone (`id: D-3`); code, prose and logs cite the global
+form, and `torve spec check` resolves every citation it finds in the
+tracked source and docs. What stood before this grammar is answered by
+`.torve/archive/identifiers.yaml`: `torve spec show` given an identifier in
+the old shape names the row it became.
+
 `.torve/specs/` holds what stands: the documents whose rows contracts
 inherit. `.torve/archive/` beside it holds what once stood, every
 directory and identifier kept, each document `superseded` and naming what
@@ -100,7 +110,7 @@ without the document checks clean. The corpus path is `specs.path` in the
 runner's configuration; the archive and the schemas are its siblings.
 
 Nothing inherits from the archive, and nothing about it is lost: `torve
-spec show D-44.12` answers from it and says archived, the check resolves a
+spec show S-0044/D-12` answers from it and says archived, the check resolves a
 citation into it, and the record holds every archived row as retired with
 the archive as the reason. The next document number counts the archive,
 so a number is never reused. There is no index file: `torve spec list` is
@@ -109,11 +119,11 @@ person when one is wanted — the one markdown writer, never the source.
 
 Every verb that changes a document writes it through one serializer:
 `torve spec new "Title"` creates the smallest document that checks, `add-
-decision` appends a row, `amend NUMBER --title T --row D-x.y --grade G`
+decision` appends a row, `amend NUMBER --title T --row D-n --grade G`
 (or `--path`, `--text`, `--retire --reason R`) records the typed diff with
 the prior value on the amendment and re-stamps the row; a grade or paths
 edited by hand afterwards is a check problem, a text edited by hand is a
-warning that `torve spec fix D-x.y "…"` re-stamps as editorial. A hand-
+warning that `torve spec fix S-NNNN/D-n "…"` re-stamps as editorial. A hand-
 written document is legal as it stands — `torve spec fmt` reports what
 differs from the serializer's form and writes nothing. `torve spec check`
 also names rows whose declared paths match nothing in the tree; `--fix-

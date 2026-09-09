@@ -1,6 +1,6 @@
-"""The fleet manifest (RFC 0024 §5.1, D-24.1) — the one artefact that is
+"""The fleet manifest (S-0024/the-manifest-lives-with-the-operator, S-0024/D-1) — the one artefact that is
 *about* repositories rather than living in one, and the reason it cannot:
-D-13.3 says the repository under work configures nothing about the engine
+S-0013/D-3 says the repository under work configures nothing about the engine
 that works on it, and a repository declaring its own trust class is that
 failure in its purest form. Read from the operator's machine, never from a
 root the fleet ticks.
@@ -29,16 +29,16 @@ class FleetRepository(BaseModel):
     root: str
     trust: Literal["own", "reviewed", "untrusted"]
 
-    # Which board this root's contracts are minted onto (RFC 0048 D-48.1).
+    # Which board this root's contracts are minted onto (S-0048 S-0048/D-1).
     # Declared here and never derived: a partition from the git remote is
     # convenient and wrong for a repository with no remote, with two, or
     # with one that changed. Declared *here* rather than in the root for
-    # D-13.3's reason — a repository that chose its own partition could
+    # S-0013/D-3's reason — a repository that chose its own partition could
     # mint onto a board it was never given.
     #
     # Optional in the model because `torve fleet tick` neither reads nor
     # needs it and a v1 fleet must keep working; required by the resident
-    # loop, which refuses an empty one before the root is served (D-48.2).
+    # loop, which refuses an empty one before the root is served (S-0048/D-2).
     partition: str = ""
 
     # ....................... #
@@ -52,7 +52,7 @@ class FleetRepository(BaseModel):
 
 
 class FleetAttention(BaseModel):
-    """The shared budget (§5.1, D-24.2): triage debt measured once, across
+    """The shared budget (§5.1, S-0024/D-2): triage debt measured once, across
     every repository, because the operator triaging it exists once."""
 
     model_config = ConfigDict(extra="forbid")
@@ -66,7 +66,7 @@ class FleetManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     repositories: list[FleetRepository] = Field(default_factory=list)
     attention: FleetAttention = Field(default_factory=FleetAttention)
-    # Deterministic, never a priority field (D-24.4): a fleet that ticks
+    # Deterministic, never a priority field (S-0024/D-4): a fleet that ticks
     # roots in a chosen order is one config change from being a scheduler
     # with opinions.
     order: Literal["manifest", "alphabetical"] = "manifest"
@@ -85,7 +85,7 @@ class FleetManifest(BaseModel):
 
 class TrustRefused(ValueError):
     """A root's own configuration asks for more than its trust class allows
-    (§5.3, D-24.6) — refused before the root is ticked, naming the class and
+    (§5.3, S-0024/D-6) — refused before the root is ticked, naming the class and
     the offending setting. Raised from the operator's own file, which is
     deliberately where the repository under work cannot argue with it."""
 
@@ -104,7 +104,7 @@ def enforce_trust(repo: FleetRepository, config: RunnerConfig) -> None:
 
     `own` is unchecked by design — it is the class that already trusts the
     repository as its own shell. Every other class refuses with `TrustRefused`
-    naming the class and the setting, which is what turns D-17.10 from a
+    naming the class and the setting, which is what turns S-0017/D-10 from a
     remembered sentence into a read refusal.
     """
 
@@ -115,7 +115,7 @@ def enforce_trust(repo: FleetRepository, config: RunnerConfig) -> None:
         raise TrustRefused(
             f"root {repo.root!r} is trust class {repo.trust!r}, which permits no "
             "runtime.docker: socket — host-equivalent capability is granted to "
-            "'own' repositories only (RFC 0017 D-17.10)"
+            "'own' repositories only (S-0017 S-0017/D-10)"
         )
 
     if repo.trust == "untrusted":
@@ -128,7 +128,7 @@ def enforce_trust(repo: FleetRepository, config: RunnerConfig) -> None:
         if config.broker.mode != "sealed":
             raise TrustRefused(
                 f"root {repo.root!r} is trust class 'untrusted', which requires "
-                f"broker.mode: sealed (RFC 0021) — got broker.mode: {config.broker.mode!r}"
+                f"broker.mode: sealed (S-0021) — got broker.mode: {config.broker.mode!r}"
             )
 
         return
@@ -148,7 +148,7 @@ def enforce_trust(repo: FleetRepository, config: RunnerConfig) -> None:
 def default_manifest_path() -> Path:
     """`~/.config/torve/fleet.yaml` (§5.1) — XDG_CONFIG_HOME when set, the
     convention every other XDG-aware tool on the operator's machine already
-    follows. An explicit `--manifest` flag is the only override (D-13.4)."""
+    follows. An explicit `--manifest` flag is the only override (S-0013/D-4)."""
 
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
 

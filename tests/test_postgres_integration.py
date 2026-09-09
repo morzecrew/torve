@@ -1,11 +1,11 @@
 """The conformance battery over the migrated database (rfcs/0012-migrations.md §7,
-D-12.9) — the schema contract is a test, and both runs are blocking:
+S-0012/D-9) — the schema contract is a test, and both runs are blocking:
 
 1. From scratch: clean Postgres, `torve migrate` applies every substrate step
    from zero, then the same lease / fence / cancel semantics asserted over
    the mock run against the real adapter.
 2. Populated: with rows in the tables, re-running migrate is a checksummed
-   no-op (D-12.5) and the battery still holds — fresh installs and upgrades
+   no-op (S-0012/D-5) and the battery still holds — fresh installs and upgrades
    are different code paths, and this is the half people forget.
 
 Skipped where no Docker daemon is available.
@@ -123,7 +123,7 @@ async def battery(taskstore, suffix: str) -> None:
 
 def test_doctor_store_check_tracks_migration_currency(pg_dsn, monkeypatch, tmp_path):
     """The doctor's store check over a real database: behind before
-    migrate (with the instruction), current after (D-12.7's sibling)."""
+    migrate (with the instruction), current after (S-0012/D-7's sibling)."""
     import json
 
     import yaml

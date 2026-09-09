@@ -1,7 +1,7 @@
-"""Run state, v1: a JSON file beside the worktree (RFC 0003 §2).
+"""Run state, v1: a JSON file beside the worktree (S-0003/deliberately-smaller-than-it-wants-to-be).
 
 This is the RFC-sanctioned first stage, not a hand-rolled TaskStore — the
-durable run store facade (D-5) arrives with T-0004. Until then liveness is a
+durable run store facade (S-0001/D-14) arrives with T-0004. Until then liveness is a
 heartbeat stamped at each phase boundary, which is what lets the reaper tell
 an orphan from a live run after `kill -9` (a decision logged in T-0003).
 
@@ -56,24 +56,24 @@ class RunState:
     escalation: Escalation | None = None
     history: list[dict[str, str]] = field(default_factory=list)
 
-    # Sha-bound promotion approvals (RFC 0006 §3): {actor, sha, at} — an
+    # Sha-bound promotion approvals (S-0006/promotion): {actor, sha, at} — an
     # approval that predates the last push approves nothing, so the lane
     # counts only entries matching the current branch tip.
     approvals: list[dict[str, str]] = field(default_factory=list)
 
-    # The base tip this run last conflicted against (D-6.12, A-35): the
+    # The base tip this run last conflicted against (S-0006/D-12, S-0006/A-1): the
     # lane's automatic conflict disposal re-queues only against a base
     # that has moved since — a repeat against this tip is a human's turn.
     conflict_base: str | None = None
 
-    # The commit this run landed, in full (RFC 0044 D-44.1). The history's
+    # The commit this run landed, in full (S-0044 S-0044/D-1). The history's
     # `committed <sha>` fact abbreviates for a human reading it; a record
     # another system joins on may not, so the sha is carried rather than
     # parsed back out of prose.
     landed_sha: str | None = None
 
     # The review task that concluded over this candidate without a
-    # surviving blocker (D-6.14, A-43) — the lane's require_review
+    # surviving blocker (S-0006/D-14, S-0006/A-3) — the lane's require_review
     # predicate. The unconfigured-review bridge never sets it.
     reviewed_by: str | None = None
 
@@ -87,8 +87,8 @@ class RunState:
         self.history.append({"at": _now(), "from": str(self.state), "to": str(to), "fact": fact})
 
         if to is TaskState.RUNNING:
-            # Attempts increment on entry to running (RFC 0001 §4), and no
-            # review verdict outlives the attempt it judged (D-6.14).
+            # Attempts increment on entry to running (S-0001/state-machine), and no
+            # review verdict outlives the attempt it judged (S-0006/D-14).
             self.attempts += 1
             self.reviewed_by = None
 
@@ -102,7 +102,7 @@ class RunState:
         self.escalation = Escalation(reason=str(reason), detail=detail)
         self.save()
         # The durable landing of the fact, after the state-file write that
-        # gates correctness (RFC 0038 §5.3, D-38.5).
+        # gates correctness (S-0038/the-escalation-event, S-0038/D-5).
         self._append_escalation_event(str(reason), detail)
 
     # ....................... #
@@ -126,11 +126,11 @@ class RunState:
 
     def _append_escalation_event(self, reason: str, detail: str) -> None:
         """One durable record of the escalation, from the single place the
-        field is set — one call site, not twenty-two (D-38.5): the state
+        field is set — one call site, not twenty-two (S-0038/D-5): the state
         file is overwritten by the next dispatch and deleted at the
         terminal sweep, and without this the reason a task needed a human
         is unrecoverable precisely after the human is done with it
-        (RFC 0038 §2). `reason` is the existing EscalationReason value
+        (S-0038/motivation). `reason` is the existing EscalationReason value
         verbatim — no new taxonomy.
 
         Best-effort: an unwritable stream must not turn an escalation into
@@ -170,7 +170,7 @@ class RunState:
     # ....................... #
 
     def to_record(self) -> dict[str, object]:
-        """The persisted shape — also what `--format json` emits (D-11.3):
+        """The persisted shape — also what `--format json` emits (S-0011/D-3):
         one record, no parallel CLI-only schema."""
 
         data = asdict(self)

@@ -1,15 +1,15 @@
-"""The manager's view of a partition (RFC 0044 §5.4, D-44.5, D-44.7).
+"""The manager's view of a partition (S-0044/the-manager, S-0044/D-5, S-0044/D-7).
 
 Everything here is a fold over the event log. A task's state is not a field
 somebody maintains; it is what the recorded facts add up to, which is why a
 manager can be killed at any moment and rebuild exactly what it knew by
-reading the log again — the restart transparency D-44.5 asks for is a
+reading the log again — the restart transparency S-0044/D-5 asks for is a
 property of the data, not machinery.
 
 The dispatch rules are v1's, unchanged, because they were never about how
-the loop was hosted: a dependency is satisfied only by a landing (A-29,
-A-31), tasks in flight together must not share scope (A-39), and landings
-serialize within a partition while partitions run independently (D-44.7).
+the loop was hosted: a dependency is satisfied only by a landing (S-0019/A-3,
+S-0019/A-4), tasks in flight together must not share scope (S-0019/A-6), and landings
+serialize within a partition while partitions run independently (S-0044/D-7).
 What changes is only where the state they read comes from.
 """
 
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 # A task the engine is still holding: claimed or anywhere inside an attempt.
-# These are what a new dispatch must stay scope-disjoint from (A-39).
+# These are what a new dispatch must stay scope-disjoint from (S-0019/A-6).
 IN_FLIGHT = frozenset({TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED})
 
 # How long a claim stands with nothing happening before the manager may
@@ -58,7 +58,7 @@ class TaskView:
     claimed_by: str | None = None
     landed_sha: str | None = None
     escalation: str | None = None
-    # RFC 0045 D-45.4: when this task last burned a seat, and what it has
+    # S-0045 S-0045/D-4: when this task last burned a seat, and what it has
     # burned. Liveness is read from here and never from the agent — an
     # attempt with no recent burn is not working, whatever it would say
     # about itself, and it is not asked.
@@ -66,15 +66,15 @@ class TaskView:
     burned_usd: float = 0.0
     # When the claim was taken, and when anything last happened. A worker
     # that dies holds its task until the first of these goes stale — which
-    # is the whole cost of a kill (D-44.6), and the only thing that makes it
+    # is the whole cost of a kill (S-0044/D-6), and the only thing that makes it
     # bounded rather than permanent.
     claimed_at: datetime | None = None
     last_event_at: datetime | None = None
-    # The contract this task was minted with (RFC 0049 D-49.1), re-minted
+    # The contract this task was minted with (S-0049 S-0049/D-1), re-minted
     # whenever the repository's differs. None for a mint written before
-    # A-91, or for one whose payload no longer validates as a `Task` — both
+    # S-0044/A-8, or for one whose payload no longer validates as a `Task` — both
     # read as "the record does not hold this task's contract", which is
-    # undispatchable and visible rather than an error (D-49.5, D-49.6).
+    # undispatchable and visible rather than an error (S-0049/D-5, S-0049/D-6).
     contract: Task | None = None
 
 
@@ -96,9 +96,9 @@ class Board:
 
     def escalated(self) -> set[str]:
         """The tasks waiting on a person. What a fleet's attention budget is
-        measured from (RFC 0024 D-24.2) for a partition the manager serves —
+        measured from (S-0024 S-0024/D-2) for a partition the manager serves —
         the run-state files answer for whatever v1 still holds, and the two
-        are unioned rather than summed (D-48.5)."""
+        are unioned rather than summed (S-0048/D-5)."""
 
         return {view.task_id for view in self.tasks.values() if view.state is TaskState.ESCALATED}
 
@@ -112,7 +112,7 @@ class Board:
 
 # What each recorded fact means for the task it is about. Kinds absent here
 # say nothing about state — a divergence, a burn event or a message is a
-# fact about the work, not a transition (D-44.1: routing keys on outcomes).
+# fact about the work, not a transition (S-0044/D-1: routing keys on outcomes).
 _TRANSITIONS: dict[EventKind, TaskState] = {
     EventKind.TASK_MINTED: TaskState.QUEUED,
     EventKind.TASK_CLAIMED: TaskState.CLAIMED,
@@ -133,10 +133,10 @@ def minted_contract(payload: Mapping[str, Any]) -> Task | None:
     """The contract a mint carried, or None when it carried none.
 
     None covers two cases the board must survive rather than raise on: a
-    mint written before A-91, and a payload that no longer validates as a
+    mint written before S-0044/A-8, and a payload that no longer validates as a
     `Task` because the model moved under it. Both mean the same thing to
     every reader — the record does not hold this task's contract — and one
-    unreadable payload must not take a whole board down (D-49.5).
+    unreadable payload must not take a whole board down (S-0049/D-5).
     """
 
     raw = payload.get("contract")
@@ -170,7 +170,7 @@ def project(events: Iterable[EventRecord]) -> Board:
         view = replace(view, partition=event.partition, last_event_at=event.created_at)
         payload = event.payload
 
-        # A re-mint records a contract and nothing else (D-49.2): a manager
+        # A re-mint records a contract and nothing else (S-0049/D-2): a manager
         # that could re-queue an escalated task by noticing an edited file
         # would be writing an `escalation.resolved` it has no authority to
         # write, under another name.
@@ -190,7 +190,7 @@ def project(events: Iterable[EventRecord]) -> Board:
             view = replace(view, claimed_by=None, claimed_at=None)
         elif event.kind is EventKind.TASK_RETURNED:
             # The candidate's commit is no longer the answer, and a queued
-            # row still showing a landing reads as a landing (A-134).
+            # row still showing a landing reads as a landing (S-0044/A-13).
             view = replace(view, claimed_by=None, claimed_at=None, landed_sha=None)
         elif event.kind is EventKind.ATTEMPT_STARTED:
             view = replace(view, attempts=int(payload.get("attempt") or view.attempts + 1))
@@ -222,7 +222,7 @@ def project(events: Iterable[EventRecord]) -> Board:
 
 def blocked_by(task: Task, board: Board) -> list[str]:
     """The dependencies this task is still waiting on. A dependency is
-    satisfied by a landing and by nothing else (A-29, A-31): a run that
+    satisfied by a landing and by nothing else (S-0019/A-3, S-0019/A-4): a run that
     reached `ready` without one has told the board nothing it can act on."""
 
     landed = board.landed()
@@ -234,14 +234,14 @@ def blocked_by(task: Task, board: Board) -> list[str]:
 
 
 def overlaps(task: Task, board: Board) -> list[str]:
-    """Tasks in flight whose scope this one shares (A-39). The rule is the
+    """Tasks in flight whose scope this one shares (S-0019/A-6). The rule is the
     standing loop's own, shared rather than restated: conservative about
     overlap, and refusing outright for an unconstrained allow-set, because
     a task that may touch anything can prove itself disjoint from nothing.
     Two agents editing one file is a conflict the engine cannot resolve
     afterwards.
 
-    The scopes come off the board's own contracts (D-49.1). A task in flight
+    The scopes come off the board's own contracts (S-0049/D-1). A task in flight
     whose contract the record does not hold is skipped rather than assumed
     disjoint — the same silence the scan produced when it could not read a
     contract file."""
@@ -263,12 +263,12 @@ def overlaps(task: Task, board: Board) -> list[str]:
 
 def decomposed(task: Task, board: Board) -> bool:
     """Whether some other contract on this board carries this task as its
-    parent (RFC 0026 D-26.6) — true once a decomposition of it has been
+    parent (S-0026 S-0026/D-6) — true once a decomposition of it has been
     adopted, at which point it is the integration task and its own
     `too_large` verdict has already routed once and does not route again.
 
     The repository answered this by globbing the task directory. The board
-    carries every contract since A-96, so the same question is a fold, and
+    carries every contract since S-0049/A-1, so the same question is a fold, and
     a rule that reads the record cannot disagree with the board it gates.
     """
 
@@ -290,16 +290,16 @@ def dispatchable(board: Board, partition: str) -> list[str]:
     escalated task waits on a human, a claimed one on its worker, a landed
     one on nobody.
 
-    The role guard is what lets the scan mint every contract (A-96). A
+    The role guard is what lets the scan mint every contract (S-0049/A-1). A
     review or draft contract is recorded because the planning projections
     read the record, and it is offered to nobody because the run that
     minted it is the only thing that ever executes it.
 
-    Answered from the board alone (D-49.1). Minting is what places a task on
-    a partition (D-44.7), so an unminted contract belongs to nobody and a
+    Answered from the board alone (S-0049/D-1). Minting is what places a task on
+    a partition (S-0044/D-7), so an unminted contract belongs to nobody and a
     contract minted elsewhere belongs to that partition's manager — and a
     task whose contract the record does not hold is not dispatchable
-    (D-49.6), because there is nothing to check its scope or dependencies
+    (S-0049/D-6), because there is nothing to check its scope or dependencies
     against.
     """
 
@@ -318,7 +318,7 @@ def dispatchable(board: Board, partition: str) -> list[str]:
         if view.state is not TaskState.QUEUED:
             continue
 
-        # D-26.7: a contract this large that nobody has decomposed awaits a
+        # S-0026/D-7: a contract this large that nobody has decomposed awaits a
         # decomposition, not a worker. The scan refused it too; refusing it
         # here is what lets the scan go.
         if estimate(task).size == "too_large" and not decomposed(task, board):
@@ -338,7 +338,7 @@ def dispatchable(board: Board, partition: str) -> list[str]:
 # stalled. Long enough that a slow model, a long gate pass or a sandbox
 # build is not an accusation; short enough that a wedged attempt is visible
 # within one coffee break. Whether a stall should also *end* the attempt is
-# D-45.8, and deliberately unanswered until there is recorded burn to argue
+# S-0045/D-8, and deliberately unanswered until there is recorded burn to argue
 # from — this reading surfaces it, and stops nothing.
 STALL_AFTER = timedelta(minutes=20)
 
@@ -347,7 +347,7 @@ STALL_AFTER = timedelta(minutes=20)
 
 
 def stalled(view: TaskView, *, now: datetime | None = None, after: timedelta = STALL_AFTER) -> bool:
-    """Whether this task looks wedged, from the burn stream alone (D-45.4).
+    """Whether this task looks wedged, from the burn stream alone (S-0045/D-4).
 
     A task nobody is running cannot be stalled, and a task that has burned
     nothing at all is not yet evidence of anything: a sandbox is still being
@@ -367,7 +367,7 @@ def stalled(view: TaskView, *, now: datetime | None = None, after: timedelta = S
 def expired(
     board: Board, *, now: datetime | None = None, lease: timedelta | None = None
 ) -> list[TaskView]:
-    """Tasks whose holder has gone silent past its lease (RFC 0044 D-44.6).
+    """Tasks whose holder has gone silent past its lease (S-0044 S-0044/D-6).
 
     A worker holds nothing but a lease, and a worker that dies holds it
     until it runs out — so something has to notice. What counts as activity

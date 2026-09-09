@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/torve/adapters/`
 
-### D-55.25 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-25 — `LOCKED` (Standing decisions)
 
 Adapters never import each other and are organised `adapters/<port>/<technology>.py`
 
@@ -10,7 +10,7 @@ Adapters never import each other and are organised `adapters/<port>/<technology>
 - Consequence: Swapping one adapter is never a rewrite of another
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### D-55.26 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-26 — `LOCKED` (Standing decisions)
 
 The specification format terminates at the planner: gates, runtime adapters and agent adapters never import its owner
 

@@ -1,5 +1,5 @@
-"""`torve feedback` — the two hand-entered telemetry fields (RFC 0004 §6),
-appended after merge to their own stream. Parsing and rendering only (D-15.6).
+"""`torve feedback` — the two hand-entered telemetry fields (S-0004/telemetry-staged),
+appended after merge to their own stream. Parsing and rendering only (S-0015/D-6).
 """
 
 from __future__ import annotations

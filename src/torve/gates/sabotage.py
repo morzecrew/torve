@@ -1,4 +1,4 @@
-"""The sabotage suite (RFC 0002 §5, D-2.2): one deliberately bad change per
+"""The sabotage suite (S-0002/gates-are-themselves-verified, S-0002/D-2): one deliberately bad change per
 gate, applied to a scratch repository, asserting the gate goes red — plus a
 clean twin per gate asserting green, because a gate that cannot pass is as
 broken as one that cannot fail.
@@ -83,7 +83,12 @@ def base_task(allow: list[str], decisions: list[dict[str, Any]] | None = None) -
 # ....................... #
 
 LOCKED_D1 = [
-    {"id": "D-1", "grade": "LOCKED", "text": "app module layout is settled", "paths": ["src/**"]}
+    {
+        "id": "S-0001/D-1",
+        "grade": "LOCKED",
+        "text": "app module layout is settled",
+        "paths": ["src/**"],
+    }
 ]
 
 
@@ -91,10 +96,10 @@ LOCKED_D1 = [
 
 
 def entry(**overrides: Any) -> dict[str, Any]:
-    """One A-1 YAML log entry; pass field overrides, or None to drop a field."""
+    """One A-1-shaped YAML log entry; pass field overrides, or None to drop a field."""
 
     fields: dict[str, Any] = {
-        "decision": "D-1",
+        "decision": "S-0001/D-1",
         "grade": "LOCKED",
         "kind": "resolved",
         "at": AT,
@@ -116,7 +121,7 @@ def log_document(*entries: dict[str, Any], drift_count: int | None = 0) -> str:
     document: dict[str, Any] = {
         "schema_version": 1,
         "task": TASK_ID,
-        # The D-A.7 pin the gate requires since A-70; the sabotage tree's
+        # The S-0001/D-36 pin the gate requires since S-0021/A-1; the sabotage tree's
         # own base commit is unknowable here, so a well-formed placeholder
         # stands in — the gate checks shape, evidence checks resolution.
         "repo": "sabotage/repo",
@@ -166,7 +171,7 @@ class Repo:
         self.git("config", "user.email", "human@example.invalid")
         self.write(".torve/gates.yaml", yaml.safe_dump(manifest or BASE_MANIFEST, sort_keys=False))
         # Only what the engine generates; the reviewed .torve/ artefacts stay
-        # tracked (RFC 0013 §5).
+        # tracked (S-0013/what-does-not-belong-in-either).
         self.write(".gitignore", ".torve/telemetry.jsonl\n.torve/skills/\n.torve/tmp/\n")
         self.write("src/app.py", "print('hello')\n")
         self.write("tests/test_app.py", "def test_app():\n    assert True\n")
@@ -176,7 +181,7 @@ class Repo:
     # ....................... #
 
     def task(self, task: dict[str, Any], log: str | None) -> None:
-        # One directory per task (A-12); the log only exists if written (A-13).
+        # One directory per task (S-0001/A-5); the log only exists if written (S-0003/A-2).
         self.write(f".torve/tasks/{TASK_ID}/contract.yaml", yaml.safe_dump(task, sort_keys=False))
 
         if log is not None:
@@ -322,7 +327,7 @@ def _decisions_silence(repo: Repo) -> None:
 
 
 def _decisions_silence_no_log(repo: Repo) -> None:
-    # A-13/D-3.21: absence is an empty log — the silence check still convicts.
+    # S-0003/A-2/S-0003/D-21: absence is an empty log — the silence check still convicts.
     repo.seed()
     repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), None)
     repo.write("src/app.py", "print('touched governed area, wrote nothing')\n")
@@ -335,7 +340,12 @@ def _decisions_silence_no_log(repo: Repo) -> None:
 def _decisions_no_log_untouched(repo: Repo) -> None:
     # The twin: inherited decisions whose area was never touched need no log.
     decisions = [
-        {"id": "D-1", "grade": "LOCKED", "text": "docs layout is settled", "paths": ["docs/**"]}
+        {
+            "id": "S-0001/D-1",
+            "grade": "LOCKED",
+            "text": "docs layout is settled",
+            "paths": ["docs/**"],
+        }
     ]
 
     repo.seed()
@@ -400,7 +410,7 @@ def _self_audit_bad(repo: Repo) -> None:
 
 
 def _self_audit_absent(repo: Repo) -> None:
-    # A-13/D-3.21: no entries, no file — a clean run owes nobody a log.
+    # S-0003/A-2/S-0003/D-21: no entries, no file — a clean run owes nobody a log.
     repo.seed()
     repo.task(base_task(allow=["src/**"]), None)
     repo.write("src/app.py", "print('clean, nothing written')\n")
@@ -478,7 +488,7 @@ def _bypass_refused_for_secrets(repo: Repo) -> None:
 
 
 def _layout_forbidden_name(repo: Repo) -> None:
-    # D-15.5: only the module name is wrong; nothing else is checked here.
+    # S-0015/D-5: only the module name is wrong; nothing else is checked here.
     repo.seed()
     repo.write("src/pkg/utils.py", '"""Anything goes here, which is the problem."""\n')
     repo.commit("catch-all module")
@@ -498,7 +508,7 @@ def _layout_clean(repo: Repo) -> None:
 
 def _text_help_rfc(repo: Repo) -> None:
     repo.seed()
-    repo.write("src/torve/cli/thing.py", 'HELP = "Mint contracts per RFC 0007."\n')
+    repo.write("src/torve/cli/thing.py", 'HELP = "Mint contracts per S-0007."\n')
     repo.commit("help text citing an RFC number")
 
 
@@ -507,7 +517,9 @@ def _text_help_rfc(repo: Repo) -> None:
 
 def _text_docstring_decision(repo: Repo) -> None:
     repo.seed()
-    repo.write("src/torve/cli/thing.py", 'def thing() -> None:\n    """Size estimate (D-2.9)."""\n')
+    repo.write(
+        "src/torve/cli/thing.py", 'def thing() -> None:\n    """Size estimate (S-0002/D-9)."""\n'
+    )
     repo.commit("command docstring citing a decision")
 
 
@@ -530,8 +542,8 @@ def _text_module_docstring_passes(repo: Repo) -> None:
 
     repo.write(
         "src/torve/cli/thing.py",
-        '"""The thing command (D-2.9, RFC 0007 §3); see rfcs/ for why."""\n\n'
-        'def _helper() -> None:\n    """Private, editor-facing (D-2.9)."""\n',
+        '"""The thing command (S-0002/D-9, S-0007/torve-plan); see rfcs/ for why."""\n\n'
+        'def _helper() -> None:\n    """Private, editor-facing (S-0002/D-9)."""\n',
     )
 
     repo.commit("module and private docstrings citing decisions")
@@ -546,7 +558,7 @@ def _text_module_docstring_passes(repo: Repo) -> None:
 # the wiring: it must arrive at diff-cover as the merge-base the battery
 # computed, and every twin below depends on that substitution working. The
 # scratch entry is blocking so a conviction is load-bearing; the shipped gate
-# enters shadow (D-36.1, D-2.18).
+# enters shadow (S-0036/D-1, S-0002/D-18).
 
 COVERAGE_GATE_MANIFEST: dict[str, Any] = {
     "schema_version": 1,
@@ -594,7 +606,7 @@ def _coverage_tested_twin(repo: Repo) -> None:
 
 
 def _coverage_legacy_unconvicted(repo: Repo) -> None:
-    # The ratchet rule (D-36.1: changed lines only): an inherited tree of
+    # The ratchet rule (S-0036/D-1: changed lines only): an inherited tree of
     # untested legacy code beside a fully tested change convicts nobody.
     repo.seed(COVERAGE_GATE_MANIFEST)
     repo.git("checkout", "-q", "main")

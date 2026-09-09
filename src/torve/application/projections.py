@@ -1,18 +1,18 @@
 """`torve context` — a projection of accumulated facts into a form a
-planning session can consume (RFC 0007 §4). Not a plan: tasks by state,
+planning session can consume (S-0007/torve-context). Not a plan: tasks by state,
 escalations by reason, execution-log divergences ready to become
 decision-table rows, findings awaiting the operator, per-gate health, cost
-against `config_hash`, the programme view of the RFC graph (D-7.11),
+against `config_hash`, the programme view of the RFC graph (S-0007/D-11),
 asserted `implementation` beside derived per-phase progress with
-disagreements flagged (D-7.15), the character calibration — declared
+disagreements flagged (S-0007/D-15), the character calibration — declared
 character against the realized conviction profile, measurement only
-(D-34.8) — and the document-level half of the specification-quality report
-(RFC 0022 §5.3, D-22.6): the same MCP surface that already exposes this
+(S-0034/D-8) — and the document-level half of the specification-quality report
+(S-0022/document-level-report, S-0022/D-6): the same MCP surface that already exposes this
 projection carries it to a planning session with no new tool.
 
 Everything here is read from files the engine already writes — contracts,
 run states, execution logs, the feedback and telemetry streams, the corpus.
-Progress is computed on demand and stored nowhere (D-A.12). The projection
+Progress is computed on demand and stored nowhere (S-0016/D-22). The projection
 emits data; judgement stays with the human reading it.
 """
 
@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 
 from torve.application.manager import IN_FLIGHT, Board, TaskView, project
-from torve.application.planner import document_number
+from torve.application.planner import document_of
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.application.telemetry import TOKEN_FIELDS, record_row
@@ -53,14 +53,14 @@ ACTIVE = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIE
 
 # The shipping spellings the repository's history carries: the Torve-Task
 # trailer the runner writes, a parenthesized citation — `(T-0019)`,
-# `(T-0087, A-43)`, `(A-19, T-0019)` — and the merge-branch shape
+# `(T-0087, S-0006/A-3)`, `(S-0015/A-1, T-0019)` — and the merge-branch shape
 # `merge torve/T-0006`. A bare prose mention ("mint T-0097–T-0104",
 # "accept T-0002 proposals", "from the T-0146 wild miss") records the id
-# without shipping it and must not count (D-7.26).
+# without shipping it and must not count (S-0007/D-26).
 SUBJECT_ID = re.compile(r"\([^)]*?(T-\d{4,})[^)]*\)|torve/(T-\d{4,})")
 TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
 
-# RFC 0004 §6a, reproduced verbatim (D-22.7, LOCKED: printed with the report,
+# S-0004/measurement-defects-to-fix-before-trusting-a-number, reproduced verbatim (S-0022/D-7, LOCKED: printed with the report,
 # never paraphrased). `torve.cli.rfc` owns and prints this same text for
 # `torve spec health`; the layering contract puts `torve.cli` above
 # `torve.application`, so this module cannot import it back and the string
@@ -72,7 +72,7 @@ QUASI_EXPERIMENT_CAVEAT = (
 )
 
 # The two escalation reasons that indict a document rather than the code
-# that executed it (charter A-21, A-22) — RFC 0022 §5.3 asks for these on
+# that executed it (charter S-0001/A-7, S-0001/A-8) — S-0022/document-level-report asks for these on
 # their own line even when a document has never triggered either.
 DOCUMENT_INDICTING_REASONS = (
     str(EscalationReason.UNDERSPECIFIED),
@@ -93,7 +93,7 @@ def shipped_landings(root: Path) -> dict[str, str]:
     A task with no run state is not necessarily unstarted: the engine did
     not run it, but a shipping commit records that someone did. Both
     spellings count, the engine's own trailer and a human's citation
-    (D-7.26), because the question every caller is really asking is whether
+    (S-0007/D-26), because the question every caller is really asking is whether
     this task is finished — and the manager asking it more narrowly than
     the projections is how a worker gets handed somebody's finished work.
     """
@@ -183,7 +183,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             "attempts": 0,
             "escalation": None,
             "escalated_at": None,
-            # RFC 0026 D-26.5: read by this projection only — dispatch, lane
+            # S-0026 S-0026/D-5: read by this projection only — dispatch, lane
             # and store never consult it.
             "parent": record.get("parent"),
             # A review contract's targets name the task under review — the
@@ -299,10 +299,10 @@ def _contract_texts(root: Path) -> dict[str, str]:
 
 
 def _findings(root: Path) -> list[dict[str, Any]]:
-    """The findings ledger (D-5.15, A-75): every kept non-blocking finding
+    """The findings ledger (S-0005/D-15, S-0005/A-1): every kept non-blocking finding
     from a landed target's review, read from the review records telemetry
     already carries — review id, severity and claim, with
-    `possibly_addressed` marking. The weak-citation discipline is D-7.24's
+    `possibly_addressed` marking. The weak-citation discipline is S-0007/D-24's
     `possibly_landed` applied to findings: a contract whose text cites the
     review's task id is evidence the author has been through that review —
     evidence, never proof. The engine mints nothing from a finding; the
@@ -350,7 +350,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
 
             item = cast("dict[str, Any]", finding)
 
-            # D-5.15 excluded blockers because "a blocker escalates its
+            # S-0005/D-15 excluded blockers because "a blocker escalates its
             # target and never lands beside it". True on the task-gated
             # path, where a blocker is either revised in-run or escalates;
             # false on the pull-request path, which reports and never
@@ -358,7 +358,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
             # its target lands like any other. The trigger is what says
             # which lifecycle applied — an absent one is the task-gated
             # default, so a record written before the marker existed stays
-            # out (A-135, corrected by A-137).
+            # out (S-0005/A-7, corrected by S-0005/A-9).
             if item.get("severity") == "blocker" and row.get("trigger") != "pull_request":
                 continue
 
@@ -381,7 +381,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
 
 # How many of a gate's most recent runs the recency counters cover. Small
 # enough that a gate calibrated this week reads differently from its own
-# lifetime, large enough not to swing on one attempt (A-124).
+# lifetime, large enough not to swing on one attempt (S-0004/A-4).
 RECENT_RUNS = 20
 
 
@@ -390,10 +390,10 @@ def _gate_health(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     from data rather than recollection).
 
     Lifetime *and* the last `RECENT_RUNS`, because the lifetime figure alone
-    hides the thing worth seeing. RFC 0004's shadow-run reading found
+    hides the thing worth seeing. S-0004's shadow-run reading found
     `coverage-delta` at 59% failures over its whole life and 100%, 76%, 0%
     over the three days that life consists of: a gate being calibrated, and
-    an aggregate that reads as a broken gate (A-124). A rate that is moving
+    an aggregate that reads as a broken gate (S-0004/A-4). A rate that is moving
     is a different fact from a rate that is high.
     """
 
@@ -475,7 +475,7 @@ def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Cost and iterations by task against config_hash (§4) — every real
     agent attempt and every shadow summary. An attempt whose harness reported
     no usage still appears, costless: an uncontrolled regime is a fact worth
-    seeing (D-4.6), and a hidden run reads as a run that never happened.
+    seeing (S-0004/D-6), and a hidden run reads as a run that never happened.
     Fake-agent attempts stay out — simulation is not spend."""
 
     found: list[dict[str, Any]] = []
@@ -492,7 +492,7 @@ def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "attempts": row.get("attempts"),
                     "state": row.get("state"),
                     # The eval loop's arm annotation, when this replay was
-                    # one side of a paired measurement (D-27.7).
+                    # one side of a paired measurement (S-0027/D-7).
                     **(
                         {"arm": cast("dict[str, Any]", row["eval"]).get("arm")}
                         if isinstance(row.get("eval"), dict)
@@ -531,7 +531,7 @@ def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "tier": block.get("tier"),
                     **({"shadow": True} if block.get("shadow") else {}),
                     # Which harness did the work: identity is the image
-                    # (D-17.4) — a torve-agent:<name> tag labels by name;
+                    # (S-0017/D-4) — a torve-agent:<name> tag labels by name;
                     # records from before the tag was stamped fall back to
                     # the adapter kind.
                     "harness": _harness_label(block),
@@ -548,7 +548,7 @@ def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         if wall_time_s is not None
                         else {}
                     ),
-                    # Token shape (D-4.6 self-reported regime): absent keys
+                    # Token shape (S-0004/D-6 self-reported regime): absent keys
                     # stay absent — a harness that reported nothing must not
                     # read as zero.
                     **{
@@ -575,13 +575,13 @@ def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 # Kinds a harness population does not count as "a run under this tier":
 # shadow replays are the measurement machinery comparing two regimes, not
-# spend under either one, skill evals are RFC 0009's own population, and
-# engine events carry no agent block at all (RFC 0027 D-27.5).
+# spend under either one, skill evals are S-0009's own population, and
+# engine events carry no agent block at all (S-0027 S-0027/D-5).
 _HARNESS_EXCLUDED_KINDS = {"shadow", "skill-eval", "engine"}
 
 
 def _task_tier_name(record: dict[str, Any]) -> str:
-    """The contract's own declared tier, dotted (D-27.3) — read straight off
+    """The contract's own declared tier, dotted (S-0027/D-3) — read straight off
     the committed YAML, no `Task` validation needed for a population join."""
 
     tier = str(record.get("tier") or "")
@@ -593,11 +593,11 @@ def _task_tier_name(record: dict[str, Any]) -> str:
 def harness_populations(
     root: Path, config: RunnerConfig, rows: list[dict[str, Any]] | None = None
 ) -> list[dict[str, Any]]:
-    """RFC 0027 D-27.5's fact-feed widening: per-tier runs, cost (D-21.5's
+    """S-0027 S-0027/D-5's fact-feed widening: per-tier runs, cost (S-0021/D-5's
     broker-measured-preferred, self-reported-labelled split), escalations by
     reason, unparseable-review counts, and the most recently recorded image
     digest — every *configured* tier present with its denominator even at
-    zero, so a variant nothing uses is visible (RFC 0027 §9's variant-sprawl
+    zero, so a variant nothing uses is visible (S-0027/risks's variant-sprawl
     mitigation). All from existing records: attempt rows for runs, cost,
     digest and unparseable reviews; contracts and run state for escalations.
 
@@ -717,7 +717,7 @@ def _gate_axes_and_stream(root: Path) -> tuple[dict[str, str], str]:
 def _character_calibration(
     root: Path, tasks: list[dict[str, Any]], rows: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Character calibration (D-34.8): one row per task carrying a declaration
+    """Character calibration (S-0034/D-8): one row per task carrying a declaration
     or a conviction — declared character, realized conviction profile grouped
     by gate axis, attempts and token shape. The costs section already exposes
     the per-attempt gate results and token shape and the gate-health section
@@ -727,7 +727,7 @@ def _character_calibration(
     Measurement, never enforcement. The declared value is copied from the
     committed contract as the planner wrote it — vocabulary validation lives
     where character is declared, not here — and absence renders as
-    `undeclared` and is never inferred (D-34.1, D-34.2: compliance is the
+    `undeclared` and is never inferred (S-0034/D-1, S-0034/D-2: compliance is the
     axis nobody may declare, so it appears here only as a measured count).
     A wrong declaration is corrected in the document by its author, the way
     sizing estimates already earn observations."""
@@ -761,7 +761,7 @@ def _character_calibration(
         agent: Any = row.get("agent")
 
         if isinstance(agent, dict) and cast("dict[str, Any]", agent).get("adapter") == "fake":
-            continue  # simulation is neither spend nor conviction (D-4.6)
+            continue  # simulation is neither spend nor conviction (S-0004/D-6)
 
         results: Any = row.get("results")
 
@@ -839,7 +839,7 @@ def token_shape_text(tokens: dict[str, int]) -> str:
 def feedback_records(root: Path) -> dict[str, dict[str, Any]]:
     """The latest `torve feedback` record per task id — the stream is
     append-only and keyed by task id, latest wins at analysis time
-    (RFC 0022 §3). Public: `specquality.operator_attention` reads this
+    (S-0022/current-state). Public: `specquality.operator_attention` reads this
     corpus-wide, the same lazy-import-to-avoid-a-cycle shape as
     `specquality._landed_task_ids` already uses for `shipped_ids`."""
 
@@ -874,14 +874,14 @@ def feedback_records(root: Path) -> dict[str, dict[str, Any]]:
 def _document_signals(
     root: Path, tasks: list[dict[str, Any]], logs_by_task: dict[str, list[dict[str, Any]]]
 ) -> list[dict[str, Any]]:
-    """RFC 0022 §5.3, the document-level half of the specification-quality
+    """S-0022/document-level-report, the document-level half of the specification-quality
     report: tasks minted, attempts to green (median, over tasks that landed
     — a task that never went green has none to count), escalations by
     reason with the two document-indicting reasons always present, spec-drift
     findings and their count (`class: drift` log entries — the same field
     the `decisions-reported` gate checks its declared `drift_count` against),
     human_minutes and rework rate from `torve feedback`. Tasks without an
-    `rfc` have no document to indict and are excluded (D-22.9's reading, one
+    `rfc` have no document to indict and are excluded (S-0022/D-9's reading, one
     level up from the decision join).
 
     Reuses `specquality.read_tasks` for the log join rather than parsing
@@ -956,7 +956,7 @@ def _document_signals(
 
 
 def _phase_progress(states: list[str]) -> str:
-    """planned | in_flight | blocked | shipped, derived per phase (D-7.15) —
+    """planned | in_flight | blocked | shipped, derived per phase (S-0007/D-15) —
     phase-level because that is the granularity at which decisions get made."""
 
     if states and all(state in ("ready", "shipped") for state in states):
@@ -975,17 +975,17 @@ def _phase_progress(states: list[str]) -> str:
 
 
 def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The RFC graph rendered for humans (D-7.11): what is accepted, what
+    """The RFC graph rendered for humans (S-0007/D-11): what is accepted, what
     shipped, what became plannable, and where assertion and derivation
-    disagree (D-7.15 — the disagreement is the informative part)."""
+    disagree (S-0007/D-15 — the disagreement is the informative part)."""
 
     by_document: dict[str, list[dict[str, Any]]] = {}
 
     for task in tasks:
         if task["rfc"]:
-            # keyed without the suffix: a contract minted before RFC 0056
+            # keyed without the suffix: a contract minted before S-0056
             # names the markdown file the document converted from
-            by_document.setdefault(document_number(str(task["rfc"])), []).append(task)
+            by_document.setdefault(document_of(str(task["rfc"])), []).append(task)
 
     view: list[dict[str, Any]] = []
 
@@ -1007,7 +1007,7 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
         }
         phasing = doc.phasing
         document = str(path.resolve().relative_to(root.resolve()))
-        minted = by_document.get(document_number(document), [])
+        minted = by_document.get(document_of(document), [])
         phases: dict[int, list[str]] = {}
 
         for task in minted:
@@ -1049,7 +1049,7 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
             and not unminted
             and all(p == "shipped" for p in progress.values())
         ):
-            # The assertion nothing could contradict (A-113). `partial` was
+            # The assertion nothing could contradict (S-0007/A-4). `partial` was
             # the one value with no failing shape: a document could ship
             # every phase it declared and keep asserting there was more to
             # do, for months, and this projection agreed with it. It says
@@ -1091,7 +1091,7 @@ def _list_field(fm: dict[str, Any], name: str) -> list[str]:
 
 # ....................... #
 
-# Attention routing (RFC 0006 §4, D-6.4): blockers and locked conflicts
+# Attention routing (S-0006/human-attention-is-the-scarce-resource, S-0006/D-4): blockers and locked conflicts
 # interrupt, infrastructure pages the harness owner, the rest batches into
 # review windows. The projection carries the class; policy stays with people.
 ROUTE_NOTIFY = {"blocker_finding", "locked_conflict"}
@@ -1134,7 +1134,7 @@ def _age_seconds(stamp: object) -> float | None:
 
 
 def _decompositions(tasks: list[dict[str, Any]]) -> dict[str, list[str]]:
-    """Children grouped under their parent (RFC 0026 D-26.5, D-26.6): a
+    """Children grouped under their parent (S-0026 S-0026/D-5, S-0026/D-6): a
     projection convenience over the `parent` field — dispatch, the lane and
     the store never read it, so this grouping exists nowhere else."""
 
@@ -1159,7 +1159,7 @@ def _entry_state(view: TaskView, task: Task) -> str:
     at the start: the record has one word for a task nothing has happened
     to yet, and this projection has three. A queued row with no attempt
     behind it is `consumed` for the roles a run mints mid-flight and
-    concludes with (D-5.2, D-20.2), and `unstarted` for the roles a worker
+    concludes with (S-0005/D-2, S-0020/D-2), and `unstarted` for the roles a worker
     takes. `shipped` has no record equivalent and needs none — it means
     landed, and a landed task on the board reads `ready`, which every
     consumer of this key already accepts alongside it.
@@ -1178,7 +1178,7 @@ def divergences_from_events(events: Sequence[EventRecord]) -> dict[str, list[dic
     """The log entries a partition's divergence records render to, by task.
 
     The rendering is the one the engine already writes a worktree's
-    `log.yaml` with (A-82), reused rather than restated: the log file is a
+    `log.yaml` with (S-0044/A-3), reused rather than restated: the log file is a
     projection of these events, so a reader that folds the events directly
     and one that parses the file it wrote must not be able to disagree.
     """
@@ -1209,10 +1209,10 @@ def _stream_divergences(root: Path) -> dict[str, list[dict[str, Any]]]:
 
 
 def tasks_from_events(events: Sequence[EventRecord]) -> list[dict[str, Any]]:
-    """The task entries a partition's record renders to (RFC 0050 §5.4).
+    """The task entries a partition's record renders to (S-0050/order-and-why-context-is-last).
 
     Every contract the record holds, whatever its role — which is what
-    A-96 made true, and the reason this is a fold rather than a subset. A
+    S-0049/A-1 made true, and the reason this is a fold rather than a subset. A
     row whose contract the record does not carry is skipped: there is
     nothing to report about it beyond its state, and an entry with no
     document, phase or role is one every downstream block would have to
@@ -1250,11 +1250,11 @@ def tasks_from_events(events: Sequence[EventRecord]) -> list[dict[str, Any]]:
 def context_report(
     root: Path, rfc_dir: Path, *, recorded: Sequence[EventRecord] | None = None
 ) -> dict[str, Any]:
-    """The planning projection (RFC 0007 §4).
+    """The planning projection (S-0007/torve-context).
 
     The task block reads the record when a partition was named and the
     record holds contracts; every other block still reads files, because
-    the corpus is a file and the telemetry stream is this host's (RFC 0050
+    the corpus is a file and the telemetry stream is this host's (S-0050
     phase 3). A record carrying no contract falls back wholesale, never
     key by key — a report assembled from two populations would compare
     counts that were never measured over the same tasks.
@@ -1262,7 +1262,7 @@ def context_report(
 
     tasks = (tasks_from_events(recorded) if recorded else []) or _tasks(root)
     # One parse for every block that counts attempts, rendered from the
-    # record when a partition was named (A-85, A-102). The `or` is the same
+    # record when a partition was named (S-0044/A-4, S-0050/A-3). The `or` is the same
     # fallback the task block takes and for the same reason: a record with
     # no attempt in it is a record that was not watching, not a repository
     # where nothing ran.
@@ -1272,7 +1272,7 @@ def context_report(
 
     for task in tasks:
         if task["escalation"]:
-            # The queue's age is the primary signal (D-6.8): a queue nobody
+            # The queue's age is the primary signal (S-0006/D-8): a queue nobody
             # triages looks identical to success from inside the runner.
             escalations.setdefault(str(task["escalation"]), []).append(
                 {
@@ -1288,7 +1288,7 @@ def context_report(
         "schema_version": SCHEMA_VERSION,
         "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         # Which carrier answered, per block, and how much it had to answer
-        # with (A-102). A record that was not watching a run holds nothing
+        # with (S-0050/A-3). A record that was not watching a run holds nothing
         # about it, and every count below is then correct about the record
         # and wrong about the repository — a reader has no way to tell those
         # apart from the numbers, so the report says which it is.
@@ -1324,7 +1324,7 @@ def context_report(
         "spec_quality": {
             "caveat": QUASI_EXPERIMENT_CAVEAT,
             "documents": _document_signals(root, tasks, logs),
-            # D-22.12, A-73: the corpus-wide reading, independent of any
+            # S-0022/D-12, S-0022/A-5: the corpus-wide reading, independent of any
             # one document's population.
             "operator_attention": operator_attention(root),
         },
@@ -1334,7 +1334,7 @@ def context_report(
 # ....................... #
 
 
-# What a run record carries that the board does not (RFC 0050 §5.3). These
+# What a run record carries that the board does not (S-0050/parity-is-the-acceptance). These
 # are host facts — where the run put its worktree, which sandbox it held,
 # which store run it executed under — and the record holds facts about the
 # work rather than about the machine that did it. They are rendered empty
@@ -1371,14 +1371,14 @@ def run_from_view(view: TaskView) -> dict[str, Any]:
 
 
 def runs_from_board(board: Board) -> list[dict[str, Any]]:
-    """The run records a partition's board renders to (RFC 0050 §5.3).
+    """The run records a partition's board renders to (S-0050/parity-is-the-acceptance).
 
     A run exists where the record shows an attempt, or where the engine is
     holding the task right now. Everything else the board carries is on the
     board and was never a run here: a queued contract waiting for a worker,
     and — the population that dwarfs the rest on a first pass — a task
     minted straight to `ready` from the repository's own landing trailer
-    (D-49.1), which is history the board imported rather than work this
+    (S-0049/D-1), which is history the board imported rather than work this
     record watched happen.
     """
 
@@ -1390,16 +1390,16 @@ def runs_from_board(board: Board) -> list[dict[str, Any]]:
 
 
 def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
-    """The `torve status` projection (RFC 0032 §5.2): live run states, one
+    """The `torve status` projection (S-0032/endpoints): live run states, one
     record per task, in the same envelope the CLI's --format json emits.
-    One reader, two renderers (D-32.1): the CLI and the serve endpoint both
+    One reader, two renderers (S-0032/D-1): the CLI and the serve endpoint both
     consume this, so the browser and the terminal can never disagree.
 
     With a board, the records come from the log the board was folded from
-    (RFC 0050 D-50.2); without one, from this host's state files. A board
+    (S-0050 S-0050/D-2); without one, from this host's state files. A board
     that turns out to hold no run falls back to the files, never the other
     way round — the direction that is safe when only one of the two
-    carriers was ever written (A-86).
+    carriers was ever written (S-0044/A-5).
     """
 
     if board is not None:
@@ -1417,7 +1417,7 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
 # The attempt population: real agent rows only. Shadow replays measure a
 # regime, reviews are the reviewer's spend under another task id, engine
 # events carry no agent block, and a fake adapter is simulation, neither
-# spend nor conviction (D-4.6) — the same exclusions the harness
+# spend nor conviction (S-0004/D-6) — the same exclusions the harness
 # populations and the costs section already draw.
 # `intake` joins them for the same reason one step earlier (T-0273): a
 # drafting run is how the contract came to exist, not an attempt at the
@@ -1474,10 +1474,10 @@ def _row_agent(row: dict[str, Any]) -> dict[str, Any]:
 
 def _attempt_entry(rows: list[dict[str, Any]], attempt: int | None, root: Path) -> dict[str, Any]:
     """One attempt's envelope entry, folded from the rows carrying its stamp.
-    D-38.1 guarantees exactly one row per attempt, so the fold is defensive
+    S-0038/D-1 guarantees exactly one row per attempt, so the fold is defensive
     shape only: scalars take the later row's value, gate convictions
     accumulate. Absent stays absent — a harness that reported nothing reads
-    unreported, never zero (D-4.6)."""
+    unreported, never zero (S-0004/D-6)."""
 
     entry: dict[str, Any] = {"attempt": attempt, "at": rows[0].get("at")}
 
@@ -1549,7 +1549,7 @@ def _attempt_entry(rows: list[dict[str, Any]], attempt: int | None, root: Path) 
     if escalation is not None:
         entry["escalation"] = escalation
 
-    # The trace is displayed, never opened (D-40.2): the ref rides as
+    # The trace is displayed, never opened (S-0040/D-2): the ref rides as
     # recorded and presence is a stat, not a read.
     trace_ref = agent.get("trace_ref")
 
@@ -1746,7 +1746,7 @@ def _stream_state(attempts: list[dict[str, Any]], events: list[dict[str, Any]]) 
 
 def _minted_contract(events: Sequence[EventRecord]) -> dict[str, Any] | None:
     """The contract the task was last minted with, as a plain mapping — the
-    envelope wants `rfc` and nothing else from it (RFC 0049 D-49.1).
+    envelope wants `rfc` and nothing else from it (S-0049 S-0049/D-1).
 
     None means the record does not hold this task, which is the one signal
     `why_report` falls back to the files on.
@@ -1768,9 +1768,9 @@ def _minted_contract(events: Sequence[EventRecord]) -> dict[str, Any] | None:
 
 
 def rows_from_events(events: Iterable[EventRecord]) -> list[dict[str, Any]]:
-    """The telemetry rows a task's events render to (RFC 0050 §5.2).
+    """The telemetry rows a task's events render to (S-0050/the-sources-swap-under-a-stable-envelope).
 
-    A-85 made the telemetry row a *rendering* of the event payload, so this
+    S-0044/A-4 made the telemetry row a *rendering* of the event payload, so this
     is that rule read backwards: rather than re-implementing five joins
     against a second vocabulary, the record is rendered into the rows those
     joins already read. Parity then holds because the two sides are the same
@@ -1853,7 +1853,7 @@ def why_report(
     history a typo could fake.
 
     `recorded` is one task's own events, when the caller has a log holding
-    them (RFC 0050 D-50.2): selection is the caller's, because only the call
+    them (S-0050 S-0050/D-2): selection is the caller's, because only the call
     site knows whether a partition was named. A record that turns out not to
     hold the task falls back to the files — never the reverse, since an
     empty log must read as "ask the files" and a populated one must not be
@@ -1895,7 +1895,7 @@ def why_report(
 
 
 def render_markdown(report: dict[str, Any]) -> str:
-    """The human-facing projection (D-7.4: format decided by use — markdown
+    """The human-facing projection (S-0007/D-4: format decided by use — markdown
     for pasting into a planning session, JSON for machines, both from one
     report)."""
 
@@ -1904,7 +1904,7 @@ def render_markdown(report: dict[str, Any]) -> str:
 
     if isinstance(sources, dict):
         # First, before any count: a planning session reading these numbers
-        # has to know which carrier produced them (A-102).
+        # has to know which carrier produced them (S-0050/A-3).
         read_from = (
             f"Read from — tasks: {sources['tasks']}, attempts: "
             f"{sources['attempts']} ({sources['attempt_rows']} row(s)), "
@@ -2063,7 +2063,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
     lines.append(report["spec_quality"]["caveat"])
     lines.append("")
-    # D-22.12: a corpus-wide fact, printed here even when no document below
+    # S-0022/D-12: a corpus-wide fact, printed here even when no document below
     # has anything to say yet.
     lines.append(render_operator_attention(report["spec_quality"]["operator_attention"]))
     lines.append("")

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0002'
+id: S-0002
 title: Gates as a library
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0001']
+depends_on: [S-0001]
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   The gate contract, the starting gate set, sabotage verification, and packaging gates
@@ -32,7 +32,7 @@ sections:
       torve gates check                           # the sabotage suite
       ```
 
-      One CI step per repository. `gates.yaml` at the repository root *(since RFC 0013: `.torve/gates.yaml`, root read as fallback)*. Exit code is the gate outcome; `--format json` emits `GateResult` records for later ingestion.
+      One CI step per repository. `gates.yaml` at the repository root *(since S-0013: `.torve/gates.yaml`, root read as fallback)*. Exit code is the gate outcome; `--format json` emits `GateResult` records for later ingestion.
   - key: the-gate-contract
     md: |
       ```python
@@ -46,7 +46,7 @@ sections:
           timeout: timedelta
       ```
 
-      *Amended by A-8 2026-08-21: `blocking: bool` replaced by `state`, and `origin` added, before any manifest existed outside this repository — past that point this is a migration rather than an edit.*
+      *Amended by S-0002/A-2 2026-08-21: `blocking: bool` replaced by `state`, and `origin` added, before any manifest existed outside this repository — past that point this is a migration rather than an edit.*
 
       `input` is what makes gates portable across projects: `scope` consumes a diff and knows nothing about the language, `typecheck` consumes a worktree, `decisions-reported` consumes the log plus the task. The gate receives its input prepared and returns a `GateResult`.
 
@@ -68,13 +68,13 @@ sections:
       | `decisions-reported` | log + task | blocking | structural | `LOCKED` area touched with no log entry, or an illegal action for the grade |
       | `self-audit` | worktree | shadow | structural | author-side blind spots |
 
-      `review` is a gate in spirit but a run in mechanics — see RFC 0005.
+      `review` is a gate in spirit but a run in mechanics — see S-0005.
 
-      *Added by charter A-11 2026-08-22:* the `acceptance` gate is **skipped** for `role: review`, not passed with an empty list — a review's output is `Finding[]`, not an exit code, and the skip is a property of the role (RFC 0005 §1.1).
+      *Added by charter S-0001/A-4 2026-08-22:* the `acceptance` gate is **skipped** for `role: review`, not passed with an empty list — a review's output is `Finding[]`, not an exit code, and the skip is a property of the role (S-0005/the-review-contract).
 
-      *Added by 0011 A-23 2026-08-22:* the `user-facing-text` gate joins the manifest, entering at `shadow` per D-2.18 with origin `rfc/0011`: user-facing strings — help text, command docstrings, gate output — carry no corpus identifiers. The rule, the surface table and the gate's shape are specified in RFC 0011 §5a; the corresponding sabotage cases include one that must pass (a module docstring citing a decision).
+      *Added by 0011 S-0011/A-1 2026-08-22:* the `user-facing-text` gate joins the manifest, entering at `shadow` per S-0002/D-18 with origin `rfc/0011`: user-facing strings — help text, command docstrings, gate output — carry no corpus identifiers. The rule, the surface table and the gate's shape are specified in S-0011/audience-who-reads-the-string; the corresponding sabotage cases include one that must pass (a module docstring citing a decision).
 
-      *Amendment 2026-08-21 (A-2):* every gate implementation lives in the package (`src/torve/gates/`), never in a skill directory — `decisions-reported` in particular is `src/torve/gates/decisions_reported.py`, not a script shipped with `flag-dont-flip`. A gate in a skill directory is per-repository copy-paste, the exact thing this increment removes. The skill keeps one line naming its enforcing gate; the gate reports that an entry is missing, the skill teaches when one should have been written.
+      *Amendment 2026-08-21 (S-0002/A-1):* every gate implementation lives in the package (`src/torve/gates/`), never in a skill directory — `decisions-reported` in particular is `src/torve/gates/decisions_reported.py`, not a script shipped with `flag-dont-flip`. A gate in a skill directory is per-repository copy-paste, the exact thing this increment removes. The skill keeps one line naming its enforcing gate; the gate reports that an entry is missing, the skill teaches when one should have been written.
 
       **Everything else accumulates from evidence.** Each time a defect reaches review, either a gate appears or a written decision records that this class is caught by humans. Deriving gates from actual leaks beats designing a set up front, and it is why this list is short.
   - key: gates-are-themselves-verified
@@ -96,7 +96,7 @@ sections:
 
       `deny` wins over `allow`. An empty `allow` means unconstrained, which should be rare and visible in review of the task.
 
-      Second use, free once the first exists: **overlap detection**. Two tasks whose `allow` sets intersect must not run concurrently. Checking this before dispatch prevents the conflict; the merge train (RFC 0006) only resolves the ordering of ones that got through.
+      Second use, free once the first exists: **overlap detection**. Two tasks whose `allow` sets intersect must not run concurrently. Checking this before dispatch prevents the conflict; the merge train (S-0006) only resolves the ordering of ones that got through.
   - key: three-outcomes-gates-need-beyond-pass-and-fail
     md: |
       **Flakes.** `acceptance` runs real test suites and real test suites flake. Today a flake is a failed attempt and costs a life from the poison ceiling. It needs its own outcome: a gate that fails and then passes on immediate re-run is `flaky`, does not consume an attempt, and increments a flake counter per command. Commands above a threshold enter a quarantine list and stop blocking until fixed. This is not a risk to monitor — it is a first-week certainty.
@@ -113,7 +113,7 @@ sections:
 
       A bypass that is counted is data — it tells you which gate is miscalibrated. A bypass that does not exist becomes a workaround you find out about later.
 
-      *Amendment 2026-08-21 (A-3):* the bypass record's shape is stated here and only here — no skill is involved, because **the signer is always a human** and humans read RFCs, not skills. The record: the gate name, a mandatory free-text reason, the signer's identity (the authoring of a reviewed commit carrying the `Torve-Bypass: <gate>: <reason>` trailer, per D-2.11), the commit sha, and a timestamp — appended to the task's execution log and counted per gate (`bypass_count_by_gate`, the `bypass-count` metric). A gate bypassed repeatedly is a signal about the gate, not the person.
+      *Amendment 2026-08-21 (S-0009/A-1):* the bypass record's shape is stated here and only here — no skill is involved, because **the signer is always a human** and humans read RFCs, not skills. The record: the gate name, a mandatory free-text reason, the signer's identity (the authoring of a reviewed commit carrying the `Torve-Bypass: <gate>: <reason>` trailer, per S-0002/D-11), the commit sha, and a timestamp — appended to the task's execution log and counted per gate (`bypass_count_by_gate`, the `bypass-count` metric). A gate bypassed repeatedly is a signal about the gate, not the person.
 
       **Secrets.** One more gate, and it belongs in the starting set precisely because its failure class is irreversible once landed: a secret scanner over the diff, blocking, no bypass. Cheap to run, and unlike other gates a miss cannot be fixed by a follow-up commit.
   - key: task-size
@@ -140,14 +140,14 @@ sections:
 
       **Distilled from leaks.** A defect reached review or production. Per `distill-the-rule` there are exactly two outcomes: a gate appears, or a written decision records that this class is caught by humans. "We will remember" is not one of them. This is the main growth path.
 
-      **Derived from convention documents.** A document states a machine-checkable rule and a gate falls out of it — `source-layout` from the document conventions (charter A-7), `bypass-count` from §6a.
+      **Derived from convention documents.** A document states a machine-checkable rule and a gate falls out of it — `source-layout` from the document conventions (charter S-0016/A-1), `bypass-count` from §6a.
   - key: five-filters-before-writing-one
     md: |
-      1. **Deterministic?** If it needs judgement it is a reviewer, not a gate (RFC 0005).
+      1. **Deterministic?** If it needs judgement it is a reviewer, not a gate (S-0005).
       2. **Cheaper in seconds than the miss costs?** A ten-minute check for a rare defect does not pay.
       3. **Can it go red?** If no diff can be written that fails it, it is not a check.
       4. **Does it have an input?** One of `worktree`, `diff`, `task`, `log`. No data, no gate, however desirable.
-      5. **Will it name what it caught?** Per RFC 0011 §5, "gate failed" is not acceptable output.
+      5. **Will it name what it caught?** Per S-0011/where-ux-effort-actually-pays, "gate failed" is not acceptable output.
   - key: states
     md: |
       ```
@@ -158,7 +158,7 @@ sections:
 
       **`proposed`** — written, sabotage case written, not yet in any manifest.
 
-      **`shadow`** — runs and reports, blocks nothing. Its false-positive rate is measured here, before it is given the power to stop work. This mirrors the shadow period for the reviewer in RFC 0005 §7, and for the same reason.
+      **`shadow`** — runs and reports, blocks nothing. Its false-positive rate is measured here, before it is given the power to stop work. This mirrors the shadow period for the reviewer in S-0005/replacing-the-third-party-reviewer, and for the same reason.
 
       **`blocking`** — promoted against criteria, not against confidence:
 
@@ -222,7 +222,7 @@ sections:
 
       **Retirement requires the same evidence as adoption.** Without that rule, the first difficult sprint removes half the checks under the banner of unblocking delivery.
 
-      Retiring a gate retires its sabotage case and shrinks or removes its paired skill (RFC 0009 D-9.5) in the same change — otherwise an instruction survives for a rule that no longer exists.
+      Retiring a gate retires its sabotage case and shrinks or removes its paired skill (S-0009 S-0009/D-5) in the same change — otherwise an instruction survives for a rule that no longer exists.
   - key: tightening-is-a-new-gate
     md: |
       Materially tightening an existing gate produces a different gate as far as telemetry is concerned, and before/after comparisons cannot cross that boundary. `config_hash` (§8) captures it, but a substantial tightening should also go back through `shadow`.
@@ -235,9 +235,9 @@ sections:
       - decisions **denormalised into the record**, not referenced — a cross-store join is exactly what will not work at this stage.
   - key: decisions
     md: |
-      *Provenance note 2026-08-22:* the log-format conventions (the `drift_count` claim D-2.10, the `bypasses:` list D-2.7), the skills placement markers (A-2, A-3) and the corpus-wide Paths column were settled during the T-0005 execution — see .torve/tasks/T-0005.
+      *Provenance note 2026-08-22:* the log-format conventions (the `drift_count` claim S-0002/D-10, the `bypasses:` list S-0002/D-7), the skills placement markers (S-0002/A-1, S-0009/A-1) and the corpus-wide Paths column were settled during the T-0005 execution — see .torve/tasks/T-0005.
   - key: exit-criteria
     md: |
       - Five gates green in CI in at least two repositories, applied to human pull requests as well as agent ones.
       - Sabotage suite passing, and observed to fail when a gate is deliberately broken.
-      - Two weeks of JSONL telemetry with `config_hash` populated — the baseline RFC 0004 will compare against.
+      - Two weeks of JSONL telemetry with `config_hash` populated — the baseline S-0004 will compare against.

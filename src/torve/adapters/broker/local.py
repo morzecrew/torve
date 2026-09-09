@@ -1,16 +1,16 @@
-"""The `local` broker adapter (RFC 0021 §5.2, D-21.10): a reverse proxy the
+"""The `local` broker adapter (S-0021/two-modes-because-custody-and-containment-are-different-problems, S-0021/D-10): a reverse proxy the
 runner starts on loopback for the life of the run — one route per routed
 provider — holding the real provider keys in its own environment and
 injecting them at the wire. Metering comes from the provider's own
 responses; counts and metadata only, never request or response bodies
-(D-21.7).
+(S-0021/D-7).
 
-The adapter is an in-process thread of the runner (D-21.10, decided in
+The adapter is an in-process thread of the runner (S-0021/D-10, decided in
 T-0105): the runner already holds the keys in its environment, a thread
 shares that environment with no serialization or lifecycle machinery, and
 the broker dies with the run it serves — there is nothing to reap.
 
-Sealed mode (D-21.3, decided in T-0106) keeps the thread and changes where
+Sealed mode (S-0021/D-3, decided in T-0106) keeps the thread and changes where
 it listens: the sandbox joins the configured internal Docker network
 (`broker.network`, created `--internal`), whose only host-side address is
 its gateway — the host's interface on that network — and the broker binds
@@ -24,7 +24,7 @@ network is the run's private envelope, and the run token has no in-scope
 channel into the sandbox's proxy env — while the provider routes keep the
 token (see the T-0106 execution log).
 
-Remote endpoint mode (D-41.6, built in RFC 0041 phase 2) serves sandboxes
+Remote endpoint mode (S-0041/D-6, built in S-0041 phase 2) serves sandboxes
 that live on another machine: `broker.bind` replaces the bridge-gateway
 derivation with a configured host:port the thread listens on, and the
 routes are published at `broker.advertise` — the address the sandboxes
@@ -82,7 +82,7 @@ CAUSE_CONTAINMENT = "containment"
 CAUSE_PASS_THROUGH = "pass_through"
 CAUSE_AUTHORITY = "authority"
 
-# The intake route's path prefix (RFC 0045 §5.2). One segment, reserved: a
+# The intake route's path prefix (S-0045/the-intake-route). One segment, reserved: a
 # provider named this would collide, which is why it carries a leading
 # underscore no provider name does.
 CHANNEL_PREFIX = "/_torve"
@@ -103,7 +103,7 @@ REMOTE_PASS_THROUGH_MESSAGE = (
 # close removes only torve-owned networks, never the operator's.
 NETWORK_LABEL_TASK = "torve.task"
 
-# Hop-by-hop headers never survive the proxy (RFC 7230 §6.1): the connection
+# Hop-by-hop headers never survive the proxy (RFC 7230): the connection
 # to the provider is the broker's own, and the body length is re-derived from
 # what was actually read.
 HOP_BY_HOP = frozenset(
@@ -136,8 +136,8 @@ UPSTREAM_TIMEOUT_S = 300.0
 
 def _meter(body: bytes) -> tuple[int, float | None]:
     """(tokens, cost_usd) from a provider response body, best effort: the
-    provider's own usage fields are the wire's truth (D-21.5). The body is
-    read, counted and discarded — the broker keeps no bodies (D-21.7)."""
+    provider's own usage fields are the wire's truth (S-0021/D-5). The body is
+    read, counted and discarded — the broker keeps no bodies (S-0021/D-7)."""
 
     try:
         data: Any = json.loads(body)
@@ -209,10 +209,10 @@ def default_sandbox_host() -> str:
 class _BrokerState:
     """The run's counters: request count, token counts per provider, cost,
     refusals by cause, and the wall clock. Everything the broker keeps is
-    here — counts and metadata, never bodies (D-21.7). In sealed mode the
+    here — counts and metadata, never bodies (S-0021/D-7). In sealed mode the
     state also carries the pass-through declaration and the routed
     providers' hosts, so the wire can refuse what containment and routing
-    forbid (D-21.3, D-21.4)."""
+    forbid (S-0021/D-3, S-0021/D-4)."""
 
     def __init__(
         self,
@@ -226,10 +226,10 @@ class _BrokerState:
         channel: RunChannel | None = None,
     ) -> None:
         self.sink = sink
-        # RFC 0045 §5.2: the run's route into the record. None means the run
+        # S-0045/the-intake-route: the run's route into the record. None means the run
         # has no channel and the intake path 404s like any unrouted path —
         # the sandbox then writes its worktree file, which is v1's behaviour
-        # and stays correct (D-45.6).
+        # and stays correct (S-0045/D-6).
         self.channel = channel
         self.routes = {route.provider: route for route in routing.routes}
         self.budget = budget
@@ -242,13 +242,13 @@ class _BrokerState:
         self.cost_seen = False
         self.refusals: dict[str, int] = {}
         self.refused_providers: dict[str, int] = {}
-        # Sealed mode (D-21.3): the broker also serves the run's declared
+        # Sealed mode (S-0021/D-3): the broker also serves the run's declared
         # pass-through egress. Provider hosts are never pass-through — a
         # routed provider's traffic must travel the route, key injected and
-        # metered (D-21.4).
+        # metered (S-0021/D-4).
         self.sealed = sealed
         self.pass_through = pass_through
-        # Remote endpoint mode (D-41.6): a broker whose address was
+        # Remote endpoint mode (S-0041/D-6): a broker whose address was
         # configured for sandboxes on another machine. The pass-through
         # leg — sealed mode's topology-authenticated relay — has no
         # remote form, so these refusals get their own cause and their
@@ -289,11 +289,11 @@ class _BrokerState:
                 self.cost += cost
                 self.cost_seen = True
 
-        # RFC 0045 D-45.3: emitted outside the lock, after the aggregate is
+        # S-0045 S-0045/D-3: emitted outside the lock, after the aggregate is
         # updated, so the two views of one run's spending are the same
         # numbers seen twice. A sink that raises is swallowed on purpose —
         # an observer that can break the run's egress is not an observer,
-        # and this is the request path (D-45.3).
+        # and this is the request path (S-0045/D-3).
         if self.sink is not None:
             with contextlib.suppress(Exception):
                 self.sink(BurnEvent(provider=provider, tokens=tokens, cost_usd=cost))
@@ -319,11 +319,11 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         """One wire request: authenticate the run token, route the provider,
         check the budget, forward to the provider with the key injected, and
-        meter the answer. Every refusal is counted by cause (D-21.6). In
+        meter the answer. Every refusal is counted by cause (S-0021/D-6). In
         sealed mode the handler is also the run's only egress: a CONNECT or
         plain-http request to a declared pass-through host is relayed
         without inspection, and anything else is refused with the
-        destination named (D-21.3)."""
+        destination named (S-0021/D-3)."""
 
         # ....................... #
 
@@ -363,7 +363,7 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             proxy = os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY")
 
             if route.via_proxy and proxy and upstream.scheme == "https":
-                # A-70: this upstream is unreachable from the host directly
+                # S-0021/A-1: this upstream is unreachable from the host directly
                 # (region gating) — tunnel the broker's own leg through the
                 # host's proxy. The sandbox still sees only the loopback.
                 proxied = urlsplit(proxy)
@@ -385,7 +385,7 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             }
 
             # The sandbox's token never travels past the broker: the wire
-            # credential is the provider key, injected here (D-4b).
+            # credential is the provider key, injected here (S-0001/D-13).
             headers["Authorization"] = f"Bearer {os.environ.get(route.key_env, '')}"
 
             parsed = urlsplit(self.path)
@@ -422,9 +422,9 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
         # ....................... #
 
         def _tunnel(self, host: str, port: int) -> None:
-            """The pass-through relay (D-21.3): CONNECT the declared host and
+            """The pass-through relay (S-0021/D-3): CONNECT the declared host and
             splice the sockets — bytes are relayed, never inspected, kept or
-            metered beyond the request count (D-21.7). The tunnel dies with
+            metered beyond the request count (S-0021/D-7). The tunnel dies with
             either side: the first direction to close shuts both sockets, so
             a half-closed tunnel cannot pin the broker's port."""
 
@@ -475,7 +475,7 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
         def _forward_plain(self, host: str, port: int) -> None:
             """A pass-through http:// request, relayed without inspection:
             no key injection (this is not a provider route), no metering —
-            just the request forwarded and the answer relayed (D-21.3)."""
+            just the request forwarded and the answer relayed (S-0021/D-3)."""
 
             conn = http.client.HTTPConnection(host, port, timeout=UPSTREAM_TIMEOUT_S)
             headers = {
@@ -511,8 +511,8 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
 
         def _pass_through(self, host: str, port: int, authority: str) -> bool:
             """True when the sealed broker may relay this destination: it is
-            declared, and it is not a routed provider's host (D-21.3,
-            D-21.4). Otherwise the refusal is counted and the destination
+            declared, and it is not a routed provider's host (S-0021/D-3,
+            S-0021/D-4). Otherwise the refusal is counted and the destination
             named — an undeclared destination fails loudly, and the run
             escalates rather than succeed through a path nobody meant to
             leave open."""
@@ -536,13 +536,13 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
 
                 return False
 
-            state.record(authority, 0, None)  # counts only (D-21.7)
+            state.record(authority, 0, None)  # counts only (S-0021/D-7)
             return True
 
         # ....................... #
 
         def _refuse_pass_through(self, destination: str) -> None:
-            """The remote endpoint mode refusal (D-41.6): the pass-through
+            """The remote endpoint mode refusal (S-0041/D-6): the pass-through
             leg authenticates by network topology — the sealed network is
             the run's private envelope — and that envelope does not exist
             across the open internet. A non-provider request is refused
@@ -610,14 +610,14 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
         # ....................... #
 
         def _serve_channel(self, path: str) -> None:
-            """The run's route into the record (RFC 0045 §5.2).
+            """The run's route into the record (S-0045/the-intake-route).
 
             The request carries content and nothing else. Who is writing,
             which partition, and which task are the channel's own — it was
             built for this run — so a caller cannot state them and therefore
-            cannot forge them (D-45.2). The authority table is checked here,
+            cannot forge them (S-0045/D-2). The authority table is checked here,
             at the boundary the untrusted side reaches, before anything is
-            appended (D-45.5).
+            appended (S-0045/D-5).
             """
 
             if state.channel is None:
@@ -775,7 +775,7 @@ class LocalBroker:
         created `--internal` when missing — sealed mode needs no operator
         step beyond configuration — and an existing network that is not
         internal is a refused configuration, never a silent endpoint run
-        (D-21.3)."""
+        (S-0021/D-3)."""
 
         network = self._config.network
         proc = self._docker_run("network", "inspect", "--format", "{{.Internal}}", network)
@@ -870,7 +870,7 @@ class LocalBroker:
         if self._config.mode == "sealed":
             host, port = self._sealed_bind(run)
         elif self._config.bind:
-            # Remote endpoint mode (D-41.6): the configured listen address
+            # Remote endpoint mode (S-0041/D-6): the configured listen address
             # replaces the bridge-gateway derivation, and the routes are
             # published at the advertised address — the bind host is often
             # a wildcard the sandbox must not dial, and the bound port is

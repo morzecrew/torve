@@ -80,7 +80,7 @@ The extraction is done when the draft is written. The human then:
 From acceptance, the engine's standing inheritance copies every row whose
 declared paths intersect a contract's scope into that contract at mint time,
 and the battery convicts only work minted after — never the tree as it
-stands and never its history (D-31.3). The skill has no further part, and
+stands and never its history (S-0031/D-3). The skill has no further part, and
 the engine has no surface for the baseline at all.
 
 ## The fixture

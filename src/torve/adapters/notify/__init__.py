@@ -1,8 +1,8 @@
-"""Notification destinations (RFC 0051 D-51.3): the adapters behind the
+"""Notification destinations (S-0051 S-0051/D-3): the adapters behind the
 `Notifier` port.
 
 `none` is the default and is explicit, following the broker's precedent
-(D-21.9): a repository that has not chosen a destination sends nothing
+(S-0021/D-9): a repository that has not chosen a destination sends nothing
 because somebody decided that, not because a field was left blank.
 """
 

@@ -1,4 +1,4 @@
-"""The deterministic simulation sweep (RFC 0003 §6 layer 3, D-3.5): one master
+"""The deterministic simulation sweep (S-0003/tests layer 3, S-0003/D-5): one master
 seed set drives concurrent interleavings of the real loop over the real store;
 the invariants must always hold, the reachability targets must sometimes fire,
 and every deliberately broken twin must be caught — a simulation that cannot
@@ -63,7 +63,7 @@ def test_invariants_hold_and_targets_fire(tmp_path):
     world, report = run_world(tmp_path, twin=None, seeds=8)
     assert report is None, f"violation in the honest engine:\n{report}"
     # Reachability: an invariant sweep that never visited the hard states
-    # proves nothing (D-3.5).
+    # proves nothing (S-0003/D-5).
     required = {"lease_reclaimed", "zombie_abandoned", "gate_red_then_green", "cancel_observed"}
     assert required <= world.reach, f"targets never fired: {required - world.reach}"
 

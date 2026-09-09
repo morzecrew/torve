@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0025'
+id: S-0025
 title: The corpus authoring surface
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0007', '0016']
-informed_by: ['0011', '0020', '0022']
+depends_on: [S-0007, S-0016]
+informed_by: [S-0011, S-0020, S-0022]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Mechanical writers over the corpus parser — a canonical emitter, torve rfc fmt,
@@ -19,7 +19,7 @@ sections:
     md: |
       The corpus format is validated to the byte and written by hand, and the gap
       between those two facts is where every recurring authoring defect lives. This
-      document adds the other half of D-7.12's "the package owns the format": a
+      document adds the other half of S-0007/D-12's "the package owns the format": a
       canonical emitter beside the parser, `torve rfc fmt` to normalise a document's
       structural surfaces without touching its prose, and one verb per mechanical
       edit that history shows going wrong — appending an amendment, adding a
@@ -33,10 +33,10 @@ sections:
       The check catches structural mistakes; nothing prevents them. The evidence is
       the repository's own history, and it is not subtle:
 
-      - **Amendment numbers collided three times** — the entries drafted as `A-8`,
-        `A-13` and `A-16` each landed renumbered (`A-11`, `A-15`, `A-17`) because a
+      - **Amendment numbers collided three times** — the entries drafted as `S-0002/A-2`,
+        `S-0003/A-2` and `S-0013/A-1` each landed renumbered (`S-0001/A-4`, `S-0016/A-5`, `S-0001/A-6`) because a
         number already taken elsewhere was chosen by hand. RFC numbers stopped
-        colliding the day `torve rfc new` started deriving them (D-A.17); amendment
+        colliding the day `torve rfc new` started deriving them (S-0016/D-24); amendment
         numbers still rely on the author grepping.
       - **Appending an amendment entry by anchored text edit** stranded a previous
         entry's `Also edits` line below the new entry — a defect class the corpus
@@ -45,8 +45,8 @@ sections:
         backticked `key: value` inside a plain scalar, a ` # ` sequence silently
         truncating a value. Each is a quoting decision an emitter makes correctly
         every time and a hand makes correctly most times.
-      - **Paths relocations are mechanical and hand-executed.** D-16.4 says Paths
-        cells follow the code; every layout change since RFC 0015 has meant a hand
+      - **Paths relocations are mechanical and hand-executed.** S-0016/D-4 says Paths
+        cells follow the code; every layout change since S-0015 has meant a hand
         sweep over decision tables, and the checker catching a missed cell is the
         backstop working, not the process.
 
@@ -64,12 +64,12 @@ sections:
         lookup surface). The model exists; only the emitter is missing.
       - `src/torve/cli/rfc.py` carries `check`, `show`, `index`, `new`, `graph` and
         `health`. `new` is the only writer, and it derives its number as maximum
-        plus one (D-A.17). `INDEX.md` is the only generated artefact (D-A.6).
+        plus one (S-0016/D-24). `INDEX.md` is the only generated artefact (S-0016/D-17).
       - The corpus is uniform by habit: every accepted document carries the same
-        section family, the exact five-column decision header (D-16.2), and an
+        section family, the exact five-column decision header (S-0016/D-2), and an
         `## Amendments` container. The uniformity is enforced nowhere except where
         a specific check happens to overlap it.
-      - `torve rfc health` (RFC 0022) is a second reader over the same parser,
+      - `torve rfc health` (S-0022) is a second reader over the same parser,
         which settles that the parse model is load-bearing enough to hang an
         emitter on.
   - key: goals-non-goals
@@ -87,7 +87,7 @@ sections:
       **Non-goals**
 
       - **Changing storage.** One `NNNN-slug.md` per document, no subdirectories
-        (D-A.18). The folder-per-document alternative is examined and rejected in
+        (S-0016/D-25). The folder-per-document alternative is examined and rejected in
         §5.5; this document is the answer to the fragility that motivated it.
       - **Changing validation.** `torve rfc check` keeps its meaning; the verbs
         call it, they do not replace it.
@@ -131,15 +131,15 @@ sections:
       - **`torve rfc add-decision NNNN`** — derives the next dotted identifier for
         the document, appends a row skeleton with a placeholder grade and empty
         Paths, and prints the identifier for the author to cite.
-      - **`torve rfc retire D-x.y`** — executes D-16.1 mechanically: removes the
+      - **`torve rfc retire D-x.y`** — executes S-0016/D-1 mechanically: removes the
         row, appends the identifier to the document's `retired:` list, and inserts
         a tombstone stub at the row's former position in the prose for the author
         to complete. Refuses when the identifier is cited anywhere the check would
         then fail to resolve.
-      - **`torve rfc relocate-paths OLD NEW`** — the D-16.4 sweep: rewrites every
+      - **`torve rfc relocate-paths OLD NEW`** — the S-0016/D-4 sweep: rewrites every
         Paths cell carrying `OLD` to `NEW` across the corpus and prints the touched
         rows. Never touches decision text, so a decision whose *words* name the
-        superseded location still gets its in-row marker by hand, as D-16.4
+        superseded location still gets its in-row marker by hand, as S-0016/D-4
         specifies.
   - key: typed-example-fences
     md: |
@@ -157,7 +157,7 @@ sections:
         cells, commit trailers, `informed_by` links all name `rfcs/NNNN-slug.md`),
         one-file diff review, grep as the working motion, and per-file checks that
         would all need cross-file rewrites. It also amends three `LOCKED` rows
-        (D-A.18, D-A.3, D-A.20) to buy a capability — attachments — that no
+        (S-0016/D-25, S-0016/D-14, S-0016/D-27) to buy a capability — attachments — that no
         document has needed in twenty-four tries. Rejected; reconsidered only when
         a document genuinely needs a non-markdown artefact, at which point the
         routing rule already points it to `pages/`.
@@ -166,9 +166,9 @@ sections:
         uniform by habit and the emitter makes the habit visible; hardening it into
         a check is cheap once `fmt` exists and premature before, since the manifest
         should be derived from what the emitter actually observes rather than
-        legislated first. Left as D-25.9.
+        legislated first. Left as S-0025/D-9.
       - **Fixing the format instead** (stricter markdown, or moving tables into
-        frontmatter). Refused by D-A.3's standing reasoning: the rows carry prose
+        frontmatter). Refused by S-0016/D-14's standing reasoning: the rows carry prose
         people argue about in review, and splitting rows from rationale makes two
         sources of truth. The format is not the defect; the typing is.
   - key: tests
@@ -189,15 +189,15 @@ sections:
       reference per verb; no new page.
   - key: out-of-scope
     md: |
-      - **A drafting run for corpus documents.** RFC 0020's pattern applied to RFC
+      - **A drafting run for corpus documents.** S-0020's pattern applied to RFC
         authoring — an agent iterating `new`/`fmt`/`check` in a sandbox, a human
         adopting — is the natural next consumer of this surface and is deliberately
         not designed here. It needs this document's verbs to exist first, and it
         raises adoption questions (what is the human signing when the artefact is a
         specification?) that deserve their own document.
       - **Editing accepted decision text.** There is no verb for it because there
-        is no legal edit: accepted rows change by amendment (D-A.5) or retirement
-        (D-16.1), both of which have verbs.
+        is no legal edit: accepted rows change by amendment (S-0016/D-16) or retirement
+        (S-0016/D-1), both of which have verbs.
       - **INDEX changes.** The index stays generated and checked exactly as it is;
         the verbs regenerate it as part of their transaction, which is a call site,
         not a redesign.
@@ -205,13 +205,13 @@ sections:
     md: |
       - **The emitter fights the author's hand.** A `fmt` that rewrites more than
         the structural surfaces turns every corpus diff into noise and teaches
-        people to skip it. Mitigation is D-25.1: prose passes through
+        people to skip it. Mitigation is S-0025/D-1: prose passes through
         byte-for-byte, and the idempotence test doubles as a scope fence — any
         normalisation beyond the modelled structures shows up as a corpus-wide diff
         in review.
       - **Verbs invite scripting judgement.** A verb that writes a skeleton makes
         it tempting to fill the skeleton by machine too. The non-goal is written
-        now and D-25.3 grades it `LOCKED`, because the corpus's value is that a
+        now and S-0025/D-3 grades it `LOCKED`, because the corpus's value is that a
         human meant every graded row.
       - **`src/torve/cli/rfc.py` is already the repository's least-tested
         hotspot.** Adding four verbs there without moving logic down would deepen
@@ -224,7 +224,7 @@ sections:
         contiguous `## N.` headings after an insertion) or only validate it.
         Renumbering rewrites `§N` cross-references corpus-wide, which is either the
         feature or the hazard; execution proposes with evidence from the first
-        documents it touches (D-25.8).
+        documents it touches (S-0025/D-8).
       - Whether the amendment verb should also place cross-document row markers
         (the italic *amended by A-nn* notes) or leave them to the author. The
         markers carry judgement about which rows a reader must be warned at;
@@ -262,7 +262,7 @@ phasing:
     intent: |
       rfc amend, rfc add-decision, rfc retire and rfc relocate-paths as
       parse-mutate-emit-check transactions that abort whole on a red check:
-      derived amendment and decision identifiers, D-16.1 retirement executed
+      derived amendment and decision identifiers, S-0016/D-1 retirement executed
       in one motion, mechanical Paths sweeps. Verbs write structure and
       identifiers only; grades, prose and status stay hand-written.
     scope: [src/torve/config/**, src/torve/cli/**, tests/**]

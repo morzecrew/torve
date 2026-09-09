@@ -1,16 +1,16 @@
-"""FakeAgent — the first adapter built (D-3.2): replays a scripted scenario so
+"""FakeAgent — the first adapter built (S-0003/D-2): replays a scripted scenario so
 the entire runner is testable without spending a token, separating "is the
 runner correct" from "is the agent good".
 
-The scenario still executes *inside the sandbox* (D-4): the adapter stages a
+The scenario still executes *inside the sandbox* (S-0001/D-12): the adapter stages a
 generated Python script under the workspace's gitignored `.torve/tmp/`
-scratch directory (RFC 0013 §5 — generated, never tracked) and asks the
+scratch directory (S-0013/what-does-not-belong-in-either — generated, never tracked) and asks the
 Runtime to run it. Scenario steps are indexed by attempt; the
 last step repeats if attempts outnumber steps.
 
 Step fields (all optional):
     writes: {relative/path: content}      files written into the workspace
-    log_entry: str                        appended to .torve/tasks/<id>/log.yaml (A-13)
+    log_entry: str                        appended to .torve/tasks/<id>/log.yaml (S-0003/A-2)
     exit: int (default 0)
     sleep: float seconds before exiting
     ignore_cancellation: bool             traps SIGTERM and sleeps forever —

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0008
+id: S-0008
 title: Tracker projection
 kind: design
 status: superseded
 implementation: abandoned
-depends_on: ['0003']
+depends_on: [S-0003]
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Any task tracker as a presentation surface: outbound projection over the outbox,
@@ -20,16 +20,16 @@ sections:
 
       Prior art does the opposite — leases live in issue fields, with owner and a UTC timestamp written back and verified by refetch before dispatch. It works, and it is tempting because it needs no database. It is still wrong here, for five specific reasons:
 
-      - **No transaction.** State change and outbox staging cannot be atomic if the state lives in an issue. That reopens the "escalated but nobody was told" window that D-5 closes.
+      - **No transaction.** State change and outbox staging cannot be atomic if the state lives in an issue. That reopens the "escalated but nobody was told" window that S-0001/D-14 closes.
       - **No fencing.** Refetch-and-verify narrows the race; it does not eliminate it. A stale worker can still write over a new owner.
       - **Shared rate limits.** Heartbeating every task against the forge spends the budget the agents need for work.
-      - **Append-only is inexpressible.** Issue bodies are edited in place and history is rewritten — exactly what D-22 forbids.
+      - **Append-only is inexpressible.** Issue bodies are edited in place and history is rewritten — exactly what S-0001/D-18 forbids.
       - **Permanent coupling** to one vendor's data model.
 
       Authority stays in the durable run store and the document store. The tracker gets a projection.
   - key: outbound-another-outbox-destination
     md: |
-      The delivery mechanism already exists (RFC 0003 §5). Tracker updates are staged in the same transaction as the state change and relayed at-least-once, so projection survives a runner crash and needs no separate sync daemon.
+      The delivery mechanism already exists (S-0003/lease-and-cancellation). Tracker updates are staged in the same transaction as the state change and relayed at-least-once, so projection survives a runner crash and needs no separate sync daemon.
 
       *Execution note 2026-08-23 (T-0049):* in the local regime, effects derive from the run state file — itself written atomically with every transition — and re-stage idempotently, so a lost outbox is rebuilt from the states, never invented; that is what closes the "escalated but nobody was told" window here. Store-transactional staging joins with the durable-runner integration, behind the same API.
 
@@ -42,7 +42,7 @@ sections:
       | `Attempt` completed | one comment: gate results, cost, duration, `trace_ref` |
       | `Finding` | inline review comment at `location` |
       | `escalated` + reason | label from the enumerated vocabulary, assigned to a human |
-      | `ready` | label; the merge lane (RFC 0006) still governs landing |
+      | `ready` | label; the merge lane (S-0006) still governs landing |
 
       One comment per attempt, never per gate. A gate-level firehose is how a board becomes unreadable.
   - key: inbound-commands-not-state
@@ -97,29 +97,29 @@ sections:
       Scheduling across repositories — weights, fair share, pausing a project — belongs to the runner, not here. The board displays the result; it does not decide it.
   - key: decisions
     md: |
-      D-8.17 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-17 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.16 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-16 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.14 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-14 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.13 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-13 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.12 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-12 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.11 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-11 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.8 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-8 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.7 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-7 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.4 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-4 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.3 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-3 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.2 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-2 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-8.1 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0008/D-1 was retired 2026-09-09; path rot. The identifier is never reused.
   - key: risks
     md: |
       - **The board becomes the perceived source of truth.** People trust what they look at. Mitigation: refusals and divergences are visible, and `torve status` is the stated authority in documentation and in escalation comments.
@@ -127,15 +127,15 @@ sections:
       - **Rate limits shared with agents.** Projection is bursty at state transitions. Relay with backoff and a per-forge budget separate from the agents' own.
   - key: phasing
     md: |
-      *(Added 2026-08-23 while draft, with the path relocation to RFC 0015's tree
+      *(Added 2026-08-23 while draft, with the path relocation to S-0015's tree
       — no `tracker/` top-level package. Phase 1 builds the transactional outbox
-      this document rides: RFC 0003 §5 specified it and deferred it for want of a
+      this document rides: S-0003/lease-and-cancellation specified it and deferred it for want of a
       consumer; the projection is that consumer, so the leg lands here, in 0003's
-      tree. Phase 2 is the GitHub Issues adapter (D-8.8) against the lab
+      tree. Phase 2 is the GitHub Issues adapter (S-0008/D-8) against the lab
       repository — its live criteria need the fine-grained token to gain
       **Issues: Read and write** before execution, which is an operator step. The
       inbound `approve` command stays deferred until promotion approvals exist as
-      engine state (RFC 0006's forge leg); the other three commands land here.)*
+      engine state (S-0006's forge leg); the other three commands land here.)*
   - key: exit-criteria
     md: |
       - One tracker adapter projecting all states, with idempotency verified by deliberately replaying the relay.
@@ -145,13 +145,13 @@ phasing:
   - phase: 1
     title: The outbox the projection rides
     intent: >-
-      The transactional outbox from RFC 0003 §5, built for its first consumer: effects
-      are staged in the same transaction as the state change they announce, relayed
-      at-least-once by an explicit relay step, and every effect carries an idempotency
-      key so a replay is a no-op rather than a duplicate. The engine's existing events
-      keep flowing unchanged; the outbox is a new, durable leg beside them — staged
-      rows survive a runner crash and relay later, which is the property the projection
-      cannot live without.
+      The transactional outbox from S-0003/lease-and-cancellation, built for its first
+      consumer: effects are staged in the same transaction as the state change they
+      announce, relayed at-least-once by an explicit relay step, and every effect
+      carries an idempotency key so a replay is a no-op rather than a duplicate. The
+      engine's existing events keep flowing unchanged; the outbox is a new, durable
+      leg beside them — staged rows survive a runner crash and relay later, which
+      is the property the projection cannot live without.
     scope:
       - src/torve/application/**
       - src/torve/adapters/**

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0027'
+id: S-0027
 title: Harness configuration as measured evolution
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0004', '0017', '0020', '0021']
-informed_by: [0009, '0022', '0023']
+depends_on: [S-0004, S-0017, S-0020, S-0021]
+informed_by: [S-0009, S-0022, S-0023]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Capturing the performance a well-configured harness offers without a runtime configurator:
@@ -42,14 +42,14 @@ sections:
         streak that once took a whole batch to surface.
       - **A runtime configurator would unplug the stack that justifies it.**
         `config_hash` is the identity every comparison joins on: shadow replays
-        (RFC 0004 §5), skill evals (D-9.14 denormalises skills into every record),
-        spec-quality attribution (RFC 0022), broker regimes (D-21.8). Configuration
+        (S-0004/shadow-runs), skill evals (S-0009/D-14 denormalises skills into every record),
+        spec-quality attribution (S-0022), broker regimes (S-0021/D-8). Configuration
         generated per run makes every run its own regime — the claim "the
         configurator helps" becomes unmeasurable by the act of deploying it.
-      - **The doctrine already points one way and lacks the mechanism.** D-17.4
-        routes configuration channels by nature and D-17.1 makes the image digest
+      - **The doctrine already points one way and lacks the mechanism.** S-0017/D-4
+        routes configuration channels by nature and S-0017/D-1 makes the image digest
         the regime's identity; what is missing is any path by which configuration
-        *improves* other than an operator's memory. RFC 0022 built the analogous
+        *improves* other than an operator's memory. S-0022 built the analogous
         reader for specifications; harness configuration is the surface with
         telemetry and no reader-to-proposal loop.
       - **Per-task-class configuration is wanted and unreachable.** `Task.tier` is
@@ -64,23 +64,23 @@ sections:
       - `TierConfig` (`src/torve/config/runconfig.py`) carries adapter, command,
         model, provider, image, `api_key_env` and `auth_volume`; `tiers` is
         `dict[str, TierConfig]` with a missing key a loud configuration error, and
-        the brokered regime already forbids `api_key_env` on routed tiers (D-21.1
-        enforcement landed with RFC 0021 phase 1).
+        the brokered regime already forbids `api_key_env` on routed tiers (S-0021/D-1
+        enforcement landed with S-0021 phase 1).
       - `Task.tier` is `Literal["planner", "executor", "reviewer"]`
         (`src/torve/domain/task.py`) — the seat, not a variant.
       - Sandbox definitions live committed under `.torve/sandbox/<name>/`, built by
         `torve sandbox build`, digest-resolved into `config_hash` at dispatch
-        (RFC 0017, live since T-0036/T-0037). The dsh definition bakes
+        (S-0017, live since T-0036/T-0037). The dsh definition bakes
         `deepseek-chat.yml` with a comment stating the doctrine this document
         generalises.
       - `execution_facts` (`src/torve/application/intake.py`) already injects
         escalation queues, contended paths and recent landings into drafter
         prompts — the fact-feed seam exists and this document widens what flows
         through it.
-      - The broker (RFC 0021 phases 1–2 landed) meters usage at the wire; D-21.5
+      - The broker (S-0021 phases 1–2 landed) meters usage at the wire; S-0021/D-5
         makes broker-measured spend authoritative where present, which is what
         makes a configuration-improvement claim about cost checkable at all.
-      - The eval ledger shape (`src/torve/application/evals.py`, D-9.15's
+      - The eval ledger shape (`src/torve/application/evals.py`, S-0009/D-15's
         arm-comparison records) is the house form for "two regimes, same tasks,
         direction not magnitude".
   - key: goals-non-goals
@@ -99,15 +99,15 @@ sections:
       **Non-goals**
 
       - **Tuning prompts, skills or task context.** The prompt side already has
-        its evolution loop (RFC 0009: materialisation, attribution, evals) and is
+        its evolution loop (S-0009: materialisation, attribution, evals) and is
         the *sanctioned* per-task degree of freedom. This document is about the
-        harness side only, and the boundary is D-17.4's channel routing.
+        harness side only, and the boundary is S-0017/D-4's channel routing.
       - **A configuration search service.** No grid runner, no optimiser. The
         drafting run proposes one reviewed change at a time; the replay battery
         measures it. Volume may motivate more later; evidence first.
       - **Cross-harness abstraction.** A variant configures one named tier. No
         attempt to express "the same setting" across dsh, opencode and claude —
-        RFC 0004 already refused a harness SDK, and a portable setting vocabulary
+        S-0004 already refused a harness SDK, and a portable setting vocabulary
         is that SDK wearing configuration syntax.
   - key: tier-variants
     md: |
@@ -134,7 +134,7 @@ sections:
       A tier entry (variant or seat) may name `retry_variant: <seat.variant>`:
       the attempt after a gate-red dispatch resolves that variant instead of the
       one the previous attempt ran under. One rung, not a list — a ladder taller
-      than two settings is a measurement question (D-27.7), not a configuration
+      than two settings is a measurement question (S-0027/D-7), not a configuration
       shape. The record already carries the truth: each attempt's telemetry row
       stamps the tier actually resolved, and the two variants are two digests.
       Escalating *effort* (`high` building, `xhigh` retrying) is the first
@@ -143,7 +143,7 @@ sections:
   - key: the-configuration-drafting-run
     md: |
       A draft-role run over the configuration surfaces, through the intake
-      machinery (D-20.2's loop, D-20.3's adoption): the drafter reads the
+      machinery (S-0020/D-2's loop, S-0020/D-3's adoption): the drafter reads the
       configuration tree — `.torve/sandbox/**`, the tier blocks — plus a fact feed,
       and proposes an ordinary task contract whose scope is confined to those
       surfaces. Adoption mints it; the standing loop executes, reviews and lands it
@@ -153,10 +153,10 @@ sections:
 
       The fact feed is `execution_facts` widened with harness populations, all from
       existing records: per-tier attempt and escalation counts by reason, per-tier
-      cost with broker-measured spend preferred where present (D-21.5) and the
+      cost with broker-measured spend preferred where present (S-0021/D-5) and the
       self-reported number named as such where not, unparseable-review counts by
-      tier, and the current definitions' digests. The feed states RFC 0004's
-      quasi-experiment caveat the way RFC 0022 prints it: direction, never
+      tier, and the current definitions' digests. The feed states S-0004's
+      quasi-experiment caveat the way S-0022 prints it: direction, never
       magnitude.
   - key: configuration-change-lint
     md: |
@@ -164,7 +164,7 @@ sections:
       is confined to configuration surfaces; the resulting configuration parses
       under the schema; every image whose definition changed builds clean; and
       `torve doctor` passes over the result. Building at lint time does not touch
-      D-17.3 — that row forbids building *mid-run* on the dispatch path; a drafting
+      S-0017/D-3 — that row forbids building *mid-run* on the dispatch path; a drafting
       run building a candidate image to prove it builds is the same act as an
       operator running `torve sandbox build` before adopting.
   - key: the-measurement-obligation
@@ -172,11 +172,11 @@ sections:
       Landing a configuration change updates the definition; it does not yet make
       the change the department's regime. The incumbent digest and the candidate
       digest are both real, and the candidate earns the default through a paired
-      replay: the same tasks replayed under both digests — RFC 0004 §5's machinery,
+      replay: the same tasks replayed under both digests — S-0004/shadow-runs's machinery,
       recorded in the eval ledger's arm shape — with the verdict a human reads
       before flipping the default. Until the verdict exists, the incumbent stands.
-      The ledger entry cites both digests and both regimes, which D-21.8 and
-      D-17.1 make unambiguous identifiers.
+      The ledger entry cites both digests and both regimes, which S-0021/D-8 and
+      S-0017/D-1 make unambiguous identifiers.
 
       The obligation is deliberately placed at *displacement*, not at landing: a
       definition may land, sit as a named variant, and accumulate organic evidence
@@ -191,7 +191,7 @@ sections:
       root at dispatch, never from the worktree under work, so a task's content —
       including injected content the agent was fed — cannot steer the permission
       mode, network, or image of any run, its own included. The worktree-carried
-      channels (skills vendor, task context) remain exactly the channels D-17.4
+      channels (skills vendor, task context) remain exactly the channels S-0017/D-4
       already licenses: the repository instructing the agent about work.
   - key: alternatives-considered
     md: |
@@ -211,8 +211,8 @@ sections:
         making it an ordinary task gets for free. Rejected for reuse.
       - **Doing nothing** (operator keeps harvesting traces by hand). This is
         today, it produced every improvement so far, and it does not scale past
-        the operator's attention — which is the same shape RFC 0024 names for
-        ticking and RFC 0022 names for specifications.
+        the operator's attention — which is the same shape S-0024 names for
+        ticking and S-0022 names for specifications.
   - key: tests
     md: |
       Variant resolution: dotted lookup, loud refusal on unknown, seat semantics
@@ -227,7 +227,7 @@ sections:
   - key: docs
     md: |
       The sandbox provisioning page gains the variant naming convention and the
-      displacement rule, worded with RFC 0022's honesty: a replay verdict supports
+      displacement rule, worded with S-0022's honesty: a replay verdict supports
       direction, never magnitude. The dsh definition's in-file comment — the pin
       is identity — is promoted from folklore to the page.
   - key: out-of-scope
@@ -236,16 +236,16 @@ sections:
         default is the human's act, same shape as every adoption in this corpus.
         Reopened by nothing short of an amendment.
       - **Scheduled recalibration.** "Harness version moved, rerun the battery" is
-        a standing-maintenance trigger and belongs to RFC 0023's mechanism once
+        a standing-maintenance trigger and belongs to S-0023's mechanism once
         that document is built; this document only guarantees the battery is
         runnable on demand.
       - **Broker policy proposals.** The drafting run may notice cost populations;
-        proposing routing or budget changes is RFC 0021's configuration and rides
+        proposing routing or budget changes is S-0021's configuration and rides
         the same task path, but its lint and consequences are that document's
         subject.
       - **Fleet-wide configuration.** Trust classes and per-repository capability
-        are RFC 0024's manifest; a variant is per-root configuration like all
-        configuration (D-13.3 direction unchanged).
+        are S-0024's manifest; a variant is per-root configuration like all
+        configuration (S-0013/D-3 direction unchanged).
   - key: risks
     md: |
       - **Variant sprawl.** Cheap variants invite one per mood, fragmenting the
@@ -264,14 +264,14 @@ sections:
         block *landing* a fix — the incumbent-vs-candidate distinction exists
         exactly so an urgent definition change can land and run while the verdict
         accrues behind it.
-      - **Reading the refusal as distrust of models.** D-27.1 is not about model
+      - **Reading the refusal as distrust of models.** S-0027/D-1 is not about model
         quality; a perfect configurator per run still destroys comparability. The
         row's consequence says so to keep the future argument on the right ground.
   - key: unresolved-questions
     md: |
       - The replay battery's composition — which tasks, how many, refreshed how
-        often. RFC 0004 §5 practice suggests a handful of real landed tasks;
-        execution proposes from the first live campaign (D-27.8).
+        often. S-0004/shadow-runs practice suggests a handful of real landed tasks;
+        execution proposes from the first live campaign (S-0027/D-8).
       - Whether variant selection belongs on the contract alone or also on a
         document's phasing entries, so a plan can mint a whole phase onto a
         variant. Contract-only is the smaller first shape; the phasing extension

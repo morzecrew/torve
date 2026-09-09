@@ -1,7 +1,7 @@
-"""Pre-dispatch size estimate (RFC 0002 §6b, D-2.9): file-count in allow,
+"""Pre-dispatch size estimate (S-0002/task-size, S-0002/D-9): file-count in allow,
 number of acceptance commands, presence of more than one module.
 
-Rules of thumb, and a function rather than a policy object (A-49) — the
+Rules of thumb, and a function rather than a policy object (S-0002/A-3) — the
 `HistoricalPercentile` arm the protocol was shaped for needs the attempt
 store and retrospective calibration, and neither exists. Until it does,
 observations are carried by the telemetry records themselves.
@@ -29,8 +29,8 @@ MAX_MODULES = 1
 
 def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
     """The rule set itself, over the two fields it actually reads — shared
-    by a minted task (`estimate`) and a still-unminted draft (RFC 0026
-    D-26.12's per-child check), so a decomposition judges its own children
+    by a minted task (`estimate`) and a still-unminted draft (S-0026
+    S-0026/D-12's per-child check), so a decomposition judges its own children
     by the identical rule the parent was judged by."""
 
     reasons: list[str] = []
@@ -43,7 +43,7 @@ def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
 
     # tests accompany any change (every minted phase carries tests/**) — a
     # module count that includes them calls every task in the repository
-    # too_large, which D-26.7's route turned from a wrong number into a
+    # too_large, which S-0026/D-7's route turned from a wrong number into a
     # blocked dispatch.
     modules = {glob.split("/", 1)[0] for glob in scope.allow if "/" in glob} - {"tests"}
 
@@ -75,7 +75,7 @@ def estimate(task: Task) -> SizeVerdict:
 
 def has_children(root: Path, task_id: str) -> bool:
     """Whether some other contract already carries this task as `parent`
-    (RFC 0026 D-26.6) — true once a decomposition of it has been adopted,
+    (S-0026 S-0026/D-6) — true once a decomposition of it has been adopted,
     at which point it is the integration task and its own too_large
     verdict has already routed once and does not route again."""
 

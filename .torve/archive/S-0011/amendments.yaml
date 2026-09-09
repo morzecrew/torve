@@ -1,14 +1,14 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-23
+  - id: A-1
     at: '2026-08-22'
     title: >-
-      internal identifiers do not appear in user-facing text (adds §5a, D-11.11–D-11.12)
+      internal identifiers do not appear in user-facing text (adds §5a, S-0011/D-11–S-0011/D-12)
     md: |-
-      **Found in `torve --help`**, which cited RFC sections, decision identifiers and corpus paths at a reader who has none of them. Three defects, none cosmetic: the reference is addressed to the wrong reader (resolvable in exactly one repository), it rots invisibly (`torve rfc check` validates the corpus, not docstrings — the D-A.\* extraction into RFC 0016 falsified every help string citing a moved decision), and it confuses normativity with information.
+      **Found in `torve --help`**, which cited RFC sections, decision identifiers and corpus paths at a reader who has none of them. Three defects, none cosmetic: the reference is addressed to the wrong reader (resolvable in exactly one repository), it rots invisibly (`torve rfc check` validates the corpus, not docstrings — the D-A.\* extraction into S-0016 falsified every help string citing a moved decision), and it confuses normativity with information.
 
-      **Changed:** §5a states the audience rule, the surface table and the `user-facing-text` gate; D-11.11 and D-11.12 record it *(the source patch numbered them D-11.9/D-11.10, both already taken)*. References displaced from user-facing strings move up into module docstrings, not out of the file.
+      **Changed:** §5a states the audience rule, the surface table and the `user-facing-text` gate; S-0011/D-11 and S-0011/D-12 record it *(the source patch numbered them D-11.9/D-11.10, both already taken)*. References displaced from user-facing strings move up into module docstrings, not out of the file.
 
-      **Also edits:** RFC 0014 §9 — a note that string audience is checked by `user-facing-text`, not `source-layout`; RFC 0002 §4 — the gate joins the manifest at `shadow`, origin `rfc/0011`.
+      **Also edits:** S-0014/enforcement-the-source-layout-gate — a note that string audience is checked by `user-facing-text`, not `source-layout`; S-0002/starting-set — the gate joins the manifest at `shadow`, origin `rfc/0011`.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

@@ -1,12 +1,14 @@
-"""`torve` — Typer app assembly (RFC 0011, D-11.1; RFC 0015 §3).
+"""`torve` — Typer app assembly (S-0011, S-0011/D-1; S-0015/target-tree).
 
     torve gates run --base origin/main       # all gates
     torve gates run --only scope,acceptance
     torve gates check                        # the sabotage suite
     torve size .torve/tasks/T-0002.yaml
 
-Commands live one file per verb group (D-15.6) and register here; the shared
+Commands live one file per verb group (S-0015/D-6) and register here; the shared
 plumbing is `torve.cli.console` and `torve.cli.options`.
+
+References: S-0013/A-3.
 """
 
 from __future__ import annotations
@@ -133,7 +135,7 @@ app.command("why")(why.why_cmd)
 def main() -> None:
     """The console script's entry, and the one place `.env` is read.
 
-    Here rather than in the callback on purpose (A-111): this runs for a
+    Here rather than in the callback on purpose: this runs for a
     person at a terminal, and a test driving the same app through
     `CliRunner` gets the environment the test set and not the operator's
     own secrets. A name the environment already carries always wins over

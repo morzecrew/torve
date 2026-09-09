@@ -1,15 +1,15 @@
-"""`torve sandbox` — image definitions as reviewed artefacts (RFC 0017 §2).
+"""`torve sandbox` — image definitions as reviewed artefacts (S-0017/the-image-is-an-input-not-an-environment).
 
-Definitions live under `.torve/sandbox/<name>/` (D-17.2), build to the tag
+Definitions live under `.torve/sandbox/<name>/` (S-0017/D-2), build to the tag
 `torve-agent:<name>`, and the reported digest is the identity that joins
-`config_hash` at dispatch (D-17.1). Building is an operator action — the
-engine never builds mid-run (D-17.3) — and images stay thin (D-17.8): base
+`config_hash` at dispatch (S-0017/D-1). Building is an operator action — the
+engine never builds mid-run (S-0017/D-3) — and images stay thin (S-0017/D-8): base
 runtime, harness, git, uv; everything task-specific arrives via the
-workspace. Parsing and rendering only (D-15.6).
+workspace. Parsing and rendering only (S-0015/D-6).
 
 `--push` publishes a built image to a registry the server can pull from
-(D-41.4). The push is a docker call made here, at the operator's command —
-no registry client enters the runtime (RFC 0041 §5.2) — and the
+(S-0041/D-4). The push is a docker call made here, at the operator's command —
+no registry client enters the runtime (S-0041/images-reach-the-registry) — and the
 digest-pinned reference it prints is what the run config should carry: on
 a pull-from-registry platform the pinned reference is the resolution, not
 a stand-in for one.
@@ -175,7 +175,7 @@ PUSH_TIMEOUT_S = 1800
 def _docker(*args: str, timeout: float) -> subprocess.CompletedProcess[str]:
     """One docker call — the same binary the Docker runtime drives, and
     the only registry client the CLI is allowed: the adapter gets none
-    (RFC 0041 §5.2)."""
+    (S-0041/images-reach-the-registry)."""
 
     return subprocess.run(
         ["docker", *args], capture_output=True, text=True, timeout=timeout, check=False
@@ -323,7 +323,7 @@ def build(
     repository and the digest-pinned reference is printed for the run
     config: on a pull platform the pinned reference is the resolution."""
 
-    # Fail on the reference before loading anything else (D-41.4: the push
+    # Fail on the reference before loading anything else (S-0041/D-4: the push
     # is this command's docker call; the runtime adapters get no registry
     # client).
     repository = registry_repository(push) if push is not None else ""

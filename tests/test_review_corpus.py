@@ -1,4 +1,4 @@
-"""RFC 0005 phase 3: the seeded-defect corpus command — expected findings
+"""S-0005 phase 3: the seeded-defect corpus command — expected findings
 matched against the reviewer's output, a dropped catch or an invented
 blocker on a clean case exiting red."""
 
@@ -107,7 +107,7 @@ def test_an_invented_blocker_on_a_clean_case_is_a_regression(tmp_path, monkeypat
     assert json.loads(result.stdout)["cases"][0]["false_blockers"]
 
 
-# RFC 0036 phase 2 (T-0256): `torve review corpus add <fixing-commit>` —
+# S-0036 phase 2 (T-0256): `torve review corpus add <fixing-commit>` —
 # the escape pair scaffolded into an entry whose finding is a person's to
 # write, and whose unwritten placeholder the loader refuses. The replay's
 # old spellings must survive the group that now hosts `add`.

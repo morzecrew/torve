@@ -1,4 +1,4 @@
-"""Role-scoped skill materialization (A-3, D-9.7): the runner writes the
+"""Role-scoped skill materialization (S-0009/A-1, S-0009/D-7): the runner writes the
 role's skill set into the sandbox from package data at dispatch time. Nothing
 is installed into consuming repositories, so nothing can drift, and the skill
 version is the Torve version by construction.
@@ -48,11 +48,11 @@ def materialize(
 ) -> list[str]:
     """Write the role's skill set under *dest* (one directory per skill) and
     return the names written. A name resolves against package data and the
-    repository's vendored directory together (RFC 0009 §4a, D-9.11); a name
-    present in both is refused in both directions (D-9.12) — a vendored
+    repository's vendored directory together (S-0009/vendored-skills, S-0009/D-11); a name
+    present in both is refused in both directions (S-0009/D-12) — a vendored
     variant of a parsed skill drifts against its gate — and a name unknown
     to both is a configuration error, not a silent skip: a skill that
-    quietly stops applying makes the telemetry lie (D-9.2)."""
+    quietly stops applying makes the telemetry lie (S-0009/D-2)."""
 
     names = sets.get(role, [])
     packaged = skills_root()

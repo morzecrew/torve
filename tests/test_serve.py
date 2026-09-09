@@ -1,9 +1,9 @@
-"""RFC 0032 §6: the serve surface. Endpoint tests run through starlette's
+"""S-0032/tests: the serve surface. Endpoint tests run through starlette's
 TestClient — no socket is opened; the loopback-only configuration and the
 absence of a host flag are asserted against the CLI; a checkout without a
 bundle gets an instructive 404 instead of a half-working dashboard; and the
 serve extra stays optional, its absence a config error (the mcp-extra
-precedent, D-32.3)."""
+precedent, S-0032/D-3)."""
 
 from __future__ import annotations
 
@@ -170,9 +170,9 @@ def test_serve_has_no_host_flag():
 
 
 # ----------------------- #
-# The why endpoint (RFC 0040): serve re-exposes the per-task envelope
+# The why endpoint (S-0040): serve re-exposes the per-task envelope
 # verbatim, and all three surfaces — CLI, MCP, endpoint — are byte-identical
-# renderings of the one projection (D-40.1).
+# renderings of the one projection (S-0040/D-1).
 
 
 def test_api_why_re_exposes_the_projection_verbatim(plan_repo):  # noqa: F811

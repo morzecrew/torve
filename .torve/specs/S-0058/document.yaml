@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0058
+id: S-0058
 title: One grammar and the anatomy
 kind: design
 status: accepted
 implementation: none
-depends_on: ['0057']
-informed_by: ['0053', '0056']
+depends_on: [S-0057]
+informed_by: [S-0053, S-0056]
 supersedes: []
 superseded_by: null
 owner: misery7100
@@ -39,11 +39,11 @@ sections:
       warning.
   - key: motivation
     md: |
-      Four families spell an identifier four ways. `S-0057` is padded, `D-57.9`
-      is not; `I-57.1` and `Q-57.2` follow the rows; `A-166` counts across the
+      Four families spell an identifier four ways. `S-0057` is padded, `S-0057/D-9`
+      is not; `S-0057/I-1` and `S-0057/Q-2` follow the rows; `S-0057/A-2` counts across the
       whole corpus and lives in one document without saying which. Sections and
       phases have no identifier at all: the code cites them by position —
-      "RFC 0022 §5" — and phase 1 of RFC 0057 dropped the numbers that made those
+      "S-0022" — and phase 1 of S-0057 dropped the numbers that made those
       positions readable. Measured on `fc3714b`:
 
       | citation shape in `src/` and `pages/` | mentions |
@@ -52,7 +52,7 @@ sections:
       | "RFC NNNN §n" (unchecked, rots on any reorder) | 336 |
       | charter rows `D-A.n`, a fifth shape, cited 26 times | 13 distinct |
 
-      One grammar was not chosen in RFC 0053 because identifiers were permanent
+      One grammar was not chosen in S-0053 because identifiers were permanent
       and cited from logs, commits and the record. That was the right rule for a
       library with users. This one has none yet: nothing outside this repository
       cites a row, and the record is development data that re-imports in a
@@ -68,7 +68,7 @@ sections:
       characters against 1,300 to 1,700, one routing line and one paragraph,
       written twice by hand.
 
-      Every amendment since A-161 — ten of ten — changed a phase's scope, and each
+      Every amendment since S-0056/A-1 — ten of ten — changed a phase's scope, and each
       rewrote `document.yaml` beside prose that did not move. The phasing is what
       the planner reads and what execution corrects; it is the one author-written
       list whose diffs should stand alone.
@@ -123,7 +123,7 @@ sections:
   - key: non-goals
     md: |
       Changing what a row means (grade semantics, paths, check, fingerprint,
-      silence: RFC 0053 and 0054). Changing task identifiers or the task
+      silence: S-0053 and 0054). Changing task identifiers or the task
       directory. Keeping legacy identifiers readable anywhere but through the
       mapping (`spec show` answers them; nothing else does). Retention of the
       mapping past the first release — Q-1. The library extraction, which
@@ -138,9 +138,9 @@ sections:
       | decision | `S-0057/D-9` | `id: D-9` |
       | invariant | `S-0057/I-1` | `id: I-1` |
       | question | `S-0057/Q-2` | `id: Q-2` |
-      | amendment | `S-0057/A-6` | `id: A-6` |
+      | amendment | `S-0057/A-6` | `id: S-0003/A-1` |
       | phase | `S-0057/P-3` | `phase: 3` |
-      | prose section | `S-0057/summary`, `S-0057/the-grammar` | the key |
+      | prose section | `S-0057/summary`, `S-0058/the-grammar` | the key |
       | task | `T-0306` | its own namespace, unchanged |
 
       The local half is `<F>-<n>` with a numeric `n` that is never reused within
@@ -163,12 +163,12 @@ sections:
       conversion writes and commits as `.torve/archive/identifiers.yaml`:
 
       ```yaml
-      D-57.9: S-0057/D-9
-      A-166: S-0057/A-6
-      D-A.10: S-0016/D-24
+      S-0057/D-9: S-0057/D-9
+      S-0057/A-2: S-0057/A-6
+      S-0016/D-20: S-0016/D-24
       ```
 
-      Rows keep their local number where they had one (`D-57.9` is `D-9`);
+      Rows keep their local number where they had one (`S-0057/D-9` is `D-9`);
       the charter's `D-A.n` rows, which live in the archived 0016 with their
       letters, take numbers after 0016's own; amendments take their position
       within their document. The mapping is applied to the corpus, the archive,
@@ -182,7 +182,7 @@ sections:
 
       Afterwards a legacy identifier anywhere the check reads — the corpus, the
       tree — is a problem naming its replacement from the mapping; `spec show
-      D-57.9` answers the mapped row and says which it was; commit trailers,
+      S-0057/D-9` answers the mapped row and says which it was; commit trailers,
       telemetry and the record's history keep what they said, being history,
       and `spec cites` reads them through the mapping. The record re-imports:
       every old subject is recorded as retired with the reason "renumbered to
@@ -226,7 +226,7 @@ sections:
       A draft may leave any of them empty; `check` requires the seven and one
       design entry of an accepted document, and refuses a ninth extra, an
       extra keyed like a typed name or a family, and any prose carrying a
-      typed list (D-57.2 unchanged). `description` is dropped: `spec list`, the
+      typed list (S-0057/D-2 unchanged). `description` is dropped: `spec list`, the
       pack and the render show the summary's first sentence, and `check` warns
       when that sentence runs past 300 characters. The 57 documents convert by
       key: the keys named above lift into the typed fields, everything under
@@ -238,7 +238,7 @@ sections:
     md: |
       `phasing.yaml` holds `phasing` and `contract_example` and nothing else:
       author-written, planner-read, and the file a scope amendment touches
-      alone. The split by writer (D-57.1) bends once and deliberately: the
+      alone. The split by writer (S-0057/D-1) bends once and deliberately: the
       phasing is the one list the author writes that execution rewrites, and
       its diffs deserve to stand apart from prose that never moves. Six files
       per document, then — `document`, `decisions`, `phasing`, `amendments`,
@@ -282,11 +282,11 @@ sections:
         like a family is refused.
       - **The conversion.** Parity over every item of the schema-3 dump under its
         mapped identifier; a legacy identifier in the tree is a problem naming
-        the replacement; `spec show D-57.9` answers the mapped row; the record
+        the replacement; `spec show S-0057/D-9` answers the mapped row; the record
         after re-import holds every new id and every old one retired.
       - **The anatomy.** An accepted document missing a typed key or a design
         entry is refused with the key named; a draft is not; a ninth extra, an
-        extra keyed `summary` or `D-1` is refused; the summary's first sentence
+        extra keyed `summary` or `S-0001/D-9` is refused; the summary's first sentence
         is what `list` shows and what warns past 300 characters.
       - **The files.** `phasing.yaml` loads and dumps apart; a scope amendment
         writes it and nothing else; `execution/` reads in instant order; two
@@ -307,7 +307,7 @@ sections:
   - key: out-of-scope
     md: |
       Task identifiers (`T-NNNN`) as a document-rooted family — Q-2, and the
-      task directory is the record's (RFC 0056). The library extraction. A
+      task directory is the record's (S-0056). The library extraction. A
       section tree. Any change to what a row means.
   - key: risks
     md: |
@@ -371,14 +371,14 @@ alternatives:
   - option: tasks as `S-NNNN/T-n`
     rejected_because: >-
       a task is minted by a phase but landed against a document it may outlive; the
-      task directory is the record's (RFC 0056), and the question waits for that to
+      task directory is the record's (S-0056), and the question waits for that to
       settle (Q-2)
 questions:
-  - id: Q-58.1
+  - id: Q-1
     text: >-
       Whether the mapping stays readable after the first release, or is deleted with
       the release notes naming the renumbering
-  - id: Q-58.2
+  - id: Q-2
     text: >-
       Whether tasks become document-rooted (`S-NNNN/T-n`) once the task directory
       has left the tree for good
@@ -410,6 +410,11 @@ phasing:
       - .torve/schemas/**
       - '**/AGENTS.md'
       - tests/**
+      - .torve/gates.yaml
+      - .torve/standing/**
+      - pyproject.toml
+      - migrations/**
+      - web/README.md
     acceptance:
       - uv run pytest
       - uv run torve spec check

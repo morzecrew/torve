@@ -1,1 +1,1 @@
-"""On-disk file models and .torve/ path resolution (RFC 0015 §2)."""
+"""On-disk file models and .torve/ path resolution (S-0015/layers)."""

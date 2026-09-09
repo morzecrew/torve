@@ -1,8 +1,8 @@
-"""The event log service (RFC 0044 §5.1, §5.2): the one way a fact enters
+"""The event log service (S-0044/the-event-log, §5.2): the one way a fact enters
 the system of record.
 
 The rules live here rather than in a store because they are the domain's,
-not any backend's (D-44.2): the authority table and the kind's payload model
+not any backend's (S-0044/D-2): the authority table and the kind's payload model
 are checked before a record is built, so an unauthorized or malformed write
 never reaches persistence to be refused — or, worse, accepted — there. A
 second store adapter cannot be more permissive than the first, because
@@ -63,7 +63,7 @@ if TYPE_CHECKING:
 
 
 class ResourceName(StrEnum):
-    """Logical resource names (RFC 0044 §5.7). One name is one route: the
+    """Logical resource names (S-0044/ports-and-what-binds-first). One name is one route: the
     deps module keys its physical configuration by these members, and a
     mismatch between the two is the wiring bug worth naming once here."""
 
@@ -97,7 +97,7 @@ ORDER: Mapping[str, Literal["asc", "desc"]] = {"created_at": "asc", "id": "asc"}
 # How many records one read of the log asks for at a time. Every read here
 # pages until the log runs out, so this is a request size and never a cap:
 # a fold built on part of the record is a wrong answer that looks like a
-# right one, and the reader cannot tell the difference (A-99).
+# right one, and the reader cannot tell the difference (S-0044/A-9).
 PAGE = 1000
 
 
@@ -201,7 +201,7 @@ class EventLog:
         self, subject_type: SubjectType, *, partition: str
     ) -> list[EventRecord]:
         """One partition's records about one kind of subject, oldest first
-        (D-47.7).
+        (S-0047/D-7).
 
         Sources and decisions grow with the corpus; attempts, gates and burn
         grow with execution. Folding the second to answer a question about
@@ -255,7 +255,7 @@ def burn_sink(
     seat: str,
     correlation_id: str | None = None,
 ) -> BurnSink:
-    """A sink that records the broker's metering as it happens (RFC 0045
+    """A sink that records the broker's metering as it happens (S-0045
     §5.1).
 
     The broker calls this on the thread serving the run's egress, so the
@@ -311,7 +311,7 @@ def attempt_sink(
     seat: str,
     correlation_id: str | None = None,
 ) -> AttemptSink:
-    """Record each attempt as the runner reports it (RFC 0044 D-44.3).
+    """Record each attempt as the runner reports it (S-0044 S-0044/D-3).
 
     One dispatch is up to `poison_ceiling` attempts, each possibly under a
     different tier, each with its own gate verdict. The worker cannot know
@@ -350,12 +350,12 @@ def attempt_sink(
 
 @attrs.define(slots=True, kw_only=True, frozen=True)
 class RunLogChannel(RunChannel):
-    """One run's route into the record, host-side (RFC 0045 §5.2).
+    """One run's route into the record, host-side (S-0045/the-intake-route).
 
     The broker hands untrusted content to this object and nothing else. Who
     is writing, which partition and which task are fields of the channel,
     fixed when it was built for the run, so an agent's request cannot state
-    them — forging is unexpressible rather than refused (D-45.2). Authority
+    them — forging is unexpressible rather than refused (S-0045/D-2). Authority
     is the log's own check, over an actor this object supplies.
 
     The broker calls from its request thread, so each call blocks on the

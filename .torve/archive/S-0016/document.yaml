@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0016'
+id: S-0016
 title: Specification corpus conventions
 kind: convention
 status: superseded
@@ -7,7 +7,7 @@ implementation: complete
 depends_on: []
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   How a specification corpus is organised, numbered, versioned and validated; applies
@@ -17,15 +17,15 @@ schema_version: 3
 sections:
   - key: why-this-is-separate-from-the-charter
     md: |
-      These rules were written into RFC 0001 because there was nowhere else to put them, and the consequences showed up in the numbers: **half the charter's amendments and forty-five per cent of its decisions were about document conventions rather than about Torve.**
+      These rules were written into S-0001 because there was nowhere else to put them, and the consequences showed up in the numbers: **half the charter's amendments and forty-five per cent of its decisions were about document conventions rather than about Torve.**
 
       The mismatch is categorical, not merely one of volume. **These rules apply to a repository containing no engine at all.** They govern how a corpus of specifications is kept; Torve happens to consume one. Keeping them in the engine's charter meant every clarification about numbering or indexing amended the document that defines what Torve *is*.
 
       They also had no prose. They existed only as decision rows and amendment entries — which is why they were hard to follow and kept needing amendment. §2–§7 below are that missing prose; the decisions themselves are unchanged and carry their original identifiers.
 
-      **Identifiers are preserved exactly.** `D-A.7` is still `D-A.7`, now resolving here. Renumbering would break citations in RFCs 0007, 0011, 0013 and 0015 and violate D-A.4, and the `D-A.` prefix was never tied to a document number.
+      **Identifiers are preserved exactly.** `S-0001/D-36` is still `S-0001/D-36`, now resolving here. Renumbering would break citations in RFCs 0007, 0011, 0013 and 0015 and violate S-0016/D-15, and the `D-A.` prefix was never tied to a document number.
 
-      Four `D-A.*` decisions did **not** move — D-A.7, D-A.13, D-A.14 and D-A.15 are about task directories, logs and retention, which are engine artefacts. They stay in the charter. The prefix marks when a decision was written, not where it belongs; the split is by subject.
+      Four `D-A.*` decisions did **not** move — S-0001/D-36, S-0001/D-37, S-0001/D-38 and S-0001/D-39 are about task directories, logs and retention, which are engine artefacts. They stay in the charter. The prefix marks when a decision was written, not where it belongs; the split is by subject.
   - key: three-destinations
     md: |
       | Kind | Where | Read by |
@@ -55,7 +55,7 @@ sections:
       supersedes: []
       superseded_by: null
       amended_by: []
-      retired: []               # identifiers once defined here — removed, never reusable (A-20)
+      retired: []               # identifiers once defined here — removed, never reusable (S-0016/A-6)
       owner: <name>
       schema_version: 1
       ---
@@ -68,10 +68,10 @@ sections:
     md: |
       Decisions stay in markdown, not in frontmatter. A decision row carries prose — the statement and the consequence — which is what people argue about in review and belongs where reading happens. Splitting rows from rationale would create two sources of truth inside one document.
 
-      The table parses deterministically because its columns are fixed; what it needs is hard validation rather than another serialization. Identifiers are permanent: divergence logs cite `D-3` forever, so rows are appended and never renumbered.
+      The table parses deterministically because its columns are fixed; what it needs is hard validation rather than another serialization. Identifiers are permanent: divergence logs cite `S-0001/D-11` forever, so rows are appended and never renumbered.
   - key: amendment-discipline
     md: |
-      An accepted RFC is never rewritten in place — divergence logs and telemetry reference text that must still exist. A change to an accepted decision is recorded as an amendment in the `## Amendments` section of the document whose decision it changes (D-A.5), listing secondary edits inside the entry. Numbering is global (`A-1`, `A-2`, …) so an amendment can be cited unambiguously from a log or a commit trailer. Every amendment follows the process this corpus specifies: implementation disagreed with a decision, stopped, and returned to a human — `flag-dont-flip` applied to Torve itself.
+      An accepted RFC is never rewritten in place — divergence logs and telemetry reference text that must still exist. A change to an accepted decision is recorded as an amendment in the `## Amendments` section of the document whose decision it changes (S-0016/D-16), listing secondary edits inside the entry. Numbering is global (`S-0001/A-1`, `S-0002/A-1`, …) so an amendment can be cited unambiguously from a log or a commit trailer. Every amendment follows the process this corpus specifies: implementation disagreed with a decision, stopped, and returned to a human — `flag-dont-flip` applied to Torve itself.
 
       This document's own amendments follow, in the unnumbered `## Amendments` container every document keeps.
   - key: the-index

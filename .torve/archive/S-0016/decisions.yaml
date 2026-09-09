@@ -1,61 +1,61 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-A.1
+  - id: D-9
     grade: LOCKED
     text: >-
       A document with a graded decision table is an RFC and gets a number; published
       documentation goes to `pages/`, one-off procedures to `ops/`. Added by amendment
-      A-7 2026-08-21
+      S-0016/A-1 2026-08-21
     paths: [rfcs/**, src/torve/config/rfc_parse.py]
     consequence: >-
       The sorting rule; without it `rfcs/` mixes kinds again
-  - id: D-A.1a
+  - id: D-10
     grade: LOCKED
     text: >-
       A page must not contradict an accepted decision, and must not restate rationale
       that belongs under a number. Documentation is written independently, not generated
-      from `rfcs/`. *(Reworded 2026-08-21 — see the note under A-7; Paths amended
-      by A-53 2026-08-27.)*
+      from `rfcs/`. *(Reworded 2026-08-21 — see the note under S-0016/A-1; Paths amended
+      by S-0016/A-7 2026-08-27.)*
     paths: [rfcs/**]
     consequence: >-
       Derivation produces pages that answer "why was this decided" to a reader asking
       "how do I use this"
-  - id: D-A.1b
+  - id: D-11
     grade: ASSUMED
     text: An `ops/` document is deleted once executed
     paths: [rfcs/**]
     consequence: >-
       A finished procedure kept "for reference" is how the mess restarts
-  - id: D-A.1c
+  - id: D-12
     grade: LOCKED
     text: >-
       Documentation is versioned with releases; `rfcs/` is not. Neither is generated
-      from the other. *(Paths amended by A-53 2026-08-27.)*
+      from the other. *(Paths amended by S-0016/A-7 2026-08-27.)*
     paths: [rfcs/**]
     consequence: >-
       Two different axes; synchronising them produces a site with an amendment history
       and a corpus with release branches
-  - id: D-A.2
+  - id: D-13
     grade: LOCKED
     text: >-
       Structured facts in YAML frontmatter; prose in the body
     paths: [rfcs/**]
     consequence: >-
       Status and dependencies must be queryable and checkable
-  - id: D-A.3
+  - id: D-14
     grade: LOCKED
     text: >-
       Decision tables stay in markdown, hard-validated by `rfc_index.py`
     paths: [rfcs/**, src/torve/config/rfc_parse.py]
     consequence: >-
       Frontmatter would split rows from rationale — two sources of truth in one document
-  - id: D-A.4
+  - id: D-15
     grade: LOCKED
     text: >-
       Decision identifiers are permanent; append, never renumber
     paths: [rfcs/**]
     consequence: Divergence logs cite them forever
-  - id: D-A.5
+  - id: D-16
     grade: LOCKED
     text: >-
       Amendments live in an `## Amendments` section of their primary target; numbering
@@ -63,132 +63,133 @@ decisions:
     paths: [rfcs/**]
     consequence: >-
       An amendment must be visible where the decision is read
-  - id: D-A.6
+  - id: D-17
     grade: LOCKED
     text: >-
       `INDEX.md` is generated and CI-checked, never hand-edited
     paths: [rfcs/INDEX.md, src/torve/config/rfc_parse.py]
     consequence: >-
       A hand-maintained index drifts, as this repository already showed
-  - id: D-A.8
+  - id: D-18
     grade: ASSUMED
     text: Keep the term "RFC"
     consequence: Revisit only if `spec` ever justifies the churn
-  - id: D-A.9
+  - id: D-19
     grade: LOCKED
     text: >-
       `depends_on` constrains planning readiness; shipping order lives in the phasing
-      table. Added by amendment A-10 2026-08-22
+      table. Added by amendment S-0016/A-3 2026-08-22
     paths: [rfcs/**]
     consequence: >-
       Conflating the two makes the graph a scheduler, which it is not
-  - id: D-A.10
+  - id: D-20
     grade: LOCKED
     text: >-
       No document inherits decisions from one that is not `accepted`. Added by amendment
-      A-10 2026-08-22
+      S-0016/A-3 2026-08-22
     paths: [rfcs/**]
     consequence: >-
       A grade copied from a draft is a grade that may change under an executor
-  - id: D-A.11
+  - id: D-21
     grade: LOCKED
     text: >-
       Frontmatter carries `implementation` as a judgement (one of `none`, `partial`,
       `complete`, `abandoned`); execution progress is never a frontmatter field. Added
-      by amendment A-9 2026-08-22
+      by amendment S-0016/A-2 2026-08-22
     paths: [rfcs/**]
     consequence: >-
       Progress is store-derived and would diverge on the first escalation
-  - id: D-A.12
+  - id: D-22
     grade: LOCKED
     text: >-
       The index carries every frontmatter field that aids routing, and nothing derived
       from the store; progress stays a projection and is never committed. Added by
-      amendment A-9 2026-08-22. *(Reworded by A-14 2026-08-22 from "progress never
-      enters INDEX.md" read as general minimalism — the actual concern was store dependence.)*
+      amendment S-0016/A-2 2026-08-22. *(Reworded by S-0016/A-4 2026-08-22 from "progress
+      never enters INDEX.md" read as general minimalism — the actual concern was store
+      dependence.)*
     paths: [rfcs/INDEX.md, src/torve/config/rfc_parse.py]
     consequence: >-
       Frontmatter is in the same commit the index is checked against; store data would
       make `--check` flake on every task run
-  - id: D-A.16
+  - id: D-23
     grade: LOCKED
     text: >-
       One corpus path, configurable as `rfcs.path`, never a list or a glob. Added
-      by amendment A-15 2026-08-22
+      by amendment S-0016/A-5 2026-08-22
     paths: [src/torve/config/runconfig.py, rfcs/**]
     consequence: >-
       Two roots mean two counters and a colliding identifier at the first merge
-  - id: D-A.17
+  - id: D-24
     grade: LOCKED
     text: >-
       The next number is derived as the maximum plus one over the corpus path and
-      the archive together, never stored in a counter file (RFC 0053 D-53.10). Added
-      by amendment A-15 2026-08-22; amended by A-150 2026-09-09
+      the archive together, never stored in a counter file (S-0053 S-0053/D-10). Added
+      by amendment S-0016/A-5 2026-08-22; amended by S-0016/A-10 2026-09-09
     paths: [src/torve/config/rfc_parse.py]
     consequence: >-
       A counter is state; two branches diverge it and the resolution gives two documents
       one number
     fingerprint: 67ad88677aa44b9a/71ed077d6d777502
-  - id: D-A.18
+  - id: D-25
     grade: LOCKED
     text: >-
       Only `NNNN-slug.md` and `INDEX.md` in the corpus directory, no subdirectories;
       the check routes offenders to `pages/` or `ops/`. A retired document's one legal
       destination is `archive/rfcs/` beside the corpus path, keeping its filename
-      and identifiers, written only by `torve rfc archive` (RFC 0053 D-53.8). Added
-      by amendment A-15 2026-08-22; amended by A-148 2026-09-09
+      and identifiers, written only by `torve rfc archive` (S-0053 S-0053/D-8). Added
+      by amendment S-0016/A-5 2026-08-22; amended by S-0016/A-8 2026-09-09
     paths: [rfcs/**, src/torve/config/rfc_parse.py]
     consequence: >-
       Without routing the file lands in the repository root and the mess has moved
       rather than gone
     fingerprint: b3e0b83d1881d805/bcecc04abf43a1cb
-  - id: D-A.19
+  - id: D-26
     grade: LOCKED
     text: >-
       Documents are never deleted; identifiers are never reused; gaps are acceptable.
       A document moved into the archive is not deleted: every identifier it defines
-      still resolves through `show`, the check and the record (RFC 0053 D-53.9). Added
-      by amendment A-15 2026-08-22; amended by A-149 2026-09-09
+      still resolves through `show`, the check and the record (S-0053 S-0053/D-9).
+      Added by amendment S-0016/A-5 2026-08-22; amended by S-0016/A-9 2026-09-09
     paths: [rfcs/**]
     consequence: >-
       Amendments, logs and commit trailers cite identifiers, and reuse redirects all
       of them silently
     fingerprint: b3c7cde278428747/a0d73f2ad31523c3
-  - id: D-A.20
+  - id: D-27
     grade: ASSUMED
     text: >-
       A filename is not renamed once the document is on the main branch. Added by
-      amendment A-15 2026-08-22
+      amendment S-0016/A-5 2026-08-22
     paths: [rfcs/**]
     consequence: >-
       Links from `pages/`, amendments and commit messages break; a materially different
       title is usually a new document
-  - id: D-16.1
+  - id: D-1
     grade: LOCKED
     text: >-
       A retired identifier's row is removed; the document keeps a prose tombstone
       and lists the id in `retired:` frontmatter, where it stays resolvable and is
-      never redefined. Added by amendment A-20 2026-08-22
+      never redefined. Added by amendment S-0016/A-6 2026-08-22
     paths: [rfcs/**, src/torve/config/rfc_parse.py]
     consequence: >-
       Dead rows would pile up at the one surface executors inherit from; without the
       structured list, every tombstone citation reads as a typo to the checker
-  - id: D-16.2
+  - id: D-2
     grade: ASSUMED
     text: >-
       The decision-table column order is fixed and the validator enforces the exact
       header; a document's example tables are illustrative, never a reordering instruction.
       Added by execution 2026-08-22 — see .torve/tasks/T-0009
     paths: [rfcs/**, src/torve/config/rfc_parse.py]
-  - id: D-16.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       LOCKED paths globs are repository-checked only for documents implemented beyond
       `none`; an unbuilt document names intended modules and refines them when they
-      exist (D-32). Added by execution 2026-08-22 — see .torve/tasks/T-0009, refined
-      at 0004's acceptance
+      exist (S-0001/D-32). Added by execution 2026-08-22 — see .torve/tasks/T-0009,
+      refined at 0004's acceptance
     paths: [src/torve/config/rfc_parse.py, rfcs/**]
-  - id: D-16.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       Paths cells follow the code and relocate mechanically, carrying their current
@@ -196,27 +197,27 @@ decisions:
       decision text itself names the superseded location. Added by execution 2026-08-22
       — see .torve/tasks/T-0012, T-0016 and T-0017
     paths: [rfcs/**]
-  - id: D-16.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       Renumbering notes name foreign identifiers in non-citation form — the backticked
       family, never the dotted id — keeping citation resolution clean without exemptions.
       Added by execution 2026-08-22 — see .torve/tasks/T-0017
     paths: [rfcs/**]
-  - id: D-16.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       A `path:line` citation of a nonexistent path is an illustration, not a reference;
       only real paths rot. Added by execution 2026-08-22 — see .torve/tasks/T-0016
     paths: [src/torve/config/rfc_parse.py]
-  - id: D-16.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       The `## Amendments` container is unnumbered in every document; prose about the
       discipline lives under a name that does not collide with it. Added by execution
       2026-08-22 — see .torve/tasks/T-0017
     paths: [rfcs/**]
-  - id: D-16.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       Minted task scopes exclude repository bookkeeping: CHANGELOG entries and rfc

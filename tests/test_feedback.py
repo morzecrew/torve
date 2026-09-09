@@ -1,4 +1,4 @@
-"""RFC 0005 §4a (A-32): the revision loop — capture at retry, verbatim
+"""S-0005/the-revision-loop-added-by-a-32-2026-08-24 (A-32): the revision loop — capture at retry, verbatim
 allow-listed threads, recorded truncation, and the prompt naming the
 record as untrusted review data."""
 
@@ -76,7 +76,7 @@ def test_a_diff_only_record_is_honest_about_the_absent_threads(root):
 
 
 def test_capture_retains_reply_addresses_when_threads_carry_them(root):
-    # D-5.14 (A-41): the landing that consumes this record answers its
+    # S-0005/D-14 (A-41): the landing that consumes this record answers its
     # threads — the addresses persist beside it; address-less threads
     # (older captures, tests) leave no pending file.
     import json

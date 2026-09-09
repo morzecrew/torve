@@ -46,7 +46,7 @@ def test_gates_run_exit_code_is_the_outcome(repo):
 
 
 def test_malformed_manifest_exits_3(repo):
-    # D-13.6: a bad file is a configuration error, distinct from red gates.
+    # S-0013/D-6: a bad file is a configuration error, distinct from red gates.
     repo.seed()
     (repo.root / ".torve" / "gates.yaml").write_text(
         "schema_version: 1\nsope: {}\n", encoding="utf-8"
@@ -57,7 +57,7 @@ def test_malformed_manifest_exits_3(repo):
 
 
 def test_json_is_exactly_one_document_on_stdout(repo):
-    # D-11.6: machine output is one JSON document, diagnostics never mix in.
+    # S-0011/D-6: machine output is one JSON document, diagnostics never mix in.
     repo.seed()
     repo.write("src/app.py", "print('json')\n")
     repo.commit("change")
@@ -192,7 +192,7 @@ def test_doctor_image_check_is_unchanged_with_no_eval_ledger(tmp_path, monkeypat
 
 
 def test_doctor_prints_the_registry_digest_for_a_remote_reference(tmp_path, monkeypatch):
-    # RFC 0033's phase-3 line: a registry reference the runtime cannot
+    # S-0033's phase-3 line: a registry reference the runtime cannot
     # resolve (an unpulled remote image) prints the digest the registry
     # itself resolves — the same line a local image already gets.
     root = _doctor_repo(
@@ -251,7 +251,7 @@ def test_doctor_keeps_the_runtime_red_when_the_registry_cannot_resolve(tmp_path,
 
 
 def test_doctor_prints_the_registry_digest_under_opensandbox(tmp_path, monkeypatch):
-    # The digest rule is runtime-independent (RFC 0017 §2): under the
+    # The digest rule is runtime-independent (S-0017/the-image-is-an-input-not-an-environment): under the
     # opensandbox runtime — whose server pulls from a registry — a
     # registry reference gets the same line, resolved from the registry.
     root = _doctor_repo(
@@ -326,7 +326,7 @@ def test_size_estimate():
 
 
 def test_run_blocked_awaiting_decomposition_without_override(repo):
-    # RFC 0026 D-26.7: a too_large contract awaits decomposition — dispatch
+    # S-0026 S-0026/D-7: a too_large contract awaits decomposition — dispatch
     # refuses it by name unless the operator overrides explicitly.
     repo.seed()
     repo.task(base_task(allow=["src/a/**", "docs/a/**"]), None)
@@ -337,7 +337,7 @@ def test_run_blocked_awaiting_decomposition_without_override(repo):
 
 
 def test_run_oversize_override_dispatches_and_is_recorded(repo):
-    # The override bypasses the block and is recorded on the run (D-26.7) —
+    # The override bypasses the block and is recorded on the run (S-0026/D-7) —
     # asserted from telemetry alone, independent of whatever the dispatched
     # attempt itself goes on to do.
     repo.seed()
@@ -359,7 +359,7 @@ def base_task_model():
 
 
 def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
-    """D-5.1's bias warning: legal, warned, never refused."""
+    """S-0005/D-1's bias warning: legal, warned, never refused."""
     from torve.cli.doctor import _review_bias_check
 
     (tmp_path / ".torve").mkdir()
@@ -390,7 +390,7 @@ def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
 
 # ....................... #
 # Retry rungs join the dispatch-time provider check on every axis
-# (D-34.6, D-4.8): a repository's denial must reach the surface that reads
+# (S-0034/D-6, S-0004/D-8): a repository's denial must reach the surface that reads
 # the full mapping, not only the scalar's functional mirror.
 
 
@@ -711,7 +711,7 @@ def test_sandbox_build_help_carries_no_corpus_coordinates():
 
 
 # ----------------------- #
-# The composition root (RFC 0042 phase 1): one place turns `(root, config)`
+# The composition root (S-0042 phase 1): one place turns `(root, config)`
 # into dep bundles. These builder tests assert each bundle's composition
 # against a fixture config — the tests the three old wiring copies never
 # had; the verb scenario tests above pin the behaviour unchanged.
@@ -992,20 +992,20 @@ def test_dsn_defaults_to_the_configured_variable(tmp_path, monkeypatch):
 
 
 def test_owed_reports_a_row_covered_by_its_check(repo):
-    """RFC 0054 D-54.3: `torve log owed` names the three states — owed,
+    """S-0054 S-0054/D-3: `torve log owed` names the three states — owed,
     pathless, covered by a check — so the executor sees why a row is or is
     not on its list."""
 
     repo.seed()
     decisions = [
         {
-            "id": "D-9.1",
+            "id": "S-0009/D-1",
             "grade": "LOCKED",
             "text": "checked",
             "paths": ["src/**"],
             "check": "true",
         },
-        {"id": "D-9.2", "grade": "LOCKED", "text": "silent", "paths": ["src/**"]},
+        {"id": "S-0009/D-2", "grade": "LOCKED", "text": "silent", "paths": ["src/**"]},
     ]
     repo.task(base_task(allow=["src/**"], decisions=decisions), log_document())
 
@@ -1026,8 +1026,8 @@ def test_owed_reports_a_row_covered_by_its_check(repo):
     reported = json.loads(result.stdout)
 
     assert result.exit_code == 0, result.output
-    assert [p for p in reported["owed"] if "D-9.2" in p]
-    assert reported["skipped"] == ["D-9.1: covered by its check, which runs as a gate"]
+    assert [p for p in reported["owed"] if "S-0009/D-2" in p]
+    assert reported["skipped"] == ["S-0009/D-1: covered by its check, which runs as a gate"]
 
     text = CliRunner().invoke(
         app, ["log", "owed", TASK_ID, "--root", str(repo.root), "--touched", "src/app.py"]
@@ -1037,7 +1037,7 @@ def test_owed_reports_a_row_covered_by_its_check(repo):
 
 
 # ----------------------- #
-# RFC 0057 D-57.5: `torve init` writes what the code derives, and only that
+# S-0057 S-0057/D-5: `torve init` writes what the code derives, and only that
 
 
 def _bare_repo(tmp_path: Path) -> Path:

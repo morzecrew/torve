@@ -1,7 +1,7 @@
-"""Skills as package data (A-3, D-9.7): the runner materializes the role's
+"""Skills as package data (A-3, S-0009/D-7): the runner materializes the role's
 set into the sandbox and the specialisation is visible. The corpus-validator
 breakage cases moved to tests/test_rfc_check.py when validation moved into
-the package (0007 §3a, D-7.12). The corpus-bootstrap fixture (RFC 0031 phase
+the package (S-0007/format-validation, S-0007/D-12). The corpus-bootstrap fixture (S-0031 phase
 2) rides here too: the sample survey report in, the checkable output shape
 out — the shape the skill teaches pinned against the package's own parsers.
 """
@@ -62,7 +62,7 @@ def test_materialize_refuses_an_unknown_skill(tmp_path):
 
 
 # ....................... #
-# corpus-bootstrap (RFC 0031 phase 2): the skill's fixture — a sample survey
+# corpus-bootstrap (S-0031 phase 2): the skill's fixture — a sample survey
 # report in, the checkable output shape out. The extraction doctrine's
 # properties (paths on every row, no phasing, mostly ASSUMED, the recorded
 # shape) are pinned against the fixture with the package's own parsers.
@@ -131,7 +131,7 @@ def test_the_bootstrap_fixture_draft_is_a_checkable_corpus_document():
     assert doc.status == "draft"
     assert doc.decisions
 
-    family = f"D-{int(doc.id)}."
+    family = f"{doc.id}/D-"  # the document's own family, global (S-0058/D-1)
     for row in doc.decisions:
         assert row.grade in GRADES, row.id
         assert row.paths, f"{row.id} declares no paths"
@@ -176,7 +176,7 @@ def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
 
 def test_the_bootstrap_skill_records_the_shape_it_chose():
     """The recorded shape (the open question the skill is charged with): one
-    document per adoption, the `S-NNNN/` directory of RFC 0057 — the skill
+    document per adoption, the `S-NNNN/` directory of S-0057 — the skill
     names the convention, and the output fixture's directory is that shape
     concrete."""
 
@@ -189,7 +189,7 @@ def test_the_bootstrap_skill_records_the_shape_it_chose():
 
 
 # ....................... #
-# Vendored skills (RFC 0009 §4a): committed repository content resolving
+# Vendored skills (S-0009/vendored-skills): committed repository content resolving
 # beside package data — collisions refused, digest in the regime hash.
 
 
@@ -218,7 +218,7 @@ def test_a_collision_with_a_shipped_skill_is_refused_both_directions(tmp_path):
 
 def test_the_committed_vendor_directory_is_well_formed():
     """The repository's own vendored skills: every entry carries a SKILL.md
-    and none collides with a shipped name (D-9.12 held at rest)."""
+    and none collides with a shipped name (S-0009/D-12 held at rest)."""
     committed = Path(__file__).resolve().parents[1] / ".torve" / "skills-vendor"
     assert committed.is_dir(), "torve vendors at least one skill"
     names = sorted(p.name for p in committed.iterdir() if p.is_dir())

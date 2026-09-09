@@ -1,7 +1,7 @@
-"""The context pack (RFC 0054 §5.6): every builder is a pure function of
+"""The context pack (S-0054/the-context-pack): every builder is a pure function of
 (record snapshot, tree, contract) — golden-shaped here — and the pack
 never names another task; the red of one attempt reaches the next
-(D-54.12) as the gate's output tail, the rows it names and the tests it
+(S-0054/D-12) as the gate's output tail, the rows it names and the tests it
 lists; a replay omits what reads the stream as it stands now."""
 
 from __future__ import annotations
@@ -28,13 +28,13 @@ from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
 
-DETAILS = {"D-1.1": {"rationale": "because", "check": "pytest tests/test_a.py"}}
+DETAILS = {"S-0001/D-1": {"rationale": "because", "check": "pytest tests/test_a.py"}}
 AMENDMENTS = [
     {
         "id": "A-9",
         "at": "2026-09-09",
         "title": "regraded",
-        "changes": [{"subject": "D-1.1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
+        "changes": [{"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
         "md": "words",
     }
 ]
@@ -46,7 +46,7 @@ def _task(**extra: object) -> Task:
         rfc="rfcs/0001-document-0001.yaml",
         decisions=[
             InheritedDecision(
-                id="D-1.1",
+                id="S-0001/D-1",
                 grade="LOCKED",
                 text="A rule.",
                 paths=["src/a/**"],
@@ -66,11 +66,11 @@ def _seed(tmp_path: Path) -> Path:
     (tmp_path / "tests" / "test_thing.py").write_text("", encoding="utf-8")
     text = document(
         "0001",
-        [("D-1.1", "LOCKED", "A rule.", "`src/a/**`", "it holds")],
+        [("S-0001/D-1", "LOCKED", "A rule.", "`src/a/**`", "it holds")],
         details=DETAILS,
         amendments=AMENDMENTS,
     )
-    other = document("0002", [("D-2.1", "ASSUMED", "Another rule over a.", "`src/a/thing.py`")])
+    other = document("0002", [("S-0002/D-1", "ASSUMED", "Another rule over a.", "`src/a/thing.py`")])
 
     return corpus(tmp_path, **{"0001": text, "0002": other})
 
@@ -89,14 +89,14 @@ def test_decisions_carry_consequence_rationale_amendments_and_the_standing_set(
     assert row["consequence"] == "it holds" and row["rationale"] == "because"
     assert row["amended_by"] == [
         {
-            "amendment": "A-9",
+            "amendment": "S-0001/A-9",
             "at": "2026-09-09",
             "field": "grade",
             "before": "ASSUMED",
             "after": "LOCKED",
         }
     ]
-    assert [s["id"] for s in payload["standing_over_scope"]] == ["D-2.1"]
+    assert [s["id"] for s in payload["standing_over_scope"]] == ["S-0002/D-1"]
 
 
 def test_gates_list_the_battery_with_axes_and_the_contract_gates(tmp_path: Path) -> None:
@@ -127,7 +127,7 @@ def test_gates_list_the_battery_with_axes_and_the_contract_gates(tmp_path: Path)
     assert names == [
         ("scope", "functional", "blocking"),
         ("lint", "form", "shadow"),
-        ("decision:D-1.1", "compliance", "shadow"),
+        ("decision:S-0001/D-1", "compliance", "shadow"),
     ]
     assert "scope.allow" in payload["gates"][0]["convicts_on"]
 
@@ -161,7 +161,7 @@ def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:
                     "name": "decisions-reported",
                     "outcome": "fail",
                     "state": "blocking",
-                    "output": "decision D-1.1: LOCKED, and the diff touches 1 file(s) it governs (src/a/thing.py), with no entry in the log",
+                    "output": "decision S-0001/D-1: LOCKED, and the diff touches 1 file(s) it governs (src/a/thing.py), with no entry in the log",
                 },
                 {
                     "name": "acceptance",
@@ -194,7 +194,7 @@ def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:
     reds = payload["last_red_gates"]
 
     assert [r["gate"] for r in reds] == ["decisions-reported", "acceptance"]
-    assert reds[0]["governing_decisions"] == ["D-1.1"]
+    assert reds[0]["governing_decisions"] == ["S-0001/D-1"]
     assert reds[1]["failed_tests"] == ["tests/test_thing.py::test_x"]
     assert "not this task" not in json.dumps(payload)
 

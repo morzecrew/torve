@@ -1,4 +1,4 @@
-"""The projections beside the code (RFC 0054 §5.4): a governed directory
+"""The projections beside the code (S-0054/the-projections-beside-the-code): a governed directory
 gets a managed section, an ungoverned one none; the operator's text outside
 the markers is byte-identical after a rewrite; a hand edit inside the
 markers is drift named by file; the root index lists every directory with
@@ -44,10 +44,10 @@ PHASE = {
     "acceptance": [],
     "depends_on": [],
 }
-DETAILS = {"D-1.1": {"check": "pytest tests/test_cli.py"}}
+DETAILS = {"S-0001/D-1": {"check": "pytest tests/test_cli.py"}}
 INVARIANTS = [
     {
-        "id": "I-1.1",
+        "id": "S-0001/I-1",
         "statement": "one lander",
         "paths": ["src/torve/cli/**"],
         "check": "pytest tests/test_lane.py",
@@ -65,13 +65,13 @@ def _seed(tmp_path: Path) -> Path:
                 "0001",
                 [
                     (
-                        "D-1.1",
+                        "S-0001/D-1",
                         "LOCKED",
                         "Verbs parse and render only",
                         "`src/torve/cli/**`",
                         "because",
                     ),
-                    ("D-1.2", "ASSUMED", "Gates stand alone", "`src/torve/gates/**`"),
+                    ("S-0001/D-2", "ASSUMED", "Gates stand alone", "`src/torve/gates/**`"),
                 ],
                 phasing=[PHASE],
                 details=DETAILS,
@@ -99,18 +99,20 @@ def test_a_governed_directory_gets_a_section_and_an_ungoverned_one_none(tmp_path
 
     cli = (tmp_path / "src/torve/cli/AGENTS.md").read_text(encoding="utf-8")
 
-    assert "### D-1.1 — `LOCKED` (RFC 0001 — Document 0001)" in cli
+    assert "### S-0001/D-1 — `LOCKED` (Document 0001)" in cli
     assert "- Consequence: because" in cli
     assert (
-        "- Check: `pytest tests/test_cli.py` (shadow; runs as `decision:D-1.1`, no log entry owed)"
+        "- Check: `pytest tests/test_cli.py` (shadow; runs as `decision:S-0001/D-1`, no log entry owed)"
         in cli
     )
-    assert "**I-1.1** (RFC 0001): one lander" in cli
+    assert "- **S-0001/I-1**: one lander" in cli
     assert cli.endswith(MARK_CLOSE + "\n")
 
     gates = (tmp_path / "src/torve/gates/AGENTS.md").read_text(encoding="utf-8")
 
-    assert "D-1.2" in gates and "Touching these paths owes" not in gates  # ASSUMED owes nothing
+    assert (
+        "S-0001/D-2" in gates and "Touching these paths owes" not in gates
+    )  # ASSUMED owes nothing
 
     # a phase reaches the domain directory: a section with no rows, so the
     # index names it and the file carries only the markers
@@ -178,7 +180,7 @@ def test_removing_the_last_governing_row_removes_the_section_and_an_empty_file(
     )
 
     slim = document(
-        "0001", [("D-1.1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`")]
+        "0001", [("S-0001/D-1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`")]
     )
     place(rfc_dir, "0001", slim)
 

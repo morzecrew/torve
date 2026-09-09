@@ -6,15 +6,15 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-54.1
+      - decision: D-1
         grade: LOCKED
         at: '2026-09-09T13:50:42Z'
         claim: >-
           InheritedDecision gains consequence and check as the row says, and beside
           them check_state and check_twin, because the runner reads the contract alone
-          and the promotion state and twin D-54.4 puts on the row have to travel with
-          it; all four default so every committed contract loads unchanged and no
-          schema number moved; inherit_decisions copies them from the model through
+          and the promotion state and twin S-0054/D-4 puts on the row have to travel
+          with it; all four default so every committed contract loads unchanged and
+          no schema number moved; inherit_decisions copies them from the model through
           the same load_fences the loader uses, decision.recorded carries consequence
           and check, and the prompt renders the consequence after each row
         evidence: >-
@@ -26,7 +26,7 @@ landings:
           the record re-records every standing row once on the next import, because
           a version without a consequence differs from one with it — a one-time version
           2 across the corpus, not a regrade
-      - decision: D-54.2
+      - decision: D-2
         grade: LOCKED
         at: '2026-09-09T13:50:43Z'
         claim: >-
@@ -38,7 +38,7 @@ landings:
           src/torve/gates/runner.py:82 - decision_gates over ctx.task.decisions; tests/test_gates.py
           pins shadow-convicts-nothing and blocking-reds-the-pass
         action: decided
-      - decision: D-54.3
+      - decision: D-3
         grade: LOCKED
         at: '2026-09-09T13:50:43Z'
         claim: >-
@@ -49,7 +49,7 @@ landings:
           src/torve/gates/decisions_reported.py:348 - the covered branch; tests/test_cli.py
           pins the three states
         action: decided
-      - decision: D-54.4
+      - decision: D-4
         grade: LOCKED
         at: '2026-09-09T13:50:43Z'
         claim: >-
@@ -72,7 +72,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-54.6
+      - decision: D-6
         grade: LOCKED
         at: '2026-09-09T14:08:34Z'
         claim: >-
@@ -80,26 +80,26 @@ landings:
           rows with grade, text, paths, consequence, check and state, the invariants
           over it, the contended paths from the telemetry window — and a root index;
           the corpus path, the archive and every hidden directory are skipped because
-          D-A.18 admits nothing else in the corpus directory and the engine's own
-          state is not where an agent works; twenty-one directories of this repository
+          S-0016/D-25 admits nothing else in the corpus directory and the engine's
+          own state is not where an agent works; twenty-one directories of this repository
           carry a section now
         evidence: >-
           src/torve/application/colocation.py:186 - render_section; src/torve/application/colocation.py:81
           - the projectable rule; src/torve/cli/AGENTS.md:1 - a rendered section
         action: decided
-      - decision: D-54.7
+      - decision: D-7
         grade: LOCKED
         at: '2026-09-09T14:08:34Z'
         claim: >-
           the sections are committed with the code and the spec-projection shell gate
-          runs torve spec project --check at shadow (D-2.18) with tests/test_colocation.py
+          runs torve spec project --check at shadow (S-0002/D-18) with tests/test_colocation.py
           as its twin; a hand edit inside the markers is drift naming the file, exit
           3
         evidence: >-
           .torve/gates.yaml:135 - the gate entry; src/torve/application/colocation.py:388
           - project with check; tests/test_colocation.py pins the drift case
         action: decided
-      - decision: D-54.9
+      - decision: D-9
         grade: LOCKED
         at: '2026-09-09T14:08:34Z'
         claim: >-
@@ -110,7 +110,7 @@ landings:
           src/torve/cli/spec.py:167 - show over the loaded corpus; tests/test_cli_spec.py
           pins each verb over a corpus with an archive
         action: decided
-      - decision: D-54.8
+      - decision: D-8
         grade: ASSUMED
         at: '2026-09-09T14:08:35Z'
         claim: >-
@@ -126,7 +126,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-54.10
+      - decision: D-10
         grade: LOCKED
         at: '2026-09-09T14:18:44Z'
         claim: >-
@@ -144,8 +144,8 @@ landings:
         notes: >-
           byte-identical for a shadow run is delivered by omission of the two time-varying
           files rather than by freezing them per attempt; freezing would need the
-          pack stored with the trace, which RFC 0039's retention would then govern
-      - decision: D-54.12
+          pack stored with the trace, which S-0039's retention would then govern
+      - decision: D-12
         grade: ASSUMED
         kind: departed
         at: '2026-09-09T14:18:45Z'
@@ -167,7 +167,7 @@ landings:
           the evidence document types the gate result with the bytes dropped and the
           JUnit ids; until then the pack reads the row the runner writes and runner.py
           stays untouched
-      - decision: D-54.11
+      - decision: D-11
         grade: ASSUMED
         at: '2026-09-09T14:18:45Z'
         claim: >-
@@ -187,7 +187,7 @@ landings:
     at: '2026-09-09'
     agent: session/claude-fable-5.1
     entries:
-      - decision: D-54.13
+      - decision: D-13
         grade: LOCKED
         at: '2026-09-09T14:33:47Z'
         claim: >-
@@ -206,7 +206,7 @@ landings:
           prior findings are listed as recorded; whether each was addressed is not
           computed — the engine has no cheap ground truth for it, and a heuristic
           over the diff would be a claim the reviewer should make, not read
-      - decision: D-54.14
+      - decision: D-14
         grade: ASSUMED
         kind: departed
         at: '2026-09-09T14:33:47Z'
@@ -221,9 +221,9 @@ landings:
           or tier.skills
         action: departed
         proposal: >-
-          D-54.14 should read: the default review skill set names the shipped skills
-          declaring the role; a repository adds its vendored ones
-      - decision: D-54.15
+          S-0054/D-14 should read: the default review skill set names the shipped
+          skills declaring the role; a repository adds its vendored ones
+      - decision: D-15
         grade: ASSUMED
         at: '2026-09-09T14:33:48Z'
         claim: >-
@@ -236,7 +236,7 @@ landings:
           src/torve/application/review.py:358 - the refusal names the field; src/torve/application/intake.py:1538
           - the drafter's retry carries it
         action: decided
-      - decision: D-54.16
+      - decision: D-16
         grade: ASSUMED
         at: '2026-09-09T14:33:48Z'
         claim: >-

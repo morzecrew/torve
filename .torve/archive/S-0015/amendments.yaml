@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-19
+  - id: A-1
     at: '2026-08-22'
     title: >-
       the RFC format stays at the planner (amends §6.1, §6.2)
     md: |-
-      **Found while answering an interoperability question.** Foreign spec-driven formats (Spec Kit, OpenSpec) stay out of scope — they produce no graded decisions, so a bridged document carries nothing to inherit (0007 §6b, D-7.17). The option of a different specification source stays open only while the format stays where it is: if a gate or a runtime starts parsing RFC documents directly, interoperability closes, and it closes silently. The rule needed stating so it is not weakened by a plausible-sounding exception later.
+      **Found while answering an interoperability question.** Foreign spec-driven formats (Spec Kit, OpenSpec) stay out of scope — they produce no graded decisions, so a bridged document carries nothing to inherit (S-0007/out-of-scope, S-0007/D-17). The option of a different specification source stays open only while the format stays where it is: if a gate or a runtime starts parsing RFC documents directly, interoperability closes, and it closes silently. The rule needed stating so it is not weakened by a plausible-sounding exception later.
 
-      **Changed:** §6.1's contract set gains a fourth rule, enforcing 0007's D-7.18:
+      **Changed:** §6.1's contract set gains a fourth rule, enforcing 0007's S-0007/D-18:
 
       ```toml
       [[tool.importlinter.contracts]]
@@ -20,10 +20,10 @@ amendments:
       §6.2's note: this contract is format containment — a gate or runtime that parses specification documents directly is how the containment breaks, and it breaks quietly. Sabotage case: a gate importing `config.rfc_parse`.
 
       **Unchanged:** everything else about the layering gate. The `rfc-valid` gate keeps calling `torve rfc check` — that is the CLI consuming the format at the planner's side of the line, not a gate parsing documents.
-  - id: A-45
+  - id: A-2
     at: '2026-08-27'
     title: >-
-      the front door was protecting nothing (amends §5, retires D-15.7)
+      the front door was protecting nothing (amends §5, retires S-0015/D-7)
     md: |-
       **Found in a whole-repository audit for over-engineering.** §5's curated lazy front door was an 85-line `torve/__init__.py`: a `_EXPORTS` name-to-module table, a `TYPE_CHECKING` block restating it for type checkers, an `__all__` list restating it again, `__getattr__`/`__dir__` implementing PEP 562, and a test asserting the three copies agree.
 
@@ -31,8 +31,8 @@ amendments:
 
       **The property it claimed to defend holds without it.** §9's rule is that the gates-only CI path must not pay for the runner. That was never at risk from an eager re-export table, because there was no eager re-export table to begin with: `torve/__init__.py` is now a docstring and a version string, and importing it pulls nothing. The check that proves it survives, moved to the layering suite where the rest of the import-direction rules are tested.
 
-      **Changed:** §5 is retired as a mechanism. There is no re-export surface; names resolve from their canonical modules. D-15.7 goes with it.
-  - id: A-46
+      **Changed:** §5 is retired as a mechanism. There is no re-export surface; names resolve from their canonical modules. S-0015/D-7 goes with it.
+  - id: A-3
     at: '2026-08-27'
     title: >-
       the layering sabotage tests the gate, not import-linter (amends §6.2)
@@ -43,4 +43,4 @@ amendments:
 
       **The contracts themselves are still all declared** in `pyproject.toml` and still all enforced on every run. Only the per-contract-type sabotage cases are gone.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

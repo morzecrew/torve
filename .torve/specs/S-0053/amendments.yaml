@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-140
+  - id: A-1
     at: '2026-09-09'
     title: the archive needs the check to know it
     changes:
@@ -12,18 +12,18 @@ amendments:
       **Found while planning phase 3.** `check_corpus` resolves a dotted
       citation only against the corpus path's own tables and `retired:` lists,
       and refuses a `depends_on`, `informed_by` or `supersedes` reference to a
-      number it cannot find. This document cites D-A.3, D-7.12 and D-31.2 and
+      number it cannot find. This document cites S-0016/D-14, S-0007/D-12 and S-0031/D-2 and
       depends on 0016, 0031 and 0047 — all of which phase 3 moves to the
       archive. Under the phasing as written, the first `torve rfc archive`
       would leave a corpus the parser refuses, and the transaction that
       protects the move would refuse the move. The loader of phase 1 already
-      resolves over the archive (D-53.10); the parser, which phase 5 deletes,
+      resolves over the archive (S-0053/D-10); the parser, which phase 5 deletes,
       never learned to, and until phase 5 it is still the check the gate runs.
 
       **Changed:** phase 2 gains a second unit, disjoint in scope from the
       first, giving the parser the one piece of archive awareness the move
       needs — citations, references, numbering, `lookup`. Phase 3 waits on
-      phase 2 as before, which now means both units. D-53.13 is unchanged:
+      phase 2 as before, which now means both units. S-0053/D-13 is unchanged:
       readers still switch beside the parser, and phase 5 still deletes it.
 
       ```yaml changes
@@ -32,7 +32,7 @@ amendments:
         before: 1
         after: 2
       ```
-  - id: A-152
+  - id: A-2
     at: '2026-09-09'
     title: phase 5 reaches every importer
     changes:
@@ -55,7 +55,7 @@ amendments:
       the importers, so it could not be executed as scoped.
 
       **Changed:** phase 5's scope is `src/torve/**` and `tests/**` beside the
-      manifest and the skill, and its acceptance is the whole suite. D-53.13 is
+      manifest and the skill, and its acceptance is the whole suite. S-0053/D-13 is
       unchanged: the parser is deleted after the archive landed, which it has.
       The functions move whole; nothing about what they check changes, and the
       parity test that licensed the switch now pins one module against itself.

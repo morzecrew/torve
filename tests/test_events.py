@@ -1,4 +1,4 @@
-"""The event vocabulary's own guards (RFC 0044 §5.1, §5.2).
+"""The event vocabulary's own guards (S-0044/the-event-log, §5.2).
 
 Three properties are worth a test even before anything produces an event: the
 vocabulary is closed and complete, write authority refuses, and the
@@ -51,7 +51,7 @@ def test_an_unauthorized_actor_is_refused(kind):
         check_authority(unauthorized, kind)
 
     # The refusal names the actor and what would have been allowed — an
-    # agent reading it must be able to act on it (RFC 0044 D-44.10).
+    # agent reading it must be able to act on it (S-0044 S-0044/D-10).
     assert str(unauthorized) in str(caught.value)
     assert str(kind) in str(caught.value)
 
@@ -74,7 +74,7 @@ def test_divergence_vocabulary_matches_the_gate():
 def test_a_payload_is_validated_against_its_kind():
     payload = {
         "attempt": 1,
-        "decision_id": "D-44.2",
+        "decision_id": "S-0044/D-2",
         "grade": "LOCKED",
         "entry_kind": "resolved",
         "entry_class": "spec-gap",
@@ -84,7 +84,7 @@ def test_a_payload_is_validated_against_its_kind():
     }
     recorded = validate_payload(EventKind.DIVERGENCE_RECORDED, payload)
 
-    assert recorded.model_dump()["decision_id"] == "D-44.2"
+    assert recorded.model_dump()["decision_id"] == "S-0044/D-2"
 
     with pytest.raises(ValidationError):
         validate_payload(EventKind.DIVERGENCE_RECORDED, {**payload, "entry_kind": "invented"})
@@ -94,7 +94,7 @@ def test_a_payload_is_validated_against_its_kind():
 
 
 def test_decision_recorded_carries_consequence_and_check_and_defaults_them():
-    """RFC 0054 D-54.1: the payload gains the reason and the command; a
+    """S-0054 S-0054/D-1: the payload gains the reason and the command; a
     record written before carries neither and still loads."""
 
     from torve.domain.events import DecisionRecorded

@@ -1,1 +1,1 @@
-"""Models, invariants, the state machine — no I/O (RFC 0015 §2)."""
+"""Models, invariants, the state machine — no I/O (S-0015/layers)."""

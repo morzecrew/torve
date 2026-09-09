@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-93
+  - id: A-1
     at: '2026-09-05'
     title: >-
-      the request surface left with the tracker (amends §5.4, cites A-92)
+      the request surface left with the tracker (amends §5.4, cites S-0008/A-5)
     md: |-
-      **Found deleting the tracker (A-92).** §5.4's intake leg is the half of this
+      **Found deleting the tracker (S-0008/A-5).** §5.4's intake leg is the half of this
       document that ran inside the tick: claim a commander-filed issue, run the
       drafting it asks for, project the lint-green drafts back onto the thread the
       request lives on. Every one of those verbs is the tracker's, so the leg went
@@ -14,7 +14,7 @@ amendments:
 
       **Unchanged, which is most of the document:** the drafting run itself, the
       lint, the draft schema, adoption and its marker, the refusal that a draft
-      never dispatches without a human's signature (D-20.1). `torve intake` from
+      never dispatches without a human's signature (S-0020/D-1). `torve intake` from
       the command line is untouched and is now the only way a request enters —
       which is what it always was for an operator at a terminal.
 
@@ -26,29 +26,29 @@ amendments:
 
       Implementation is `partial` rather than `complete` for exactly that reason:
       the document describes a delivery path that no longer has a delivery.
-  - id: A-116
+  - id: A-2
     at: '2026-09-05'
     title: >-
       Two settled rows still graded OPEN, and the board half that left
     md: |-
-      **Judged in the pass A-113's new flag started.** All three declared phases
+      **Judged in the pass S-0007/A-4's new flag started.** All three declared phases
       shipped. `partial` is still right, and the reasons divide into two kinds.
 
-      **Two rows are settled in fact and still graded `OPEN`.** D-20.8's ceiling
+      **Two rows are settled in fact and still graded `OPEN`.** S-0020/D-8's ceiling
       is `intake.max_drafts: 4` in the configuration model, where the header says
-      the first live run settled it. D-20.10's disposal is settled by operation:
+      the first live run settled it. S-0020/D-10's disposal is settled by operation:
       the reaper keeps a READY draft, the lane skips it, and adoption is the
       disposal — the code carries the rule and a test pins it. Recorded here
       rather than regraded: flagging is mine, flipping a grade is the owner's.
 
-      **Two rows lost their implementation with the tracker (A-92, A-93).**
+      **Two rows lost their implementation with the tracker (S-0008/A-5, S-0020/A-1).**
 
-      - **D-20.5 is unimplemented.** Intake authorization was the commander list
+      - **S-0020/D-5 is unimplemented.** Intake authorization was the commander list
         and requests arrived as `torve.intake`-labeled issues. Both were the
         tracker's. `torve intake "<request>"` from the command line is untouched
         and is now the only door; there is no authorization check on it, because
         the person typing it is already the operator.
-      - **D-20.6 is unimplemented.** The intake thread's revision loop was
+      - **S-0020/D-6 is unimplemented.** The intake thread's revision loop was
         `/torve revise`, an inbound command with no surface left to arrive on.
 
       Phase 2 is `board-intake`, so the phase whose progress reads `shipped` is
@@ -58,12 +58,12 @@ amendments:
 
       **Changed:** `implementation: partial` stands, with the drafting run and
       the lint intact, the board half gone, and two grades owed a regrade.
-  - id: A-133
+  - id: A-3
     at: '2026-09-07'
     title: >-
       the corpus carried a contract lint it had never been run through
     md: |-
-      **Found by wiring the lint into `torve plan` (RFC 0052 A-132).** `lint_drafts`
+      **Found by wiring the lint into `torve plan` (S-0052 S-0052/A-3).** `lint_drafts`
       was called from the three drafting paths — intake, decompose, standing —
       where a model authors the contract, and never from the minting path, where
       a reviewed document does. The asymmetry read as principled: a drafted
@@ -93,4 +93,4 @@ amendments:
       first. The check is what stops that, and it now runs where the contracts
       are actually made.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0012'
+id: S-0012
 title: Migrations
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0003']
+depends_on: [S-0003]
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze
@@ -25,7 +25,7 @@ sections:
       | **Substrate** | outbox, inbox, run store, step store, schedules, idempotency, distributed locks | **forze is upgraded** |
       | **Telemetry** | attempts, engine events, review feedback | the record shape changes |
 
-      The middle row is the reason this document exists. Under A-6 the DDL is ours to write, but *what it must contain* is dictated by a version of somebody else's library. Interleaved with our own migrations, a forze upgrade becomes an edit in the middle of our numbering, and "which substrate version is deployed" stops being answerable.
+      The middle row is the reason this document exists. Under S-0003/A-1 the DDL is ours to write, but *what it must contain* is dictated by a version of somebody else's library. Interleaved with our own migrations, a forze upgrade becomes an edit in the middle of our numbering, and "which substrate version is deployed" stops being answerable.
 
       ```text
       migrations/
@@ -53,7 +53,7 @@ sections:
       migrate = ["yoyo-migrations>=9"]
       ```
 
-      Not a dev dependency — migrations are applied in production. Not in the base install either: most installs of Torve are `torve gates run` in a consuming repository's CI, where there is no database and never will be, since gates work without a store at all (RFC 0002).
+      Not a dev dependency — migrations are applied in production. Not in the base install either: most installs of Torve are `torve gates run` in a consuming repository's CI, where there is no database and never will be, since gates work without a store at all (S-0002).
 
       Two implementation notes:
 
@@ -69,7 +69,7 @@ sections:
       ---
   - key: why-this-stays-easy
     md: |
-      All three aggregates are immutable and carry `schema_version` (D-22). Old rows are read by the old shape, so there is no backfill and nothing to rewrite. The overwhelming majority of migrations are `ALTER TABLE … ADD COLUMN` and new indexes.
+      All three aggregates are immutable and carry `schema_version` (S-0001/D-18). Old rows are read by the old shape, so there is no backfill and nothing to rewrite. The overwhelming majority of migrations are `ALTER TABLE … ADD COLUMN` and new indexes.
 
       This is a direct consequence of having no update commands, not luck. If an update command is ever added to an aggregate, migrations get hard in the same release — worth remembering when the proposal arrives.
 
@@ -117,14 +117,14 @@ sections:
       migrations/substrate/FORZE_VERSION      # e.g. 0.6.3
       ```
 
-      - It is part of `config_hash` (A-6), so a substrate schema change registers as a different regime in telemetry.
+      - It is part of `config_hash` (S-0003/A-1), so a substrate schema change registers as a different regime in telemetry.
       - **`torve doctor` compares the installed forze version against the pin and fails on mismatch.** Otherwise a schema mismatch is discovered through adapter behaviour rather than through a check — which is the expensive way to find out.
-      - A forze upgrade that changes a substrate schema is a migration task in Torve, not a silent `pip install -U`. This is the real operational cost of A-6 and it should be written into the upgrade routine.
+      - A forze upgrade that changes a substrate schema is a migration task in Torve, not a silent `pip install -U`. This is the real operational cost of S-0003/A-1 and it should be written into the upgrade routine.
 
       ---
   - key: the-conformance-battery-is-the-gate
     md: |
-      Under A-6 the schema contract is expressed as a test rather than as a file. That makes running it non-optional.
+      Under S-0003/A-1 the schema contract is expressed as a test rather than as a file. That makes running it non-optional.
 
       **Two runs, and the second is the one people forget:**
 

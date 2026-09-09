@@ -1,19 +1,19 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-14.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Two separators, both exactly 27 characters: 23 dashes structural, 23 dots rhythmic
     paths: [src/torve/**]
     consequence: >-
       Equal width is what makes them readable as texture; resizing destroys it
-  - id: D-14.2
+  - id: D-2
     grade: LOCKED
     text: >-
       One dash after the import block in every module with imports
     paths: [src/torve/**]
     consequence: The universal baseline in forze
-  - id: D-14.3
+  - id: D-3
     grade: LOCKED
     text: >-
       A dash that is not the post-import one carries a one-line label saying why the
@@ -21,13 +21,13 @@ decisions:
     paths: [src/torve/**]
     consequence: >-
       An unlabelled mid-file dash says "something changes" without saying what
-  - id: D-14.4
+  - id: D-4
     grade: LOCKED
     text: Dots never carry labels
     paths: [src/torve/**]
     consequence: >-
       They separate peers; the peer names itself on the next line
-  - id: D-14.5
+  - id: D-5
     grade: LOCKED
     text: >-
       Dots go between class members — attributes and methods alike — not only between
@@ -35,69 +35,70 @@ decisions:
     paths: [src/torve/**]
     consequence: >-
       The indented use is the majority of them and gives the style its feel
-  - id: D-14.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       No dots between the members of a body-less Protocol
     paths: [src/torve/application/ports.py]
     consequence: Signatures without bodies read as one block
-  - id: D-14.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       More than two dashes in a module is a split, not a layout choice
     paths: [src/torve/**]
     consequence: >-
       Observed maximum in forze is two, in a 291-line file
-  - id: D-14.8
+  - id: D-8
     grade: LOCKED
     text: One gate, one file, one section
     paths: [src/torve/gates/**]
     consequence: A gate wanting a second section is two gates
-  - id: D-14.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       Lint configuration matches forze: line length 100, same rule selection
     paths: [pyproject.toml]
     consequence: >-
       Two codebases read by the same people should not differ in mechanics
-  - id: D-14.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       Width, placement and labelling are script-checked; usefulness is review
     paths: [src/torve/gates/source_layout.py]
     consequence: >-
       Checking what cannot be checked yields a linter nobody trusts
-  - id: D-14.11
+  - id: D-11
     grade: LOCKED
     text: >-
       The checkable half ships as the `source-layout` gate with a sabotage case per
-      check. *(Narrowed by A-44 2026-08-27 to RFC 0015's module naming rule; the separator
-      checks are review.)*
+      check. *(Narrowed by S-0014/A-1 2026-08-27 to S-0015's module naming rule; the
+      separator checks are review.)*
     paths: [src/torve/gates/source_layout.py, .torve/gates.yaml]
     consequence: >-
       Otherwise this document sits at convention level, which its own neighbour forbids
-  - id: D-14.12
+  - id: D-12
     grade: ASSUMED
     text: >-
       The whole repository is swept once on adoption, not scoped to changed files
     paths: [src/torve/**]
     consequence: >-
       A gate that reddens on untouched files trains people to ignore it
-  - id: D-14.13
+  - id: D-13
     grade: ASSUMED
     text: >-
-      *Retired by A-44 2026-08-27 — the check no longer exists.* The dash-placement
+      *Retired by S-0014/A-1 2026-08-27 — the check no longer exists.* The dash-placement
       check: the first dash falls after the last top-level import (a trailing TYPE_CHECKING
       block counts into the preamble) and before the first definition, over changed
-      `.py` files under `src/`; blank-line spacing stays with review (D-14.10). Added
-      by execution 2026-08-22 — see .torve/tasks/T-0011
+      `.py` files under `src/`; blank-line spacing stays with review (S-0014/D-10).
+      Added by execution 2026-08-22 — see .torve/tasks/T-0011
     paths: [src/torve/gates/source_layout.py]
-  - id: D-14.14
+  - id: D-14
     grade: ASSUMED
     text: >-
       The typing battery: `mypy src`, blocking and strict, is the checker of record
-      (*amended by A-51 2026-08-27; `basedpyright` retired, the `[tool.pyright]` block
-      kept for editors*); parsed documents are cast to their typed shape at exactly
-      one boundary per reader; optional dependencies load via `import_module`. Added
-      from the T-0007/T-0008 review 2026-08-22 — see .torve/tasks/T-0007 and .torve/tasks/T-0008
+      (*amended by S-0014/A-2 2026-08-27; `basedpyright` retired, the `[tool.pyright]`
+      block kept for editors*); parsed documents are cast to their typed shape at
+      exactly one boundary per reader; optional dependencies load via `import_module`.
+      Added from the T-0007/T-0008 review 2026-08-22 — see .torve/tasks/T-0007 and
+      .torve/tasks/T-0008
     paths: [pyproject.toml, src/torve/**]

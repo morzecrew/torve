@@ -1,8 +1,8 @@
-"""The task contract family (RFC 0001 §3, §6).
+"""The task contract family (S-0001/domain, §6).
 
-Pydantic models are the single source of truth (D-8); YAML files are their
-serialization. Only the subset of the RFC 0001 domain that ships today is
-modelled — ReviewFeedback arrives with RFC 0005.
+Pydantic models are the single source of truth (S-0001/D-21); YAML files are their
+serialization. Only the subset of the S-0001 domain that ships today is
+modelled — ReviewFeedback arrives with S-0005.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ SCHEMA_VERSION = 1
 
 class Scope(BaseModel):
     """allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty
-    allow means unconstrained (RFC 0002 §6)."""
+    allow means unconstrained (S-0002/scope-in-detail)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -35,13 +35,13 @@ class Scope(BaseModel):
 
 
 class InheritedDecision(BaseModel):
-    """One row as a contract carries it (charter §3; RFC 0054 D-54.1): grade,
+    """One row as a contract carries it (charter §3; S-0054 S-0054/D-1): grade,
     text and paths copied at mint and fingerprinted; `consequence` beside
     them so the executor gets the reason, and `check` — a command whose
     exit code judges the row — which the runner appends to the battery as
     a `decision:<id>` gate at `check_state`, with `check_twin` the test
-    that proves the check can fail (D-54.4). A contract minted before
-    RFC 0054 loads with the four defaults, which is the old behaviour."""
+    that proves the check can fail (S-0054/D-4). A contract minted before
+    S-0054 loads with the four defaults, which is the old behaviour."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -69,8 +69,8 @@ class Budget(BaseModel):
 # ....................... #
 
 # The roles a worker may take off the board. Review and draft contracts are
-# runner-minted mid-run (D-5.2, D-20.2) and conclude with the run that
-# minted them, so nobody claims one — they are recorded (A-96) because the
+# runner-minted mid-run (S-0005/D-2, S-0020/D-2) and conclude with the run that
+# minted them, so nobody claims one — they are recorded (S-0049/A-1) because the
 # record is what the planning projections read, and offered to nobody.
 DISPATCHABLE_ROLES = ("implement", "revert")
 
@@ -79,10 +79,10 @@ DISPATCHABLE_ROLES = ("implement", "revert")
 
 
 class Task(BaseModel):
-    """The task contract, `.torve/tasks/T-nnnn.yaml` (RFC 0001 §3, §6).
+    """The task contract, `.torve/tasks/T-nnnn.yaml` (S-0001/domain, §6).
 
     `decisions` has no default on purpose: an empty list is legal but must be
-    explicit (D-7.5), so `decisions-reported` can distinguish "none apply"
+    explicit (S-0007/D-5), so `decisions-reported` can distinguish "none apply"
     from "the field was forgotten".
     """
 
@@ -93,23 +93,23 @@ class Task(BaseModel):
     phase: int = 0
     role: Literal["implement", "review", "revert", "draft"] = "implement"
 
-    # A short human name (A-69): the landing subject and every board row
+    # A short human name (S-0007/A-1): the landing subject and every board row
     # read it; empty falls back to the intent's first line. The planner
     # mints it from the phase title; a drafter may set it.
     title: str = ""
-    # One paragraph: what changes and why — never steps (D-1.7, A-11).
-    # Optional until the A-11 execution makes minting enforce it; contracts
+    # One paragraph: what changes and why — never steps (S-0001/D-7, S-0001/A-4).
+    # Optional until the S-0001/A-4 execution makes minting enforce it; contracts
     # minted before the amendment carry none.
     intent: str = ""
     depends_on: list[str] = Field(default_factory=list)
 
-    # Set only at adoption of a decomposition's children (RFC 0026 D-26.5):
+    # Set only at adoption of a decomposition's children (S-0026 S-0026/D-5):
     # projections group by it; dispatch, lane and store never read it —
     # ordering stays depends_on alone.
     parent: str | None = None
 
-    # The tasks a review examines (RFC 0005 §1.1, D-5.9) or the tasks/shas a
-    # revert undoes (RFC 0010 §7): the contract shape is parameterised by
+    # The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the tasks/shas a
+    # revert undoes (S-0010/revert-as-a-role): the contract shape is parameterised by
     # role, no new mechanism. Only those two roles may carry targets.
     targets: list[str] = Field(default_factory=list)
     scope: Scope = Field(default_factory=Scope)
@@ -118,13 +118,13 @@ class Task(BaseModel):
     budget: Budget = Field(default_factory=Budget)
     tier: Literal["planner", "executor", "reviewer"] = "executor"
 
-    # D-27.3: an optional dotted variant under the seat above, resolved as
+    # S-0027/D-3: an optional dotted variant under the seat above, resolved as
     # `tier.variant` in the tiers mapping — a variant refines a seat, never
     # invents one, and role semantics still key on `tier` alone. Naming a
     # variant that is not configured is a refused dispatch, not a fallback.
     tier_variant: str | None = None
 
-    # RFC 0034 D-34.1/D-34.2: the phase's declared structural|routine
+    # S-0034 S-0034/D-1/D-34.2: the phase's declared structural|routine
     # character, copied verbatim from the Phasing entry at mint. Absent by
     # default — a task with no character declared routes on the seat alone,
     # same as one with no tier_variant.
@@ -134,7 +134,7 @@ class Task(BaseModel):
 
     @model_validator(mode="after")
     def _review_role_shape(self) -> Task:
-        # D-5.10: a review's output is findings, not an exit code — carrying
+        # S-0005/D-10: a review's output is findings, not an exit code — carrying
         # acceptance commands is a contract error, not an empty pass.
         if self.role == "review":
             if self.acceptance:
@@ -152,9 +152,9 @@ class Task(BaseModel):
                     "or explicit commit shas"
                 )
         elif self.role == "draft":
-            # RFC 0020 D-20.3: the drafting run's gate is the contract lint,
+            # S-0020 S-0020/D-3: the drafting run's gate is the contract lint,
             # not an exit code — acceptance commands are a contract error,
-            # the same shape rule a review carries (D-5.10).
+            # the same shape rule a review carries (S-0005/D-10).
             if self.acceptance:
                 raise ValueError(
                     "a draft task carries no acceptance commands — its gate "
@@ -162,7 +162,7 @@ class Task(BaseModel):
                 )
 
             # A request-driven draft names no target; a decomposition run
-            # (RFC 0026 §5.2) names exactly one — the oversized contract it
+            # (S-0026/the-decomposition-run) names exactly one — the oversized contract it
             # decomposes, the same targets-name-what-it-acts-on shape review
             # and revert already carry.
             if len(self.targets) > 1:

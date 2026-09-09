@@ -1,20 +1,20 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-13.1
+  - id: D-1
     grade: ASSUMED
     text: >-
       All Torve files live under `.torve/`; nothing at repository root
     paths: [src/torve/config/layout.py, .torve/**]
     consequence: >-
       One move per repository; do it before the set grows
-  - id: D-13.2
+  - id: D-2
     grade: LOCKED
     text: '`gates.yaml` and `config.yaml` stay separate'
     paths: [src/torve/config/manifest.py, src/torve/config/runconfig.py]
     consequence: >-
       Merging forces gate-only repositories to carry engine configuration and breaks
-      RFC 0002's standalone property
-  - id: D-13.3
+      S-0002's standalone property
+  - id: D-3
     grade: LOCKED
     text: >-
       `config.yaml` is read from the runner's location, never from the repository
@@ -22,53 +22,53 @@ decisions:
     paths: [src/torve/config/runconfig.py]
     consequence: >-
       Otherwise a worked-on repository can configure the engine working on it
-  - id: D-13.4
+  - id: D-4
     grade: LOCKED
     text: >-
       No layered configuration; overrides are explicit flags
     paths: [src/torve/config/runconfig.py, src/torve/cli/**]
     consequence: Layering makes an attempt unreproducible
-  - id: D-13.5
+  - id: D-5
     grade: LOCKED
     text: Unknown keys are an error, not ignored
     paths: [src/torve/config/manifest.py, src/torve/config/runconfig.py]
     consequence: A typo must not silently remove a check
-  - id: D-13.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       Both files validated by Pydantic, exit 3 on malformed input
     paths: [src/torve/config/manifest.py, src/torve/config/runconfig.py]
     consequence: >-
       Matches the CLI contract's configuration-error code
-  - id: D-13.7
+  - id: D-7
     grade: LOCKED
     text: >-
       `rfcs.path` is a single path with a default of `rfcs/`; never a list or a glob.
-      Added by amendment A-16 2026-08-22
+      Added by amendment S-0013/A-1 2026-08-22
     paths: [src/torve/config/runconfig.py]
     consequence: >-
       Two roots mean two counters and a colliding identifier at the first merge
-  - id: D-13.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       `.gitignore` covers only what the engine generates (telemetry, materialized
       skills, tmp); reviewed artefacts under `.torve/` stay tracked. Added by execution
       2026-08-22 — see .torve/tasks/T-0012
     paths: [.gitignore]
-  - id: D-13.9
+  - id: D-9
     grade: ASSUMED
     text: >-
-      D-13.1 governs the files a consuming repository carries for Torve; the product's
+      S-0013/D-1 governs the files a consuming repository carries for Torve; the product's
       own source directories (`skills/` as wheel data) are outside its scope. Added
       by execution 2026-08-22 — see .torve/tasks/T-0012
     paths: [src/torve/config/layout.py]
-  - id: D-13.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       `--gates` is the documented override; `--manifest` stays a compatibility alias.
       Added by execution 2026-08-22 — see .torve/tasks/T-0012
     paths: [src/torve/cli/gates.py]
-  - id: D-13.11
+  - id: D-11
     grade: ASSUMED
     text: >-
       `feedback.jsonl` lives under `.torve/` as generated, gitignored data — appended

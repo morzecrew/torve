@@ -1,11 +1,11 @@
-"""Intake and the drafting run (RFC 0020): a commander's request becomes
+"""Intake and the drafting run (S-0020): a commander's request becomes
 draft task contracts through a run — role `draft`, the planner tier's seat,
 read-only workspace — whose gate is the deterministic contract lint
-(D-20.3). Drafts carry request-local `DRAFT-n` refs; task ids exist only
+(S-0020/D-3). Drafts carry request-local `DRAFT-n` refs; task ids exist only
 from adoption, minted under the engine lock atomically with the commit
-that makes the contracts real (D-20.4). Adoption is the human signature
-RFC 0007 §6 requires — relocated, never removed (D-20.1). The planner
-module stays model-free (D-7.1): everything here runs under the runner's
+that makes the contracts real (S-0020/D-4). Adoption is the human signature
+S-0007/the-loop-closed requires — relocated, never removed (S-0020/D-1). The planner
+module stays model-free (S-0007/D-1): everything here runs under the runner's
 machinery, the same boundary review-as-a-run proved out.
 """
 
@@ -98,7 +98,7 @@ ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 def parse_drafts(output: str) -> DraftsDocument | None:
     """The last JSON document with a `drafts` key anywhere in the output —
-    the findings-parse discipline (D-5.4's sibling): unparseable is None,
+    the findings-parse discipline (S-0005/D-4's sibling): unparseable is None,
     recorded by the caller, never invented as an empty batch."""
 
     text = ANSI.sub("", output)
@@ -139,7 +139,7 @@ def parse_drafts(output: str) -> DraftsDocument | None:
         return DraftsDocument.model_validate(last)
 
     except ValidationError as exc:
-        # D-54.15: a document the drafter wrote but the model refuses is a
+        # S-0054/D-15: a document the drafter wrote but the model refuses is a
         # lint refusal naming the field, and rides the next prompt as one.
         raise SchemaRefusal(schema_refusal(exc, "drafts document")) from None
 
@@ -147,7 +147,7 @@ def parse_drafts(output: str) -> DraftsDocument | None:
 # ....................... #
 
 
-# The contract lint (D-20.3): deterministic, engine-side, no model. A red
+# The contract lint (S-0020/D-3): deterministic, engine-side, no model. A red
 # lint is a red attempt; every error names the draft and the field.
 def _glob_errors(
     ref: str, tree_paths: list[Path], globs: list[str], kind: str, planning: bool = False
@@ -233,22 +233,22 @@ def lint_drafts(
     allow_dependency_order: bool = False,
     planning: bool = False,
 ) -> list[str]:
-    """Every mechanical check a human should never have to make (D-20.3).
+    """Every mechanical check a human should never have to make (S-0020/D-3).
     The T-0113 rule is the first learned rule: a draft touching an existing
     module must allow that module's existing test file — the escalation
     that produced it burned a full poison ceiling on exactly this.
 
-    `planning` is the minting path (A-132), where two of these rules do
+    `planning` is the minting path (S-0052/A-3), where two of these rules do
     not hold. A drafted contract is written against the tree as it stands,
     so a glob matching nothing is a mistake; a *planned* one describes work
     that does not exist yet, and rfc-check already warns about exactly that
-    as "intended modules awaiting implementation" (D-32). And a phase's
+    as "intended modules awaiting implementation" (S-0001/D-32). And a phase's
     `acceptance` is optional by the RFC schema, where a draft's is not.
     Everything else — the shell parse, the git rule, the T-0113 test-file
     rule, a glob escaping the tree — holds on both paths.
 
     `allow_dependency_order` relaxes the pairwise-scope check for a
-    decomposition batch (RFC 0026 D-26.3): two drafts may overlap when an
+    decomposition batch (S-0026 S-0026/D-3): two drafts may overlap when an
     explicit `depends_on` edge orders them, instead of requiring every pair
     disjoint the way an ordinary intake batch — dispatched in parallel —
     must."""
@@ -264,7 +264,7 @@ def lint_drafts(
 
     if len(drafts) > max_drafts:
         errors.append(
-            f"{len(drafts)} drafts exceed the ceiling of {max_drafts} (intake.max_drafts, D-20.8)"
+            f"{len(drafts)} drafts exceed the ceiling of {max_drafts} (intake.max_drafts, S-0020/D-8)"
         )
 
     refs = [d.ref for d in drafts]
@@ -276,7 +276,9 @@ def lint_drafts(
         ref = draft.ref
 
         if not DRAFT_REF.match(ref):
-            errors.append(f"{ref!r}: refs are DRAFT-<n> — ids exist only from adoption (D-20.4)")
+            errors.append(
+                f"{ref!r}: refs are DRAFT-<n> — ids exist only from adoption (S-0020/D-4)"
+            )
 
         if not draft.intent.strip():
             errors.append(f"{ref}: intent is empty")
@@ -299,7 +301,7 @@ def lint_drafts(
                 errors.append(
                     f"{ref}: acceptance command {command!r} needs git, and a sandbox mounts "
                     "the worktree without a repository — `.git` there points at a host path "
-                    "the container never sees, so this can only ever fail (A-131). Use the "
+                    "the container never sees, so this can only ever fail (S-0052/A-2). Use the "
                     "commands that judge this work without a repository instead — the tests "
                     "it touches, `uv run lint-imports --config pyproject.toml`, `uv run torve "
                     "rfc check` — and drop this one: the gate battery runs outside the sandbox "
@@ -385,14 +387,14 @@ def _escapes_parent_scope(
 def lint_decomposition(
     tree: Path, document: DraftsDocument, parent: Task, max_drafts: int
 ) -> list[str]:
-    """The decomposition batch's own four rules (RFC 0026 §5.2), layered on
-    the ordinary contract lint: D-26.2 (a child never escapes the parent's
-    allow-set), D-26.3 (`lint_drafts`' own relaxed pairwise check —
-    overlap only where a `depends_on` edge orders it), D-26.4 (the parent's
+    """The decomposition batch's own four rules (S-0026/the-decomposition-run), layered on
+    the ordinary contract lint: S-0026/D-2 (a child never escapes the parent's
+    allow-set), S-0026/D-3 (`lint_drafts`' own relaxed pairwise check —
+    overlap only where a `depends_on` edge orders it), S-0026/D-4 (the parent's
     acceptance battery is distributed across the children, never dropped),
-    and D-26.12's sibling rule — every child is itself right-sized; a
+    and S-0026/D-12's sibling rule — every child is itself right-sized; a
     decomposition that yields an oversized child has not decomposed. The
-    depth bound (D-26.12) is enforced earlier, at the drafting run's mint."""
+    depth bound (S-0026/D-12) is enforced earlier, at the drafting run's mint."""
 
     errors = lint_drafts(tree, document, max_drafts, allow_dependency_order=True)
     drafts = document.drafts
@@ -434,9 +436,9 @@ def lint_decomposition(
 
 # ....................... #
 
-# RFC 0027 §5.1/§5.3: the committed configuration tree a configuration
+# S-0027/tier-variants: the committed configuration tree a configuration
 # drafting run proposes changes to — sandbox definitions and the tier
-# blocks live in `.torve/config.yaml`, nowhere else (D-13.3).
+# blocks live in `.torve/config.yaml`, nowhere else (S-0013/D-3).
 CONFIGURATION_SURFACES = [".torve/sandbox/**", ".torve/config.yaml"]
 
 
@@ -447,10 +449,10 @@ def _configuration_paths(allow: list[str]) -> list[str]:
 def lint_configuration_change(
     tree: Path, document: DraftsDocument, config: RunnerConfig, runtime: Runtime
 ) -> list[str]:
-    """RFC 0027 D-27.6: the drafting gate for a configuration drafting run —
+    """S-0027 S-0027/D-6: the drafting gate for a configuration drafting run —
     deterministic, no model, fires only when a draft's scope names a
     configuration surface, so an ordinary intake batch pays nothing extra
-    and no new task field distinguishes the two (D-27.4's "no config-specific
+    and no new task field distinguishes the two (S-0027/D-4's "no config-specific
     verb"). Confines the diff to `CONFIGURATION_SURFACES` (never mixed with
     application code in one draft), then grounds the proposal in a *working*
     baseline: the committed configuration parses under its schema, every
@@ -458,14 +460,14 @@ def lint_configuration_change(
     configured image resolves *in this runtime*.
 
     Narrower than `torve doctor`'s image check, which it used to claim to
-    be (D-17.2): doctor falls back to the registry for a reference this host
+    be (S-0017/D-2): doctor falls back to the registry for a reference this host
     has not pulled, and this gate cannot — the fallback is network I/O
     belonging to an adapter, and nothing here may reach one. So the two
     answer different questions, and the refusal below says which one it
     asked instead of asserting doctor's verdict (T-0194).
     Building here is the drafting gate's own deterministic check — the same
     act as an operator running `torve sandbox build` before adopting, never
-    a mid-run build on the dispatch path (D-17.3 untouched)."""
+    a mid-run build on the dispatch path (S-0017/D-3 untouched)."""
 
     errors: list[str] = []
     touched_names: set[str] = set()
@@ -484,7 +486,7 @@ def lint_configuration_change(
                 f"{draft.ref}: mixes configuration surface(s) "
                 f"({', '.join(config_paths)}) with other path(s) — a configuration "
                 "change is confined to CONFIGURATION_SURFACES, never bundled with "
-                "application code (D-27.6)"
+                "application code (S-0027/D-6)"
             )
             continue
 
@@ -544,7 +546,7 @@ def lint_configuration_change(
 
 def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
     """The standalone face: the same protection for a hand-minted contract
-    (RFC 0020 §5.2) — the operator path stays legal and gets safer."""
+    (S-0020/the-contract-lint) — the operator path stays legal and gets safer."""
 
     try:
         raw = yaml.safe_load(contract.read_text(encoding="utf-8"))
@@ -564,8 +566,8 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
         return [f"{contract.name}: {exc.errors()[0]['msg']}"]
 
     if task.role != "implement":
-        # A review carries no acceptance by contract law (D-5.10), a draft
-        # none by D-20.3 — the batch checks below would misread both.
+        # A review carries no acceptance by contract law (S-0005/D-10), a draft
+        # none by S-0020/D-3 — the batch checks below would misread both.
         return []
 
     return lint_task(tree, task, max_drafts)
@@ -577,7 +579,7 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
 def lint_task(tree: Path, task: Task, max_drafts: int = 1, *, planning: bool = False) -> list[str]:
     """The same protection for a Task already in hand — what `lint_contract`
     does once the file is parsed, and what `torve plan` runs over every
-    contract it is about to mint (A-132). A review or draft role carries no
+    contract it is about to mint (S-0052/A-3). A review or draft role carries no
     acceptance by contract law, so the batch checks would misread it."""
 
     if task.role != "implement":
@@ -599,10 +601,10 @@ def lint_task(tree: Path, task: Task, max_drafts: int = 1, *, planning: bool = F
 
 
 def standing_warnings(tree: Path, contract: Path, rfc_dir: Path | None = None) -> list[str]:
-    """The lint-contract advisory (RFC 0030 §5.1): the standing rows whose
+    """The lint-contract advisory (S-0030/standing-inheritance): the standing rows whose
     declared paths intersect the contract's scope.allow but that the
     contract does not carry, each named. Advisory, never a refusal — a
-    hand-minted contract is already a human's signature (D-30.4); the
+    hand-minted contract is already a human's signature (S-0030/D-4); the
     consuming CLI renders these as warnings."""
 
     try:
@@ -644,7 +646,7 @@ def standing_warnings(tree: Path, contract: Path, rfc_dir: Path | None = None) -
 
 @dataclass(frozen=True)
 class ThresholdVerdict:
-    """RFC 0030 §5.2: `rides` or `document_required`, with the reasons that
+    """S-0030/the-threshold-verdict: `rides` or `document_required`, with the reasons that
     drove it — named so both enforcement surfaces can render the same
     evidence without recomputing it."""
 
@@ -654,9 +656,9 @@ class ThresholdVerdict:
 
 def _document_owners(rfc_dir: Path) -> dict[str, str]:
     """Which accepted document owns each decision id, resolved through the
-    same corpus parse `inherit_decisions` already reads (D-30.3) — never
+    same corpus parse `inherit_decisions` already reads (S-0030/D-3) — never
     from the identifier's own shape. A family of ids is not a document: RFC
-    0001 alone carries D-2, D-25 and D-A.* as one, and counting families
+    0001 alone carries S-0001/D-10, S-0001/D-19 and D-A.* as one, and counting families
     would overcount that single document as several — the mistake this
     resolution exists to rule out."""
 
@@ -685,7 +687,7 @@ def document_threshold(
     documents: dict[str, str],
     min_documents: int,
 ) -> ThresholdVerdict:
-    """RFC 0030 §5.2 (D-30.2/D-30.3): deterministic arithmetic over the
+    """S-0030/the-threshold-verdict (S-0030/D-2/D-30.3): deterministic arithmetic over the
     standing rows a scope crosses and the size verdict already computed
     elsewhere — no model opinion of risk anywhere in the routing.
     `documents` maps a row's id to the accepted document that owns it
@@ -731,7 +733,7 @@ def _threshold_for_scope(
 def lint_document_threshold(
     tree: Path, document: DraftsDocument, config: RunnerConfig
 ) -> list[str]:
-    """RFC 0030 §5.2 (D-30.4): the intake lint's enforcement surface — a
+    """S-0030/the-threshold-verdict (S-0030/D-4): the intake lint's enforcement surface — a
     draft whose scope crosses the document threshold is a lint error naming
     the crossings, so the drafter's next iteration can narrow scope, or the
     commander routes the request to authoring instead."""
@@ -756,7 +758,7 @@ def lint_document_threshold(
 def document_threshold_warnings(
     tree: Path, contract: Path, config: RunnerConfig, rfc_dir: Path | None = None
 ) -> list[str]:
-    """The lint-contract advisory (RFC 0030 D-30.4): when a hand-minted
+    """The lint-contract advisory (S-0030 S-0030/D-4): when a hand-minted
     contract's scope already crosses the document threshold, named —
     advisory, never a refusal, since a hand-minted contract is already a
     human's signature."""
@@ -806,7 +808,7 @@ def mint_intake_task(
     root: Path, request: str, config: RunnerConfig, rfc: str | None = None
 ) -> Task:
     """Engine-minted at request time, like a review at gated — the id here
-    names the drafting run itself, never its output (D-20.4)."""
+    names the drafting run itself, never its output (S-0020/D-4)."""
 
     from torve.application.planner import next_task_number
 
@@ -839,7 +841,7 @@ def mint_intake_task(
 
 
 def _decomposition_depth(root: Path, task_id: str) -> int:
-    """Hops up a task's `parent` chain (RFC 0026 D-26.12): 0 for an
+    """Hops up a task's `parent` chain (S-0026 S-0026/D-12): 0 for an
     undecomposed contract, 1 for a first-round child, 2 for a
     second-round grandchild — the point past which a third round refuses."""
 
@@ -868,10 +870,10 @@ def _decomposition_depth(root: Path, task_id: str) -> int:
 # ....................... #
 
 
-# The decomposition run (RFC 0026 §5.2): a draft-role run exactly RFC
+# The decomposition run (S-0026/the-decomposition-run): a draft-role run exactly RFC
 # 0020's shape, pointed at a contract instead of a commander's prose.
 def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) -> Task:
-    """Refuses a third decomposition round by name (D-26.12) before any
+    """Refuses a third decomposition round by name (S-0026/D-12) before any
     drafting compute is spent; otherwise mints the drafting run the same
     way `mint_intake_task` does, its single target naming what it
     decomposes."""
@@ -924,9 +926,9 @@ def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) ->
 
 
 def _harness_facts(root: Path, config: RunnerConfig) -> list[str]:
-    """RFC 0027 D-27.5: one line per configured tier — including a variant
+    """S-0027 S-0027/D-5: one line per configured tier — including a variant
     nothing uses, denominator zero and visible — plus the quasi-experiment
-    caveat printed verbatim beside them (RFC 0004 §6a, D-22.7's rule applied
+    caveat printed verbatim beside them (S-0004/measurement-defects-to-fix-before-trusting-a-number, S-0022/D-7's rule applied
     a fourth time: never paraphrased, never carrying a corpus coordinate a
     prompt reader has no corpus to resolve)."""
 
@@ -973,9 +975,9 @@ def _harness_facts(root: Path, config: RunnerConfig) -> list[str]:
 
 
 def execution_facts(root: Path, config: RunnerConfig) -> str:
-    """RFC 0020 phase 3: what the loop knows that a fresh drafter cannot —
+    """S-0020 phase 3: what the loop knows that a fresh drafter cannot —
     the live escalation queue, contended paths, recent landings, and (RFC
-    0027 D-27.5) the harness populations every configured tier has produced.
+    0027 S-0027/D-5) the harness populations every configured tier has produced.
     Bounded reads (telemetry tail), empty string when there is nothing to
     say."""
 
@@ -1045,15 +1047,15 @@ def build_intake_prompt(
     matters as much as review's: one honest draft beats a decomposition
     performed to look thorough.
 
-    `parent` turns this into a decomposition run's prompt (RFC 0026
-    D-26.10): the tree listing narrows to the parent's own scope.allow, and
+    `parent` turns this into a decomposition run's prompt (S-0026
+    S-0026/D-10): the tree listing narrows to the parent's own scope.allow, and
     the parent's contract — scope, acceptance, the rules a decomposition
     must satisfy — rides beside the request. The parent's inherited
     decision rows do not: children re-inherit them from the governing
-    document at adoption (D-20.9's existing rule, unchanged), so carrying
+    document at adoption (S-0020/D-9's existing rule, unchanged), so carrying
     a second copy into the prompt would buy nothing but tokens."""
 
-    # D-54.16: the pack's index stands where 400 filenames used to; the
+    # S-0054/D-16: the pack's index stands where 400 filenames used to; the
     # drafter reads the tree itself and asks `torve spec paths` what rows a
     # candidate scope would cross. Without a pack (a caller composing the
     # prompt bare) the top of the tree is named, and nothing more.
@@ -1178,7 +1180,7 @@ def drafts_file(root: Path, task_id: str) -> Path:
 
 
 def _decomposition_parent(root: Path, task: Task) -> Task | None:
-    """RFC 0026 §5.2: a drafting run whose contract names a single target
+    """S-0026/the-decomposition-run: a drafting run whose contract names a single target
     is a decomposition — the contract that target names is its parent."""
 
     if not task.targets:
@@ -1198,7 +1200,7 @@ def _decomposition_parent(root: Path, task: Task) -> Task | None:
 
 
 def _claimed_or_resumed_state(task: Task, state_path: Path) -> RunState:
-    """A fresh mint starts a state; a re-queued run (D-20.6) — the
+    """A fresh mint starts a state; a re-queued run (S-0020/D-6) — the
     commander's revise put it back to QUEUED with its feedback written —
     resumes one, its history continuing. Either way the drafting run
     claims from here."""
@@ -1225,8 +1227,8 @@ def _open_intake_broker(
     task: Task, tier: TierConfig, config: RunnerConfig, broker: Broker | None
 ) -> BrokerHandle | None:
     """The drafting run's provider credential rides the same broker as any
-    run (RFC 0021): the sandbox sees the broker's URL and the run-scoped
-    token, never a key (D-21.4 — the planner tier's provider is the
+    run (S-0021): the sandbox sees the broker's URL and the run-scoped
+    token, never a key (S-0021/D-4 — the planner tier's provider is the
     drafting run's routing)."""
 
     if broker is None or not broker_in_force(config):
@@ -1345,7 +1347,7 @@ def _lint_intake_batch(
     runtime: Runtime,
 ) -> list[str]:
     """The contract lint, routed on whether this is a decomposition, then
-    the document-threshold lint (D-30.4), then (D-27.6) the configuration-
+    the document-threshold lint (S-0030/D-4), then (S-0027/D-6) the configuration-
     change lint layered on top — each a no-op unless its own condition
     fires, so this costs an ordinary drafting run nothing."""
 
@@ -1378,7 +1380,7 @@ def _finish_intake_success(
     broker_block_now: Callable[[], dict[str, Any] | None],
 ) -> IntakeOutcome:
     """Lint-green: persist the drafts and go ready — awaiting adoption,
-    dispatching nothing (D-20.1)."""
+    dispatching nothing (S-0020/D-1)."""
 
     fact = f"{len(document.drafts)} draft(s) lint-green"
     state.transition(TaskState.GATED, "drafts produced; lint green")
@@ -1488,10 +1490,10 @@ def run_intake(
     """The draft-lint loop: attempt, parse, lint; red iterates within the
     budget with the lint's refusals in the next prompt; green persists the
     drafts and the run goes ready — drafts awaiting adoption, dispatching
-    nothing (D-20.1). The drafting run's provider credential rides the same
-    broker as any run (RFC 0021): the sandbox never holds the key.
+    nothing (S-0020/D-1). The drafting run's provider credential rides the same
+    broker as any run (S-0021): the sandbox never holds the key.
 
-    A drafting run whose contract names a single target (RFC 0026 §5.2) is
+    A drafting run whose contract names a single target (S-0026/the-decomposition-run) is
     a decomposition: the prompt and the lint both route on the parent
     contract that target names, in place of the free-text request path."""
 
@@ -1534,7 +1536,7 @@ def run_intake(
                     broker_handle,
                 )
             except SchemaRefusal as exc:
-                # D-54.15: refused by the field it fails on, and told so on
+                # S-0054/D-15: refused by the field it fails on, and told so on
                 # the next attempt exactly as a lint refusal is.
                 unparseable = False
                 lint_errors = [str(exc)]
@@ -1589,7 +1591,7 @@ def _append_intake_record(
     broker: dict[str, Any] | None = None,
 ) -> None:
     """The drafting run's telemetry — same stream, its own kind, so
-    drafting quality is a query (D-20.8's settling evidence)."""
+    drafting quality is a query (S-0020/D-8's settling evidence)."""
 
     from torve.application.telemetry import append_record
 
@@ -1618,7 +1620,7 @@ def _append_intake_record(
                 "cost_usd": cost,
                 "trace_ref": trace,
                 # The drafting run's broker counts, beside the adapter's
-                # report (D-21.5) — present when a broker was in force.
+                # report (S-0021/D-5) — present when a broker was in force.
                 **({"broker": broker} if broker is not None else {}),
             },
         },
@@ -1626,22 +1628,22 @@ def _append_intake_record(
 
 
 # ----------------------- #
-# Adoption (D-20.1, D-20.4): the human signature, and the only moment ids
+# Adoption (S-0020/D-1, S-0020/D-4): the human signature, and the only moment ids
 # exist — read the counter, rewrite refs, write contracts, commit, all
 # under the engine lock so nothing races the minting.
 
 
 def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
-    """The planner's rows, not a second copy of them (D-20.9, A-47): grades
+    """The planner's rows, not a second copy of them (S-0020/D-9, S-0007/A-3): grades
     and paths as they stand at adoption, from an accepted document only —
-    the same admission torve plan enforces (D-7.7)."""
+    the same admission torve plan enforces (S-0007/D-7)."""
 
     from torve.application.planner import PlanError, inherit_decisions
     from torve.config import spec
 
     doc_path = (root / rfc).resolve()
 
-    if not doc_path.is_dir():  # a document is a directory (D-57.1)
+    if not doc_path.is_dir():  # a document is a directory (S-0057/D-1)
         raise ValueError(f"no document at {rfc}")
 
     try:
@@ -1651,7 +1653,7 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
 
     if doc.status != "accepted":
         raise ValueError(
-            f"{rfc} is not accepted — a draft has no settled decisions to inherit (D-7.7)"
+            f"{rfc} is not accepted — a draft has no settled decisions to inherit (S-0007/D-7)"
         )
 
     try:
@@ -1672,7 +1674,7 @@ def _merged_decisions(
     scope_allow: list[str],
     rfc_line: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """The adoption merge (D-30.1): every adopted contract carries the
+    """The adoption merge (S-0030/D-1): every adopted contract carries the
     standing rows its scope crosses, merged with the cited document's copy
     and deduplicated by identifier — the cited copy wins on conflict, since
     it is the one the request was written against."""
@@ -1709,7 +1711,7 @@ def adopted_file(root: Path, task_id: str) -> Path:
 def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = False) -> list[str]:
     """Adopt every draft the run produced: ids minted here and nowhere
     else, contracts committed as engine records on base, the loop left to
-    dispatch them like hand-minted work (D-20.7). Returns the new ids.
+    dispatch them like hand-minted work (S-0020/D-7). Returns the new ids.
     `assume_lock` is for a caller already inside the tick — the board's
     adopt command applies under the lock the tick holds."""
 
@@ -1734,14 +1736,14 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
         raise ValueError(f"adopt needs a ready drafting run; {task_id} is {state.state}")
     # An absent state with drafts present is adoptable: the drafts file
     # only ever persists from a green run, and a reaper may have swept
-    # the READY state before this human arrived (D-20.10).
+    # the READY state before this human arrived (S-0020/D-10).
 
     record = cast("dict[str, Any]", json.loads(source.read_text(encoding="utf-8")))
     drafts: list[Draft] = [Draft.model_validate(d) for d in record["drafts"]]
     rfc = record.get("rfc")
     decisions = _inherit_decisions(root, str(rfc)) if rfc else []
 
-    # D-30.4: adoption refuses document_required before anything is
+    # S-0030/D-4: adoption refuses document_required before anything is
     # written — the same check the intake lint already ran, re-run here
     # since a hand-minted drafts file never passed it.
     rfc_dir = root / config.specs.path
@@ -1758,7 +1760,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             )
 
     # A decomposition run names the contract it decomposes as its single
-    # target (RFC 0026 §5.2); an ordinary intake names none.
+    # target (S-0026/the-decomposition-run); an ordinary intake names none.
     from torve.gates.context import load_task
 
     source_contract = layout.task_file(root, task_id)
@@ -1788,7 +1790,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                 "depends_on": [ids[ref] for ref in draft.depends_on],
                 "scope": draft.scope.model_dump(),
                 "acceptance": list(draft.acceptance),
-                # D-30.1: adoption always merges the standing rows the
+                # S-0030/D-1: adoption always merges the standing rows the
                 # draft's own scope crosses with the cited document's copy,
                 # deduplicated by identifier — never RFC_LINE alone.
                 "decisions": _merged_decisions(root, config, draft.scope.allow, decisions),
@@ -1804,15 +1806,15 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             path = contract_dir / "contract.yaml"
 
             path.write_text(
-                f"# Adopted from {task_id}'s drafts (RFC 0020) — "
-                "ids minted at adoption, D-20.4.\n" + yaml.safe_dump(document, sort_keys=False),
+                f"# Adopted from {task_id}'s drafts (S-0020) — "
+                "ids minted at adoption, S-0020/D-4.\n" + yaml.safe_dump(document, sort_keys=False),
                 encoding="utf-8",
             )
 
             written.append(path)
 
         if parent_id:
-            # The parent becomes the integration task (RFC 0026 D-26.6):
+            # The parent becomes the integration task (S-0026 S-0026/D-6):
             # depends_on gains every child; scope and the full battery
             # stay exactly as authored. Header comments precede the YAML
             # by convention here, so they are preserved rather than lost
@@ -1850,7 +1852,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                     str(root),
                     "commit",
                     "-m",
-                    (f"🧪 chore: adopt {', '.join(ids.values())} from {task_id} (RFC 0020)"),
+                    (f"🧪 chore: adopt {', '.join(ids.values())} from {task_id} (S-0020)"),
                 ],
                 capture_output=True,
                 text=True,
@@ -1866,7 +1868,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
         if not assume_lock:  # a borrowed lock is the tick's to release
             release_lock(root)
 
-    # Adoption is the disposal (D-20.10): the run's purpose is consumed,
+    # Adoption is the disposal (S-0020/D-10): the run's purpose is consumed,
     # so its state goes with it — nothing is left for a reaper to judge.
     # The marker survives as the audit line telling adopted from fresh.
     adopted_file(root, task_id).write_text(

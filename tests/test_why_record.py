@@ -1,4 +1,4 @@
-"""`why` answered from the record (RFC 0050 phase 1).
+"""`why` answered from the record (S-0050 phase 1).
 
 The design is A-85 read backwards: the telemetry row is a *rendering* of the
 event payload, so rather than re-implement five joins against a second
@@ -219,7 +219,7 @@ def _write_contract(root: Path) -> None:
 
 
 def test_a_record_without_the_task_falls_back_to_the_files(tmp_path):
-    """D-50.2's one automatic rule, and only in that direction: an empty log
+    """S-0050/D-2's one automatic rule, and only in that direction: an empty log
     means ask the files."""
 
     _write_contract(tmp_path)
@@ -233,7 +233,7 @@ def test_a_record_without_the_task_falls_back_to_the_files(tmp_path):
 
 
 def test_a_mint_with_no_contract_falls_back_too(tmp_path):
-    """A mint written before RFC 0049 holds no contract, so the record has
+    """A mint written before S-0049 holds no contract, so the record has
     nothing to answer with — and a partial answer would be worse than the
     files' complete one."""
 
@@ -298,7 +298,7 @@ def test_the_two_readers_agree_on_the_same_attempt(tmp_path):
 
 
 # ....................... #
-# `status` over the board (RFC 0050 phase 2). The two vocabularies are the
+# `status` over the board (S-0050 phase 2). The two vocabularies are the
 # same TaskState reached by different paths, so what is worth testing is
 # the depth each carrier reaches and the selection between them.
 # ....................... #
@@ -370,7 +370,7 @@ def test_a_minted_task_that_never_ran_is_not_a_run():
 
 def test_an_imported_landing_is_history_and_not_a_run():
     """A partition's first pass mints every contract the tree carries and
-    records the landings the trailer already proves (D-49.1) — on this
+    records the landings the trailer already proves (S-0049/D-1) — on this
     repository, 184 of them. They are `ready` with no attempt behind them,
     and reporting them as runs would bury the handful that are."""
 
@@ -429,7 +429,7 @@ def test_a_board_holding_no_run_falls_back_to_the_files(tmp_path):
 
 
 # ....................... #
-# `context`'s task block over the record (RFC 0050 phase 3). The record
+# `context`'s task block over the record (S-0050 phase 3). The record
 # holds every contract since A-96, so this is a fold; what is worth
 # testing is the one place the vocabularies differ and the fallback.
 # ....................... #
@@ -485,7 +485,7 @@ def test_the_three_starting_words_the_record_has_one_of():
 def test_a_row_whose_contract_the_record_does_not_hold_is_skipped():
     """A mint written before A-91 carries no contract, so there is no
     document, phase or role to report — and every downstream block would
-    have to special-case an entry without them (D-49.5)."""
+    have to special-case an entry without them (S-0049/D-5)."""
 
     pre_a91 = event(EventKind.TASK_MINTED, {"title": "a task", "source_id": "0050", "phase": 0})
 
@@ -520,7 +520,7 @@ def test_context_falls_back_to_the_files_when_the_record_holds_no_contract(tmp_p
 
 
 # ....................... #
-# The attempt-counting blocks over the record (RFC 0050 phase 3, A-102).
+# The attempt-counting blocks over the record (S-0050 phase 3, A-102).
 # ....................... #
 
 
@@ -587,7 +587,7 @@ def test_divergences_render_as_the_log_file_the_engine_writes(tmp_path):
             EventKind.DIVERGENCE_RECORDED,
             {
                 "attempt": 1,
-                "decision_id": "D-50.1",
+                "decision_id": "S-0050/D-1",
                 "grade": "LOCKED",
                 "entry_kind": "resolved",
                 "entry_class": "drift",
@@ -601,5 +601,5 @@ def test_divergences_render_as_the_log_file_the_engine_writes(tmp_path):
     report = context_report(tmp_path, tmp_path / "rfcs", recorded=recorded)
 
     assert report["sources"]["divergences"] == "record"
-    assert [p["decision"] for p in report["proposals"]] == ["D-50.1"]
+    assert [p["decision"] for p in report["proposals"]] == ["S-0050/D-1"]
     assert report["proposals"][0]["proposal"] == "record the rule"

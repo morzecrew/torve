@@ -1,14 +1,14 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-80
+  - id: A-1
     at: '2026-09-04'
     title: >-
-      the intake has two halves (amends D-44.10, cites RFC 0045 D-45.1)
+      the intake has two halves (amends S-0044/D-10, cites S-0045 S-0045/D-1)
     md: |-
       **Found executing phase 2.** §5.6 describes the intake as one act:
       validate, refuse or record. It cannot be one act, because its two halves
       run in different places. The verb runs inside the sandbox, which has no
-      route to the store and must never have one — the boundary RFC 0045 D-45.1
+      route to the store and must never have one — the boundary S-0045 S-0045/D-1
       states as a rule — and the recording runs host-side, in the worker that
       owns the run. The design assumed one process where the isolation contract
       guarantees two.
@@ -18,10 +18,10 @@ amendments:
       (`repo`, `base_sha`) cannot be derived where the entry is written. The
       engine drops the pin into `.torve/tmp/pin.json` at dispatch and the verb
       reads it back. A seeded *log* was tried and reverted: a seeded log breaks
-      "a missing log is an empty log" (A-13, D-3.21), and a run with nothing to
+      "a missing log is an empty log" (S-0003/A-2, S-0003/D-21), and a run with nothing to
       report must leave no file.
 
-      **Changed:** D-44.10 splits. The agent-facing half validates at write time
+      **Changed:** S-0044/D-10 splits. The agent-facing half validates at write time
       and refuses in the gate's own words, unchanged. The recording half is the
       worker's: after the attempt it reads the worktree's entries and records one
       `divergence.recorded` each, from the host, under the agent's actor
@@ -30,42 +30,42 @@ amendments:
       promised holds unchanged: the agent never writes YAML, the engine
       serializes and stages it, and the three failure classes stay deleted.
 
-      **Deliberately unchanged:** D-44.2. An agent still writes only through a
+      **Deliberately unchanged:** S-0044/D-2. An agent still writes only through a
       validating intake; this amendment says where the validation and the write
       each happen, not who may write what.
 
       **Still owed by phase 2 at the time of writing:** `decisions-reported` reads
-      the file, not the store. Settled by A-82, which found the same boundary on
+      the file, not the store. Settled by S-0044/A-3, which found the same boundary on
       the reading side and answers it with a projection.
-  - id: A-81
+  - id: A-2
     at: '2026-09-04'
     title: >-
-      message.sent admits the manager and the operator (amends D-44.4, required by
-      RFC 0045 D-45.7)
+      message.sent admits the manager and the operator (amends S-0044/D-4, required
+      by S-0045 S-0045/D-7)
     md: |-
-      **Found drafting RFC 0045.** §5.2's table makes `message.sent` agent-only,
-      which was written when the only sender imagined was an agent. RFC 0045's
+      **Found drafting S-0045.** §5.2's table makes `message.sent` agent-only,
+      which was written when the only sender imagined was an agent. S-0045's
       notes are the same record with a different sender: an operator or the
       manager puts a note into a running attempt, and the agent polls for it. The
-      sender is stamped from the run token either way (D-45.2), so widening the
+      sender is stamped from the run token either way (S-0045/D-2), so widening the
       row admits senders, never forgeries.
 
-      **Changed:** D-44.4 and §5.2 — `message.sent` may be written by an agent,
+      **Changed:** S-0044/D-4 and §5.2 — `message.sent` may be written by an agent,
       the manager or the operator. What the row protected is untouched: an agent
       still cannot write an acceptance, a landing, or another agent's record, and
       every inter-agent influence is still a reviewable record or it did not
       happen.
-  - id: A-82
+  - id: A-3
     at: '2026-09-04'
     title: >-
-      the gate judges the record through a projection (amends D-44.10, completes phase
-      2, extends A-80)
+      the gate judges the record through a projection (amends S-0044/D-10, completes
+      phase 2, extends S-0044/A-1)
     md: |-
       **Found completing phase 2.** The phase says the `decisions-reported` gate
       reads the recorded entries. It cannot: the battery runs inside a sandbox,
-      and a sandbox has no route to the store — the same boundary A-80 found on
+      and a sandbox has no route to the store — the same boundary S-0044/A-1 found on
       the writing side, met again on the reading side. A gate that could query the
-      store would be a gate holding a store credential, which RFC 0045 D-45.1
+      store would be a gate holding a store credential, which S-0045 S-0045/D-1
       refuses outright.
 
       So the store is made authoritative the only way a sandboxed reader allows.
@@ -80,9 +80,9 @@ amendments:
       must see attempt two's entries — so the intake's offset is what keeps a
       cumulative file from being recorded twice. And a task with nothing recorded
       still leaves no file: writing an empty log would turn "nothing to report"
-      into a claim somebody made (A-13, D-3.21).
+      into a claim somebody made (S-0003/A-2, S-0003/D-21).
 
-      **Changed:** D-44.10 — the landed log file is a projection the engine writes
+      **Changed:** S-0044/D-10 — the landed log file is a projection the engine writes
       from the record, written before each gate pass rather than only at landing,
       and the gate reads it. The sync is fail-closed: it may block and may raise,
       and a failure escalates `gate_infrastructure_failure` rather than letting a
@@ -95,11 +95,11 @@ amendments:
       **Phase 2 is now complete.** The remaining carrier question — whether the
       file survives at all once nothing but the engine writes it — belongs to the
       projection set, not here.
-  - id: A-85
+  - id: A-4
     at: '2026-09-04'
     title: >-
-      phases 4 to 6 — one record, one state, one dispatch rule (phases D-44.1, D-44.3,
-      D-44.5)
+      phases 4 to 6 — one record, one state, one dispatch rule (phases S-0044/D-1,
+      S-0044/D-3, S-0044/D-5)
     md: |-
       **Found after the first three phases landed.** §12 leaves the later work
       unphased "until the first three land and the exit criterion has data". The
@@ -126,13 +126,13 @@ amendments:
       than consolidation and each deserves its own document: the attempt loop as
       explicit steps rather than a closure over a two-thousand-line function
       (with the naming pass and the sandbox rework that ride along with it), and
-      sources and decisions as records (D-44.8, D-44.9). Neither is a prerequisite
+      sources and decisions as records (S-0044/D-8, S-0044/D-9). Neither is a prerequisite
       for the exit criterion; both are prerequisites for multi-repo being real
       rather than designed.
-  - id: A-86
+  - id: A-5
     at: '2026-09-04'
     title: >-
-      phases 5 and 6 land as one rule, not one reader (amends A-85, cites D-44.6)
+      phases 5 and 6 land as one rule, not one reader (amends S-0044/A-4, cites S-0044/D-6)
     md: |-
       **Found executing phase 5.** Both phases as written move readers onto the
       record: the reaper, the lane and `torve status` read the log instead of the
@@ -147,7 +147,7 @@ amendments:
       until there is a reason to remove one. What consolidates now is the *rule*,
       not the reader.
 
-      **Phase 5 delivered:** the lease that D-44.6 always claimed. A worker holds
+      **Phase 5 delivered:** the lease that S-0044/D-6 always claimed. A worker holds
       nothing but its lease, and until now nothing was that lease running out —
       a worker that died left its task claimed permanently, which the kill-safety
       test asserted as "nothing is invented on its behalf" without noticing that
@@ -164,7 +164,7 @@ amendments:
       **Phase 6 delivered:** one dispatch rule with two callers instead of two
       implementations written to agree by hand. The scope rule and the in-flight
       set now live once. That found a live defect: an empty allow-set is
-      unconstrained (RFC 0002 §6) and a glob intersection over two empty sets is
+      unconstrained (S-0002/scope-in-detail) and a glob intersection over two empty sets is
       empty, so the manager would have dispatched two tasks that may each touch
       anything, while the standing loop refused exactly that pair. A contract
       with no explicit scope is the common case, so this was not a corner.
@@ -174,37 +174,37 @@ amendments:
       has a log, the state file becomes a cache and the filesystem scan becomes
       dead code — and deleting them then is a smaller change than it would be
       now, because the rules they implement will already be shared.
-  - id: A-89
+  - id: A-6
     at: '2026-09-05'
     title: >-
       the vocabulary admits a retirement (adds decision.retired, amends §5.2)
     md: |-
-      **Found writing RFC 0047.** §5.2's vocabulary can say that a decision was
+      **Found writing S-0047.** §5.2's vocabulary can say that a decision was
       recorded and that a human accepted it. It cannot say that one was retired,
       and `torve rfc retire` has been writing retirements into the corpus since
-      RFC 0025 — six of them stand today.
+      S-0025 — six of them stand today.
 
-      The importer RFC 0047 builds has to express that, and the only alternative
+      The importer S-0047 builds has to express that, and the only alternative
       is to infer it: a row present in the record and absent from the document has
       presumably been retired. That inference fails twice. It cannot distinguish a
       deliberate retirement from a table someone broke, and it does not generalise
       past a source that is a file — an incident does not stop containing a
       decision, so absence means nothing there. Deriving a fact the engine could
-      record is exactly what D-44.3 exists to refuse.
+      record is exactly what S-0044/D-3 exists to refuse.
 
       **Changed:** `decision.retired` joins the closed vocabulary with the payload
       `{reason, superseded_by}`, and the authority table gives it `operator` and
       `manager` — the same row `decision.recorded` carries, because retiring a
       decision is the same act as recording one, from the same two actors. An
       agent still cannot write it. Nothing else in §5.2 moves, and no existing
-      payload gains a field: the kinds already there are written by RFC 0047's
+      payload gains a field: the kinds already there are written by S-0047's
       importer unchanged.
 
       The cost is deliberate and worth naming. The vocabulary is closed on purpose
       (§5.1) and the amendment is the price of adding to it. This is the first kind
       added since acceptance; it should read as evidence that the price was paid,
       not that it is small.
-  - id: A-90
+  - id: A-7
     at: '2026-09-05'
     title: >-
       three of the five unphased pieces landed; two are gated on tasks as records
@@ -213,11 +213,11 @@ amendments:
       pieces left out of the phasing, and reads as if all five are pending. Three
       have their own documents and are complete:
 
-      - the attempt loop as explicit steps — RFC 0046, which also names the naming
+      - the attempt loop as explicit steps — S-0046, which also names the naming
         pass and the sandbox rework it was supposed to carry and defers both;
-      - sources and decisions as records (D-44.8, D-44.9) — RFC 0047, which added
-        `decision.retired` to §5.2 by A-89;
-      - multi-partition operation — RFC 0048, which found the fleet manifest was
+      - sources and decisions as records (S-0044/D-8, S-0044/D-9) — S-0047, which added
+        `decision.retired` to §5.2 by S-0044/A-6;
+      - multi-partition operation — S-0048, which found the fleet manifest was
         already the multi-repository artefact and gave it the partition rather
         than inventing a second one.
 
@@ -227,59 +227,59 @@ amendments:
       still files. Each would today read a record that holds decisions and
       execution but no task rows, so each would answer from a filesystem scan
       anyway with a store in the middle. They wait on tasks becoming records —
-      which is also what RFC 0047 D-47.3 gates contract minting on, so the three
+      which is also what S-0047 S-0047/D-3 gates contract minting on, so the three
       land together or not at all.
 
       **Changed:** nothing normative. This records which of §12's tail is done and
       why the remainder is one prerequisite rather than three separate ones.
-  - id: A-91
+  - id: A-8
     at: '2026-09-05'
     title: >-
-      the mint carries its contract (amends §5.3, required by RFC 0049 D-49.1)
+      the mint carries its contract (amends §5.3, required by S-0049 S-0049/D-1)
     md: |-
-      **Found executing RFC 0049.** §5.3 makes minting the act that places a
+      **Found executing S-0049.** §5.3 makes minting the act that places a
       contract on a partition, and `task.minted` records everything about that act
       except the contract. The board knows a task's state, attempts, convictions,
       divergences, landing and spend; it does not know its scope, its acceptance
       commands or the decisions it inherited, so every reader that needs those has
       to be standing next to the repository.
 
-      That is also why the two pieces A-90 left owed are blocked: both are joins
+      That is also why the two pieces S-0044/A-7 left owed are blocked: both are joins
       against tasks, and the task rows they would join are files.
 
       **Changed:** `TaskMinted` gains `contract` — the contract as minted, the
       `Task` model's own dump, validated on the way in and re-validated on the way
       out. `title` and `source_id` stay because they are the board's derivations
       rather than contract fields; `phase` and `depends_on` stay as copies with a
-      test pinning them equal to the contract's, which is A-85's rule applied to a
+      test pinning them equal to the contract's, which is S-0044/A-4's rule applied to a
       payload instead of to two carriers. Nothing else in §5.2 moves and no kind
       is added.
 
-      Two consequences worth recording here rather than only in RFC 0049, because
+      Two consequences worth recording here rather than only in S-0049, because
       they are properties of this event and not of that design: a second
       `task.minted` on a subject is a **new version of the contract and never a
       transition** — a manager that could re-queue an escalated task by noticing
       an edited file would be writing an `escalation.resolved` it has no authority
-      to write (D-44.2) under another name — and a fold must treat a mint with no
+      to write (S-0044/D-2) under another name — and a fold must treat a mint with no
       contract as a view with no contract, because 192 of them are already in the
       lab log and every one of them predates this.
-  - id: A-99
+  - id: A-9
     at: '2026-09-05'
     title: Every read of the log pages
     md: |-
-      **Found taking stock after RFC 0050 phase 3.** Every read on the log took a
+      **Found taking stock after S-0050 phase 3.** Every read on the log took a
       row cap — `since` at 1000, `history` at 1000, `of_subject_type` at 5000 —
       and two of the three returned a prefix with nothing to say they had. This
       partition holds 1,995 events. The board the manager folds from `since` had
       **184 rows where the log holds 273**, and that board is what decides what a
-      worker claims, what a lease releases and what a scan re-mints. RFC 0047 §8
+      worker claims, what a lease releases and what a scan re-mints. S-0047/out-of-scope
       named the hazard when the cap was theoretical; it had been live since the
       log passed a thousand events.
 
       The visible damage is noise rather than corruption: 916 mint events for 273
       tasks, because a pass could not see the rows the previous pass had written
       and minted them again. A fold over the whole log reads those as re-mints
-      and transitions nothing (D-49.2), which is the only reason this was
+      and transitions nothing (S-0049/D-2), which is the only reason this was
       recoverable by reading rather than by repair.
 
       **Changed:** §5.2's reads page. One `_paged` helper behind `since`,
@@ -293,35 +293,35 @@ amendments:
       and a write landing mid-scan lands after the tail the scan will reach.
 
       Measured after: `since` returns 1,995 events and the board 273 rows.
-  - id: A-107
+  - id: A-10
     at: '2026-09-05'
     title: 'Phase 6 closes: the scan is deleted'
     md: |-
-      **Phase 6 as written, finished.** A-86 kept both dispatch carriers after
+      **Phase 6 as written, finished.** S-0044/A-5 kept both dispatch carriers after
       the rules consolidated, on the grounds that a v1 run leaves no log. That is
       still true and no longer decisive: the scan's *caller* is what mattered,
       and the tick had run three times in a fortnight against 47 landings by
-      hand, with every leg reporting off. RFC 0019 A-105 has the measurement and
+      hand, with every leg reporting off. S-0019 S-0019/A-8 has the measurement and
       the retirement.
 
       Two rules had to reach the board before the scan could go, and both turned
-      out to be folds rather than ports. The oversize skip (D-26.7) asked the
+      out to be folds rather than ports. The oversize skip (S-0026/D-7) asked the
       filesystem whether any contract carried this task as its parent; the board
-      carries every contract since A-96, so `manager.decomposed` asks the board.
+      carries every contract since S-0049/A-1, so `manager.decomposed` asks the board.
       The "already ran here" test stays a host fact — it reads run-state files
       and the telemetry stream, neither of which is in the record — but it is now
       built once per pass (`residency.ran_here`) rather than re-reading the whole
       stream once per contract.
 
       **Changed:** §12 phase 6 is complete, and with it this document's phasing.
-      `implementation: complete`. What A-90 left owed was the projection set,
-      finished as RFC 0050, and the tracker, retired as RFC 0008 A-92.
+      `implementation: complete`. What S-0044/A-7 left owed was the projection set,
+      finished as S-0050, and the tracker, retired as S-0008 S-0008/A-5.
 
-      The record's own reads had to grow up on the way (A-99): `since` was
+      The record's own reads had to grow up on the way (S-0044/A-9): `since` was
       folding the oldest 1000 events of 1995, so the board a manager decided
       from was missing a third of its tasks. Deleting the alternative carrier
       raises the price of a defect in this one.
-  - id: A-128
+  - id: A-11
     at: '2026-09-06'
     title: >-
       A leg's failure is recorded, never fatal — found by the first live dispatch
@@ -333,26 +333,26 @@ amendments:
       **A leg's failure killed the pass.** The retired tick wrapped every leg —
       *"a bounded tick must reach its last leg so the record reflects whatever
       did happen"* — and when the standing and relay legs moved into
-      `residency.once` (A-106, RFC 0051 D-51.5) they arrived without the wrapper.
+      `residency.once` (S-0023/A-2, S-0051 S-0051/D-5) they arrived without the wrapper.
       The first live pass proved it: a standing job whose body crosses four
-      documents' locked decisions is refused by RFC 0030's threshold, the
+      documents' locked decisions is refused by S-0030's threshold, the
       `ValueError` escaped, and nothing was minted, claimed or dispatched. What
       showed was *"no work ran"*; what happened was *"a draft was refused"*.
 
       **Changed:** `_leg` wraps every injected leg and records `leg_failed`
-      rather than propagating. The same argument as D-24.5 one level down — a
+      rather than propagating. The same argument as S-0024/D-5 one level down — a
       manager that stops serving because one leg is broken is worse than one that
       says so and carries on.
 
       **A refused dispatch stranded the claim.** The second pass claimed T-0281
       and then the regime check refused it: the executor tier's image digest had
-      changed with no paired verdict behind it (RFC 0027). That refusal is
+      changed with no paired verdict behind it (S-0027). That refusal is
       correct and is the engine working — but it escaped `Worker.once`, so the
       task sat `claimed` with the pass dead until its lease ran out.
 
       **Changed:** a refusal the engine raises before an attempt exists is an
       outcome, and the worker escalates it. Deliberately **not** with
-      `underspecified`, which is one of RFC 0022's two document-indicting reasons
+      `underspecified`, which is one of S-0022's two document-indicting reasons
       — the fault is the machine's configuration, and blaming the contract would
       poison the specification-quality readings. `gate_infrastructure_failure`
       says what it is. Re-queuing was the alternative and is a loop: the same
@@ -360,21 +360,21 @@ amendments:
 
       **The third defect is not fixed here.** A standing job that has never been
       able to instantiate now records `standing_instantiate_refused` and is
-      skipped (RFC 0023 D-23.3's fail-closed rule, one step later than it was
+      skipped (S-0023 S-0023/D-3's fail-closed rule, one step later than it was
       written) — but the job itself is still unadoptable, and `lockfile-drift`
       or `flake-quarantine` will refuse on every pass until somebody narrows its
-      scope. That is RFC 0023's to own.
+      scope. That is S-0023's to own.
 
       The pattern this session named four times over — a capability that is green
       and inert — has a companion this run found: a capability that is green,
       wired, and fatal the first time it is exercised. The only check that finds
       either is running it.
-  - id: A-129
+  - id: A-12
     at: '2026-09-06'
     title: >-
-      A-128's rule reaches a leg's construction, not only its call
+      S-0044/A-11's rule reaches a leg's construction, not only its call
     md: |-
-      **Found by the second live dispatch, by the reviewer.** A-128 wrapped every
+      **Found by the second live dispatch, by the reviewer.** S-0044/A-11 wrapped every
       leg's *call* so one broken leg could not take the pass down. It did not
       reach a leg's *construction*, and two of the three legs built their
       dependencies eagerly in the composition root — outside the wrapper that
@@ -385,7 +385,7 @@ amendments:
       `_resolve_ci` refused before the runtime was open, and the manager never
       reclaimed, minted or dispatched. It could not see the instance already
       shipped — `build_notifier` refuses an adapter it does not know, from the
-      same eager position, on every pass since RFC 0051 landed.
+      same eager position, on every pass since S-0051 landed.
 
       **Changed:** every leg builds what it needs inside its own closure, which
       is the idiom `standing` already used and the other two had drifted from.
@@ -405,9 +405,9 @@ amendments:
       only a `blocker` stops promotion, so the engine promoted a candidate that
       could take the manager down. That is the second review running where a
       finding worth stopping for was graded below the bar that stops. Whether
-      `major` should be able to hold a defect of this class is RFC 0005's
+      `major` should be able to hold a defect of this class is S-0005's
       question, and it is open.
-  - id: A-134
+  - id: A-13
     at: '2026-09-07'
     title: >-
       a reviewed candidate can be sent back (adds `task.returned`)
@@ -438,9 +438,9 @@ amendments:
       an agent that could return its own reviewed work could route around every
       verdict it disliked.
 
-      The operator's `--note` rides the RFC 0005 §4a feedback record, so the next
+      The operator's `--note` rides the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback record, so the next
       attempt is briefed by the person who sent it back rather than starting
-      blind. That is the same carrier a surviving blocker uses (D-43.2); nothing
+      blind. That is the same carrier a surviving blocker uses (S-0043/D-2); nothing
       new delivers it.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

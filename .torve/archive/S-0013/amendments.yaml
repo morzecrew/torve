@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-16
+  - id: A-1
     at: '2026-08-22'
     title: corpus path (amends §1, §3)
     md: |-
-      **Found in use.** `config.yaml` had no setting for where the specification corpus lives, so `rfcs/` was effectively hard-coded. A repository keeping specifications for `torve plan` may reasonably put them elsewhere. *(The source patch numbered this A-14; that was taken, so it lands as A-16 per charter D-A.5. The patch's citation for the resolution rule named a `D-F.*` decision, a family that does not exist in this corpus — the rule here is D-13.3.)*
+      **Found in use.** `config.yaml` had no setting for where the specification corpus lives, so `rfcs/` was effectively hard-coded. A repository keeping specifications for `torve plan` may reasonably put them elsewhere. *(The source patch numbered this S-0016/A-4; that was taken, so it lands as S-0013/A-1 per charter S-0016/D-16. The patch's citation for the resolution rule named a `D-F.*` decision, a family that does not exist in this corpus — the rule here is S-0013/D-3.)*
 
       **Changed:** `config.yaml` gains
 
@@ -15,27 +15,27 @@ amendments:
 
       **One path only** — not a list, not a glob, not several roots. Numbering is continuous across a corpus, so two roots mean two independent counters and a colliding identifier at the first merge. Specifications that genuinely need two locations are two corpora with two configurations.
 
-      **Unchanged:** everything else about resolution. The setting is read from the runner's `config.yaml` per D-13.3, not from the repository under work — a repository being operated on does not get to relocate the corpus the engine reads.
+      **Unchanged:** everything else about resolution. The setting is read from the runner's `config.yaml` per S-0013/D-3, not from the repository under work — a repository being operated on does not get to relocate the corpus the engine reads.
 
-      **Also edits:** 0001 (A-15).
-  - id: A-48
+      **Also edits:** 0001 (S-0016/A-5).
+  - id: A-2
     at: '2026-08-27'
-    title: one location per lookup (amends §3, D-13.1)
+    title: one location per lookup (amends §3, S-0013/D-1)
     md: |-
       **Found in a whole-repository audit for over-engineering.** Every lookup searched a candidate list before answering: the gate manifest tried `.torve/gates.yaml` then a root `gates.yaml`; the runner configuration tried `.torve/config.yaml` then a root `torve.yaml`; a task's contract and log each tried three locations, from the per-task directory back through a flat `.torve/tasks/T-nnnn.yaml` to a root `tasks/`.
 
       **The compatibility was with nothing.** The package has never had a released version; no repository outside this one has ever held any of those layouts, and this one holds none of them either. The fallbacks were written for a migration that had already happened before anyone else could be mid-way through it.
 
-      **Changed:** a lookup returns exactly one path, constructed, not searched. `--gates` and `--config` remain the only overrides (D-13.4 unchanged).
+      **Changed:** a lookup returns exactly one path, constructed, not searched. `--gates` and `--config` remain the only overrides (S-0013/D-4 unchanged).
 
       **Why this matters beyond the line count.** A resolver that searches gives an answer that depends on what happens to exist on disk, which means a stray file two directories up can change which manifest a run is judged against. §3's "always local to the repository being checked" was being enforced by convention rather than by construction.
 
-      **D-13.1 is amended** to state one canonical location per file rather than a resolution order. The locations themselves are unchanged.
-  - id: A-111
+      **S-0013/D-1 is amended** to state one canonical location per file rather than a resolution order. The locations themselves are unchanged.
+  - id: A-3
     at: '2026-09-05'
     title: The CLI reads .env, and the shell still wins
     md: |-
-      **Found operating the engine.** D-4b keeps secrets out of committed files
+      **Found operating the engine.** S-0001/D-13 keeps secrets out of committed files
       by naming an environment variable instead of a value, which is right and
       which left the operator exporting eight names into every shell. Forgetting
       one produces the least helpful failure the engine has: `torve reap` refusing
@@ -57,7 +57,7 @@ amendments:
         "Which secrets did this pick up" is worth answering. "What are they" is
         not.
 
-      D-4b is unchanged: `.env` is gitignored and stays that way, and a
+      S-0001/D-13 is unchanged: `.env` is gitignored and stays that way, and a
       configuration file still names the variable rather than the value. What
       changed is only who types the export.
 
@@ -66,4 +66,4 @@ amendments:
       preview an operator runs *because* something is wrong, so it now reports
       `unreachable: OperationalError` per target and still prints the forze pin.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

@@ -2,7 +2,7 @@
   "$defs": {
     "LogEntry": {
       "additionalProperties": false,
-      "description": "One divergence entry as the task log carries it and a landing keeps\nit (D-57.7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
+      "description": "One divergence entry as the task log carries it and a landing keeps\nit (S-0057/D-7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
       "properties": {
         "action": {
           "enum": [
@@ -91,7 +91,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "The task log's own shape, `.torve/tasks/T-NNNN/log.yaml` (RFC 0001\n\u00a76): the pin, the derived drift count and the entries \u2014 what `torve\ninit` writes the log's schema from (D-57.5).",
+  "description": "The task log's own shape, `.torve/tasks/T-NNNN/log.yaml` (S-0001\n\u00a76): the pin, the derived drift count and the entries \u2014 what `torve\ninit` writes the log's schema from (S-0057/D-5).",
   "properties": {
     "base_sha": {
       "default": "",

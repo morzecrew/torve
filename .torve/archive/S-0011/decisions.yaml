@@ -1,62 +1,62 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-11.1
+  - id: D-1
     grade: ASSUMED
     text: Typer plus Rich
     paths: [src/torve/cli/**, pyproject.toml]
     consequence: Low cost to adopt, higher to migrate later
-  - id: D-11.2
+  - id: D-2
     grade: LOCKED
     text: >-
       `--format json` on every result-producing command from its first implementation
     paths: [src/torve/cli/**]
     consequence: >-
       Retrofitting breaks whatever already parses human output
-  - id: D-11.3
+  - id: D-3
     grade: LOCKED
     text: >-
       JSON output matches the persisted record shape; no CLI-only schema
     paths: [src/torve/cli/**, src/torve/domain/**]
     consequence: A second contract falls out of sync
-  - id: D-11.4
+  - id: D-4
     grade: LOCKED
     text: >-
       Exit codes 0–5 as tabled; a new code requires a new escalation reason
     paths: [src/torve/cli/**, src/torve/domain/states.py]
     consequence: Published codes cannot be redefined
-  - id: D-11.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       `--plain` implied by `CI`, non-TTY, or `--format json`; `NO_COLOR` honoured
     paths: [src/torve/cli/**]
     consequence: Autodetection alone is not reliable enough
-  - id: D-11.6
+  - id: D-6
     grade: LOCKED
     text: >-
       Results on stdout, diagnostics on stderr, never mixed
     paths: [src/torve/cli/**]
     consequence: The basis of every machine consumer
-  - id: D-11.7
+  - id: D-7
     grade: LOCKED
     text: >-
       No interactive prompts; if ever added, fail with code 3 on non-TTY stdin
     paths: [src/torve/cli/**]
     consequence: A prompt hangs forever in CI and in a sandbox
-  - id: D-11.8
+  - id: D-8
     grade: ASSUMED
     text: Presentation polish deferred until after Phase 3
     consequence: Revisit when hand-run commands are known
-  - id: D-11.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       The reason-to-code projection: budget_exhausted, poison_ceiling and cost_anomaly
       exit 5; locked_conflict, merge_conflict, blocker_finding, killed, underspecified
-      *(joined by charter A-21 2026-08-22)* and stale_inheritance *(joined by charter
-      A-22 2026-08-22)* exit 2; gate_infrastructure_failure and lease_expired exit
-      4; a non-ready, non-escalated end exits 1; a failed doctor check exits 3. Added
-      by execution 2026-08-22 — see .torve/tasks/T-0013
+      *(joined by charter S-0001/A-7 2026-08-22)* and stale_inheritance *(joined by
+      charter S-0001/A-8 2026-08-22)* exit 2; gate_infrastructure_failure and lease_expired
+      exit 4; a non-ready, non-escalated end exits 1; a failed doctor check exits
+      3. Added by execution 2026-08-22 — see .torve/tasks/T-0013
     paths: [src/torve/domain/states.py, src/torve/cli/doctor.py]
-  - id: D-11.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       `gates check --format json` emits `{schema_version, cases}`; `reap --dry-run`
@@ -64,23 +64,23 @@ decisions:
       (the claim is the mutation); `migrate --status` is that command's preview. Added
       by execution 2026-08-22 — see .torve/tasks/T-0013
     paths: [src/torve/cli/gates.py, src/torve/cli/status.py]
-  - id: D-11.11
+  - id: D-11
     grade: LOCKED
     text: >-
       User-facing strings carry no corpus identifiers — no RFC numbers, decision identifiers,
       section marks or corpus paths; enforced by the `user-facing-text` gate. Added
-      by amendment A-23 2026-08-22 *(the source patch numbered this D-11.9, already
-      taken)*
+      by amendment S-0011/A-1 2026-08-22 *(the source patch numbered this S-0011/D-9,
+      already taken)*
     paths: [src/torve/cli/**, src/torve/gates/**]
     consequence: >-
       The caller has no corpus; the reference is noise that also rots invisibly on
       every amendment
-  - id: D-11.12
+  - id: D-12
     grade: LOCKED
     text: >-
       Comments and module docstrings may and should carry corpus references. Added
-      by amendment A-23 2026-08-22 *(the source patch numbered this D-11.10, already
-      taken)*
+      by amendment S-0011/A-1 2026-08-22 *(the source patch numbered this S-0011/D-10,
+      already taken)*
     paths: [src/torve/**]
     consequence: >-
       That reader can act on the reference, and it is what prevents a later "simplification"

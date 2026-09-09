@@ -1,1 +1,1 @@
-"""Ports, the run loop, services (RFC 0015 §2)."""
+"""Ports, the run loop, services (S-0015/layers)."""

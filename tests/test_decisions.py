@@ -1,11 +1,11 @@
-"""The importer over the model and the archive (D-53.9, D-53.13), coverage
-as a per-path fact (D-53.6), path rot (D-53.7) and fingerprint drift
-told apart by field (D-53.4) — the application half of RFC 0053 phase 2,
+"""The importer over the model and the archive (S-0053/D-9, S-0053/D-13), coverage
+as a per-path fact (S-0053/D-6), path rot (S-0053/D-7) and fingerprint drift
+told apart by field (S-0053/D-4) — the application half of S-0053 phase 2,
 tested without a record: the importer's comparison against an empty
 graph is the whole of what it would append.
 
 `document`, `corpus`, `place` and `archived` are the corpus builders every
-suite shares (RFC 0057 D-57.1): a document is its four files as text,
+suite shares (S-0057 S-0057/D-1): a document is its four files as text,
 keyed by file name, written from plain dicts so a test can also write
 what the model refuses; `corpus` lays them out as `S-NNNN/` directories
 under `.torve/specs/`, `archived` under `.torve/archive/`."""
@@ -50,6 +50,12 @@ def paths_of(cell: str | list[str]) -> list[str]:
         return []
 
     return [token for token in (one.strip(",;") for one in cleaned.split()) if token]
+
+
+def sid(number: str) -> str:
+    """`S-0001` from `0001`, `1` or `S-0001` (S-0058/D-1)."""
+
+    return number if number.startswith("S-") else f"S-{int(number):04d}"
 
 
 def as_text(file_name: str, data: dict[str, Any]) -> str:
@@ -109,15 +115,15 @@ def document(
         decisions.append(one)
 
     head: dict[str, Any] = {
-        "id": number,
+        "id": sid(number),
         "title": title or f"Document {number}",
         "kind": kind,
         "status": status,
         "implementation": implementation,
-        "depends_on": depends_on or [],
-        "informed_by": informed_by or [],
+        "depends_on": [sid(d) for d in depends_on or []],
+        "informed_by": [sid(d) for d in informed_by or []],
         "supersedes": [],
-        "superseded_by": superseded_by,
+        "superseded_by": sid(superseded_by) if superseded_by else None,
         "owner": owner,
         "description": "A document.",
         "schema_version": schema_version,
@@ -166,7 +172,7 @@ def place(spec_dir: Path, number: str, doc: Doc) -> Path:
     a file the new text lacks is removed, so a shrunken document is the
     document a test asked for."""
 
-    directory = spec_dir / f"S-{number}"
+    directory = spec_dir / sid(number)
     directory.mkdir(parents=True, exist_ok=True)
 
     for stale in directory.iterdir():
@@ -210,7 +216,7 @@ PHASE = {
 
 def test_the_importer_reads_standing_rows_through_the_model(tmp_path: Path) -> None:
     rfc_dir = corpus(
-        tmp_path, **{"0001": document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])}
+        tmp_path, **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])}
     )
 
     pending = import_corpus(Graph(), rfc_dir)
@@ -229,13 +235,15 @@ def test_the_importer_reads_standing_rows_through_the_model(tmp_path: Path) -> N
 def test_an_archived_document_is_a_source_whose_rows_retire_with_the_archive_named(
     tmp_path: Path,
 ) -> None:
-    rfc_dir = corpus(tmp_path, **{"0002": document("0002", [("D-2.1", "OPEN", "Stands.", "—")])})
+    rfc_dir = corpus(
+        tmp_path, **{"0002": document("0002", [("S-0002/D-1", "OPEN", "Stands.", "—")])}
+    )
     archived(
         rfc_dir,
         "0001",
         document(
             "0001",
-            [("D-1.1", "LOCKED", "Was a rule.", "`src/a.py`")],
+            [("S-0001/D-1", "LOCKED", "Was a rule.", "`src/a.py`")],
             status="superseded",
             superseded_by="0002",
         ),
@@ -244,19 +252,19 @@ def test_an_archived_document_is_a_source_whose_rows_retire_with_the_archive_nam
     pending = import_corpus(Graph(), rfc_dir)
     kinds = [(p.kind, p.subject_id) for p in pending]
 
-    assert (EventKind.DECISION_RECORDED, "D-1.1") in kinds
-    assert (EventKind.DECISION_RETIRED, "D-1.1") in kinds
+    assert (EventKind.DECISION_RECORDED, "S-0001/D-1") in kinds
+    assert (EventKind.DECISION_RETIRED, "S-0001/D-1") in kinds
 
     retired = next(p for p in pending if p.kind is EventKind.DECISION_RETIRED)
 
-    assert retired.payload["reason"] == "archived in S-0001, superseded by 0002"
-    assert kinds.index((EventKind.DECISION_RECORDED, "D-1.1")) < kinds.index(
-        (EventKind.DECISION_RETIRED, "D-1.1")
+    assert retired.payload["reason"] == "archived in S-0001, superseded by S-0002"
+    assert kinds.index((EventKind.DECISION_RECORDED, "S-0001/D-1")) < kinds.index(
+        (EventKind.DECISION_RETIRED, "S-0001/D-1")
     )
 
 
 def test_a_grade_outside_the_vocabulary_is_refused_as_not_mintable(tmp_path: Path) -> None:
-    rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "MAYBE", "x", "—")])})
+    rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("S-0001/D-1", "MAYBE", "x", "—")])})
 
     with pytest.raises(PlanError, match=r"decisions\.0\.grade"):
         import_corpus(Graph(), rfc_dir)
@@ -265,8 +273,8 @@ def test_a_grade_outside_the_vocabulary_is_refused_as_not_mintable(tmp_path: Pat
 def test_a_key_the_model_refuses_is_refused_as_a_plan_error(tmp_path: Path) -> None:
     text = document(
         "0001",
-        [("D-1.1", "OPEN", "x", "—")],
-        questions=[{"id": "Q-1.1", "text": "x", "state": "open"}],
+        [("S-0001/D-1", "OPEN", "x", "—")],
+        questions=[{"id": "S-0001/Q-1", "text": "x", "state": "open"}],
     )
     rfc_dir = corpus(tmp_path, **{"0001": text})
 
@@ -282,7 +290,7 @@ def test_coverage_is_governed_by_a_row_or_by_a_phase_scope(tmp_path: Path) -> No
         tmp_path,
         **{
             "0001": document(
-                "0001", [("D-1.1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=[PHASE]
+                "0001", [("S-0001/D-1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=[PHASE]
             )
         },
     )
@@ -295,11 +303,11 @@ def test_coverage_is_governed_by_a_row_or_by_a_phase_scope(tmp_path: Path) -> No
 
 
 def test_coverage_is_retired_when_only_the_archive_ever_named_a_path(tmp_path: Path) -> None:
-    rfc_dir = corpus(tmp_path, **{"0002": document("0002", [("D-2.1", "OPEN", "x", "—")])})
+    rfc_dir = corpus(tmp_path, **{"0002": document("0002", [("S-0002/D-1", "OPEN", "x", "—")])})
     archived(
         rfc_dir,
         "0001",
-        document("0001", [("D-1.1", "LOCKED", "x", "`src/old/**`")], status="superseded"),
+        document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/old/**`")], status="superseded"),
     )
     loaded = load_corpus(rfc_dir)
 
@@ -311,11 +319,11 @@ def test_a_draft_or_superseded_document_governs_nothing(tmp_path: Path) -> None:
     rfc_dir = corpus(
         tmp_path,
         **{
-            "0001": document("0001", [("D-1.1", "LOCKED", "x", "`src/a/**`")], status="draft"),
+            "0001": document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/a/**`")], status="draft"),
             "0002": document(
-                "0002", [("D-2.1", "LOCKED", "x", "`src/b/**`")], superseded_by="0003"
+                "0002", [("S-0002/D-1", "LOCKED", "x", "`src/b/**`")], superseded_by="0003"
             ),
-            "0003": document("0003", [("D-3.1", "OPEN", "x", "—")]),
+            "0003": document("0003", [("S-0003/D-1", "OPEN", "x", "—")]),
         },
     )
     loaded = load_corpus(rfc_dir)
@@ -336,22 +344,24 @@ def test_path_rot_names_rows_whose_every_glob_matches_nothing(tmp_path: Path) ->
             "0001": document(
                 "0001",
                 [
-                    ("D-1.1", "LOCKED", "alive", "`src/a/**`"),
-                    ("D-1.2", "LOCKED", "half", "`src/a/**` `src/gone/**`"),
-                    ("D-1.3", "ASSUMED", "rotted", "`src/gone/**`"),
-                    ("D-1.4", "OPEN", "pathless", "—"),
+                    ("S-0001/D-1", "LOCKED", "alive", "`src/a/**`"),
+                    ("S-0001/D-2", "LOCKED", "half", "`src/a/**` `src/gone/**`"),
+                    ("S-0001/D-3", "ASSUMED", "rotted", "`src/gone/**`"),
+                    ("S-0001/D-4", "OPEN", "pathless", "—"),
                 ],
             ),
             "0002": document(
-                "0002", [("D-2.1", "LOCKED", "intended", "`src/soon/**`")], implementation="none"
+                "0002",
+                [("S-0002/D-1", "LOCKED", "intended", "`src/soon/**`")],
+                implementation="none",
             ),
         },
     )
 
     rotted = path_rot(load_corpus(rfc_dir), tmp_path)
 
-    assert [(r.identifier, r.grade) for r in rotted] == [("D-1.3", "ASSUMED")]
-    assert "torve spec amend 0001 --retire D-1.3 --reason path-rot" in rotted[0].line()
+    assert [(r.identifier, r.grade) for r in rotted] == [("S-0001/D-3", "ASSUMED")]
+    assert "torve spec amend S-0001 --row S-0001/D-3 --retire --reason path-rot" in rotted[0].line()
 
 
 # ....................... #
@@ -365,14 +375,14 @@ def test_fingerprint_drift_tells_a_hand_edited_grade_from_a_hand_edited_text(
     tmp_path: Path,
 ) -> None:
     rfc_dir = corpus(
-        tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "A rule.", "`src/a.py`")])}
+        tmp_path, **{"0001": document("0001", [("S-0001/D-1", "OPEN", "A rule.", "`src/a.py`")])}
     )
-    stamped, _ = amend_row(load_document(rfc_dir / "S-0001"), "D-1.1", grade="ASSUMED")
+    stamped, _ = amend_row(load_document(rfc_dir / "S-0001"), "S-0001/D-1", grade="ASSUMED")
     _write(rfc_dir, stamped)
 
     assert fingerprint_drift(load_corpus(rfc_dir)) == ([], [])
 
-    row = stamped.decision("D-1.1")
+    row = stamped.decision("S-0001/D-1")
     assert row is not None
     _write(
         rfc_dir,
@@ -392,20 +402,20 @@ def test_fingerprint_drift_tells_a_hand_edited_grade_from_a_hand_edited_text(
     assert problems == []
     assert len(warnings) == 1 and "editorial drift" in warnings[0]
 
-    fixed, _ = fix_row_text(typo, "D-1.1", "A rule, reworded!")
+    fixed, _ = fix_row_text(typo, "S-0001/D-1", "A rule, reworded!")
     _write(rfc_dir, fixed)
 
     assert fingerprint_drift(load_corpus(rfc_dir)) == ([], [])
 
 
 def test_a_row_never_stamped_is_never_compared(tmp_path: Path) -> None:
-    rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "x", "—")])})
+    rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("S-0001/D-1", "OPEN", "x", "—")])})
 
     assert fingerprint_drift(load_corpus(rfc_dir)) == ([], [])
 
 
 def test_the_stamp_is_the_row_fingerprint_beside_its_rule_fingerprint(tmp_path: Path) -> None:
-    rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "x", "`a`")])})
+    rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("S-0001/D-1", "OPEN", "x", "`a`")])})
     (row,) = load_document(rfc_dir / "S-0001").decisions
     full, rule = stamp(row).split("/")
 
@@ -413,15 +423,15 @@ def test_the_stamp_is_the_row_fingerprint_beside_its_rule_fingerprint(tmp_path: 
 
 
 # ....................... #
-# RFC 0054 phase 1: decision.recorded carries the consequence and the check
-# (D-54.1), and a record written without them is brought level once.
+# S-0054 phase 1: decision.recorded carries the consequence and the check
+# (S-0054/D-1), and a record written without them is brought level once.
 
 
 def test_the_importer_carries_consequence_and_check(tmp_path: Path) -> None:
     text = document(
         "0001",
-        [("D-1.1", "LOCKED", "A rule.", "`src/a.py`", "because it holds")],
-        details={"D-1.1": {"check": "pytest tests/test_a.py"}},
+        [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`", "because it holds")],
+        details={"S-0001/D-1": {"check": "pytest tests/test_a.py"}},
     )
     rfc_dir = corpus(tmp_path, **{"0001": text})
 
@@ -438,13 +448,13 @@ def test_a_record_without_the_consequence_is_re_recorded_once(tmp_path: Path) ->
     from torve.application.decisions import DecisionState
     from torve.domain.source import corpus_source_id
 
-    text = document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`", "because it holds")])
+    text = document("0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`", "because it holds")])
     rfc_dir = corpus(tmp_path, **{"0001": text})
     source_id = corpus_source_id("0001")
     graph = Graph()
-    graph.versions["D-1.1"] = [
+    graph.versions["S-0001/D-1"] = [
         DecisionState(
-            id="D-1.1",
+            id="S-0001/D-1",
             grade="LOCKED",
             text="A rule.",
             paths=["src/a.py"],
@@ -458,9 +468,9 @@ def test_a_record_without_the_consequence_is_re_recorded_once(tmp_path: Path) ->
 
     assert len(first) == 1 and first[0].payload["consequence"] == "because it holds"
 
-    graph.versions["D-1.1"].append(
+    graph.versions["S-0001/D-1"].append(
         DecisionState(
-            id="D-1.1",
+            id="S-0001/D-1",
             grade="LOCKED",
             text="A rule.",
             paths=["src/a.py"],

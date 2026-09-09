@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0041'
+id: S-0041
 title: Remote sandboxes
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0003', '0017', '0021', '0033']
-informed_by: ['0004', '0024', '0035']
+depends_on: [S-0003, S-0017, S-0021, S-0033]
+informed_by: [S-0004, S-0024, S-0035]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   The OpenSandbox runtime matured into a first-class remote execution target — live-server
@@ -39,7 +39,7 @@ sections:
         gate batteries grow with the consuming repository: a framework shipping
         dozens of integrations needed a CI test matrix that strained hosted
         runners — under torve that entire battery runs inside the `-gates`
-        sandbox (`_run_gates_in_worktree`, D-3.8: same image as the attempt),
+        sandbox (`_run_gates_in_worktree`, S-0003/D-8: same image as the attempt),
         so sandbox placement, not orchestrator hardware, decides whether it is
         feasible.
       - **The adapter is finished enough to be almost usable.** Its own
@@ -52,7 +52,7 @@ sections:
         `build_image` refuses with "push to a registry the server can pull
         from"; the proxy-env comment concedes reachability "is the server's
         networking, not ours"; docker mode is refused "until the live-server
-        integration decides what the server can offer" (D-17.10). This
+        integration decides what the server can offer" (S-0017/D-10). This
         document is that live-server integration.
   - key: current-state
     md: |
@@ -68,22 +68,22 @@ sections:
       - Both sandboxes of an attempt go through the port: the agent session
         (`AgentContext.runtime`) and the gate battery (`_SandboxExecutor` in
         `_run_gates_in_worktree`, a separate `-gates` sandbox over the same
-        image per D-3.8). Deterministic gates (scope, secrets, contract
+        image per S-0003/D-8). Deterministic gates (scope, secrets, contract
         checks) run in the orchestrator process and are cheap.
       - The workspace crosses as a tar minus `.git` (a worktree's gitfile
         must never leave the host) at create, and back as a base64 pipe at
         `sync_out`. Nothing records what either leg costs.
       - `create` refuses `spec.volumes` — subscription adapters' auth volumes
-        (D-4.2) have no server-side counterpart; OpenSandbox credentials
-        belong to its vault (RFC 0003 §4.1). Env passthrough resolves
+        (S-0004/D-2) have no server-side counterpart; OpenSandbox credentials
+        belong to its vault (S-0003/runtime). Env passthrough resolves
         host-side at the API boundary.
-      - The broker is an in-process thread of the runner (D-21.10). Endpoint
-        mode binds loopback; sealed mode (D-21.3) binds the gateway of an
+      - The broker is an in-process thread of the runner (S-0021/D-10). Endpoint
+        mode binds loopback; sealed mode (S-0021/D-3) binds the gateway of an
         `--internal` Docker network and authenticates the pass-through leg by
         that topology. A remote sandbox can reach neither, and the sealed
         trust argument — "the network is the run's private envelope" — has no
         meaning across the open internet.
-      - RFC 0033 (published harness images) is complete: harness images are
+      - S-0033 (published harness images) is complete: harness images are
         published and digest-pinned. The consuming repository's battery image
         is built locally by `torve sandbox build` via the Docker runtime and
         never pushed.
@@ -95,9 +95,9 @@ sections:
         runs on API-metered tiers, and the conformance battery proves the
         contract against a real server, on demand, in CI.
       - Every image reference in a run config resolves on the server: pushed
-        by the operator's build verb, pinned by digest per D-17.1.
+        by the operator's build verb, pinned by digest per S-0017/D-1.
       - The tar round trip is a recorded number per attempt, so the transfer
-        tax is measured before anyone optimizes it (RFC 0035's discipline).
+        tax is measured before anyone optimizes it (S-0035's discipline).
       - Provider routes work from a remote sandbox through the broker with
         the run token, without provider keys entering the sandbox.
 
@@ -111,7 +111,7 @@ sections:
       - Subscription-billed harnesses on OpenSandbox — the volume refusal
         stands; remote capacity serves metered tiers, which is exactly the
         population off-peak windows discount.
-      - Docker-in-sandbox — D-17.10's refusal stands; a battery driving
+      - Docker-in-sandbox — S-0017/D-10's refusal stands; a battery driving
         containers keeps the Docker runtime.
   - key: live-conformance
     md: |
@@ -129,7 +129,7 @@ sections:
       Docker runtime as today, push, and print the digest-pinned reference
       the run config should carry. `resolve_image` on the OpenSandbox runtime
       keeps its current honesty — digest-pinned references resolve, bare tags
-      record as unresolved regimes (D-17.1's "recorded as unresolved, never
+      record as unresolved regimes (S-0017/D-1's "recorded as unresolved, never
       invented") — and the docs stop treating that as a stopgap: on a
       pull-from-registry platform, the digest-pinned reference *is* the
       resolution. No registry client is added to the adapter.
@@ -137,7 +137,7 @@ sections:
     md: |
       The adapter records seed and sync-out cost — bytes and seconds for
       each leg — surfaced through the attempt row beside `wall_time_s`
-      (additive keys, D-4.6's absent-stays-absent for the Docker runtime,
+      (additive keys, S-0004/D-6's absent-stays-absent for the Docker runtime,
       which mounts and transfers nothing). Optimization is explicitly
       deferred until these numbers exist: the candidate levers (excluding
       gitignored build artifacts from the seed, warm seed layers) are RFC
@@ -151,7 +151,7 @@ sections:
       the Docker gateway derivation. Trust does not regress:
 
       - Provider routes already authenticate by the run-scoped token
-        (RFC 0021 §5.1) — that survives the trip unchanged; keys stay in the
+        (S-0021/the-port) — that survives the trip unchanged; keys stay in the
         broker's environment on the orchestrator.
       - The sealed pass-through leg authenticates by network topology, which
         does not exist remotely; in remote endpoint mode the pass-through
@@ -169,11 +169,11 @@ sections:
       - **Broker adjacent to the sandbox server** (a broker process per
         server host, keys distributed to it) — rejected for now: it trades
         one reachability problem for a key-distribution problem and a second
-        lifecycle to operate; the in-process thread doctrine (D-21.10) keeps
+        lifecycle to operate; the in-process thread doctrine (S-0021/D-10) keeps
         dying with the run. Returns if broker round-trip latency proves
         material.
       - **Provider keys in the sandbox env for remote runs** — rejected
-        outright: it is the exact regression RFC 0021 exists to prevent, and
+        outright: it is the exact regression S-0021 exists to prevent, and
         "remote" makes the exposure worse, not more excusable.
       - **Skipping the transfer telemetry and optimizing the seed now** —
         rejected: 0035 measured before it removed, and the seed may prove
@@ -194,10 +194,10 @@ sections:
       paragraph — plaintext broker traffic on an untrusted network exposes
       prompts and diffs, choose TLS or a private link. The subscription-tier
       limitation is stated where tiers are documented, with the reason
-      (D-4.2's volumes), not as a bare refusal.
+      (S-0004/D-2's volumes), not as a bare refusal.
   - key: out-of-scope
     md: |
-      - **Multi-host orchestrators** — per-root file authority (RFC 0024)
+      - **Multi-host orchestrators** — per-root file authority (S-0024)
         makes that a regime change (git-as-transport or store migration);
         this document deliberately maximizes what one orchestrator can do so
         that question arrives as late as possible.
@@ -207,7 +207,7 @@ sections:
       - **Sandbox-server autoscaling, pooling, placement** — the server's
         business; torve speaks the API and stays ignorant of capacity.
       - **Windows/scheduling** — cadence belongs to the environment
-        (RFC 0019); off-peak operation is cron plus a night config, and
+        (S-0019); off-peak operation is cron plus a night config, and
         nothing here needs to know the hour.
   - key: risks
     md: |
@@ -233,24 +233,24 @@ sections:
         actually appear in remote configs once the push flow exists.
       - The transfer-telemetry field names and whether they belong inside
         the agent block or beside it — implementation aligns them with
-        RFC 0038's layout when both land, and logs.
+        S-0038's layout when both land, and logs.
   - key: phasing
     md: |
       Phase 1's two units are disjoint and parallel. Phase 2 waits on the
       live leg because the broker work is exactly the part a stub cannot
       vouch for.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: live conformance and transfer telemetry
     intent: >-
-      The env-gated live-server leg (D-41.3): the existing contract battery against
+      The env-gated live-server leg (S-0041/D-3): the existing contract battery against
       TORVE_OPENSANDBOX_TEST_DOMAIN plus the two live-only assertions — platform timeout
       collects a sandbox, and label-scoped enumeration with destroy-by-id works across
       connections. Seed and sync-out bytes/seconds recorded per attempt for the OpenSandbox
-      runtime, absent for Docker (D-41.5). Stub corrected wherever the live leg catches
-      it lying.
+      runtime, absent for Docker (S-0041/D-5). Stub corrected wherever the live leg
+      catches it lying.
     scope:
       - src/torve/adapters/runtime/opensandbox.py
       - src/torve/application/telemetry.py
@@ -264,7 +264,7 @@ phasing:
   - phase: 1
     title: the image push path
     intent: >-
-      torve sandbox build --push (D-41.4): build via the Docker runtime as today,
+      torve sandbox build --push (S-0041/D-4): build via the Docker runtime as today,
       push to the named registry reference, print the digest-pinned reference for
       the run config. The docs stop calling digest-only resolution a stopgap: on a
       pull platform the pinned reference is the resolution.
@@ -277,12 +277,12 @@ phasing:
   - phase: 2
     title: the reachable broker
     intent: >-
-      Remote endpoint mode (D-41.6): broker.bind and broker.advertise in configuration,
+      Remote endpoint mode (S-0041/D-6): broker.bind and broker.advertise in configuration,
       the runtime composing the sandbox proxy env from the advertised address instead
       of the Docker gateway derivation, provider routes keeping the run token unchanged
-      (D-41.2), and the pass-through leg refused loudly in remote endpoint mode with
-      the destination named. The deployment page documents bind/advertise and the
-      transport paragraph.
+      (S-0041/D-2), and the pass-through leg refused loudly in remote endpoint mode
+      with the destination named. The deployment page documents bind/advertise and
+      the transport paragraph.
     scope:
       - src/torve/adapters/broker/local.py
       - src/torve/config/runconfig.py

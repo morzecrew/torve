@@ -1,4 +1,4 @@
-"""The resident manager (RFC 0044 §5.4, D-44.5): the loop that turns the
+"""The resident manager (S-0044/the-manager, S-0044/D-5): the loop that turns the
 board into work.
 
 Everything the loop needs to act it reads back from the log at the top of
@@ -10,7 +10,7 @@ lease of whatever it was holding.
 The contracts themselves still live in the repository, which is not a
 contradiction of "persistence holds the truth": the contract is the written
 intent, and the log is what happened to it. Minting is where the two meet —
-it is the act that places a contract on a partition (D-44.7), and until a
+it is the act that places a contract on a partition (S-0044/D-7), and until a
 mint exists no manager owns the task and no worker may claim it.
 """
 
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 # Whether a task already landed, and at which commit — the repository's own
-# answer (D-10.4's trailer), asked by the composition root because reaching
+# answer (S-0010/D-4's trailer), asked by the composition root because reaching
 # git is an adapter's job and this is not one.
 Landed = Callable[[str], str | None]
 
@@ -49,22 +49,22 @@ Ran = Callable[[str], bool]
 
 # Whether the operator's attention is spoken for right now, asked once a
 # pass. A callable rather than a value because the queue changes while a
-# resident manager runs (A-110), and asked by the composition root because
+# resident manager runs (S-0048/A-1), and asked by the composition root because
 # the answer joins a file carrier to a record one.
 Pause = Callable[[], Awaitable[bool]]
 
-# One drain of the undelivered notification queue (RFC 0051 D-51.5),
+# One drain of the undelivered notification queue (S-0051 S-0051/D-5),
 # returning the task ids paged. Wired by the composition root because a
 # destination is an adapter, and this module decides only *when*.
 Relay = Callable[[], Awaitable[list[str]]]
 
-# One pass of the serialized lane (RFC 0052 §5.1), returning the task ids
+# One pass of the serialized lane (S-0052/the-leg-and-where-it-sits), returning the task ids
 # it landed. Wired by the composition root because landing is git, and
 # this module decides only *when*. Unlike the relay, a pause stops it:
 # landing advances the repository rather than delivering what is owed.
 Lane = Callable[[], Awaitable[list[str]]]
 
-# One evaluation of every committed standing job (RFC 0023 §5.4), returning
+# One evaluation of every committed standing job (S-0023/bounds-because-this-is-the-leg-that-can-grow), returning
 # what it did and whether anything fired. Wired by the composition root
 # because firing a predicate needs a sandbox, and this module decides only
 # *when* it may run.
@@ -103,7 +103,7 @@ def ran_here(root: Path) -> set[str]:
 
 
 async def _leg(root: Path, name: str, call: Callable[[], object]) -> None:
-    """One injected leg, whose failure is recorded and never fatal (A-128).
+    """One injected leg, whose failure is recorded and never fatal (S-0044/A-11).
 
     The retired tick wrapped every leg for this reason — "a bounded pass
     must reach its last leg so the record reflects whatever did happen" —
@@ -112,7 +112,7 @@ async def _leg(root: Path, name: str, call: Callable[[], object]) -> None:
     down the pass before it claimed anything, and the failure that mattered
     (a refused draft) was not the failure that showed (no work ran).
 
-    The same argument as D-24.5 one level down: a manager that stops
+    The same argument as S-0024/D-5 one level down: a manager that stops
     serving because one leg is broken is worse than one that says so and
     carries on.
     """
@@ -135,7 +135,7 @@ async def _leg(root: Path, name: str, call: Callable[[], object]) -> None:
 def contracts(root: Path) -> dict[str, Task]:
     """Every contract the repository carries, by id.
 
-    Every one, whatever its role (A-96). A review or draft contract is
+    Every one, whatever its role (S-0049/A-1). A review or draft contract is
     nobody's to claim, and the board refuses to offer one — but it is a
     fact about the work, and the projections that read the record for a
     planning view need the whole population or they answer over a third of
@@ -168,7 +168,7 @@ def contracts(root: Path) -> dict[str, Task]:
 
 
 def _title(task: Task) -> str:
-    """The name a board row shows (A-69): the contract's own, its intent's
+    """The name a board row shows (S-0007/A-1): the contract's own, its intent's
     first line, or the id — never empty, because a row nobody can read is a
     row nobody acts on."""
 
@@ -182,7 +182,7 @@ def _title(task: Task) -> str:
 
 def _remintable(view: TaskView, task: Task) -> bool:
     """Whether the repository's contract differs from the one on the board
-    and may replace it (D-49.3, D-49.4).
+    and may replace it (S-0049/D-3, S-0049/D-4).
 
     Compared as validated `Task` models rather than as raw payloads: a
     comparison that finds a difference where there is none re-mints on every
@@ -204,7 +204,7 @@ def _remintable(view: TaskView, task: Task) -> bool:
 
 
 async def _record_mint(log: EventLog, task: Task, *, partition: str, actor_id: str) -> None:
-    """One mint, first or re-mint — the same event either way (A-91), since
+    """One mint, first or re-mint — the same event either way (S-0044/A-8), since
     what makes the second one a version rather than a transition is the
     board's fold and not a different kind."""
 
@@ -219,7 +219,7 @@ async def _record_mint(log: EventLog, task: Task, *, partition: str, actor_id: s
             "title": _title(task),
             "source_id": task.rfc or "operator",
             # Copies of the contract's own fields, kept for the mints
-            # written before A-91 and pinned equal to it by test.
+            # written before S-0044/A-8 and pinned equal to it by test.
             "phase": task.phase,
             "depends_on": list(task.depends_on),
             "contract": task.model_dump(mode="json"),
@@ -278,15 +278,15 @@ async def mint(
     minted, whatever state it has since reached, so a restart re-mints
     nothing and a re-adopted contract is not duplicated.
 
-    A contract that *changed* is re-minted (D-49.4), which is how the
+    A contract that *changed* is re-minted (S-0049/D-4), which is how the
     operator's recourse after an escalation works: fix the contract, resolve
     the escalation, and the next pass records the change and puts it in
-    force. A re-mint carries the contract and transitions nothing (D-49.2),
-    and never happens while the task is in flight (D-49.3).
+    force. A re-mint carries the contract and transitions nothing (S-0049/D-2),
+    and never happens while the task is in flight (S-0049/D-3).
 
     A contract that already landed is minted **and** recorded as landed, in
     that order, from the repository's own trailer. The repository outranks
-    the host here (A-29): a partition's first pass sees every contract the
+    the host here (S-0019/A-3): a partition's first pass sees every contract the
     tree carries, including years of finished work, and a board that called
     those queued would hand a worker a task somebody finished long ago.
     Recording the landing rather than skipping the mint is what keeps the
@@ -314,7 +314,7 @@ async def mint(
 
             if sha and _only_ever_minted(view):
                 # The landing the first mint would have recorded, for a row
-                # minted before this partition could see it (A-97). Guarded
+                # minted before this partition could see it (S-0049/A-2). Guarded
                 # to a task the record has only ever *minted*: once it has
                 # run here the board outranks the repository, and a human
                 # who requeued a landed task is not overruled by a scan.
@@ -332,7 +332,7 @@ async def mint(
             # there.
             #
             # The guard is about being offered, so it applies only to what
-            # can be (A-96): a review that ran and landed nothing is still
+            # can be (S-0049/A-1): a review that ran and landed nothing is still
             # a fact the planning projections read, and no worker will ever
             # be handed it.
             continue
@@ -355,7 +355,7 @@ async def reclaim(
     """Return tasks whose holder has gone silent past its lease.
 
     This is the other half of "a killed worker loses nothing but its lease"
-    (D-44.6): something has to be the lease running out, and it is the
+    (S-0044/D-6): something has to be the lease running out, and it is the
     manager, because the process that died cannot release itself. The
     release is a recorded fact with its reason, so a task that came back to
     the queue can always be told from one that never left.
@@ -406,24 +406,24 @@ async def once(
     pass could start, and the alternative is waiting a whole idle interval
     to notice.
 
-    The scan is an importer, not a reader (D-49.1): it is how a contract the
+    The scan is an importer, not a reader (S-0049/D-1): it is how a contract the
     repository gained reaches the record, and the mint is its only consumer.
     What a worker claims and runs comes off the board.
 
     `dispatch=False` is the other half: import and reclaim, claim nothing.
-    It is what a re-mint after a contract-shape change is run under (A-96) —
+    It is what a re-mint after a contract-shape change is run under (S-0049/A-1) —
     the scan must reach the record without a worker taking the first thing
     it finds there, which on a repository with a queue is a real agent and
     real money.
 
-    The relay runs whatever `paused` says, for the reason in D-51.5: it
+    The relay runs whatever `paused` says, for the reason in S-0051/D-5: it
     delivers what is already owed rather than creating anything. The lane
-    does not, for the reason in D-52.3: landing is not delivering what is
+    does not, for the reason in S-0052/D-3: landing is not delivering what is
     owed but advancing the repository, and a pause says nobody has capacity
     to look at what advancing produces.
 
     `paused` skips the legs that can grow the queue or advance the
-    repository, and nothing else (D-48.4, D-23.6): the queue may drain
+    repository, and nothing else (S-0048/D-4, S-0023/D-6): the queue may drain
     during a pause, it may not grow. A pause is a statement about the
     operator's capacity to triage, never about the safety of what is
     already running, so an attempt in flight is not interrupted and a task
@@ -431,7 +431,7 @@ async def once(
     """
 
     if relay is not None:
-        # RFC 0051 D-51.5: after reclaim, before the mint. What a pass does
+        # S-0051 S-0051/D-5: after reclaim, before the mint. What a pass does
         # first is the work already owed, and a page for an escalation
         # raised an hour ago is owed more than a contract nobody has minted
         # yet. Unaffected by `paused` — a pause is a statement that nobody
@@ -440,7 +440,7 @@ async def once(
         await _leg(root, "relay", relay)
 
     if lane is not None and not paused:
-        # RFC 0052 §5.1 (D-52.3): after the relay, before the mint. The same
+        # S-0052/the-leg-and-where-it-sits (S-0052/D-3): after the relay, before the mint. The same
         # argument one leg further: a candidate that went green an hour ago
         # is owed its landing more than a contract nobody has minted is owed
         # its board row — and landing first means the mint that follows sees
@@ -450,8 +450,8 @@ async def once(
         await _leg(root, "lane", lane)
 
     if standing is not None and not paused:
-        # RFC 0023 §5.4: standing before the scan, so a contract this pass
-        # mints is on the board this pass. D-23.6's first bound is the
+        # S-0023/bounds-because-this-is-the-leg-that-can-grow: standing before the scan, so a contract this pass
+        # mints is on the board this pass. S-0023/D-6's first bound is the
         # caller's, and this is that caller: a paused pass evaluates no
         # predicate, because a predicate that fires creates work and a
         # pause is a statement that nobody has capacity to triage it.
@@ -500,11 +500,11 @@ async def serve(
     a partition that just landed something may have unblocked the next
     thing. Returns how many tasks were handled — the bounded form is what
     tests and a `--passes` dispatch use, and the unbounded one is the
-    resident process D-44.5 asks for.
+    resident process S-0044/D-5 asks for.
 
     `paused` may be a callable, and for a resident process it must be: the
     escalation queue changes while the manager runs, and a pause decided
-    once at startup stops meaning anything an hour later (A-110).
+    once at startup stops meaning anything an hour later (S-0048/A-1).
     """
 
     handled = 0

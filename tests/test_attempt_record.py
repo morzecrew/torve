@@ -1,4 +1,4 @@
-"""One record per attempt, two carriers (RFC 0044 A-85).
+"""One record per attempt, two carriers (S-0044 A-85).
 
 The engine used to build an attempt's facts twice: once as the telemetry
 row every projection reads, once as the typed event the board folds.
@@ -95,7 +95,7 @@ def test_an_ending_without_a_gate_pass_round_trips_too():
 
 
 def test_absence_survives_the_round_trip():
-    """A missing key reads as "written before this key existed" (D-38.6). A
+    """A missing key reads as "written before this key existed" (S-0038/D-6). A
     payload that helpfully defaults one in destroys that reading."""
 
     row = build_attempt_row(

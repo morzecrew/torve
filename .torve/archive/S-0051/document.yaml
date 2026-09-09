@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0051'
+id: S-0051
 title: Notifications and the delivery port
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0006', '0044']
-informed_by: [0008, '0032', '0045']
+depends_on: [S-0006, S-0044]
+informed_by: [S-0008, S-0032, S-0045]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   How a recorded escalation reaches a person who is not looking at the dashboard:
@@ -28,22 +28,22 @@ sections:
       that rebuilds the board rebuilds the queue.
   - key: motivation
     md: |
-      D-6.11 has been unimplemented since September 2026. Its delivery rode
+      S-0006/D-11 has been unimplemented since September 2026. Its delivery rode
       `tracker.notify` through the tracker's outbox, and the whole tracker
-      projection was deleted (RFC 0008 A-92) after being inert in every repository
-      torve runs. A-115 recorded the consequence and stopped there.
+      projection was deleted (S-0008 S-0008/A-5) after being inert in every repository
+      torve runs. S-0006/A-4 recorded the consequence and stopped there.
 
       The gap is measurable in this repository. `T-0096` escalated on 2026-08-30
       with reason `killed`. It sat un-triaged for **seven days**, and because
       `loop.pause_escalations` defaults to 1 it silently suppressed dispatch and
-      standing evaluation for every one of them (RFC 0019 A-105). Nothing told
+      standing evaluation for every one of them (S-0019 S-0019/A-8). Nothing told
       anybody. It was found by reading the board a week later, and the run-state
       file it left behind — 8.8 MB — was still on disk until 2026-09-05.
 
       The reading is not what is missing. `context_report` groups escalations by
       reason with age and route, `torve status` shows them, the fleet's survey
-      counts them across roots (A-110), and the dashboard polls all of it every ten
-      seconds. **Every one of those requires somebody to be looking.** D-6.8 already
+      counts them across roots (S-0048/A-1), and the dashboard polls all of it every ten
+      seconds. **Every one of those requires somebody to be looking.** S-0006/D-8 already
       makes queue age the primary alert; an alert nobody is sent is a reading.
   - key: current-state
     md: |
@@ -56,8 +56,8 @@ sections:
         `tracker.notify`, and the outbox that carried it are deleted. Searching the
         tree for a delivery path finds the reading surfaces and nothing else.
       - **The served surface is read-only by construction.** `torve serve` binds
-        `127.0.0.1` with no host flag (D-32.2), has no auth, and exposes three GET
-        endpoints. It gained `--partition` on 2026-09-06 (A-123) and now answers
+        `127.0.0.1` with no host flag (S-0032/D-2), has no auth, and exposes three GET
+        endpoints. It gained `--partition` on 2026-09-06 (S-0032/A-3) and now answers
         from the record.
       - **forze ships the outbox machinery.** `forze.application.contracts.outbox`
         carries `OutboxCommandPort.stage/flush`, `OutboxQueryPort.claim_pending /
@@ -77,7 +77,7 @@ sections:
       is answerable from the record alone.
 
       **Non-goals.** Inbound anything — this is one direction only, and the
-      commander-approval path the tracker also carried stays absent (A-93). No
+      commander-approval path the tracker also carried stays absent (S-0020/A-1). No
       writable dashboard. No per-operator identity or routing rules: one destination
       per repository until a second operator exists to need a second. No new store.
   - key: a-notification-is-a-delivery-not-a-subject
@@ -97,8 +97,8 @@ sections:
       `attempt` (how many tries this took) and `detail` (empty on success, the
       error's first line on a terminal failure).
 
-      This is the RFC 0044 shape read straight: facts are recorded when they become
-      true (D-44.3), and "this page went out at 10:02" is a fact.
+      This is the S-0044 shape read straight: facts are recorded when they become
+      true (S-0044/D-3), and "this page went out at 10:02" is a fact.
   - key: the-log-is-the-queue
     md: |
       An escalation whose event id appears in no `notification.sent` is
@@ -146,23 +146,23 @@ sections:
 
       The port lives in `torve.application.ports` beside `Runtime`, `Vcs` and
       `Broker`; adapters live under `torve/adapters/notify/`, and the composition
-      root wires them (RFC 0015 §2.1, RFC 0042 D-42.1).
+      root wires them (S-0015/permitted-imports, S-0042 S-0042/D-1).
 
       **First adapter: `webhook`.** It needs no account, no vendor SDK and no
       credential beyond a URL the operator holds, so it can be tested against a
       local server and it makes Slack, Discord and PagerDuty a configuration line
       rather than a code change. **Second, deliberately: `none`** — the explicit
-      inert destination, following the broker's precedent (D-21.9), so "no
+      inert destination, following the broker's precedent (S-0021/D-9), so "no
       notifications" is a stated choice rather than an unconfigured accident.
   - key: the-relay-is-a-leg-of-the-manager-s-pass
     md: |
       The manager already runs continuously, rebuilds its whole view from the record
-      every pass, and holds nothing between passes (D-44.5). A relay leg inherits
+      every pass, and holds nothing between passes (S-0044/D-5). A relay leg inherits
       all of that: it reads the undelivered queue, delivers, records, and a process
       killed mid-delivery re-reads the same queue on restart.
 
       It runs **after** reclaim and **before** the mint, for the reason the standing
-      leg has that position (A-106): what a pass does first is the work that is
+      leg has that position (S-0023/A-2): what a pass does first is the work that is
       already owed.
 
       A separate relay process is what a second one would be, and the port is shaped
@@ -171,7 +171,7 @@ sections:
       supervise and reason about, for no throughput anybody needs (§10).
   - key: delivery-is-at-least-once-and-the-destination-deduplicates
     md: |
-      D-6.11 says *exactly one delivered notification*. No transport gives that;
+      S-0006/D-11 says *exactly one delivered notification*. No transport gives that;
       forze's own outbox documents at-least-once with dedup on `event_id`, and a
       webhook cannot promise better. So the guarantee is assembled, not assumed:
 
@@ -194,17 +194,17 @@ sections:
       loses because torve opens no transaction around `log.record`: staging would be
       a dual write, which is the exact failure `require_transaction` exists to
       refuse, and closing that gap means giving the event log a transaction boundary
-      it does not have — a change to RFC 0044's write path, for a queue that is
+      it does not have — a change to S-0044's write path, for a queue that is
       already derivable. If retry semantics outgrow §5.5, adopting the outbox is a
       substitution behind the same port, and this row is why.
 
       **A `notification` subject with its own lifecycle.** Rejected: it makes the
-      same fact exist twice, which is what D-8.2 was retired for (D-44.3), and every
+      same fact exist twice, which is what S-0008/D-2 was retired for (S-0044/D-3), and every
       reader would then have to decide which copy is authoritative.
 
       **The dashboard as the inbox — unread state, mark-as-read.** Deferred, and not
       because it is hard. `torve serve` is read-only on loopback with no auth, and
-      that posture *is* its security model (D-32.2). A write endpoint changes what
+      that posture *is* its security model (S-0032/D-2). A write endpoint changes what
       an unauthenticated local process can do to the record. That is a decision
       worth taking deliberately, in its own document, rather than smuggling in
       behind a notification feature.
@@ -233,11 +233,11 @@ sections:
       how a docs site stops being read.
   - key: out-of-scope
     md: |
-      - **Inbound commands and approvals.** They left with the tracker (A-93) and
+      - **Inbound commands and approvals.** They left with the tracker (S-0020/A-1) and
         their return is a different design with a different security posture.
       - **Per-operator routing.** One destination per repository until a second
         operator exists; a routing table with one entry is a table nobody maintains.
-      - **Batch-class escalations.** RFC 0006 §4 keeps them board-visible by design;
+      - **Batch-class escalations.** S-0006/human-attention-is-the-scarce-resource keeps them board-visible by design;
         paging on everything is how a pager stops being read.
       - **Notifying on anything but escalations.** Landings, gate failures and cost
         anomalies are all recorded and all readable; each would need its own
@@ -253,7 +253,7 @@ sections:
         would present as "the manager stopped working" rather than "the webhook is
         down".
       - **A misread of §5.2.** "The log is the queue" invites someone to add a
-        `pending` flag to an event and mutate it. Events are immutable (D-44.2); the
+        `pending` flag to an event and mutate it. Events are immutable (S-0044/D-2); the
         queue is the *absence* of a second event, and there is nothing to update.
       - **Notification fatigue.** Every escalation pages. On a busy fleet that is a
         lot of pages, and the honest answer is §10's first question rather than a

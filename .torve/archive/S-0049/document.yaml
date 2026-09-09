@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0049
+id: S-0049
 title: Tasks as records
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0044']
-informed_by: ['0001', '0007', '0022', '0047']
+depends_on: [S-0044]
+informed_by: [S-0001, S-0007, S-0022, S-0047]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   The contract a task runs under travels in the record: minting carries the contract
@@ -25,7 +25,7 @@ sections:
 
       This puts the contract in the mint. `task.minted` carries the contract as
       minted; the board carries it; dispatch reads it there. The repository's task
-      directory becomes an importer of the record — the same shape RFC 0047 gave
+      directory becomes an importer of the record — the same shape S-0047 gave
       the corpus — rather than the thing every reader must be standing next to.
   - key: motivation
     md: |
@@ -49,9 +49,9 @@ sections:
       one place it matters most, since scope and acceptance are what the gates
       enforce.
 
-      **Two pieces of work are blocked on exactly this.** RFC 0044 §12's remaining
+      **Two pieces of work are blocked on exactly this.** S-0044/phasing's remaining
       tail — the projection set that replaces `torve context`, and the tracker as
-      an ordinary projection consumer — are both joins against tasks. A-90
+      an ordinary projection consumer — are both joins against tasks. S-0044/A-7
       recorded that they wait on one prerequisite rather than three; this is it.
   - key: current-state
     md: |
@@ -86,7 +86,7 @@ sections:
 
       - **Not a change to authoring.** `torve plan` and adoption write
         `contract.yaml` from a reviewed document exactly as they do; the grades a
-        contract inherits still come from the file a human committed (D-47.3).
+        contract inherits still come from the file a human committed (S-0047/D-3).
       - **Not the projection set.** This unblocks `torve context`, the served
         tables and the tracker. Building them is their own document.
       - **Not the worktree.** A worker still needs the repository's code to run
@@ -96,7 +96,7 @@ sections:
         repository and nowhere else.
   - key: the-contract-travels-in-the-mint
     md: |
-      Minting is the act that places a contract on a partition (D-44.7), so the
+      Minting is the act that places a contract on a partition (S-0044/D-7), so the
       contract as minted is exactly what belongs in that event.
 
       ```python
@@ -117,14 +117,14 @@ sections:
       contract fields copied. `phase` and `depends_on` *are* copies, and rather
       than pretend otherwise the writer keeps writing them and a test pins them
       equal to the contract's — the same "one record, both carriers, and a test
-      says so" the attempt record already uses (A-85). The fold prefers the
+      says so" the attempt record already uses (S-0044/A-4). The fold prefers the
       contract and falls back to the flat fields, which is what makes the 192
       mints already in the log readable.
   - key: a-re-mint-is-a-version-and-never-a-state-change
     md: |
       `mint` currently skips any task the board carries. It now also re-mints one
       whose recorded contract differs from the repository's — the same comparison
-      RFC 0047's importer makes, for the same reason: an unchanged contract
+      S-0047's importer makes, for the same reason: an unchanged contract
       appends nothing, and a changed one is recorded rather than applied silently.
 
       Two rules keep that from becoming a way to overrule a person:
@@ -132,7 +132,7 @@ sections:
       - **A re-mint never transitions.** `TASK_MINTED` moves a task to `QUEUED`
         only on the first mint of that subject. A manager that could re-queue an
         escalated task by noticing an edited file would be writing an
-        `escalation.resolved` it has no authority to write (D-44.2), by another
+        `escalation.resolved` it has no authority to write (S-0044/D-2), by another
         name.
       - **A task in flight is never re-minted.** Claimed, running, gated or
         reviewed, the contract it is being judged against is the one it started
@@ -192,7 +192,7 @@ sections:
         fix sends them to delete the task and mint a new id.
       - **Keeping the scan as the reader and recording the contract only for
         projections.** Two readers of the same fact, one of which is authoritative
-        and the other convenient — the arrangement every consolidation in RFC 0044
+        and the other convenient — the arrangement every consolidation in S-0044
         has been removing.
   - key: tests
     md: |
@@ -253,7 +253,7 @@ sections:
       - **Two dispatch answers during the change.** Phase 1 records the contract
         and changes no reader; phase 2 moves them. Between the two the scan is
         still authoritative, which is the same order every consolidation in
-        RFC 0044 has used.
+        S-0044 has used.
   - key: unresolved-questions
     md: |
       - Whether a re-mint should carry what changed, rather than the whole
@@ -267,7 +267,7 @@ phasing:
   - phase: 1
     title: the contract in the record
     intent: >-
-      `task.minted` gains the contract it minted, by amendment to RFC 0044's closed
+      `task.minted` gains the contract it minted, by amendment to S-0044's closed
       vocabulary, and the writer fills it from the same `Task` the scan parsed — with
       the flat `phase` and `depends_on` still written and pinned equal to the contract's,
       so the fold can prefer one and fall back to the other. The board's view carries

@@ -1,0 +1,1862 @@
+# The renumbering RFC 0058 phase 1 applied (D-58.2): every identifier that
+# stood before the one grammar, and what it became. `torve spec show` answers
+# a legacy identifier through it.
+'0001': S-0001
+'0002': S-0002
+'0003': S-0003
+'0004': S-0004
+'0005': S-0005
+'0006': S-0006
+'0007': S-0007
+0008: S-0008
+0009: S-0009
+'0010': S-0010
+'0011': S-0011
+'0012': S-0012
+'0013': S-0013
+'0014': S-0014
+'0015': S-0015
+'0016': S-0016
+'0017': S-0017
+0018: S-0018
+0019: S-0019
+'0020': S-0020
+'0021': S-0021
+'0022': S-0022
+'0023': S-0023
+'0024': S-0024
+'0025': S-0025
+'0026': S-0026
+'0027': S-0027
+0028: S-0028
+0029: S-0029
+'0030': S-0030
+'0031': S-0031
+'0032': S-0032
+'0033': S-0033
+'0034': S-0034
+'0035': S-0035
+'0036': S-0036
+'0037': S-0037
+0038: S-0038
+0039: S-0039
+'0040': S-0040
+'0041': S-0041
+'0042': S-0042
+'0043': S-0043
+'0044': S-0044
+'0045': S-0045
+'0046': S-0046
+'0047': S-0047
+0048: S-0048
+0049: S-0049
+'0050': S-0050
+'0051': S-0051
+'0052': S-0052
+'0053': S-0053
+'0054': S-0054
+'0055': S-0055
+'0056': S-0056
+'0057': S-0057
+0058: S-0058
+A-1: S-0001/A-1
+A-10: S-0016/A-3
+A-100: S-0047/A-1
+A-101: S-0012/A-1
+A-102: S-0050/A-3
+A-103: S-0043/A-2
+A-104: S-0045/A-2
+A-105: S-0019/A-8
+A-106: S-0023/A-2
+A-107: S-0044/A-10
+A-108: S-0024/A-4
+A-109: S-0042/A-1
+A-11: S-0001/A-4
+A-110: S-0048/A-1
+A-111: S-0013/A-3
+A-112: S-0003/A-6
+A-113: S-0007/A-4
+A-114: S-0005/A-6
+A-115: S-0006/A-4
+A-116: S-0020/A-2
+A-117: S-0021/A-3
+A-118: S-0022/A-6
+A-119: S-0002/A-5
+A-12: S-0001/A-5
+A-120: S-0003/A-7
+A-121: S-0004/A-3
+A-122: S-0009/A-4
+A-123: S-0032/A-3
+A-124: S-0004/A-4
+A-125: S-0009/A-5
+A-126: S-0051/A-1
+A-127: S-0006/A-5
+A-128: S-0044/A-11
+A-129: S-0044/A-12
+A-13: S-0003/A-2
+A-130: S-0052/A-1
+A-131: S-0052/A-2
+A-132: S-0052/A-3
+A-133: S-0020/A-3
+A-134: S-0044/A-13
+A-135: S-0005/A-7
+A-136: S-0005/A-8
+A-137: S-0005/A-9
+A-138: S-0002/A-6
+A-139: S-0005/A-10
+A-14: S-0016/A-4
+A-140: S-0053/A-1
+A-141: S-0003/A-8
+A-142: S-0006/A-6
+A-143: S-0008/A-6
+A-144: S-0017/A-3
+A-145: S-0019/A-9
+A-146: S-0024/A-5
+A-147: S-0042/A-2
+A-148: S-0016/A-8
+A-149: S-0016/A-9
+A-15: S-0016/A-5
+A-150: S-0016/A-10
+A-151: S-0007/A-5
+A-152: S-0053/A-2
+A-153: S-0054/A-1
+A-154: S-0054/A-2
+A-155: S-0054/A-3
+A-156: S-0054/A-4
+A-157: S-0055/A-1
+A-158: S-0054/A-5
+A-159: S-0054/A-6
+A-16: S-0013/A-1
+A-160: S-0054/A-7
+A-161: S-0056/A-1
+A-162: S-0056/A-2
+A-163: S-0056/A-3
+A-164: S-0056/A-4
+A-165: S-0057/A-1
+A-166: S-0057/A-2
+A-167: S-0057/A-3
+A-168: S-0057/A-4
+A-169: S-0057/A-5
+A-17: S-0001/A-6
+A-170: S-0057/A-6
+A-18: S-0003/A-3
+A-19: S-0015/A-1
+A-2: S-0002/A-1
+A-20: S-0016/A-6
+A-21: S-0001/A-7
+A-22: S-0001/A-8
+A-23: S-0011/A-1
+A-24: S-0017/A-1
+A-25: S-0009/A-2
+A-26: S-0001/A-9
+A-27: S-0019/A-1
+A-28: S-0019/A-2
+A-29: S-0019/A-3
+A-3: S-0009/A-1
+A-30: S-0008/A-1
+A-31: S-0019/A-4
+A-32: S-0005/A-2
+A-33: S-0008/A-2
+A-34: S-0019/A-5
+A-35: S-0006/A-1
+A-36: S-0008/A-3
+A-37: S-0010/A-1
+A-38: S-0003/A-4
+A-39: S-0019/A-6
+A-4: S-0001/A-2
+A-40: S-0008/A-4
+A-41: S-0005/A-3
+A-42: S-0006/A-2
+A-43: S-0006/A-3
+A-44: S-0014/A-1
+A-45: S-0015/A-2
+A-46: S-0015/A-3
+A-47: S-0007/A-3
+A-48: S-0013/A-2
+A-49: S-0002/A-3
+A-5: S-0001/A-3
+A-50: S-0003/A-5
+A-51: S-0014/A-2
+A-52: S-0002/A-4
+A-53: S-0016/A-7
+A-54: S-0009/A-3
+A-55: S-0007/A-2
+A-56: S-0021/A-2
+A-57: S-0004/A-2
+A-58: S-0010/A-2
+A-59: S-0022/A-4
+A-6: S-0003/A-1
+A-60: S-0024/A-3
+A-61: S-0024/A-2
+A-62: S-0022/A-3
+A-63: S-0024/A-1
+A-64: S-0026/A-1
+A-65: S-0027/A-1
+A-66: S-0025/A-1
+A-67: S-0022/A-2
+A-68: S-0023/A-1
+A-69: S-0007/A-1
+A-7: S-0016/A-1
+A-70: S-0021/A-1
+A-71: S-0022/A-1
+A-72: S-0004/A-1
+A-73: S-0022/A-5
+A-74: S-0028/A-1
+A-75: S-0005/A-1
+A-76: S-0032/A-1
+A-77: S-0032/A-2
+A-78: S-0005/A-4
+A-79: S-0005/A-5
+A-8: S-0002/A-2
+A-80: S-0044/A-1
+A-81: S-0044/A-2
+A-82: S-0044/A-3
+A-83: S-0045/A-1
+A-84: S-0017/A-2
+A-85: S-0044/A-4
+A-86: S-0044/A-5
+A-87: S-0043/A-1
+A-88: S-0027/A-2
+A-89: S-0044/A-6
+A-9: S-0016/A-2
+A-90: S-0044/A-7
+A-91: S-0044/A-8
+A-92: S-0008/A-5
+A-93: S-0020/A-1
+A-94: S-0019/A-7
+A-95: S-0050/A-1
+A-96: S-0049/A-1
+A-97: S-0049/A-2
+A-98: S-0050/A-2
+A-99: S-0044/A-9
+D-1: S-0001/D-9
+D-1.7: S-0001/D-7
+D-1.8: S-0001/D-8
+D-10.1: S-0010/D-1
+D-10.10: S-0010/D-10
+D-10.11: S-0010/D-11
+D-10.2: S-0010/D-2
+D-10.3: S-0010/D-3
+D-10.4: S-0010/D-4
+D-10.5: S-0010/D-5
+D-10.6: S-0010/D-6
+D-10.7: S-0010/D-7
+D-10.8: S-0010/D-8
+D-10.9: S-0010/D-9
+D-11.1: S-0011/D-1
+D-11.10: S-0011/D-10
+D-11.11: S-0011/D-11
+D-11.12: S-0011/D-12
+D-11.2: S-0011/D-2
+D-11.3: S-0011/D-3
+D-11.4: S-0011/D-4
+D-11.5: S-0011/D-5
+D-11.6: S-0011/D-6
+D-11.7: S-0011/D-7
+D-11.8: S-0011/D-8
+D-11.9: S-0011/D-9
+D-12.1: S-0012/D-1
+D-12.10: S-0012/D-10
+D-12.11: S-0012/D-11
+D-12.12: S-0012/D-12
+D-12.13: S-0012/D-13
+D-12.14: S-0012/D-14
+D-12.15: S-0012/D-15
+D-12.2: S-0012/D-2
+D-12.3: S-0012/D-3
+D-12.4: S-0012/D-4
+D-12.5: S-0012/D-5
+D-12.6: S-0012/D-6
+D-12.7: S-0012/D-7
+D-12.8: S-0012/D-8
+D-12.9: S-0012/D-9
+D-13.1: S-0013/D-1
+D-13.10: S-0013/D-10
+D-13.11: S-0013/D-11
+D-13.2: S-0013/D-2
+D-13.3: S-0013/D-3
+D-13.4: S-0013/D-4
+D-13.5: S-0013/D-5
+D-13.6: S-0013/D-6
+D-13.7: S-0013/D-7
+D-13.8: S-0013/D-8
+D-13.9: S-0013/D-9
+D-14.1: S-0014/D-1
+D-14.10: S-0014/D-10
+D-14.11: S-0014/D-11
+D-14.12: S-0014/D-12
+D-14.13: S-0014/D-13
+D-14.14: S-0014/D-14
+D-14.2: S-0014/D-2
+D-14.3: S-0014/D-3
+D-14.4: S-0014/D-4
+D-14.5: S-0014/D-5
+D-14.6: S-0014/D-6
+D-14.7: S-0014/D-7
+D-14.8: S-0014/D-8
+D-14.9: S-0014/D-9
+D-15.1: S-0015/D-1
+D-15.10: S-0015/D-10
+D-15.11: S-0015/D-11
+D-15.12: S-0015/D-12
+D-15.2: S-0015/D-2
+D-15.3: S-0015/D-3
+D-15.4: S-0015/D-4
+D-15.5: S-0015/D-5
+D-15.6: S-0015/D-6
+D-15.7: S-0015/D-7
+D-15.8: S-0015/D-8
+D-15.9: S-0015/D-9
+D-16: S-0001/D-22
+D-16.1: S-0016/D-1
+D-16.2: S-0016/D-2
+D-16.3: S-0016/D-3
+D-16.4: S-0016/D-4
+D-16.5: S-0016/D-5
+D-16.6: S-0016/D-6
+D-16.7: S-0016/D-7
+D-16.8: S-0016/D-8
+D-17.1: S-0017/D-1
+D-17.10: S-0017/D-10
+D-17.11: S-0017/D-11
+D-17.2: S-0017/D-2
+D-17.3: S-0017/D-3
+D-17.4: S-0017/D-4
+D-17.5: S-0017/D-5
+D-17.6: S-0017/D-6
+D-17.7: S-0017/D-7
+D-17.8: S-0017/D-8
+D-17.9: S-0017/D-9
+D-18.1: S-0018/D-1
+D-18.2: S-0018/D-2
+D-18.3: S-0018/D-3
+D-18.4: S-0018/D-4
+D-18.5: S-0018/D-5
+D-18.6: S-0018/D-6
+D-18.7: S-0018/D-7
+D-18.8: S-0018/D-8
+D-18.9: S-0018/D-9
+D-19.1: S-0019/D-1
+D-19.10: S-0019/D-10
+D-19.11: S-0019/D-11
+D-19.12: S-0019/D-12
+D-19.13: S-0019/D-13
+D-19.14: S-0019/D-14
+D-19.2: S-0019/D-2
+D-19.3: S-0019/D-3
+D-19.4: S-0019/D-4
+D-19.5: S-0019/D-5
+D-19.6: S-0019/D-6
+D-19.7: S-0019/D-7
+D-19.8: S-0019/D-8
+D-19.9: S-0019/D-9
+D-2: S-0001/D-10
+D-2.1: S-0002/D-1
+D-2.10: S-0002/D-10
+D-2.11: S-0002/D-11
+D-2.12: S-0002/D-12
+D-2.13: S-0002/D-13
+D-2.14: S-0002/D-14
+D-2.15: S-0002/D-15
+D-2.16: S-0002/D-16
+D-2.17: S-0002/D-17
+D-2.18: S-0002/D-18
+D-2.19: S-0002/D-19
+D-2.2: S-0002/D-2
+D-2.20: S-0002/D-20
+D-2.21: S-0002/D-21
+D-2.22: S-0002/D-22
+D-2.23: S-0002/D-23
+D-2.24: S-0002/D-24
+D-2.25: S-0002/D-25
+D-2.26: S-0002/D-26
+D-2.3: S-0002/D-3
+D-2.4: S-0002/D-4
+D-2.5: S-0002/D-5
+D-2.6: S-0002/D-6
+D-2.7: S-0002/D-7
+D-2.8: S-0002/D-8
+D-2.9: S-0002/D-9
+D-20.1: S-0020/D-1
+D-20.10: S-0020/D-10
+D-20.2: S-0020/D-2
+D-20.3: S-0020/D-3
+D-20.4: S-0020/D-4
+D-20.5: S-0020/D-5
+D-20.6: S-0020/D-6
+D-20.7: S-0020/D-7
+D-20.8: S-0020/D-8
+D-20.9: S-0020/D-9
+D-21.1: S-0021/D-1
+D-21.10: S-0021/D-10
+D-21.11: S-0021/D-11
+D-21.2: S-0021/D-2
+D-21.3: S-0021/D-3
+D-21.4: S-0021/D-4
+D-21.5: S-0021/D-5
+D-21.6: S-0021/D-6
+D-21.7: S-0021/D-7
+D-21.8: S-0021/D-8
+D-21.9: S-0021/D-9
+D-21a: S-0001/D-17
+D-21b: S-0001/D-26
+D-21c: S-0001/D-30
+D-21d: S-0001/D-31
+D-22: S-0001/D-18
+D-22.1: S-0022/D-1
+D-22.10: S-0022/D-10
+D-22.11: S-0022/D-11
+D-22.12: S-0022/D-12
+D-22.2: S-0022/D-2
+D-22.3: S-0022/D-3
+D-22.4: S-0022/D-4
+D-22.5: S-0022/D-5
+D-22.6: S-0022/D-6
+D-22.7: S-0022/D-7
+D-22.8: S-0022/D-8
+D-22.9: S-0022/D-9
+D-23.1: S-0023/D-1
+D-23.10: S-0023/D-10
+D-23.11: S-0023/D-11
+D-23.2: S-0023/D-2
+D-23.3: S-0023/D-3
+D-23.4: S-0023/D-4
+D-23.5: S-0023/D-5
+D-23.6: S-0023/D-6
+D-23.7: S-0023/D-7
+D-23.8: S-0023/D-8
+D-23.9: S-0023/D-9
+D-24.1: S-0024/D-1
+D-24.10: S-0024/D-10
+D-24.11: S-0024/D-11
+D-24.2: S-0024/D-2
+D-24.3: S-0024/D-3
+D-24.4: S-0024/D-4
+D-24.5: S-0024/D-5
+D-24.6: S-0024/D-6
+D-24.7: S-0024/D-7
+D-24.8: S-0024/D-8
+D-24.9: S-0024/D-9
+D-25: S-0001/D-19
+D-25.1: S-0025/D-1
+D-25.10: S-0025/D-10
+D-25.2: S-0025/D-2
+D-25.3: S-0025/D-3
+D-25.4: S-0025/D-4
+D-25.5: S-0025/D-5
+D-25.6: S-0025/D-6
+D-25.7: S-0025/D-7
+D-25.8: S-0025/D-8
+D-25.9: S-0025/D-9
+D-26: S-0001/D-23
+D-26.1: S-0026/D-1
+D-26.10: S-0026/D-10
+D-26.11: S-0026/D-11
+D-26.12: S-0026/D-12
+D-26.13: S-0026/D-13
+D-26.2: S-0026/D-2
+D-26.3: S-0026/D-3
+D-26.4: S-0026/D-4
+D-26.5: S-0026/D-5
+D-26.6: S-0026/D-6
+D-26.7: S-0026/D-7
+D-26.8: S-0026/D-8
+D-26.9: S-0026/D-9
+D-27: S-0001/D-24
+D-27.1: S-0027/D-1
+D-27.10: S-0027/D-10
+D-27.11: S-0027/D-11
+D-27.2: S-0027/D-2
+D-27.3: S-0027/D-3
+D-27.4: S-0027/D-4
+D-27.5: S-0027/D-5
+D-27.6: S-0027/D-6
+D-27.7: S-0027/D-7
+D-27.8: S-0027/D-8
+D-27.9: S-0027/D-9
+D-28: S-0001/D-25
+D-28.1: S-0028/D-1
+D-28.2: S-0028/D-2
+D-28.3: S-0028/D-3
+D-28.4: S-0028/D-4
+D-28.5: S-0028/D-5
+D-28.6: S-0028/D-6
+D-28.7: S-0028/D-7
+D-29: S-0001/D-27
+D-29.1: S-0029/D-1
+D-29.2: S-0029/D-2
+D-29.3: S-0029/D-3
+D-29.4: S-0029/D-4
+D-29.5: S-0029/D-5
+D-29.6: S-0029/D-6
+D-3: S-0001/D-11
+D-3.1: S-0003/D-1
+D-3.10: S-0003/D-10
+D-3.11: S-0003/D-11
+D-3.12: S-0003/D-12
+D-3.13: S-0003/D-13
+D-3.14: S-0003/D-14
+D-3.15: S-0003/D-15
+D-3.16: S-0003/D-16
+D-3.17: S-0003/D-17
+D-3.18: S-0003/D-18
+D-3.19: S-0003/D-19
+D-3.2: S-0003/D-2
+D-3.20: S-0003/D-20
+D-3.21: S-0003/D-21
+D-3.22: S-0003/D-22
+D-3.23: S-0003/D-23
+D-3.24: S-0003/D-24
+D-3.25: S-0003/D-25
+D-3.3: S-0003/D-3
+D-3.4: S-0003/D-4
+D-3.5: S-0003/D-5
+D-3.6: S-0003/D-6
+D-3.7: S-0003/D-7
+D-3.8: S-0003/D-8
+D-3.9: S-0003/D-9
+D-30: S-0001/D-28
+D-30.1: S-0030/D-1
+D-30.2: S-0030/D-2
+D-30.3: S-0030/D-3
+D-30.4: S-0030/D-4
+D-30.5: S-0030/D-5
+D-30.6: S-0030/D-6
+D-31: S-0001/D-29
+D-31.1: S-0031/D-1
+D-31.2: S-0031/D-2
+D-31.3: S-0031/D-3
+D-31.4: S-0031/D-4
+D-31.5: S-0031/D-5
+D-31.6: S-0031/D-6
+D-32: S-0001/D-32
+D-32.1: S-0032/D-1
+D-32.2: S-0032/D-2
+D-32.3: S-0032/D-3
+D-32.4: S-0032/D-4
+D-32.5: S-0032/D-5
+D-32.6: S-0032/D-6
+D-33: S-0001/D-33
+D-33.1: S-0033/D-1
+D-33.2: S-0033/D-2
+D-33.3: S-0033/D-3
+D-33.4: S-0033/D-4
+D-33.5: S-0033/D-5
+D-33.6: S-0033/D-6
+D-34: S-0001/D-34
+D-34.1: S-0034/D-1
+D-34.10: S-0034/D-10
+D-34.11: S-0034/D-11
+D-34.2: S-0034/D-2
+D-34.3: S-0034/D-3
+D-34.4: S-0034/D-4
+D-34.5: S-0034/D-5
+D-34.6: S-0034/D-6
+D-34.7: S-0034/D-7
+D-34.8: S-0034/D-8
+D-34.9: S-0034/D-9
+D-35: S-0001/D-35
+D-35.1: S-0035/D-1
+D-35.2: S-0035/D-2
+D-35.3: S-0035/D-3
+D-35.4: S-0035/D-4
+D-35.5: S-0035/D-5
+D-35.6: S-0035/D-6
+D-36.1: S-0036/D-1
+D-36.2: S-0036/D-2
+D-36.3: S-0036/D-3
+D-36.4: S-0036/D-4
+D-36.5: S-0036/D-5
+D-37.1: S-0037/D-1
+D-37.10: S-0037/D-10
+D-37.2: S-0037/D-2
+D-37.3: S-0037/D-3
+D-37.4: S-0037/D-4
+D-37.5: S-0037/D-5
+D-37.6: S-0037/D-6
+D-37.7: S-0037/D-7
+D-37.8: S-0037/D-8
+D-37.9: S-0037/D-9
+D-38.1: S-0038/D-1
+D-38.2: S-0038/D-2
+D-38.3: S-0038/D-3
+D-38.4: S-0038/D-4
+D-38.5: S-0038/D-5
+D-38.6: S-0038/D-6
+D-39.1: S-0039/D-1
+D-39.2: S-0039/D-2
+D-39.3: S-0039/D-3
+D-39.4: S-0039/D-4
+D-39.5: S-0039/D-5
+D-4: S-0001/D-12
+D-4.1: S-0004/D-1
+D-4.10: S-0004/D-10
+D-4.11: S-0004/D-11
+D-4.12: S-0004/D-12
+D-4.13: S-0004/D-13
+D-4.14: S-0004/D-14
+D-4.15: S-0004/D-15
+D-4.16: S-0004/D-16
+D-4.17: S-0004/D-17
+D-4.18: S-0004/D-18
+D-4.19: S-0004/D-19
+D-4.2: S-0004/D-2
+D-4.3: S-0004/D-3
+D-4.4: S-0004/D-4
+D-4.5: S-0004/D-5
+D-4.6: S-0004/D-6
+D-4.7: S-0004/D-7
+D-4.8: S-0004/D-8
+D-4.9: S-0004/D-9
+D-40.1: S-0040/D-1
+D-40.2: S-0040/D-2
+D-40.3: S-0040/D-3
+D-40.4: S-0040/D-4
+D-40.5: S-0040/D-5
+D-40.6: S-0040/D-6
+D-41.1: S-0041/D-1
+D-41.2: S-0041/D-2
+D-41.3: S-0041/D-3
+D-41.4: S-0041/D-4
+D-41.5: S-0041/D-5
+D-41.6: S-0041/D-6
+D-41.7: S-0041/D-7
+D-42.1: S-0042/D-1
+D-42.2: S-0042/D-2
+D-42.3: S-0042/D-3
+D-42.4: S-0042/D-4
+D-42.5: S-0042/D-5
+D-42.6: S-0042/D-6
+D-43.1: S-0043/D-1
+D-43.2: S-0043/D-2
+D-43.3: S-0043/D-3
+D-43.4: S-0043/D-4
+D-43.5: S-0043/D-5
+D-43.6: S-0043/D-6
+D-44.1: S-0044/D-1
+D-44.10: S-0044/D-10
+D-44.11: S-0044/D-11
+D-44.12: S-0044/D-12
+D-44.13: S-0044/D-13
+D-44.2: S-0044/D-2
+D-44.3: S-0044/D-3
+D-44.4: S-0044/D-4
+D-44.5: S-0044/D-5
+D-44.6: S-0044/D-6
+D-44.7: S-0044/D-7
+D-44.8: S-0044/D-8
+D-44.9: S-0044/D-9
+D-45.1: S-0045/D-1
+D-45.2: S-0045/D-2
+D-45.3: S-0045/D-3
+D-45.4: S-0045/D-4
+D-45.5: S-0045/D-5
+D-45.6: S-0045/D-6
+D-45.7: S-0045/D-7
+D-45.8: S-0045/D-8
+D-46.1: S-0046/D-1
+D-46.2: S-0046/D-2
+D-46.3: S-0046/D-3
+D-46.4: S-0046/D-4
+D-46.5: S-0046/D-5
+D-46.6: S-0046/D-6
+D-46.7: S-0046/D-7
+D-46.8: S-0046/D-8
+D-47.1: S-0047/D-1
+D-47.2: S-0047/D-2
+D-47.3: S-0047/D-3
+D-47.4: S-0047/D-4
+D-47.5: S-0047/D-5
+D-47.6: S-0047/D-6
+D-47.7: S-0047/D-7
+D-47.8: S-0047/D-8
+D-48.1: S-0048/D-1
+D-48.2: S-0048/D-2
+D-48.3: S-0048/D-3
+D-48.4: S-0048/D-4
+D-48.5: S-0048/D-5
+D-48.6: S-0048/D-6
+D-48.7: S-0048/D-7
+D-49.1: S-0049/D-1
+D-49.2: S-0049/D-2
+D-49.3: S-0049/D-3
+D-49.4: S-0049/D-4
+D-49.5: S-0049/D-5
+D-49.6: S-0049/D-6
+D-49.7: S-0049/D-7
+D-4b: S-0001/D-13
+D-5: S-0001/D-14
+D-5.1: S-0005/D-1
+D-5.10: S-0005/D-10
+D-5.11: S-0005/D-11
+D-5.12: S-0005/D-12
+D-5.13: S-0005/D-13
+D-5.14: S-0005/D-14
+D-5.15: S-0005/D-15
+D-5.16: S-0005/D-16
+D-5.17: S-0005/D-17
+D-5.2: S-0005/D-2
+D-5.3: S-0005/D-3
+D-5.4: S-0005/D-4
+D-5.5: S-0005/D-5
+D-5.6: S-0005/D-6
+D-5.7: S-0005/D-7
+D-5.8: S-0005/D-8
+D-5.9: S-0005/D-9
+D-50.1: S-0050/D-1
+D-50.2: S-0050/D-2
+D-50.3: S-0050/D-3
+D-50.4: S-0050/D-4
+D-50.5: S-0050/D-5
+D-50.6: S-0050/D-6
+D-51.1: S-0051/D-1
+D-51.2: S-0051/D-2
+D-51.3: S-0051/D-3
+D-51.4: S-0051/D-4
+D-51.5: S-0051/D-5
+D-51.6: S-0051/D-6
+D-51.7: S-0051/D-7
+D-51.8: S-0051/D-8
+D-51.9: S-0051/D-9
+D-52.1: S-0052/D-1
+D-52.2: S-0052/D-2
+D-52.3: S-0052/D-3
+D-52.4: S-0052/D-4
+D-52.5: S-0052/D-5
+D-52.6: S-0052/D-6
+D-53.1: S-0053/D-1
+D-53.10: S-0053/D-10
+D-53.11: S-0053/D-11
+D-53.12: S-0053/D-12
+D-53.13: S-0053/D-13
+D-53.14: S-0053/D-14
+D-53.15: S-0053/D-15
+D-53.16: S-0053/D-16
+D-53.17: S-0053/D-17
+D-53.2: S-0053/D-2
+D-53.3: S-0053/D-3
+D-53.4: S-0053/D-4
+D-53.5: S-0053/D-5
+D-53.6: S-0053/D-6
+D-53.7: S-0053/D-7
+D-53.8: S-0053/D-8
+D-53.9: S-0053/D-9
+D-54.1: S-0054/D-1
+D-54.10: S-0054/D-10
+D-54.11: S-0054/D-11
+D-54.12: S-0054/D-12
+D-54.13: S-0054/D-13
+D-54.14: S-0054/D-14
+D-54.15: S-0054/D-15
+D-54.16: S-0054/D-16
+D-54.17: S-0054/D-17
+D-54.18: S-0054/D-18
+D-54.2: S-0054/D-2
+D-54.3: S-0054/D-3
+D-54.4: S-0054/D-4
+D-54.5: S-0054/D-5
+D-54.6: S-0054/D-6
+D-54.7: S-0054/D-7
+D-54.8: S-0054/D-8
+D-54.9: S-0054/D-9
+D-55.1: S-0055/D-1
+D-55.10: S-0055/D-10
+D-55.11: S-0055/D-11
+D-55.12: S-0055/D-12
+D-55.13: S-0055/D-13
+D-55.14: S-0055/D-14
+D-55.15: S-0055/D-15
+D-55.16: S-0055/D-16
+D-55.17: S-0055/D-17
+D-55.18: S-0055/D-18
+D-55.19: S-0055/D-19
+D-55.2: S-0055/D-2
+D-55.20: S-0055/D-20
+D-55.21: S-0055/D-21
+D-55.22: S-0055/D-22
+D-55.23: S-0055/D-23
+D-55.24: S-0055/D-24
+D-55.25: S-0055/D-25
+D-55.26: S-0055/D-26
+D-55.27: S-0055/D-27
+D-55.28: S-0055/D-28
+D-55.29: S-0055/D-29
+D-55.3: S-0055/D-3
+D-55.30: S-0055/D-30
+D-55.31: S-0055/D-31
+D-55.32: S-0055/D-32
+D-55.33: S-0055/D-33
+D-55.34: S-0055/D-34
+D-55.35: S-0055/D-35
+D-55.36: S-0055/D-36
+D-55.37: S-0055/D-37
+D-55.38: S-0055/D-38
+D-55.39: S-0055/D-39
+D-55.4: S-0055/D-4
+D-55.40: S-0055/D-40
+D-55.41: S-0055/D-41
+D-55.42: S-0055/D-42
+D-55.43: S-0055/D-43
+D-55.44: S-0055/D-44
+D-55.45: S-0055/D-45
+D-55.46: S-0055/D-46
+D-55.47: S-0055/D-47
+D-55.48: S-0055/D-48
+D-55.49: S-0055/D-49
+D-55.5: S-0055/D-5
+D-55.50: S-0055/D-50
+D-55.51: S-0055/D-51
+D-55.52: S-0055/D-52
+D-55.53: S-0055/D-53
+D-55.54: S-0055/D-54
+D-55.55: S-0055/D-55
+D-55.56: S-0055/D-56
+D-55.57: S-0055/D-57
+D-55.58: S-0055/D-58
+D-55.59: S-0055/D-59
+D-55.6: S-0055/D-6
+D-55.60: S-0055/D-60
+D-55.7: S-0055/D-7
+D-55.8: S-0055/D-8
+D-55.9: S-0055/D-9
+D-56.1: S-0056/D-1
+D-56.10: S-0056/D-10
+D-56.11: S-0056/D-11
+D-56.12: S-0056/D-12
+D-56.13: S-0056/D-13
+D-56.2: S-0056/D-2
+D-56.3: S-0056/D-3
+D-56.4: S-0056/D-4
+D-56.5: S-0056/D-5
+D-56.6: S-0056/D-6
+D-56.7: S-0056/D-7
+D-56.8: S-0056/D-8
+D-56.9: S-0056/D-9
+D-57.1: S-0057/D-1
+D-57.10: S-0057/D-10
+D-57.11: S-0057/D-11
+D-57.12: S-0057/D-12
+D-57.13: S-0057/D-13
+D-57.2: S-0057/D-2
+D-57.3: S-0057/D-3
+D-57.4: S-0057/D-4
+D-57.5: S-0057/D-5
+D-57.6: S-0057/D-6
+D-57.7: S-0057/D-7
+D-57.8: S-0057/D-8
+D-57.9: S-0057/D-9
+D-58.1: S-0058/D-1
+D-58.10: S-0058/D-10
+D-58.11: S-0058/D-11
+D-58.2: S-0058/D-2
+D-58.3: S-0058/D-3
+D-58.4: S-0058/D-4
+D-58.5: S-0058/D-5
+D-58.6: S-0058/D-6
+D-58.7: S-0058/D-7
+D-58.8: S-0058/D-8
+D-58.9: S-0058/D-9
+D-5a: S-0001/D-15
+D-6: S-0001/D-16
+D-6.1: S-0006/D-1
+D-6.10: S-0006/D-10
+D-6.11: S-0006/D-11
+D-6.12: S-0006/D-12
+D-6.13: S-0006/D-13
+D-6.14: S-0006/D-14
+D-6.2: S-0006/D-2
+D-6.3: S-0006/D-3
+D-6.4: S-0006/D-4
+D-6.5: S-0006/D-5
+D-6.6: S-0006/D-6
+D-6.7: S-0006/D-7
+D-6.8: S-0006/D-8
+D-6.9: S-0006/D-9
+D-7: S-0001/D-20
+D-7.1: S-0007/D-1
+D-7.10: S-0007/D-10
+D-7.11: S-0007/D-11
+D-7.12: S-0007/D-12
+D-7.13: S-0007/D-13
+D-7.14: S-0007/D-14
+D-7.15: S-0007/D-15
+D-7.16: S-0007/D-16
+D-7.17: S-0007/D-17
+D-7.18: S-0007/D-18
+D-7.19: S-0007/D-19
+D-7.2: S-0007/D-2
+D-7.20: S-0007/D-20
+D-7.21: S-0007/D-21
+D-7.22: S-0007/D-22
+D-7.23: S-0007/D-23
+D-7.24: S-0007/D-24
+D-7.25: S-0007/D-25
+D-7.26: S-0007/D-26
+D-7.27: S-0007/D-27
+D-7.28: S-0007/D-28
+D-7.29: S-0007/D-29
+D-7.3: S-0007/D-3
+D-7.4: S-0007/D-4
+D-7.5: S-0007/D-5
+D-7.6: S-0007/D-6
+D-7.7: S-0007/D-7
+D-7.8: S-0007/D-8
+D-7.9: S-0007/D-9
+D-8: S-0001/D-21
+D-8.1: S-0008/D-1
+D-8.10: S-0008/D-10
+D-8.11: S-0008/D-11
+D-8.12: S-0008/D-12
+D-8.13: S-0008/D-13
+D-8.14: S-0008/D-14
+D-8.15: S-0008/D-15
+D-8.16: S-0008/D-16
+D-8.17: S-0008/D-17
+D-8.18: S-0008/D-18
+D-8.2: S-0008/D-2
+D-8.3: S-0008/D-3
+D-8.4: S-0008/D-4
+D-8.5: S-0008/D-5
+D-8.6: S-0008/D-6
+D-8.7: S-0008/D-7
+D-8.8: S-0008/D-8
+D-8.9: S-0008/D-9
+D-9.1: S-0009/D-1
+D-9.10: S-0009/D-10
+D-9.11: S-0009/D-11
+D-9.12: S-0009/D-12
+D-9.13: S-0009/D-13
+D-9.14: S-0009/D-14
+D-9.15: S-0009/D-15
+D-9.2: S-0009/D-2
+D-9.3: S-0009/D-3
+D-9.4: S-0009/D-4
+D-9.5: S-0009/D-5
+D-9.6: S-0009/D-6
+D-9.7: S-0009/D-7
+D-9.8: S-0009/D-8
+D-9.9: S-0009/D-9
+D-A.1: S-0016/D-9
+D-A.10: S-0016/D-20
+D-A.11: S-0016/D-21
+D-A.12: S-0016/D-22
+D-A.13: S-0001/D-37
+D-A.14: S-0001/D-38
+D-A.15: S-0001/D-39
+D-A.16: S-0016/D-23
+D-A.17: S-0016/D-24
+D-A.18: S-0016/D-25
+D-A.19: S-0016/D-26
+D-A.1a: S-0016/D-10
+D-A.1b: S-0016/D-11
+D-A.1c: S-0016/D-12
+D-A.2: S-0016/D-13
+D-A.20: S-0016/D-27
+D-A.3: S-0016/D-14
+D-A.4: S-0016/D-15
+D-A.5: S-0016/D-16
+D-A.6: S-0016/D-17
+D-A.7: S-0001/D-36
+D-A.8: S-0016/D-18
+D-A.9: S-0016/D-19
+I-55.1: S-0055/I-1
+I-55.2: S-0055/I-2
+I-55.3: S-0055/I-3
+I-55.4: S-0055/I-4
+I-55.5: S-0055/I-5
+I-57.1: S-0057/I-1
+I-58.1: S-0058/I-1
+Q-53.1: S-0053/Q-1
+Q-53.2: S-0053/Q-2
+Q-53.3: S-0053/Q-3
+Q-54.1: S-0054/Q-1
+Q-54.2: S-0054/Q-2
+Q-54.3: S-0054/Q-3
+Q-56.1: S-0056/Q-1
+Q-56.2: S-0056/Q-2
+Q-57.1: S-0057/Q-1
+Q-57.2: S-0057/Q-2
+Q-58.1: S-0058/Q-1
+Q-58.2: S-0058/Q-2
+RFC 0001: S-0001
+RFC 0001 §1: S-0001/what-torve-is
+RFC 0001 §2: S-0001/document-map
+RFC 0001 §3: S-0001/domain
+RFC 0001 §4: S-0001/state-machine
+RFC 0001 §5: S-0001/ports
+RFC 0001 §5.1: S-0001/where-abstraction-is-allowed
+RFC 0001 §5.2: S-0001/global-budget
+RFC 0001 §6: S-0001/task-contract-and-execution-log
+RFC 0001 §7: S-0001/decisions
+RFC 0001 §7.1: S-0001/ownership
+RFC 0001 §8: S-0001/risks
+RFC 0001 §8a: S-0001/stopping
+RFC 0001 §9: S-0001/out-of-scope-permanently
+RFC 0002: S-0002
+RFC 0002 §1: S-0002/why-this-ships-first
+RFC 0002 §10: S-0002/exit-criteria
+RFC 0002 §2: S-0002/delivery
+RFC 0002 §3: S-0002/the-gate-contract
+RFC 0002 §4: S-0002/starting-set
+RFC 0002 §5: S-0002/gates-are-themselves-verified
+RFC 0002 §6: S-0002/scope-in-detail
+RFC 0002 §6a: S-0002/three-outcomes-gates-need-beyond-pass-and-fail
+RFC 0002 §6b: S-0002/task-size
+RFC 0002 §7: S-0002
+RFC 0002 §7.1: S-0002/where-gates-come-from
+RFC 0002 §7.2: S-0002/five-filters-before-writing-one
+RFC 0002 §7.3: S-0002/states
+RFC 0002 §7.4: S-0002/two-independent-tracks
+RFC 0002 §7.5: S-0002/manifest-entry
+RFC 0002 §7.6: S-0002/health
+RFC 0002 §7.7: S-0002/retirement
+RFC 0002 §7.8: S-0002/tightening-is-a-new-gate
+RFC 0002 §8: S-0002/telemetry-from-day-one
+RFC 0002 §9: S-0002/decisions
+RFC 0003: S-0003
+RFC 0003 §1: S-0003/the-increment
+RFC 0003 §2: S-0003/deliberately-smaller-than-it-wants-to-be
+RFC 0003 §3: S-0003/fake-agent-first
+RFC 0003 §4: S-0003/isolation
+RFC 0003 §4.1: S-0003/runtime
+RFC 0003 §4.2: S-0003/reaper
+RFC 0003 §5: S-0003/lease-and-cancellation
+RFC 0003 §5a: S-0003/context-assembly
+RFC 0003 §6: S-0003/tests
+RFC 0003 §7: S-0003/storage
+RFC 0003 §8: S-0003/decisions
+RFC 0003 §9: S-0003/exit-criteria
+RFC 0004: S-0004
+RFC 0004 §1: S-0004/adapters
+RFC 0004 §2: S-0004/subscription-authentication
+RFC 0004 §3: S-0004/tiering
+RFC 0004 §4: S-0004/why-the-agent-port-earns-its-existence
+RFC 0004 §5: S-0004/shadow-runs
+RFC 0004 §6: S-0004/telemetry-staged
+RFC 0004 §6a: S-0004/measurement-defects-to-fix-before-trusting-a-number
+RFC 0004 §6b: S-0004/provider-routing-and-data-boundaries
+RFC 0004 §7: S-0004
+RFC 0004 §8: S-0004/exit-criteria
+RFC 0005: S-0005
+RFC 0005 §1: S-0005/the-reframing
+RFC 0005 §1.1: S-0005/the-review-contract
+RFC 0005 §10: S-0005/exit-criteria
+RFC 0005 §2: S-0005/what-makes-review-independent-rather-than-ceremonial
+RFC 0005 §3: S-0005/one-implementation
+RFC 0005 §4: S-0005/triggers
+RFC 0005 §4a: S-0005/the-revision-loop-added-by-a-32-2026-08-24
+RFC 0005 §5: S-0005/calibration
+RFC 0005 §6: S-0005/measuring-the-reviewer-the-actual-advantage
+RFC 0005 §7: S-0005/replacing-the-third-party-reviewer
+RFC 0005 §8: S-0005/risks
+RFC 0005 §9: S-0005/decisions
+RFC 0006: S-0006
+RFC 0006 §1: S-0006/the-correction-this-document-exists-for
+RFC 0006 §2: S-0006/prevention-beats-ordering
+RFC 0006 §3: S-0006/promotion
+RFC 0006 §4: S-0006/human-attention-is-the-scarce-resource
+RFC 0006 §5: S-0006/escalation-is-a-first-class-outcome
+RFC 0006 §5a: S-0006/blocked-dispatch-must-be-visible
+RFC 0006 §5b: S-0006/engine-health
+RFC 0006 §6: S-0006/decisions
+RFC 0006 §7: S-0006/exit-criteria
+RFC 0007: S-0007
+RFC 0007 §1: S-0007/why-last
+RFC 0007 §2: S-0007/asymmetry-by-write-authority
+RFC 0007 §3: S-0007/torve-plan
+RFC 0007 §3.1: S-0007/admission
+RFC 0007 §3.2: S-0007/one-rfc-at-a-time
+RFC 0007 §3.3: S-0007/supersession-after-minting
+RFC 0007 §3a: S-0007/format-validation
+RFC 0007 §4: S-0007/torve-context
+RFC 0007 §5: S-0007/mcp-as-the-read-surface
+RFC 0007 §6: S-0007/the-loop-closed
+RFC 0007 §6a: S-0007/cold-start
+RFC 0007 §6b: S-0007/out-of-scope
+RFC 0007 §7: S-0007
+RFC 0007 §8: S-0007/exit-criteria
+RFC 0008: S-0008
+RFC 0008 §1: S-0008/the-rule-this-document-exists-to-fix-in-place
+RFC 0008 §2: S-0008/outbound-another-outbox-destination
+RFC 0008 §3: S-0008/inbound-commands-not-state
+RFC 0008 §4: S-0008/tracker-content-is-untrusted-input
+RFC 0008 §5: S-0008/the-port
+RFC 0008 §6: S-0008/multiple-repositories-one-board
+RFC 0008 §7: S-0008/decisions
+RFC 0008 §8: S-0008/risks
+RFC 0008 §9: S-0008/exit-criteria
+RFC 0009: S-0009
+RFC 0009 §1: S-0009/why-this-needs-a-document
+RFC 0009 §2: S-0009/three-clusters-very-different-returns
+RFC 0009 §3: S-0009/trigger-collision-is-the-real-cost
+RFC 0009 §4: S-0009/distribution
+RFC 0009 §4a: S-0009/vendored-skills
+RFC 0009 §5: S-0009/evals
+RFC 0009 §6: S-0009/skills-and-gates-are-the-same-rule-twice
+RFC 0009 §7: S-0009
+RFC 0009 §8: S-0009/exit-criteria
+RFC 0010: S-0010
+RFC 0010 §1: S-0010/the-rule-everything-here-follows
+RFC 0010 §2: S-0010/two-ports-deliberately-separate
+RFC 0010 §3: S-0010/branches-and-commits
+RFC 0010 §4: S-0010/signing
+RFC 0010 §5: S-0010/push-and-force-push
+RFC 0010 §6: S-0010/pull-request-composition
+RFC 0010 §7: S-0010/revert-as-a-role
+RFC 0010 §8: S-0010
+RFC 0010 §9: S-0010/exit-criteria
+RFC 0011: S-0011
+RFC 0011 §1: S-0011/two-decisions-very-different-urgency
+RFC 0011 §2: S-0011/output-contract
+RFC 0011 §3: S-0011/exit-codes
+RFC 0011 §4: S-0011/non-tty-behaviour
+RFC 0011 §5: S-0011/where-ux-effort-actually-pays
+RFC 0011 §5a: S-0011/audience-who-reads-the-string
+RFC 0011 §6: S-0011/command-surface-for-now
+RFC 0011 §7: S-0011/deferred-deliberately
+RFC 0011 §8: S-0011
+RFC 0012: S-0012
+RFC 0012 §1: S-0012/group-by-owner-not-by-engine
+RFC 0012 §2: S-0012/tooling
+RFC 0012 §3: S-0012/why-this-stays-easy
+RFC 0012 §4: S-0012/telemetry-is-not-like-the-other-two
+RFC 0012 §5: S-0012/decide-now-torve-migrate-takes-a-target
+RFC 0012 §6: S-0012/the-forze-pin
+RFC 0012 §7: S-0012/the-conformance-battery-is-the-gate
+RFC 0012 §8: S-0012/decisions
+RFC 0013: S-0013
+RFC 0013 §1: S-0013/layout
+RFC 0013 §2: S-0013/why-two-files-and-not-one
+RFC 0013 §3: S-0013/resolution-rules
+RFC 0013 §4: S-0013/shared-conventions
+RFC 0013 §5: S-0013/what-does-not-belong-in-either
+RFC 0013 §6: S-0013
+RFC 0014: S-0014
+RFC 0014 §1: S-0014/why-this-is-written-down
+RFC 0014 §10: S-0014
+RFC 0014 §2: S-0014/two-separators-both-27-characters
+RFC 0014 §3: S-0014
+RFC 0014 §3.1: S-0014/after-the-import-block-always
+RFC 0014 §3.2: S-0014/between-major-sections-with-a-label
+RFC 0014 §3.3: S-0014/before-all
+RFC 0014 §4: S-0014/the-dot-rhythmic
+RFC 0014 §4.1: S-0014/between-top-level-definitions
+RFC 0014 §4.2: S-0014/inside-a-class-body-between-members
+RFC 0014 §4.3: S-0014/where-the-dot-does-not-appear
+RFC 0014 §5: S-0014/spacing-stated-once
+RFC 0014 §6: S-0014/where-it-does-not-go
+RFC 0014 §7: S-0014/module-preamble
+RFC 0014 §8: S-0014/layer-conventions
+RFC 0014 §9: S-0014/enforcement-the-source-layout-gate
+RFC 0014 §9.1: S-0014/adopt-on-the-whole-repository-at-once
+RFC 0015: S-0015
+RFC 0015 §1: S-0015/what-is-wrong-now
+RFC 0015 §2: S-0015/layers
+RFC 0015 §2.1: S-0015/permitted-imports
+RFC 0015 §3: S-0015/target-tree
+RFC 0015 §3.1: S-0015/adapters-get-a-directory-per-port-not-a-name-prefix
+RFC 0015 §3.2: S-0015/resolving-the-ambiguous-names
+RFC 0015 §4: S-0015/module-naming
+RFC 0015 §5: S-0015/the-front-door
+RFC 0015 §6: S-0015/enforcement-the-layering-gate
+RFC 0015 §6.1: S-0015/contracts-not-a-hand-written-checker
+RFC 0015 §6.2: S-0015/the-gate-wraps-the-tool
+RFC 0015 §6.3: S-0015/module-naming-goes-elsewhere
+RFC 0015 §6.4: S-0015/two-sets-of-gates-and-they-are-not-the-same-set
+RFC 0015 §7: S-0015/migration
+RFC 0015 §8: S-0015
+RFC 0015 §9: S-0015/exit-criteria
+RFC 0016: S-0016
+RFC 0016 §1: S-0016/why-this-is-separate-from-the-charter
+RFC 0016 §2: S-0016/three-destinations
+RFC 0016 §3: S-0016/frontmatter
+RFC 0016 §4: S-0016/decision-tables
+RFC 0016 §5: S-0016/amendment-discipline
+RFC 0016 §6: S-0016/the-index
+RFC 0016 §7: S-0016/the-corpus-directory
+RFC 0016 §8: S-0016
+RFC 0017: S-0017
+RFC 0017 §1: S-0017/two-gaps-found-by-measurement
+RFC 0017 §2: S-0017/the-image-is-an-input-not-an-environment
+RFC 0017 §2a: S-0017/docker-inside-the-sandbox
+RFC 0017 §3: S-0017/configuration-routes-by-nature
+RFC 0017 §4: S-0017/mcp-servers
+RFC 0017 §5: S-0017/persistent-memory
+RFC 0017 §6: S-0017/decisions
+RFC 0017 §7: S-0017/exit-criteria
+RFC 0018: S-0018
+RFC 0018 §1: S-0018/the-deferral-is-discharged
+RFC 0018 §10: S-0018
+RFC 0018 §11: S-0018/exit-criteria
+RFC 0018 §2: S-0018/what-is-already-settled-and-stays-settled
+RFC 0018 §3: S-0018/one-component-vocabulary
+RFC 0018 §4: S-0018/colour-and-emphasis
+RFC 0018 §5: S-0018/formats
+RFC 0018 §6: S-0018/live-status-for-long-waits
+RFC 0018 §7: S-0018/what-tests-may-assert
+RFC 0018 §8: S-0018/non-goals
+RFC 0018 §9: S-0018
+RFC 0019: S-0019
+RFC 0019 §1: S-0019/the-condition-in-d-3-1-is-met
+RFC 0019 §10: S-0019/decisions
+RFC 0019 §11: S-0019/exit-criteria
+RFC 0019 §2: S-0019/a-tick-not-a-daemon
+RFC 0019 §3: S-0019/what-one-tick-does
+RFC 0019 §4: S-0019/what-queued-means
+RFC 0019 §5: S-0019/two-budgets-the-loop-must-respect
+RFC 0019 §6: S-0019/concurrency-and-reentry
+RFC 0019 §7: S-0019/configuration
+RFC 0019 §8: S-0019/observability
+RFC 0019 §9: S-0019/risks
+RFC 0020: S-0020
+RFC 0020 §1: S-0020/summary
+RFC 0020 §10: S-0020
+RFC 0020 §11: S-0020
+RFC 0020 §2: S-0020/motivation
+RFC 0020 §3: S-0020/current-state
+RFC 0020 §4: S-0020/goals-non-goals
+RFC 0020 §5: S-0020
+RFC 0020 §5.1: S-0020/the-drafting-run
+RFC 0020 §5.2: S-0020/the-contract-lint
+RFC 0020 §5.3: S-0020/adoption
+RFC 0020 §5.4: S-0020/board-intake-phase-2
+RFC 0020 §5.5: S-0020/what-this-deliberately-does-not-touch
+RFC 0020 §6: S-0020/tests
+RFC 0020 §7: S-0020/out-of-scope
+RFC 0020 §8: S-0020/risks
+RFC 0020 §9: S-0020/unresolved-questions
+RFC 0021: S-0021
+RFC 0021 §1: S-0021/summary
+RFC 0021 §10: S-0021/unresolved-questions
+RFC 0021 §11: S-0021/decisions
+RFC 0021 §12: S-0021/exit-criteria
+RFC 0021 §2: S-0021/motivation
+RFC 0021 §3: S-0021/current-state
+RFC 0021 §4: S-0021/goals-non-goals
+RFC 0021 §5: S-0021
+RFC 0021 §5.1: S-0021/the-port
+RFC 0021 §5.2: S-0021/two-modes-because-custody-and-containment-are-different-problems
+RFC 0021 §5.3: S-0021/routing-enforced-twice-deliberately
+RFC 0021 §5.4: S-0021/metering-and-the-number-the-subject-did-not-write
+RFC 0021 §5.5: S-0021/what-this-does-not-change
+RFC 0021 §6: S-0021/tests
+RFC 0021 §7: S-0021/docs
+RFC 0021 §8: S-0021/out-of-scope
+RFC 0021 §9: S-0021/risks
+RFC 0022: S-0022
+RFC 0022 §1: S-0022/summary
+RFC 0022 §10: S-0022/unresolved-questions
+RFC 0022 §11: S-0022
+RFC 0022 §12: S-0022/exit-criteria
+RFC 0022 §2: S-0022/motivation
+RFC 0022 §3: S-0022/current-state
+RFC 0022 §4: S-0022/goals-non-goals
+RFC 0022 §5: S-0022
+RFC 0022 §5.1: S-0022/the-join-and-what-it-is-keyed-by
+RFC 0022 §5.2: S-0022/decision-level-report
+RFC 0022 §5.3: S-0022/document-level-report
+RFC 0022 §5.4: S-0022/the-surface
+RFC 0022 §5.5: S-0022/storage-stays-at-stage-1
+RFC 0022 §6: S-0022/tests
+RFC 0022 §7: S-0022/docs
+RFC 0022 §8: S-0022/out-of-scope
+RFC 0022 §9: S-0022/risks
+RFC 0023: S-0023
+RFC 0023 §1: S-0023/summary
+RFC 0023 §10: S-0023/unresolved-questions
+RFC 0023 §11: S-0023
+RFC 0023 §12: S-0023/exit-criteria
+RFC 0023 §2: S-0023/motivation
+RFC 0023 §3: S-0023/current-state
+RFC 0023 §4: S-0023/goals-non-goals
+RFC 0023 §5: S-0023
+RFC 0023 §5.1: S-0023/the-standing-contract
+RFC 0023 §5.2: S-0023/the-predicate-is-a-fact-evaluated-where-facts-are-evaluated
+RFC 0023 §5.3: S-0023/instantiation-is-minting-not-planning
+RFC 0023 §5.4: S-0023/bounds-because-this-is-the-leg-that-can-grow
+RFC 0023 §5.5: S-0023/d-19-8-restated-and-made-falsifiable
+RFC 0023 §5.6: S-0023/first-customers-in-order
+RFC 0023 §6: S-0023/tests
+RFC 0023 §7: S-0023/docs
+RFC 0023 §8: S-0023/out-of-scope
+RFC 0023 §9: S-0023/risks
+RFC 0024: S-0024
+RFC 0024 §1: S-0024/summary
+RFC 0024 §10: S-0024/unresolved-questions
+RFC 0024 §11: S-0024/decisions
+RFC 0024 §12: S-0024/exit-criteria
+RFC 0024 §2: S-0024/motivation
+RFC 0024 §3: S-0024/current-state
+RFC 0024 §4: S-0024/goals-non-goals
+RFC 0024 §5: S-0024
+RFC 0024 §5.1: S-0024/the-manifest-lives-with-the-operator
+RFC 0024 §5.2: S-0024/torve-fleet-tick
+RFC 0024 §5.3: S-0024/trust-classes-bind-capability
+RFC 0024 §5.4: S-0024/one-board-many-roots
+RFC 0024 §5.5: S-0024/aggregation-is-read-only-and-there-is-no-fleet-store
+RFC 0024 §6: S-0024/tests
+RFC 0024 §7: S-0024/docs
+RFC 0024 §8: S-0024/out-of-scope
+RFC 0024 §9: S-0024/risks
+RFC 0025: S-0025
+RFC 0025 §1: S-0025/summary
+RFC 0025 §10: S-0025/unresolved-questions
+RFC 0025 §11: S-0025
+RFC 0025 §12: S-0025/exit-criteria
+RFC 0025 §2: S-0025/motivation
+RFC 0025 §3: S-0025/current-state
+RFC 0025 §4: S-0025/goals-non-goals
+RFC 0025 §5: S-0025
+RFC 0025 §5.1: S-0025/the-canonical-emitter
+RFC 0025 §5.2: S-0025/torve-rfc-fmt
+RFC 0025 §5.3: S-0025/the-transactional-verbs
+RFC 0025 §5.4: S-0025/typed-example-fences
+RFC 0025 §5.5: S-0025/alternatives-considered
+RFC 0025 §6: S-0025/tests
+RFC 0025 §7: S-0025/docs
+RFC 0025 §8: S-0025/out-of-scope
+RFC 0025 §9: S-0025/risks
+RFC 0026: S-0026
+RFC 0026 §1: S-0026/summary
+RFC 0026 §10: S-0026/unresolved-questions
+RFC 0026 §11: S-0026
+RFC 0026 §12: S-0026/exit-criteria
+RFC 0026 §2: S-0026/motivation
+RFC 0026 §3: S-0026/current-state
+RFC 0026 §4: S-0026/goals-non-goals
+RFC 0026 §5: S-0026
+RFC 0026 §5.1: S-0026/the-route
+RFC 0026 §5.2: S-0026/the-decomposition-run
+RFC 0026 §5.3: S-0026/adoption-and-the-integration-task
+RFC 0026 §5.4: S-0026/hierarchy-is-one-field
+RFC 0026 §5.5: S-0026/continuation-attempts
+RFC 0026 §5.6: S-0026/calibration
+RFC 0026 §6: S-0026/tests
+RFC 0026 §7: S-0026/docs
+RFC 0026 §8: S-0026/out-of-scope
+RFC 0026 §9: S-0026/risks
+RFC 0027: S-0027
+RFC 0027 §1: S-0027/summary
+RFC 0027 §10: S-0027/unresolved-questions
+RFC 0027 §11: S-0027
+RFC 0027 §12: S-0027/exit-criteria
+RFC 0027 §2: S-0027/motivation
+RFC 0027 §3: S-0027/current-state
+RFC 0027 §4: S-0027/goals-non-goals
+RFC 0027 §5: S-0027
+RFC 0027 §5.1: S-0027/tier-variants
+RFC 0027 §5.1a: S-0027/5-1a-the-attempt-ladder
+RFC 0027 §5.2: S-0027/the-configuration-drafting-run
+RFC 0027 §5.3: S-0027/configuration-change-lint
+RFC 0027 §5.4: S-0027/the-measurement-obligation
+RFC 0027 §5.5: S-0027/the-refusal
+RFC 0027 §6: S-0027/tests
+RFC 0027 §7: S-0027/docs
+RFC 0027 §8: S-0027/out-of-scope
+RFC 0027 §9: S-0027/risks
+RFC 0028: S-0028
+RFC 0028 §1: S-0028/summary
+RFC 0028 §10: S-0028/unresolved-questions
+RFC 0028 §11: S-0028
+RFC 0028 §12: S-0028
+RFC 0028 §2: S-0028/motivation
+RFC 0028 §3: S-0028/current-state
+RFC 0028 §4: S-0028/goals-non-goals
+RFC 0028 §5: S-0028
+RFC 0028 §5.1: S-0028/the-profile-file
+RFC 0028 §5.2: S-0028/resolution-and-merge
+RFC 0028 §5.3: S-0028/the-hash-and-why-telemetry-is-untouched
+RFC 0028 §5.4: S-0028/doctor-and-the-operator-surface
+RFC 0028 §5.5: S-0028/fleet-trust-the-question-this-creates
+RFC 0028 §6: S-0028/tests
+RFC 0028 §7: S-0028/docs
+RFC 0028 §8: S-0028/out-of-scope
+RFC 0028 §9: S-0028/risks
+RFC 0029: S-0029
+RFC 0029 §1: S-0029/summary
+RFC 0029 §10: S-0029/unresolved-questions
+RFC 0029 §11: S-0029
+RFC 0029 §12: S-0029/phasing
+RFC 0029 §2: S-0029/motivation
+RFC 0029 §3: S-0029/current-state
+RFC 0029 §4: S-0029/goals-non-goals
+RFC 0029 §5: S-0029
+RFC 0029 §5.1: S-0029/equipment-on-the-tier
+RFC 0029 §5.2: S-0029/addressing-a-persona-from-a-document
+RFC 0029 §5.3: S-0029/doctor
+RFC 0029 §5.4: S-0029/measurement-deliberately-not-built
+RFC 0029 §6: S-0029/tests
+RFC 0029 §7: S-0029/docs
+RFC 0029 §8: S-0029/out-of-scope
+RFC 0029 §9: S-0029/risks
+RFC 0030: S-0030
+RFC 0030 §1: S-0030/summary
+RFC 0030 §10: S-0030/unresolved-questions
+RFC 0030 §11: S-0030
+RFC 0030 §12: S-0030/phasing
+RFC 0030 §2: S-0030/motivation
+RFC 0030 §3: S-0030/current-state
+RFC 0030 §4: S-0030/goals-non-goals
+RFC 0030 §5: S-0030
+RFC 0030 §5.1: S-0030/standing-inheritance
+RFC 0030 §5.2: S-0030/the-threshold-verdict
+RFC 0030 §6: S-0030/tests
+RFC 0030 §7: S-0030/docs
+RFC 0030 §8: S-0030/out-of-scope
+RFC 0030 §9: S-0030/risks
+RFC 0031: S-0031
+RFC 0031 §1: S-0031/summary
+RFC 0031 §10: S-0031/unresolved-questions
+RFC 0031 §11: S-0031
+RFC 0031 §12: S-0031/phasing
+RFC 0031 §2: S-0031/motivation
+RFC 0031 §3: S-0031/current-state
+RFC 0031 §4: S-0031/goals-non-goals
+RFC 0031 §5: S-0031
+RFC 0031 §5.1: S-0031/torve-survey
+RFC 0031 §5.2: S-0031/the-bootstrap-skill
+RFC 0031 §5.3: S-0031/the-ratchet
+RFC 0031 §6: S-0031/tests
+RFC 0031 §7: S-0031/docs
+RFC 0031 §8: S-0031/out-of-scope
+RFC 0031 §9: S-0031/risks
+RFC 0032: S-0032
+RFC 0032 §1: S-0032/summary
+RFC 0032 §10: S-0032/unresolved-questions
+RFC 0032 §11: S-0032
+RFC 0032 §12: S-0032/phasing
+RFC 0032 §2: S-0032/motivation
+RFC 0032 §3: S-0032/current-state
+RFC 0032 §4: S-0032/goals-non-goals
+RFC 0032 §5: S-0032
+RFC 0032 §5.1: S-0032/the-verb-and-the-extra
+RFC 0032 §5.2: S-0032/endpoints
+RFC 0032 §5.3: S-0032/the-frontend-and-its-shipping
+RFC 0032 §5.4: S-0032/security-posture-stated-plainly
+RFC 0032 §6: S-0032/tests
+RFC 0032 §7: S-0032/docs
+RFC 0032 §8: S-0032/out-of-scope
+RFC 0032 §9: S-0032/risks
+RFC 0033: S-0033
+RFC 0033 §1: S-0033/summary
+RFC 0033 §10: S-0033/unresolved-questions
+RFC 0033 §11: S-0033
+RFC 0033 §12: S-0033/phasing
+RFC 0033 §2: S-0033/motivation
+RFC 0033 §3: S-0033/current-state
+RFC 0033 §4: S-0033/goals-non-goals
+RFC 0033 §5: S-0033
+RFC 0033 §5.1: S-0033/names-and-tags
+RFC 0033 §5.2: S-0033/versions-as-build-arguments
+RFC 0033 §5.3: S-0033/the-opt-torve-toolkit
+RFC 0033 §5.4: S-0033/the-publish-job
+RFC 0033 §5.5: S-0033/doctor
+RFC 0033 §6: S-0033/tests
+RFC 0033 §7: S-0033/docs
+RFC 0033 §8: S-0033/out-of-scope
+RFC 0033 §9: S-0033/risks
+RFC 0034: S-0034
+RFC 0034 §1: S-0034/summary
+RFC 0034 §10: S-0034/unresolved-questions
+RFC 0034 §11: S-0034
+RFC 0034 §12: S-0034/phasing
+RFC 0034 §2: S-0034/motivation
+RFC 0034 §3: S-0034/current-state
+RFC 0034 §4: S-0034/goals-non-goals
+RFC 0034 §5: S-0034
+RFC 0034 §5.1: S-0034/character-declared
+RFC 0034 §5.2: S-0034/character-routed
+RFC 0034 §5.3: S-0034/convictions-classified
+RFC 0034 §5.4: S-0034/retries-routed-on-the-conviction
+RFC 0034 §5.5: S-0034/calibration-projected
+RFC 0034 §5.6: S-0034/evals-extended
+RFC 0034 §6: S-0034/tests
+RFC 0034 §7: S-0034/docs
+RFC 0034 §8: S-0034/out-of-scope
+RFC 0034 §9: S-0034/risks
+RFC 0035: S-0035
+RFC 0035 §1: S-0035/summary
+RFC 0035 §10: S-0035/unresolved-questions
+RFC 0035 §11: S-0035
+RFC 0035 §12: S-0035/phasing
+RFC 0035 §2: S-0035/motivation
+RFC 0035 §3: S-0035/current-state
+RFC 0035 §4: S-0035/goals-non-goals
+RFC 0035 §5: S-0035
+RFC 0035 §5.1: S-0035/the-baked-dependency-layer
+RFC 0035 §5.2: S-0035/the-derived-cache-volume
+RFC 0035 §5.3: S-0035/the-tier-clock
+RFC 0035 §6: S-0035/tests
+RFC 0035 §7: S-0035/docs
+RFC 0035 §8: S-0035/out-of-scope
+RFC 0035 §9: S-0035/risks
+RFC 0036: S-0036
+RFC 0036 §1: S-0036/summary
+RFC 0036 §10: S-0036/unresolved-questions
+RFC 0036 §11: S-0036
+RFC 0036 §12: S-0036/phasing
+RFC 0036 §2: S-0036/motivation
+RFC 0036 §3: S-0036/current-state
+RFC 0036 §4: S-0036/goals-non-goals
+RFC 0036 §5: S-0036
+RFC 0036 §5.1: S-0036/the-coverage-delta-gate
+RFC 0036 §5.2: S-0036/the-sabotage-pair-lint
+RFC 0036 §5.3: S-0036/escapes-mint-corpus-entries
+RFC 0036 §6: S-0036/tests
+RFC 0036 §7: S-0036/docs
+RFC 0036 §8: S-0036/out-of-scope
+RFC 0036 §9: S-0036/risks
+RFC 0037: S-0037
+RFC 0037 §1: S-0037/summary
+RFC 0037 §10: S-0037/unresolved-questions
+RFC 0037 §11: S-0037
+RFC 0037 §12: S-0037/phasing
+RFC 0037 §2: S-0037/motivation
+RFC 0037 §3: S-0037/current-state
+RFC 0037 §4: S-0037/goals-non-goals
+RFC 0037 §5: S-0037
+RFC 0037 §5.1: S-0037/the-artifact
+RFC 0037 §5.2: S-0037/the-prompt
+RFC 0037 §5.3: S-0037/the-state-audit-gate
+RFC 0037 §5.4: S-0037/the-triage-read
+RFC 0037 §5.5: S-0037/the-telemetry-stamp
+RFC 0037 §6: S-0037/tests
+RFC 0037 §7: S-0037/docs
+RFC 0037 §8: S-0037/out-of-scope
+RFC 0037 §9: S-0037/risks
+RFC 0038: S-0038
+RFC 0038 §1: S-0038/summary
+RFC 0038 §10: S-0038/unresolved-questions
+RFC 0038 §11: S-0038
+RFC 0038 §12: S-0038/phasing
+RFC 0038 §2: S-0038/motivation
+RFC 0038 §3: S-0038/current-state
+RFC 0038 §4: S-0038/goals-non-goals
+RFC 0038 §5: S-0038
+RFC 0038 §5.1: S-0038/the-attempt-number
+RFC 0038 §5.2: S-0038/the-verdict
+RFC 0038 §5.3: S-0038/the-escalation-event
+RFC 0038 §6: S-0038/tests
+RFC 0038 §7: S-0038/docs
+RFC 0038 §8: S-0038/out-of-scope
+RFC 0038 §9: S-0038/risks
+RFC 0039: S-0039
+RFC 0039 §1: S-0039/summary
+RFC 0039 §10: S-0039/unresolved-questions
+RFC 0039 §11: S-0039
+RFC 0039 §12: S-0039/phasing
+RFC 0039 §2: S-0039/motivation
+RFC 0039 §3: S-0039/current-state
+RFC 0039 §4: S-0039/goals-non-goals
+RFC 0039 §5: S-0039
+RFC 0039 §5.1: S-0039/the-store
+RFC 0039 §5.2: S-0039/retention
+RFC 0039 §5.3: S-0039/the-burn-profile
+RFC 0039 §5.4: S-0039/bodies-named
+RFC 0039 §6: S-0039/tests
+RFC 0039 §7: S-0039/docs
+RFC 0039 §8: S-0039/out-of-scope
+RFC 0039 §9: S-0039/risks
+RFC 0040: S-0040
+RFC 0040 §1: S-0040/summary
+RFC 0040 §10: S-0040/unresolved-questions
+RFC 0040 §11: S-0040
+RFC 0040 §12: S-0040/phasing
+RFC 0040 §2: S-0040/motivation
+RFC 0040 §3: S-0040/current-state
+RFC 0040 §4: S-0040/goals-non-goals
+RFC 0040 §5: S-0040
+RFC 0040 §5.1: S-0040/the-reader
+RFC 0040 §5.2: S-0040/the-renderers
+RFC 0040 §6: S-0040/tests
+RFC 0040 §7: S-0040/docs
+RFC 0040 §8: S-0040/out-of-scope
+RFC 0040 §9: S-0040/risks
+RFC 0041: S-0041
+RFC 0041 §1: S-0041/summary
+RFC 0041 §10: S-0041/unresolved-questions
+RFC 0041 §11: S-0041
+RFC 0041 §12: S-0041/phasing
+RFC 0041 §2: S-0041/motivation
+RFC 0041 §3: S-0041/current-state
+RFC 0041 §4: S-0041/goals-non-goals
+RFC 0041 §5: S-0041
+RFC 0041 §5.1: S-0041/live-conformance
+RFC 0041 §5.2: S-0041/images-reach-the-registry
+RFC 0041 §5.3: S-0041/the-transfer-measured
+RFC 0041 §5.4: S-0041/the-broker-reachable
+RFC 0041 §6: S-0041/tests
+RFC 0041 §7: S-0041/docs
+RFC 0041 §8: S-0041/out-of-scope
+RFC 0041 §9: S-0041/risks
+RFC 0042: S-0042
+RFC 0042 §1: S-0042/summary
+RFC 0042 §10: S-0042/unresolved-questions
+RFC 0042 §11: S-0042/decisions
+RFC 0042 §12: S-0042/phasing
+RFC 0042 §2: S-0042/motivation
+RFC 0042 §3: S-0042/current-state
+RFC 0042 §4: S-0042/goals-non-goals
+RFC 0042 §5: S-0042
+RFC 0042 §5.1: S-0042/the-composition-root
+RFC 0042 §5.2: S-0042/quiesce-and-recovery-as-substrate-steps
+RFC 0042 §5.3: S-0042/the-tracker-outbox-investigated
+RFC 0042 §5.4: S-0042/the-resident-engine-named-and-not-built
+RFC 0042 §6: S-0042/tests
+RFC 0042 §7: S-0042/docs
+RFC 0042 §8: S-0042/out-of-scope
+RFC 0042 §9: S-0042/risks
+RFC 0043: S-0043
+RFC 0043 §1: S-0043/summary
+RFC 0043 §10: S-0043/unresolved-questions
+RFC 0043 §11: S-0043
+RFC 0043 §12: S-0043
+RFC 0043 §2: S-0043/motivation
+RFC 0043 §3: S-0043/current-state
+RFC 0043 §4: S-0043/goals-non-goals
+RFC 0043 §5: S-0043
+RFC 0043 §5.1: S-0043/the-loop-keeps-going
+RFC 0043 §5.2: S-0043/the-record-carries-the-reviewer-s-findings
+RFC 0043 §5.3: S-0043/the-knob
+RFC 0043 §6: S-0043/tests
+RFC 0043 §7: S-0043/docs
+RFC 0043 §8: S-0043/out-of-scope
+RFC 0043 §9: S-0043/risks
+RFC 0044: S-0044
+RFC 0044 §1: S-0044/summary
+RFC 0044 §10: S-0044/unresolved-questions
+RFC 0044 §11: S-0044
+RFC 0044 §12: S-0044/phasing
+RFC 0044 §2: S-0044/motivation
+RFC 0044 §3: S-0044/current-state
+RFC 0044 §4: S-0044/goals-non-goals
+RFC 0044 §5: S-0044
+RFC 0044 §5.1: S-0044/the-event-log
+RFC 0044 §5.2: S-0044/the-authority-rule
+RFC 0044 §5.3: S-0044/the-truth-boundary-inverted-for-intent
+RFC 0044 §5.4: S-0044/the-manager
+RFC 0044 §5.5: S-0044/workers-and-seats
+RFC 0044 §5.6: S-0044/the-typed-divergence-intake
+RFC 0044 §5.7: S-0044/ports-and-what-binds-first
+RFC 0044 §5.8: S-0044/what-this-retires-and-what-is-rescued-from-each
+RFC 0044 §5.9: S-0044/sources-and-decisions-as-records
+RFC 0044 §6: S-0044/tests
+RFC 0044 §7: S-0044/docs
+RFC 0044 §8: S-0044/out-of-scope
+RFC 0044 §9: S-0044/risks
+RFC 0045: S-0045
+RFC 0045 §1: S-0045/summary
+RFC 0045 §10: S-0045/unresolved-questions
+RFC 0045 §11: S-0045
+RFC 0045 §12: S-0045/phasing
+RFC 0045 §2: S-0045/motivation
+RFC 0045 §3: S-0045/current-state
+RFC 0045 §4: S-0045/goals-non-goals
+RFC 0045 §5: S-0045
+RFC 0045 §5.1: S-0045/liveness-is-the-burn-stream
+RFC 0045 §5.2: S-0045/the-intake-route
+RFC 0045 §5.3: S-0045/notes-and-stopping-on-evidence
+RFC 0045 §5.4: S-0045/one-amendment-to-the-authority-table
+RFC 0045 §6: S-0045/tests
+RFC 0045 §7: S-0045/docs
+RFC 0045 §8: S-0045/out-of-scope
+RFC 0045 §9: S-0045/risks
+RFC 0046: S-0046
+RFC 0046 §1: S-0046/summary
+RFC 0046 §10: S-0046/unresolved-questions
+RFC 0046 §11: S-0046
+RFC 0046 §12: S-0046/phasing
+RFC 0046 §2: S-0046/motivation
+RFC 0046 §3: S-0046/current-state
+RFC 0046 §4: S-0046/goals-non-goals
+RFC 0046 §5: S-0046
+RFC 0046 §5.1: S-0046/the-dispatch
+RFC 0046 §5.2: S-0046/the-steps
+RFC 0046 §5.3: S-0046/what-real-hooks-becomes
+RFC 0046 §5.4: S-0046/the-gate-pass-takes-a-dispatch
+RFC 0046 §6: S-0046/tests
+RFC 0046 §7: S-0046/docs
+RFC 0046 §8: S-0046/out-of-scope
+RFC 0046 §9: S-0046/risks
+RFC 0047: S-0047
+RFC 0047 §1: S-0047/summary
+RFC 0047 §10: S-0047/unresolved-questions
+RFC 0047 §11: S-0047
+RFC 0047 §12: S-0047
+RFC 0047 §2: S-0047/motivation
+RFC 0047 §3: S-0047/current-state
+RFC 0047 §4: S-0047/goals-non-goals
+RFC 0047 §5: S-0047
+RFC 0047 §5.1: S-0047/a-source-is-provenance-not-a-document
+RFC 0047 §5.2: S-0047/a-decision-is-a-subject-and-versions-are-events-on-it
+RFC 0047 §5.3: S-0047/the-importer
+RFC 0047 §5.4: S-0047/the-query
+RFC 0047 §5.5: S-0047/the-read-that-does-not-fold-an-execution-log
+RFC 0047 §6: S-0047/tests
+RFC 0047 §7: S-0047/docs
+RFC 0047 §8: S-0047/out-of-scope
+RFC 0047 §9: S-0047/risks
+RFC 0048: S-0048
+RFC 0048 §1: S-0048/summary
+RFC 0048 §10: S-0048/unresolved-questions
+RFC 0048 §11: S-0048
+RFC 0048 §12: S-0048
+RFC 0048 §2: S-0048/motivation
+RFC 0048 §3: S-0048/current-state
+RFC 0048 §4: S-0048/goals-non-goals
+RFC 0048 §5: S-0048
+RFC 0048 §5.1: S-0048/the-manifest-carries-the-partition
+RFC 0048 §5.2: S-0048/one-pass-over-the-fleet
+RFC 0048 §5.3: S-0048/the-pause-is-the-absence-of-minting
+RFC 0048 §5.4: S-0048/what-counts-as-an-escalation-now
+RFC 0048 §6: S-0048/tests
+RFC 0048 §7: S-0048/docs
+RFC 0048 §8: S-0048/out-of-scope
+RFC 0048 §9: S-0048/risks
+RFC 0049: S-0049
+RFC 0049 §1: S-0049/summary
+RFC 0049 §10: S-0049/unresolved-questions
+RFC 0049 §11: S-0049
+RFC 0049 §12: S-0049
+RFC 0049 §2: S-0049/motivation
+RFC 0049 §3: S-0049/current-state
+RFC 0049 §4: S-0049/goals-non-goals
+RFC 0049 §5: S-0049
+RFC 0049 §5.1: S-0049/the-contract-travels-in-the-mint
+RFC 0049 §5.2: S-0049/a-re-mint-is-a-version-and-never-a-state-change
+RFC 0049 §5.3: S-0049/the-scan-becomes-the-importer
+RFC 0049 §5.4: S-0049/the-log-completes-itself
+RFC 0049 §6: S-0049/tests
+RFC 0049 §7: S-0049/docs
+RFC 0049 §8: S-0049/out-of-scope
+RFC 0049 §9: S-0049/risks
+RFC 0050: S-0050
+RFC 0050 §1: S-0050/summary
+RFC 0050 §10: S-0050/unresolved-questions
+RFC 0050 §11: S-0050
+RFC 0050 §12: S-0050
+RFC 0050 §2: S-0050/motivation
+RFC 0050 §3: S-0050/current-state
+RFC 0050 §4: S-0050/goals-non-goals
+RFC 0050 §5: S-0050
+RFC 0050 §5.1: S-0050/selection-is-explicit-never-guessed
+RFC 0050 §5.2: S-0050/the-sources-swap-under-a-stable-envelope
+RFC 0050 §5.3: S-0050/parity-is-the-acceptance
+RFC 0050 §5.4: S-0050/order-and-why-context-is-last
+RFC 0050 §6: S-0050/tests
+RFC 0050 §7: S-0050/docs
+RFC 0050 §8: S-0050/out-of-scope
+RFC 0050 §9: S-0050/risks
+RFC 0051: S-0051
+RFC 0051 §1: S-0051/summary
+RFC 0051 §10: S-0051/unresolved-questions
+RFC 0051 §11: S-0051
+RFC 0051 §12: S-0051
+RFC 0051 §2: S-0051/motivation
+RFC 0051 §3: S-0051/current-state
+RFC 0051 §4: S-0051/goals-non-goals
+RFC 0051 §5: S-0051
+RFC 0051 §5.1: S-0051/a-notification-is-a-delivery-not-a-subject
+RFC 0051 §5.2: S-0051/the-log-is-the-queue
+RFC 0051 §5.3: S-0051/the-port
+RFC 0051 §5.4: S-0051/the-relay-is-a-leg-of-the-manager-s-pass
+RFC 0051 §5.5: S-0051/delivery-is-at-least-once-and-the-destination-deduplicates
+RFC 0051 §6: S-0051/tests
+RFC 0051 §7: S-0051/docs
+RFC 0051 §8: S-0051/out-of-scope
+RFC 0051 §9: S-0051/risks
+RFC 0052: S-0052
+RFC 0052 §1: S-0052/summary
+RFC 0052 §10: S-0052/unresolved-questions
+RFC 0052 §11: S-0052
+RFC 0052 §12: S-0052
+RFC 0052 §2: S-0052/motivation
+RFC 0052 §3: S-0052/current-state
+RFC 0052 §4: S-0052/goals-non-goals
+RFC 0052 §5: S-0052
+RFC 0052 §5.1: S-0052/the-leg-and-where-it-sits
+RFC 0052 §5.2: S-0052/the-switch-is-opt-in-and-it-is-d-6-2-s
+RFC 0052 §5.3: S-0052/a-conflict-disposes-of-itself
+RFC 0052 §6: S-0052/tests
+RFC 0052 §7: S-0052/docs
+RFC 0052 §8: S-0052/out-of-scope
+RFC 0052 §9: S-0052/risks
+RFC 0053: S-0053
+RFC 0053 §1: S-0053/summary
+RFC 0053 §10: S-0053
+RFC 0053 §11: S-0053
+RFC 0053 §12: S-0053/phasing
+RFC 0053 §13: S-0053
+RFC 0053 §2: S-0053/motivation
+RFC 0053 §3: S-0053/current-state
+RFC 0053 §4: S-0053/goals-non-goals
+RFC 0053 §5: S-0053
+RFC 0053 §5.1: S-0053/the-model
+RFC 0053 §5.2: S-0053/the-authoring-surface-unchanged-where-it-matters
+RFC 0053 §5.3: S-0053/a-check-is-authored-never-derived
+RFC 0053 §5.4: S-0053/the-tool-writes-the-diff
+RFC 0053 §5.5: S-0053/coverage-as-a-fact
+RFC 0053 §5.6: S-0053/rot-retires-through-the-record
+RFC 0053 §5.7: S-0053/the-archive
+RFC 0053 §5.8: S-0053/the-rebuild
+RFC 0053 §5.9: S-0053/what-is-deleted-and-when
+RFC 0053 §6: S-0053/tests
+RFC 0053 §7: S-0053/docs
+RFC 0053 §8: S-0053/out-of-scope
+RFC 0053 §9: S-0053/risks
+RFC 0054: S-0054
+RFC 0054 §1: S-0054/summary
+RFC 0054 §10: S-0054
+RFC 0054 §11: S-0054
+RFC 0054 §12: S-0054/phasing
+RFC 0054 §13: S-0054
+RFC 0054 §2: S-0054/motivation
+RFC 0054 §3: S-0054/current-state
+RFC 0054 §4: S-0054/goals-non-goals
+RFC 0054 §5: S-0054
+RFC 0054 §5.1: S-0054/the-row-travels-whole
+RFC 0054 §5.10: S-0054/measurement-and-what-ships-without-it
+RFC 0054 §5.2: S-0054/a-decision-with-a-check-is-a-gate
+RFC 0054 §5.3: S-0054/a-decision-gate-enters-at-shadow-and-is-promoted-per-row
+RFC 0054 §5.4: S-0054/the-projections-beside-the-code
+RFC 0054 §5.5: S-0054/torve-spec-in-the-sandbox
+RFC 0054 §5.6: S-0054/the-context-pack
+RFC 0054 §5.7: S-0054/the-red-reaches-the-retry
+RFC 0054 §5.8: S-0054/the-reviewer
+RFC 0054 §5.9: S-0054/the-drafter
+RFC 0054 §6: S-0054/tests
+RFC 0054 §7: S-0054/docs
+RFC 0054 §8: S-0054/out-of-scope
+RFC 0054 §9: S-0054/risks
+RFC 0055: S-0055
+RFC 0055 §1: S-0055/summary
+RFC 0055 §2: S-0055/the-evidence
+RFC 0055 §3: S-0055/questions-the-extraction-could-not-settle
+RFC 0056: S-0056
+RFC 0056 §1: S-0056/summary
+RFC 0056 §10: S-0056
+RFC 0056 §11: S-0056
+RFC 0056 §12: S-0056/phasing
+RFC 0056 §13: S-0056
+RFC 0056 §2: S-0056/motivation
+RFC 0056 §3: S-0056/current-state
+RFC 0056 §4: S-0056/goals-non-goals
+RFC 0056 §5: S-0056
+RFC 0056 §5.1: S-0056/the-document-is-the-model
+RFC 0056 §5.2: S-0056/writing-is-dump
+RFC 0056 §5.3: S-0056/the-conversion-is-one-shot-and-final
+RFC 0056 §5.4: S-0056/the-schema-is-the-authoring-contract
+RFC 0056 §5.5: S-0056/the-task-directory-is-a-projection
+RFC 0056 §5.6: S-0056/the-telemetry-file-is-a-carrier
+RFC 0056 §6: S-0056/tests
+RFC 0056 §7: S-0056/docs
+RFC 0056 §8: S-0056/out-of-scope
+RFC 0056 §9: S-0056/risks
+RFC 0057: S-0057
+RFC 0057 §5.1: S-0057/the-specification-is-a-directory
+RFC 0057 §5.2: S-0057/sections-are-keys
+RFC 0057 §5.3: S-0057/execution-is-the-documents
+RFC 0057 §5.4: S-0057/the-links-close
+RFC 0057 §5.5: S-0057/the-place-the-name-and-the-schemas
+RFC 0057 §5.6: S-0057/the-conversion
+RFC 0058: S-0058

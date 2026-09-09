@@ -1,5 +1,5 @@
 """`torve why <task-id>` — one task's execution history, read from the
-durable record (RFC 0040 §5.2). Parsing and rendering only (D-15.6): the
+durable record (S-0040/the-renderers). Parsing and rendering only (S-0015/D-6): the
 envelope is computed once by `application.projections.why_report`, which the
 MCP tool and the serve endpoint re-expose identically — this command renders
 that same envelope, it derives nothing of its own.
@@ -150,7 +150,7 @@ def _review_line(entry: dict[str, Any]) -> Text:
 def _recorded(dsn: str, partition: str, task_id: str) -> list[EventRecord] | None:
     """One task's own events, when a partition was named. None means nobody
     asked for the record, which is different from a record that has nothing
-    to say about this task (RFC 0050 D-50.2)."""
+    to say about this task (S-0050 S-0050/D-2)."""
 
     if not partition:
         return None

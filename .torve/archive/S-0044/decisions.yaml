@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-44.1
+  - id: D-1
     grade: LOCKED
     text: >-
       An append-only, typed, versioned event log is the system of record for intent
@@ -10,7 +10,7 @@ decisions:
     consequence: >-
       Anything that cannot be expressed as an event is not engine state; questions
       become queries, and the repository stops being scanned to answer them
-  - id: D-44.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Write authority is a table over (actor kind, event kind), enforced by the store:
@@ -19,29 +19,29 @@ decisions:
       through a validating intake
     paths: [src/torve/domain/events.py]
     consequence: >-
-      The human signature that D-27 protected survives without git holding truth;
-      an agent can never write an acceptance, whatever its prompt says
-  - id: D-44.3
+      The human signature that S-0001/D-24 protected survives without git holding
+      truth; an agent can never write an acceptance, whatever its prompt says
+  - id: D-3
     grade: LOCKED
     text: >-
       Events are recorded at write time and never derived; rebuild is replay. Every
       event carries `schema_version`, and replay equality is a test, not a convention
     paths: [src/torve/domain/events.py, src/torve/adapters/eventstore/**]
     consequence: >-
-      Retires derive-don't-record (D-8.2) and the drift it carried; costs a migration
+      Retires derive-don't-record (S-0008/D-2) and the drift it carried; costs a migration
       discipline on the event schema
-  - id: D-44.4
+  - id: D-4
     grade: LOCKED
     text: >-
       Agents communicate only as typed `message.sent` events through the store; shared
       context windows and unreviewable prose instruction paths stay forbidden. A note
       from the manager or the operator is the same record with a stamped sender (widened
-      by amendment A-81 2026-09-04)
+      by amendment S-0044/A-2 2026-09-04)
     paths: [src/torve/domain/events.py]
     consequence: >-
-      Retires D-31's blanket prohibition while keeping its core; every inter-agent
+      Retires S-0001/D-29's blanket prohibition while keeping its core; every inter-agent
       influence is a reviewable record or it did not happen
-  - id: D-44.5
+  - id: D-5
     grade: LOCKED
     text: >-
       The manager is one resident, durable process owning queues, dispatch, routing
@@ -49,9 +49,9 @@ decisions:
       port, not from process-per-step
     paths: [src/torve/application/manager.py]
     consequence: >-
-      Retires the tick doctrine (D-19.1, D-42.6); the manager's restart transparency
+      Retires the tick doctrine (S-0019/D-1, S-0042/D-6); the manager's restart transparency
       becomes a tested property
-  - id: D-44.6
+  - id: D-6
     grade: LOCKED
     text: >-
       Workers are stateless claim-pullers holding no assignment state; a killed worker
@@ -60,7 +60,7 @@ decisions:
     consequence: >-
       Worker code may never accumulate local state; anything a worker learns is an
       event or is lost, deliberately
-  - id: D-44.7
+  - id: D-7
     grade: LOCKED
     text: >-
       The repository is the partition key: landings serialize within a partition and
@@ -70,7 +70,7 @@ decisions:
       The one v1 invariant that survives distribution unchanged; multi-repo scaling
       is partition count, and a single repository's landing throughput stays the ceiling
       it is today
-  - id: D-44.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       A source is any provenance — specification document, incident, audit, review
@@ -78,9 +78,9 @@ decisions:
       unit and cites its source for provenance, never for parsing
     paths: [src/torve/domain/source.py, src/torve/application/intake.py]
     consequence: >-
-      RFC documents become one importer among several; RFC 0020's request-to-adoption
+      RFC documents become one importer among several; S-0020's request-to-adoption
       seam generalizes rather than being replaced
-  - id: D-44.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       Decisions are first-class records — graded `LOCKED`/`ASSUMED`/`OPEN`, path-scoped,
@@ -90,16 +90,16 @@ decisions:
     consequence: >-
       The grading discipline is preserved verbatim; the corpus becomes importable
       data and every existing decision id stays stable
-  - id: D-44.10
+  - id: D-10
     grade: LOCKED
     text: >-
       Divergence is recorded through a validating intake that refuses at write time
       with the message the gate would have produced; the landed log file is a projection
       the engine writes, never an artifact the agent hand-authors. The intake has
       two halves — the agent-facing verb validates inside the sandbox, the worker
-      records host-side after the attempt (split by amendment A-80 2026-09-04). The
-      engine writes the file the gate reads from the record, before each gate pass
-      (amendment A-82 2026-09-04)
+      records host-side after the attempt (split by amendment S-0044/A-1 2026-09-04).
+      The engine writes the file the gate reads from the record, before each gate
+      pass (amendment S-0044/A-3 2026-09-04)
     paths:
       - src/torve/application/divergence.py
       - src/torve/gates/decisions_reported.py
@@ -107,7 +107,7 @@ decisions:
     consequence: >-
       Deletes the unparseable-log, malformed-evidence and unstaged-log failure classes
       that produced every poison-ceiling in the current measurement window
-  - id: D-44.11
+  - id: D-11
     grade: ASSUMED
     text: >-
       Durable execution sits behind a port with forze bound first; the domain names
@@ -116,7 +116,7 @@ decisions:
     consequence: >-
       The Temporal question is answered by operational evidence later, at adapter
       cost only
-  - id: D-44.12
+  - id: D-12
     grade: ASSUMED
     text: >-
       The gate battery, the review lane, sizing and the measurement regime port over
@@ -126,7 +126,7 @@ decisions:
     consequence: >-
       The doctrine's proven parts are not rewritten; a v2 that changes their semantics
       has exceeded this RFC
-  - id: D-44.13
+  - id: D-13
     grade: OPEN
     text: >-
       The identity and authorization model beyond a single operator — how operator

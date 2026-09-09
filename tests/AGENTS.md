@@ -2,7 +2,7 @@
 
 ## Decisions governing `tests/`
 
-### D-55.19 — `ASSUMED` (RFC 0055 — Standing decisions)
+### S-0055/D-19 — `ASSUMED` (Standing decisions)
 
 An existing test is edited only under the contract's licence; adding a test is an addition, editing one needs scope
 
@@ -11,7 +11,7 @@ An existing test is edited only under the contract's licence; adding a test is a
 
 ## Invariants holding over `tests/`
 
-- **I-55.5** (RFC 0055): The suite is green
+- **S-0055/I-5**: The suite is green
   - Paths: `src/torve/**` `tests/**`
   - Check: `uv run pytest`
 

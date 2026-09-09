@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-30.1
+  - id: D-1
     grade: LOCKED
     text: >-
       A contract without a source document inherits standing rows from every accepted
@@ -9,16 +9,16 @@ decisions:
     paths: [src/torve/application/planner.py, src/torve/application/intake.py]
     consequence: >-
       The document-less lane stops being the ungoverned one; a second reader here
-      is the drift A-47 removed
-  - id: D-30.2
+      is the drift S-0007/A-3 removed
+  - id: D-2
     grade: LOCKED
     text: >-
       The threshold verdict is deterministic — arithmetic over intersected rows, distinct
       documents and the size class; no model opinion of risk anywhere in the routing
     paths: [src/torve/application/planner.py, src/torve/application/intake.py]
     consequence: >-
-      A model deciding what needs a human is D-2 by another door
-  - id: D-30.3
+      A model deciding what needs a human is S-0001/D-10 by another door
+  - id: D-3
     grade: ASSUMED
     text: >-
       The rule: `document_required` when the scope crosses LOCKED rows from two or
@@ -26,8 +26,8 @@ decisions:
       in configuration beside intake's
     paths: [src/torve/config/runconfig.py]
     consequence: >-
-      A starting rule to calibrate against RFC 0022's evidence, not a truth
-  - id: D-30.4
+      A starting rule to calibrate against S-0022's evidence, not a truth
+  - id: D-4
     grade: ASSUMED
     text: >-
       Enforcement is authoring-time only — intake lint error and adoption refusal
@@ -36,15 +36,15 @@ decisions:
     paths: [src/torve/application/intake.py, src/torve/cli/intake.py]
     consequence: >-
       A signed contract was a human's call; convicting it later punishes the signature
-  - id: D-30.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       `torve plan` inheritance is unchanged: the source document's table whole, per
-      D-7.22; standing inheritance is the document-less lane's mechanism
+      S-0007/D-22; standing inheritance is the document-less lane's mechanism
     paths: [src/torve/application/planner.py]
     consequence: >-
       Two lanes, one reader, different selections — the asymmetry is the design
-  - id: D-30.6
+  - id: D-6
     grade: OPEN
     text: >-
       Whether document-minted contracts also inherit intersecting standing rows from

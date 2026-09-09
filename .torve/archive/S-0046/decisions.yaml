@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-46.1
+  - id: D-1
     grade: LOCKED
     text: >-
       The refactor changes no observable behaviour: no verdict, no record, no written
@@ -9,16 +9,16 @@ decisions:
     consequence: >-
       The existing suite is the acceptance criterion; a test that must change to stay
       green is evidence the refactor went wrong, not evidence the test was stale
-  - id: D-46.2
+  - id: D-2
     grade: LOCKED
     text: >-
       `AttemptHooks` and the attempt loop are unchanged, and the steps are bound into
       hooks rather than replacing them
     paths: [src/torve/application/runner.py, src/torve/application/shadow.py]
     consequence: >-
-      The DST simulation keeps driving the code that ships (RFC 0003 §6); a step vocabulary
-      only the real hooks speak would silently retire that property
-  - id: D-46.3
+      The DST simulation keeps driving the code that ships (S-0003/tests); a step
+      vocabulary only the real hooks speak would silently retire that property
+  - id: D-3
     grade: LOCKED
     text: >-
       A dispatch's run-scoped facts live in one typed `Dispatch`; a step takes it
@@ -27,7 +27,7 @@ decisions:
     consequence: >-
       The type checker sees the run's facts for the first time; a step states its
       inputs instead of capturing them
-  - id: D-46.4
+  - id: D-4
     grade: LOCKED
     text: >-
       The broker opens last, in `open_broker`, after every fallible step of setup;
@@ -36,13 +36,13 @@ decisions:
     consequence: >-
       A setup failure can never leak a live credential route; keeping the open a separate
       call is what lets the refusals that follow it stay before it
-  - id: D-46.5
+  - id: D-5
     grade: OPEN
     text: >-
       Whether `sink`, `facts`, `journal` and `channel` collapse into one observer
       struct on `RunDeps`. Settled by the fifth observer, not by argument
     paths: [src/torve/application/dispatch.py]
-  - id: D-46.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       `meta` stays a `dict[str, Any]` on the dispatch: it is a telemetry row under
@@ -51,7 +51,7 @@ decisions:
     paths: [src/torve/application/dispatch.py, src/torve/application/telemetry.py]
     consequence: >-
       One untyped carrier survives this pass, named rather than overlooked
-  - id: D-46.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       `run_routing` and `RunDeps` move to the dispatch module and their importers
@@ -60,7 +60,7 @@ decisions:
     consequence: >-
       A wide mechanical import diff once, instead of a shim that outlives its reason;
       `review.py` stops deferring an import to dodge a cycle
-  - id: D-46.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       Step bodies move verbatim; a change of behaviour found necessary mid-move is

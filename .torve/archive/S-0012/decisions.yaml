@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-12.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Migrations are grouped by schema owner first, engine second
@@ -8,52 +8,52 @@ decisions:
     consequence: >-
       Substrate versioning is driven by forze, not by us; interleaving makes the deployed
       version unknowable
-  - id: D-12.2
+  - id: D-2
     grade: ASSUMED
     text: Plain SQL, no migration DSL
     paths: [migrations/**]
     consequence: >-
       Revisit only if a SQLAlchemy model ever appears to generate from
-  - id: D-12.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       `yoyo-migrations` behind the `migrate` extra, imported lazily
     paths: [src/torve/application/migrate.py, pyproject.toml]
     consequence: >-
       Portable to dbmate without touching the `.sql` files
-  - id: D-12.4
+  - id: D-4
     grade: LOCKED
     text: No `downgrade`; forward-only plus backups
     paths: [migrations/**]
     consequence: >-
       A downgrade path that does not work is worse than none
-  - id: D-12.5
+  - id: D-5
     grade: LOCKED
     text: >-
       Checksums enabled; editing an applied migration fails
     paths: [src/torve/application/migrate.py]
     consequence: The main cause of environment divergence
-  - id: D-12.6
+  - id: D-6
     grade: LOCKED
     text: >-
       `torve migrate` takes a target from the first release
     paths: [src/torve/cli/**]
     consequence: >-
       Adding a required positional later breaks callers
-  - id: D-12.7
+  - id: D-7
     grade: LOCKED
     text: >-
       Substrate migrations pin a forze version; `torve doctor` enforces it
     paths: [migrations/substrate/FORZE_VERSION, src/torve/cli/**]
     consequence: A schema mismatch must be a check, not a symptom
-  - id: D-12.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       No telemetry migrations before stage 3; ClickHouse gets its own runner
     paths: [migrations/**]
     consequence: >-
       A file has no schema; non-transactional DDL breaks transactional runners
-  - id: D-12.9
+  - id: D-9
     grade: LOCKED
     text: >-
       Conformance battery runs against both a from-scratch and an upgraded database,
@@ -61,7 +61,7 @@ decisions:
     paths: [tests/test_postgres_integration.py]
     consequence: >-
       The schema contract is a test; an unrun test is not a contract
-  - id: D-12.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       Migrations hardcode the canonical relation names (`public.torve_durable_run`,
@@ -72,7 +72,7 @@ decisions:
       - migrations/substrate/postgres/0001_durable.sql
       - src/torve/config/runconfig.py
     consequence: Static SQL files cannot parametrize table names
-  - id: D-12.11
+  - id: D-11
     grade: ASSUMED
     text: >-
       The `torve` owner directory exists from day one with a README and no steps,
@@ -80,8 +80,8 @@ decisions:
       prohibition stays about speculative engines. Added by execution 2026-08-21
     paths: [migrations/torve/postgres/**]
     consequence: >-
-      D-12.6 needs every target resolvable from the first release
-  - id: D-12.12
+      S-0012/D-6 needs every target resolvable from the first release
+  - id: D-12
     grade: ASSUMED
     text: >-
       Until a second migration exists, §7's run 2 is the populated form — rows present,
@@ -90,14 +90,14 @@ decisions:
     paths: [tests/test_postgres_integration.py]
     consequence: >-
       One migration has no previous release's schema to restore
-  - id: D-12.13
+  - id: D-13
     grade: ASSUMED
     text: >-
       `torve migrate` replaces `torve store provision` outright — no dual support,
       and nothing was released to deprecate. Added by execution 2026-08-21
     paths: [src/torve/cli/**]
     consequence: Two ways to create one schema diverge
-  - id: D-12.14
+  - id: D-14
     grade: ASSUMED
     text: >-
       `config_hash` digests the `FORZE_VERSION` pin file — the schema regime the migrations
@@ -106,7 +106,7 @@ decisions:
     paths: [src/torve/application/telemetry.py]
     consequence: >-
       A mismatch is a failing check, not a silently different hash
-  - id: D-12.15
+  - id: D-15
     grade: ASSUMED
     text: >-
       The migrate module normalizes DSNs to `postgresql+psycopg://` before handing

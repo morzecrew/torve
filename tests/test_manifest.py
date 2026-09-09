@@ -48,7 +48,7 @@ def test_duplicate_gate_names_refused(tmp_path):
 
 
 def test_an_entry_without_state_or_origin_is_refused(tmp_path):
-    # D-2.19: every manifest entry carries origin and state — a boolean (or an
+    # S-0002/D-19: every manifest entry carries origin and state — a boolean (or an
     # omission) cannot express shadow or quarantine, and provenance is
     # unrecoverable later.
     bad = dict(BASE_MANIFEST, gates=[{"name": "x", "run": "@scope"}])
@@ -78,7 +78,7 @@ def test_config_hash_tracks_manifest_and_skill_lock(tmp_path):
     assert config_hash(path, tmp_path) != first  # the skill set is part of the regime
 
 
-# D-34.4: the axis vocabulary classifies what a conviction from a gate means.
+# S-0034/D-4: the axis vocabulary classifies what a conviction from a gate means.
 # The four words load; anything else is refused at load; an unlabeled entry
 # reads as functional once `resolved_gates()` fills the default.
 
@@ -108,7 +108,7 @@ def test_an_axis_outside_the_vocabulary_is_a_load_error(tmp_path):
         load_manifest(write_manifest(tmp_path, _one_gate("philosophical")))
 
 
-# The sabotage-pair lint at refusal stage (D-36.3): every gate entry names the
+# The sabotage-pair lint at refusal stage (S-0036/D-3): every gate entry names the
 # twin that proves it convicts — a CASES family or a test path. A manifest
 # that names a twin anywhere refuses its twinless entries at load; a manifest
 # naming none at all predates the field — the shipped scenario data builds
@@ -165,7 +165,7 @@ def test_a_twinned_load_is_quiet(tmp_path):
 
 
 def test_a_second_twin_refuses_the_twinless_gate(tmp_path):
-    # The refusal (D-36.3): adopting the field is adopting it wholly — one
+    # The refusal (S-0036/D-3): adopting the field is adopting it wholly — one
     # declared twin turns every twinless sibling from a warning into a load
     # error, before any gate runs.
     with pytest.raises(ValueError, match="without a declared sabotage twin"):
@@ -247,9 +247,9 @@ def test_a_blank_twin_is_refused(tmp_path):
 
 
 def test_this_repositorys_manifest_names_the_projection_gate_and_its_twin():
-    """RFC 0054 D-54.7: the rendered AGENTS.md sections are drift-checked by a
-    manifest gate; it enters at shadow (D-2.18) and names the test file
-    whose drift case reddens it (D-36.3)."""
+    """S-0054 S-0054/D-7: the rendered AGENTS.md sections are drift-checked by a
+    manifest gate; it enters at shadow (S-0002/D-18) and names the test file
+    whose drift case reddens it (S-0036/D-3)."""
 
     from pathlib import Path
 

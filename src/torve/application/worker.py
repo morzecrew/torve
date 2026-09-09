@@ -1,4 +1,4 @@
-"""The worker (RFC 0044 §5.5, D-44.6): claim, execute, record, release.
+"""The worker (S-0044/workers-and-seats, S-0044/D-6): claim, execute, record, release.
 
 A worker holds no assignment state. Everything it knows about the task it
 is running is in the log before it acts and in the log after, so killing
@@ -9,7 +9,7 @@ handed over.
 Execution itself is injected. The worker's job is the lifecycle around an
 attempt — claiming it, recording what happened, releasing it — and the
 machinery that actually runs an agent in a sandbox is v1's, ported as a
-library rather than rewritten (D-44.12). That also makes the lifecycle
+library rather than rewritten (S-0044/D-12). That also makes the lifecycle
 testable without a container.
 """
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class Outcome:
     """How the run ended, for the worker's release decision and nothing
-    else. What each attempt did is recorded by the attempt itself (D-44.3),
+    else. What each attempt did is recorded by the attempt itself (S-0044/D-3),
     so this carries only what the lifecycle branches on: landed, escalated,
     or neither."""
 
@@ -72,7 +72,7 @@ class Worker:
         between them: a worker that remembers what it saw last time is a
         worker whose memory can disagree with the record.
 
-        The contract comes off the board too (D-49.1), so what a worker
+        The contract comes off the board too (S-0049/D-1), so what a worker
         needs to claim and run a task is the record and a worktree — not the
         repository's task directory, which is what "a worker holds nothing
         but a lease" had been true of for state and false of for intent.
@@ -106,7 +106,7 @@ class Worker:
         different tier and each with its own gate verdict, and the worker
         sees one outcome — so a record written from here would be a summary
         claiming to be a history. The attempts report themselves from where
-        they happen (`executors.runner_execute`, D-44.3); this method owns
+        they happen (`executors.runner_execute`, S-0044/D-3); this method owns
         the boundary around them and nothing inside it.
         """
 
@@ -171,7 +171,7 @@ class Worker:
         except (ValueError, RuntimeError) as exc:
             # A dispatch the engine refuses — an unmeasured image regime, a
             # provider the repository may not reach, a role this path does
-            # not implement — is an outcome, not a crash (A-128). Letting it
+            # not implement — is an outcome, not a crash (S-0044/A-11). Letting it
             # escape stranded the claim until the lease ran out, and the
             # failure that showed was "the pass died" rather than "your
             # configuration refuses". It escalates instead: a person is
@@ -180,7 +180,7 @@ class Worker:
             outcome = Outcome(
                 attempt=0,
                 exit_code=EXIT_INFRASTRUCTURE,
-                # Never a document-indicting reason (RFC 0022): the fault
+                # Never a document-indicting reason (S-0022): the fault
                 # is the machine's configuration, and `underspecified`
                 # would blame the contract in the quality readings.
                 escalation=EscalationReason.GATE_INFRASTRUCTURE_FAILURE,

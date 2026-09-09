@@ -1,13 +1,13 @@
-"""The image-as-input mechanism (RFC 0017): digest identity into config_hash
+"""The image-as-input mechanism (S-0017): digest identity into config_hash
 and the attempt record, tier images, `torve sandbox build`, and the doctor's
 image checks. Docker-backed cases skip without a daemon, like the runtime
 conformance battery.
 
-Carries two sections of its own since RFC 0041: the transfer ledger the
-OpenSandbox adapter books per attempt (D-41.5), and the live conformance leg
+Carries two sections of its own since S-0041: the transfer ledger the
+OpenSandbox adapter books per attempt (S-0041/D-5), and the live conformance leg
 that runs the runtime battery a third time against a real server named by
 TORVE_OPENSANDBOX_TEST_DOMAIN, plus the two assertions only a live server
-can answer (D-41.3)."""
+can answer (S-0041/D-3)."""
 
 from __future__ import annotations
 
@@ -174,10 +174,10 @@ def test_sandbox_build_refuses_an_unknown_definition(tmp_path):
 
 
 # ....................... #
-# definition conventions (RFC 0033 §6): the publishable definitions pin
-# their harness versions behind defaulted ARGs (D-33.3) and keep the
+# definition conventions (S-0033/tests): the publishable definitions pin
+# their harness versions behind defaulted ARGs (S-0033/D-3) and keep the
 # toolkit under /opt/torve/ with one transition revision of old-path
-# symlinks (D-33.4). The ARG-pin check is the regex-level test the RFC
+# symlinks (S-0033/D-4). The ARG-pin check is the regex-level test the RFC
 # names; the toolkit contract joins the docker-gated battery below.
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -195,7 +195,7 @@ def _definition_dockerfile(name: str) -> Path:
 
 
 def test_harness_installs_ride_pinned_default_args():
-    # D-33.3: every harness install in a publishable definition consumes a
+    # S-0033/D-3: every harness install in a publishable definition consumes a
     # version ARG whose default is a literal pin — a bump is a one-line
     # reviewed diff, never a rebuild side effect.
     for name, (package, arg) in PUBLISHABLE.items():
@@ -211,7 +211,7 @@ def test_harness_installs_ride_pinned_default_args():
         )
 
 
-# The toolkit contract per image (RFC 0033 §6): what a profile's command
+# The toolkit contract per image (S-0033/tests): what a profile's command
 # template depends on. `answer` must exit 0 inside the container — for dsh
 # the reporter the RFC names, for claude the seed's settings file — and
 # every old path must survive as a symlink for the transition revision.
@@ -250,7 +250,7 @@ def _toolkit_check(name: str) -> str:
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 @pytest.mark.parametrize("name", ["claude", "dsh"])
 def test_toolkit_contract_answers_in_the_container(name, tmp_path):
-    # What CI publishes is what the battery built (D-33.5): the definition
+    # What CI publishes is what the battery built (S-0033/D-5): the definition
     # builds through the same command as an operator's, then answers. The
     # definition bytes are the repo's, the TAG is a throwaway: building
     # under the production tag and rmi-ing it in cleanup deleted the
@@ -353,7 +353,7 @@ def test_the_engine_cli_answers_in_the_container_as_a_sandbox_uid(tmp_path):
 
 
 # ....................... #
-# The battery's dependency layer (D-35.2): pyproject.toml and uv.lock baked
+# The battery's dependency layer (S-0035/D-2): pyproject.toml and uv.lock baked
 # by `uv sync --all-extras --no-install-project` into a fixed
 # UV_PROJECT_ENVIRONMENT, keyed to the lock's bytes so an attempt with an
 # unchanged lock reconciles the delta with zero package downloads. The bake
@@ -366,7 +366,7 @@ LAYER_IMAGE = "torve-agent:battery-layer-probe"
 
 
 def test_battery_bakes_the_lockfile_keyed_dependency_layer():
-    # D-35.2 at the text level, so the layer cannot silently vanish where
+    # S-0035/D-2 at the text level, so the layer cannot silently vanish where
     # no daemon runs: the fixed environment path, a build-time sync of the
     # two project inputs under the flags that make it a dependency layer
     # (--no-install-project keeps the per-attempt source out of it), and
@@ -513,11 +513,11 @@ def test_the_bare_definition_builds_thin_as_before(tmp_path):
 
 
 # ....................... #
-# The derived-cache volume at the runtime adapters (RFC 0035 §5.2,
-# D-35.4/D-35.5): the Docker adapter mounts what the runner names and
+# The derived-cache volume at the runtime adapters (S-0035/the-derived-cache-volume,
+# S-0035/D-4/D-35.5): the Docker adapter mounts what the runner names and
 # points the toolchain cache homes at the mount; the opensandbox adapter
 # refuses the field loudly. The arg-construction cases need no daemon;
-# the cold/warm conformance case (D-35.1) does.
+# the cold/warm conformance case (S-0035/D-1) does.
 
 CACHE_HOMES = {
     "UV_CACHE_DIR": "/opt/torve/cache/uv",
@@ -571,7 +571,7 @@ def test_a_cold_sandbox_carries_no_cache_wiring_at_all(tmp_path):
     from torve.adapters.runtime.docker import DockerRuntime
     from torve.config.runconfig import CACHE_MOUNT
 
-    # Empty (the default) is cold exactly as today (D-35.4): no exports.
+    # Empty (the default) is cold exactly as today (S-0035/D-4): no exports.
     plain = docker_run_args(cache_spec(tmp_path, {}), tmp_path)
     assert not [pair for pair in plain if "_CACHE_DIR=" in pair]
 
@@ -606,7 +606,7 @@ def test_an_explicit_spec_env_wins_over_the_cache_homes(tmp_path):
 
 
 def test_opensandbox_refuses_a_cache_volume_loudly(tmp_path):
-    # D-35.5: a loud refusal, never a quiet cold fallback — a warm tier on
+    # S-0035/D-5: a loud refusal, never a quiet cold fallback — a warm tier on
     # the opensandbox runtime learns about it at the first create, not
     # from a mysteriously slow attempt.
     runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
@@ -628,7 +628,7 @@ def test_the_cache_mount_is_a_fixed_address_outside_the_workspace():
     assert workdir != CACHE_MOUNT
 
 
-# The wall-clock-only doctrine (D-35.1), measured: the same battery over
+# The wall-clock-only doctrine (S-0035/D-1), measured: the same battery over
 # the same tree — populating the volume, reading it back warm, and running
 # again after the operator's `docker volume rm` — must decide identically.
 BATTERY = "/opt/torve/project/.venv/bin/mypy /work/t.py && /opt/torve/project/.venv/bin/ruff check /work/t.py"
@@ -678,7 +678,7 @@ def test_deleting_the_cache_volume_changes_nothing_but_wall_clock(tmp_path):
 
         # Delete-is-always-safe: `docker volume rm` is the eviction policy,
         # and the pass that follows one is indistinguishable from the first
-        # in anything but the seconds it spent (D-35.1).
+        # in anything but the seconds it spent (S-0035/D-1).
         delete_volume()
         deleted = run_pass("torve-cache-conformance-a3")
         assert deleted[0] == 0, deleted[1]
@@ -689,11 +689,11 @@ def test_deleting_the_cache_volume_changes_nothing_but_wall_clock(tmp_path):
 
 
 # ....................... #
-# The transfer ledger (RFC 0041 §5.3, D-41.5): a transferring runtime books
+# The transfer ledger (S-0041/the-transfer-measured, S-0041/D-5): a transferring runtime books
 # each leg's wire bytes and seconds against the task its sandbox is labelled
 # with, and the attempt-row builders drain the booking into a `transfer`
 # block beside the agent block. A mounting runtime — Docker — transfers
-# nothing and its rows lack the key outright: absent stays absent (D-4.6),
+# nothing and its rows lack the key outright: absent stays absent (S-0004/D-6),
 # which is also how an attempt that synced nothing tells itself apart from
 # one whose sync-out moved zero bytes.
 
@@ -787,7 +787,7 @@ def test_a_sandbox_never_synced_out_reports_its_seed_only(tmp_path):
 
 
 def test_both_sandboxes_of_an_attempt_sum_into_one_block():
-    # The agent's sandbox and its -gates battery (D-3.8) move the same tree
+    # The agent's sandbox and its -gates battery (S-0003/D-8) move the same tree
     # twice; the attempt paid for both trips, so the block carries the sum.
     record_transfer("T-9924", seed_bytes=100, seed_seconds=1.0)
     record_transfer("T-9924", seed_bytes=50, sync_out_bytes=60, sync_out_seconds=2.0)
@@ -884,7 +884,7 @@ def test_a_mounting_runtime_books_nothing(tmp_path):
 
 
 # ....................... #
-# The live leg (RFC 0041 §5.1, D-41.3): the same conformance battery, a
+# The live leg (S-0041/live-conformance, S-0041/D-3): the same conformance battery, a
 # third time, against a real server — one environment variable away,
 # skipped when unset, like the Postgres leg. It additionally asserts the
 # two behaviours the stub structurally cannot vouch for: the platform's own

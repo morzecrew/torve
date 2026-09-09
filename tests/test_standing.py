@@ -1,5 +1,5 @@
-"""Standing maintenance (RFC 0023 phase 1): the contract format, the
-command predicate evaluated with no agent, the RFC 0020 lint reused
+"""Standing maintenance (S-0023 phase 1): the contract format, the
+command predicate evaluated with no agent, the S-0020 lint reused
 unchanged, instantiation through the adoption path, and the bounds that
 keep the leg from outpacing triage."""
 
@@ -146,7 +146,7 @@ def write_job(root: Path, job: dict, filename: str | None = None) -> Path:
 
 
 # ----------------------- #
-# The contract format (D-23.1, D-23.5).
+# The contract format (S-0023/D-1, S-0023/D-5).
 
 
 def test_trigger_requires_a_command_line_for_command_kind():
@@ -176,7 +176,7 @@ def test_standing_contract_forbids_unknown_fields():
 
 
 # ----------------------- #
-# Loading (D-23.7: an empty or absent directory is off, not misconfigured).
+# Loading (S-0023/D-7: an empty or absent directory is off, not misconfigured).
 
 
 def test_load_standing_contracts_absent_directory_is_off(tmp_path: Path):
@@ -217,7 +217,7 @@ def test_load_standing_contracts_refuses_duplicate_names(tmp_path: Path):
 
 
 # ----------------------- #
-# The lint, unchanged (D-23.9).
+# The lint, unchanged (S-0023/D-9).
 
 
 def test_lint_job_body_names_the_job_not_a_draft_ref(tmp_path: Path):
@@ -239,7 +239,7 @@ def test_lint_job_body_green_on_a_healthy_body(tmp_path: Path):
 
 
 # ----------------------- #
-# The predicate (D-23.2, D-23.3).
+# The predicate (S-0023/D-2, S-0023/D-3).
 
 
 def test_evaluate_predicate_nonzero_exit_is_due(tmp_path: Path):
@@ -247,7 +247,7 @@ def test_evaluate_predicate_nonzero_exit_is_due(tmp_path: Path):
     runtime = ScriptedRuntime([1])
     assert evaluate_predicate(job, tmp_path, RunnerConfig(), runtime) is True
     assert runtime.commands == ["uv lock --check"]
-    assert runtime.read_only == [True]  # D-23.2's read-only isolation
+    assert runtime.read_only == [True]  # S-0023/D-2's read-only isolation
     assert runtime.created == runtime.destroyed == 1
 
 
@@ -293,7 +293,7 @@ def test_evaluate_predicate_path_digest_never_touches_the_sandbox(seeded):
 
 
 # ----------------------- #
-# Instantiation through the adoption path, unchanged (D-23.4).
+# Instantiation through the adoption path, unchanged (S-0023/D-4).
 
 
 def test_instantiate_mints_through_adoption_and_records_origin(seeded):
@@ -326,7 +326,7 @@ def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
         "0012",
         document(
             "0012",
-            [("D-12.1", "LOCKED", "The rule", "`src/**`")],
+            [("S-0012/D-1", "LOCKED", "The rule", "`src/**`")],
             title="Fixture",
             implementation="none",
         ),
@@ -340,7 +340,7 @@ def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
     )
     assert contract["decisions"] == [
         {
-            "id": "D-12.1",
+            "id": "S-0012/D-1",
             "grade": "LOCKED",
             "text": "The rule",
             "paths": ["src/**"],
@@ -364,7 +364,7 @@ def test_instantiate_records_the_path_digest_baseline(seeded):
 
 
 def test_instantiate_two_firings_differ_only_in_id(seeded):
-    # The comparability D-23.5 exists for (RFC 0023 §12's exit criterion).
+    # The comparability S-0023/D-5 exists for (S-0023/exit-criteria's exit criterion).
     job = StandingContract.model_validate(job_dict())
     first = instantiate(seeded.root, job, RunnerConfig())
     second = instantiate(seeded.root, job, RunnerConfig())
@@ -383,7 +383,7 @@ def test_instantiate_two_firings_differ_only_in_id(seeded):
 
 
 # ----------------------- #
-# The leg's bounds (D-23.6, D-23.11).
+# The leg's bounds (S-0023/D-6, S-0023/D-11).
 
 
 def test_standing_leg_fires_a_due_job(seeded):
@@ -527,7 +527,7 @@ def test_standing_leg_with_no_committed_jobs_is_a_quiet_noop(seeded):
 
 
 # ----------------------- #
-# path-digest through the leg (D-23.8).
+# path-digest through the leg (S-0023/D-8).
 
 
 def test_standing_leg_path_digest_fires_once_then_waits_for_a_change(seeded):
@@ -551,7 +551,7 @@ def test_standing_leg_path_digest_fires_once_then_waits_for_a_change(seeded):
 
 
 # ----------------------- #
-# Self-disable, the fourth bound (D-23.6, RFC 0023 §5.4).
+# Self-disable, the fourth bound (S-0023/D-6, S-0023/bounds-because-this-is-the-leg-that-can-grow).
 
 
 def test_standing_leg_self_disables_after_strike_limit_consecutive_non_landings(seeded):

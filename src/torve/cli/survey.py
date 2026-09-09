@@ -1,8 +1,8 @@
-"""`torve survey` — the brownfield survey (RFC 0031 §5.1, phase 1). Parsing
-and rendering only (D-15.6); the measurement lives in
+"""`torve survey` — the brownfield survey (S-0031/torve-survey, phase 1). Parsing
+and rendering only (S-0015/D-6); the measurement lives in
 `torve.application.survey`. Read-only and agentless by construction: no model,
 no sandbox, no credentials, and nothing written into the target beyond the
-report the operator names with `--output` (D-31.1).
+report the operator names with `--output` (S-0031/D-1).
 
 The exit code reports the measurement, not history's fortunes: a survey is a
 measurement, and a red history is a successful measurement of a red history,
@@ -77,7 +77,7 @@ def _default_branch(root: Path) -> str:
 def _landings(root: Path, branch: str, last: int) -> list[tuple[str, str]]:
     """The first-parent chain of `branch`, newest first: (sha, subject)
     pairs. A merge-heavy history lands merge commits, never the side
-    branches' own commits — that is the walk the survey pins (RFC 0031 §5.1)."""
+    branches' own commits — that is the walk the survey pins (S-0031/torve-survey)."""
 
     proc = subprocess.run(
         [

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0046'
+id: S-0046
 title: The dispatch and its steps
 kind: design
 status: superseded
 implementation: complete
 depends_on: []
-informed_by: ['0003', '0015', '0044', '0045']
+informed_by: [S-0003, S-0015, S-0044, S-0045]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   The runner's 776-line hook factory becomes one typed dispatch object and a handful
@@ -72,15 +72,15 @@ sections:
         them.
       - `AttemptHooks` is a real seam, not an artefact: `src/torve/application/
         shadow.py` builds `real_hooks` for a shadow replay and the DST simulation
-        supplies its own, which is the one-loop-two-harnesses property of RFC 0003
+        supplies its own, which is the one-loop-two-harnesses property of S-0003
         §6. It stays.
       - `run_routing` lives in `runner.py` and `src/torve/application/review.py`
         imports it lazily from inside a function body (line 812). `review.py` is
         therefore already one module-level import away from a cycle.
       - The four decisions embedded in `real_hooks` that must survive verbatim:
-        the brokered-tier credential refusal (D-21.1), the unmeasured-image check
-        and its `allow` escape hatch (D-27.7, A-88), conviction-routed tier
-        advancement (D-27.11), and the ordering of the attempt's endings (D-38.1).
+        the brokered-tier credential refusal (S-0021/D-1), the unmeasured-image check
+        and its `allow` escape hatch (S-0027/D-7, S-0027/A-2), conviction-routed tier
+        advancement (S-0027/D-11), and the ordering of the attempt's endings (S-0038/D-1).
   - key: goals-non-goals
     md: |
       **Goals**
@@ -131,7 +131,7 @@ sections:
           resume: bool
 
           # The regime in force right now: seeded from the task's own tier,
-          # advanced only by a conviction-routed retry (D-27.11).
+          # advanced only by a conviction-routed retry (S-0027/D-11).
           tier_name: str
           tier: TierConfig
           image: str
@@ -147,7 +147,7 @@ sections:
           last_pass: GatePass = field(default_factory=GatePass)
 
           # The denormalised block every record this run appends carries. Stays a
-          # dict because it is a telemetry row under construction — see D-46.6.
+          # dict because it is a telemetry row under construction — see S-0046/D-6.
           meta: dict[str, Any] = field(default_factory=dict)
       ```
 
@@ -165,7 +165,7 @@ sections:
       — resolving a revert's targets, refusing a review with no reviewer — exactly
       where `real_hooks` opens it today. Folding the open into `open_dispatch`
       would move those two refusals to after a live credential route existed, which
-      is the one ordering this design cannot lose (D-46.4). `close_dispatch` is the
+      is the one ordering this design cannot lose (S-0046/D-4). `close_dispatch` is the
       existing `close` hook body, bound as the close hook.
 
       `RunDeps` and `run_routing` move into the same module. `RunDeps` because a
@@ -212,7 +212,7 @@ sections:
       mostly a call into another module, and it has been sitting in the wrong file.
 
       `advance_tier` is called out separately because it is the piece with a
-      decision attached (D-27.11) and no I/O in it: given a dispatch and a state,
+      decision attached (S-0027/D-11) and no I/O in it: given a dispatch and a state,
       it resolves the rung the last pass's convictions select, updates the
       dispatch's regime, and returns the agent to run. That is a unit test with no
       sandbox in it, which is the shape this whole RFC is trying to make possible.
@@ -282,7 +282,7 @@ sections:
         gate-red with no mapping and a green pass both leave it alone. No runtime,
         no agent, no store.
       - `attempt_row` writes one row to the telemetry target and emits one fact
-        carrying the same payload — the A-85 round trip pinned at the step rather
+        carrying the same payload — the S-0044/A-4 round trip pinned at the step rather
         than through a whole run.
       - `open_dispatch` refuses a brokered tier naming a credential, for the task's
         own tier and for a retry rung, with no broker opened in either case — over
@@ -290,7 +290,7 @@ sections:
         own check exists for (the file-read path is already refused by the
         validator).
       - `open_dispatch` returns a dispatch holding no broker handle, and
-        `open_broker` is what issues one: the ordering of D-46.4 asserted directly
+        `open_broker` is what issues one: the ordering of S-0046/D-4 asserted directly
         rather than read off the source.
 
       Explicitly not added: a test asserting the module split. Structure is not
@@ -312,10 +312,10 @@ sections:
         a week and still moving.
       - **The sandbox rework.** Partly landed already (`torve sandbox stage`, the
         shared CLI dockerfile); the rest is a different layer.
-      - **Collapsing the observer ports.** Named as D-46.5, deliberately open.
+      - **Collapsing the observer ports.** Named as S-0046/D-5, deliberately open.
       - **`meta` as a dataclass.** It is a telemetry row under construction and
         typing it means typing `build_attempt_row`, `build_record` and the record
-        payload — a change to `telemetry.py`, not to the runner (D-46.6).
+        payload — a change to `telemetry.py`, not to the runner (S-0046/D-6).
   - key: risks
     md: |
       - **A silent behaviour change inside a step body.** The real risk of any
@@ -323,7 +323,7 @@ sections:
         as indentation changes and parameter substitutions — and by the suite,
         which covers these paths through real runs rather than through mocks.
       - **Ordering.** The setup order must survive exactly: every fallible check
-        before the broker opens. Stated as a decision (D-46.4) rather than left to
+        before the broker opens. Stated as a decision (S-0046/D-4) rather than left to
         the diff, and pinned by a test that asserts `open_dispatch` returns a
         dispatch with no handle and a broker that was never asked.
       - **A wide mechanical diff.** Repointing `RunDeps` and `run_routing` at
@@ -337,7 +337,7 @@ sections:
       - Whether `judge`, `land` and `checkpoint` should follow the review step out
         of `runner.py` once it is smaller. Settled by reading the result, not
         before: if `runner.py` lands near six hundred lines it is fine as it is.
-      - Whether the four observer ports become one struct (D-46.5). Settled by the
+      - Whether the four observer ports become one struct (S-0046/D-5). Settled by the
         fifth observer, if there is one.
   - key: phasing
     md: |
@@ -346,7 +346,7 @@ sections:
       that follows (sources and decisions as records, then the naming pass) lands
       in exactly these files.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: the dispatch object

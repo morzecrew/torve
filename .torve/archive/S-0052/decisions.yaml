@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-52.1
+  - id: D-1
     grade: LOCKED
     text: >-
       The lane becomes a leg of the manager's pass; it is a caller, and changes nothing
@@ -9,16 +9,16 @@ decisions:
     consequence: >-
       Every refusal, gate and serialization the manual lane enforces applies unchanged,
       because it is the same function
-  - id: D-52.2
+  - id: D-2
     grade: LOCKED
     text: >-
       `promotion.auto_merge` returns with its original default of false; a pass with
       it off never lands
     paths: [src/torve/config/runconfig.py]
     consequence: >-
-      D-6.2's opt-in is restored rather than reinvented, and an upgrade changes nothing
-      for anyone
-  - id: D-52.3
+      S-0006/D-2's opt-in is restored rather than reinvented, and an upgrade changes
+      nothing for anyone
+  - id: D-3
     grade: ASSUMED
     text: >-
       The lane runs after the relay and before the mint, and a pause stops it
@@ -26,24 +26,24 @@ decisions:
     consequence: >-
       Landing advances the repository, which is what a pause is a statement about;
       delivering what is already owed is not
-  - id: D-52.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       The conflict disposal is restored without its forge-thread half, which stays
-      owed by RFC 0005 D-5.12
+      owed by S-0005 S-0005/D-12
     paths: [src/torve/application/lane.py, src/torve/cli/manager.py]
     consequence: >-
       The next attempt sees the diff it collided with; it does not see the review
       threads, and the corpus says so rather than implying otherwise
-  - id: D-52.5
+  - id: D-5
     grade: LOCKED
     text: >-
-      The disposal re-queues only when the base tip moved (D-6.12, unchanged)
+      The disposal re-queues only when the base tip moved (S-0006/D-12, unchanged)
     paths: [src/torve/application/lane.py]
     consequence: >-
       A conflict against an unmoved base is the same conflict, and re-queueing it
       is a loop
-  - id: D-52.6
+  - id: D-6
     grade: OPEN
     text: >-
       Whether a pass lands one candidate or drains the queue. Settled by the first

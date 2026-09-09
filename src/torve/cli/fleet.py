@@ -1,5 +1,5 @@
 """`torve fleet` — the operator-side manifest and one pass over every root
-(RFC 0024). Parsing, manifest resolution and rendering only (D-15.6);
+(S-0024). Parsing, manifest resolution and rendering only (S-0015/D-6);
 survey, the shared pause decision, deterministic order and
 failure-recorded continuation live in `torve.application.fleet`, and each
 root's legs are wired by the composition root, `torve.cli.assembly`.
@@ -128,7 +128,7 @@ async def _serve_fleet(
 ) -> FleetServeReport:
     """One log for the fleet, one worker per repository.
 
-    One log because the partition column is what separates boards (D-44.1),
+    One log because the partition column is what separates boards (S-0044/D-1),
     and one worker per repository because an executor is bound to a root and
     a partition — a worker over several would have to rebind mid-pass.
     """
@@ -151,7 +151,7 @@ async def _serve_fleet(
     from torve.domain.events import SubjectType
 
     # The runtime narrates itself on stdout, and stdout is where this verb's
-    # JSON goes. Warnings and worse, on stderr (D-15.6).
+    # JSON goes. Warnings and worse, on stderr (S-0015/D-6).
     configure_logging(level="warning", stream=sys.stderr)
 
     module = await postgres_module(dsn) if dsn else mock_module()
@@ -199,7 +199,7 @@ async def _serve_fleet(
 
         async def boards() -> dict[str, Board]:
             """Every partition's board, folded once a round for the pause
-            decision (D-48.5). One read per repository per round, beside a
+            decision (S-0048/D-5). One read per repository per round, beside a
             round that may run an agent."""
 
             return {

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0031'
+id: S-0031
 title: Brownfield onboarding
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0004', '0030']
-informed_by: ['0007', '0017', '0022']
+depends_on: [S-0004, S-0030]
+informed_by: [S-0007, S-0017, S-0022]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   First contact with a repository that has no corpus: a read-only agentless survey
@@ -25,14 +25,14 @@ sections:
       sales pitch for the second half: a bootstrap skill, running outside the
       engine in a supervised session, drafts a single standing-decisions document
       from the survey and the repository; a human edits, commits and accepts it.
-      From acceptance, RFC 0030's standing inheritance carries its rows into every
+      From acceptance, S-0030's standing inheritance carries its rows into every
       document-less contract, and the battery convicts only work minted after —
       a ratchet, not a purge.
   - key: motivation
     md: |
       Every guarantee this engine makes is demonstrated only where a corpus
       already exists — this repository and the lab. A repository with none gets
-      nothing on day one: no decisions to inherit (RFC 0007 §6a's two remaining
+      nothing on day one: no decisions to inherit (S-0007/cold-start's two remaining
       sources are unbuilt), no gate evidence, and no way to see what the engine
       would have caught except by adopting it first. That inversion — trust
       before evidence — is exactly backwards for a system whose whole claim is
@@ -50,7 +50,7 @@ sections:
     md: |
       - `ShadowWorkspace.create(task_id, parent_sha)`
         (`src/torve/adapters/workspace/git.py`) builds a self-contained truncated
-        clone with no refs beyond the requested sha (D-4.7); `parent_of` and
+        clone with no refs beyond the requested sha (S-0004/D-7); `parent_of` and
         `diff_range` are beside it. The mechanics need a clone-at-landing variant,
         not a new idea.
       - The battery runs over a worktree with an explicit base
@@ -60,11 +60,11 @@ sections:
         log-input gates skip cleanly where no contract exists.
       - The product battery ships in the package with manifest defaults
         (`src/torve/config/manifest.py`, `BUILTINS`); `rfc-valid` set the product-
-        gate precedent (D-7.14).
+        gate precedent (S-0007/D-14).
       - Skills ship as wheel data and materialize per role
         (`src/torve/application/skills.py`); rfc-writer is the authoring
         precedent for a skill that emits corpus documents.
-      - RFC 0030 §5.1 defines how an accepted standing-decisions document reaches
+      - S-0030/standing-inheritance defines how an accepted standing-decisions document reaches
         document-less contracts.
   - key: goals-non-goals
     md: |
@@ -82,7 +82,7 @@ sections:
       - **Agent execution in the target.** The survey runs gates, not agents: no
         sandbox, no model, no cost, no consent problem. Live execution is what
         the adopter graduates to, not what first contact costs.
-      - **Foreign format ingestion.** RFC 0007 §6b stands whole; a Spec Kit or
+      - **Foreign format ingestion.** S-0007/out-of-scope stands whole; a Spec Kit or
         OpenSpec corpus is not read by anything here. The bootstrap skill writes
         *this* corpus's format, and the human accepting it is the judgement a
         bridge cannot carry.
@@ -90,7 +90,7 @@ sections:
         denominators, per landing — populations, not a number (the charter §8a
         instinct, applied to someone else's repository where it matters more).
       - **Fleet or hosting concerns.** One repository, one invocation, operator's
-        machine. RFC 0024 aggregates; a CI packaging surface is named in §8.
+        machine. S-0024 aggregates; a CI packaging surface is named in §8.
   - key: torve-survey
     md: |
       ```
@@ -112,7 +112,7 @@ sections:
       denominators, then one line naming what a corpus would add — the gates that
       skipped every landing and the inheritance layer behind them. Exit 0 always:
       a survey is a measurement, and a red history is a successful measurement of
-      a red history (the D-4.13 shadow-exit doctrine, applied to first contact).
+      a red history (the S-0004/D-13 shadow-exit doctrine, applied to first contact).
 
       With no `.torve/gates.yaml` in the target, the shipped product battery runs
       under manifest defaults; a target that has one is surveyed with its own.
@@ -126,9 +126,9 @@ sections:
       standing decisions — graded honestly (mostly `ASSUMED`; `LOCKED` only where
       the repository's own history shows a boundary being defended), every row
       with paths, no phasing. The skill teaches extraction; the human edits,
-      commits and accepts, exactly as RFC 0007 §6a required: model-assisted
+      commits and accepts, exactly as S-0007/cold-start required: model-assisted
       extraction outside the engine, deterministic reading inside it. From
-      acceptance, RFC 0030 standing inheritance does the rest — no new engine
+      acceptance, S-0030 standing inheritance does the rest — no new engine
       surface exists for the baseline at all.
   - key: the-ratchet
     md: |
@@ -158,7 +158,7 @@ sections:
         against a merge-heavy history; the no-`.torve` default-manifest path and
         the has-manifest path both covered.
       - Read-only property: the target tree byte-identical after a survey run.
-      - Report as value (JSON), not rendered text, per D-18.1's discipline.
+      - Report as value (JSON), not rendered text, per S-0018/D-1's discipline.
       - The skill ships with its own checklist fixture the way rfc-writer's
         template is exercised — a sample survey report in, a checkable document
         shape out.
@@ -174,10 +174,10 @@ sections:
       - **A CI packaging surface** (survey as a GitHub Action on agent PRs) —
         named as the escape hatch once the engine's own surfaces stabilise;
         premature while the CLI contract is still moving.
-      - **`ExecutionLog` as a standing source** — RFC 0007 §6a's third source
+      - **`ExecutionLog` as a standing source** — S-0007/cold-start's third source
         accumulates only after the engine runs somewhere, which is after this
         document's path has been walked; it waits for the evidence it reads.
-      - **Multi-repository survey aggregation** — RFC 0024's fleet view reads
+      - **Multi-repository survey aggregation** — S-0024's fleet view reads
         roots the engine operates; extending it to surveyed strangers can ride a
         later amendment there.
   - key: risks
@@ -192,22 +192,22 @@ sections:
         gates; house-convention gates run only where a target's own manifest
         names them.
       - **The bootstrap skill over-grades.** A generated draft full of `LOCKED`
-        rows would make RFC 0030's threshold refuse everything and poison the
+        rows would make S-0030's threshold refuse everything and poison the
         entry. The skill's doctrine is the mitigation (LOCKED needs defended-
-        boundary evidence), and RFC 0022's calibration report is the correction
+        boundary evidence), and S-0022's calibration report is the correction
         loop once real tasks run.
       - **Trust laundering.** A survey report could be waved as certification.
         The §7 caveat and the no-score non-goal are the answer written down
         before it is needed.
   - key: unresolved-questions
     md: |
-      - D-31.6 (below): one baseline document or several by area; the first real
+      - S-0031/D-6 (below): one baseline document or several by area; the first real
         adoption settles it.
       - Whether `--last N` should walk landings by count or by time window;
         execution decides against real histories and logs the choice.
   - key: phasing
     md: |
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: the-survey
@@ -216,9 +216,9 @@ phasing:
       via the shadow workspace mechanics, the battery run with the parent as base,
       per-gate outcomes collected and the clone removed; no-corpus skips reported
       as findings, product battery under manifest defaults when the target has none,
-      read-only throughout, exit 0 on completed measurement (D-31.1, D-31.4, D-31.5).
-      Tests pin the fixture-history outcomes, the read-only property and the JSON
-      report shape.
+      read-only throughout, exit 0 on completed measurement (S-0031/D-1, S-0031/D-4,
+      S-0031/D-5). Tests pin the fixture-history outcomes, the read-only property
+      and the JSON report shape.
     scope:
       - src/torve/application/survey.py
       - src/torve/cli/survey.py
@@ -236,8 +236,9 @@ phasing:
       skills/corpus-bootstrap shipped as wheel data: the extraction doctrine (mostly
       ASSUMED, LOCKED only on defended boundaries, paths on every row, no phasing),
       the survey report as input, one draft document in this corpus's format as output
-      for a human to edit, commit and accept (D-31.2, D-31.3, D-31.6). A sample survey
-      report and the checkable output shape ride the skill as its fixture.
+      for a human to edit, commit and accept (S-0031/D-2, S-0031/D-3, S-0031/D-6).
+      A sample survey report and the checkable output shape ride the skill as its
+      fixture.
     scope: [skills/corpus-bootstrap/**, tests/test_skills.py]
     acceptance:
       - uv run pytest tests/test_skills.py

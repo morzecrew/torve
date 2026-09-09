@@ -1,23 +1,23 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0055'
+id: S-0055
 title: Standing decisions
 kind: design
 status: accepted
 implementation: complete
 depends_on: []
-informed_by: ['0053']
+informed_by: [S-0053]
 supersedes: []
 superseded_by: null
 owner: misery7100
 description: >-
-  The standing baseline for this repository after RFC 0053's archive: the rows that
+  The standing baseline for this repository after S-0053's archive: the rows that
   govern the tree as it is, drafted through the brownfield lane from the survey, the
   gate record and the archive, for the owner to grade and accept.
 schema_version: 3
 sections:
   - key: summary
     md: |
-      RFC 0053 archived a corpus of 597 rows in fifty-two documents, half of
+      S-0053 archived a corpus of 597 rows in fifty-two documents, half of
       them never cited and a third never inherited. This document is what stands
       in their place: roughly sixty rows, grouped by the boundary each one
       guards, each naming the paths it governs today and citing the archived row
@@ -39,7 +39,7 @@ sections:
       alone, and would produce five rows here. This repository is not a
       stranger's — it has an engine, a record and a graded corpus behind it — so
       the rows below also draw on the code's own structure and the archive, and
-      §2 says which source each group rests on. D-31.6 leaves the baseline's
+      §2 says which source each group rests on. S-0031/D-6 leaves the baseline's
       shape to the first adoption; this is the first adoption, and the shape it
       chose is one document with provenance in the fence.
   - key: the-evidence
@@ -83,9 +83,9 @@ sections:
         --strict` and `basedpyright` strict over `src/` block CI and the
         acceptance fallback; nothing in the archive graded it. Drafted `ASSUMED`
         as an invariant with its check.
-      - **Whether RFC 0053's own rows should be restated here.** They stand in
+      - **Whether S-0053's own rows should be restated here.** They stand in
         the corpus path already and are inherited by path intersection; restating
-        them would be the duplication D-A.4 forbids. Not restated.
+        them would be the duplication S-0016/D-15 forbids. Not restated.
       - **Whether the baseline is one document or several.** One, per the
         skill's recorded shape; the rows below are grouped so a later split by
         area is a cut, not a rewrite.

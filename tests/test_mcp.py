@@ -1,8 +1,8 @@
-"""RFC 0007 §5: the read surface. Read-only by construction (D-7.3) — the
+"""S-0007/mcp-as-the-read-surface: the read surface. Read-only by construction (S-0007/D-3) — the
 registered tool list is pinned so a write tool appearing reddens; the mcp
 package stays an optional extra, its absence a config error (migrate-extra
 precedent). The `why` tool is pinned to the projection's envelope verbatim:
-one reader, every renderer (D-40.1)."""
+one reader, every renderer (S-0040/D-1)."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def test_show_tool_resolves_and_refuses(plan_repo):  # noqa: F811
     assert document["kind"] == "document"
 
     with pytest.raises(Exception) as caught:
-        asyncio.run(server.call_tool("show", {"identifier": "D-9.99"}))
+        asyncio.run(server.call_tool("show", {"identifier": "S-0009/D-99"}))
     assert "nothing defines" in str(caught.value.__cause__)
 
 

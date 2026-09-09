@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0005'
+id: S-0005
 title: Review as a run
 kind: design
 status: superseded
 implementation: partial
-depends_on: ['0003', '0004']
+depends_on: [S-0003, S-0004]
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Independent automated review as a second run role: isolation rules, the finding
@@ -16,7 +16,7 @@ schema_version: 3
 sections:
   - key: the-reframing
     md: |
-      Earlier drafts treated review as "a gate that happens to call a model", and then had to explain why that did not violate D-2. The explanation was strained, and the strain was a signal.
+      Earlier drafts treated review as "a gate that happens to call a model", and then had to explain why that did not violate S-0001/D-10. The explanation was strained, and the strain was a signal.
 
       **Review is not a gate. It is a run with `role: review`.** Same pipeline, same sandbox, same lease, same `Attempt` record, same telemetry. What differs is the input, the output type, and the write permissions.
 
@@ -30,23 +30,23 @@ sections:
 
       This collapses a special case into a parameter, and it makes review inherit everything already built: budgets, poison ceilings, cancellation, cost accounting, trace references, escalation. Nothing about review needs its own lifecycle.
 
-      It also settles D-2 cleanly. A review run invokes a model, and the model's output is **data** — findings with severities. Whether a finding stops the work is decided by configuration, not by the model. The model never causes a transition.
+      It also settles S-0001/D-10 cleanly. A review run invokes a model, and the model's output is **data** — findings with severities. Whether a finding stops the work is decided by configuration, not by the model. The model never causes a transition.
   - key: what-makes-review-independent-rather-than-ceremonial
     md: |
       1. **A different model from the author's.** Same provider and same model shares the author's blind spots. Cross-model is a condition of value, not a refinement.
       2. **A clean session with no access to the author's history.** The reviewer receives the diff, the task, the inherited decisions and the gate results. It does **not** receive the author's session trace or reasoning — otherwise it audits an argument instead of a change.
       3. **A sandbox with no repository write access.** The reviewer physically cannot fix-and-approve. It produces a document, nothing else.
-      4. **Structured output**, not prose (RFC 0001 §3, `Finding`).
+      4. **Structured output**, not prose (S-0001/domain, `Finding`).
       5. **`evidence` is mechanically verified.** A finding whose quoted evidence cannot be located in the diff or a gate log is discarded before a human sees it. Same mechanism as the execution log's evidence check — one implementation, two consumers.
 
          **Be precise about what this buys.** It eliminates fabricated *coordinates*, not fabricated *claims*: a model can cite a real `file.py:42` and describe something that is not there. The filter is cheap and worth having, but the only real defence against the second failure is measurement — the seeded-defect corpus and blocker precision in §6. Any wording suggesting this check removes hallucination is overstated.
 
       Consequence is config: any surviving `blocker` → `escalated` with reason `blocker_finding`; everything else becomes comments for a human to weigh.
 
-      **The runner posts the comments, not the agent.** Findings come back as data and the runner renders and posts them through the `SCM` port. The reviewer keeps no forge credential at all, which is D-4b applied where it is easiest to forget.
+      **The runner posts the comments, not the agent.** Findings come back as data and the runner renders and posts them through the `SCM` port. The reviewer keeps no forge credential at all, which is S-0001/D-13 applied where it is easiest to forget.
   - key: the-review-contract
     md: |
-      *(Added 2026-08-22, with charter A-11.)*
+      *(Added 2026-08-22, with charter S-0001/A-4.)*
 
       A review is minted as a task, using the same contract shape with a different role:
 
@@ -63,16 +63,16 @@ sections:
       tier: reviewer
       ```
 
-      `targets` already exists for `role: revert` (RFC 0010), so a third role needs no new mechanism — the contract shape is parameterised by role and that is all.
+      `targets` already exists for `role: revert` (S-0010), so a third role needs no new mechanism — the contract shape is parameterised by role and that is all.
 
       **A review task has no `acceptance`.** Its output is `Finding[]`, not an exit code. This is a property of the role, not an omission: `implement` is judged by green commands, `review` by findings whose evidence resolves. The `acceptance` gate is skipped for this role rather than passed with an empty list.
 
       **Who mints it.** `torve plan` mints `implement` tasks from an RFC. The **runner** mints the review task when its target reaches `gated`. The planner has no knowledge of review and needs none — review is a consequence of execution, not of specification.
   - key: one-implementation
     md: |
-      *(Rewritten 2026-08-22, with charter A-11; the section previously offered an `Inference`-port default beside a sandboxed harness, and D-5.5 with it — both removed, identifier retired per D-A.4.)*
+      *(Rewritten 2026-08-22, with charter S-0001/A-4; the section previously offered an `Inference`-port default beside a sandboxed harness, and S-0005/D-5 with it — both removed, identifier retired per S-0016/D-15.)*
 
-      The reviewer runs through `Agent`, like every other run. A reviewer reached through a separate port stops being a run: no sandbox, no contract, no budget, no cancellation, no `Attempt`, no `trace_ref`, no role-scoped skills, no place in telemetry — the special case D-5.1 removed, back wearing a port. Its adapter is chosen by `tier: reviewer` in the usual way, and the cross-model requirement (D-5.1, §2) is met by pointing that tier at a different vendor than `executor`.
+      The reviewer runs through `Agent`, like every other run. A reviewer reached through a separate port stops being a run: no sandbox, no contract, no budget, no cancellation, no `Attempt`, no `trace_ref`, no role-scoped skills, no place in telemetry — the special case S-0005/D-1 removed, back wearing a port. Its adapter is chosen by `tier: reviewer` in the usual way, and the cross-model requirement (S-0005/D-1, §2) is met by pointing that tier at a different vendor than `executor`.
   - key: triggers
     md: |
       A board-driven review runs after `gated`. Replacing a third-party pull-request reviewer needs one more path: **review on pull-request open and update**, including on pull requests no agent wrote.
@@ -162,12 +162,12 @@ sections:
       - **Noise, and the muting it causes.** Mitigated by evidence verification, severity limits, debounce, and permission to be clean. Watch the action rate; if it falls below a threshold, cut severities rather than tuning prose.
       - **Cross-model requirement versus budget.** The reviewer is a second model on every change. If the tiering budget cannot carry it, review non-trivial diffs only — but say so in configuration rather than letting it silently degrade.
       - **Reviewing without a spec.** On pull requests with no task, the strongest finding class is unavailable. Do not compensate by letting the reviewer infer a specification; an inferred spec produces confident findings against a standard nobody agreed to.
-      - **Review debt.** Automated review does not reduce the human bottleneck, it feeds it. RFC 0006 owns that.
+      - **Review debt.** Automated review does not reduce the human bottleneck, it feeds it. S-0006 owns that.
   - key: decisions
     md: |
-      D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
+      S-0005/D-5 (`Inference`-port default) was removed 2026-08-22 with charter S-0001/A-4; the identifier is retired, never reused (S-0016/D-15).
 
-      *(Paths relocated 2026-08-22 at acceptance, while draft: the design predates RFC 0015's source tree — there is no `review/` package; review logic lives in `application/review.py` beside the runner, the corpus under `.torve/review-corpus/`, per the D-32 relocation precedent.)*
+      *(Paths relocated 2026-08-22 at acceptance, while draft: the design predates S-0015's source tree — there is no `review/` package; review logic lives in `application/review.py` beside the runner, the corpus under `.torve/review-corpus/`, per the S-0001/D-32 relocation precedent.)*
   - key: phasing
     md: |
       *(Added 2026-08-22 at acceptance. The forge-facing legs — pull-request triggers, comment posting, the §7 replacement sequence and the two-week shadow — need a remote and stay operator/deferred work; the phases below are what a repository with no forge can build and verify.)*

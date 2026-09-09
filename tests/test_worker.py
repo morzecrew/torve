@@ -1,9 +1,9 @@
-"""The worker's lifecycle (RFC 0044 §5.5).
+"""The worker's lifecycle (S-0044/workers-and-seats).
 
 Execution is injected, so these cases are about the lifecycle around an
 attempt and not about sandboxes: what a worker records, in what order, and
 what the board says after — including after a worker dies in the middle,
-which is the property D-44.6 exists for.
+which is the property S-0044/D-6 exists for.
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def run(scenario):
 
 
 async def mint(log, task_id, *, allow=("src/**",)):
-    """One mint carrying its contract (RFC 0049 D-49.1) — the scope a
+    """One mint carrying its contract (S-0049 S-0049/D-1) — the scope a
     worker's claim reads for disjointness comes off the board now."""
 
     await log.record(
@@ -90,7 +90,7 @@ def test_a_green_pass_claims_runs_and_lands():
 
         assert handled == "T-1"
         # The lifecycle and nothing else: what happened inside the run is
-        # reported by the run itself (D-44.3), and an injected execute
+        # reported by the run itself (S-0044/D-3), and an injected execute
         # reports nothing — a worker that filled the gap here would be
         # writing a summary that claims to be a history.
         assert [event.kind for event in history] == [
@@ -150,7 +150,7 @@ def test_an_attempt_that_neither_landed_nor_escalated_returns_to_the_queue():
 
 
 def test_a_worker_killed_mid_attempt_leaves_a_log_that_says_where_it_stopped():
-    """D-44.6: a kill costs the lease and nothing else. The facts recorded
+    """S-0044/D-6: a kill costs the lease and nothing else. The facts recorded
     before the death stand, and no later fact is invented on its behalf."""
 
     async def scenario(log):
@@ -206,7 +206,7 @@ def test_a_worker_takes_the_next_disjoint_task_beside_one_in_flight():
 
 
 def test_a_landed_run_state_maps_to_a_landing_fact():
-    """The seam to v1's runner (D-44.12): a run state becomes the facts the
+    """The seam to v1's runner (S-0044/D-12): a run state becomes the facts the
     log holds, and nothing in the mapping decides anything."""
 
     state = RunState(task_id="T-1", path=Path("/tmp/unused"))

@@ -1,4 +1,4 @@
-"""Pull-request composition (RFC 0010 §6, D-10.6): the body is built from
+"""Pull-request composition (S-0010/pull-request-composition, S-0010/D-6): the body is built from
 data — the contract, the gate outcomes, the inherited decisions, the
 execution log's divergences, cost and trace — never from the agent's prose.
 A self-report is not evidence; the pull request reads as a claim with proof

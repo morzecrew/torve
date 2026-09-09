@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0006'
+id: S-0006
 title: Merge train and escalation policy
 kind: design
 status: superseded
 implementation: partial
-depends_on: ['0003']
-informed_by: ['0005']
+depends_on: [S-0003]
+informed_by: [S-0005]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Serialized landing of candidates, promotion criteria, escalation routing, and how
@@ -27,14 +27,14 @@ sections:
 
       What does not change: the engine never resolves a conflict and never merges without the configured approval. A merge conflict is an escalation with reason `merge_conflict`. Serialization orders candidates; it does not assume authority.
 
-      *Amended by A-26 2026-08-23 (registered on the charter):* the escalation is literal. A conflicted rebase aborts, the branch stays exactly as measured, and the run transitions `ready → escalated` with reason `merge_conflict` — the queue's age (D-6.8) starts counting the moment a landing fails, not when a human happens to read the lane report. The `ready → escalated` edge is opened in the charter's §4 table by the same amendment; `ready` stays terminal to the engine everywhere else. Resolution is the standard escalated fork: re-queue to re-run the task against the moved base, or abandon when a human landed the work by hand.
+      *Amended by S-0001/A-9 2026-08-23 (registered on the charter):* the escalation is literal. A conflicted rebase aborts, the branch stays exactly as measured, and the run transitions `ready → escalated` with reason `merge_conflict` — the queue's age (S-0006/D-8) starts counting the moment a landing fails, not when a human happens to read the lane report. The `ready → escalated` edge is opened in the charter's §4 table by the same amendment; `ready` stays terminal to the engine everywhere else. Resolution is the standard escalated fork: re-queue to re-run the task against the moved base, or abandon when a human landed the work by hand.
 
-      *Execution note 2026-08-23 (T-0048):* the rebase path releases the candidate's engine worktree first — the run's own worktree pins the task branch, and git refuses a second checkout; a `ready` run's worktree is disposable, its work lives on the branch. A-26's merge-before-reap ordering concerns state files; the lane owns the worktree half itself.
+      *Execution note 2026-08-23 (T-0048):* the rebase path releases the candidate's engine worktree first — the run's own worktree pins the task branch, and git refuses a second checkout; a `ready` run's worktree is disposable, its work lives on the branch. S-0001/A-9's merge-before-reap ordering concerns state files; the lane owns the worktree half itself.
 
       *Execution note 2026-08-23 (T-0052):* the cleanliness guard scopes to landed content — the engine's own record files (task directories under `.torve/tasks/`, the manifest's telemetry file, the outbox pair) never block the lane, and a refusal names the offending paths. The first standing-team run surfaced the papercut: the runner-minted review contract lands untracked in the root checkout, and a blanket guard made every landing demand a human commit of engine bookkeeping first. The reviewed regime files (`gates.yaml`, `config.yaml`, the sandbox and vendored-skill trees) stay refusable dirt.
   - key: prevention-beats-ordering
     md: |
-      Two tasks whose `scope.allow` sets intersect must not run concurrently. That check happens **before dispatch** (RFC 0002 §6), which is strictly better than resolving the collision after both have produced work.
+      Two tasks whose `scope.allow` sets intersect must not run concurrently. That check happens **before dispatch** (S-0002/scope-in-detail), which is strictly better than resolving the collision after both have produced work.
 
       The merge train handles what gets through anyway — base moving under a long task, shared lockfiles, generated artefacts.
   - key: promotion
@@ -54,9 +54,9 @@ sections:
 
       **Auto-merge stays off by default.** Where enabled, restrict it to a named task class with high test coverage — not a global switch.
 
-      *Execution note 2026-08-24 (T-0060/T-0061):* `approvals` and `quiet_window` landed as flat fields beside `auto_merge` and `require_ci` (the sketch's `require:` list shape was already departed from at T-0048), both zero-disabled. An approval is recorded on the run state as {actor, sha, at} by a commander's `/torve approve` (RFC 0008 D-8.9's authorization applies); the lane counts only approvals of the branch tip as measured at lane start. The quiet window is plain seconds — no duration parser exists and one knob does not justify one.
+      *Execution note 2026-08-24 (T-0060/T-0061):* `approvals` and `quiet_window` landed as flat fields beside `auto_merge` and `require_ci` (the sketch's `require:` list shape was already departed from at T-0048), both zero-disabled. An approval is recorded on the run state as {actor, sha, at} by a commander's `/torve approve` (S-0008 S-0008/D-9's authorization applies); the lane counts only approvals of the branch tip as measured at lane start. The quiet window is plain seconds — no duration parser exists and one knob does not justify one.
 
-      *Amended by A-43 2026-08-26:* the `review: no_blocker_findings` criterion becomes a lane predicate (D-6.14). `promotion.require_review` — default false, zero-disabled like its siblings — makes the lane land only a candidate whose producing run recorded a concluded review: `reviewed_by` on the run state, set when the task-gated review survives without a blocker, cleared on every entry to `running` so no verdict outlives the attempt it judged. The check precedes the approvals prompt — a candidate the policy cannot land is never offered for approval — and both lanes enforce it: it is promotion policy, not loop behavior.
+      *Amended by S-0006/A-3 2026-08-26:* the `review: no_blocker_findings` criterion becomes a lane predicate (S-0006/D-14). `promotion.require_review` — default false, zero-disabled like its siblings — makes the lane land only a candidate whose producing run recorded a concluded review: `reviewed_by` on the run state, set when the task-gated review survives without a blocker, cleared on every entry to `running` so no verdict outlives the attempt it judged. The check precedes the approvals prompt — a candidate the policy cannot land is never offered for approval — and both lanes enforce it: it is promotion policy, not loop behavior.
 
       *Execution note 2026-08-23 (T-0048):* `green_on_current_head` reads the LATEST run per workflow for the head sha — a re-run supersedes the run it replaces, and a stale failure must not veto a green rerun; a red run of a different workflow still does. A base push invalidates in-flight merge-ref runs, so a lane consulting pull-request-event CI should expect one retrigger after the base moves.
   - key: human-attention-is-the-scarce-resource
@@ -114,16 +114,16 @@ sections:
       **The signal that matters most is not in the table: escalation queue age.** A queue nobody triages looks identical to success from the runner's side, and is the failure mode most likely to actually happen here.
   - key: decisions
     md: |
-      D-6.11 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0006/D-11 was retired 2026-09-09; path rot. The identifier is never reused.
   - key: phasing
     md: |
-      *(Added 2026-08-23 at acceptance, with the path relocation to RFC 0015's
+      *(Added 2026-08-23 at acceptance, with the path relocation to S-0015's
       tree — no `lane/` package exists. The forge-shaped legs stay deferred with
       the forge: CI polling with backoff, the approvals/quiet-window promotion
-      fields, and the notifier the outbox feeds (deferred from RFC 0003 D-3.18,
+      fields, and the notifier the outbox feeds (deferred from S-0003 S-0003/D-18,
       deferred again here — there is no channel to notify until one exists;
-      *execution note 2026-08-23 (T-0051):* the channel now exists — RFC 0008's
-      tracker — and the notifier landed through it, D-6.11). In
+      *execution note 2026-08-23 (T-0051):* the channel now exists — S-0008's
+      tracker — and the notifier landed through it, S-0006/D-11). In
       the local regime the operator invoking the lane is the configured approval,
       and the gate battery is current-head CI.)*
   - key: exit-criteria

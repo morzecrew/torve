@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0009
+id: S-0009
 title: Skills and evals
 kind: design
 status: superseded
 implementation: partial
-depends_on: ['0004']
+depends_on: [S-0004]
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Skill routing per role, versioned distribution, trigger collision, and the eval
@@ -31,7 +31,7 @@ sections:
       | **Taste and refactoring** | naming, nesting, composition, premature optimisation | Widely-known practice that frontier models largely have. Marginal uplift plausibly near zero; the cluster most likely to fail an eval. |
       | **Verification discipline** | reproduce-then-fix, reading-isn't-proof, self-audit, failure-path-review, ratchet-what-you-build | **The valuable one.** These encode behaviours models do not exhibit by default — not fixing before reproducing, claiming done without running. High uplift because the fight is against default behaviour, not ignorance. |
 
-      Consequence: cluster C is effectively a verification harness in prose, and it maps directly onto the gates in RFC 0002. Grow it; put A behind hooks; make B prove itself.
+      Consequence: cluster C is effectively a verification harness in prose, and it maps directly onto the gates in S-0002. Grow it; put A behind hooks; make B prove itself.
   - key: trigger-collision-is-the-real-cost
     md: |
       Two dozen skills with broad triggers means several fire on one diff — naming, self-documenting-code and nesting all match any code review. That multiplies context and can produce contradictory instructions, and neither effect is visible without measurement.
@@ -59,17 +59,17 @@ sections:
       The engine reads skills but does not interpret them — they are passed to the agent adapter, which places them where its harness expects. Portability matters here: the `SKILL.md` convention is honoured by several harnesses, which is what keeps the library from being locked to one vendor.
   - key: vendored-skills
     md: |
-      *Added by amendment A-25 2026-08-22.*
+      *Added by amendment S-0009/A-2 2026-08-22.*
 
-      The package ships only the skills Torve parses (A-3), which leaves the rest of a team's library — review checklists, stack conventions, everything in `agent-skills` — with no road into the sandbox. The road is the same one the sandbox definitions took (RFC 0017 §2): **committed, reviewed artefacts in the repository**.
+      The package ships only the skills Torve parses (S-0009/A-1), which leaves the rest of a team's library — review checklists, stack conventions, everything in `agent-skills` — with no road into the sandbox. The road is the same one the sandbox definitions took (S-0017/the-image-is-an-input-not-an-environment): **committed, reviewed artefacts in the repository**.
 
       A repository vendors skills under `.torve/skills-vendor/<name>/`, each a directory with a `SKILL.md`. Role sets in the runner configuration name them exactly as they name shipped skills, and `materialize` resolves each name against package data and the vendor directory together; a name unknown to both stays a configuration error, exit 3.
 
       Three lines hold the shape:
 
-      - **A name present in both places is a configuration error, refused** — never shadowed in either direction. This structurally enforces the A-3 boundary: a vendored variant of `flag-dont-flip` would drift against the gate that parses its output, which is the exact failure A-3 exists to prevent.
-      - **The vendored tree's content digest joins `config_hash`.** An edited vendored skill is a regime change and the records say so — the image-digest doctrine (RFC 0017, D-17.1) applied to prompt-side inputs.
-      - **This is the task-context channel** (RFC 0017 §3): vendored skills are reviewed repository content instructing the agent about the *work*, which is allowed; what stays forbidden is the repository configuring the *harness* that works on it (D-17.4). Skills materialize per role at dispatch exactly as shipped skills do — a review role gets its review set, an implementation role its own.
+      - **A name present in both places is a configuration error, refused** — never shadowed in either direction. This structurally enforces the S-0009/A-1 boundary: a vendored variant of `flag-dont-flip` would drift against the gate that parses its output, which is the exact failure S-0009/A-1 exists to prevent.
+      - **The vendored tree's content digest joins `config_hash`.** An edited vendored skill is a regime change and the records say so — the image-digest doctrine (S-0017, S-0017/D-1) applied to prompt-side inputs.
+      - **This is the task-context channel** (S-0017/configuration-routes-by-nature): vendored skills are reviewed repository content instructing the agent about the *work*, which is allowed; what stays forbidden is the repository configuring the *harness* that works on it (S-0017/D-4). Skills materialize per role at dispatch exactly as shipped skills do — a review role gets its review set, an implementation role its own.
 
       Vendoring is a copy, pinned by review: updating from an upstream library like `agent-skills` is a diff someone reads, not a submodule that moves under the run. If a lockfile-driven sync ever earns its keep, it arrives as tooling around this layout, not as a second channel.
 

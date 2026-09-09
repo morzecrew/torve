@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0050'
+id: S-0050
 title: The projection set over the record
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0044', 0049]
-informed_by: ['0022', '0032', '0040', '0047']
+depends_on: [S-0044, S-0049]
+informed_by: [S-0022, S-0032, S-0040, S-0047]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   The reports the engine answers planning questions with move onto the record, one
@@ -18,10 +18,10 @@ schema_version: 3
 sections:
   - key: summary
     md: |
-      RFC 0049 put the last missing join in the record. Every fact `why`,
+      S-0049 put the last missing join in the record. Every fact `why`,
       `status` and `context` read from files now also exists as an event — the
       contract, the attempts, the gate outcomes, the landings, the escalations,
-      the divergences, and since RFC 0047 the decisions.
+      the divergences, and since S-0047 the decisions.
 
       This moves the readers, carefully. Each report gains a record-backed
       implementation that answers when the log holds the run and defers to the
@@ -45,7 +45,7 @@ sections:
       stable envelope, not a redesign — which is what makes a parity test possible
       and what makes the report's shape a non-goal.
 
-      **A-86's wall has not moved.** A reader pointed at the record today would
+      **S-0044/A-5's wall has not moved.** A reader pointed at the record today would
       report `found: false` for every task a v1 `torve run` executed, which is the
       worst available answer: not an error, not empty — *wrong*, and confidently.
       That is why this lands beside rather than instead.
@@ -63,7 +63,7 @@ sections:
         calibration, document signals, the programme and the specification-quality
         block. It reads files for every one of them.
       - `specquality.read_tasks` is a four-way filesystem join whose four legs all
-        have recorded equivalents as of RFC 0049.
+        have recorded equivalents as of S-0049.
       - `EventLog.history(subject_id)` returns one subject's events oldest-first
         in a single read, which is exactly the shape `why` needs.
       - The board (`manager.project`) already *is* `status`, folded per partition.
@@ -85,7 +85,7 @@ sections:
         someone else's document; this one moves what exists.
       - **Not `context` in the first pass.** It is the largest and it joins the
         corpus; it goes last, on the pattern the first two establish.
-      - **Not the specification-quality readings.** RFC 0022's populations join
+      - **Not the specification-quality readings.** S-0022's populations join
         landed-window semantics that deserve their own reading, and they are the
         least urgent.
   - key: selection-is-explicit-never-guessed
@@ -107,7 +107,7 @@ sections:
     md: |
       `why`'s five joins keep their signatures **and their code**. The row source
       is what changes, and it changes by rendering rather than by re-implementing:
-      A-85 made the telemetry row a rendering of the event payload, so the record
+      S-0044/A-4 made the telemetry row a rendering of the event payload, so the record
       is rendered into the rows those joins already read (`rows_from_events`).
       Parity is then close to tautological — both sides are the same object
       through the same `record_row` — and a difference is a defect in one
@@ -117,13 +117,13 @@ sections:
 
       | Envelope key | From files | From the record |
       | --- | --- | --- |
-      | `rfc` | the contract head on disk | the minted contract (D-49.1) |
-      | `attempts` | telemetry rows for the task | `attempt.finished` and `gates.evaluated` payloads, which are the same record (A-85) |
+      | `rfc` | the contract head on disk | the minted contract (S-0049/D-1) |
+      | `attempts` | telemetry rows for the task | `attempt.finished` and `gates.evaluated` payloads, which are the same record (S-0044/A-4) |
       | `events` | engine rows in the stream | `escalation.raised`, `task.released`, `divergence.recorded` |
       | `reviews` | review rows in the stream | `review.recorded`, `blocker.raised` |
       | `state` | derived from the rows | the board's own view |
 
-      The attempt row is the load-bearing one, and it is already solved: A-85 made
+      The attempt row is the load-bearing one, and it is already solved: S-0044/A-4 made
       the telemetry row a *rendering* of the event payload, so the record-backed
       reader is reading the same object the file reader parses back. That is why
       this is a parity test rather than a reconciliation.
@@ -171,7 +171,7 @@ sections:
         fake a taskless history.
       - **The attempt block round-trips**: an `attempt.finished` payload folded
         into a why entry equals the entry built from the telemetry row rendered
-        from the same payload, which is A-85 asserted from the reading end.
+        from the same payload, which is S-0044/A-4 asserted from the reading end.
       - Explicitly not tested: that the record is complete. It is not, that is the
         migration, and the fallback is what makes an incomplete record safe.
   - key: docs
@@ -187,7 +187,7 @@ sections:
         to establish.
       - **Deleting the telemetry stream.** It is a rendered carrier with readers
         outside this engine, and it survives the readers moving.
-      - **A projection cursor.** Named in RFC 0044 §5.7 and not needed while these
+      - **A projection cursor.** Named in S-0044/ports-and-what-binds-first and not needed while these
         are on-demand folds over one subject or one partition.
   - key: risks
     md: |
@@ -257,9 +257,9 @@ phasing:
     title: context, over the record and the corpus
     intent: >-
       The planning view moves last and reads two records rather than one: the decision
-      graph RFC 0047 imported for its corpus half, and the event log for its execution
+      graph S-0047 imported for its corpus half, and the event log for its execution
       half. Its blocks land one at a time behind the same selection rule — tasks and
-      programme first, since RFC 0049 made those a fold; costs and harness populations
+      programme first, since S-0049 made those a fold; costs and harness populations
       next, since the attempt payload already carries what they count; the specification-quality
       readings last, because their landed-window semantics are their own reading rather
       than a source swap.

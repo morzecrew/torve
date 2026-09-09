@@ -1,4 +1,4 @@
-"""The explicit non-destination (RFC 0051 D-51.4)."""
+"""The explicit non-destination (S-0051 S-0051/D-4)."""
 
 from __future__ import annotations
 

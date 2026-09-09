@@ -1,36 +1,36 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-6.1
+  - id: D-1
     grade: LOCKED
     text: >-
       `ready` is a serialized lane; only this state is capped
     paths: [src/torve/application/lane.py, src/torve/cli/merge.py]
     consequence: >-
       Otherwise concurrent merges invalidate each other
-  - id: D-6.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Auto-merge off by default, opt-in per repository and task class
     paths: [src/torve/config/runconfig.py]
     consequence: >-
       Reversing this is how review debt becomes invisible
-  - id: D-6.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       Review freshness is measured against current head; a push resets the window
     paths: [src/torve/application/lane.py]
-  - id: D-6.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       Escalations are batched into review windows except blockers and locked conflicts
     paths: [src/torve/application/projections.py]
     consequence: Tune the split once resolution times are known
-  - id: D-6.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       Parallelism increases only when escalation resolution time is stable
     consequence: The bottleneck is a person, not the pool
-  - id: D-6.6
+  - id: D-6
     grade: LOCKED
     text: >-
       Blocked dispatch is logged with cause and counted per path; `torve kill` always
@@ -38,20 +38,20 @@ decisions:
     paths: [src/torve/application/runner.py, src/torve/cli/run.py]
     consequence: >-
       Contention must be diagnosable before it is designed for
-  - id: D-6.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       Engine health rides the existing telemetry path as `EngineEvent`
     paths: [src/torve/application/telemetry.py]
     consequence: >-
       A second observability stack is a second thing to operate
-  - id: D-6.8
+  - id: D-8
     grade: LOCKED
     text: Escalation queue age is the primary alert
     paths: [src/torve/application/telemetry.py]
     consequence: >-
       The failure that is invisible from inside the runner
-  - id: D-6.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       Dispatch keys durable runs by task and generation, so concurrent dispatches
@@ -61,16 +61,17 @@ decisions:
     consequence: >-
       The simulation surfaced idempotent claim convergence as the stronger mutual-exclusion
       mechanism
-  - id: D-6.10
+  - id: D-10
     grade: LOCKED
     text: >-
       A conflicted landing escalates the run — `ready → escalated`, reason `merge_conflict`;
-      the branch is left exactly as measured. Added by amendment A-26 2026-08-23 (registered
-      on the charter). Amended by A-35 2026-08-24: in the standing loop the escalation's
-      standard disposal is applied in place — the branch is captured for the revision
-      loop (RFC 0005 §4a) and the run re-queued, at most once per base tip (D-6.12);
-      resolution stays human — re-queue or abandon — wherever the loop cannot dispose:
-      a repeat conflict against an unmoved base, or the operator's manual lane
+      the branch is left exactly as measured. Added by amendment S-0001/A-9 2026-08-23
+      (registered on the charter). Amended by S-0006/A-1 2026-08-24: in the standing
+      loop the escalation's standard disposal is applied in place — the branch is
+      captured for the revision loop (S-0005/the-revision-loop-added-by-a-32-2026-08-24)
+      and the run re-queued, at most once per base tip (S-0006/D-12); resolution stays
+      human — re-queue or abandon — wherever the loop cannot dispose: a repeat conflict
+      against an unmoved base, or the operator's manual lane
     paths:
       - src/torve/domain/states.py
       - src/torve/application/lane.py
@@ -78,32 +79,33 @@ decisions:
     consequence: >-
       Otherwise a candidate that cannot land is invisible to the escalation queue,
       whose age is the primary alert
-  - id: D-6.12
+  - id: D-12
     grade: ASSUMED
     text: >-
       The lane's automatic conflict disposal is bounded by progress: it re-queues
       only when the base tip differs from the last conflicted base this run recorded
       — landings are the only source of new conflicts, so the bound is structural
       — and a repeat conflict against an unmoved base escalates for a human. The operator's
-      manual lane never auto-disposes. Added by amendment A-35 2026-08-24
+      manual lane never auto-disposes. Added by amendment S-0006/A-1 2026-08-24
     paths: [src/torve/application/lane.py, src/torve/cli/tick.py]
     consequence: >-
       An automatic requeue without a progress bound is a spin loop wearing doctrine
-  - id: D-6.13
+  - id: D-13
     grade: ASSUMED
     text: >-
       The conflict probe precedes the prompt: a candidate short of approvals whose
       base has moved is probed read-only (`git merge-tree`, no worktree, no ref moves
       — the merge verdict is the rebase verdict under one commit per attempt), and
-      a provably conflicting tip is never offered for approval — the A-35 disposal
-      fires at probe time, D-6.12's progress bound and manual-lane exemption included;
-      a clean probe prompts exactly as before, the approval honoured through the landing's
-      mechanical rebase (D-6.3 untouched). Added by amendment A-42 2026-08-25
+      a provably conflicting tip is never offered for approval — the S-0006/A-1 disposal
+      fires at probe time, S-0006/D-12's progress bound and manual-lane exemption
+      included; a clean probe prompts exactly as before, the approval honoured through
+      the landing's mechanical rebase (S-0006/D-3 untouched). Added by amendment S-0006/A-2
+      2026-08-25
     paths: [src/torve/application/lane.py, src/torve/adapters/vcs/git.py]
     consequence: >-
       Approve-twice: the human approved a tip, watched it conflict seconds later,
       and was asked again — the burn was discoverable before the ask
-  - id: D-6.14
+  - id: D-14
     grade: ASSUMED
     text: >-
       The sketch's `review: no_blocker_findings` criterion is a lane predicate, zero-disabled
@@ -113,7 +115,7 @@ decisions:
       on every entry to `running`. The unconfigured-review bridge never sets it, so
       a repository that demands reviews cannot silently land unreviewed work after
       configuration drift; the refusal (`lane_review_missing`) precedes the approvals
-      prompt, and both lanes enforce it. Added by amendment A-43 2026-08-26
+      prompt, and both lanes enforce it. Added by amendment S-0006/A-3 2026-08-26
     paths:
       - src/torve/application/lane.py
       - src/torve/application/runner.py
@@ -122,4 +124,4 @@ decisions:
     consequence: >-
       Review-gating lived only runner-side — one `review.on` edit away from landing
       unreviewed candidates with no refusal anywhere
-retired: [D-6.11]
+retired: [D-11]

@@ -1,10 +1,10 @@
-"""Vcs/Scm adapters (RFC 0010 §2, grown from the RFC 0003 skeleton). The
+"""Vcs/Scm adapters (S-0010/two-ports-deliberately-separate, grown from the S-0003 skeleton). The
 commit is the runner's artefact: author is the agent identity the runner
-passes in (D-10.2 — never a human), committer is Torve, and when a signing
+passes in (S-0010/D-2 — never a human), committer is Torve, and when a signing
 key path is configured the commit is SSH-signed here, at the runner
-boundary, with a key no sandbox ever saw (D-10.3). Revert is mechanical
+boundary, with a key no sandbox ever saw (S-0010/D-3). Revert is mechanical
 git — `revert --no-commit` staging the inverse tree for the normal landing
-commit (one commit per attempt, D-10.8); a conflicted revert aborts and
+commit (one commit per attempt, S-0010/D-8); a conflicted revert aborts and
 returns False, the engine never resolves one.
 """
 
@@ -34,7 +34,7 @@ def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def repository_name(root: Path) -> str:
-    """The name provider routing keys on (RFC 0004 §6b): `org/repo` from the
+    """The name provider routing keys on (S-0004/provider-routing-and-data-boundaries): `org/repo` from the
     origin remote when one exists, the directory name otherwise — stable
     across checkouts, which a path is not."""
 
@@ -85,7 +85,7 @@ class GitVcs:
 
     def landed_shas(self, worktree: Path, task_id: str) -> list[str]:
         """The commits a task landed, newest first — reconstructed from the
-        Torve-Task trailer alone (D-10.4: git log is the surviving record)."""
+        Torve-Task trailer alone (S-0010/D-4: git log is the surviving record)."""
 
         proc = _git(
             worktree, "log", "--format=%H", "--fixed-strings", f"--grep=Torve-Task: {task_id}"
@@ -123,7 +123,7 @@ class GitVcs:
 
     def changed_names(self, worktree: Path) -> list[str]:
         """The head commit's touched paths — the pull-request body's
-        `Changed` section is composed from this record (D-10.6)."""
+        `Changed` section is composed from this record (S-0010/D-6)."""
 
         out = _git(worktree, "show", "--pretty=format:", "--name-only", "HEAD")
 
@@ -136,12 +136,12 @@ class GitVcs:
     ) -> bool:
         """Push targets only the task's own branch. Without *supersede* the
         push is additive — no force path, which is how the base is pushed
-        (D-19.9). With it, the attempt wholly supersedes the prior candidate
-        on the task's persistent branch (D-10.10, A-37): a leased force so a
+        (S-0019/D-9). With it, the attempt wholly supersedes the prior candidate
+        on the task's persistent branch (S-0010/D-10, S-0010/A-1): a leased force so a
         ref the engine does not expect refuses; feedback was captured before
-        the requeue (D-5.12). The token, when given, reaches git through a
+        the requeue (S-0005/D-12). The token, when given, reaches git through a
         credential helper reading the runner's environment: never on argv,
-        never in the worktree (D-4b)."""
+        never in the worktree (S-0001/D-13)."""
 
         remotes = _git(worktree, "remote")
 
@@ -186,7 +186,7 @@ class GitVcs:
     def delete_remote_branch(self, root: Path, branch: str, token: str | None = None) -> bool:
         """The retry command's re-queue cleanup (T-0059): delete the task's
         own remote branch — a ref deletion under the commander's explicit
-        authority, never a history rewrite (D-10.5 stands). Returns True
+        authority, never a history rewrite (S-0010/D-5 stands). Returns True
         when the branch is gone (deleted now, or already absent — some
         transports report each differently), False when there is no
         origin; raises on anything else, so a half-applied retry refuses
@@ -224,11 +224,11 @@ class GitVcs:
     # ....................... #
 
     def republish_branch(self, root: Path, branch: str, token: str | None = None) -> bool:
-        """The landed form returns to its branch (D-19.12, A-34): a rebased
+        """The landed form returns to its branch (S-0019/D-12, S-0019/A-5): a rebased
         landing republishes the candidate branch at its landed tip so the
         forge recognizes the base push as the merge of its pull request.
         Engine-owned namespace, at landing time only — after the sha-bound
-        approvals concluded the review D-10.5 protects — and with lease, so
+        approvals concluded the review S-0010/D-5 protects — and with lease, so
         a ref the engine does not expect refuses rather than clobbers.
         False when there is no origin; raises on a refused push."""
 
@@ -275,7 +275,7 @@ class GitVcs:
         """Fetch the pull request's head and its base branch into local
         refs and return (base_sha, head_sha). The token reaches git the
         same way push's does: a credential helper reading the runner's
-        environment, never argv (D-4b)."""
+        environment, never argv (S-0001/D-13)."""
 
         config: list[str] = []
         env = None
@@ -349,7 +349,7 @@ class GitVcs:
 
 
 class GitLane:
-    """The lane's git surface (RFC 0006 §1). The rebase happens in a
+    """The lane's git surface (S-0006/the-correction-this-document-exists-for). The rebase happens in a
     disposable worktree so the operator's checkout never moves; a conflicted
     rebase aborts and removes it — the engine never resolves a conflict."""
 
@@ -387,7 +387,7 @@ class GitLane:
 
     def tip_age_s(self, root: Path, ref: str) -> float:
         """Seconds since the ref's tip commit — the quiet window's clock
-        (RFC 0006 §3): a push resets it, because the new tip is young."""
+        (S-0006/promotion): a push resets it, because the new tip is young."""
 
         out = _git(root, "log", "-1", "--format=%ct", ref).stdout.strip()
 
@@ -396,7 +396,7 @@ class GitLane:
     # ....................... #
 
     def adopt_identical(self, root: Path, ref: str) -> list[str]:
-        """D-19.11 (A-28): remove untracked root files the incoming landing
+        """S-0019/D-11 (S-0019/A-2): remove untracked root files the incoming landing
         carries with byte-identical content, so git's overwrite refusal is
         reserved for real differences. Engine records are text (contracts,
         ledgers); a file that does not decode is left for git to refuse."""
@@ -431,11 +431,11 @@ class GitLane:
     # ....................... #
 
     def rebase_conflicts(self, root: Path, branch: str, onto: str) -> bool:
-        """A read-only conflict probe (D-6.13, A-42): would rebasing
+        """A read-only conflict probe (S-0006/D-13, S-0006/A-2): would rebasing
         *branch* onto *onto* conflict? `git merge-tree --write-tree`
         merges in memory — no worktree, no ref moves; exit 1 is a
         conflict verdict, not an error. Single-commit candidates
-        (D-10.8) make the merge verdict the rebase verdict."""
+        (S-0010/D-8) make the merge verdict the rebase verdict."""
 
         proc = _git(root, "merge-tree", "--write-tree", onto, branch)
 
@@ -506,7 +506,7 @@ TRANSIENT = (
 
 class GhScm:
     """Pull requests through the gh CLI — the runner speaks to the forge,
-    the agent never does (D-10.1). The credential is resolved from the
+    the agent never does (S-0010/D-1). The credential is resolved from the
     CONFIGURED environment-variable name at call time and handed to gh as
     GH_TOKEN in the subprocess environment only."""
 
@@ -554,7 +554,7 @@ class GhScm:
         error = proc.stderr.strip()
 
         if "already exists" in error:
-            # One pull request per task (D-10.10, A-37): the branch's open
+            # One pull request per task (S-0010/D-10, S-0010/A-1): the branch's open
             # pull request is the task's — reuse it, refreshing what the
             # attempt changed.
             listed = cast(
@@ -695,7 +695,7 @@ class GhScm:
 
     def review_threads(self, branch: str, allowed: tuple[str, ...]) -> list[dict[str, Any]]:
         """The branch's pull-request review threads whose root author is
-        allow-listed (RFC 0005 §4a, D-5.12): line-anchored comments only,
+        allow-listed (S-0005/the-revision-loop-added-by-a-32-2026-08-24, S-0005/D-12): line-anchored comments only,
         whole threads — replies from anyone ride along, they carry
         resolution — attributed per comment. No pull request, or an empty
         allow-list, is an empty capture."""
@@ -734,7 +734,7 @@ class GhScm:
                     continue
 
                 roots[int(comment["id"])] = {
-                    # id and pr are the reply address (D-5.14, A-41): the
+                    # id and pr are the reply address (S-0005/D-14, S-0005/A-3): the
                     # landing answers the threads its revision consumed.
                     "id": int(comment["id"]),
                     "pr": number,
@@ -758,8 +758,8 @@ class GhScm:
     # ....................... #
 
     def answer_captured_threads(self, records: list[dict[str, Any]], body: str) -> tuple[int, int]:
-        """Answer the review threads a landed revision consumed (D-5.14,
-        A-41): one reply per captured root, composed from records — it
+        """Answer the review threads a landed revision consumed (S-0005/D-14,
+        S-0005/A-3): one reply per captured root, composed from records — it
         says what the loop did, never what the finding deserves. Each
         reply carries its idempotency marker; a thread already marked is
         skipped, so a replay is absorbed at the destination. Returns
@@ -822,9 +822,9 @@ class GhScm:
     # ....................... #
 
     def retire_pr(self, branch: str, comment: str) -> str:
-        """Retire the landed reading surface (D-19.13, A-34): the forge is
+        """Retire the landed reading surface (S-0019/D-13, S-0019/A-5): the forge is
         given a short grace to mark the pull request merged on its own —
-        the republished branch (D-19.12) plus the base push let it — and a
+        the republished branch (S-0019/D-12) plus the base push let it — and a
         still-open pull request after the grace is closed with the landing
         note, the T-0072 close-out as the fallback. Returns "merged",
         "closed" (we closed it, branch deleted with it), or "absent" (no
@@ -876,7 +876,7 @@ class NullScm:
 
 
 class GhCi:
-    """CI verdict for a commit via the gh CLI (RFC 0006 §3): the workflow
+    """CI verdict for a commit via the gh CLI (S-0006/promotion): the workflow
     runs endpoint filtered by head sha — lightweight, polled with backoff
     because the rate budget is shared with the agents (§1). The credential
     follows GhScm's rule: resolved by NAME at call time, environment only."""

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0028
+id: S-0028
 title: Agent profiles
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0004']
-informed_by: ['0013', '0021', '0024', '0027']
+depends_on: [S-0004]
+informed_by: [S-0013, S-0021, S-0024, S-0027]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   A host-level library of named tier definitions under the operator's config directory,
@@ -48,7 +48,7 @@ sections:
         change precisely because the command-template layer had no single home to
         patch.
 
-      Three copies today; RFC 0024's fleet exists to grow the number of roots, and
+      Three copies today; S-0024's fleet exists to grow the number of roots, and
       every new root under the current shape starts by pasting a tier block.
   - key: current-state
     md: |
@@ -57,13 +57,13 @@ sections:
       - `TierConfig` (`src/torve/config/runconfig.py`) is a flat model —
         scalars and one string list — with `extra="forbid"` and an after-validator
         requiring `command` and `provider` for real adapters. Dotted variant
-        entries (RFC 0027 §5.1, `executor.long-context`) are ordinary entries in
+        entries (S-0027/tier-variants, `executor.long-context`) are ordinary entries in
         the same `tiers` mapping.
       - `load_runner_config` (`src/torve/config/runconfig.py`) reads exactly
-        one file — `.torve/config.yaml`, or the `--config` override (D-13.4) —
+        one file — `.torve/config.yaml`, or the `--config` override (S-0013/D-4) —
         `yaml.safe_load`s it and hands the raw mapping to
         `RunnerConfig.model_validate`. There is no other configuration source, by
-        D-13.3's design.
+        S-0013/D-3's design.
       - `config_hash` (`src/torve/application/telemetry.py`) already digests
         `config.tiers` **post-load** via `model_dump()` — whatever resolution
         happens inside `load_runner_config` is hashed in resolved form with zero
@@ -71,7 +71,7 @@ sections:
       - The fleet manifest already establishes the host-side precedent: an
         artefact that is *about* repositories lives on the operator's machine,
         "read from the operator's machine, never from a root the fleet ticks"
-        (`src/torve/config/fleet.py`, D-24.1). `enforce_trust` refuses
+        (`src/torve/config/fleet.py`, S-0024/D-1). `enforce_trust` refuses
         socket/network/broker settings by trust class but today says nothing about
         tier command lines.
   - key: goals-non-goals
@@ -89,13 +89,13 @@ sections:
 
       - **Profile distribution.** No registry, no URL, no sync between machines —
         the library is files in a directory; versioning it is the operator's
-        dotfiles problem, and the regime preimage (A-72 on RFC 0004) is what makes
+        dotfiles problem, and the regime preimage (S-0004/A-1 on S-0004) is what makes
         history recoverable regardless.
-      - **Cross-harness abstraction.** RFC 0027 refused it and this document does
+      - **Cross-harness abstraction.** S-0027 refused it and this document does
         not reopen it: a profile is one tier's literal wiring, not a portable
         description of an agent.
       - **Per-task profile selection.** The contract selects a *variant*
-        (`tier_variant`, D-27.2); which profile a variant's definition came from is
+        (`tier_variant`, S-0027/D-2); which profile a variant's definition came from is
         invisible to contracts on purpose — otherwise a task pins host filesystem
         state.
       - **Profile inheritance.** One merge level (profile → local overrides).
@@ -127,8 +127,8 @@ sections:
       the error would name the wrong file).
 
       Secrets doctrine is unchanged and unweakened: a profile carries environment
-      variable *names* at most (`api_key_env`), never values (D-4b), and under a
-      broker adapter the existing D-21.1 validator still refuses a resolved tier
+      variable *names* at most (`api_key_env`), never values (S-0001/D-13), and under a
+      broker adapter the existing S-0021/D-1 validator still refuses a resolved tier
       naming any credential — profiles get no exemption because validation runs on
       the merged result.
   - key: resolution-and-merge
@@ -164,7 +164,7 @@ sections:
 
       There is no fallback of any kind: a configuration that references a profile
       either resolves it or does not load. Silence is not a policy (§6b of
-      RFC 0004), and a tier that silently ran on inline defaults because a file
+      S-0004), and a tier that silently ran on inline defaults because a file
       went missing is a regime change nobody chose.
   - key: the-hash-and-why-telemetry-is-untouched
     md: |
@@ -197,12 +197,12 @@ sections:
       it provisions. The sandbox contains the blast radius, and the existing
       validators already strip the sharpest edges (no `api_key_env` under broker,
       no socket, sealed egress) — but the command template also chooses
-      `env_passthrough`-adjacent wiring and the image, and D-13.3's spirit is that
+      `env_passthrough`-adjacent wiring and the image, and S-0013/D-3's spirit is that
       the repository under work configures nothing about the engine. Profiles make
       the stricter rule *expressible* for the first time: a trust class could
       require tiers to be `profile:`-only references with no inline `command` or
       `image`. Whether `reviewed` should require it is deliberately left open
-      (D-28.6) — the fleet has two roots today and zero third-party ones, and a
+      (S-0028/D-6) — the fleet has two roots today and zero third-party ones, and a
       rule written before the first real `untrusted` root exists would be graded
       by imagination.
   - key: alternatives-considered
@@ -211,7 +211,7 @@ sections:
         only within a single file; the problem is repetition across roots and
         machines-worth of configs. Also invisible to doctor.
       - **A `tiers_include: <path>` file include.** More general and strictly
-        worse for it: an include splices arbitrary config across the D-13.3
+        worse for it: an include splices arbitrary config across the S-0013/D-3
         boundary, where a profile splices exactly one tier body from exactly one
         operator-owned directory. Generality here is the vulnerability.
       - **Model-level merge (`model_copy(update=...)`).** Rejected on the
@@ -219,7 +219,7 @@ sections:
         "explicitly written" still exists.
       - **Profiles in the repository (`.torve/agents/`).** Rejected: it changes
         copy-per-root to copy-per-root with extra steps, and it hands the
-        repository under work the engine-side definition D-13.3 exists to deny it.
+        repository under work the engine-side definition S-0013/D-3 exists to deny it.
   - key: tests
     md: |
       - Resolution unit family in `tests/test_runconfig.py`: profile fills fields;
@@ -228,7 +228,7 @@ sections:
         unknown profile name, non-mapping body, and unknown key each refuse with
         the file named.
       - Validator interaction: a profile supplying `api_key_env` under a broker
-        adapter is refused by the existing D-21.1 validator on the merged result —
+        adapter is refused by the existing S-0021/D-1 validator on the merged result —
         asserting profiles cannot launder a credential channel.
       - Hash property test: two configs referencing one profile hash identical
         `tiers` parts; a profile edit changes the digest. Uses `config_hash`
@@ -242,7 +242,7 @@ sections:
   - key: out-of-scope
     md: |
       - **Profile-aware `enforce_trust`** — named as the escape hatch, not built;
-        D-28.6 holds the question and real third-party roots settle it.
+        S-0028/D-6 holds the question and real third-party roots settle it.
       - **A `torve agents` CLI verb** (list/show profiles) — doctor's provenance
         line covers the operational need; a verb is warranted when the library
         outgrows `ls ~/.config/torve/agents/`.
@@ -254,20 +254,20 @@ sections:
       - **A shared profile becomes a shared blast radius**: one bad edit breaks
         every root's next dispatch. Accepted deliberately — loud simultaneous
         failure at load time is the cheap version of the silent drift it replaces,
-        and the regime preimage (A-72) plus the operator's own file history bound
+        and the regime preimage (S-0004/A-1) plus the operator's own file history bound
         the recovery cost.
       - **Ambient host state enters config meaning**: a committed
         `.torve/config.yaml` no longer fully determines the tier on its own.
         Mitigated by the hash (§5.3) — the *measured* regime is always the
         resolved content — and by refusal-on-missing, which makes the dependency
         impossible to miss.
-      - **Read as a security boundary**: a profile is a convenience and a D-13.3
+      - **Read as a security boundary**: a profile is a convenience and a S-0013/D-3
         hygiene improvement, not an isolation mechanism; isolation stays with the
         sandbox, the broker and the trust classes. §5.5's framing keeps the claim
         honest.
   - key: unresolved-questions
     md: |
-      - D-28.6 (below): whether `reviewed`/`untrusted` trust classes must take
+      - S-0028/D-6 (below): whether `reviewed`/`untrusted` trust classes must take
         tiers exclusively from profiles. Settled by the first third-party root,
         not before.
 phasing:
@@ -276,10 +276,10 @@ phasing:
     intent: >-
       TierConfig gains the profile field and load_runner_config resolves it: raw-mapping
       merge from the operator's agents directory before validation, local keys winning,
-      every failure a refusal naming the file (D-28.1–D-28.5). The hash property arrives
-      for free because config_hash already digests resolved tiers; the test family
-      pins the merge semantics, the refusals, the D-21.1 interaction and the hash
-      property.
+      every failure a refusal naming the file (S-0028/D-1–S-0028/D-5). The hash property
+      arrives for free because config_hash already digests resolved tiers; the test
+      family pins the merge semantics, the refusals, the S-0021/D-1 interaction and
+      the hash property.
     scope: [src/torve/config/runconfig.py, tests/test_runconfig.py]
     acceptance:
       - uv run pytest tests/test_runconfig.py
@@ -290,8 +290,8 @@ phasing:
     title: doctor-provenance
     intent: >-
       torve doctor prints one provenance line per tier that resolved through a profile
-      (D-28.7), no check attached, and the README configuration section gains the
-      profile paragraph with one example.
+      (S-0028/D-7), no check attached, and the README configuration section gains
+      the profile paragraph with one example.
     scope: [src/torve/cli/doctor.py, tests/test_doctor.py, README.md]
     acceptance:
       - uv run pytest tests/test_doctor.py

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0014'
+id: S-0014
 title: Source file layout
 kind: convention
 status: superseded
 implementation: complete
 depends_on: []
-informed_by: ['0002', '0011']
+informed_by: [S-0002, S-0011]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Semantic separators and module preamble structure for Torve's Python source, extracted
@@ -202,7 +202,7 @@ sections:
 
       Import grouping is handled by `ruff` (`I`), so it is not a matter of discipline. Match forze's configuration: `line-length = 100` and the same rule selection — `E`, `W`, `F`, `I`, `UP`, `B`, `RUF`, `ASYNC`, `C4`, `ISC`, `PIE`, `T20`, `SIM`.
 
-      `T20` matters more here than in most projects: `print` is the CLI's output contract (RFC 0011), so it belongs in the presentation layer and nowhere else. The lint rule enforces that boundary for free.
+      `T20` matters more here than in most projects: `print` is the CLI's output contract (S-0011), so it belongs in the presentation layer and nowhere else. The lint rule enforces that boundary for free.
 
       **Docstrings carry the reasoning; separators carry the shape.** Both, or a file is unreadable in six months for one of two different reasons.
   - key: layer-conventions
@@ -218,19 +218,19 @@ sections:
       `gates/` is the strictest: if a gate module wants a labelled dash, it is doing two checks — and two checks are two gates, with two names and two sabotage cases.
   - key: enforcement-the-source-layout-gate
     md: |
-      Under `ratchet-what-you-build`, a convention that only lives in a document is an open finding. The checkable half ships as a gate in the package (RFC 0002), not as review discipline.
+      Under `ratchet-what-you-build`, a convention that only lives in a document is an open finding. The checkable half ships as a gate in the package (S-0002), not as review discipline.
 
       ```yaml
       - name: source-layout
         run: "@source-layout"
-        state: shadow              # enters per D-2.18 (A-8); promoted under D-2.23
+        state: shadow              # enters per S-0002/D-18 (S-0002/A-2); promoted under S-0002/D-23
         origin: rfc/0014
         added: 2026-08-21
         input: diff
         timeout: 30
       ```
 
-      *(The entry follows RFC 0002 §7.5 as amended by A-8 — `state` and `origin`, not `blocking: true`.)*
+      *(The entry follows S-0002/manifest-entry as amended by S-0002/A-2 — `state` and `origin`, not `blocking: true`.)*
 
       **Checked:**
 
@@ -244,9 +244,9 @@ sections:
 
       **Left to review**, because checking it would produce a linter nobody trusts: whether a label says something useful, whether a two-section module should have been split, and whether dot placement helps or is decoration.
 
-      *Note (0011 A-23 2026-08-22):* the **audience** of a string — no corpus identifiers in user-facing text — is checked by the `user-facing-text` gate (RFC 0011 §5a), not here. This gate's subject is the layout of a file; that one's is who reads a string, and folding them would couple two checks that grow in different directions.
+      *Note (0011 S-0011/A-1 2026-08-22):* the **audience** of a string — no corpus identifiers in user-facing text — is checked by the `user-facing-text` gate (S-0011/audience-who-reads-the-string), not here. This gate's subject is the layout of a file; that one's is who reads a string, and folding them would couple two checks that grow in different directions.
 
-      **Sabotage cases** (the `source-layout` cases in `src/torve/gates/sabotage.py`, per A-2), one per check, asserted red in CI: a 20-dash separator, a module missing its post-import dash, a three-dash module, an unlabelled second dash, a labelled dot. A gate never observed to fail is not a check.
+      **Sabotage cases** (the `source-layout` cases in `src/torve/gates/sabotage.py`, per S-0002/A-1), one per check, asserted red in CI: a 20-dash separator, a module missing its post-import dash, a three-dash module, an unlabelled second dash, a labelled dot. A gate never observed to fail is not a check.
   - key: adopt-on-the-whole-repository-at-once
     md: |
       The gate will fire on existing source, which was written before this document existed.

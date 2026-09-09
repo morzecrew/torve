@@ -1,4 +1,4 @@
-"""RFC 0010 phase 1: the commit as the runner's provenance record — agent
+"""S-0010 phase 1: the commit as the runner's provenance record — agent
 author, Torve committer, full trailers, signing at the runner boundary — and
 revert as a mechanical role through the same loop, gates and landing."""
 
@@ -73,7 +73,7 @@ def test_landed_shas_reconstruct_a_task_from_trailers_alone(vcs_repo):
 
 @pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="no ssh-keygen")
 def test_a_signed_commit_with_the_key_outside_the_worktree(vcs_repo, tmp_path):
-    # The 0010 §9 criterion in miniature: the key lives beside the runner,
+    # The S-0010/exit-criteria criterion in miniature: the key lives beside the runner,
     # never under the tree the sandbox sees, and verification succeeds.
     keydir = tmp_path / "runner-keys"
     keydir.mkdir()
@@ -111,7 +111,7 @@ def test_a_signed_commit_with_the_key_outside_the_worktree(vcs_repo, tmp_path):
 
 
 def test_workspace_resume_cuts_from_the_branch_tip_not_base(vcs_repo):
-    # D-26.9: a continuation checks out whatever the branch already carries
+    # S-0026/D-9: a continuation checks out whatever the branch already carries
     # — its own candidate tip — instead of resetting it back to base.
     task_id = "T-8199"
     ws = GitWorkspace(vcs_repo)
@@ -149,7 +149,7 @@ def test_workspace_resume_cuts_from_the_branch_tip_not_base(vcs_repo):
 
 def test_workspace_resume_with_no_prior_branch_falls_back_to_base(vcs_repo):
     # A budget-exhausted first attempt that never wrote anything leaves the
-    # branch never created (D-A.7 base HEAD); resume then has nothing to
+    # branch never created (S-0001/D-36 base HEAD); resume then has nothing to
     # cut from and behaves exactly like a fresh dispatch.
     ws = GitWorkspace(vcs_repo)
     path = ws.create("T-8198", "main", resume=True)
@@ -192,7 +192,7 @@ def engine_repo(tmp_path: Path, monkeypatch) -> Path:
     (root / "app.py").write_text("value = 1\n", encoding="utf-8")
     git(root, "add", "-A")
     git(root, "commit", "-q", "--no-gpg-sign", "-m", "init")
-    # The target task's landed commit, trailer and all (D-10.4 is what
+    # The target task's landed commit, trailer and all (S-0010/D-4 is what
     # makes it findable later).
     (root / "app.py").write_text("value = 2\n", encoding="utf-8")
     GitVcs().commit_all(
@@ -253,7 +253,7 @@ def test_a_revert_runs_as_a_task_and_lands_with_its_own_provenance(engine_repo):
 
 def test_a_conflicting_revert_escalates_as_merge_conflict(engine_repo):
     # The base moves over the same line after the target landed: the
-    # dependent-commit conflict RFC 0010 refuses to resolve.
+    # dependent-commit conflict S-0010 refuses to resolve.
     (engine_repo / "app.py").write_text("value = 99\n", encoding="utf-8")
     git(engine_repo, "add", "-A")
     git(engine_repo, "commit", "-q", "--no-gpg-sign", "-m", "later work")

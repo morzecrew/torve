@@ -1,5 +1,5 @@
-"""Workspace port over git worktrees (RFC 0003 §4): `.wt/<task-id>`, on the
-task's own branch, derived entirely from the task id (D-3.4)."""
+"""Workspace port over git worktrees (S-0003/isolation): `.wt/<task-id>`, on the
+task's own branch, derived entirely from the task id (S-0003/D-4)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from torve.base import naming
 
 # ----------------------- #
 
-# Worktree surgery serializes per process (D-19.14, A-39): concurrent
+# Worktree surgery serializes per process (S-0019/D-14, S-0019/A-6): concurrent
 # `git worktree add` calls contend on the repository's own locks, and the
 # slow half of a dispatch is the attempt, never the checkout.
 _WORKTREE_LOCK = threading.Lock()
@@ -58,7 +58,7 @@ class GitWorkspace:
             branch = naming.branch(task_id)
             current = self._git("rev-parse", "--abbrev-ref", "HEAD").strip()
 
-            # Continuation (RFC 0026 D-26.9): cut from the previous attempt's
+            # Continuation (S-0026 S-0026/D-9): cut from the previous attempt's
             # own candidate tip — whatever it checkpointed on its branch —
             # instead of resetting the branch back to base. A branch that
             # never diverged (nothing was ever checkpointed) has nothing to
@@ -135,7 +135,7 @@ class GitWorkspace:
 
 
 class ShadowWorkspace:
-    """Shadow workspaces (RFC 0004 §5, D-4.7): a self-contained clone at the
+    """Shadow workspaces (S-0004/shadow-runs, S-0004/D-7): a self-contained clone at the
     replayed task's parent commit, holding truncated history and no refs
     beyond it — by construction, not by policy. A worktree cannot do this: it
     shares the repository's whole object store, and the fix being reachable
@@ -160,7 +160,7 @@ class ShadowWorkspace:
     # ....................... #
 
     def create_at(self, label: str, sha: str) -> Path:
-        """The survey's clone-at-landing variant (RFC 0031 D-31.4): the same
+        """The survey's clone-at-landing variant (S-0031 S-0031/D-4): the same
         bounded-depth mechanics, but the clone is cut at the LANDING sha — the
         tree the battery runs over — with the landing's first parent as the
         gate base. Depth 2 is enough for that diff; the mechanics never
@@ -171,7 +171,7 @@ class ShadowWorkspace:
     # ....................... #
 
     def _clone(self, label: str, sha: str) -> Path:
-        """The shared truncated-clone mechanics (RFC 0004 §5, D-4.7): init a
+        """The shared truncated-clone mechanics (S-0004/shadow-runs, S-0004/D-7): init a
         fresh repository under `.wt/<label>`, fetch the exact sha at bounded
         depth — so later objects are never transferred — and check it out on
         a `shadow` branch with no refs beyond it."""
@@ -216,7 +216,7 @@ class ShadowWorkspace:
 
     def remove_at(self, label: str) -> None:
         """Remove one survey clone and the empty `.wt/` shell this class
-        created around it (RFC 0031 D-31.1: the target tree ends byte-identical
+        created around it (S-0031 S-0031/D-1: the target tree ends byte-identical
         — no workspace residue). rmdir only removes an empty directory, so a
         `.wt/` holding other work survives untouched."""
 
@@ -235,7 +235,7 @@ def shipped_commit(root: Path, task_id: str) -> str | None:
     """The commit that shipped a task: the `Torve-Task:` trailer the runner
     writes, with the hand-committed subject convention as the fallback this
     repository's own history needs — `id)` rather than `(id)`, because real
-    subjects read `(A-19, T-0019)` as often as `(T-0019)`. The fallback
+    subjects read `(S-0015/A-1, T-0019)` as often as `(T-0019)`. The fallback
     matches subjects only: `--grep` searches whole messages, and a later
     commit merely *mentioning* the id in its body must never shadow the
     commit that shipped the work."""

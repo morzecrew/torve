@@ -1,4 +1,4 @@
-"""The manager's board (RFC 0044 §5.4).
+"""The manager's board (S-0044/the-manager).
 
 The board is a fold over recorded facts, so every case here is written the
 same way: record events, project, assert what the manager would decide. The
@@ -74,7 +74,7 @@ def run(scenario):
 
 
 async def mint(log, task_id, *, partition=PARTITION, allow=None, depends_on=None, **payload):
-    """One mint carrying its contract (RFC 0049 D-49.1) — what the board
+    """One mint carrying its contract (S-0049 S-0049/D-1) — what the board
     reads for scope and dependencies, so a case that leaves it out is
     testing a mint written before A-91 and says so."""
 
@@ -179,7 +179,7 @@ def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
         assert dispatchable(project(await log.since()), PARTITION) == []
 
         # Disjoint scope dispatches beside it — re-minted, because that is
-        # the only way a contract changes now (D-49.4).
+        # the only way a contract changes now (S-0049/D-4).
         await mint(log, "T-2", allow=["web/**"])
 
         assert dispatchable(project(await log.since()), PARTITION) == ["T-2"]
@@ -264,7 +264,7 @@ def test_an_abandoned_task_never_returns():
 
 
 def test_a_replayed_log_rebuilds_the_same_board():
-    """D-44.5's restart transparency is a property of the data: a manager
+    """S-0044/D-5's restart transparency is a property of the data: a manager
     that died learns nothing by being handed state, because reading the log
     again is what it would have been handed."""
 
@@ -343,7 +343,7 @@ def test_only_an_operator_may_send_a_candidate_back():
 
 def test_facts_that_are_not_transitions_leave_the_state_alone():
     """A divergence, a message or a burn event says something about the
-    work, never about whose turn it is (D-44.1)."""
+    work, never about whose turn it is (S-0044/D-1)."""
 
     async def scenario(log):
         await mint(log, "T-1")
@@ -370,7 +370,7 @@ def test_a_view_defaults_to_queued():
 
 # ....................... #
 
-# Liveness, read from the burn stream and nowhere else (RFC 0045 D-45.4).
+# Liveness, read from the burn stream and nowhere else (S-0045 S-0045/D-4).
 
 
 def test_burn_lands_on_the_board_as_a_rate_and_a_total():
@@ -443,7 +443,7 @@ def test_an_attempt_that_has_burned_nothing_yet_accuses_nobody():
 
 # ....................... #
 
-# The lease (RFC 0044 D-44.6): a worker holds nothing else, and something
+# The lease (S-0044 S-0044/D-6): a worker holds nothing else, and something
 # has to be it running out.
 
 
@@ -504,7 +504,7 @@ def test_a_task_nobody_holds_never_expires():
 
 def test_two_unconstrained_tasks_never_run_together():
     """The defect this shares a rule to prevent: an empty allow-set is
-    unconstrained (RFC 0002 §6), and a glob intersection over two empty
+    unconstrained (S-0002/scope-in-detail), and a glob intersection over two empty
     sets is empty — so the manager would have dispatched two tasks that may
     each touch anything, while the standing loop refused the same pair."""
 
@@ -525,7 +525,7 @@ def test_two_unconstrained_tasks_never_run_together():
 
 
 def test_an_oversize_contract_awaits_a_decomposition_and_not_a_worker(tmp_path):
-    """D-26.7, ported off the scan (A-105): a contract too large to finish
+    """S-0026/D-7, ported off the scan (A-105): a contract too large to finish
     is not offered until something carries it as a parent, and the board is
     where that answer now lives — one fold, not a directory walk."""
 
@@ -556,7 +556,7 @@ def test_an_oversize_contract_awaits_a_decomposition_and_not_a_worker(tmp_path):
 
 def test_resolving_an_escalation_returns_the_task_or_takes_it_off_the_board():
     """An escalation is the engine handing a task to a person; resolving is
-    the person handing it back. Only an operator may write it (D-44.2)."""
+    the person handing it back. Only an operator may write it (S-0044/D-2)."""
 
     def board_after(resolution: str):
         return project(

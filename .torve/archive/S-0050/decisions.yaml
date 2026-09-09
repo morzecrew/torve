@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-50.1
+  - id: D-1
     grade: LOCKED
     text: >-
       A record-backed reader lands beside its file reader, never replacing it, until
@@ -9,7 +9,7 @@ decisions:
     consequence: >-
       A v1 run keeps answering; the cost is two implementations and a parity test,
       which is cheaper than a report that is confidently wrong
-  - id: D-50.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Selection is explicit at the call site; the only automatic rule is that a record
@@ -18,7 +18,7 @@ decisions:
     consequence: >-
       A misconfigured partition cannot make a report answer from the wrong source
       and look right doing it
-  - id: D-50.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       No report's envelope changes: same keys, same values, so the CLI, the MCP tool
@@ -27,7 +27,7 @@ decisions:
     consequence: >-
       The move is verifiable by parity rather than by review, which is the only practical
       check over joins this size
-  - id: D-50.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       Parity is asserted on a real manager-dispatched run, key by key
@@ -35,7 +35,7 @@ decisions:
     consequence: >-
       The one place both carriers are populated by the same run; a failure names the
       key rather than the report
-  - id: D-50.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       `why` moves first, `status` second, `context` and the specification-quality
@@ -46,7 +46,7 @@ decisions:
     consequence: >-
       The smallest join establishes the pattern; the largest one does not get to invent
       it
-  - id: D-50.6
+  - id: D-6
     grade: OPEN
     text: >-
       What a report should say when the record holds part of a task's history. Settled

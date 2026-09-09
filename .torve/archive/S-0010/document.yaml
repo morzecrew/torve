@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0010'
+id: S-0010
 title: VCS, provenance and revert
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0003']
-informed_by: ['0005', '0006']
+depends_on: [S-0003]
+informed_by: [S-0005, S-0006]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   How agent work becomes commits and pull requests, provenance trailers, signing at
@@ -20,7 +20,7 @@ sections:
 
       Commits, branch pushes, pull-request bodies, review comments, labels — all composed and issued by the runner from data the agent returned. The agent's output is a working tree and a set of records; it never speaks to the forge.
 
-      This is not tidiness. It is what makes D-4b achievable: an agent that never issues a push never needs a token, and a credential that is never present cannot be exfiltrated. Every exception to this rule reintroduces the credential.
+      This is not tidiness. It is what makes S-0001/D-13 achievable: an agent that never issues a push never needs a token, and a credential that is never present cannot be exfiltrated. Every exception to this rule reintroduces the credential.
   - key: two-ports-deliberately-separate
     md: |
       | Port | Owns |
@@ -31,7 +31,7 @@ sections:
       Merging them binds the domain to one vendor. Keeping them apart also puts the credential boundary in one place: `Vcs` operations are local and need no secret, `Scm` operations go through the vault.
   - key: branches-and-commits
     md: |
-      Branch names derive from the task id, consistent with the derivation rule in RFC 0003:
+      Branch names derive from the task id, consistent with the derivation rule in S-0003:
 
       ```text
       torve/T-0142
@@ -47,7 +47,7 @@ sections:
       Torve-Attempt: 2
       Torve-Agent: harness/deepseek-v4-flash@2026-07-11
       Torve-Config: 7f3a91c
-      Torve-Decisions: D-3(LOCKED) D-7(OPEN)
+      Torve-Decisions: S-0001/D-11(LOCKED) S-0001/D-20(OPEN)
       ```
 
       - **Author** is the agent identity — not a human's name, ever. Attributing machine work to a person corrupts blame, review statistics and, in some jurisdictions, authorship claims.
@@ -58,13 +58,13 @@ sections:
       **One commit per attempt**, not per file edit. An attempt is the atomic unit everywhere else in this design; history should agree.
   - key: signing
     md: |
-      If a repository requires signed commits — and it should — the agent cannot hold the key. D-4b makes that non-negotiable.
+      If a repository requires signed commits — and it should — the agent cannot hold the key. S-0001/D-13 makes that non-negotiable.
 
       **Signing happens at the runner boundary**: the sandbox produces the tree and the commit message; the runner creates and signs the commit outside the sandbox, with a key the agent never sees. The signature therefore attests *"Torve produced this under task T-0142"* and not *"a human reviewed this"*, which is the honest claim and should be documented as such so nobody reads a green verification badge as approval.
   - key: push-and-force-push
     md: |
       - Push targets only the task's own branch. Any other target is a bug, not a permission question.
-      - **Force-push is allowed before review starts and forbidden after.** A rewritten branch invalidates review freshness (RFC 0006 §3) and orphans line comments, so post-review changes are additive commits. The runner enforces this from state, not from convention.
+      - **Force-push is allowed before review starts and forbidden after.** A rewritten branch invalidates review freshness (S-0006/promotion) and orphans line comments, so post-review changes are additive commits. The runner enforces this from state, not from convention.
       - Credentials reach `git push` through vault injection; the sandbox holds nothing.
   - key: pull-request-composition
     md: |
@@ -77,7 +77,7 @@ sections:
       The pull request therefore reads as a claim with proof attached, and a reviewer can check the proof without opening a terminal.
   - key: revert-as-a-role
     md: |
-      Escaped defects are already a metric in RFC 0005; until now nothing has owned the response.
+      Escaped defects are already a metric in S-0005; until now nothing has owned the response.
 
       **Revert is a task role**, like implement and review — same contract, same gates, same telemetry:
 
@@ -98,25 +98,25 @@ sections:
       - **Reverts pass the same gates.** A revert that breaks the build is not an emergency exit, it is a second incident.
       - **Reverts go through the same merge lane.** Urgency is not a reason to skip ordering — that is precisely when ordering matters.
       - **A revert is not a rollback of production.** Deployment is outside this system entirely; the revert lands in the repository and whatever pipeline exists takes it from there.
-      - A dependent-commit conflict escalates as `merge_conflict`. Torve does not resolve it (D-6).
+      - A dependent-commit conflict escalates as `merge_conflict`. Torve does not resolve it (S-0001/D-16).
 
       **Every revert emits a `resolved` execution-log entry against the decisions the original task inherited.** This is the loop paying off: the reason the work was undone reaches the next planning session as a candidate decision-table row rather than as folklore.
 
-      *Execution note 2026-08-23 (T-0044):* reverts are not review-triggering in v1 — the diff is a mechanical inverse of already-reviewed work, and the engine may not resolve anything by hand; if reverts ever carry hand-resolved content, that calculus changes, but that content is exactly what D-6 forbids the engine to produce.
+      *Execution note 2026-08-23 (T-0044):* reverts are not review-triggering in v1 — the diff is a mechanical inverse of already-reviewed work, and the engine may not resolve anything by hand; if reverts ever carry hand-resolved content, that calculus changes, but that content is exactly what S-0001/D-16 forbids the engine to produce.
   - key: phasing
     md: |
-      *(Added 2026-08-23 while draft, with the path relocation to RFC 0015's tree.
-      A subset already exists from RFC 0003's exit criterion: `GitVcs.commit_all`
+      *(Added 2026-08-23 while draft, with the path relocation to S-0015's tree.
+      A subset already exists from S-0003's exit criterion: `GitVcs.commit_all`
       writes the Task/Attempt/Config trailers with committer Torve, `GhScm` opens
       pull requests through the gh CLI, `ScmConfig.open_pr` is off by default —
       phase 1 completes the local record, phase 2 makes the forge leg real. The
       remote and its credential live in configuration, not in this document: the
-      repository slug and the token's environment-variable NAME (D-4b — never the
+      repository slug and the token's environment-variable NAME (S-0001/D-13 — never the
       value) ride `ScmConfig`. Signing key material likewise: a path in
       configuration, held by the runner, never mounted into a sandbox; unset means
-      unsigned. Review comment posting and PR-triggered review stay with RFC 0005's
+      unsigned. Review comment posting and PR-triggered review stay with S-0005's
       forge deferrals; CI polling and the approvals/quiet-window fields stay with
-      RFC 0006's.)*
+      S-0006's.)*
   - key: exit-criteria
     md: |
       - A task's full history reconstructible from `git log` trailers alone, with the store offline.

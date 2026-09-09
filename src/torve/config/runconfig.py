@@ -1,11 +1,11 @@
 """.torve/config.yaml — runner configuration, reviewed like the gate manifest
-but on its own cadence (D-3.7; one location, no fallback, per RFC 0013 A-48).
+but on its own cadence (S-0003/D-7; one location, no fallback, per S-0013 S-0013/A-2).
 Read from where the runner was launched, never from the repository under work
-(D-13.3). The tier mapping and provider policy are RFC 0004's.
+(S-0013/D-3). The tier mapping and provider policy are S-0004's.
 
 The OpenSandbox section carries the name of the environment variable holding
 the API key, never the key itself — configuration is committed, credentials
-are not (D-4b in spirit at the operator level too).
+are not (S-0001/D-13 in spirit at the operator level too).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from torve.domain.task import SCHEMA_VERSION, Task
 
 ADAPTERS = ("fake", "api", "harness", "subscription")
 
-# The derived-cache volume's fixed mount (D-35.4): outside the workspace,
+# The derived-cache volume's fixed mount (S-0035/D-4): outside the workspace,
 # beside the image's own toolkit paths, so nothing project-visible ever
 # reads from it and no attempt can mistake a cache for history. The one
 # address a tier's cache volume gets — the slot-suffixed naming is the
@@ -40,14 +40,14 @@ CACHE_MOUNT = "/opt/torve/cache"
 
 
 class TierConfig(BaseModel):
-    """One tier's adapter (RFC 0004 §1): `tier` on the task maps to an entry
+    """One tier's adapter (S-0004/adapters): `tier` on the task maps to an entry
     here, and the concern leaks no further into the design. The command runs
-    *inside* the sandbox (D-4.1) — the engine never links a harness SDK, it
+    *inside* the sandbox (S-0004/D-1) — the engine never links a harness SDK, it
     only shells a line into a container it created.
 
-    `api_key_env` carries names, never values (D-4b): the runtime forwards the
+    `api_key_env` carries names, never values (S-0001/D-13): the runtime forwards the
     variables from its own environment, so the secret never transits a spec.
-    `auth_volume` is the subscription route (§2, D-4.2): one volume per worker
+    `auth_volume` is the subscription route (§2, S-0004/D-2): one volume per worker
     slot, `-<slot>` appended, mounted read-write because token refresh writes.
     """
 
@@ -57,69 +57,69 @@ class TierConfig(BaseModel):
     model: str = ""  # recorded in telemetry, substituted into the command
     provider: str = ""  # routing identity (§6b); empty only for fake
 
-    # The tier's sandbox image — harness identity is the image (RFC 0017 §3,
-    # D-17.4). Empty falls back to runtime.image.
+    # The tier's sandbox image — harness identity is the image (S-0017/configuration-routes-by-nature,
+    # S-0017/D-4). Empty falls back to runtime.image.
     image: str = ""
     api_key_env: list[str] = Field(default_factory=list)
     auth_volume: str = "torve-auth"
     auth_mount: str = "/auth"
 
-    # RFC 0035 §5.2, D-35.4: a named tier opts its run's sandboxes into the
+    # S-0035/the-derived-cache-volume, S-0035/D-4: a named tier opts its run's sandboxes into the
     # derived-cache volume `cache_volume-<worker_slot>` — slot-suffixed like
     # the auth volume, so two concurrent workers never share a cache —
     # mounted read-write at the fixed CACHE_MOUNT with the toolchain cache
     # homes pointed at it by the runtime adapter. Empty (the default) is
     # cold exactly as today. The volume holds derived state only: deleting
-    # it may change nothing but wall clock (D-35.1), and shadow replays
-    # never mount it (D-35.3 — the exclusion is applied where the mount is
+    # it may change nothing but wall clock (S-0035/D-1), and shadow replays
+    # never mount it (S-0035/D-3 — the exclusion is applied where the mount is
     # composed, under the runner's `shadow` flag).
     cache_volume: str = ""
 
-    # D-27.11: the dotted tier this seat's attempt resolves to after a
+    # S-0027/D-11: the dotted tier this seat's attempt resolves to after a
     # gate-red — one rung, not a chain. Empty means an attempt that gates
-    # red is retried under the same tier, today's behaviour. D-34.6 keeps
+    # red is retried under the same tier, today's behaviour. S-0034/D-6 keeps
     # this scalar as sugar for the functional key of the mapping below.
     retry_variant: str = ""
 
-    # D-34.6: the retry rungs keyed by axis — which conviction routes the
+    # S-0034/D-6: the retry rungs keyed by axis — which conviction routes the
     # next attempt where. Every reader takes the merged view through
     # `resolved_retry_variants()`, so no surface sees only the functional
-    # rung; `boundary` may not name a rung here at all (D-34.7).
+    # rung; `boundary` may not name a rung here at all (S-0034/D-7).
     retry_variants: dict[GateAxis, str] = Field(default_factory=dict)
 
-    # RFC 0034 D-34.3: character -> variant, resolved once at dispatch
+    # S-0034 S-0034/D-3: character -> variant, resolved once at dispatch
     # (`resolve_character_tier`) before anything reads `tier_name_for`.
     # A value is this seat's own variant suffix, the same bare shape a
-    # contract's `tier_variant` already carries (D-27.3) — character
+    # contract's `tier_variant` already carries (S-0027/D-3) — character
     # routing never reassigns a task to a different seat. An unmapped or
     # undeclared character falls through to the seat default.
     character_routing: dict[str, str] = Field(default_factory=dict)
 
-    # RFC 0028 §5.1, D-28.1/D-28.2, A-74: the named profile(s) this tier
+    # S-0028/the-profile-file, S-0028/D-1/D-28.2, S-0028/A-1: the named profile(s) this tier
     # resolved from, if any — resolution happens on the raw mapping in
     # `load_runner_config`, before this model ever validates, so by the time
     # a `TierConfig` exists every other field already carries the merged
     # content. The raw config's `profile` key may be a single name or a list
-    # merged left to right (A-74); either way this field ends up holding the
+    # merged left to right (S-0028/A-1); either way this field ends up holding the
     # chain in order (`"a -> b"`, or just `"a"` for a single name), kept
     # (not popped) so `config_hash` and `torve doctor` can both see where a
     # tier came from.
     profile: str = ""
 
-    # RFC 0029 §5.1, D-29.1/D-29.3: `None` inherits the role-scoped skill set
+    # S-0029/equipment-on-the-tier, S-0029/D-1/D-29.3: `None` inherits the role-scoped skill set
     # (`SkillsConfig.sets[role]`) exactly as today; a list overrides it
     # wholesale — never additive, so the effective set is readable in one
-    # place. Rides the profile merge unchanged (D-28.4's replace-wholesale
+    # place. Rides the profile merge unchanged (S-0028/D-4's replace-wholesale
     # rule already covers list fields). Names resolve through the same
-    # `materialize` path with the same refusals (D-29.2).
+    # `materialize` path with the same refusals (S-0029/D-2).
     skills: list[str] | None = None
 
-    # RFC 0029 §5.1, D-29.1: lines appended to the built prompt after the
+    # S-0029/equipment-on-the-tier, S-0029/D-1: lines appended to the built prompt after the
     # charter's base working rules, which stay unaddressable from
     # configuration.
     prompt_extras: list[str] = Field(default_factory=list)
 
-    # RFC 0035 §5.3, D-35.6: the tier's own attempt clocks. `None` (absent)
+    # S-0035/the-tier-clock, S-0035/D-6: the tier's own attempt clocks. `None` (absent)
     # falls through to the RuntimeConfig globals, exactly as today; a named
     # value — even 0 — is the tier's, so the heavy rung and the reviewer
     # seat carry their own clocks without the operator editing global
@@ -132,7 +132,7 @@ class TierConfig(BaseModel):
     # ....................... #
 
     def resolved_retry_variants(self) -> dict[GateAxis, str]:
-        """The one resolution of D-27.11's scalar and D-34.6's mapping: the
+        """The one resolution of S-0027/D-11's scalar and S-0034/D-6's mapping: the
         axis-keyed rungs with the scalar read as sugar for the functional
         key, so every reader — the runner's routing, the dispatch-time
         provider check in run, tick and fleet — answers from the full map.
@@ -162,7 +162,9 @@ class TierConfig(BaseModel):
             if not self.provider:
                 # Silence is not a policy (§6b): a real adapter sends the
                 # repository somewhere, and routing needs to know where.
-                raise ValueError(f"adapter {self.adapter!r} needs a provider for routing (D-4.8)")
+                raise ValueError(
+                    f"adapter {self.adapter!r} needs a provider for routing (S-0004/D-8)"
+                )
 
         return self
 
@@ -170,7 +172,7 @@ class TierConfig(BaseModel):
 
     @model_validator(mode="after")
     def _retry_rungs_are_coherent(self) -> TierConfig:
-        # D-34.7: no configuration may hang a retry rung on a boundary
+        # S-0034/D-7: no configuration may hang a retry rung on a boundary
         # conviction — a fence defect is repaired by the operator's
         # disclosed chore commit, never escalated to a heavier model. A
         # mappable boundary would be a rung to nowhere: selection resolves
@@ -182,7 +184,7 @@ class TierConfig(BaseModel):
                 "whose rung could never run"
             )
 
-        # D-34.6: the scalar is sugar for the functional key; both spellings
+        # S-0034/D-6: the scalar is sugar for the functional key; both spellings
         # saying different things is a configuration error, never a silent
         # precedence.
         scalar, mapped = self.retry_variant, self.retry_variants.get("functional")
@@ -223,10 +225,10 @@ class RepositoryProviders(BaseModel):
 
 
 class ProvidersConfig(BaseModel):
-    """Which providers a repository's contents may reach (RFC 0004 §6b):
+    """Which providers a repository's contents may reach (S-0004/provider-routing-and-data-boundaries):
     repository contents, fixtures and diffs leave the building for whichever
     provider an adapter is pointed at, so the policy is explicit and enforced
-    at dispatch, before a sandbox exists (D-4.8)."""
+    at dispatch, before a sandbox exists (S-0004/D-8)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -240,7 +242,7 @@ class ProvidersConfig(BaseModel):
 
 class ProviderDenied(ValueError):
     """No permitted provider for this repository and tier — a configuration
-    error at dispatch (exit 3), never a quiet fallback (D-4.8)."""
+    error at dispatch (exit 3), never a quiet fallback (S-0004/D-8)."""
 
 
 # ....................... #
@@ -274,9 +276,9 @@ def route_provider(providers: ProvidersConfig, repository: str, provider: str) -
 def effective_skill_sets(
     tier: TierConfig, role: str, sets: dict[str, list[str]]
 ) -> dict[str, list[str]]:
-    """RFC 0029 D-29.1/D-29.3: `tier.skills`, when set, overrides the
+    """S-0029 S-0029/D-1/D-29.3: `tier.skills`, when set, overrides the
     role-scoped set wholesale for `role` alone — every other role's set is
-    untouched, and the materializer's own resolution and refusals (D-29.2)
+    untouched, and the materializer's own resolution and refusals (S-0029/D-2)
     are unaffected by this: it only changes which names `materialize` sees
     for this role."""
 
@@ -308,7 +310,7 @@ def tier_for(config: RunnerConfig, tier_name: str) -> TierConfig:
 
 
 def tier_name_for(task: Task) -> str:
-    """D-27.3's dotted lookup key: `seat.variant` when the contract names a
+    """S-0027/D-3's dotted lookup key: `seat.variant` when the contract names a
     `tier_variant`, the seat literal otherwise — naming a variant that does
     not exist is a configuration error `tier_for` raises loudly, never a
     fallback to the seat."""
@@ -320,7 +322,7 @@ def tier_name_for(task: Task) -> str:
 
 
 def resolve_character_tier(config: RunnerConfig, task: Task) -> Task:
-    """RFC 0034 D-34.3, the one resolution point every dispatch surface
+    """S-0034 S-0034/D-3, the one resolution point every dispatch surface
     reads: an explicit `tier_variant` always wins, an unmapped or absent
     `character` falls through to the seat default, and a mapped character
     resolves to its variant here — before `tier_name_for` is ever read —
@@ -340,7 +342,7 @@ def resolve_character_tier(config: RunnerConfig, task: Task) -> Task:
 
 def broker_in_force(config: RunnerConfig) -> bool:
     """A broker adapter other than `none` is configured — the run's keys are
-    the broker's business, not the tier's (D-21.1)."""
+    the broker's business, not the tier's (S-0021/D-1)."""
 
     return config.broker.adapter != "none"
 
@@ -350,7 +352,7 @@ def broker_in_force(config: RunnerConfig) -> bool:
 
 def image_for(config: RunnerConfig, tier: TierConfig) -> str:
     """The tier's image when it names one, else the runtime default — the
-    harness's identity is the image it runs in (RFC 0017 §3)."""
+    harness's identity is the image it runs in (S-0017/configuration-routes-by-nature)."""
 
     return tier.image or config.runtime.image
 
@@ -360,7 +362,7 @@ def image_for(config: RunnerConfig, tier: TierConfig) -> str:
 
 def agent_timeout_for(config: RunnerConfig, tier: TierConfig) -> float:
     """The resolved tier's agent clock when it names one, else the runtime
-    global (RFC 0035 §5.3, D-35.6). `is None`, not truthiness: an explicit
+    global (S-0035/the-tier-clock, S-0035/D-6). `is None`, not truthiness: an explicit
     `0` is a named value that wins, absence is what falls through."""
 
     return config.runtime.agent_timeout if tier.agent_timeout is None else tier.agent_timeout
@@ -371,7 +373,7 @@ def agent_timeout_for(config: RunnerConfig, tier: TierConfig) -> float:
 
 def sandbox_timeout_for(config: RunnerConfig, tier: TierConfig) -> float:
     """The resolved tier's sandbox lifecycle bound when it names one, else
-    the runtime global (RFC 0035 §5.3, D-35.6)."""
+    the runtime global (S-0035/the-tier-clock, S-0035/D-6)."""
 
     return config.runtime.sandbox_timeout if tier.sandbox_timeout is None else tier.sandbox_timeout
 
@@ -398,7 +400,7 @@ class OpenSandboxConfig(BaseModel):
     yaml): `RunnerConfig` resolves it once at load from `broker.bind` /
     `broker.advertise` and publishes it on this instance — one location for
     the address, the broker block, and one derived read, the runtime's
-    proxy-env composition (D-41.6: two adapters, no channel, one fact)."""
+    proxy-env composition (S-0041/D-6: two adapters, no channel, one fact)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -437,7 +439,7 @@ def split_host_port(authority: str) -> tuple[str, int | None]:
     entries) so both read one format; pass-through entries themselves are
     validated as hostnames or IPv4 addresses — a bracketed IPv6 parses
     here but is refused by the entry validator, which is fine: a named
-    destination a machine can match is what matters (D-21.11's answer: the
+    destination a machine can match is what matters (S-0021/D-11's answer: the
     declared destinations live in the broker block, and the broker is the
     only reader)."""
 
@@ -469,10 +471,10 @@ def split_host_port(authority: str) -> tuple[str, int | None]:
 
 def pass_through_allows(pass_through: list[str] | tuple[str, ...], host: str, port: int) -> bool:
     """Whether the sealed broker may CONNECT to ``host:port`` without
-    inspection (RFC 0021 §5.2): a declared entry matches its host on any
+    inspection (S-0021/two-modes-because-custody-and-containment-are-different-problems): a declared entry matches its host on any
     port, and a ``host:port`` entry narrows to exactly that port — the
     declaration is of a *named host*, ports are the destination's business
-    (D-21.3)."""
+    (S-0021/D-3)."""
 
     for entry in pass_through:
         entry_host, entry_port = split_host_port(entry)
@@ -488,7 +490,7 @@ def pass_through_allows(pass_through: list[str] | tuple[str, ...], host: str, po
 
 def sealed_broker_port(network: str) -> int:
     """The sealed broker's port, derived from the internal network's name
-    (RFC 0003 §4's rule: when a service needs a port, it derives one). The
+    (S-0003/isolation's rule: when a service needs a port, it derives one). The
     broker binds it and the runtime composes the sandbox's proxy env from
     it — two adapters with no channel between them derive the same number
     from the same configured name (the runtime's network and the broker's
@@ -509,7 +511,7 @@ WILDCARD_BIND_HOST = "0.0.0.0"
 
 
 def remote_broker_proxy(broker: BrokerConfig) -> str:
-    """The broker's advertised URL in remote endpoint mode (D-41.6): the
+    """The broker's advertised URL in remote endpoint mode (S-0041/D-6): the
     `broker.advertise` host — falling back to `broker.bind`'s — and the
     advertised port, falling back to bind's. This replaces the
     Docker-gateway derivation for runs whose sandboxes are elsewhere: the
@@ -573,7 +575,7 @@ def _validate_host_port_shape(value: str, label: str) -> tuple[str, int | None]:
 
 def _validate_pass_through_entry(entry: str) -> None:
     """A pass-through entry is a host, optionally :port — a named
-    destination, never a URL, a pattern or a wildcard (D-21.3: every other
+    destination, never a URL, a pattern or a wildcard (S-0021/D-3: every other
     destination is declared, and a declaration a machine cannot match is
     not a declaration)."""
 
@@ -584,15 +586,15 @@ def _validate_pass_through_entry(entry: str) -> None:
 
 
 class BrokerProvider(BaseModel):
-    """One routed provider's wire facts (RFC 0021 §5.2): where the broker
+    """One routed provider's wire facts (S-0021/two-modes-because-custody-and-containment-are-different-problems): where the broker
     forwards and which environment variable in the broker's own environment
     holds the key — a name, never a value. The configuration names the
-    credential once; a brokered tier names none (D-21.1)."""
+    credential once; a brokered tier names none (S-0021/D-1)."""
 
     model_config = ConfigDict(extra="forbid")
 
     upstream: str = ""  # the provider's real base URL (http:// or https://)
-    # A-70: the broker's own upstream leg tunnels through the host's
+    # S-0021/A-1: the broker's own upstream leg tunnels through the host's
     # https_proxy for this provider — for upstreams unreachable from the
     # host directly (region gating). The sandbox never sees a proxy either
     # way; this is the broker's egress, not the run's.
@@ -618,15 +620,15 @@ class BrokerProvider(BaseModel):
 
 
 class NotifyConfig(BaseModel):
-    """Where an interrupt-class escalation is delivered (RFC 0051).
+    """Where an interrupt-class escalation is delivered (S-0051).
 
-    `none` by default and explicitly (D-51.4): a repository that has not
+    `none` by default and explicitly (S-0051/D-4): a repository that has not
     chosen a destination sends nothing because somebody decided that, the
     same shape the broker's `none` adapter takes.
 
     The URL is the destination itself, not a credential — a webhook URL is
     a bearer secret in practice, so it names an environment variable rather
-    than carrying a value into a committed file (D-4b).
+    than carrying a value into a committed file (S-0001/D-13).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -634,7 +636,7 @@ class NotifyConfig(BaseModel):
     adapter: str = "none"  # none | webhook
     url_env: str = "TORVE_NOTIFY_URL"
     # How many deliveries one escalation earns before the relay parks it
-    # (D-51.7). A queue that retries forever is a queue that never drains.
+    # (S-0051/D-7). A queue that retries forever is a queue that never drains.
     attempts: int = 5
     timeout_s: float = 10.0
 
@@ -643,14 +645,14 @@ class NotifyConfig(BaseModel):
 
 
 class BrokerConfig(BaseModel):
-    """The egress broker (RFC 0021 §5.1): which adapter is in force and what
+    """The egress broker (S-0021/the-port): which adapter is in force and what
     it is fed. `none` is today's behaviour named explicitly — keys pass
     through, no metering, no wire routing — and stays the phase-1 default;
-    `torve doctor` names it and says plainly that it leaves D-4b unmet
-    (D-21.9). Under any other adapter a brokered tier names no credential
-    (D-21.1): the broker's provider table is the one channel.
+    `torve doctor` names it and says plainly that it leaves S-0001/D-13 unmet
+    (S-0021/D-9). Under any other adapter a brokered tier names no credential
+    (S-0021/D-1): the broker's provider table is the one channel.
 
-    The two modes are D-21.3's split: `endpoint` (the phase-1 default)
+    The two modes are S-0021/D-3's split: `endpoint` (the phase-1 default)
     closes custody and metering on the daemon's default bridge; `sealed`
     adds containment — the sandbox joins the user-defined internal Docker
     network named here, whose only host-side address is the broker, and
@@ -658,7 +660,7 @@ class BrokerConfig(BaseModel):
     `pass_through` and CONNECTed without inspection. The same network is
     named in `runtime.network` — egress policy (this block) and sandbox
     provisioning (`runtime`) are two views of one fact, and the runner
-    validator refuses them to disagree (D-21.11).
+    validator refuses them to disagree (S-0021/D-11).
 
     An endpoint whose sandboxes are remote — an OpenSandbox server on
     another machine — configures `bind` and, across a NAT or a hostname
@@ -672,7 +674,7 @@ class BrokerConfig(BaseModel):
 
     adapter: Literal["none", "local", "opensandbox"] = "none"
     mode: Literal["endpoint", "sealed"] = "endpoint"
-    # Remote endpoint mode (D-41.6): `bind` is the host:port the broker
+    # Remote endpoint mode (S-0041/D-6): `bind` is the host:port the broker
     # thread listens on instead of the loopback/bridge-gateway derivation —
     # a port is mandatory, because the sandbox-side composition of this
     # address happens with no channel to the broker and cannot learn an
@@ -688,19 +690,19 @@ class BrokerConfig(BaseModel):
     advertise: str = ""
     # The user-defined --internal Docker network sealed mode joins; the
     # broker attaches to it at its gateway, the sandboxes join it, and
-    # nothing on it is reachable except the broker (D-21.3). Empty in
+    # nothing on it is reachable except the broker (S-0021/D-3). Empty in
     # endpoint mode; must equal runtime.network when sealed.
     network: str = ""
     # provider -> wire facts; the run's routing is a dispatch-checked subset
-    # (D-21.4: the broker exposes one loopback route per routed provider).
+    # (S-0021/D-4: the broker exposes one loopback route per routed provider).
     providers: dict[str, BrokerProvider] = Field(default_factory=dict)
     # Sealed mode only: named hosts the broker will CONNECT to without
     # inspection — a package index, the forge. An undeclared destination is
     # refused loudly, and the run fails rather than succeed through a path
-    # nobody meant to leave open (D-21.3).
+    # nobody meant to leave open (S-0021/D-3).
     pass_through: list[str] = Field(default_factory=list)
     # A broker-measured cost that diverges from the adapter's self-report by
-    # more than this fraction is an engine event (D-21.5).
+    # more than this fraction is an engine event (S-0021/D-5).
     cost_tolerance: float = 0.25
 
     # ....................... #
@@ -710,7 +712,7 @@ class BrokerConfig(BaseModel):
         if self.adapter == "opensandbox":
             raise ValueError(
                 "broker adapter 'opensandbox' is not built — it is condition-gated "
-                "on a live server and arrives as an adapter, never a prerequisite (D-21.2)"
+                "on a live server and arrives as an adapter, never a prerequisite (S-0021/D-2)"
             )
 
         if self.mode == "sealed":
@@ -751,7 +753,7 @@ class BrokerConfig(BaseModel):
                     "broker pass_through names routed provider host(s) "
                     f"{', '.join(overlap)} — a destination cannot be both a routed "
                     "provider (key injected, metered) and an uninspected pass-through "
-                    "(D-21.4's wire enforcement would be bypassable)"
+                    "(S-0021/D-4's wire enforcement would be bypassable)"
                 )
 
             if self.bind or self.advertise:
@@ -839,12 +841,12 @@ class RuntimeConfig(BaseModel):
     # the host's network stack, which is what lets a sandbox reach a proxy or
     # VPN listening on the host's loopback — the operator trades network
     # isolation for the host's egress path, knowingly. Docker-only; the
-    # OpenSandbox server owns its own egress model (RFC 0003 §4.1).
+    # OpenSandbox server owns its own egress model (S-0003/runtime).
     network: str = ""
-    # Docker inside the sandbox (RFC 0017 §2a, D-17.9). "socket" mounts the
+    # Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). "socket" mounts the
     # host daemon's socket into every sandbox of the run — attempt and gates
     # alike — and the image supplies the docker CLI. Host-equivalent
-    # capability, granted knowingly per repository (D-17.10): a container
+    # capability, granted knowingly per repository (S-0017/D-10): a container
     # started over the host socket can mount any host path. The nested
     # daemon is the named, deferred stronger mode. OpenSandbox refuses any
     # value here.
@@ -856,8 +858,8 @@ class RuntimeConfig(BaseModel):
 
 
 class StoreConfig(BaseModel):
-    """The durable run store (D-5, D-5a): mock for tests and simulation,
-    Postgres for real runs (D-3.6). The mock is in-process, so cross-process
+    """The durable run store (S-0001/D-14, S-0001/D-15): mock for tests and simulation,
+    Postgres for real runs (S-0003/D-6). The mock is in-process, so cross-process
     guarantees — a reaper seeing another runner's leases — need Postgres.
 
     `dsn_env` names the environment variable holding the DSN; the value never
@@ -878,10 +880,10 @@ class StoreConfig(BaseModel):
 
 
 def _default_skill_sets() -> dict[str, list[str]]:
-    """The skills each dispatchable role loads (D-9.1). Keyed by roles a run
+    """The skills each dispatchable role loads (S-0009/D-1). Keyed by roles a run
     can actually have: an entry for a role nothing dispatches promises a
     materialization that never happens, and `torve eval` then refuses the
-    skill it names as "in no role set" (A-125)."""
+    skill it names as "in no role set" (S-0009/A-5)."""
 
     return {
         "implement": ["flag-dont-flip", "ratchet-what-you-build"],
@@ -894,8 +896,8 @@ def _default_skill_sets() -> dict[str, list[str]]:
 
 
 class SkillsConfig(BaseModel):
-    """Role-scoped skill sets (RFC 0009 §3, D-9.1) materialized into the
-    sandbox from package data at dispatch (A-3, D-9.7)."""
+    """Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1) materialized into the
+    sandbox from package data at dispatch (S-0009/A-1, S-0009/D-7)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -906,11 +908,11 @@ class SkillsConfig(BaseModel):
 
 
 class SpecsConfig(BaseModel):
-    """Where the specification corpus lives (0013 A-16, D-13.7; RFC 0057
-    D-57.3): one path, never a list or a glob — numbering is continuous
+    """Where the specification corpus lives (0013 S-0013/A-1, S-0013/D-7; S-0057
+    S-0057/D-3): one path, never a list or a glob — numbering is continuous
     across a corpus, and two roots mean two counters and a colliding
-    identifier at the first merge (D-A.16). The archive and the schemas are
-    its siblings. Read from the runner's configuration per D-13.3, never
+    identifier at the first merge (S-0016/D-23). The archive and the schemas are
+    its siblings. Read from the runner's configuration per S-0013/D-3, never
     from the repository under work."""
 
     model_config = ConfigDict(extra="forbid")
@@ -931,7 +933,7 @@ class ReapConfig(BaseModel):
 
 
 class TracesConfig(BaseModel):
-    """Retention bounds for the durable trace store (RFC 0039 §5.2, D-39.3):
+    """Retention bounds for the durable trace store (S-0039/retention, S-0039/D-3):
     the reaper's pass sheds traces oldest-first past either bound. Both
     knobs are operator's — trace volume is a property of the fleet, not the
     engine — and the defaults are the drafting values, pending the owner's
@@ -949,7 +951,7 @@ class TracesConfig(BaseModel):
 
 
 class VcsConfig(BaseModel):
-    """Local git at the runner boundary (RFC 0010 §4). The signing key is a
+    """Local git at the runner boundary (S-0010/signing). The signing key is a
     path to an SSH private key the RUNNER holds — it is never mounted into a
     sandbox, and the signature attests "Torve produced this under its task",
     never that a human reviewed it. Unset means unsigned."""
@@ -963,9 +965,9 @@ class VcsConfig(BaseModel):
 
 
 class ScmConfig(BaseModel):
-    """The remote forge (RFC 0010 §2). The credential is named, never held:
+    """The remote forge (S-0010/two-ports-deliberately-separate). The credential is named, never held:
     `token_env` is the NAME of the environment variable the runner reads at
-    push/PR time (D-4b) — the value stays in the runner's process and no
+    push/PR time (S-0001/D-13) — the value stays in the runner's process and no
     sandbox ever sees it. `repo` is owner/name on the forge."""
 
     model_config = ConfigDict(extra="forbid")
@@ -979,12 +981,12 @@ class ScmConfig(BaseModel):
 
 
 class ReviewConfig(BaseModel):
-    """Review triggers (RFC 0005 §4). Off by default — a blocker stopping
-    the run is configuration deciding a consequence (D-2), and configuring
+    """Review triggers (S-0005/triggers). Off by default — a blocker stopping
+    the run is configuration deciding a consequence (S-0001/D-10), and configuring
     nothing decides nothing. `task_gated` is board-driven; the pull-request
     triggers admit `torve review pr` as the forge's event delivery.
     `skip_authors` is §4's author skip rule; draft and zero-changed-files
-    pull requests always skip. `blocker_revisions` (RFC 0043, D-2's framing:
+    pull requests always skip. `blocker_revisions` (S-0043, S-0001/D-10's framing:
     configuration decides the consequence, never the model) bounds how many
     in-run attempts a surviving blocker earns before escalating
     `blocker_finding`; 0 escalates on the first surviving blocker, today's
@@ -994,7 +996,7 @@ class ReviewConfig(BaseModel):
     on: list[str] = Field(default_factory=list)
     skip_authors: list[str] = Field(default_factory=list)
 
-    # The blocker revision budget (RFC 0043 D-43.1/D-43.3): in-run attempts,
+    # The blocker revision budget (S-0043 S-0043/D-1/D-43.3): in-run attempts,
     # same worktree, a surviving blocker spends before escalating. Counted
     # per run, spent only by surviving blockers — a clean review costs
     # nothing against it.
@@ -1008,7 +1010,7 @@ class ReviewConfig(BaseModel):
     # `major` for "this must be fixed" and reserves `blocker` for something
     # that has not once occurred in this repository. The grade is the
     # reviewer's reading and stays what it recorded; what stops a promotion
-    # is configuration's to decide (D-2), which is what this is.
+    # is configuration's to decide (S-0001/D-10), which is what this is.
     blocks_at: Literal["blocker", "major"] = "major"
 
     # ....................... #
@@ -1057,7 +1059,7 @@ class ReviewConfig(BaseModel):
 
 
 class PromotionConfig(BaseModel):
-    """Landing policy (RFC 0006 §3). The operator's `torve merge` is always
+    """Landing policy (S-0006/promotion). The operator's `torve merge` is always
     the recorded approval; `auto_merge` is the opt-in that lets a manager
     pass invoke the same lane on the same terms — it arms the pass's landing
     leg, and every refusal below still applies to it unchanged.
@@ -1070,7 +1072,7 @@ class PromotionConfig(BaseModel):
     remote actually saw."""
 
     model_config = ConfigDict(extra="forbid")
-    # D-52.2: D-6.2's opt-in, restored with its original default of false.
+    # S-0052/D-2: S-0006/D-2's opt-in, restored with its original default of false.
     # Off, a manager pass never lands and behaves exactly as it did before
     # the landing leg existed — landing stays a human act. On, the pass runs
     # the same `process_lane` `torve merge` runs, with the same arguments,
@@ -1078,13 +1080,13 @@ class PromotionConfig(BaseModel):
     # manual verb.
     auto_merge: bool = False
     require_ci: bool = False
-    # §3's review criterion (D-6.14, A-43): the lane lands only a candidate
+    # §3's review criterion (S-0006/D-14, S-0006/A-3): the lane lands only a candidate
     # whose producing run recorded a concluded review (`reviewed_by` on the
     # run state) — the unconfigured-review bridge never satisfies it.
     require_review: bool = False
     # §3's approvals requirement (T-0060): the lane lands only a candidate
     # with this many recorded approvals of its CURRENT branch tip — an
-    # approval that predates the last push approves nothing (D-6.3). Zero
+    # approval that predates the last push approves nothing (S-0006/D-3). Zero
     # requires none: configuring nothing decides nothing.
     approvals: int = 0
     # §3's quiet window, in seconds: a landing whose branch tip is younger
@@ -1097,19 +1099,19 @@ class PromotionConfig(BaseModel):
 
 class LoopConfig(BaseModel):
     """The manager pass's knobs. Named for the standing loop that is gone
-    (A-105); the keys stay because a configuration file that has to be
+    (S-0019/A-8); the keys stay because a configuration file that has to be
     rewritten to keep working is a worse cost than a section named after
     its ancestor."""
 
     model_config = ConfigDict(extra="forbid")
 
     # A pass mints nothing while this root's escalation queue holds this
-    # many, counting both carriers (D-48.5). The queue may drain during a
+    # many, counting both carriers (S-0048/D-5). The queue may drain during a
     # pause; it may not grow.
     pause_escalations: int = 1
     # Seconds; an adoption lock older than this is stale and broken loudly.
     tick_budget: int = 3600
-    # RFC 0023 D-23.6: instantiations across every standing job in one
+    # S-0023 S-0023/D-6: instantiations across every standing job in one
     # pass, so spend per unit time stays cadence times a known bound.
     standing_max_per_tick: int = 1
 
@@ -1118,12 +1120,12 @@ class LoopConfig(BaseModel):
 
 
 class IntakeConfig(BaseModel):
-    """The drafting run's knobs (RFC 0020). `max_drafts` is D-20.8's
+    """The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's
     decomposition ceiling — how many contracts one request may yield;
     `iterations` bounds the draft-lint loop like any attempt budget.
     `document_threshold` is the document-threshold rule's starting point —
     the number of distinct documents whose settled ground a scope must
-    cross before the work needs one of its own (RFC 0030 D-30.3), a
+    cross before the work needs one of its own (S-0030 S-0030/D-3), a
     calibration knob rather than a truth."""
 
     model_config = ConfigDict(extra="forbid")
@@ -1156,9 +1158,9 @@ class RunnerConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _specs_not_rfcs(cls, data: Any) -> Any:
-        # D-57.3: the old key is refused naming the new one, never mapped.
+        # S-0057/D-3: the old key is refused naming the new one, never mapped.
         if isinstance(data, dict) and "rfcs" in data:
-            raise ValueError("`rfcs` is `specs` since RFC 0057 (D-57.3): rename the key")
+            raise ValueError("`rfcs` is `specs` since S-0057 (S-0057/D-3): rename the key")
 
         return data
 
@@ -1168,10 +1170,12 @@ class RunnerConfig(BaseModel):
     notify: NotifyConfig = Field(default_factory=NotifyConfig)
     loop: LoopConfig = Field(default_factory=LoopConfig)
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
-    worker_slot: int = 0  # names this worker's auth volume (D-4.2); slots are stable, tasks are not
+    worker_slot: int = (
+        0  # names this worker's auth volume (S-0004/D-2); slots are stable, tasks are not
+    )
 
     # Whether a tier may dispatch under an image no paired replay verdict
-    # has measured (RFC 0027 D-27.7, as amended). `refuse` is the rule as
+    # has measured (S-0027 S-0027/D-7, as amended). `refuse` is the rule as
     # written: a definition edit must not quietly change what a seat runs
     # under. `allow` is for a repository rebuilding its own engine, where
     # the images change faster than verdicts can be recorded — the dispatch
@@ -1183,10 +1187,10 @@ class RunnerConfig(BaseModel):
 
     @model_validator(mode="after")
     def _brokered_tiers_name_no_credential(self) -> RunnerConfig:
-        """D-21.1: a brokered tier names no credential. `api_key_env` must be
+        """S-0021/D-1: a brokered tier names no credential. `api_key_env` must be
         empty and a non-empty one is a refused configuration, not a warning —
         a second channel for a secret is the leak the broker exists to
-        remove (D-17.4)."""
+        remove (S-0017/D-4)."""
 
         if self.broker.adapter == "none":
             return self
@@ -1206,8 +1210,8 @@ class RunnerConfig(BaseModel):
 
     @model_validator(mode="after")
     def _retry_variant_names_a_configured_tier(self) -> RunnerConfig:
-        """D-27.11: a rung to nowhere is a configuration error at load time,
-        not a dispatch-time surprise after the first gate-red. D-34.6's
+        """S-0027/D-11: a rung to nowhere is a configuration error at load time,
+        not a dispatch-time surprise after the first gate-red. S-0034/D-6's
         mapping makes every axis's rung reachable, so every one of them is
         checked, not only the scalar's functional mirror."""
 
@@ -1231,7 +1235,7 @@ class RunnerConfig(BaseModel):
 
     @model_validator(mode="after")
     def _character_routing_names_a_configured_tier(self) -> RunnerConfig:
-        """D-34.3: a character routed to a variant that is not configured is
+        """S-0034/D-3: a character routed to a variant that is not configured is
         a load-time refusal, the same rung `retry_variant` already stands
         on — never a dispatch-time surprise."""
 
@@ -1258,13 +1262,13 @@ class RunnerConfig(BaseModel):
 
     @model_validator(mode="after")
     def _sealed_runtime_holds_the_network(self) -> RunnerConfig:
-        """D-21.3's containment is a property of the run's wiring, so the
+        """S-0021/D-3's containment is a property of the run's wiring, so the
         two halves must agree: the sandbox joins the internal network the
-        broker attaches to (D-21.11 — egress policy in the broker block,
+        broker attaches to (S-0021/D-11 — egress policy in the broker block,
         sandbox provisioning in runtime, one fact). Sealed mode also needs
         the one runtime that has user-defined internal networks, and
         refuses the host daemon socket — a socket is host-equivalent
-        capability (D-17.10), which is exactly the trust sealed mode is
+        capability (S-0017/D-10), which is exactly the trust sealed mode is
         for removing."""
 
         if self.broker.mode != "sealed":
@@ -1281,7 +1285,7 @@ class RunnerConfig(BaseModel):
             raise ValueError(
                 "broker mode 'sealed' refuses runtime.docker: socket — mounting the "
                 "host daemon into the sandbox is host-equivalent capability "
-                "(D-17.10), the exact trust sealed containment exists to remove"
+                "(S-0017/D-10), the exact trust sealed containment exists to remove"
             )
 
         if self.runtime.network != self.broker.network:
@@ -1315,7 +1319,7 @@ class RunnerConfig(BaseModel):
 
 
 def profiles_dir() -> Path:
-    """`~/.config/torve/agents/` (RFC 0028 §5.1, D-28.1) — beside the fleet
+    """`~/.config/torve/agents/` (S-0028/the-profile-file, S-0028/D-1) — beside the fleet
     manifest, on the operator's machine, never the repository under work.
     XDG_CONFIG_HOME when set, matching `fleet.default_manifest_path`."""
 
@@ -1328,7 +1332,7 @@ def profiles_dir() -> Path:
 
 
 def _load_profile_body(name: str, key: str, agents_dir: Path) -> tuple[dict[str, Any], Path]:
-    """One named profile's body, validated in isolation (D-28.3): every
+    """One named profile's body, validated in isolation (S-0028/D-3): every
     refusal below names this profile's own file, never the chain it is
     part of."""
 
@@ -1365,19 +1369,19 @@ def _load_profile_body(name: str, key: str, agents_dir: Path) -> tuple[dict[str,
 
 
 def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> dict[str, list[tuple[str, Path]]]:
-    """D-28.2: a raw-mapping merge, on `raw["tiers"]`, before
+    """S-0028/D-2: a raw-mapping merge, on `raw["tiers"]`, before
     `RunnerConfig.model_validate` ever runs — locally-present keys win, and
     the merged mapping is all `TierConfig` sees. One merge level, no
-    profile-to-profile inheritance (D-28.4): a profile body's own `profile`
+    profile-to-profile inheritance (S-0028/D-4): a profile body's own `profile`
     key, if any, is never itself resolved.
 
-    A-74: `profile` also accepts a list of names, merged left to right under
+    S-0028/A-1: `profile` also accepts a list of names, merged left to right under
     this same shallow rule before local overrides — a tier composing flat
     layers, never a profile referencing a profile. Each named profile is
     loaded and validated on its own (`_load_profile_body`), so every refusal
     class still names that profile's own path.
 
-    D-28.3: every failure below refuses the configuration load, naming the
+    S-0028/D-3: every failure below refuses the configuration load, naming the
     file — there is no fallback to inline defaults.
 
     Returns the tier key -> ordered [(profile name, profile path), ...] map
@@ -1404,14 +1408,14 @@ def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> dict[str, list
 
         for name in names:
             body, path = _load_profile_body(name, key, agents_dir)
-            # Left to right (A-74): each next profile's keys win over the
+            # Left to right (S-0028/A-1): each next profile's keys win over the
             # ones before it, same shallow-merge rule as local-over-profile
             # below — list fields replace wholesale, never concatenate.
             merged_body = {**merged_body, **body}
             chain.append((name, path))
 
-        # Local wins last (D-28.2); list fields (api_key_env) replace
-        # wholesale, never concatenate (D-28.4) — this is a plain dict
+        # Local wins last (S-0028/D-2); list fields (api_key_env) replace
+        # wholesale, never concatenate (S-0028/D-4) — this is a plain dict
         # merge, no per-field logic, so that falls out for free.
         merged = {**merged_body, **{k: v for k, v in entry.items() if k != "profile"}}
         merged["profile"] = " -> ".join(names)
@@ -1425,7 +1429,7 @@ def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> dict[str, list
 
 
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
-    """Explicit `path` is a flag-level override (D-13.4); otherwise the file
+    """Explicit `path` is a flag-level override (S-0013/D-4); otherwise the file
     is `.torve/config.yaml` and nowhere else. A missing default file means
     defaults; a missing explicit file is an error."""
 
@@ -1455,7 +1459,7 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     try:
         return RunnerConfig.model_validate(config)
     except ValidationError as exc:
-        # D-28.3's fourth refusal class: a merged result invalid enough that
+        # S-0028/D-3's fourth refusal class: a merged result invalid enough that
         # TierConfig itself refuses it. Pydantic's error names the field, not
         # the profile that supplied it — named here so the offending
         # profile chain and its files are as locatable as the other three

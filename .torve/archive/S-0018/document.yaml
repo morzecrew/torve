@@ -1,23 +1,23 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0018
+id: S-0018
 title: CLI presentation
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0011']
-informed_by: ['0007', '0016']
+depends_on: [S-0011]
+informed_by: [S-0007, S-0016]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   One visual vocabulary for the human side of every verb — components, colour semantics,
   formats and live status — now that the hand-run commands are known. The machine
-  contracts of RFC 0011 are untouched.
+  contracts of S-0011 are untouched.
 schema_version: 3
 sections:
   - key: the-deferral-is-discharged
     md: |
-      D-11.8 deferred presentation polish "until after Phase 3, when it is visible
+      S-0011/D-8 deferred presentation polish "until after Phase 3, when it is visible
       which commands are run by hand and which only by CI." That condition is met:
       usage shows `torve context`, `torve status`, `torve gates run`, `torve plan`,
       `torve rfc check` and `torve shadow` run by hand, while `torve run` and CI
@@ -26,16 +26,16 @@ sections:
       wearing hyphens, and a 28-second acceptance gate renders nothing at all while
       it runs.
 
-      The order of work RFC 0011 §5 fixed still holds: wording pays more than
+      The order of work S-0011/where-ux-effort-actually-pays fixed still holds: wording pays more than
       styling, and the three gate-output rules (name the thing, expected beside
       actual, say what happens now) are content rules this document does not touch.
       This is the layer under them: the same content, presented once, consistently.
   - key: what-is-already-settled-and-stays-settled
     md: |
       `--format json` emits one document, byte-shape versioned, the only surface a
-      machine may parse (D-11.2, D-11.3). Diagnostics go to stderr in both formats
-      (D-11.6). `--plain` is implied by `CI`, a non-TTY stdout, or `--format json`,
-      and `NO_COLOR` is honoured (D-11.5). No interactive prompts, ever (D-11.7).
+      machine may parse (S-0011/D-2, S-0011/D-3). Diagnostics go to stderr in both formats
+      (S-0011/D-6). `--plain` is implied by `CI`, a non-TTY stdout, or `--format json`,
+      and `NO_COLOR` is honoured (S-0011/D-5). No interactive prompts, ever (S-0011/D-7).
       Every rule in this document operates strictly inside that frame: presentation
       changes the pixels of the human rendering and nothing else.
   - key: one-component-vocabulary
@@ -55,12 +55,12 @@ sections:
         `∅` skipped, `≈` flaky, `⤳` bypassed, `!` error. Marks are stable across
         releases for the same reason exit codes are: people learn them.
       - **Failure detail** — a failing row expands into an indented block directly
-        under it (the wording rules of 0011 §5 apply to its content), never
+        under it (the wording rules of S-0011/where-ux-effort-actually-pays apply to its content), never
         interleaved with other rows.
       - **Closing line** — outcome and what happens now: `exit N`, `dry run —
         nothing written`, `parked at gated`.
 
-      Presentation lives in `cli/` only (D-15.6): application modules return data,
+      Presentation lives in `cli/` only (S-0015/D-6): application modules return data,
       and a Rich renderable never crosses that boundary — the moment a `Table`
       appears in `application/`, the JSON and the human view can drift.
   - key: colour-and-emphasis
@@ -83,7 +83,7 @@ sections:
 
       ```
       --format text        default; Rich-rendered for a human at a terminal
-      --format json        unchanged; the machine contract (D-11.2)
+      --format json        unchanged; the machine contract (S-0011/D-2)
       --format markdown    document-producing commands only: pasteable markdown
       ```
 
@@ -96,16 +96,16 @@ sections:
   - key: live-status-for-long-waits
     md: |
       A hand-run `gates run` sits silent for tens of seconds inside the acceptance
-      gate. One narrow lift of 0011 §7's deferral: a **single-line, TTY-only
+      gate. One narrow lift of S-0011/deferred-deliberately's deferral: a **single-line, TTY-only
       status** ("running acceptance… 12s") during steps longer than a moment,
       erased when the step completes. Absent under `--plain`, absent in CI, absent
       under `--format json` — it is presentation, so it obeys every rule
       presentation obeys. Multi-line progress, spinner zoos, live tables and TUIs
-      remain deferred; interactive prompts remain forbidden (D-11.7).
+      remain deferred; interactive prompts remain forbidden (S-0011/D-7).
   - key: what-tests-may-assert
     md: |
       The human rendering is not a contract — that is the whole reason `--format
-      json` exists from first implementation (0011 §2). Tests therefore pin the
+      json` exists from first implementation (S-0011/output-contract). Tests therefore pin the
       JSON byte-shape and assert *content* of human output (a task id present, a
       verdict mark, a section heading), never layout, spacing or colour. A test
       that breaks because a column widened was testing the wrong surface.
@@ -125,7 +125,7 @@ sections:
         editing of the result — the first document planned by the machinery it
         improves.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: console-components

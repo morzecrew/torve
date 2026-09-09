@@ -21,7 +21,7 @@ would be a worker whose memory could disagree with the record, and a manager
 that carried state between passes would be a manager whose restart is a
 recovery procedure rather than a re-read.
 
-## The layers (RFC 0015)
+## The layers (S-0015)
 
 | Layer | Contents | Rule |
 | --- | --- | --- |
@@ -30,8 +30,8 @@ recovery procedure rather than a re-read.
 | `application/` | manager, worker, runner, review, planner, projections, the event log service | depends on ports only, never on adapters |
 | `gates/` | the battery and its context builder | stands alone |
 | `adapters/` | one directory per port: runtime, agent, event store, durable store, vcs, workspace, broker | independent of each other |
-| `config/` | manifest, run configuration, the RFC format | the RFC format terminates at the planner (D-7.17) |
-| `cli/` | Typer verbs, Rich presentation, the composition root | presentation never crosses inward (D-18.2) |
+| `config/` | manifest, run configuration, the RFC format | the RFC format terminates at the planner (S-0007/D-17) |
+| `cli/` | Typer verbs, Rich presentation, the composition root | presentation never crosses inward (S-0018/D-2) |
 
 Five import-linter contracts enforce this mechanically and the `layering`
 gate runs them on every attempt. It earns its keep: agents violate it
@@ -41,7 +41,7 @@ regularly and the gate catches it every time.
 
 The manager is new. The machinery it drives — the attempt loop, the gate
 battery, the review lane, the landing — is the original engine, kept as
-libraries rather than rewritten (D-44.12), because those parts were never
+libraries rather than rewritten (S-0044/D-12), because those parts were never
 the problem. The whole of the seam between them is one module,
 `application/executors.py`: it hands the runner a task and turns the run
 back into the facts the record holds.
@@ -49,7 +49,7 @@ back into the facts the record holds.
 There used to be two dispatchers. The standing loop scanned the filesystem;
 the manager folds the record. They shared the rules and differed only in
 where the state they read came from, which was deliberate and temporary —
-and the scan is now gone (RFC 0019 A-105). What is left of it is the
+and the scan is now gone (S-0019 S-0019/A-8). What is left of it is the
 adoption lock in `application/enginelock.py`, because a human adopting and
 a manager pass minting a standing instance can still race for an id.
 

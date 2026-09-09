@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0020'
+id: S-0020
 title: Intake and the drafting run
 kind: design
 status: superseded
 implementation: partial
-depends_on: ['0003', '0007', 0008]
-informed_by: ['0005', 0019]
+depends_on: [S-0003, S-0007, S-0008]
+informed_by: [S-0005, S-0019]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   A commander's free-form request becomes lint-checked draft task contracts through
@@ -26,12 +26,12 @@ sections:
       is a human act — `torve adopt` in phase 1, `/torve adopt` on the intake
       issue's thread in phase 2, with `/torve revise` re-running the drafter
       against captured thread feedback. The planner module stays exactly as
-      RFC 0007 locked it: no model call inside it, ever.
+      S-0007 locked it: no model call inside it, ever.
   - key: motivation
     md: |
       The charter names specification, not execution, as the bottleneck: "a human
       writes every issue, and nothing learned during execution flows back into the
-      next one" (RFC 0001 §1). RFCs 0002–0019 built the downstream half; every
+      next one" (S-0001/what-torve-is). RFCs 0002–0019 built the downstream half; every
       contract in the system is still authored by hand. Three weeks of dogfood
       put numbers on what that costs:
 
@@ -51,7 +51,7 @@ sections:
         with correct globs and acceptance commands. The transcription is the least
         interesting and most error-prone step in the whole loop.
 
-      RFC 0007 §6 draws the loop as `torve context → [human + expensive model] →
+      S-0007/the-loop-closed draws the loop as `torve context → [human + expensive model] →
       committed spec`. This RFC mechanizes the bracket for the small case — a
       standalone request that needs no RFC amendment — while keeping the property
       that section declares non-negotiable: no decision passes machine to machine
@@ -73,11 +73,11 @@ sections:
         (`globs_intersect`). `next_task_number` is the racing counter from §2.
       - The board verb vocabulary is `COMMANDS = ("retry", "abandon", "unblock",
         "approve", "revise")` (`src/torve/application/tracker.py`), commander-gated
-        by D-8.9; A-40's `revise` and A-41's feedback capture
+        by S-0008/D-9; S-0008/A-4's `revise` and S-0005/A-3's feedback capture
         (`src/torve/application/feedback.py`) already carry reviewer threads into a
         re-run — the exact machinery an intake revision needs.
       - Hand-minted standalone contracts ship `decisions: []` (explicit-empty,
-        D-7.5); decision inheritance exists only through `torve plan`'s
+        S-0007/D-5); decision inheritance exists only through `torve plan`'s
         deterministic copy from an accepted document.
   - key: goals-non-goals
     md: |
@@ -96,15 +96,15 @@ sections:
 
       - **Autonomous backlog generation.** The system never invents its own work;
         intake is always a human request. This is the planner-authority boundary of
-        RFC 0007 §2, kept by construction.
+        S-0007/asymmetry-by-write-authority, kept by construction.
       - **RFC authoring or amendment by the engine.** A request that needs new
         decisions or touches an existing RFC's territory is refused back to the
-        human loop of 0007 §6; the drafter writes contracts, never specifications.
+        human loop of S-0007/the-loop-closed; the drafter writes contracts, never specifications.
       - **Replacing `torve plan`.** Phased RFC work keeps its deterministic minter;
-        intake serves the standalone-request case 0007 §3 already acknowledged as
+        intake serves the standalone-request case S-0007/torve-plan already acknowledged as
         "written by hand".
       - **Customer or anonymous intake.** Requests come from configured commanders
-        (D-8.9's list); widening the population is a policy decision for a later
+        (S-0008/D-9's list); widening the population is a policy decision for a later
         amendment, not a default.
   - key: the-drafting-run
     md: |
@@ -128,7 +128,7 @@ sections:
        "rationale": "one paragraph: how the request decomposed, what was excluded"}
       ```
 
-      Parsed with the same discipline as findings (D-5.4's sibling): the last JSON
+      Parsed with the same discipline as findings (S-0005/D-4's sibling): the last JSON
       document with a `drafts` key wins; unparseable is recorded as a red attempt,
       never invented as empty. `depends_on` between drafts uses `DRAFT-n` refs,
       rewritten at adoption.
@@ -198,17 +198,17 @@ sections:
       with `approve`'s role check.
   - key: what-this-deliberately-does-not-touch
     md: |
-      `torve plan` and the planner module keep every LOCKED row of RFC 0007:
-      D-7.1 (no model calls inside the planner) survives because the drafter runs
+      `torve plan` and the planner module keep every LOCKED row of S-0007:
+      S-0007/D-1 (no model calls inside the planner) survives because the drafter runs
       under the *runner*, exactly as the reviewer does — the planner module gains
       only deterministic lint helpers it already half-owns (`globs_intersect`).
-      D-7.2's human signature moves nowhere: it is now called adoption. The state
+      S-0007/D-2's human signature moves nowhere: it is now called adoption. The state
       machine, landing policy, and review path are untouched; a drafting task is
-      never landed and never approved, like a review (D-8.14's sibling).
+      never landed and never approved, like a review (S-0008/D-14's sibling).
   - key: alternatives-considered
     md: |
       - **A model call inside `torve plan`.** Rejected without discussion —
-        D-7.1 is LOCKED, and the review precedent shows the run boundary does the
+        S-0007/D-1 is LOCKED, and the review precedent shows the run boundary does the
         same job without breaching it.
       - **Drafts as pull requests of contract files.** Rejected: a PR carries merge
         semantics and a branch lifecycle, while a draft needs adopt-or-refuse
@@ -231,7 +231,7 @@ sections:
       - Tracker: `adopt` authorization, role refusal on non-draft tasks, the
         revise capture path against a fake tracker.
       - A fake-agent drafting run end to end: request in, lint-green drafts out,
-        adoption commits, loop dispatches — the conformance shape RFC 0003's
+        adoption commits, loop dispatches — the conformance shape S-0003's
         suites established.
   - key: out-of-scope
     md: |
@@ -243,7 +243,7 @@ sections:
       - **Multi-repository intake.** One root per request until the portfolio
         question (a future RFC) is answered for the loop as a whole.
       - **Drafting RFC amendments.** Named in §4; the escape hatch is the human
-        session loop of 0007 §6, which this RFC feeds but does not replace.
+        session loop of S-0007/the-loop-closed, which this RFC feeds but does not replace.
   - key: risks
     md: |
       - **The drafter writes plausible-but-wrong acceptance commands** — commands
@@ -262,10 +262,10 @@ sections:
     md: |
       - The decomposition ceiling (how many drafts one request may yield) — config
         knob with a small default; the number is an implementation decision
-        (D-20.8).
+        (S-0020/D-8).
       - Disposal of an adopted or abandoned drafting task's state — likely
         identical to a review task's reap path; implementation confirms against
-        the reaper's actual rules (D-20.10).
+        the reaper's actual rules (S-0020/D-10).
 phasing:
   - phase: 1
     title: the-drafting-run-and-the-lint

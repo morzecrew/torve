@@ -1,9 +1,9 @@
-"""Harness-backed agents (RFC 0004 §1): api, harness and subscription are one
+"""Harness-backed agents (S-0004/adapters): api, harness and subscription are one
 mechanism with three authentication routes — the adapters differ only in how
 authentication and the harness reach the process, and that difference lives in
 the sandbox spec (env passthrough vs. an auth volume), not here.
 
-The harness runs *inside* the sandbox (D-4.1): this adapter stages a prompt
+The harness runs *inside* the sandbox (S-0004/D-1): this adapter stages a prompt
 file under the workspace's gitignored `.torve/tmp/` and asks the Runtime to
 run the tier's configured command — the engine never links a harness SDK. The
 prompt points at the role's materialized skills and the execution log the
@@ -13,7 +13,7 @@ workspace itself (`AGENTS.md`, `SKILL.md` — §1).
 The session trace is captured verbatim into the durable store under the
 engine root and referenced root-relative from the attempt record
 (`trace_ref`). A trace is not gate evidence (§4): it records what the
-model saw, not what the code did. The store is local (D-39.2): the
+model saw, not what the code did. The store is local (S-0039/D-2): the
 adapter never commits, uploads or transmits a trace, and its content
 enters no prompt and drives no control flow — the capture-time burn
 profile `parse_burn` derives from the store's own bytes is telemetry
@@ -42,8 +42,8 @@ if TYPE_CHECKING:
 PROMPT_RELPATH = ".torve/tmp/prompt.md"
 
 # The broker handle's fields reach the sandbox inline in the tier command
-# (RFC 0021 §5.1): a broker URL and a run-scoped token are operator
-# non-secret knobs, exactly the channel RFC 0017 §3 already assigns them.
+# (S-0021/the-port): a broker URL and a run-scoped token are operator
+# non-secret knobs, exactly the channel S-0017/configuration-routes-by-nature already assigns them.
 BROKER_URL_PLACEHOLDER = "{broker_url}"
 BROKER_TOKEN_PLACEHOLDER = "{broker_token}"
 
@@ -54,7 +54,7 @@ BROKER_TOKEN_PLACEHOLDER = "{broker_token}"
 def _workspace_head(workspace: Path) -> str | None:
     """The worktree's base commit, resolved host-side: the sandbox sees a
     `.git` pointer into the host tree it cannot follow, so the agent can
-    only receive this pin, never derive it (D-A.7)."""
+    only receive this pin, never derive it (S-0001/D-36)."""
 
     proc = subprocess.run(
         ["git", "-C", str(workspace), "rev-parse", "HEAD"],
@@ -78,7 +78,7 @@ def build_prompt(
     lines: list[str] = [f"# Torve task {task.id}", ""]
 
     if continuation:
-        # RFC 0026 §5.5 (D-26.8/9): this worktree was cut from the previous
+        # S-0026/continuation-attempts (S-0026/D-8/9): this worktree was cut from the previous
         # attempt's own candidate tip, not from base — it ran out of budget,
         # not out of correctness. Stated plainly and distinctly from the
         # review `revision` note below: nothing here was judged.
@@ -93,7 +93,7 @@ def build_prompt(
         ]
 
     if revision:
-        # The revision loop (RFC 0005 §4a): a previous attempt was
+        # The revision loop (S-0005/the-revision-loop-added-by-a-32-2026-08-24): a previous attempt was
         # reviewed; the record is in the workspace and the contract
         # still governs.
         lines += [
@@ -120,9 +120,9 @@ def build_prompt(
             paths = f" — paths: {', '.join(decision.paths)}" if decision.paths else ""
             lines.append(f"- `{decision.id}` ({decision.grade}): {decision.text}{paths}")
 
-            # D-54.1: the reason the row exists reaches the executor; a
+            # S-0054/D-1: the reason the row exists reaches the executor; a
             # checkable row says so, because its compliance is the battery's
-            # to prove and no attestation is owed for it (D-54.3).
+            # to prove and no attestation is owed for it (S-0054/D-3).
             if decision.consequence:
                 lines.append(f"  - why: {decision.consequence}")
 
@@ -197,7 +197,7 @@ def build_prompt(
             "- Gates run outside this session, against the working tree you leave"
             " behind. Exit 0 when you consider the work complete."
         ),
-        # RFC 0029 §5.1, D-29.1: a persona's extra working rules, appended
+        # S-0029/equipment-on-the-tier, S-0029/D-1: a persona's extra working rules, appended
         # after the charter's base rules above — never before, never
         # replacing them.
         *(f"- {extra}" for extra in (prompt_extras or [])),
@@ -215,7 +215,7 @@ class AgentMetadata:
     """Everything `parse_metadata` could read off a harness result: the
     attempt's cost and model version plus the token counts the record's
     agent block carries (T-0186). Every field defaults to None — a harness
-    that reports nothing stays visibly unreported (D-4.6's self-reported
+    that reports nothing stays visibly unreported (S-0004/D-6's self-reported
     regime), never zeroed."""
 
     cost_usd: float | None = None
@@ -261,7 +261,7 @@ def _usage_tokens(sources: tuple[dict[str, Any], ...], names: tuple[str, ...]) -
 def parse_metadata(output: str) -> AgentMetadata:
     """(cost, model, token counts) from a harness result, best effort: the
     last JSON object line wins (`claude -p --output-format json` and friends
-    emit one). Absence is not an error — it is an uncontrolled regime (D-4.6).
+    emit one). Absence is not an error — it is an uncontrolled regime (S-0004/D-6).
 
     opencode's `--format json` nests both under its last `step_finish`
     event's `part` instead of at the top level — `part` is scanned as a
@@ -311,7 +311,7 @@ def parse_metadata(output: str) -> AgentMetadata:
 
         if not isinstance(model, str) or not model:
             # The claude CLI reports models as modelUsage keys — the dated
-            # snapshot ids, which are exactly the drift-catcher D-4.6 wants.
+            # snapshot ids, which are exactly the drift-catcher S-0004/D-6 wants.
             # opencode reports the same per-model shape as part.tokens.
             usage: Any = next(
                 (source[k] for source in sources for k in ("modelUsage", "tokens") if k in source),
@@ -351,10 +351,10 @@ class TurnBurn:
 
 @dataclass(frozen=True)
 class BurnProfile:
-    """What a per-turn stream says about where the tokens went (RFC 0039 §5.3):
+    """What a per-turn stream says about where the tokens went (S-0039/the-burn-profile):
     how many turns produced output, how many tool calls ran beside them, and
     the heaviest turns by output tokens. Best-effort by grade — the block
-    exists only when the stream carried per-turn facts at all (D-4.6's regime:
+    exists only when the stream carried per-turn facts at all (S-0004/D-6's regime:
     absent, never zeroed or inferred)."""
 
     turns: int
@@ -371,7 +371,7 @@ class BurnProfile:
         }
 
 
-# The burn scanner's closed vocabulary (D-39.5: only facts with cross-harness
+# The burn scanner's closed vocabulary (S-0039/D-5: only facts with cross-harness
 # meaning; which lines those facts ride is a naming question, and the answer
 # is deliberately small). A turn is a typed stream event carrying a numeric
 # output-token count at one of the usage positions seen in the wild: the
@@ -460,18 +460,18 @@ def _tool_events(record: dict[str, Any]) -> int:
 
 
 def parse_burn(trace: Path) -> BurnProfile | None:
-    """The burn profile of the session trace the durable store holds (RFC 0039
+    """The burn profile of the session trace the durable store holds (S-0039
     §5.3), scanned from the file's own bytes — never `result.output`, which
     every runtime clips at the exec boundary before it reaches the adapter:
     a profile read off a clipped stream is silently wrong counts, while the
-    store keeps the whole verbatim output (D-39.5).
+    store keeps the whole verbatim output (S-0039/D-5).
 
     Sibling of `parse_metadata` in everything but reach: where that scans the
     last JSON line for the envelope's totals, this scans every line for
     per-turn usage and tool events. A stream with no per-turn facts — an
     envelope-only output, garbage lines, a file retention already took —
-    yields no profile, and the record says so by silence (D-4.6's regime,
-    D-39.4's no-stream-no-block)."""
+    yields no profile, and the record says so by silence (S-0004/D-6's regime,
+    S-0039/D-4's no-stream-no-block)."""
 
     turn_outputs: list[int] = []
     tool_calls = 0
@@ -561,7 +561,7 @@ def _capture(command: str, raw_relpath: str) -> str:
     output exactly as before.
 
     So does a workspace the sandbox cannot write. A drafting run mounts its
-    worktree read-only (D-5.2, D-20.2), the raw path lives inside it, and an
+    worktree read-only (S-0005/D-2, S-0020/D-2), the raw path lives inside it, and an
     unconditional redirect fails before the command runs — so `torve intake`
     with a real harness produced three empty attempts and escalated
     `drafter output unparseable`, which is what a model returning nothing
@@ -601,7 +601,7 @@ class HarnessAgent:
     def _command(self, ctx: AgentContext) -> str:
         """The tier command with its placeholders substituted: {prompt} and
         {model} as always, plus the broker's per-provider URL and the
-        run-scoped token when a broker handle reached the agent (RFC 0021
+        run-scoped token when a broker handle reached the agent (S-0021
         §5.1). A command that names broker placeholders with no broker in
         force is a refused configuration, not a literal string sent into the
         sandbox."""
@@ -624,7 +624,7 @@ class HarnessAgent:
             return command
 
         if not ctx.broker.base_urls:
-            # The none adapter's handle routes nothing (D-21.9): a command
+            # The none adapter's handle routes nothing (S-0021/D-9): a command
             # without placeholders runs unchanged; only a command that names
             # them has been promised a broker that is not there.
             if BROKER_URL_PLACEHOLDER in command or BROKER_TOKEN_PLACEHOLDER in command:
@@ -660,7 +660,7 @@ class HarnessAgent:
         # the agent is never asked to copy a commit it cannot verify.
         seed_log(ctx.workspace, ctx.task.id, base_sha=_workspace_head(ctx.workspace))
         # The run's channel, for the same reason and by the same route (RFC
-        # 0045 §5.2): nothing inside the sandbox can discover the broker's
+        # S-0045/the-intake-route): nothing inside the sandbox can discover the broker's
         # intake, so the engine names it here. No channel writes no file,
         # and the intake verb then writes the worktree log as it always did.
         seed_channel(
@@ -684,8 +684,8 @@ class HarnessAgent:
         raw_relpath = RAW_TRACE_RELPATH.replace("{attempt}", str(ctx.attempt))
         result = ctx.runtime.exec(ctx.handle, _capture(command, raw_relpath), ctx.timeout_s)
 
-        # The trace goes to the durable store verbatim (D-39.5) through the
-        # one helper that owns the home (D-39.1), and is recorded from there
+        # The trace goes to the durable store verbatim (S-0039/D-5) through the
+        # one helper that owns the home (S-0039/D-1), and is recorded from there
         # root-relative — an absolute path is machine-specific while it lives
         # and dangling once retention takes the file, the ref is neither.
         # The verbatim bytes are the captured stream when the sandbox wrote
@@ -710,9 +710,9 @@ class HarnessAgent:
         meta = parse_metadata(result.output)
         # The burn profile is derived from the store's own file, never from
         # result.output: every runtime clips the exec string mid-stream, and
-        # a profile of a clipped stream is silently wrong counts (D-39.4's
+        # a profile of a clipped stream is silently wrong counts (S-0039/D-4's
         # departure, logged). This reads bytes for telemetry only — the
-        # profile drives no branch (D-39.2).
+        # profile drives no branch (S-0039/D-2).
         burn = parse_burn(trace)
 
         return HarnessResult(

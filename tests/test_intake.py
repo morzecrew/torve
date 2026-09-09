@@ -1,4 +1,4 @@
-"""Intake and the drafting run (RFC 0020 phase 1): the parse discipline,
+"""Intake and the drafting run (S-0020 phase 1): the parse discipline,
 the contract lint's refusals, the draft-lint loop, and adoption — ids
 minted under the lock, refs rewritten, contracts committed."""
 
@@ -67,7 +67,7 @@ class StubRuntime:
 
     def create(self, spec, workspace):
         self.created += 1
-        assert spec.workspace_read_only  # D-20.2: the drafter reads, never writes
+        assert spec.workspace_read_only  # S-0020/D-2: the drafter reads, never writes
         return SandboxHandle(id=f"sbx-{self.created}", name=spec.name)
 
     def destroy(self, handle):
@@ -127,7 +127,7 @@ def tree(tmp_path: Path) -> Path:
 
 
 # ----------------------- #
-# The parse discipline (D-20.3): last document wins, unparseable is None.
+# The parse discipline (S-0020/D-3): last document wins, unparseable is None.
 
 
 def test_parse_takes_the_last_drafts_document():
@@ -164,7 +164,7 @@ def test_parse_without_a_drafts_document_is_none():
 
 
 def test_parse_refuses_an_invalid_shape_by_field():
-    # D-54.15: a drafts document that fails the model is a refusal naming
+    # S-0054/D-15: a drafts document that fails the model is a refusal naming
     # the field, not repaired and not "unparseable".
     from torve.application.review import SchemaRefusal
 
@@ -173,7 +173,7 @@ def test_parse_refuses_an_invalid_shape_by_field():
 
 
 # ----------------------- #
-# The lint (D-20.3): every refusal names the draft and the field.
+# The lint (S-0020/D-3): every refusal names the draft and the field.
 
 
 def test_lint_green_on_a_creatable_disjoint_batch(tree: Path):
@@ -189,7 +189,7 @@ def test_lint_green_on_a_creatable_disjoint_batch(tree: Path):
 
 
 def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
-    """A-131/A-132: the acceptance battery runs inside the sandbox, and a
+    """A-131, A-132: the acceptance battery runs inside the sandbox, and a
     sandbox mounts the worktree without a repository — `.git` there points
     at a host path the container never sees. T-0282 burned a whole poison
     ceiling on `uv run torve gates run`, three attempts whose own tests
@@ -197,7 +197,7 @@ def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
 
     refused = lint_drafts(tree, document(draft_dict(acceptance=["uv run torve gates run"])), 4)
     assert any("needs git" in e for e in refused)
-    # D-44.10's principle: a refusal a model must act on names what would
+    # S-0044/D-10's principle: a refusal a model must act on names what would
     # have been allowed. Three drafting attempts proposed `torve gates
     # check` and were refused with the reason and no alternative; all three
     # proposed it again.
@@ -209,7 +209,7 @@ def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
         for e in lint_drafts(tree, document(draft_dict(acceptance=["git diff --exit-code"])), 4)
     )
 
-    # What must stay legal: the commands that carried both of RFC 0052's
+    # What must stay legal: the commands that carried both of S-0052's
     # phases, none of which touches a repository.
     assert (
         lint_drafts(
@@ -289,7 +289,7 @@ def test_lint_refuses_intersecting_scopes(tree: Path):
 
 
 # ----------------------- #
-# The decomposition batch's own four rules (RFC 0026 §5.2), each with a red
+# The decomposition batch's own four rules (S-0026/the-decomposition-run), each with a red
 # twin, layered on the ordinary contract lint above.
 
 
@@ -388,7 +388,7 @@ def test_lint_decomposition_refuses_an_oversized_child(tree: Path):
 
 
 # ----------------------- #
-# Depth bound (D-26.12): a third decomposition round is refused by name.
+# Depth bound (S-0026/D-12): a third decomposition round is refused by name.
 
 
 def test_mint_decomposition_task_refuses_a_third_round(seeded):
@@ -448,7 +448,7 @@ def test_lint_contract_standalone_and_role_guard(tree: Path):
 
 
 def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path):
-    place(tree / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/**"))
+    place(tree / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
 
     def contract(decisions: list) -> Path:
         path = tree / "contract.yaml"
@@ -472,13 +472,13 @@ def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path
     # does not carry it: the advisory names it.
     warnings = standing_warnings(tree, contract([]))
     assert len(warnings) == 1
-    assert "D-99.1" in warnings[0] and "LOCKED" in warnings[0]
+    assert "S-0099/D-1" in warnings[0] and "LOCKED" in warnings[0]
     assert "scope.allow" in warnings[0]
 
     # Carrying the row silences the advisory.
     carried = [
         {
-            "id": "D-99.1",
+            "id": "S-0099/D-1",
             "grade": "LOCKED",
             "text": "The rule",
             "paths": ["src/**"],
@@ -536,7 +536,7 @@ def _rfc_doc(
     title: str = "Fixture",
 ) -> dict[str, str]:
     """One fixture document as its four files: a single row over one path,
-    as the corpus builder writes it (RFC 0056 D-56.1, RFC 0057 D-57.1)."""
+    as the corpus builder writes it (S-0056 S-0056/D-1, S-0057 S-0057/D-1)."""
 
     return spec_document(
         number,
@@ -552,32 +552,32 @@ def _locked(decision_id: str, paths: list[str] | None = None) -> InheritedDecisi
 
 
 # ----------------------- #
-# The threshold verdict (D-30.2/D-30.3): pure arithmetic over standing
+# The threshold verdict (S-0030/D-2, S-0030/D-3): pure arithmetic over standing
 # rows, document ownership and the size verdict — no file I/O.
 
 
 def test_document_threshold_rides_one_documents_locked_ground():
-    standing = [_locked("D-1.1"), _locked("D-1.2")]
-    documents = {"D-1.1": "S-0001", "D-1.2": "S-0001"}
+    standing = [_locked("S-0001/D-1"), _locked("S-0001/D-2")]
+    documents = {"S-0001/D-1": "S-0001", "S-0001/D-2": "S-0001"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict == ThresholdVerdict(verdict="rides", reasons=[])
 
 
 def test_document_threshold_fires_when_locked_rows_cross_two_documents():
-    standing = [_locked("D-1.1"), _locked("D-2.1")]
-    documents = {"D-1.1": "S-0001", "D-2.1": "S-0002"}
+    standing = [_locked("S-0001/D-1"), _locked("S-0002/D-1")]
+    documents = {"S-0001/D-1": "S-0001", "S-0002/D-1": "S-0002"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict.verdict == "document_required"
     assert "S-0001" in verdict.reasons[0] and "S-0002" in verdict.reasons[0]
-    assert "D-1.1" in verdict.reasons[0] and "D-2.1" in verdict.reasons[0]
+    assert "S-0001/D-1" in verdict.reasons[0] and "S-0002/D-1" in verdict.reasons[0]
 
 
 def test_document_threshold_ignores_non_locked_rows_across_documents():
     standing = [
-        InheritedDecision(id="D-1.1", grade="ASSUMED", text="r", paths=["src/**"]),
-        InheritedDecision(id="D-2.1", grade="OPEN", text="r", paths=["src/**"]),
+        InheritedDecision(id="S-0001/D-1", grade="ASSUMED", text="r", paths=["src/**"]),
+        InheritedDecision(id="S-0002/D-1", grade="OPEN", text="r", paths=["src/**"]),
     ]
-    documents = {"D-1.1": "S-0001", "D-2.1": "S-0002"}
+    documents = {"S-0001/D-1": "S-0001", "S-0002/D-1": "S-0002"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict.verdict == "rides"
 
@@ -590,42 +590,42 @@ def test_document_threshold_fires_on_too_large_alone():
 
 
 def test_document_threshold_honours_a_lower_configured_minimum():
-    standing = [_locked("D-1.1")]
-    verdict = document_threshold(standing, SizeVerdict(size="ok"), {"D-1.1": "S-0001"}, 1)
+    standing = [_locked("S-0001/D-1")]
+    verdict = document_threshold(standing, SizeVerdict(size="ok"), {"S-0001/D-1": "S-0001"}, 1)
     assert verdict.verdict == "document_required"
 
 
 def test_document_threshold_counts_documents_not_id_families():
-    # A family of ids is not a document (D-30.3): RFC 0001 alone carries
+    # A family of ids is not a document (S-0030/D-3): S-0001 alone carries
     # D-2, D-25 and D-A.* as one document — counting families would
     # overcount this single document as three, which is the bug this
     # resolution exists to rule out.
-    standing = [_locked("D-2.1"), _locked("D-25.3"), _locked("D-A.7")]
-    documents = {"D-2.1": "S-0001", "D-25.3": "S-0001", "D-A.7": "S-0001"}
+    standing = [_locked("S-0002/D-1"), _locked("S-0025/D-3"), _locked("S-0001/D-36")]
+    documents = {"S-0002/D-1": "S-0001", "S-0025/D-3": "S-0001", "S-0001/D-36": "S-0001"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict.verdict == "rides"
 
 
 # ----------------------- #
-# The intake lint's enforcement surface (D-30.4): a batch-level check, a
+# The intake lint's enforcement surface (S-0030/D-4): a batch-level check, a
 # no-op absent a corpus directory, layered like the configuration lint.
 
 
 def test_lint_document_threshold_rides_one_documents_locked_ground(tree: Path):
-    place(tree / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/**"))
+    place(tree / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     errors = lint_document_threshold(tree, document(draft_dict("DRAFT-1")), RunnerConfig())
     assert errors == []
 
 
 def test_lint_document_threshold_fires_when_scope_crosses_two_documents(tree: Path):
-    place(tree / SPECS, "0097", _rfc_doc("0097", "D-97.1", "src/newmod.py"))
-    place(tree / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
+    place(tree / SPECS, "0097", _rfc_doc("0097", "S-0097/D-1", "src/newmod.py"))
+    place(tree / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/newmod.py"))
     errors = lint_document_threshold(tree, document(draft_dict("DRAFT-1")), RunnerConfig())
     assert len(errors) == 1
     assert "DRAFT-1" in errors[0]
-    assert "D-97.1" in errors[0] and "D-99.1" in errors[0]
+    assert "S-0097/D-1" in errors[0] and "S-0099/D-1" in errors[0]
     assert "S-0097" in errors[0] and "S-0099" in errors[0]
-    for coordinate in ("RFC 0030", "D-30."):
+    for coordinate in ("S-0030", "S-0030/D-"):
         assert coordinate not in errors[0]
 
 
@@ -635,7 +635,7 @@ def test_lint_document_threshold_fires_on_too_large_alone(tree: Path):
     )
     assert len(errors) == 1
     assert "too large" in errors[0]
-    for coordinate in ("RFC 0030", "D-30."):
+    for coordinate in ("S-0030", "S-0030/D-"):
         assert coordinate not in errors[0]
 
 
@@ -646,9 +646,9 @@ def test_lint_document_threshold_counts_documents_not_id_families(tree: Path):
         spec_document(
             "0001",
             [
-                ("D-2.1", "LOCKED", "Rule one", "`src/**`"),
-                ("D-25.3", "LOCKED", "Rule two", "`src/**`"),
-                ("D-A.7", "LOCKED", "Rule three", "`src/**`"),
+                ("S-0002/D-1", "LOCKED", "Rule one", "`src/**`"),
+                ("S-0025/D-3", "LOCKED", "Rule two", "`src/**`"),
+                ("S-0001/D-36", "LOCKED", "Rule three", "`src/**`"),
             ],
             title="Engine",
             implementation="none",
@@ -659,8 +659,8 @@ def test_lint_document_threshold_counts_documents_not_id_families(tree: Path):
 
 
 def test_document_threshold_warnings_advise_without_failing_the_contract_lint(tree: Path):
-    place(tree / SPECS, "0097", _rfc_doc("0097", "D-97.1", "src/app.py"))
-    place(tree / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/app.py"))
+    place(tree / SPECS, "0097", _rfc_doc("0097", "S-0097/D-1", "src/app.py"))
+    place(tree / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/app.py"))
     contract = tree / "contract.yaml"
     contract.write_text(
         yaml.safe_dump(
@@ -680,7 +680,7 @@ def test_document_threshold_warnings_advise_without_failing_the_contract_lint(tr
     warnings = document_threshold_warnings(tree, contract, RunnerConfig())
     assert len(warnings) == 1
     assert "needs its own document" in warnings[0]
-    for coordinate in ("RFC 0030", "D-30."):
+    for coordinate in ("S-0030", "S-0030/D-"):
         assert coordinate not in warnings[0]
 
 
@@ -691,7 +691,7 @@ def test_document_threshold_warnings_advise_without_failing_the_contract_lint(tr
 def test_draft_role_carries_no_acceptance_and_at_most_one_target():
     with pytest.raises(ValueError, match="contract lint"):
         Task(id="T-1", role="draft", acceptance=["true"], decisions=[])
-    # RFC 0026 §5.2: a decomposition run is a draft naming the one contract
+    # S-0026/the-decomposition-run: a decomposition run is a draft naming the one contract
     # it decomposes — the same targets-name-what-it-acts-on shape review and
     # revert already carry.
     with pytest.raises(ValueError, match="at most one target"):
@@ -833,7 +833,7 @@ def test_run_intake_spent_budget_escalates(seeded):
 
 
 # ----------------------- #
-# Adoption (D-20.1, D-20.4).
+# Adoption (S-0020/D-1, S-0020/D-4).
 
 
 def adopted_ready_run(seeded, *, rfc: str | None = None) -> str:
@@ -863,7 +863,7 @@ def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
     contract = yaml.safe_load(
         (seeded.root / ".torve" / "tasks" / second / "contract.yaml").read_text(encoding="utf-8")
     )
-    assert contract["depends_on"] == [first]  # DRAFT-1 rewritten (D-20.4)
+    assert contract["depends_on"] == [first]  # DRAFT-1 rewritten (S-0020/D-4)
     assert contract["role"] == "implement"
     assert contract["decisions"] == []
     Task.model_validate(contract)  # the adopted contract is a legal task
@@ -879,7 +879,7 @@ def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
 
 
 def test_adopt_copies_decisions_from_an_accepted_document(seeded):
-    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/**"))
+    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture spec")
     source = adopted_ready_run(seeded, rfc=f"{SPECS}/S-0099")
     adopted = adopt(seeded.root, source, RunnerConfig())
@@ -891,7 +891,7 @@ def test_adopt_copies_decisions_from_an_accepted_document(seeded):
     )
     assert contract["decisions"] == [
         {
-            "id": "D-99.1",
+            "id": "S-0099/D-1",
             "grade": "LOCKED",
             "text": "The rule",
             "paths": ["src/**"],
@@ -904,10 +904,10 @@ def test_adopt_copies_decisions_from_an_accepted_document(seeded):
 
 
 def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
-    # RFC 0030 §5.1: adoption always merges standing rows — the cited copy
+    # S-0030/standing-inheritance: adoption always merges standing rows — the cited copy
     # is not the only lane; a scope crossing another document's paths
     # inherits that row even with no rfc line at all.
-    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/**"))
+    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture spec")
     source = adopted_ready_run(seeded)  # no rfc line — the document-less lane
     adopted = adopt(seeded.root, source, RunnerConfig())
@@ -920,7 +920,7 @@ def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
         )
         assert contract["decisions"] == [
             {
-                "id": "D-99.1",
+                "id": "S-0099/D-1",
                 "grade": "LOCKED",
                 "text": "The rule",
                 "paths": ["src/**"],
@@ -933,15 +933,15 @@ def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
 
 
 def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
-    # Deduplicated by identifier, the cited copy wins (D-30.1): 0097's
+    # Deduplicated by identifier, the cited copy wins (S-0030/D-1): 0097's
     # standing row is the same identifier as 0099's, and the request was
     # written against 0099 — its grade and text stand.
     place(
         seeded.root / SPECS,
         "0097",
-        _rfc_doc("0097", "D-99.1", "src/**", grade="ASSUMED", text="A weaker copy"),
+        _rfc_doc("0097", "S-0099/D-1", "src/**", grade="ASSUMED", text="A weaker copy"),
     )
-    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/**"))
+    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture specs")
     source = adopted_ready_run(seeded, rfc=f"{SPECS}/S-0099")
     adopted = adopt(seeded.root, source, RunnerConfig())
@@ -953,7 +953,7 @@ def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
     )
     assert contract["decisions"] == [
         {
-            "id": "D-99.1",
+            "id": "S-0099/D-1",
             "grade": "LOCKED",
             "text": "The rule",
             "paths": ["src/**"],
@@ -966,7 +966,7 @@ def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
 
 
 def test_adopt_of_a_decomposition_sets_parent_and_grows_the_integration_task(seeded):
-    # RFC 0026 D-26.6: children mint with `parent` set, and the parent's own
+    # S-0026 S-0026/D-6: children mint with `parent` set, and the parent's own
     # `depends_on` grows with every child — it becomes the integration task.
     seeded.write(
         ".torve/tasks/T-0100/contract.yaml",
@@ -1010,7 +1010,7 @@ def test_adopt_of_a_decomposition_sets_parent_and_grows_the_integration_task(see
 
 
 def test_adopt_refuses_a_draft_status_document(seeded):
-    place(seeded.root / SPECS, "0098", _rfc_doc("0098", "D-98.1", "src/**", status="draft"))
+    place(seeded.root / SPECS, "0098", _rfc_doc("0098", "S-0098/D-1", "src/**", status="draft"))
     seeded.commit("draft spec")
     source = adopted_ready_run(seeded, rfc=f"{SPECS}/S-0098")
     with pytest.raises(ValueError, match="not accepted"):
@@ -1019,7 +1019,7 @@ def test_adopt_refuses_a_draft_status_document(seeded):
 
 def _write_ready_drafts(seeded, task_id: str, request: str, *drafts: dict) -> None:
     # A hand-assembled drafts.json, bypassing the drafting run entirely —
-    # the same shape a green run would have persisted (D-20.4), used here
+    # the same shape a green run would have persisted (S-0020/D-4), used here
     # because the scenario under test is one the intake lint itself would
     # already refuse (T-0197): adoption's own refusal must stand on its
     # own, not lean on the lint catching it first.
@@ -1038,11 +1038,11 @@ def _write_ready_drafts(seeded, task_id: str, request: str, *drafts: dict) -> No
 
 
 def test_adopt_refuses_a_scope_crossing_two_documents_locked_ground(seeded):
-    # RFC 0030 D-30.4: refused before anything is written — no lock, no
+    # S-0030 S-0030/D-4: refused before anything is written — no lock, no
     # minted id, no commit — since adoption is the signature and a
     # signature over two documents' settled ground belongs on one.
-    place(seeded.root / SPECS, "0097", _rfc_doc("0097", "D-97.1", "src/newmod.py"))
-    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
+    place(seeded.root / SPECS, "0097", _rfc_doc("0097", "S-0097/D-1", "src/newmod.py"))
+    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/newmod.py"))
     seeded.commit("fixture specs")
     config = RunnerConfig()
     task = mint_intake_task(seeded.root, "two docs", config)
@@ -1051,7 +1051,7 @@ def test_adopt_refuses_a_scope_crossing_two_documents_locked_ground(seeded):
     with pytest.raises(ValueError, match="needs its own document") as excinfo:
         adopt(seeded.root, task.id, config)
 
-    for coordinate in ("RFC 0030", "D-30."):
+    for coordinate in ("S-0030", "S-0030/D-"):
         assert coordinate not in str(excinfo.value)
     assert not (seeded.root / ".torve" / "tick.lock").exists()
     assert drafts_file(seeded.root, task.id).exists()  # nothing consumed
@@ -1069,7 +1069,7 @@ def test_adopt_refuses_a_too_large_draft(seeded):
 
 
 def test_adopt_rides_one_documents_locked_ground_with_bounded_size(seeded):
-    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
+    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/newmod.py"))
     seeded.commit("fixture spec")
     source = adopted_ready_run(seeded)
     adopted = adopt(seeded.root, source, RunnerConfig())
@@ -1119,7 +1119,7 @@ def test_adopt_tolerates_a_swept_state_and_disposes_of_a_kept_one(seeded):
     state_path = naming.state_file(seeded.root, source)
     assert state_path.exists()
     adopt(seeded.root, source, RunnerConfig())
-    assert not state_path.exists()  # adoption is the disposal (D-20.10)
+    assert not state_path.exists()  # adoption is the disposal (S-0020/D-10)
 
     swept = adopted_ready_run(seeded)
     naming.state_file(seeded.root, swept).unlink()  # a pre-fix reaper's sweep
@@ -1202,7 +1202,7 @@ def test_facts_reach_the_drafter_prompt(seeded):
 
 
 # ----------------------- #
-# RFC 0027 D-27.5: harness populations widen the fact feed.
+# S-0027 S-0027/D-5: harness populations widen the fact feed.
 
 
 def test_execution_facts_reports_harness_populations_per_tier(seeded):
@@ -1263,7 +1263,7 @@ def test_execution_facts_reports_harness_populations_per_tier(seeded):
 
 
 # ----------------------- #
-# RFC 0027 D-27.6: the configuration-change lint.
+# S-0027 S-0027/D-6: the configuration-change lint.
 
 
 def test_configuration_lint_is_a_noop_for_an_ordinary_batch(tree):

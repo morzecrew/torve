@@ -55,7 +55,7 @@ def test_every_page_the_nav_names_exists():
 
 def test_no_page_claims_the_retired_truth_boundary():
     # The site taught "git holds what SHOULD be, the store holds what
-    # HAPPENED" as the organising rule until D-44.1 inverted it. The pages
+    # HAPPENED" as the organising rule until S-0044/D-1 inverted it. The pages
     # kept as records of decisions still say it, correctly and in the past
     # tense; the architecture pages must not.
     for page in (PAGES / "architecture").glob("*.md"):

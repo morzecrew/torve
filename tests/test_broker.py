@@ -1,9 +1,9 @@
-"""RFC 0021 phase 1: the broker port, its local adapter in endpoint mode, and
+"""S-0021 phase 1: the broker port, its local adapter in endpoint mode, and
 the runner's custody wiring — a brokered run's sandbox holds no provider
 key. The local adapter is exercised for real over loopback (a fake upstream
 provider on an ephemeral port); a sandbox reaching the broker over the
 Docker default bridge is integration-tested in the same skips the rest of
-the suite uses. RFC 0041 phase 2 joins it: remote endpoint mode — the
+the suite uses. S-0041 phase 2 joins it: remote endpoint mode — the
 configured bind, the advertised routes, and the pass-through refusal a
 remote run gets instead of sealed mode's topology.
 """
@@ -102,7 +102,7 @@ def broker_post(url: str, token: str, body: bytes = b"{}") -> tuple[int, str]:
 
 
 # ....................... #
-# Configuration (D-21.1, D-21.2, D-21.3, D-21.9)
+# Configuration (S-0021/D-1, S-0021/D-2, S-0021/D-3, S-0021/D-9)
 
 
 def test_none_broker_is_the_phase_one_default():
@@ -111,7 +111,7 @@ def test_none_broker_is_the_phase_one_default():
 
 
 def test_brokered_tier_naming_api_key_env_is_refused():
-    # D-21.1: a non-empty api_key_env under a broker is a refused
+    # S-0021/D-1: a non-empty api_key_env under a broker is a refused
     # configuration, not a warning — a second channel for the key is the
     # leak the broker exists to remove.
     tier = TierConfig(adapter="api", provider=PROVIDER, command="run", api_key_env=[KEY_ENV])
@@ -124,7 +124,7 @@ def test_brokered_tier_naming_api_key_env_is_refused():
 
 def test_none_broker_allows_the_existing_key_name_channel():
     # Under `none` — today's behaviour, named — the tier keeps naming its
-    # key's env var exactly as before (D-21.9: none stays legal).
+    # key's env var exactly as before (S-0021/D-9: none stays legal).
     tier = TierConfig(adapter="api", provider=PROVIDER, command="run", api_key_env=[KEY_ENV])
     config = RunnerConfig(
         tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier}
@@ -133,14 +133,14 @@ def test_none_broker_allows_the_existing_key_name_channel():
 
 
 def test_opensandbox_adapter_is_refused_until_a_server_exists():
-    # D-21.2 / RFC 0021 §8: the adapter is named and deliberately unbuilt —
+    # S-0021/D-2 / S-0021/out-of-scope: the adapter is named and deliberately unbuilt —
     # condition-gated on a live server, never a prerequisite.
     with pytest.raises(ValidationError, match="opensandbox"):
         BrokerConfig(adapter="opensandbox")
 
 
 def test_sealed_mode_requires_a_named_internal_network():
-    # D-21.3's phasing: endpoint closes custody now; sealed adds
+    # S-0021/D-3's phasing: endpoint closes custody now; sealed adds
     # containment — and configuring it must name the internal network the
     # sandbox joins, not silently run as an endpoint.
     with pytest.raises(ValidationError, match="internal Docker network"):
@@ -162,7 +162,7 @@ def test_broker_provider_requires_wire_facts():
 
 
 # ....................... #
-# The port's adapters (D-21.2)
+# The port's adapters (S-0021/D-2)
 
 
 def test_none_broker_is_today_behavior_named():
@@ -180,7 +180,7 @@ def test_build_broker_selects_the_adapter():
 
 
 # ....................... #
-# The local adapter: routing, injection, metering (D-21.4, D-21.5, D-21.7)
+# The local adapter: routing, injection, metering (S-0021/D-4, S-0021/D-5, S-0021/D-7)
 
 
 def test_local_broker_routes_injects_and_meters(upstream, monkeypatch):
@@ -198,7 +198,7 @@ def test_local_broker_routes_injects_and_meters(upstream, monkeypatch):
     assert json.loads(body)["model"] == "fake-model-9"
 
     # The wire credential is the provider key, injected by the broker — the
-    # sandbox's run token never travels past it (D-4b).
+    # sandbox's run token never travels past it (S-0001/D-13).
     assert state["auth"] == ["Bearer k-123-secret"]
     assert state["paths"] == ["/v1/chat/completions"]
     assert state["requests"] == 1
@@ -249,7 +249,7 @@ def test_budget_exhaustion_refuses_mid_run(upstream, monkeypatch):
     handle = broker.open("run-1", routing_for(upstream_url), BrokerBudget(tokens=50))
 
     # The first request measures 50 tokens — exactly the bound, so the
-    # second is refused in progress (D-21.6).
+    # second is refused in progress (S-0021/D-6).
     assert broker_post(handle.url_for(PROVIDER) + "/v1/x", handle.token)[0] == 200
     status, body = broker_post(handle.url_for(PROVIDER) + "/v1/x", handle.token)
     assert status == 429
@@ -280,7 +280,7 @@ def test_open_refuses_a_missing_key(upstream, monkeypatch):
 
 
 def test_the_broker_keeps_counts_and_metadata_never_bodies(upstream, monkeypatch):
-    # D-21.7: request and response bodies are read to forward and meter,
+    # S-0021/D-7: request and response bodies are read to forward and meter,
     # then discarded — the broker's state after close is counts only.
     monkeypatch.setenv(KEY_ENV, "k-123-secret")
     state, upstream_url = upstream
@@ -306,7 +306,7 @@ def test_the_broker_keeps_counts_and_metadata_never_bodies(upstream, monkeypatch
 
 
 # ....................... #
-# Remote endpoint mode (D-41.6): `broker.bind` replaces the bridge-gateway
+# Remote endpoint mode (S-0041/D-6): `broker.bind` replaces the bridge-gateway
 # derivation, `broker.advertise` is the address the sandboxes are told, the
 # provider routes keep the run token across the hop, and the pass-through
 # leg — sealed mode's topology-authenticated relay — is refused loudly with
@@ -396,7 +396,7 @@ def test_remote_endpoint_publishes_routes_at_the_advertised_address(upstream, mo
     # the NAT/hostname split is the whole point of the second knob.
     assert handle.url_for(PROVIDER) == "http://broker.example.net:9443/test-vendor"
 
-    # Provider routes keep the run token unchanged (D-41.2): on the bind
+    # Provider routes keep the run token unchanged (S-0041/D-2): on the bind
     # socket the broker is the same token-authenticated reverse proxy, the
     # key injected from its own environment and never handed over.
     status, body = broker_post(f"http://{bind}/{PROVIDER}/v1/chat/completions", handle.token)
@@ -484,7 +484,7 @@ def test_local_endpoint_connect_refusal_stays_routing(upstream, monkeypatch):
 
 
 def test_the_remote_bind_joins_the_egress_regime(tmp_path):
-    # D-21.8: where the broker listens and what it advertises are part of
+    # S-0021/D-8: where the broker listens and what it advertises are part of
     # what a number was measured under.
     manifest = tmp_path / "gates.yaml"
     manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
@@ -569,7 +569,7 @@ def test_sandbox_proxy_env_stays_forwarded_without_a_bind(tmp_path, monkeypatch)
 
 
 # ....................... #
-# The tier command's substitution (RFC 0021 §5.1)
+# The tier command's substitution (S-0021/the-port)
 
 
 def harness_ctx(tmp_path: Path, tier: TierConfig, handle: BrokerHandle | None) -> AgentContext:
@@ -637,7 +637,7 @@ def test_harness_without_placeholders_runs_unchanged_under_a_broker(tmp_path):
 
 
 # ....................... #
-# The regime hash (D-21.8) and the doctor (D-21.9)
+# The regime hash (S-0021/D-8) and the doctor (S-0021/D-9)
 
 
 def test_config_hash_moves_with_the_broker_block(tmp_path):
@@ -701,7 +701,7 @@ def test_doctor_names_the_local_broker_in_force(tmp_path):
 
 
 # ....................... #
-# The runner's custody wiring (D-21.1, D-21.6): host-side, with the tier
+# The runner's custody wiring (S-0021/D-1, S-0021/D-6): host-side, with the tier
 # command running on the host against the loopback broker
 
 
@@ -829,7 +829,7 @@ def _two_request_command() -> str:
 
 
 def test_brokered_attempt_escalates_cost_anomaly_on_budget_refusal(tmp_path, upstream, monkeypatch):
-    # D-21.6 end to end: the budget is held by the broker, the refusal
+    # S-0021/D-6 end to end: the budget is held by the broker, the refusal
     # happens mid-attempt, and the run escalates cost_anomaly in progress.
     monkeypatch.setenv(KEY_ENV, "k-123-secret")
     state, upstream_url = upstream
@@ -861,13 +861,13 @@ def test_brokered_attempt_escalates_cost_anomaly_on_budget_refusal(tmp_path, ups
     assert final.escalation.reason == "cost_anomaly"
     assert "token budget" in final.escalation.detail
     # The sandbox spec carried no key name: the broker is the one channel
-    # (D-21.1) — the tier's key env is not forwarded into the sandbox.
+    # (S-0021/D-1) — the tier's key env is not forwarded into the sandbox.
     assert runtime.specs[0].env_passthrough == ()
     assert KEY_ENV not in str(runtime.specs[0])
 
 
 def test_brokered_attempt_reaches_ready_and_records_both_costs(tmp_path, upstream, monkeypatch):
-    # D-21.5: the adapter's self-reported cost and the broker's measured
+    # S-0021/D-5: the adapter's self-reported cost and the broker's measured
     # cost both ride the run's record — with a divergence past tolerance
     # visible as an engine event.
     monkeypatch.setenv(KEY_ENV, "k-123-secret")
@@ -908,7 +908,7 @@ def test_brokered_attempt_reaches_ready_and_records_both_costs(tmp_path, upstrea
 
     assert final.state is TaskState.READY, final.history
     # The attempt record's agent block carries the broker's counts beside
-    # the adapter's report (D-21.5) — the adapter claimed 0.5, the broker
+    # the adapter's report (S-0021/D-5) — the adapter claimed 0.5, the broker
     # measured 0.01 from the provider's response.
     record = _last_attempt_record(tmp_path)
     assert record["agent"]["cost_usd"] == 0.5
@@ -925,13 +925,13 @@ def _last_attempt_record(root: Path) -> dict:
     events = [
         r for r in records if r.get("kind") == "engine" and r.get("event") == "cost_divergence"
     ]
-    assert events, "the divergence past tolerance must be an engine event (D-21.5)"
+    assert events, "the divergence past tolerance must be an engine event (S-0021/D-5)"
     return next(r for r in records if r.get("kind") != "engine")
 
 
 # ....................... #
 # End to end against the real Docker daemon: a sandbox on the default bridge
-# reaching the broker at the bridge gateway, holding no key (RFC 0021 §6).
+# reaching the broker at the bridge gateway, holding no key (S-0021/tests).
 
 
 def _docker_available() -> bool:
@@ -1079,7 +1079,7 @@ def test_none_broker_dispatches_a_real_tier_with_no_provider_table():
 
 
 def test_none_handle_runs_a_placeholder_free_command_unchanged(tmp_path):
-    """The none adapter opens a routeless handle (D-21.9); a tier command
+    """The none adapter opens a routeless handle (S-0021/D-9); a tier command
     that names no broker placeholders must pass through it untouched — the
     second half of the regression that broke every real-tier run when
     phase 1 landed."""
@@ -1122,7 +1122,7 @@ def test_forward_strips_a_lowercase_authorization_header(upstream, monkeypatch):
 
 
 def test_burn_is_emitted_per_call_and_sums_to_the_close_aggregate(upstream, monkeypatch):
-    """RFC 0045 D-45.3: the per-call events and the run's aggregate are the
+    """S-0045 S-0045/D-3: the per-call events and the run's aggregate are the
     same numbers seen twice, so a liveness read and a cost read cannot
     disagree about one run."""
 
@@ -1161,7 +1161,7 @@ def test_a_refused_call_burns_nothing(upstream, monkeypatch):
 
 
 def test_a_sink_that_raises_never_breaks_the_wire(upstream, monkeypatch):
-    """An observer that can break a run is not an observer (D-45.3): the
+    """An observer that can break a run is not an observer (S-0045/D-3): the
     request still succeeds and the aggregate is still right."""
 
     monkeypatch.setenv(KEY_ENV, "k-123-secret")

@@ -1,15 +1,15 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-51.1
+  - id: D-1
     grade: LOCKED
     text: >-
       A notification is a delivery of a recorded escalation, never a second fact about
       the work; the vocabulary grows by `notification.sent` and by nothing else
     paths: [src/torve/domain/events.py]
     consequence: >-
-      The same fact cannot exist in two places and disagree — the failure D-8.2 was
-      retired for
-  - id: D-51.2
+      The same fact cannot exist in two places and disagree — the failure S-0008/D-2
+      was retired for
+  - id: D-2
     grade: LOCKED
     text: >-
       The undelivered queue is a fold over the log: an escalation whose id appears
@@ -17,24 +17,24 @@ decisions:
     paths: [src/torve/application/notify.py]
     consequence: >-
       No dual write is possible, because there is nothing to write twice; the cost
-      is the outbox's backoff and leases, replaced by D-51.6
-  - id: D-51.3
+      is the outbox's backoff and leases, replaced by S-0051/D-6
+  - id: D-3
     grade: LOCKED
     text: >-
       Delivery is a port with adapters; the domain never names a destination
     paths: [src/torve/application/ports.py, src/torve/adapters/notify/**]
     consequence: >-
-      Webhook, email or pager is a wiring edit, and RFC 0015's layering keeps the
-      adapter out of the application
-  - id: D-51.4
+      Webhook, email or pager is a wiring edit, and S-0015's layering keeps the adapter
+      out of the application
+  - id: D-4
     grade: ASSUMED
     text: >-
       The first adapters are `webhook` and `none`; `none` is explicit and is the default
     paths: [src/torve/adapters/notify/**, src/torve/config/runconfig.py]
     consequence: >-
       A repository that has not chosen a destination sends nothing *by decision*,
-      following D-21.9's precedent for the broker
-  - id: D-51.5
+      following S-0021/D-9's precedent for the broker
+  - id: D-5
     grade: ASSUMED
     text: >-
       The relay is a leg of the manager's pass, after reclaim and before the mint
@@ -42,7 +42,7 @@ decisions:
     consequence: >-
       It inherits restart transparency for free; a separate process stays a wiring
       change (§10)
-  - id: D-51.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       Delivery is at-least-once with the escalation's event id as the idempotency
@@ -51,7 +51,7 @@ decisions:
     consequence: >-
       A crash redelivers rather than losing a page, and a destination that honours
       the key collapses it
-  - id: D-51.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       A terminal failure records `notification.sent` with its reason after `notify.attempts`
@@ -60,16 +60,16 @@ decisions:
     consequence: >-
       A queue that retries forever never drains, and the escalation is still on the
       board
-  - id: D-51.8
+  - id: D-8
     grade: LOCKED
     text: >-
       Only interrupt-class escalations notify; batch-class stays board-visible
     paths: [src/torve/application/notify.py]
     consequence: >-
-      RFC 0006 §4's distinction, inherited rather than re-decided — paging on everything
-      is how a pager stops being read
-  - id: D-51.9
+      S-0006/human-attention-is-the-scarce-resource's distinction, inherited rather
+      than re-decided — paging on everything is how a pager stops being read
+  - id: D-9
     grade: OPEN
     text: >-
       Whether the served surface ever accepts a write. Not settled here: it changes
-      what an unauthenticated loopback process may do (D-32.2)
+      what an unauthenticated loopback process may do (S-0032/D-2)

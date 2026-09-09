@@ -1,10 +1,10 @@
-"""The context pack (RFC 0054 §5.6, D-54.10, D-54.11): `.torve/context/`
+"""The context pack (S-0054/the-context-pack, S-0054/D-10, S-0054/D-11): `.torve/context/`
 in the worktree, written host-side before the prompt, with the facts the
 corpus cannot carry and the tree cannot grep — this task's rows with
 their consequences and the amendments that changed them, the rows other
 documents hold over the same paths, the battery and its axes, the tests
 covering the scope, this task's own prior attempts and what convicted
-them (D-54.12), the paths other work is contending for, and the schemas
+them (S-0054/D-12), the paths other work is contending for, and the schemas
 the engine parses agent output with.
 
 Every builder is a pure function of (record snapshot, tree, contract):
@@ -12,7 +12,7 @@ computed with no model, deterministic for a base sha and record state,
 gitignored, never in an image, byte-identical for a shadow run. The pack
 never carries another task's escalations, findings or attempts, and no
 model output from a previous attempt beyond the divergence entries it
-recorded (RFC 0007 §5, D-31, D-17.7).
+recorded (S-0007/mcp-as-the-read-surface, S-0001/D-29, S-0017/D-7).
 
 `index.md` lists the files with one line each so an agent opens what it
 needs: identifiers up front, bodies on demand.
@@ -41,7 +41,7 @@ from torve.domain.task import Task
 PACK_DIR = Path(".torve") / "context"
 OUTPUT_TAIL = 2000  # characters of a red gate's output the retry sees
 FAILED_TEST = re.compile(r"^(?:FAILED|ERROR) (\S+::\S+)", re.M)
-GOVERNING = re.compile(r"\b(D-[A-Za-z0-9]+(?:\.\d+[a-z]?)?)\b")
+GOVERNING = re.compile(r"(?<![\w/-])(S-\d{4}/D-\d+)(?![\w/-])")
 
 
 # ....................... #
@@ -60,7 +60,7 @@ def _load(rfc_dir: Path) -> Corpus | None:
 def decisions_file(task: Task, corpus: Corpus | None, rfc_dir: Path) -> dict[str, Any]:
     """The contract's rows whole, the amendments that changed each, and the
     accepted rows from other documents whose paths intersect the scope —
-    the standing set the document lane never saw (D-30.6, closed here)."""
+    the standing set the document lane never saw (S-0030/D-6, closed here)."""
 
     by_id: dict[str, tuple[Document, Any]] = {}
 
@@ -237,7 +237,7 @@ def attempts_file(root: Path, task: Task) -> dict[str, Any]:
     """This task's prior attempts (own task only): verdict, tier, convictions
     and, for each red gate, the output tail, the governing decision ids it
     names and the failed test ids it lists — the red reaching the retry
-    (D-54.12), read from the rows the runner already wrote."""
+    (S-0054/D-12), read from the rows the runner already wrote."""
 
     report = why_report(root, task.id)
     attempts: list[dict[str, Any]] = []
@@ -330,7 +330,7 @@ def contended_file(root: Path) -> dict[str, Any]:
 
 def schemas() -> dict[str, dict[str, Any]]:
     """The output contracts, as contracts: what the engine parses agent
-    output with (D-54.15) and the models a row and a document take."""
+    output with (S-0054/D-15) and the models a row and a document take."""
 
     from torve.application.intake import Draft
     from torve.domain.attempt import Finding
@@ -438,7 +438,7 @@ def materialize(worktree: Path, files: dict[str, str]) -> Path:
 
     # The pack ignores itself: derived state must never reach a diff, a
     # scope verdict or a landing, in this repository or an adopter's whose
-    # ignore file never heard of it (D-54.10).
+    # ignore file never heard of it (S-0054/D-10).
     target.mkdir(parents=True, exist_ok=True)
     (target / ".gitignore").write_text("*\n", encoding="utf-8")
 

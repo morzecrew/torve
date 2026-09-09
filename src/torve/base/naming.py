@@ -1,11 +1,11 @@
-"""Everything addressable derives from the task id (RFC 0003 §4, D-3.4).
+"""Everything addressable derives from the task id (S-0003/isolation, S-0003/D-4).
 
 The reaper's cleanup-by-convention depends on these derivations entirely, so
 they use a stable digest, not Python's salted hash().
 
-RFC 0003 §4 also derives an API port, a database name and a compose project
+S-0003/isolation also derives an API port, a database name and a compose project
 from the task id. Those were implemented and never wired to anything — a
-sandbox reaches none of them today — and are gone (A-50). The derivation
+sandbox reaches none of them today — and are gone (S-0003/A-5). The derivation
 rule stands; when a service needs a port, it derives one the same way.
 """
 
@@ -20,11 +20,11 @@ LABEL_TASK = "torve.task"
 LABEL_RUN = "torve.run"
 LABEL_ROOT = "torve.root"
 WORKTREE_DIR = ".wt"
-# An intake or decompose drafting run's worktree (RFC 0020 §5.4) sits beside
+# An intake or decompose drafting run's worktree (S-0020/board-intake-phase-2) sits beside
 # the ordinary one under a distinct name, so a bare task id and its
 # drafting-run worktree never collide during adoption.
 INTAKE_SUFFIX = ".intake"
-# The durable trace store's directory (RFC 0039 §5.1, D-39.1), spelled from
+# The durable trace store's directory (S-0039/the-store, S-0039/D-1), spelled from
 # the engine root. One string, so the root-relative `trace_ref` recorded in
 # telemetry is literally this text.
 TRACES_DIR = ".torve/traces"
@@ -58,7 +58,7 @@ def state_file(root: Path, task_id: str) -> Path:
 
 
 def traces_dir(root: Path) -> Path:
-    """The durable trace store's home (RFC 0039 §5.1, D-39.1): a directory of
+    """The durable trace store's home (S-0039/the-store, S-0039/D-1): a directory of
     the host root, retention-capped and never swept by the reaper's terminal
     pass. Read-only lookup — writers enter the store through `trace_file`."""
 
@@ -69,8 +69,8 @@ def traces_dir(root: Path) -> Path:
 
 
 def trace_file(worktree: Path, attempt: int) -> Path:
-    """Session trace, one per attempt (RFC 0004 §4), in the durable store
-    under the root the worktree sits in (RFC 0039 §5.1, D-39.1): triage
+    """Session trace, one per attempt (S-0004/why-the-agent-port-earns-its-existence), in the durable store
+    under the root the worktree sits in (S-0039/the-store, S-0039/D-1): triage
     outlives the workspace because the reap leaves traces to the retention
     pass. This is the one path helper every writer of the store reaches —
     it ensures the directory exists, so no writer can depend on another
@@ -87,7 +87,7 @@ def trace_file(worktree: Path, attempt: int) -> Path:
 
 
 def trace_ref(worktree: Path, attempt: int) -> str:
-    """The trace's root-relative reference (D-39.1): resolves against the
+    """The trace's root-relative reference (S-0039/D-1): resolves against the
     root that owns the store for as long as retention keeps the file, and
     says so plainly once it no longer does."""
 
@@ -105,7 +105,7 @@ def sandbox_name(task_id: str, run_id: str) -> str:
 
 
 def root_key(root: Path) -> str:
-    """The engine root's identity on a shared daemon (D-3.25, A-38): a
+    """The engine root's identity on a shared daemon (S-0003/D-25, S-0003/A-4): a
     stable digest of the resolved path — two engines on one machine, or
     two checkouts of one repository, never mistake each other's
     sandboxes for their own."""
@@ -131,7 +131,7 @@ def branch(task_id: str) -> str:
 
 
 def shadow_id(task_id: str) -> str:
-    """The synthetic id shadow infrastructure derives from (RFC 0004 §5):
+    """The synthetic id shadow infrastructure derives from (S-0004/shadow-runs):
     worktree, state file and sandbox names all key on it, so a shadow run
     coexists with a live run of the same task and the reaper sweeps both."""
 

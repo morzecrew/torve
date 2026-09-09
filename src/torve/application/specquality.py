@@ -1,15 +1,15 @@
 """`torve spec health` — the attribution join and the decision-level report
-(RFC 0022 §5.1, §5.2): telemetry, task logs and contracts, indexed by task
+(S-0022/the-join-and-what-it-is-keyed-by, §5.2): telemetry, task logs and contracts, indexed by task
 id, joined to the corpus for the row as it stands and to each contract for
 the row as it was minted.
 
 The report never edits a decision table, proposes no text and calls no model
-(D-22.1, LOCKED): everything here is a read over `.torve/tasks/*/contract.yaml`,
+(S-0022/D-1, LOCKED): everything here is a read over `.torve/tasks/*/contract.yaml`,
 `log.yaml`, run state, git's own landing trailer and the RFC corpus — a plain
-reader over JSONL-shaped YAML, no new dependency, so moving to RFC 0004 §6
-stage 2 is a change of reader, not a rewrite (D-22.5). The grade compared is
+reader over JSONL-shaped YAML, no new dependency, so moving to S-0004/telemetry-staged
+stage 2 is a change of reader, not a rewrite (S-0022/D-5). The grade compared is
 always the one copied onto the contract at mint time, never the row as the
-corpus stands today (D-22.2) — that is why every population is built from
+corpus stands today (S-0022/D-2) — that is why every population is built from
 `Task.decisions`, and the corpus itself is consulted only for whether an
 amendment later cited the identifier, never for its current grade or paths.
 
@@ -17,38 +17,38 @@ amendment later cited the identifier, never for its current grade or paths.
 the decision's declared paths (`torve.application.planner.globs_intersect`,
 the same primitive that already answers "do two glob sets overlap" for
 same-phase scopes) rather than a literal post-hoc `git diff` of historical
-shas. Two considered reasons, logged as a departure from D-22.4/D-22.5's
+shas. Two considered reasons, logged as a departure from S-0022/D-4/D-22.5's
 literal "diff intersected" wording under T-0099: the scope gate already
 refuses a landed diff that leaves `scope.allow` (`torve.gates.scope`), so the
 declared area is a safe over-approximation of the true diff for any task that
 ever passed or was explicitly bypassed; and it keeps this specific reading
-what D-22.5 asks for — YAML in, no git subprocess, no dependency on a
+what S-0022/D-5 asks for — YAML in, no git subprocess, no dependency on a
 historical sha still being resolvable. `TaskFacts.landed` is the module's one
 exception (`_landed_task_ids`, T-0133, logged): the run-state file it used to
 read is exactly what the reaper deletes on every terminal run.
 
-No score is computed anywhere in this module (D-22.3): a population's
+No score is computed anywhere in this module (S-0022/D-3): a population's
 `reading` is `None` until its relevant count clears `floor`, and every ratio
-is printed beside the denominator it was taken over (D-22.8).
+is printed beside the denominator it was taken over (S-0022/D-8).
 
-`dispatch_envelope` (D-22.11, A-62) reads the same `TaskFacts` join
+`dispatch_envelope` (S-0022/D-11, S-0022/A-3) reads the same `TaskFacts` join
 prospectively: landed tasks sharing a size verdict's class, median attempts,
 cost and wall minutes, denominator always printed, reading suppressed below
 `floor`. It is a base rate over history, never a bound — nothing here blocks
 or resizes a dispatch.
 
-`operator_attention` (D-22.12, A-73) reads the same join corpus-wide: landed
+`operator_attention` (S-0022/D-12, S-0022/A-5) reads the same join corpus-wide: landed
 changes beside the operator interventions already recorded behind them —
 feedback minutes and escalations triaged —
 joined per task id. Each intervention kind reports its count behind landed
 changes beside its raw total, every count labeled with its own population —
 the joined count's population is interventions whose task landed, the raw
 total's is every intervention, and the landed window prints as its own count
-beside them, never as a denominator for an intervention count (D-22.8: a
+beside them, never as a denominator for an intervention count (S-0022/D-8: a
 task can hold several interventions, so "joined of landed" would mix two
 populations); an intervention whose task never landed in the window stays in
 the raw total only. The human-minutes reading is suppressed below `floor`
-(D-22.8), no ratio of attention to landed changes computed (D-22.3).
+(S-0022/D-8), no ratio of attention to landed changes computed (S-0022/D-3).
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ from torve.application.runstate import RunState
 from torve.application.sizing import estimate_scope
 from torve.base import naming
 from torve.config import layout, spec
-from torve.domain.spec import Corpus
+from torve.domain.spec import Corpus, qualify
 from torve.domain.states import TaskState
 from torve.domain.task import Scope
 from torve.gates.decisions_reported import ACTIONS as LOG_ACTIONS
@@ -77,8 +77,8 @@ from torve.gates.decisions_reported import parse_log
 
 DEFAULT_FLOOR = 5
 
-# RFC 0004 §6a, reproduced verbatim (D-22.11: printed with the envelope,
-# never paraphrased — the same text D-22.7 requires beside `torve spec
+# S-0004/measurement-defects-to-fix-before-trusting-a-number, reproduced verbatim (S-0022/D-11: printed with the envelope,
+# never paraphrased — the same text S-0022/D-7 requires beside `torve spec
 # health`). `torve.cli.spec` and `torve.application.projections` each carry
 # their own copy for the layering reason their own comments give; this is
 # a third copy rather than a move to `torve.base`, which is out of this
@@ -94,9 +94,9 @@ _ESCALATED_STATE = str(TaskState.ESCALATED)
 _QUEUED_STATE = str(TaskState.QUEUED)
 
 # The landing trailer the runner writes into the commit that lands a task
-# (D-10.4: git log is the surviving record) — the same trailer
+# (S-0010/D-4: git log is the surviving record) — the same trailer
 # `torve.adapters.vcs.git.GitVcs.landed_shas` greps for. `read_tasks` reads
-# it directly (T-0133, departing D-22.5's "no git subprocess" — logged)
+# it directly (T-0133, departing S-0022/D-5's "no git subprocess" — logged)
 # because it has no caller to inject one for it.
 
 
@@ -105,22 +105,24 @@ _QUEUED_STATE = str(TaskState.QUEUED)
 
 @dataclass(frozen=True)
 class TaskFacts:
-    """One minted task, the join's left side (RFC 0022 §5.1): its own
+    """One minted task, the join's left side (S-0022/the-join-and-what-it-is-keyed-by): its own
     contract, its own log, its own run state — task id keyed, nothing merged
     across tasks here. `decisions` carries the grade and paths exactly as
-    copied onto this contract at mint time (D-22.2)."""
+    copied onto this contract at mint time (S-0022/D-2)."""
 
     id: str
-    rfc: str | None  # D-22.9: carried through so a document-level reader can bucket None on its own
+    rfc: (
+        str | None
+    )  # S-0022/D-9: carried through so a document-level reader can bucket None on its own
     scope_allow: list[str]
-    acceptance: list[str]  # D-22.11: the other half of the size verdict's own inputs
+    acceptance: list[str]  # S-0022/D-11: the other half of the size verdict's own inputs
     decisions: list[dict[str, Any]]  # [{id, grade, paths}], mint-time copies
     log_entries: list[dict[str, Any]]
     state: str | None
     attempts: int = 0
     history: list[dict[str, str]] = field(default_factory=list)
-    # D-22.10's landed reading, sourced from git's own landing trailer
-    # (T-0133, departing D-22.5 — see `_landed_task_ids`) rather than
+    # S-0022/D-10's landed reading, sourced from git's own landing trailer
+    # (T-0133, departing S-0022/D-5 — see `_landed_task_ids`) rather than
     # RunState.state == ready: the run-state file is exactly what the
     # reaper deletes on every terminal run, so a population read after a
     # reap sweep saw every task as unlanded regardless of what shipped.
@@ -130,7 +132,7 @@ class TaskFacts:
 
     @property
     def size(self) -> str:
-        """The size verdict this task would receive today (RFC 0002 §6b),
+        """The size verdict this task would receive today (S-0002/task-size),
         recomputed from the same two contract fields `torve.application.
         sizing.estimate` reads rather than stored — the rule may change, and
         a historical population must read under today's rule the same way a
@@ -148,8 +150,8 @@ class TaskFacts:
 
     @property
     def requeued_after_escalation(self) -> bool:
-        """A human sent the task back around the loop (RFC 0006 D-6.10,
-        charter A-40) rather than the row being amended — the LOCKED
+        """A human sent the task back around the loop (S-0006 S-0006/D-10,
+        charter S-0008/A-4) rather than the row being amended — the LOCKED
         reading's other branch (§5.2)."""
 
         return any(
@@ -162,8 +164,8 @@ class TaskFacts:
     def escalations_triaged(self) -> int:
         """Every escalation this task's own history shows a human resolved
         — routed back to the queue or given up on, the state machine's own
-        two exits from `escalated` (`TRANSITIONS[ESCALATED]`, RFC 0006
-        D-6.10). Counted per exit, not per task: a task can escalate and be
+        two exits from `escalated` (`TRANSITIONS[ESCALATED]`, S-0006
+        S-0006/D-10). Counted per exit, not per task: a task can escalate and be
         triaged more than once."""
 
         return sum(
@@ -259,7 +261,7 @@ def _contract_acceptance(record: dict[str, Any]) -> list[str]:
 
 
 def _log_entries(log_path: Path) -> list[dict[str, Any]]:
-    """A missing log is an empty log (A-13, D-3.21) — reused from the same
+    """A missing log is an empty log (S-0003/A-2, S-0003/D-21) — reused from the same
     `decisions-reported` parser so the report and the gate never disagree
     about what an entry is."""
 
@@ -305,7 +307,7 @@ def _landed_task_ids(root: Path) -> set[str]:
     than erroring — the same convention `_load_yaml_dict` uses for a file
     it cannot read."""
 
-    # One derivation, not two (D-7.26): projections owns the landing
+    # One derivation, not two (S-0007/D-26): projections owns the landing
     # spellings — trailer, parenthesized citation, merge-branch shape —
     # and a second copy here would drift. The trailer-only first cut left
     # every pre-trailer landing uncounted, which is half of the very
@@ -324,7 +326,7 @@ def _landed_task_ids(root: Path) -> set[str]:
 
 def read_tasks(root: Path) -> list[TaskFacts]:
     """Every task the corpus knows, joined to its own log, run state and
-    landing trailer (RFC 0022 §5.1). A directory with no readable
+    landing trailer (S-0022/the-join-and-what-it-is-keyed-by). A directory with no readable
     `contract.yaml` is not a task the join can use and is skipped, not
     fabricated."""
 
@@ -368,7 +370,7 @@ def read_tasks(root: Path) -> list[TaskFacts]:
 
 def _amendment_cited_ids(rfc_dir: Path) -> set[str]:
     """Every decision identifier mentioned in any corpus document's Amendments
-    section (RFC 0022 §10: the honest window is "any time after" until there
+    section (S-0022/unresolved-questions: the honest window is "any time after" until there
     are enough pairs to see a distribution — so this checks presence, never
     a date)."""
 
@@ -376,7 +378,15 @@ def _amendment_cited_ids(rfc_dir: Path) -> set[str]:
 
     for doc in _corpus(rfc_dir).documents:
         for amendment in doc.amendments:
-            cited.update(spec.DECISION_CITE.findall(spec.FENCED_BLOCK.sub("", amendment.md)))
+            prose = spec.FENCED_BLOCK.sub("", amendment.md)
+            cited.update(
+                m.group(1) for m in spec.GLOBAL_CITE.finditer(prose) if "/D-" in m.group(1)
+            )
+            cited.update(
+                qualify(doc.id, m.group(1))
+                for m in spec.LOCAL_CITE.finditer(prose)
+                if m.group(1).startswith("D-")
+            )
             cited.update(change.subject for change in amendment.changes)
 
     return cited
@@ -386,7 +396,7 @@ def _amendment_cited_ids(rfc_dir: Path) -> set[str]:
 
 
 def _corpus(rfc_dir: Path) -> Corpus:
-    """The corpus as the model (D-53.13), or an empty one when it does not
+    """The corpus as the model (S-0053/D-13), or an empty one when it does not
     load: the health report is evidence for a human and never the thing
     that refuses a corpus — `torve spec check` is."""
 
@@ -404,8 +414,8 @@ def _corpus(rfc_dir: Path) -> Corpus:
 
 
 def corpus_shape(root: Path, rfc_dir: Path) -> dict[str, Any]:
-    """What the model says about the corpus beside the populations (D-53.6,
-    D-53.7): the rows whose paths match nothing in the tree, and the
+    """What the model says about the corpus beside the populations (S-0053/D-6,
+    S-0053/D-7): the rows whose paths match nothing in the tree, and the
     coverage frontier by top-level source directory — governed, ungoverned
     or retired, counted over the files under `src/`."""
 
@@ -480,7 +490,7 @@ def _touched(task: TaskFacts, paths: list[str]) -> bool:
     """Whether the task's declared footprint could have reached this
     decision's declared area — see the module docstring for why this reads
     `scope.allow` rather than a historical `git diff`. Unconstrained scope
-    (empty `allow`, RFC 0002 §6) cannot be proven not to touch anything."""
+    (empty `allow`, S-0002/scope-in-detail) cannot be proven not to touch anything."""
 
     if not paths:
         return False
@@ -522,7 +532,7 @@ def _finish(bucket: dict[str, Any], floor: int, amended_ids: set[str]) -> dict[s
         detail = (
             f"{decided} task(s) decided this OPEN row independently — read the claims "
             "below for whether they agree; promote to a graded row if so (no automatic "
-            'judgement of "identically": D-22.1 invokes no model)'
+            'judgement of "identically": S-0022/D-1 invokes no model)'
         )
     elif grade == "LOCKED" and halted >= floor:
         if amended:
@@ -543,7 +553,7 @@ def _finish(bucket: dict[str, Any], floor: int, amended_ids: set[str]) -> dict[s
         detail = (
             f"{touched} task(s) touched the declared paths and none cited {identifier} — "
             "either the Paths cell names the wrong area, or the silence check is not "
-            "reaching it (both are defects, and different ones, D-22.4)"
+            "reaching it (both are defects, and different ones, S-0022/D-4)"
         )
 
     return {
@@ -575,10 +585,10 @@ def _finish(bucket: dict[str, Any], floor: int, amended_ids: set[str]) -> dict[s
 
 
 def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
-    """The whole of RFC 0022 §5.2: one population per decision identifier
+    """The whole of S-0022/decision-level-report: one population per decision identifier
     inherited anywhere in `.torve/tasks`, each carrying its raw counts always
-    and a `reading` only once the relevant count clears `floor` (D-22.8).
-    No score anywhere (D-22.3)."""
+    and a `reading` only once the relevant count clears `floor` (S-0022/D-8).
+    No score anywhere (S-0022/D-3)."""
 
     tasks = read_tasks(root)
     amended_ids: set[str] = _amendment_cited_ids(rfc_dir) if rfc_dir.is_dir() else set()
@@ -591,7 +601,7 @@ def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> di
             identifier = str(entry.get("decision") or "")
 
             if not identifier or identifier == "unlisted":
-                continue  # D-22.9 family: an unlisted entry cites no declared row
+                continue  # S-0022/D-9 family: an unlisted entry cites no declared row
 
             cited_here.setdefault(identifier, []).append(entry)
 
@@ -683,10 +693,10 @@ def telemetry_file(root: Path) -> Path:
 def _task_cost_usd(root: Path) -> dict[str, float]:
     """Real-adapter spend per task, summed across its attempts, read the same
     way `torve.application.projections._costs` reads one attempt at a time
-    (D-22.5: a plain JSONL reader, no new dependency), from the telemetry
+    (S-0022/D-5: a plain JSONL reader, no new dependency), from the telemetry
     stream's configured location — `telemetry_file`, the same manifest
     resolution the writer appends with, so a repository that relocates the
-    stream still reports its spend rather than a silent zero (D-22.11).
+    stream still reports its spend rather than a silent zero (S-0022/D-11).
     Fake-agent attempts are simulation, not spend, and stay out."""
 
     telemetry = telemetry_file(root)
@@ -733,7 +743,7 @@ _HEARTBEAT_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 def _wall_minutes(task: TaskFacts) -> float | None:
     """First transition to last transition, in minutes — the same `history`
     timestamps `RunState.transition` stamps at every phase boundary, read as
-    a wall-clock proxy rather than a new recorded field (D-22.5's non-goal:
+    a wall-clock proxy rather than a new recorded field (S-0022/D-5's non-goal:
     everything needed is already recorded)."""
 
     if len(task.history) < 2:
@@ -753,11 +763,11 @@ def _wall_minutes(task: TaskFacts) -> float | None:
 
 
 def dispatch_envelope(root: Path, size: str, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
-    """RFC 0022 §5.2's join read prospectively (D-22.11, A-62): among landed
+    """S-0022/decision-level-report's join read prospectively (S-0022/D-11, S-0022/A-3): among landed
     tasks sharing *size*'s size verdict — recomputed under today's sizing
     rule (`TaskFacts.size`), never stored — the median attempts, cost and
     wall minutes, with the population count printed regardless and every
-    median suppressed until it clears `floor` (D-22.8). Nothing here acts on
+    median suppressed until it clears `floor` (S-0022/D-8). Nothing here acts on
     the number; the operator does."""
 
     tasks = [t for t in read_tasks(root) if t.landed and t.size == size]
@@ -789,10 +799,10 @@ def dispatch_envelope(root: Path, size: str, floor: int = DEFAULT_FLOOR) -> dict
 
 
 def render_envelope(envelope: dict[str, Any]) -> str:
-    """One line for `torve run` and the tick's dispatch leg (D-22.11): the
+    """One line for `torve run` and the tick's dispatch leg (S-0022/D-11): the
     size class, the population size always, the medians once they clear the
     floor, the caveat printed with it every time — never paraphrased
-    (RFC 0004 §6a)."""
+    (S-0004/measurement-defects-to-fix-before-trusting-a-number)."""
 
     size = envelope["size"]
     n = envelope["n"]
@@ -825,11 +835,11 @@ def render_envelope(envelope: dict[str, Any]) -> str:
 
 
 def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
-    """RFC 0022 §5.3/D-22.12 (A-73): landed changes beside the operator
+    """S-0022/document-level-report, S-0022/D-12 (S-0022/A-5): landed changes beside the operator
     interventions already recorded behind them — feedback minutes and the
     escalations a human triaged — joined from `read_tasks` and
     `projections.feedback_records`, with no new recorded field. The tracker
-    commands and approvals this also counted left with the tracker (A-92);
+    commands and approvals this also counted left with the tracker (S-0008/A-5);
     they were the only kind an external surface produced, and no surface
     produces them now. Feedback rows carry task ids and landings resolve to
     task ids through the shipped derivation, so every intervention kind
@@ -838,20 +848,20 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
     carries its own population — the joined count is interventions behind
     landed changes, the raw total is every intervention, and `landed` is the
     task window itself, printed as its own count rather than as a denominator
-    for an intervention count (D-22.8, T-0174: a task can hold several
+    for an intervention count (S-0022/D-8, T-0174: a task can hold several
     interventions, so joined can exceed landed without anything being wrong).
     An intervention whose task never landed in the window stays in the raw
     total only. Every count prints regardless of `floor`; only the
     human-minutes median, the one statistic here with a real sample-size
-    risk, is suppressed below it (D-22.8). No ratio of attention to landed
-    changes is computed (D-22.3): the counts are printed beside each other
+    risk, is suppressed below it (S-0022/D-8). No ratio of attention to landed
+    changes is computed (S-0022/D-3): the counts are printed beside each other
     for a human to relate."""
 
     tasks = read_tasks(root)
     landed_tasks = [t for t in tasks if t.landed]
     landed_ids = {t.id for t in landed_tasks}
 
-    # D-22.5 layering: `torve.application.projections` imports `read_tasks`
+    # S-0022/D-5 layering: `torve.application.projections` imports `read_tasks`
     # from this module at load time, so the reverse import stays lazy the
     # same way `_landed_task_ids` above imports `shipped_ids`.
     from torve.application.projections import feedback_records
@@ -859,7 +869,7 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
     # Feedback is one row per task id (latest wins); the joined count is the
     # rows whose task landed, the raw total all rows. The human-minutes
     # median keeps its own population and printed n — the join is over the
-    # counts, not a new median (D-22.12: "the interventions behind them").
+    # counts, not a new median (S-0022/D-12: "the interventions behind them").
     feedback_rows = [
         (task_id, row)
         for task_id, row in feedback_records(root).items()
@@ -889,14 +899,14 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
 
 
 def render_operator_attention(report: dict[str, Any]) -> str:
-    """One line for the corpus summary and the context section (D-22.12):
+    """One line for the corpus summary and the context section (S-0022/D-12):
     the landed window and every intervention count printed always — each
     kind's joined count (interventions whose task landed) beside its raw
     total, each count labeled with its own population, and the landed window
     as its own count, never as a denominator for an intervention count
-    (D-22.8, T-0174: a task can hold several interventions, so joined may
+    (S-0022/D-8, T-0174: a task can hold several interventions, so joined may
     exceed landed) — the human-minutes median only once it clears the floor,
-    the caveat printed with it every time — never paraphrased (RFC 0004 §6a)."""
+    the caveat printed with it every time — never paraphrased (S-0004/measurement-defects-to-fix-before-trusting-a-number)."""
 
     if report["human_minutes_median"] is not None:
         minutes = (

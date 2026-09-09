@@ -1,17 +1,17 @@
-"""The fleet (RFC 0024): one operator, many repositories.
+"""The fleet (S-0024): one operator, many repositories.
 
 Survey every root's escalation queue, decide the pause once for the fleet
-rather than per root (D-24.2), check each root's own configuration against
-its manifest trust class (§5.3, D-24.6) before serving it, and take the
-roots in the manifest's deterministic order. No fleet lock (D-24.7) and no
-fleet store (D-24.3): every function here reads roots and writes to roots,
+rather than per root (S-0024/D-2), check each root's own configuration against
+its manifest trust class (§5.3, S-0024/D-6) before serving it, and take the
+roots in the manifest's deterministic order. No fleet lock (S-0024/D-7) and no
+fleet store (S-0024/D-3): every function here reads roots and writes to roots,
 never to a shared artefact of its own.
 
 The pass itself is injected rather than built here, because wiring one
 root's adapters is `torve.cli.fleet`'s job — `torve.application` may not
-import `torve.adapters` (RFC 0015 §6).
+import `torve.adapters` (S-0015/enforcement-the-layering-gate).
 
-The tick half of this module went with the standing loop (A-105). What it
+The tick half of this module went with the standing loop (S-0019/A-8). What it
 surveyed, the manager serves.
 """
 
@@ -40,7 +40,7 @@ Boards = Callable[[], Awaitable[dict[str, "Board"]]]
 
 
 def escalated_tasks(root: Path, board: Board | None = None) -> set[str]:
-    """One repository's escalation queue, across both carriers (D-48.5).
+    """One repository's escalation queue, across both carriers (S-0048/D-5).
 
     A partition the resident manager serves records its escalations in the
     log; whatever v1 ran on the same root left them in run-state files.
@@ -64,11 +64,11 @@ def escalated_tasks(root: Path, board: Board | None = None) -> set[str]:
 def survey(manifest: FleetManifest, boards: dict[str, Board] | None = None) -> dict[str, int]:
     """Leg 1 (§5.2): each root's escalation queue.
 
-    Both carriers when a board is available, one when it is not (D-48.5).
+    Both carriers when a board is available, one when it is not (S-0048/D-5).
     A manager records its escalations in the log and whatever v1 ran on the
     same root left them in run-state files; counting only the files makes a
     fleet blind to every escalation the manager has raised since, which is
-    now all of them (A-110).
+    now all of them (S-0048/A-1).
     """
 
     return {
@@ -81,7 +81,7 @@ def survey(manifest: FleetManifest, boards: dict[str, Board] | None = None) -> d
 
 
 def decide_pause(manifest: FleetManifest, counts: dict[str, int]) -> tuple[int, bool]:
-    """Leg 2 (§5.2, D-24.2): the pause is decided once, for the fleet
+    """Leg 2 (§5.2, S-0024/D-2): the pause is decided once, for the fleet
     total — never per root."""
 
     total = sum(counts.values())
@@ -105,9 +105,9 @@ class EscalationRow:
 
 
 def fleet_escalations(manifest: FleetManifest) -> list[EscalationRow]:
-    """`torve fleet status` (§5.4, D-24.8): every root's escalation queue in
-    one table, oldest first — RFC 0006's primary alert (D-6.8) given its
-    fleet form. Read-only over roots (D-24.3): nothing here writes."""
+    """`torve fleet status` (§5.4, S-0024/D-8): every root's escalation queue in
+    one table, oldest first — S-0006's primary alert (S-0006/D-8) given its
+    fleet form. Read-only over roots (S-0024/D-3): nothing here writes."""
 
     rows: list[EscalationRow] = []
 
@@ -133,7 +133,7 @@ def fleet_escalations(manifest: FleetManifest) -> list[EscalationRow]:
 
 # One repository's worth of pass, given the fleet's pause decision — built
 # by the CLI for the same reason `TickRunner` is: wiring one root's worker
-# needs adapters, and `torve.application` may not import them (RFC 0015 §6).
+# needs adapters, and `torve.application` may not import them (S-0015/enforcement-the-layering-gate).
 # Returns the task id it handled, or None when the pass was idle.
 PartitionPass = Callable[[FleetRepository, bool], Awaitable[str | None]]
 
@@ -172,7 +172,7 @@ async def _serve_one(
 
     A manager that stops serving four healthy repositories because a fifth
     has a broken configuration is worse than one that says so and carries
-    on (D-24.5, D-48.3).
+    on (S-0024/D-5, S-0048/D-3).
     """
 
     def row(outcome: str) -> PartitionOutcome:
@@ -181,20 +181,20 @@ async def _serve_one(
         )
 
     if not repo.partition:
-        # D-48.2: a partition nobody wrote down is a board nobody chose.
+        # S-0048/D-2: a partition nobody wrote down is a board nobody chose.
         return row("refused: no partition declared in the fleet manifest"), False
 
     try:
         enforce_trust(repo, load_runner_config(repo.path))
         task_id = await run_pass(repo, paused)
 
-    except TrustRefused as exc:  # D-24.6: refused before the root is served
+    except TrustRefused as exc:  # S-0024/D-6: refused before the root is served
         return row(f"refused: {exc}"), False
 
     except asyncio.CancelledError:
         raise
 
-    except Exception as exc:  # D-24.5: recorded, the round continues
+    except Exception as exc:  # S-0024/D-5: recorded, the round continues
         return row(f"error: {exc}"), False
 
     if task_id is None:
@@ -215,12 +215,12 @@ async def serve_fleet(
     boards: Boards | None = None,
 ) -> FleetServeReport:
     """The resident manager over every repository the manifest names
-    (RFC 0048 §5.2).
+    (S-0048/one-pass-over-the-fleet).
 
     One round is `fleet_tick`'s shape with a manager pass where the tick
     was: survey each queue, decide the pause once for the fleet total
-    (D-24.2), then serve each repository in the manifest's deterministic
-    order (D-24.4) under its own trust class.
+    (S-0024/D-2), then serve each repository in the manifest's deterministic
+    order (S-0024/D-4) under its own trust class.
 
     A round in which nobody took a task sleeps; a round that produced one
     goes straight round again, because a landing may have unblocked the next

@@ -1,4 +1,4 @@
-"""Builtin gates. Each targets a structural property (RFC 0002 §4); everything
+"""Builtin gates. Each targets a structural property (S-0002/starting-set); everything
 else accumulates from observed leaks, as shell gates in the manifest."""
 
 from __future__ import annotations

@@ -1,14 +1,14 @@
 # The four workflows, and the conventions they apply
 
-`torve spec` enforces most of what follows (RFC 0007 §3a — the package owns
-the format, D-7.12). This file is the procedure a human or an agent follows
+`torve spec` enforces most of what follows (S-0007/format-validation — the package owns
+the format, S-0007/D-12). This file is the procedure a human or an agent follows
 around it.
 
 ## Directory
 
 **Location.** Documents live in `.torve/specs/` by default — configurable as
 `specs.path` in the runner's `.torve/config.yaml`, one path only, never a
-list or a glob (D-A.16). Only `S-NNNN/` directories belong there, each
+list or a glob (S-0016/D-23). Only `S-NNNN/` directories belong there, each
 holding only `document.yaml`, `decisions.yaml`, `amendments.yaml` and
 `execution.yaml`; a stray file, a leftover one-file document or a `schema/`
 directory is a `torve spec check` problem naming what to do with it. The
@@ -37,14 +37,14 @@ Workflow B.
 - Numbers are 4-digit, zero-padded, monotonically increasing: `0001`, `0002`, …
 - To allocate: `torve spec new "Title"`. The next number is **derived** — the
   maximum that exists in the corpus path and the archive beside it, plus one
-  (D-A.17, D-53.10). There is no counter file, and no way to pick a number by
+  (S-0016/D-24, S-0053/D-10). There is no counter file, and no way to pick a number by
   hand.
 - Directory: `S-NNNN/`, the identifier and nothing else — the title lives in
   `document.yaml` and `torve spec list` shows it. The `id` inside must match
   the number; the check reddens when it does not.
 - Never renumber existing documents. Numbers are identifiers, not an ordering
   to be tidied.
-- **Never delete a document, never reuse a number** (D-A.19). A document
+- **Never delete a document, never reuse a number** (S-0016/D-26). A document
   leaves the corpus path through `torve spec archive NUMBER --superseded-by
   NNNN` into `.torve/archive/`, keeping its directory and identifiers; gaps
   in the numbering are fine, filling one is refused.
@@ -67,12 +67,12 @@ torve spec check                    # every document loads; identifiers, citatio
 torve spec list                     # every document with status, implementation and dependencies — the index
 torve spec new "Title"              # derive the next number and write the smallest document that checks
 torve spec new "Title" --kind convention
-torve spec show D-x.y | A-n | NNNN  # one identifier resolved, archived ones marked
+torve spec show S-NNNN/D-n | S-NNNN/A-n | S-NNNN  # one identifier resolved, archived ones marked
 torve spec graph                    # depends_on edges with statuses, plus inheritance hazards
 torve init                          # write .torve/schemas/*.json from the models
 torve spec add-decision NNNN        # append a row under the next free identifier, grade OPEN
-torve spec amend NNNN --title T --row D-x.y --grade G   # the only way a row's grade or paths change
-torve spec fix D-x.y "…"            # editorial: re-stamp a text-only edit, no amendment number
+torve spec amend NNNN --title T --row D-n --grade G     # the only way a row's grade or paths change
+torve spec fix S-NNNN/D-n "…"       # editorial: re-stamp a text-only edit, no amendment number
 torve spec archive NNNN --superseded-by MMMM            # into .torve/archive/, under one transaction
 torve spec check --fix-rot          # retire rows whose paths match nothing in the tree
 torve spec fmt                      # report documents that differ from the serializer's form; writes nothing

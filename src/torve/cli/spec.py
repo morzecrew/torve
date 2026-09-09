@@ -1,23 +1,23 @@
 """`torve spec` — the specification corpus: validation, authoring
-mechanics and the read verbs (RFC 0007 §3a; RFC 0054 §5.4, §5.5; RFC 0057
-D-57.4).
+mechanics and the read verbs (S-0007/format-validation; S-0054/the-projections-beside-the-code, §5.5; S-0057
+S-0057/D-4).
 
-The package owns the format (D-7.12); the skill teaches content. `check`
-is the whole `spec-valid` gate and needs no store (D-7.16). The corpus
+The package owns the format (S-0007/D-12); the skill teaches content. `check`
+is the whole `spec-valid` gate and needs no store (S-0007/D-16). The corpus
 location is `specs.path` from the runner's configuration — one path,
-never a list (D-13.7, D-A.16) — defaulting to `.torve/specs/`, with the
+never a list (S-0013/D-7, S-0016/D-23) — defaulting to `.torve/specs/`, with the
 archive and the schemas beside it.
 
 A document is a directory of four YAML files in the model's own shape
-(RFC 0057 D-57.1). `new` derives its number as the maximum over the corpus
-and the archive plus one (D-A.17, D-53.10); there is no way to create a
+(S-0057 S-0057/D-1). `new` derives its number as the maximum over the corpus
+and the archive plus one (S-0016/D-24, S-0053/D-10); there is no way to create a
 document in a numbering hole and no counter file to merge. `list` is the
-index as a query (D-56.7).
+index as a query (S-0056/D-7).
 
 `amend`, `fix`, `archive`, `add-decision`, `retire` and `relocate-paths`
-are the transactional verbs (RFC 0025 §5.3, D-25.2): each mutates one
+are the transactional verbs (S-0025/the-transactional-verbs, S-0025/D-2): each mutates one
 document's model through `torve.config.spec_emit`, writes it through the
-one serializer (D-56.4), and only when the mutated corpus checks clean —
+one serializer (S-0056/D-4), and only when the mutated corpus checks clean —
 a red check leaves the tree untouched. `fmt` reports what differs from
 the serializer's output and writes nothing.
 
@@ -26,7 +26,7 @@ names their drift; `show`, `paths`, `tests` and `why-not` are the
 sandbox's read verbs over the corpus and the archive already in the
 worktree — progressive disclosure over files the agent could have opened,
 never reach into the record, another task or an escalation. Parsing and
-rendering only (D-15.6); the reading is `torve.application.colocation`
+rendering only (S-0015/D-6); the reading is `torve.application.colocation`
 and the loader.
 """
 
@@ -70,8 +70,8 @@ spec_app = typer.Typer(
     help="Validate, author and read the specification corpus.",
 )
 
-# RFC 0004 §6a, printed with `health`'s output verbatim, never paraphrased
-# (D-22.7 LOCKED): the first attractive number otherwise becomes a promise to
+# S-0004/measurement-defects-to-fix-before-trusting-a-number, printed with `health`'s output verbatim, never paraphrased
+# (S-0022/D-7 LOCKED): the first attractive number otherwise becomes a promise to
 # someone before anyone wrote down its limits. The printed text carries the
 # caveat's substance without the corpus coordinate — the reader of a report
 # has no corpus to resolve it.
@@ -81,7 +81,7 @@ QUASI_EXPERIMENT_CAVEAT = (
     'supports direction ("iterations fell") and not magnitude ("40% faster").'
 )
 
-# Colour supplements the status word, never replaces it (D-18.4); an unknown
+# Colour supplements the status word, never replaces it (S-0018/D-4); an unknown
 # status ("?": a dangling depends_on target) reads as a failure.
 _STATUS_STYLES: dict[str, str] = {
     "accepted": STYLE_PASS,
@@ -128,7 +128,15 @@ def _load(root: Path, config_path: Path | None) -> Any:
 
 
 def _key(number: str) -> str:
-    return number.strip().removeprefix("S-").removesuffix(".yaml").removesuffix(".md").zfill(4)
+    """The four digits of any spelling of a document identifier, or the
+    verb's refusal."""
+
+    from torve.domain.spec import number_of
+
+    try:
+        return number_of(number)
+    except ValueError:
+        raise fail(f"configuration error: {number!r} names no document", EXIT_CONFIG) from None
 
 
 def _document(spec_dir: Path, number: str) -> Path:
@@ -267,11 +275,11 @@ def _model_findings(spec_dir: Path, root: Path) -> tuple[list[str], list[str], l
 
 def _retire_rotted(spec_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
     """`check --fix-rot`: one amendment per document, retiring every rotted
-    row it carries with the reason recorded (D-53.7). Each document is its
+    row it carries with the reason recorded (S-0053/D-7). Each document is its
     own transaction; a red check on one leaves that document untouched and
     is reported, never silently skipped."""
 
-    from torve.config.spec import archive_dirs, document_dirs, next_amendment
+    from torve.config.spec import next_amendment
     from torve.config.spec_emit import (
         append_amendment,
         load_or_fail,
@@ -286,7 +294,6 @@ def _retire_rotted(spec_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
         by_document.setdefault(one.document, []).append(one)
 
     for name, rows in sorted(by_document.items()):
-        dirs = document_dirs(spec_dir)
         today = date.today().isoformat()
         changes: list[dict[str, Any]] = []
 
@@ -306,7 +313,7 @@ def _retire_rotted(spec_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
 
             doc = append_amendment(
                 doc,
-                next_amendment(dirs, archive_dirs(spec_dir)),
+                next_amendment(doc),
                 f"{len(rows)} path-rotted row(s) retired by `torve spec check --fix-rot`",
                 today,
                 changes,
@@ -344,7 +351,7 @@ def fmt(
     would write for it. Nothing is written: a hand-authored document is
     legal as it stands, and every verb that changes one writes the
     canonical form."""
-    # The one-serializer rule is D-56.4; the docstring is help text.
+    # The one-serializer rule is S-0056/D-4; the docstring is help text.
 
     from torve.config.spec import document_dirs
     from torve.config.spec_emit import canonical
@@ -388,7 +395,7 @@ def fmt(
 
 
 def _finish_transaction(report: CheckReport, success: str) -> None:
-    """The shared tail of every transactional verb (D-25.2): print the
+    """The shared tail of every transactional verb (S-0025/D-2): print the
     check's refusals and exit 3, or the success line and exit 0."""
 
     console = out()
@@ -408,9 +415,19 @@ def _finish_transaction(report: CheckReport, success: str) -> None:
 
 
 def _defining(spec_dir: Path, identifier: str) -> Path | None:
-    """The corpus document defining a decision identifier, or None."""
+    """The corpus document defining a decision identifier, or None. A
+    local half alone names a row in every document that has one, so the
+    verbs that take a row take the global form."""
 
     from torve.config.spec import SpecError, document_dirs, load_document
+    from torve.domain.spec import LOCAL_ID
+
+    if LOCAL_ID.match(identifier):
+        raise fail(
+            f"configuration error: {identifier!r} is a local half — name the row as "
+            f"S-NNNN/{identifier}",
+            EXIT_CONFIG,
+        )
 
     for path in document_dirs(spec_dir).values():
         try:
@@ -452,10 +469,10 @@ def amend(
     paths or text (or retires it) and records the typed diff with the
     prior value on the amendment; the row is re-stamped so a later hand
     edit is caught. The entry's own words are the author's to write."""
-    # D-25.4: the number is derived via next_amendment, never chosen. D-53.4:
+    # S-0025/D-4: the number is derived via next_amendment, never chosen. S-0053/D-4:
     # a row's grade or paths change only here, and the diff is written now.
 
-    from torve.config.spec import archive_dirs, document_dirs, next_amendment
+    from torve.config.spec import next_amendment
     from torve.config.spec_emit import (
         amend_row,
         append_amendment,
@@ -472,12 +489,12 @@ def amend(
             "configuration error: --grade, --path, --text and --retire need --row", EXIT_CONFIG
         )
 
-    amendment = next_amendment(document_dirs(spec_dir), archive_dirs(spec_dir))
     today = date.today().isoformat()
     changes: list[dict[str, Any]] = []
 
     try:
         doc = load_or_fail(directory)
+        amendment = f"{doc.id}/{next_amendment(doc)}"
 
         if row is not None and retire:
             before = doc.decision(row)
@@ -518,7 +535,7 @@ def fix(
     the before and after under the document's editorial list — never an
     amendment number. For a typo; a rewording that changes the rule's
     meaning is an amendment."""
-    # D-53.4's editorial lane.
+    # S-0053/D-4's editorial lane.
 
     from torve.config.spec_emit import fix_row_text, load_or_fail, write_transaction
 
@@ -555,7 +572,7 @@ def archive(
     keeping its name and every identifier, with status superseded — one
     transaction: the corpus without it must check clean, or nothing moves.
     Archived identifiers still resolve through show and the record."""
-    # D-53.8. Deletion from the corpus path is the one thing this verb does
+    # S-0053/D-8. Deletion from the corpus path is the one thing this verb does
     # that no other verb may.
 
     from torve.config.spec import archive_dir
@@ -574,7 +591,7 @@ def archive(
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
     # The check that guards the move sees the document in the archive and
-    # the archive itself, so a document others cite can leave (A-140).
+    # the archive itself, so a document others cite can leave (S-0053/A-1).
     report = write_transaction(
         spec_dir, root, {}, deletions=(directory.name,), archived={directory.name: archived}
     )
@@ -596,18 +613,19 @@ def add_decision(
     family, and print that identifier. The grade, paths and text are left
     for the author — one transaction; a red check leaves the tree
     untouched."""
-    # D-25.3 LOCKED: the row's grade is written as OPEN, the vocabulary's own
+    # S-0025/D-3 LOCKED: the row's grade is written as OPEN, the vocabulary's own
     # "not yet decided" value — never a chosen judgement.
 
-    from torve.config.spec import document_dirs, next_decision
+    from torve.config.spec import next_decision
     from torve.config.spec_emit import append_decision, load_or_fail, write_transaction
 
     spec_dir = corpus_dir(root, config)
     directory = _document(spec_dir, number)
-    identifier = next_decision(document_dirs(spec_dir), _key(number))
 
     try:
-        doc = append_decision(load_or_fail(directory), identifier)
+        doc = load_or_fail(directory)
+        identifier = f"{doc.id}/{next_decision(doc)}"
+        doc = append_decision(doc, identifier)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
@@ -630,7 +648,7 @@ def retire(
     retired list, never reused — one transaction; a red check leaves the
     tree untouched. Prefer `amend --row X --retire --reason …`, which
     records why."""
-    # D-25.6: executes D-16.1 whole. Whether every remaining citation still
+    # S-0025/D-6: executes S-0016/D-1 whole. Whether every remaining citation still
     # resolves is the transaction's own check, not a separate pre-check.
 
     from torve.config.spec_emit import load_or_fail, retire_decision, write_transaction
@@ -666,7 +684,7 @@ def relocate_paths(
     a row's paths carry it exactly, and print the touched rows — one
     transaction; a red check leaves the tree untouched. Decision text is
     never touched."""
-    # D-25.7: the paths are mechanical; text naming the old location stays
+    # S-0025/D-7: the paths are mechanical; text naming the old location stays
     # hand-written where the text itself names it.
 
     from torve.config.spec import document_dirs
@@ -793,22 +811,19 @@ def show(
     document. No cache, no store — an undefined identifier is a
     configuration error naming the nearest family. An archived identifier
     answers, marked."""
-    # The one-parse rule is D-7.28; the docstring is `show`'s help text
+    # The one-parse rule is S-0007/D-28; the docstring is `show`'s help text
     # and stays free of corpus coordinates.
 
-    from torve.config.spec import archive_dirs, document_dirs, lookup, next_amendment
+    from torve.config.spec import lookup, next_number
 
     spec_dir = corpus_dir(root, config)
     found = lookup(spec_dir, identifier)
 
     if found is None:
-        dirs = document_dirs(spec_dir)
         family = (
-            f"the next free amendment number is {next_amendment(dirs, archive_dirs(spec_dir))}"
-            if identifier.startswith("A-")
-            else f"the next free document number is {int(max(dirs, default='0000')) + 1:04d}"
-            if identifier.isdigit()
-            else "decision identifiers are listed in each document's decisions"
+            f"the next free document number is {next_number(spec_dir):04d}"
+            if identifier.isdigit() or (identifier.startswith("S-") and "/" not in identifier)
+            else "an item is `S-NNNN/<local>`; `torve spec show S-NNNN` lists what a document defines"
         )
 
         raise fail(f"configuration error: nothing defines {identifier!r} — {family}", EXIT_CONFIG)
@@ -844,7 +859,7 @@ def render(
     with headings from the section keys, the rows as a table, invariants,
     alternatives, questions, phasing and amendments. The one markdown
     writer, and never the source of anything."""
-    # D-56.7, D-57.2.
+    # S-0056/D-7, S-0057/D-2.
 
     from torve.config.spec import archive_dirs, document_dirs
     from torve.config.spec_emit import load_or_fail, render_markdown
@@ -882,15 +897,17 @@ def list_cmd(
 ) -> None:
     """Every document in the corpus path with its status, implementation
     and dependencies — the index as a query, never a file."""
-    # D-56.7: what INDEX.md was, answered instead of generated.
+    # S-0056/D-7: what INDEX.md was, answered instead of generated.
 
     from torve.config.spec import archive_dirs, document_dirs, next_number
+    from torve.domain.spec import number_of
 
     spec_dir = corpus_dir(root, config)
     corpus = _load(root, config)
     rows = [
         {
-            "number": doc.id,
+            "id": doc.id,
+            "number": number_of(doc.id),
             "title": doc.title,
             "kind": doc.kind,
             "status": doc.status,
@@ -925,7 +942,7 @@ def list_cmd(
 
     for one in rows:
         status, implementation = str(one["status"]), str(one["implementation"])
-        line = Text(f"  {one['number']}  ", STYLE_ID)
+        line = Text(f"  {one['id']}  ", STYLE_ID)
         line.append(f"{status:<10}", _STATUS_STYLES.get(status, STYLE_FAIL))
         line.append(f"{implementation:<10}", STYLE_DIM)
         line.append(str(one["title"]))
@@ -1173,7 +1190,7 @@ def health(
     the operator attention already on record for them — feedback minutes
     and escalations triaged."""
     # The docstring is help text and carries no corpus coordinates; the
-    # rules it states are D-22.2, D-22.1, D-22.3 and D-22.12 in that order.
+    # rules it states are S-0022/D-2, S-0022/D-1, S-0022/D-3 and S-0022/D-12 in that order.
 
     from torve.application import specquality
 
@@ -1192,7 +1209,7 @@ def health(
 
         populations = [p for p in populations if p["identifier"] in wanted]
 
-    # D-22.12: the operator-attention line is a corpus-wide fact — a
+    # S-0022/D-12: the operator-attention line is a corpus-wide fact — a
     # single-document filter is a decision-level view and has no bearing
     # on it, so it prints only when the whole corpus is in view.
     attention = (
@@ -1340,14 +1357,14 @@ def cites_cmd(
     docs lines that mention it, the landings whose entries cite it, the
     amendments that changed it, the documents whose rows or prose cite
     it, and the commits whose trailers grade it."""
-    # RFC 0057 D-57.10; the trailers are D-57.13, decided in phase 4.
+    # S-0057 S-0057/D-10; the trailers are S-0057/D-13, decided in phase 4.
 
     from torve.config.spec import cited_in, tree_citations
 
     corpus = _load(root, config)
     code = [
         {"file": name, "line": line}
-        for name, line, ident in tree_citations(root)
+        for name, line, ident, _legacy in tree_citations(root)
         if ident == identifier
     ]
     landings = [
@@ -1418,7 +1435,7 @@ def cites_cmd(
 
 
 # ----------------------- #
-# The read verbs beside the code (RFC 0054)
+# The read verbs beside the code (S-0054)
 
 
 @spec_app.command("project")

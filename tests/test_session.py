@@ -1,6 +1,6 @@
-"""The attempt's steps over a dispatch (RFC 0046 §5.2).
+"""The attempt's steps over a dispatch (S-0046/the-steps).
 
-Conviction-routed tier advancement (D-27.11) is the piece with a decision
+Conviction-routed tier advancement (S-0027/D-11) is the piece with a decision
 attached and no I/O in it: given a dispatch and a state it resolves the rung
 the last pass's convictions select, moves the regime, and hands back the
 Agent to run. Before the restructuring it could only be reached through a
@@ -130,7 +130,7 @@ def _convicted(name: str) -> GateResult:
 
 
 def test_a_gate_red_routes_the_next_attempt_to_the_mapped_rung(tmp_path):
-    """D-27.11: the attempt after a red resolves the rung the recorded
+    """S-0027/D-11: the attempt after a red resolves the rung the recorded
     convictions select — at the most severe axis present — and the regime
     moves with it, so the record stamps the tier that produced the work."""
 
@@ -167,7 +167,7 @@ def test_a_red_with_no_mapped_rung_stays_on_the_seat(tmp_path):
 
 
 def test_no_agent_factory_means_the_regime_never_moves(tmp_path):
-    """Never fabricated (D-27.1): advancement fires only where the CLI wired
+    """Never fabricated (S-0027/D-1): advancement fires only where the CLI wired
     a factory that can actually build the rung's Agent, so telemetry can
     never stamp a tier that did not produce the work."""
 

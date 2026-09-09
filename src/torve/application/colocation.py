@@ -1,4 +1,4 @@
-"""The projections beside the code (RFC 0054 §5.4, D-54.6, D-54.7): for
+"""The projections beside the code (S-0054/the-projections-beside-the-code, S-0054/D-6, S-0054/D-7): for
 every directory a standing row's paths or an accepted document's phase
 scope names, a managed section in that directory's `AGENTS.md` carrying
 the rows with their grade, consequence, check and state, the invariants
@@ -9,10 +9,10 @@ lazily should know a rule is waiting before it opens the subtree.
 Rendered, never edited: text outside the markers is the operator's and is
 never touched; a hand edit inside them is drift, which `--check` names by
 file. Rows, invariants, checks, tests and warnings only — never an
-overview (D-54.8): the one controlled study of context files found
+overview (S-0054/D-8): the one controlled study of context files found
 generated overviews cost and did not help, and rules did.
 
-Application code (D-15.1): reads the model through the loader and the
+Application code (S-0015/D-1): reads the model through the loader and the
 telemetry stream for contention, writes files under the repository root.
 Nothing here reaches the record.
 """
@@ -33,7 +33,7 @@ from torve.domain.spec import Corpus, Decision, Document, Invariant
 AGENTS_FILE = "AGENTS.md"
 MARK_OPEN = "<!-- torve:managed {where} — rendered from the corpus; do not edit by hand -->"
 MARK_CLOSE = "<!-- /torve:managed -->"
-CONTENTION_WINDOW = 500  # telemetry rows, the drafter's window (RFC 0020 phase 3)
+CONTENTION_WINDOW = 500  # telemetry rows, the drafter's window (S-0020 phase 3)
 
 
 # ....................... #
@@ -81,7 +81,7 @@ def directory_of(glob: str) -> str:
 def _projectable(where: str, root: Path, rfc_dir: Path) -> bool:
     """Where a section may go: an existing directory that is not hidden
     (the engine's own state under `.torve/`, `.github/`, `.agents/`), not
-    the corpus path (D-A.18 admits nothing else there) and not the archive
+    the corpus path (S-0016/D-25 admits nothing else there) and not the archive
     beside it. The root is always projectable."""
 
     if where == ".":
@@ -199,7 +199,7 @@ def render_section(
         lines += [f"## Decisions governing {label}", ""]
 
         for doc, row in rows:
-            lines.append(f"### {row.id} — `{row.grade}` (RFC {doc.id} — {doc.title})")
+            lines.append(f"### {row.id} — `{row.grade}` ({doc.title})")
             lines += ["", row.text, ""]
             lines.append("- Paths: " + " ".join(f"`{p}`" for p in row.paths))
 
@@ -222,8 +222,8 @@ def render_section(
     if invariants:
         lines += [f"## Invariants holding over {label}", ""]
 
-        for doc, invariant in invariants:
-            lines.append(f"- **{invariant.id}** (RFC {doc.id}): {invariant.statement}")
+        for _doc, invariant in invariants:
+            lines.append(f"- **{invariant.id}**: {invariant.statement}")
             lines.append("  - Paths: " + " ".join(f"`{p}`" for p in invariant.paths))
             lines.append(f"  - Check: `{invariant.check}`")
 
@@ -260,8 +260,8 @@ def render_index(directories: dict[str, int]) -> str:
         "## Governed directories",
         "",
         "Each of these carries a managed `AGENTS.md` section listing the decisions",
-        "and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`",
-        "`<file>` and `torve spec tests D-x.y` read the same corpus from the worktree.",
+        "and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`",
+        "`<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.",
         "",
     ]
 

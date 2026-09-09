@@ -1,6 +1,6 @@
-"""The live channel (RFC 0045 §5.2, §5.3).
+"""The live channel (S-0045/the-intake-route, §5.3).
 
-The sandbox holds no store credential and never will (D-45.1), so what is
+The sandbox holds no store credential and never will (S-0045/D-1), so what is
 tested here is the route that replaces one: the broker appends on the run's
 behalf, stamps who and what the record is about from the run it was opened
 for, and refuses at the boundary anything the authority table does not give
@@ -35,7 +35,7 @@ TASK_ID = "T-9001"
 
 ENTRY = {
     "attempt": 1,
-    "decision_id": "D-44.10",
+    "decision_id": "S-0044/D-10",
     "grade": "LOCKED",
     "entry_kind": "resolved",
     "entry_class": "spec-gap",

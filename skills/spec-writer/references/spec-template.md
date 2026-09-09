@@ -14,7 +14,7 @@ schema its file's first line names under `.torve/schemas/`, written by
 
 ```yaml
 # yaml-language-server: $schema=../../schemas/document.json
-id: 'NNNN'
+id: S-NNNN
 title: <Title>
 kind: design            # or convention
 status: draft           # accepted once reviewed and depended on; superseded only with superseded_by
@@ -76,7 +76,7 @@ alternatives:
   - option: <what else could have been built>
     rejected_because: <the trade-off that lost, so it stays rejected>
 questions:
-  - id: Q-NNNN.1
+  - id: Q-1
     text: <what must be settled, and by whom>
     status: open
 phasing:
@@ -104,7 +104,7 @@ contract_example:             # optional; validated against the live task schema
     allow: [src/example/**, tests/test_example.py]
   acceptance: [uv run pytest tests/test_example.py]
   decisions:
-    - id: D-NNNN.1
+    - id: S-NNNN/D-1
       grade: LOCKED
       text: <the rule>
       paths: [src/example/**]
@@ -116,19 +116,19 @@ contract_example:             # optional; validated against the live task schema
 ```yaml
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-NNNN.1
+  - id: D-1              # local: the document is the namespace; cited as S-NNNN/D-1
     grade: LOCKED       # LOCKED | ASSUMED | OPEN — most rows are ASSUMED
     text: <the rule, as one sentence a contract can carry>
     paths: [src/example/**]     # every row that governs an area declares it; LOCKED rows must
     consequence: <what this constrains later, non-obviously>
     rationale: <why, in one or two sentences>
-    cites: []           # identifiers this row descends from: D-x.y, I-x.y, A-n, a document number
+    cites: []           # what this row descends from: D-n of this document, or S-NNNN/D-n, S-NNNN/A-n, S-NNNN
     check: pytest tests/test_example.py   # optional: a command whose exit code judges the row
-  - id: D-NNNN.2
+  - id: D-2
     grade: OPEN
     text: <a decision deliberately delegated to implementation — still a row, never an absence>
 invariants:
-  - id: I-NNNN.1
+  - id: I-1
     statement: <a rule that holds over these paths>
     paths: [src/example/**]
     check: uv run lint-imports

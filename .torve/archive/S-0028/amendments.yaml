@@ -1,17 +1,17 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-74
+  - id: A-1
     at: '2026-09-01'
-    title: profile composition (amends D-28.4)
+    title: profile composition (amends S-0028/D-4)
     md: |-
-      **Found defining the first personas.** RFC 0029's equipment fields ride the
+      **Found defining the first personas.** S-0029's equipment fields ride the
       profile merge, so a persona is wiring plus equipment — but `profile` takes
       one name, so running the same persona on a second harness means duplicating
       the equipment list into a second profile: the drift 0028 killed for wiring,
-      reborn one level up, and squarely in the path of the RFC 0004 §5
+      reborn one level up, and squarely in the path of the S-0004/shadow-runs
       cross-harness comparison the variants exist to feed.
 
-      **Changed:** D-28.4 — `profile` accepts a name or a list of names. A list
+      **Changed:** S-0028/D-4 — `profile` accepts a name or a list of names. A list
       merges left to right under the exact shallow raw-mapping rule already in
       force, local keys still winning last; every refusal class applies per named
       profile. Composition is a *tier* naming several flat layers — a wiring kit
@@ -23,6 +23,6 @@ amendments:
       **Deliberately unchanged:** no deep or keyed merges, no conditional layers
       ("when the harness is X") — the first is where the effective configuration
       stops being readable in one place, the second is the cross-harness
-      abstraction RFC 0027 refused. A single name keeps today's behavior exactly.
+      abstraction S-0027 refused. A single name keeps today's behavior exactly.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

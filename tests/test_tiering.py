@@ -1,4 +1,4 @@
-"""RFC 0004 phase 1: the tier mapping, harness-backed adapter mechanics,
+"""S-0004 phase 1: the tier mapping, harness-backed adapter mechanics,
 provider routing at dispatch, and the telemetry fields nothing reconstructs
 later. The sandbox side of authentication (env passthrough, auth volumes) is
 integration-tested against real Docker in test_runtime_conformance-style
@@ -81,7 +81,7 @@ def test_tier_for_missing_entry_is_a_configuration_error():
 
 
 # ....................... #
-# RFC 0029: agent equipment — skills override and prompt extras
+# S-0029: agent equipment — skills override and prompt extras
 
 
 def test_tier_config_equipment_defaults_to_no_override():
@@ -111,7 +111,7 @@ def test_effective_skill_sets_empty_list_equips_nothing(tmp_path):
 
 
 def test_equipped_skill_resolution_keeps_the_materializers_refusals(tmp_path):
-    """D-29.2: an unknown equipped name refuses at the same place an unknown
+    """S-0029/D-2: an unknown equipped name refuses at the same place an unknown
     configured name always has — the override only changes which names
     `materialize` is asked to resolve, never how it resolves them."""
     resolved = effective_skill_sets(
@@ -122,7 +122,7 @@ def test_equipped_skill_resolution_keeps_the_materializers_refusals(tmp_path):
 
 
 # ....................... #
-# Provider routing (D-4.8)
+# Provider routing (S-0004/D-8)
 
 
 def providers(**overrides):
@@ -310,12 +310,12 @@ def test_harness_agent_stages_prompt_and_captures_trace(tmp_path):
     assert "pytest -q" in prompt
     # The command saw the prompt file and its {model} substitution.
     assert "Make the widget idempotent." in result.output
-    # Metadata parsed from the trailing JSON line (D-4.6).
+    # Metadata parsed from the trailing JSON line (S-0004/D-6).
     assert result.cost_usd == 0.12
     assert result.model_version == "test-model-1"
     # The trace lives in the durable store — the worktree's root, under
     # `.torve/traces/` — and is referenced root-relative from the record,
-    # never embedded (D-39.1). Nothing created the store before the run:
+    # never embedded (S-0039/D-1). Nothing created the store before the run:
     # the one path helper the adapter writes through ensures the directory.
     assert result.trace_ref == ".torve/traces/T-9010.a1.trace.log"
     trace = tmp_path / ".torve" / "traces" / "T-9010.a1.trace.log"
@@ -327,7 +327,7 @@ def test_harness_without_metadata_is_an_uncontrolled_regime(tmp_path):
     ctx, agent = harness_ctx(tmp_path, tier)
     result = agent.run(ctx)
     assert result.cost_usd is None
-    assert result.model_version is None  # D-4.6: absence is recorded, not invented
+    assert result.model_version is None  # S-0004/D-6: absence is recorded, not invented
 
 
 def test_parse_metadata_takes_the_last_json_object():
@@ -349,14 +349,14 @@ def test_prompt_states_explicit_emptiness():
 def test_prompt_sends_divergences_through_the_intake():
     """The agent states an entry and the engine writes the log, so the
     prompt names the verb rather than the file — and never asks for a pin
-    the sandbox cannot resolve (D-A.7, D-44.10)."""
+    the sandbox cannot resolve (S-0001/D-36, S-0044/D-10)."""
     prompt = build_prompt(Task(id="T-1", decisions=[]))
 
     assert "torve log divergence T-1" in prompt
     assert "never edit `.torve/tasks/T-1/log.yaml` by hand" in prompt
     assert "base_sha" not in prompt
     # And the other direction of the channel: a note is a poll the agent
-    # runs, never a prompt the engine rewrote underneath it (D-45.7).
+    # runs, never a prompt the engine rewrote underneath it (S-0045/D-7).
     assert "torve log notes" in prompt
     # And the check that would have saved the last three attempts of the
     # most recent real run: what the log still owes, before the gate says.
@@ -368,7 +368,7 @@ def test_prompt_extras_are_absent_by_default():
 
 
 def test_prompt_extras_follow_the_charters_base_working_rules():
-    """D-29.1: extras append after the base rules — never before, and the
+    """S-0029/D-1: extras append after the base rules — never before, and the
     base rules are present regardless."""
     prompt = build_prompt(
         Task(id="T-1", decisions=[]),
@@ -472,7 +472,7 @@ def test_config_hash_moves_with_the_tier_mapping(tmp_path):
 
 
 def test_config_hash_separates_regimes_equipped_with_different_skills(tmp_path):
-    """RFC 0029 §5.4: no new code measures equipment — the tiers dump
+    """S-0029/measurement-deliberately-not-built: no new code measures equipment — the tiers dump
     `config_hash` already digests carries `skills` for free through
     `TierConfig.model_dump()`."""
     from torve.application.telemetry import config_hash
@@ -505,7 +505,7 @@ def test_config_hash_separates_regimes_with_different_prompt_extras(tmp_path):
 
 
 # ....................... #
-# The regime preimage (D-4.19, A-72): config_hash writes its own parts
+# The regime preimage (S-0004/D-19, A-72): config_hash writes its own parts
 
 
 def test_config_hash_writes_the_regime_preimage(tmp_path):
@@ -614,7 +614,7 @@ def test_feedback_appends_a_keyed_record(tmp_path):
 
 
 # ....................... #
-# Tier variants (RFC 0027 §5.1, D-27.3): dotted entries in `tiers`, an
+# Tier variants (S-0027/tier-variants, S-0027/D-3): dotted entries in `tiers`, an
 # optional contract field selecting one, loud refusal on an unknown variant,
 # the seat literal untouched, and the variant riding the tiers digest into
 # config_hash.
@@ -659,7 +659,7 @@ def test_two_variants_are_provably_two_regimes_in_the_config_hash(tmp_path):
 
 
 # ....................... #
-# retry_variant (RFC 0027 §5.1a, D-27.11): a rung to nowhere is a
+# retry_variant (S-0027/5-1a-the-attempt-ladder, S-0027/D-11): a rung to nowhere is a
 # configuration error at load time, not a dispatch-time surprise.
 
 
@@ -680,7 +680,7 @@ def test_retry_variant_naming_a_real_configured_tier_is_accepted():
 
 def test_parse_metadata_reads_claude_model_usage_keys():
     # The claude CLI's json result names models as modelUsage keys — the
-    # dated snapshot ids D-4.6 wants recorded (found in the first live run).
+    # dated snapshot ids S-0004/D-6 wants recorded (found in the first live run).
     line = json.dumps(
         {
             "total_cost_usd": 0.0999,
@@ -751,7 +751,7 @@ def test_parse_metadata_reads_the_dsh_reporters_usage_object():
 
 def test_parse_metadata_absent_token_keys_stay_none():
     # Best effort, never invented: no usage object, or a non-numeric value,
-    # leaves the count unreported (D-4.6's self-reported regime).
+    # leaves the count unreported (S-0004/D-6's self-reported regime).
     assert parse_metadata('{"cost_usd": 1.0}').input_tokens is None
     assert parse_metadata('{"cost_usd": 1.0}').cache_creation_tokens is None
     assert parse_metadata('{"usage": {"input_tokens": "NaN"}}').output_tokens is None
@@ -836,12 +836,12 @@ def test_agent_token_counts_records_only_what_was_reported():
     ) == {"input_tokens": 10, "output_tokens": 5}
 
     # A plain AgentResult carries no token fields — the block stays empty,
-    # and the absent keys are omitted from the record, never zeroed (D-4.6).
+    # and the absent keys are omitted from the record, never zeroed (S-0004/D-6).
     assert agent_token_counts(AgentResult(exit_code=0, output="")) == {}
 
 
 # ....................... #
-# The burn profile (RFC 0039 phase 2): a sibling scanner of every JSON line,
+# The burn profile (S-0039 phase 2): a sibling scanner of every JSON line,
 # reading the durable store's own bytes — never the clipped exec output.
 
 CLAUDE_STREAM = "\n".join(
@@ -930,7 +930,7 @@ def test_parse_burn_reads_the_other_harness_spellings(tmp_path):
 
 def test_parse_burn_absent_for_an_envelope_only_output(tmp_path):
     # claude -p --output-format json: one envelope line, totals only — no
-    # per-turn facts, so no block (D-39.4's no-stream-no-block regime),
+    # per-turn facts, so no block (S-0039/D-4's no-stream-no-block regime),
     # never a turns:1 read off the totals.
     envelope = (
         '{"type":"result","total_cost_usd":0.09,"usage":{"input_tokens":500,'
@@ -946,7 +946,7 @@ def test_parse_burn_absent_for_an_envelope_only_output(tmp_path):
 
 def test_parse_burn_absent_without_error_for_garbage_lines(tmp_path):
     # Garbage never raises and never zeroes: a stream torve cannot read stays
-    # visibly unprofiled (D-4.6), exactly like an absent file.
+    # visibly unprofiled (S-0004/D-6), exactly like an absent file.
     garbage = 'plain text\n{\x7f broken\n[]\n5\n{}\n{"usage":{"output_tokens":"NaN"}}'
     assert parse_burn(burn_trace(tmp_path, garbage)) is None
     assert parse_burn(burn_trace(tmp_path, "")) is None
@@ -957,7 +957,7 @@ def test_agent_burn_carries_only_a_present_profile():
     from torve.application.telemetry import agent_burn
 
     # A plain AgentResult — and a harness result whose stream held no
-    # per-turn facts — contribute no key at all (D-4.6's absent regime).
+    # per-turn facts — contribute no key at all (S-0004/D-6's absent regime).
     assert agent_burn(AgentResult(exit_code=0, output="")) == {}
     assert agent_burn(HarnessResult(exit_code=0, output="")) == {}
 
@@ -993,7 +993,7 @@ def test_harness_agent_derives_the_burn_from_the_captured_stream(tmp_path):
 
 
 class SandboxReadOnlyRuntime(HostShellRuntime):
-    """A drafting run's mount (D-5.2, D-20.2): the host writes the prompt
+    """A drafting run's mount (S-0005/D-2, S-0020/D-2): the host writes the prompt
     into the worktree, and the sandbox sees the same tree read-only. Only
     the exec side is denied, which is what the real asymmetry looks like."""
 
@@ -1105,7 +1105,7 @@ def test_harness_capture_keeps_the_commands_own_exit_code(tmp_path):
 
 def test_harness_without_a_stream_profile_yields_no_block(tmp_path):
     # Envelope-only output through the whole capture path: cost rides,
-    # burn is absent — not zeroed (D-39.4), and the trace stays verbatim.
+    # burn is absent — not zeroed (S-0039/D-4), and the trace stays verbatim.
     tier = TierConfig(
         adapter="harness",
         provider="p",
@@ -1125,8 +1125,8 @@ def test_harness_without_a_stream_profile_yields_no_block(tmp_path):
 def test_attempt_record_carries_reported_token_counts(tmp_path):
     """T-0186 end to end: the token counts an adapter reports ride the agent
     block of the attempt record, and a silent adapter leaves the keys absent
-    — absent stays absent, never zeroed (D-4.6's self-reported regime). The
-    burn profile rides the same block beside the totals (RFC 0039 §5.3),
+    — absent stays absent, never zeroed (S-0004/D-6's self-reported regime). The
+    burn profile rides the same block beside the totals (S-0039/the-burn-profile),
     with the same absence discipline."""
     import asyncio
     import subprocess
@@ -1221,7 +1221,7 @@ def test_attempt_record_carries_reported_token_counts(tmp_path):
     assert agent_block["cache_read_tokens"] == 9000
     assert agent_block["cache_creation_tokens"] == 100
     assert agent_block["output_tokens"] == 400
-    # RFC 0039 §5.3: the burn profile rides the block beside the totals.
+    # S-0039/the-burn-profile: the burn profile rides the block beside the totals.
     assert agent_block["burn"] == {
         "turns": 41,
         "tool_calls": 87,
@@ -1242,7 +1242,7 @@ def test_attempt_record_carries_reported_token_counts(tmp_path):
 def test_review_record_carries_reported_token_counts(repo, monkeypatch):
     """T-0186: the reviewer's token counts survive the base-shape rebuild in
     run_review and ride the review record's agent block — only the reported
-    ones, absent keys omitted (D-4.6)."""
+    ones, absent keys omitted (S-0004/D-6)."""
     from test_review_run import review_config, reviewer_output
     from test_run_loop import (
         OK,
@@ -1310,7 +1310,7 @@ def test_review_record_carries_reported_token_counts(repo, monkeypatch):
 
 
 def test_the_working_rules_name_the_spec_verb_and_the_agents_files():
-    """RFC 0054 §5.5: one line names the sandbox's read verb and the managed
+    """S-0054/torve-spec-in-the-sandbox: one line names the sandbox's read verb and the managed
     AGENTS.md sections, under the contract's authority."""
 
     from torve.adapters.agent.harness import build_prompt
@@ -1324,7 +1324,7 @@ def test_the_working_rules_name_the_spec_verb_and_the_agents_files():
 
 
 def test_the_working_rules_name_the_pack_index_first():
-    """RFC 0054 §5.6: one line names `.torve/context/index.md` and that
+    """S-0054/the-context-pack: one line names `.torve/context/index.md` and that
     nothing in it outranks the contract."""
 
     from torve.adapters.agent.harness import build_prompt

@@ -1,4 +1,4 @@
-"""Presentation layer (RFC 0015 §2). `app` and `main` are re-exported for the
+"""Presentation layer (S-0015/layers). `app` and `main` are re-exported for the
 console script and the tests; everything else is per-command modules.
 """
 

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0023'
+id: S-0023
 title: Standing maintenance
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0007', 0019, '0020']
-informed_by: ['0001', '0002', '0006', '0012']
+depends_on: [S-0007, S-0019, S-0020]
+informed_by: [S-0001, S-0002, S-0006, S-0012]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Work that recurs on a condition rather than on a plan: a committed contract template
@@ -28,7 +28,7 @@ sections:
       phase list was.
   - key: motivation
     md: |
-      D-19.8 is `LOCKED` and correct: the tick never creates work, because the
+      S-0019/D-8 is `LOCKED` and correct: the tick never creates work, because the
       standing failure mode of agent systems is the machine inventing its own
       backlog. It is also the reason the engine cannot do an IT department's daily
       bread — lockfile drift, an advisory against a pinned package, a test that has
@@ -41,7 +41,7 @@ sections:
       - **The human is the trigger.** A forgotten check is an unpatched dependency,
         and forgetting is silent. Every other failure mode in this corpus is loud by
         design; this one is not.
-      - **Intake pays a drafting run for a known answer.** RFC 0020's drafter reads
+      - **Intake pays a drafting run for a known answer.** S-0020's drafter reads
         the tree and writes contracts with a model. For "refresh the lockfile", the
         contract is the same every time and the model is being paid to rediscover
         it.
@@ -51,7 +51,7 @@ sections:
         0022's readings need the opposite.
 
       The shape that resolves it is already in the corpus. `torve plan` mints tasks
-      mechanically from a document a human reviewed and committed; D-7.2's human
+      mechanically from a document a human reviewed and committed; S-0007/D-2's human
       signature lives upstream, in the document, not in the minting. A standing
       contract is that arrangement with a predicate in place of the phasing block.
   - key: current-state
@@ -63,13 +63,13 @@ sections:
         allocates ids under the tick lock and commits contract files as engine
         records. That is the whole instantiation mechanism this document needs; it
         is reached today only from a human request.
-      - RFC 0007's `inherit_decisions` (post-A-47) is the single reader that copies
+      - S-0007's `inherit_decisions` (post-A-47) is the single reader that copies
         a document's decision rows with grades onto a contract, used by both
         `torve plan` and adoption. A standing contract naming a document inherits
         through it and nowhere else.
-      - The escalation pause (D-19.5) already suppresses the dispatch leg while the
+      - The escalation pause (S-0019/D-5) already suppresses the dispatch leg while the
         queue holds unhandled failures. Nothing else in a tick is bounded by triage.
-      - RFC 0002 §7.6 already derives per-gate flake rate from attempt telemetry, so
+      - S-0002/health already derives per-gate flake rate from attempt telemetry, so
         the second standing contract in §5.6 has its input already computed.
   - key: goals-non-goals
     md: |
@@ -85,18 +85,18 @@ sections:
 
       **Non-goals**
 
-      - **Autonomous backlog generation.** RFC 0020 already refused it and this
+      - **Autonomous backlog generation.** S-0020 already refused it and this
         document does not reopen it. A predicate that requires a fresh intent per
         firing is a planner in disguise; §5.5 makes that falsifiable rather than
         merely asserted.
-      - **Prioritisation.** Selection stays ascending task id (D-19.4). A standing
+      - **Prioritisation.** Selection stays ascending task id (S-0019/D-4). A standing
         instance is an ordinary task and waits its turn; a priority field here would
-        be the second planner RFC 0019 refused.
+        be the second planner S-0019 refused.
       - **Scheduling.** A predicate answers "is this due", never "is it Tuesday".
-        Cadence belongs to the scheduler that fires the tick, exactly as D-19.1
+        Cadence belongs to the scheduler that fires the tick, exactly as S-0019/D-1
         settled.
       - **Replacing intake.** A novel request is still a human's prose through
-        RFC 0020. Standing contracts cover only work whose answer was already
+        S-0020. Standing contracts cover only work whose answer was already
         written down.
   - key: the-standing-contract
     md: |
@@ -124,7 +124,7 @@ sections:
       ```
 
       Everything below `trigger` is a task contract minus its id, and is validated by
-      RFC 0020's contract lint — the same lint, unchanged, so a standing contract
+      S-0020's contract lint — the same lint, unchanged, so a standing contract
       cannot carry a defect the drafting run would have been refused for. The file
       being in git is the human signature: someone decided, in a diff, that this
       condition deserves this response.
@@ -132,7 +132,7 @@ sections:
     md: |
       A predicate runs under the ordinary runner's sandbox against a read-only
       workspace, with no agent — the drafting run's isolation minus the model. Exit
-      code is the answer: non-zero means due. This is D-3's rule applied to the one
+      code is the answer: non-zero means due. This is S-0001/D-11's rule applied to the one
       new input: a check runs outside an agent session, and no model is consulted
       about whether work exists.
 
@@ -152,21 +152,21 @@ sections:
       and a spurious firing is spend plus a contract someone must triage.
   - key: instantiation-is-minting-not-planning
     md: |
-      On a firing predicate the tick mints through the path RFC 0020 §5.3 already
+      On a firing predicate the tick mints through the path S-0020/adoption already
       uses: under the tick lock, in one motion, read the next free id, write the
       contract file, commit it as an engine record on base. `decisions_from`, if
       present, inherits that document's rows with their grades through
       `inherit_decisions` and nothing else; absent, the contract carries
-      `decisions: []`, explicit as RFC 0007 §6a requires.
+      `decisions: []`, explicit as S-0007/cold-start requires.
 
       The instance records its origin — `standing: lockfile-drift` — so every later
-      report can attribute it, and so RFC 0022's populations can treat repeated
+      report can attribute it, and so S-0022's populations can treat repeated
       instances of one job as one population rather than as unrelated tasks.
   - key: bounds-because-this-is-the-leg-that-can-grow
     md: |
       Four, in the order they apply:
 
-      1. **The escalation pause first.** A tick paused under D-19.5 evaluates no
+      1. **The escalation pause first.** A tick paused under S-0019/D-5 evaluates no
          predicates at all. A queue nobody triages must not also be a queue that
          grows — this is the existing rule, and the standing leg is placed inside it
          rather than beside it.
@@ -184,7 +184,7 @@ sections:
          available response.
 
       There is no `enabled` flag. An empty `.torve/standing/` is the off switch and
-      deleting a file is the disable, exactly as scheduling the verb is RFC 0019's
+      deleting a file is the disable, exactly as scheduling the verb is S-0019's
       enablement.
   - key: d-19-8-restated-and-made-falsifiable
     md: |
@@ -193,18 +193,18 @@ sections:
       authoring time and is identical in every instance — that is not an incidental
       property, it is the test.
 
-      **Falsifiable prediction, in the style of RFC 0001's A-5:** if this model is
+      **Falsifiable prediction, in the style of S-0001's S-0001/A-3:** if this model is
       wrong, standing contracts will start needing their intent rewritten per firing
       — an operator editing `intent` before adopting, or instances escalating
       `underspecified` because the fixed paragraph did not fit the day's condition.
       The first time that happens for a job, the job was a planner in disguise and
-      the honest response is to delete it and route the work through RFC 0020's
+      the honest response is to delete it and route the work through S-0020's
       intake, not to add a template variable. Until it appears, no change.
   - key: first-customers-in-order
     md: |
       1. **Lockfile drift** — the example above; the predicate is a tool the
          repository already runs.
-      2. **Flake quarantine** — RFC 0002 §7.6 already derives per-gate flake rate
+      2. **Flake quarantine** — S-0002/health already derives per-gate flake rate
          from attempt telemetry; the predicate is a threshold read over that, and
          the response is a contract to quarantine or fix the command.
       3. **Expiring pins** — image digests and skill versions that have aged past a
@@ -212,30 +212,30 @@ sections:
 
       Advisory and CVE feeds are the obvious fourth and are deliberately not here: a
       feed is an inbound network dependency with its own trust question, and it
-      belongs after RFC 0021 has settled what a run may talk to.
+      belongs after S-0021 has settled what a run may talk to.
   - key: alternatives-considered
     md: |
       - **A cron entry per job calling `torve intake`.** Its trade is that it works
         today with no new mechanism, at the price of a drafting run per firing
         (paying a model to rediscover a known contract) and instances that differ
-        every time, which makes the population useless to RFC 0022. Kept as the
+        every time, which makes the population useless to S-0022. Kept as the
         fallback for one-off jobs nobody expects to recur.
       - **A `recurring: true` flag on an ordinary contract.** Its trade is a much
         smaller diff, at the price of the contract having no way to say *when* — the
         condition ends up in the scheduler's crontab, outside review, which is the
         one place this corpus refuses to keep decisions.
       - **A model-evaluated predicate ("is this dependency worth bumping?").**
-        Refused under D-2 without further discussion. A model may not decide what
+        Refused under S-0001/D-10 without further discussion. A model may not decide what
         work exists, and a predicate is exactly that decision.
       - **Instantiating drafts for a human to adopt rather than contracts
         directly.** Its trade is an extra human signature per firing, at the price
         of making the mechanism useless for its purpose: a maintenance job that
         needs a human every time is the human-as-trigger arrangement this document
         exists to remove. The signature moved upstream, into the committed file,
-        which is where RFC 0007 already puts it.
+        which is where S-0007 already puts it.
   - key: tests
     md: |
-      The simulation harness RFC 0003 built for the state machine covers the leg
+      The simulation harness S-0003 built for the state machine covers the leg
       without a live repository: a fixture root with standing files, a stubbed
       predicate outcome per tick, and assertions on what was minted. The cases that
       matter are the refusals — a predicate that errors mints nothing; a paused tick
@@ -249,7 +249,7 @@ sections:
       each kind gets a red-on-demand case.
   - key: docs
     md: |
-      `.torve/standing/` joins the RFC 0013 layout diagram with a one-line
+      `.torve/standing/` joins the S-0013 layout diagram with a one-line
       description. The reader's guide says plainly what a standing contract is for
       and what it is not: a job whose intent needs to change per firing does not
       belong here, and that sentence needs to arrive before someone's first
@@ -257,10 +257,10 @@ sections:
   - key: out-of-scope
     md: |
       - **Inbound feeds.** Advisories, release watchers, anything that polls a
-        network service. Named as the fourth customer; gated on RFC 0021 settling
+        network service. Named as the fourth customer; gated on S-0021 settling
         what a run may talk to and on who holds the credential for the feed.
       - **Cross-repository standing jobs.** One root, one set of standing contracts.
-        A fleet-level job is RFC 0024's question and would need an answer for which
+        A fleet-level job is S-0024's question and would need an answer for which
         root the instance lands in.
       - **Dependency-graph-aware bumping.** Choosing *which* dependency to bump is a
         decision; the standing contract answers "the lock has drifted" and the
@@ -276,7 +276,7 @@ sections:
         correctly and often; the strike limit does not catch that, because the
         instances land. Mitigation is review of the file, which is why it is in git.
       - **Read as permission to automate planning.** The nearest thing in this
-        corpus to the failure D-19.8 exists to prevent, and the document will be
+        corpus to the failure S-0019/D-8 exists to prevent, and the document will be
         cited by whoever next wants a machine-generated backlog. §5.5's falsifiable
         test is the answer, and it is deliberately a test the mechanism can fail.
       - **Predicate cost.** Every standing file is a sandboxed command per tick, so
@@ -310,7 +310,7 @@ sections:
       - A job made to fail three times consecutively disables itself, the event
         naming the job.
       - Two firings of the same job, months apart, whose contracts differ only in
-        id — the comparability D-23.5 exists for, demonstrated rather than asserted.
+        id — the comparability S-0023/D-5 exists for, demonstrated rather than asserted.
 phasing:
   - phase: 1
     title: standing-contracts-and-the-command-predicate

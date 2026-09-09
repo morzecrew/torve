@@ -1,14 +1,14 @@
 """Shared option types and the configuration loaders behind them.
 
-Files resolve under `.torve/`, one location each (RFC 0013 A-48); `--gates`
-and `--config` are the only overrides (D-13.4). A
-malformed manifest or runner configuration exits 3 (D-13.6). `--format json`
-rides every result-producing command (D-11.2).
+Files resolve under `.torve/`, one location each (S-0013 S-0013/A-2); `--gates`
+and `--config` are the only overrides (S-0013/D-4). A
+malformed manifest or runner configuration exits 3 (S-0013/D-6). `--format json`
+rides every result-producing command (S-0011/D-2).
 
 `--dsn` and `--partition` are the record-backed readers' shared pair, and
 naming a partition is what selects the record over this repository's files
-(RFC 0050 D-50.2). `dsn_for` resolves the DSN the configuration names
-(D-4b) when the caller supplies none (RFC 0032 A-123).
+(S-0050 S-0050/D-2). `dsn_for` resolves the DSN the configuration names
+(S-0001/D-13) when the caller supplies none (S-0032 S-0032/A-3).
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ FormatOption = Annotated[
 # ....................... #
 
 # Where a run's secrets are named. The file is never committed (it is in
-# `.gitignore`, and D-4b says the DSN is named by variable rather than
+# `.gitignore`, and S-0001/D-13 says the DSN is named by variable rather than
 # written down); reading it here only saves the operator from exporting the
 # same eight names into every shell.
 DOTENV = ".env"
@@ -151,7 +151,7 @@ def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:
 
 # ....................... #
 
-# The two options every record-backed reader takes (RFC 0050 D-50.2). A
+# The two options every record-backed reader takes (S-0050 S-0050/D-2). A
 # partition is what selects the record: naming one says which repository's
 # log to read, and naming none says to read this repository's files.
 DsnOption = Annotated[

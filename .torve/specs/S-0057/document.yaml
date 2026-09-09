@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0057'
+id: S-0057
 title: The specification is a directory
 kind: design
 status: accepted
 implementation: complete
-depends_on: ['0056']
-informed_by: ['0053', '0054', '0055']
+depends_on: [S-0056]
+informed_by: [S-0053, S-0054, S-0055]
 supersedes: []
 superseded_by: null
 owner: misery7100
@@ -41,7 +41,7 @@ sections:
       documents' execution files when the model exists.
   - key: motivation
     md: |
-      RFC 0056 made the document YAML and kept parity with the markdown it
+      S-0056 made the document YAML and kept parity with the markdown it
       replaced. Parity is why the corpus reads raw: every typed list the
       conversion lifted is still there as the fence or table it was lifted
       from. Of the 86 sections in the four live documents, 23 are a typed list
@@ -56,9 +56,9 @@ sections:
       a fact the list already holds.
 
       A document grows in two places nobody authors. Amendments: 0053 to 0056
-      took A-140 to A-164 in one day, every one appended to the author's file.
+      took S-0053/A-1 to S-0056/A-4 in one day, every one appended to the author's file.
       What execution found has no home at all: `0b46b82` deleted 296 task
-      directories (D-56.10) and the sixteen that remain, T-0288 to T-0303,
+      directories (S-0056/D-10) and the sixteen that remain, T-0288 to T-0303,
       sit untracked on one machine. Their log entries — a claim, evidence,
       an action and notes per row, and the `proposal` an executor makes — are
       the only output of an attempt that cannot be derived from the document
@@ -77,7 +77,7 @@ sections:
       shapes torve reads (configuration, gate manifest, contract, log,
       document). And the name is wrong: there is no request and no comment
       period; the documents are specifications a planner mints from, and the
-      code has said so since RFC 0053 — `config/spec.py`, `domain/spec.py`,
+      code has said so since S-0053 — `config/spec.py`, `domain/spec.py`,
       `SpecError`, `torve spec` — while the verbs that write them sit under
       `torve rfc`.
   - key: current-state
@@ -135,17 +135,17 @@ sections:
       namespace for the corpus; every torve input under `.torve/`.
 
       Non-goals: changing what a row means (grade semantics, paths-as-scope,
-      check-as-gate, the fingerprint rule, the silence check: RFC 0053 and
+      check-as-gate, the fingerprint rule, the silence check: S-0053 and
       0054, untouched); changing the in-memory `Document` a planner, the
       colocation, the pack or the importer read (it loses `heading` and
       `amended_by`, nothing else); changing the contract's shape or its `rfc`
       key; the record's event vocabulary; `torve init` writing a configuration or a manifest (§8); the
-      library extraction (RFC 0056 §8); renaming test files.
+      library extraction (S-0056/out-of-scope); renaming test files.
   - key: the-specification-is-a-directory
     md: |
       One directory per document, `.torve/specs/S-NNNN/` — the identifier and
       nothing else, the title being `document.yaml`'s and `spec list`'s to show
-      (A-166) — archived to `.torve/archive/S-NNNN/` unchanged in shape. The split is by
+      (S-0057/A-2) — archived to `.torve/archive/S-NNNN/` unchanged in shape. The split is by
       writer, not by type: a file changes only through the hand that owns it.
 
       | File | Writer | Keys |
@@ -185,7 +185,7 @@ sections:
       `yaml invariants`, `yaml changes`, `yaml contract-example`); a line that
       is the decisions table header; a key that is an amendment identifier
       (`a-161-…`). An ordinary fence stays welcome — a `yaml` block that
-      illustrates a shape, as RFC 0056 §5.1 does, is prose.
+      illustrates a shape, as S-0056/the-document-is-the-model does, is prose.
   - key: execution-is-the-documents
     md: |
       What a task found belongs to the rows it cites, so it lives beside them:
@@ -200,7 +200,7 @@ sections:
           at: '2026-09-09'
           agent: session/claude-fable-5.1
           entries:
-            - decision: D-56.9
+            - decision: S-0056/D-9
               grade: LOCKED
               kind: resolved
               at: '2026-09-09T16:08:46Z'
@@ -226,7 +226,7 @@ sections:
       file, live and archived, and records the `divergence.recorded` and
       `landing.recorded` events it lacks — idempotent by task, attempt,
       decision and time — so a clone without a store rebuilds the same record
-      from the tree, the pattern D-56.11 set for telemetry: the file is a
+      from the tree, the pattern S-0056/D-11 set for telemetry: the file is a
       carrier. The archive takes the file with the directory.
 
       `spec check` reads the two together: `implementation: complete` with a
@@ -234,7 +234,7 @@ sections:
       `implementation` not complete is one too.
   - key: the-links-close
     md: |
-      Spec to code is `paths` and the colocated sections (RFC 0054). Code to
+      Spec to code is `paths` and the colocated sections (S-0054). Code to
       spec is the identifier in a comment, a docstring or a page, and nothing
       checked it. `spec check` scans every file git tracks under `src/**` and
       `pages/**`, and every `AGENTS.md`, `CLAUDE.md` and `README.md`, for the
@@ -251,15 +251,15 @@ sections:
       that mention it, the landings whose entries cite it (task, commit), the
       amendments that changed it, the documents whose rows cite it. Whether
       it also reads the `Torve-Decisions` trailers of the commit history is
-      D-57.13, left to the phase.
+      S-0057/D-13, left to the phase.
   - key: the-place-the-name-and-the-schemas
     md: |
       **The place.** `.torve/specs/` and `.torve/archive/`; the configuration
       key is `specs.path` (default `.torve/specs`), and the old key is refused
-      naming the new one. After RFC 0056 phase 4 every input torve reads is
+      naming the new one. After S-0056 phase 4 every input torve reads is
       under `.torve/`, as `.github/` holds what GitHub reads: the human page is
       `spec render`, and a document nobody renders was not being read from the
-      root either. D-13.3 is untouched: it governs the runner's configuration,
+      root either. S-0013/D-3 is untouched: it governs the runner's configuration,
       which is still read from where the runner was launched.
 
       **The name.** `torve spec` absorbs every `torve rfc` verb — `check`,
@@ -357,9 +357,9 @@ sections:
         test, not a script.
   - key: unresolved-questions
     md: |
-      Whether `spec cites` reads commit trailers is the phase's (Q-57.1,
-      D-57.13). Whether the MCP `show` tool gains `cited_by` waits for
-      someone to want it (Q-57.2).
+      Whether `spec cites` reads commit trailers is the phase's (S-0057/Q-1,
+      S-0057/D-13). Whether the MCP `show` tool gains `cited_by` waits for
+      someone to want it (S-0057/Q-2).
 alternatives:
   - option: >-
       one file per document with the duplicated sections stripped
@@ -368,9 +368,9 @@ alternatives:
       and grow forever, and the author's diff would be mostly them
   - option: prose as a sidecar markdown file
     rejected_because: >-
-      rejected by RFC 0056 for the same reason it stands here — a file nothing checks;
+      rejected by S-0056 for the same reason it stands here — a file nothing checks;
       prose is a string in the model and stays one
-    cites: ['0056']
+    cites: [S-0056]
   - option: >-
       track `.torve/tasks/*/log.yaml` in git and drop only the contracts
     rejected_because: >-
@@ -396,19 +396,19 @@ alternatives:
       holds what GitHub reads
   - option: keep the name RFC and the `torve rfc` namespace
     rejected_because: >-
-      two namespaces read one corpus, and the code has said `spec` since RFC 0053;
-      a request for comments names a process these documents do not follow
+      two namespaces read one corpus, and the code has said `spec` since S-0053; a
+      request for comments names a process these documents do not follow
   - option: >-
       a `torve init` that writes the configuration and the manifest too
     rejected_because: >-
       both are authored, not derived; a minted configuration is a template nobody
       reads, and `init` stays honest by writing only what the code knows
 questions:
-  - id: Q-57.1
+  - id: Q-1
     text: >-
       Whether `spec cites` reads the commit history's `Torve-Decisions` trailers or
       only the tree and the corpus
-  - id: Q-57.2
+  - id: Q-2
     text: >-
       Whether the MCP `show` tool answers `cited_by` once `spec cites` exists
 phasing:
@@ -591,8 +591,8 @@ phasing:
       `CLAUDE.md` and `README.md` for citation-shaped identifiers and resolves each
       over the corpus and the archive: unknown is a problem naming `file:line`, retired
       a warning, archived clean. `torve spec cites IDENT` lists the code lines, landings,
-      amendments and documents that cite an identifier, and D-57.13 is decided and
-      logged. `spec check` warns when `implementation` and the landings disagree.
+      amendments and documents that cite an identifier, and S-0057/D-13 is decided
+      and logged. `spec check` warns when `implementation` and the landings disagree.
     scope:
       - src/torve/config/spec.py
       - src/torve/cli/spec.py
@@ -632,7 +632,7 @@ contract_example:
       uv run pytest tests/test_rfc_check.py tests/test_cli_spec.py
     - uv run torve spec check
   decisions:
-    - id: D-57.9
+    - id: D-9
       grade: LOCKED
       text: >-
         `spec check` resolves every citation-shaped identifier in tracked source and

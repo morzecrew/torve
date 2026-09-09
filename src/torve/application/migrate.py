@@ -4,8 +4,8 @@ forze version dictates, and telemetry from stage 3 onward.
 
 yoyo is an implementation detail behind this module, imported lazily so a
 missing `torve[migrate]` extra produces an instruction, not an ImportError
-(D-12.3); its checksum verification is what fails an edited-after-apply file
-(D-12.5). The `.sql` files ship as package data — a wheel that knows how to
+(S-0012/D-3); its checksum verification is what fails an edited-after-apply file
+(S-0012/D-5). The `.sql` files ship as package data — a wheel that knows how to
 migrate but has nothing to migrate with is discovered at first deployment.
 """
 
@@ -75,7 +75,7 @@ def forze_pin() -> str:
 def check_forze_pin() -> tuple[bool, str]:
     """(ok, message). The pin is the schema regime the substrate migrations
     were written against; a mismatch is a migration task, not a warning
-    (D-12.7)."""
+    (S-0012/D-7)."""
 
     import importlib.metadata
 
@@ -139,7 +139,7 @@ MIGRATION_TABLE = "_torve_migrations"
 
 def apply(target: str, dsn: str) -> int:
     """Apply the target's pending steps; return how many were applied.
-    Forward-only by construction (D-12.4): no rollback path exists here."""
+    Forward-only by construction (S-0012/D-4): no rollback path exists here."""
 
     steps = steps_for(target)
 
@@ -163,7 +163,7 @@ def apply(target: str, dsn: str) -> int:
 def pending_count(target: str, dsn: str) -> int:
     """How many of the target's steps a reachable database still lacks —
     the currency question `torve doctor` and `migrate --status` share
-    (D-12.7's spirit: a schema mismatch is a check, not a symptom)."""
+    (S-0012/D-7's spirit: a schema mismatch is a check, not a symptom)."""
 
     steps = steps_for(target)
 
@@ -188,7 +188,7 @@ def status(dsn: str | None, *, unreachable: str = "database not configured") -> 
     supplies it because the caller is the one that knows why: a mock store
     has no database to migrate, and a postgres store whose variable is unset
     has one nobody named. Reported identically, those two send an operator
-    looking in the wrong place (A-101).
+    looking in the wrong place (S-0012/A-1).
     """
 
     lines: list[str] = []
@@ -213,7 +213,7 @@ def status(dsn: str | None, *, unreachable: str = "database not configured") -> 
             except Exception as exc:  # a database that will not answer
                 # `--status` is the preview an operator runs *because*
                 # something is wrong; a driver traceback is the one answer
-                # it must not give (A-111).
+                # it must not give (S-0013/A-3).
                 applied = f"unreachable: {type(exc).__name__}"
 
         lines.append(f"{target:<10} {len(steps)} step(s), {applied}")

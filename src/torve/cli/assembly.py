@@ -1,21 +1,21 @@
-"""The composition root (RFC 0042 §5.1): the one place that turns
+"""The composition root (S-0042/the-composition-root): the one place that turns
 `(root, config)` into runnable deps — `RunDeps`, the review leg, and the
 store/broker/vcs/workspace/runtime constructors behind them. Verbs parse
 arguments, enforce their front doors and render; they do not build adapters
 inline. The bundles stay the application layer's contract, unchanged by
-this move (D-42.2); the root lives in `cli` because adapter imports belong
-to this layer and no other (RFC 0015 §2.1).
+this move (S-0042/D-2); the root lives in `cli` because adapter imports belong
+to this layer and no other (S-0015/permitted-imports).
 
-`prepare_for` is the per-task half of a dispatch as one callable (RFC 0044
-D-44.12): a worker runs whatever the board hands it, so what a task needs
-is resolved from the task — its character's tier (D-34.3) and the provider
-routing that tier must pass (D-4.8).
+`prepare_for` is the per-task half of a dispatch as one callable (S-0044
+S-0044/D-12): a worker runs whatever the board hands it, so what a task needs
+is resolved from the task — its character's tier (S-0034/D-3) and the provider
+routing that tier must pass (S-0004/D-8).
 
-The tick's leg bundles left with the standing loop (A-105); what they wired
+The tick's leg bundles left with the standing loop (S-0019/A-8); what they wired
 is now the manager's pass, `torve merge` and `torve reap`.
 
-`build_notifier` resolves the notification destination (RFC 0051 D-51.3,
-D-51.4), following the broker's `none`-by-default precedent (D-21.9).
+`build_notifier` resolves the notification destination (S-0051 S-0051/D-3,
+S-0051/D-4), following the broker's `none`-by-default precedent (S-0021/D-9).
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def review_agent_for(config: RunnerConfig, root: Path) -> Agent | None:
 
 
 # The dispatch tier's and every retry rung's agent comes from one rule:
-# D-27.11, its scalar generalized by D-34.6.
+# S-0027/D-11, its scalar generalized by S-0034/D-6.
 def dispatch_agent_factory(
     *, agent_name: str | None = None, scenario: Path | None = None
 ) -> Callable[[TierConfig], Agent]:
@@ -105,9 +105,9 @@ def dispatch_agent_factory(
 # ....................... #
 
 
-# Provider routing is enforced at dispatch (D-4.8), before a sandbox
-# exists; every retry rung routes too (D-27.11's scalar generalized by
-# D-34.6), because D-27.1 refuses to dispatch under a regime it has not
+# Provider routing is enforced at dispatch (S-0004/D-8), before a sandbox
+# exists; every retry rung routes too (S-0027/D-11's scalar generalized by
+# S-0034/D-6), because S-0027/D-1 refuses to dispatch under a regime it has not
 # already validated.
 def route_dispatch_providers(config: RunnerConfig, root: Path, tier: TierConfig) -> None:
     """Route the dispatch tier and every retry rung it names through the
@@ -160,10 +160,10 @@ def build_run_deps(
         scm=(GhScm(config.scm.repo, config.scm.token_env) if config.scm.open_pr else NullScm()),
         store=open_store,
         review_agent=review_agent,
-        # The egress broker in force (RFC 0021): `none` by default, `local`
+        # The egress broker in force (S-0021): `none` by default, `local`
         # when configured — the run's keys never enter the sandbox either way.
         broker=build_broker(config.broker),
-        # D-27.11: builds the tier a retry_variant names, mid-run — the same
+        # S-0027/D-11: builds the tier a retry_variant names, mid-run — the same
         # rule that built the tier that dispatched.
         retry_agent=retry_agent,
     )

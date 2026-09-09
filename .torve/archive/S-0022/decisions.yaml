@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-22.1
+  - id: D-1
     grade: LOCKED
     text: >-
       The report never edits a decision table, proposes no text, and invokes no model;
@@ -8,8 +8,8 @@ decisions:
     paths: [src/torve/application/specquality.py, src/torve/cli/rfc.py]
     consequence: >-
       An engine that regrades its own decisions is an engine deciding what work exists
-      (D-2)
-  - id: D-22.2
+      (S-0001/D-10)
+  - id: D-2
     grade: LOCKED
     text: >-
       Grades are compared as copied onto the contract at mint time, never as they
@@ -18,7 +18,7 @@ decisions:
     consequence: >-
       A reader that resolves grades at read time rewrites the past, which is the defect
       the log format exists to prevent
-  - id: D-22.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       No single corpus score is computed or displayed; the output is populations with
@@ -27,54 +27,55 @@ decisions:
     consequence: >-
       Charter §8a refuses thresholds for an internal tool, and a scalar becomes one
       by being watched
-  - id: D-22.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       A decision inherited by tasks that touched its declared paths but cited by no
       log entry is reported as decoration-or-paths-defect, naming both causes. Amended
-      by A-59 2026-08-29: "touched" is scope.allow intersecting the row's declared
+      by S-0022/A-4 2026-08-29: "touched" is scope.allow intersecting the row's declared
       paths, both as denormalised at mint time; the reading applies to LOCKED rows
       only — ASSUMED and OPEN rows print raw counts with no reading
     paths: [src/torve/application/specquality.py]
     consequence: >-
-      The reading is only possible because Paths (D-32) and the silence check exist;
-      conflating the two causes would delete correct rows
-  - id: D-22.5
+      The reading is only possible because Paths (S-0001/D-32) and the silence check
+      exist; conflating the two causes would delete correct rows
+  - id: D-5
     grade: ASSUMED
     text: >-
-      Storage stays at RFC 0004 §6 stage 1: a plain reader over JSONL and YAML, no
-      new dependency, written so that moving to stage 2 is a change of reader. Amended
-      by A-71 2026-08-31: one textual exception — `TaskFacts.landed` reads git's own
-      landing trailer (D-10.4) via a single batched `git log` call, because landedness
-      is the one fact that must survive a reap sweep of the run-state file; every
-      other reader in this module stays YAML/JSONL-only
+      Storage stays at S-0004/telemetry-staged stage 1: a plain reader over JSONL
+      and YAML, no new dependency, written so that moving to stage 2 is a change of
+      reader. Amended by S-0022/A-1 2026-08-31: one textual exception — `TaskFacts.landed`
+      reads git's own landing trailer (S-0010/D-4) via a single batched `git log`
+      call, because landedness is the one fact that must survive a reap sweep of the
+      run-state file; every other reader in this module stays YAML/JSONL-only
     paths: [src/torve/application/specquality.py]
     consequence: >-
       §6's own move-on condition — window functions or joins — is not met at this
       volume, and an unused extra is a dependency with no evidence behind it
-  - id: D-22.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       The surface is `torve rfc health`, a subcommand of the existing corpus verb,
-      plus one section of the `torve context` projection. Amended by A-59 2026-08-29:
+      plus one section of the `torve context` projection. Amended by S-0022/A-4 2026-08-29:
       a decision whose paths span more than one phase's scope splits into per-surface
       rows at authoring — this row's paths contradicted T-0099's minted scope
     paths: [src/torve/cli/rfc.py, src/torve/application/projections.py]
     consequence: >-
       One subject, one front door; the context section is the consumer that justifies
       computing the report
-  - id: D-22.7
+  - id: D-7
     grade: LOCKED
     text: >-
-      RFC 0004 §6a's quasi-experiment caveat is printed with the report, not paraphrased
-      in documentation. Amended by A-59 2026-08-29: printed without its corpus coordinate
-      (a report reader has no corpus to resolve); when a third surface needs the string
-      its canonical home is `torve.base`, importable from both layers
+      S-0004/measurement-defects-to-fix-before-trusting-a-number's quasi-experiment
+      caveat is printed with the report, not paraphrased in documentation. Amended
+      by S-0022/A-4 2026-08-29: printed without its corpus coordinate (a report reader
+      has no corpus to resolve); when a third surface needs the string its canonical
+      home is `torve.base`, importable from both layers
     paths: [src/torve/cli/rfc.py, src/torve/application/projections.py]
     consequence: >-
       The first attractive number becomes a promise to someone unless its limits arrive
       attached to it
-  - id: D-22.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       Readings are suppressed below a printed floor of observations; ratios always
@@ -82,7 +83,7 @@ decisions:
     paths: [src/torve/application/specquality.py]
     consequence: >-
       A majority over three tasks is noise wearing a percentage
-  - id: D-22.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       Tasks without an `rfc` join at the decision level and are reported as their
@@ -91,7 +92,7 @@ decisions:
     consequence: >-
       Adopted intake work and hand-minted contracts have no document to indict, and
       mixing them would indict one anyway
-  - id: D-22.11
+  - id: D-11
     grade: ASSUMED
     text: >-
       Dispatch prints the envelope: expected attempts, cost and wall minutes for the
@@ -102,7 +103,7 @@ decisions:
       The operator's real question at dispatch is "how long and how much before I
       should worry"; the data answering it already exists here and an envelope with
       a printed denominator cannot become a promise
-  - id: D-22.10
+  - id: D-10
     grade: OPEN
     text: >-
       Whether an abandoned task's entries weigh the same as a landed task's; execution
@@ -111,14 +112,14 @@ decisions:
     consequence: >-
       Departures on work that never landed are evidence of a different kind, and guessing
       the answer here would bake it in before anyone has seen the distribution
-  - id: D-22.12
+  - id: D-12
     grade: ASSUMED
     text: >-
       The corpus summary and the context section print the operator-attention line:
       landed changes in the window and the operator interventions behind them — feedback
       minutes, command and approval events, escalations triaged — computed from records
       already written, denominators printed, suppressed below the floor. Added by
-      amendment A-73 2026-08-31
+      amendment S-0022/A-5 2026-08-31
     paths:
       - src/torve/application/specquality.py
       - src/torve/application/projections.py

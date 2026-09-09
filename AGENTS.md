@@ -15,7 +15,7 @@
 
 ## Decisions governing the repository root
 
-### D-55.18 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-18 — `LOCKED` (Standing decisions)
 
 Secrets never enter the tree; the `secrets` gate reads added lines and is the one gate no bypass trailer can lift
 
@@ -23,7 +23,7 @@ Secrets never enter the tree; the `secrets` gate reads added lines and is the on
 - Consequence: The boundary has never been crossed in 745 attempts and the tree holds it as structure
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### D-55.23 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-23 — `LOCKED` (Standing decisions)
 
 Five layers — `base`, `domain`, `application`, `adapters`, `cli`, beside `gates` and `config` — with import directions enforced by import-linter over the whole package; the `layering` gate blocks
 
@@ -31,7 +31,7 @@ Five layers — `base`, `domain`, `application`, `adapters`, `cli`, beside `gate
 - Consequence: The hexagon is visible in the tree and mechanically held
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### D-55.24 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-24 — `LOCKED` (Standing decisions)
 
 `gates` imports only `domain`, `base` and `config`; the gates-only install stands alone
 
@@ -39,7 +39,7 @@ Five layers — `base`, `domain`, `application`, `adapters`, `cli`, beside `gate
 - Consequence: The first shippable increment keeps shipping alone
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### D-55.26 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-26 — `LOCKED` (Standing decisions)
 
 The specification format terminates at the planner: gates, runtime adapters and agent adapters never import its owner
 
@@ -47,14 +47,14 @@ The specification format terminates at the planner: gates, runtime adapters and 
 - Consequence: Format containment cannot break quietly; the contract is the only thing a gate reads about a task
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### D-55.59 — `ASSUMED` (RFC 0055 — Standing decisions)
+### S-0055/D-59 — `ASSUMED` (Standing decisions)
 
 Strict typing is a floor over `src/`: `mypy --strict` and `basedpyright` strict block CI and the acceptance fallback; tests, scripts and skills carry no type floor
 
 - Paths: `src/torve/**` `pyproject.toml`
 - Consequence: A substrate surface change fails at the type check
 
-### D-56.10 — `LOCKED` (RFC 0056 — Structure for everything)
+### S-0056/D-10 — `LOCKED` (Structure for everything)
 
 Every task directory whose contract names an archived document is deleted, not archived, in one commit; `.torve/tasks/` leaves the tracked exceptions; the retention leg over task directories goes with them
 
@@ -62,7 +62,7 @@ Every task directory whose contract names an archived document is deleted, not a
 - Consequence: Git keeps the history and the record keeps the landings; nothing standing cites a task log
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### D-57.5 — `LOCKED` (RFC 0057 — The specification is a directory)
+### S-0057/D-5 — `LOCKED` (The specification is a directory)
 
 `torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent, never a configuration or a manifest; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
 
@@ -70,7 +70,7 @@ Every task directory whose contract names an archived document is deleted, not a
 - Consequence: An editor validates any torve YAML as it is typed; an adopting repository ignores the right files without copying a block; `init` is the initialisation there is
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### D-58.2 — `LOCKED` (RFC 0058 — One grammar and the anatomy)
+### S-0058/D-2 — `LOCKED` (One grammar and the anatomy)
 
 Every existing identifier converts once through a mapping committed as `.torve/archive/identifiers.yaml`, applied to the corpus, the archive, `src/`, `pages/`, `skills/`, the README, the local task files and the projections, with "RFC NNNN §n" converted to the section key at that position; a parity script gates the commit and is not committed
 
@@ -80,7 +80,7 @@ Every existing identifier converts once through a mapping committed as `.torve/a
 
 ## Invariants holding over the repository root
 
-- **I-55.1** (RFC 0055): The five layer contracts hold over the whole package
+- **S-0055/I-1**: The five layer contracts hold over the whole package
   - Paths: `src/torve/**` `pyproject.toml`
   - Check: `uv run lint-imports --config pyproject.toml`
 
@@ -95,8 +95,8 @@ Every existing identifier converts once through a mapping committed as `.torve/a
 ## Governed directories
 
 Each of these carries a managed `AGENTS.md` section listing the decisions
-and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
-`<file>` and `torve spec tests D-x.y` read the same corpus from the worktree.
+and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
+`<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
 
 - `migrations/` — 1 decision(s)
 - `pages/` — 2 decision(s)

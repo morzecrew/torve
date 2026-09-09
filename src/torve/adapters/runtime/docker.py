@@ -1,11 +1,11 @@
 """Runtime port over Docker — the sanctioned fallback beside OpenSandbox
-(D-3.3). The container is the unit of lifecycle: destroying it kills
-everything inside, including grandchildren that called setsid (D-4).
+(S-0003/D-3). The container is the unit of lifecycle: destroying it kills
+everything inside, including grandchildren that called setsid (S-0001/D-12).
 
 The workspace is bind-mounted at the spec's workdir, so `sync_out` is a
 no-op. The container runs as the invoking user so files it writes into the
 mount stay reapable without privileges, and PID 1 is `sleep <timeout>` so the
-platform itself bounds the lifecycle (RFC 0003 §4.1) even if the runner dies.
+platform itself bounds the lifecycle (S-0003/runtime) even if the runner dies.
 """
 
 from __future__ import annotations
@@ -36,11 +36,11 @@ class DockerError(RuntimeError):
 # ....................... #
 
 
-# The toolchain cache homes pointed at the derived-cache volume (D-35.4):
+# The toolchain cache homes pointed at the derived-cache volume (S-0035/D-4):
 # subdirectory on the mount -> environment variable. The roster is the one
 # measured to warm across attempts — each entry is a cache the tool
 # demonstrably honors by variable, and a cache whose deletion changes
-# nothing but wall clock (D-35.1's doctrine, checked by a conformance case
+# nothing but wall clock (S-0035/D-1's doctrine, checked by a conformance case
 # running the same battery cold and warm).
 CACHE_HOMES = (("uv", "UV_CACHE_DIR"), ("mypy", "MYPY_CACHE_DIR"), ("ruff", "RUFF_CACHE_DIR"))
 
@@ -59,7 +59,7 @@ def cache_home_env(mount: str = CACHE_MOUNT) -> dict[str, str]:
 
 # The PROXY_ENV convention is forwarded only when a network mode was chosen —
 # a host-loopback proxy address is reachable under "host" and poison under
-# the default bridge. Sealed mode (D-21.3) replaces it: the sandbox joins
+# the default bridge. Sealed mode (S-0021/D-3) replaces it: the sandbox joins
 # the internal network the broker attaches to, so the only reachable
 # address is the broker, and the proxy env points at it — never at the
 # host's own proxy, which would be a path nobody meant to leave open.
@@ -75,8 +75,8 @@ class DockerRuntime:
     ) -> None:
         self.docker = docker_bin
         self.network = network  # "" = daemon default; "host" shares the host stack
-        # "socket" mounts the host daemon into every sandbox (RFC 0017 §2a,
-        # D-17.9/D-17.10): host-equivalent capability, an explicit
+        # "socket" mounts the host daemon into every sandbox (S-0017/docker-inside-the-sandbox,
+        # S-0017/D-9/D-17.10): host-equivalent capability, an explicit
         # per-repository opt-in. The image supplies the docker CLI.
         self.docker_mode = docker_mode
 
@@ -123,7 +123,7 @@ class DockerRuntime:
         """A spec carrying the fixed cache mount is the whole signal: the
         runner composed the slot-suffixed volume name, the decision that a
         warm tier's sandboxes point their toolchains at it lives here
-        (D-35.4), and shadow runs simply never carry the mount (D-35.3)."""
+        (S-0035/D-4), and shadow runs simply never carry the mount (S-0035/D-3)."""
 
         return CACHE_MOUNT in spec.volumes.values()
 
@@ -169,7 +169,7 @@ class DockerRuntime:
             args += ["--network", self.network]
 
             if self._network_is_internal(self.network):
-                # Sealed containment (D-21.3): the sandbox's only reachable
+                # Sealed containment (S-0021/D-3): the sandbox's only reachable
                 # address is the broker at the internal network's gateway,
                 # and its egress is the broker's declared pass-through — the
                 # proxy env points there, and the broker's own address is
@@ -193,7 +193,7 @@ class DockerRuntime:
 
         if self._mounts_cache(spec):
             # The adapter points the toolchain cache homes at the mount
-            # (D-35.4). Emitted before the spec's own env — which docker
+            # (S-0035/D-4). Emitted before the spec's own env — which docker
             # resolves last-wins over earlier duplicates, but these are
             # skipped for any name the spec already carries, so an explicit
             # env on the spec still decides.
@@ -209,7 +209,7 @@ class DockerRuntime:
 
         for name in spec.env_passthrough:
             # Name only: docker reads the value from the invoking environment,
-            # so the secret never transits torve or the spec (D-4b).
+            # so the secret never transits torve or the spec (S-0001/D-13).
             args += ["-e", name]
 
         for volume, mount in spec.volumes.items():

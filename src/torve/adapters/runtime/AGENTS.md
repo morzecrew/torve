@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/torve/adapters/runtime/`
 
-### D-55.3 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-3 — `LOCKED` (Standing decisions)
 
 The sandbox is the unit of lifecycle; the engine never executes agent code on the host
 

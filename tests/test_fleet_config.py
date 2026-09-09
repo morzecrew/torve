@@ -1,4 +1,4 @@
-"""RFC 0024 §5.1: the operator-side fleet manifest — never resolved under a
+"""S-0024/the-manifest-lives-with-the-operator: the operator-side fleet manifest — never resolved under a
 repository's own `.torve/`, deterministic order, and a `trust` class that is
 never defaulted."""
 
@@ -108,7 +108,7 @@ def test_default_manifest_path_falls_back_to_the_home_config_dir(monkeypatch, tm
 
 
 # ....................... #
-# enforce_trust — §5.3, D-24.6
+# enforce_trust — §5.3, S-0024/D-6
 
 
 def test_own_permits_socket_and_host_networking():

@@ -1,18 +1,18 @@
-"""The survey (RFC 0031 §5.1, phase 1): a read-only, agentless replay of a
+"""The survey (S-0031/torve-survey, phase 1): a read-only, agentless replay of a
 repository's last N landings through the gate battery — one truncated
-clone-at-landing per landing (D-31.4), the landing's first parent as the gate
+clone-at-landing per landing (S-0031/D-4), the landing's first parent as the gate
 base, per-gate outcomes collected, the clone removed. No model, no sandbox,
 no credentials, nothing written into the target beyond the report the operator
-names (D-31.1).
+names (S-0031/D-1).
 
 The report is the product: exit 0 on any completed measurement, because a red
 history is a successful measurement of a red history. Task- and log-input
 gates record their no-task skip, and the report names those gates as what a
-corpus would add (D-31.4) — the silence is the corpus's absence made visible.
+corpus would add (S-0031/D-4) — the silence is the corpus's absence made visible.
 
 A target with no gate manifest is surveyed with the shipped product battery
 under manifest defaults; one with a manifest is surveyed with its own
-(D-31.5). House-convention gates are not part of the product battery: they
+(S-0031/D-5). House-convention gates are not part of the product battery: they
 encode this corpus's conventions and run only where the target's own manifest
 names them.
 """
@@ -33,7 +33,7 @@ from torve.gates.runner import run_gates
 
 # ----------------------- #
 
-# The survey's outcome vocabulary (RFC 0031 §5.1): a gate that fired would
+# The survey's outcome vocabulary (S-0031/torve-survey): a gate that fired would
 # have stopped the work; a clean gate measured nothing wrong; a skipped gate
 # did not run. Bypassed counts as fired — the signature is spent, the gate
 # did not measure clean.
@@ -71,7 +71,7 @@ class SurveySource:
 
 
 def default_battery() -> Manifest:
-    """The shipped product battery (D-31.5): the structural builtins every
+    """The shipped product battery (S-0031/D-5): the structural builtins every
     target gets under manifest defaults. House-convention gates are excluded —
     they run only where a target's own manifest names them."""
 
@@ -102,7 +102,7 @@ def default_battery() -> Manifest:
 
 def resolve_manifest(root: Path) -> tuple[Manifest, str]:
     """The battery the survey runs: the target's own gate manifest when it has
-    one, else the shipped product battery under manifest defaults (D-31.5).
+    one, else the shipped product battery under manifest defaults (S-0031/D-5).
     The second element names the source in the report. A malformed manifest
     raises ValueError (a configuration error for the CLI to report)."""
 
@@ -144,7 +144,7 @@ def run_survey(
     }
     # A gate is a corpus gap only if it never measured anything across the
     # window (every landing skipped it) and its own silence is the no-task
-    # skip (NO_TASK, D-31.4) — not the runner's "not run" short-circuit and
+    # skip (NO_TASK, S-0031/D-4) — not the runner's "not run" short-circuit and
     # not acceptance's structural "no commands" skip.
     ran: dict[str, bool] = dict.fromkeys(order, False)
     no_task_skip: dict[str, bool] = dict.fromkeys(order, False)
@@ -211,7 +211,7 @@ def run_survey(
 
     surveyed = len(landings)
 
-    # What a corpus would add (D-31.4): the gates that never measured a
+    # What a corpus would add (S-0031/D-4): the gates that never measured a
     # single landing and whose silence is the no-task skip — their silence
     # is the corpus's absence made visible.
     corpus_adds = [name for name in order if not ran[name] and no_task_skip[name] and surveyed > 0]

@@ -1,9 +1,9 @@
-"""`self-audit` — author-side blind spots (RFC 0002 §4), non-blocking.
+"""`self-audit` — author-side blind spots (S-0002/starting-set), non-blocking.
 
-Until agents ship (RFC 0004) this is the deterministic core of the
+Until agents ship (S-0004) this is the deterministic core of the
 discipline: a *written* log must carry the declared `drift_count` claim —
-an absent claim and an honest zero must not read identically (D-2.10; YAML
-per A-1). A missing or empty log is legal per A-13/D-3.21: the file is
+an absent claim and an honest zero must not read identically (S-0002/D-10; YAML
+per S-0001/A-1). A missing or empty log is legal per S-0003/A-2/D-3.21: the file is
 created by writing, absence IS the empty log, and this gate does not demand
 one into existence.
 """

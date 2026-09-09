@@ -35,7 +35,7 @@ other, and a test says so.
 ## What outranks what
 
 - **A landing outranks everything.** A dependency is satisfied by a landing
-  and by nothing else (A-29, A-31). A run that reached `ready` without
+  and by nothing else (S-0019/A-3, S-0019/A-4). A run that reached `ready` without
   landing has told the board nothing it can act on, and a fresh clone with
   no store still knows what landed because git does.
 - **The board outranks the host.** Once a task is on the board, its state is

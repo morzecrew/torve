@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0032'
+id: S-0032
 title: The serve surface
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0007', '0022']
-informed_by: ['0005', '0011', '0013', 0018]
+depends_on: [S-0007, S-0022]
+informed_by: [S-0005, S-0011, S-0013, S-0018]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   A local read-only dashboard over the projections the engine already computes — `torve
@@ -37,9 +37,9 @@ sections:
   - key: current-state
     md: |
       - `src/torve/application/projections.py` computes tasks-by-state,
-        escalations, proposals, the findings ledger (D-5.15), gate health, cost
+        escalations, proposals, the findings ledger (S-0005/D-15), gate health, cost
         rows, programme progress and the spec-quality sections — on demand,
-        stored nowhere (D-A.12). `torve context --format json` already emits it.
+        stored nowhere (S-0016/D-22). `torve context --format json` already emits it.
       - `torve status` reads live run states; the MCP server re-exposes the same
         projections read-only ("nothing here mutates state").
       - The wheel already ships non-Python package data (skills as
@@ -62,7 +62,7 @@ sections:
       **Non-goals**
 
       - **Writes.** No approve, adopt, dispatch, kill or merge from the browser.
-        Each of those is a signature (D-2, D-26.4) with lock discipline behind
+        Each of those is a signature (S-0001/D-10, S-0026/D-4) with lock discipline behind
         it; a mutating dashboard needs auth and a threat model this document
         refuses to carry. Named as future work in §8, not designed here.
       - **Remote serving.** Loopback only, no TLS, no auth — because no
@@ -72,15 +72,15 @@ sections:
         small is indistinguishable from SSE at one-operator scale; a push
         channel is complexity waiting for a second operator.
       - **Historical analytics.** The dashboard shows the present projection;
-        history stays in telemetry and the regime preimages (D-4.19). Charts
+        history stays in telemetry and the regime preimages (S-0004/D-19). Charts
         over history arrive when a reader needs them, on the stage-2 storage
-        question's own schedule (D-22.5).
+        question's own schedule (S-0022/D-5).
   - key: the-verb-and-the-extra
     md: |
       `torve serve [--port 7433] [--config …]` — lazy-imports starlette/uvicorn,
       refusing without the extra exactly as the opensandbox adapter refuses
       without its SDK. Binds `127.0.0.1` unconditionally; there is no
-      `--host` flag to get wrong. `--config` follows D-13.4.
+      `--host` flag to get wrong. `--config` follows S-0013/D-4.
   - key: endpoints
     md: |
       ```text
@@ -92,7 +92,7 @@ sections:
       Two endpoints, both thin calls into functions that already exist. Anything
       the frontend needs that these lack is added to the projection itself, so
       the CLI and the browser can never disagree (one reader, two renderers —
-      the A-47 discipline applied to surfaces).
+      the S-0007/A-3 discipline applied to surfaces).
   - key: the-frontend-and-its-shipping
     md: |
       React + shadcn/ui + Tailwind, dark-first, the glassmorphism treatment; a
@@ -111,9 +111,9 @@ sections:
   - key: security-posture-stated-plainly
     md: |
       Loopback bind, read-only handlers, no credentials held or displayed (the
-      projections already carry names-not-values everywhere — D-4b upstream of
+      projections already carry names-not-values everywhere — S-0001/D-13 upstream of
       this surface), no request touches the engine lock. The one real risk is a
-      future contributor adding a convenient POST; D-32.2 exists to make that a
+      future contributor adding a convenient POST; S-0032/D-2 exists to make that a
       corpus conversation instead of a patch.
   - key: alternatives-considered
     md: |
@@ -163,7 +163,7 @@ sections:
         the source the way INDEX.md is checked against frontmatter.
   - key: unresolved-questions
     md: |
-      - D-32.5 (below): whether the bundle is vendored in-repo or CI-attached
+      - S-0032/D-5 (below): whether the bundle is vendored in-repo or CI-attached
         to the wheel build — settled by the first release build, not before.
   - key: phasing
     md: |
@@ -174,10 +174,10 @@ phasing:
     title: serve-backend
     intent: >-
       The torve serve verb behind the torve[serve] extra: starlette app with /api/context
-      and /api/status re-exposing the existing projections verbatim (D-32.1), loopback-only
-      with no host flag (D-32.2), lazy-imported with an instructive refusal (D-32.3),
-      instructive 404 when no bundle is shipped. Endpoint tests via TestClient, import-guard
-      test mirrored from the opensandbox pattern.
+      and /api/status re-exposing the existing projections verbatim (S-0032/D-1),
+      loopback-only with no host flag (S-0032/D-2), lazy-imported with an instructive
+      refusal (S-0032/D-3), instructive 404 when no bundle is shipped. Endpoint tests
+      via TestClient, import-guard test mirrored from the opensandbox pattern.
     scope:
       - src/torve/cli/serve.py
       - src/torve/cli/main.py
@@ -193,7 +193,7 @@ phasing:
     intent: >-
       The web/ source tree: React + shadcn single page rendering board, escalations,
       findings ledger, proposals, gate health, cost and token shape, and programme
-      sections from the two endpoints, polling with a visible projected-at stamp (D-32.6).
+      sections from the two endpoints, polling with a visible projected-at stamp (S-0032/D-6).
       A local build script produces the bundle into src/torve/_web; committing the
       bundle is phase 3's CI question, not this phase's.
     scope: [web/**, src/torve/_web/**]
@@ -206,9 +206,9 @@ phasing:
     title: serve-bundle-ci
     intent: >-
       The npm-builder CI job building web/ into the torve/_web package data on the
-      release path (D-32.4), and the D-32.5 call made from the first real build: vendored-and-hash-checked
-      or CI-attached. The job runs the frontend build and asserts the backend suite
-      stays green against the produced bundle.
+      release path (S-0032/D-4), and the S-0032/D-5 call made from the first real
+      build: vendored-and-hash-checked or CI-attached. The job runs the frontend build
+      and asserts the backend suite stays green against the produced bundle.
     scope: [.github/**]
     acceptance:
       - uv run ruff check .

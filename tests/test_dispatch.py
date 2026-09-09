@@ -1,4 +1,4 @@
-"""The dispatch object and its life (RFC 0046).
+"""The dispatch object and its life (S-0046).
 
 Three of these existed before only as consequences of a whole run: the
 credential refusal, the ordering that keeps a refusal from leaking a live
@@ -40,7 +40,7 @@ class _StubRuntime:
 class _CountingBroker:
     """Records that it was asked to open. The refusals below must never
     reach it — a broker opened before a refusal is a live credential route
-    nobody revokes (D-46.4)."""
+    nobody revokes (S-0046/D-4)."""
 
     name = "counting"
 
@@ -92,7 +92,7 @@ def _brokered(**tiers: TierConfig) -> RunnerConfig:
 
 
 def test_a_brokered_tier_naming_a_credential_is_refused_before_the_broker_opens(tmp_path):
-    """D-21.1's second line: the validator refuses this, and the dispatch
+    """S-0021/D-1's second line: the validator refuses this, and the dispatch
     refuses it again so a programmatically-built configuration cannot slip a
     key name past the validator into the sandbox's env."""
 
@@ -117,7 +117,7 @@ def test_a_brokered_tier_naming_a_credential_is_refused_before_the_broker_opens(
 
 def test_a_retry_rung_naming_a_credential_is_refused_too(tmp_path):
     """A run never dispatches under a regime it has not already validated
-    (D-27.11, D-34.6) — the rung the next attempt would route to is checked
+    (S-0027/D-11, S-0034/D-6) — the rung the next attempt would route to is checked
     at open, not when the conviction arrives."""
 
     broker = _CountingBroker()
@@ -146,7 +146,7 @@ def test_a_retry_rung_naming_a_credential_is_refused_too(tmp_path):
 
 def test_open_dispatch_opens_no_broker_of_its_own(tmp_path):
     """The broker is a live credential route, so it opens last, in its own
-    call, after every fallible step of setup (D-46.4). A dispatch that
+    call, after every fallible step of setup (S-0046/D-4). A dispatch that
     opened one on the way out would make that ordering unenforceable."""
 
     broker = _CountingBroker()

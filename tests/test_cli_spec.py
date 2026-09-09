@@ -1,4 +1,4 @@
-"""`torve spec` (RFC 0054 §5.5): read-only over the worktree's corpus and
+"""`torve spec` (S-0054/torve-spec-in-the-sandbox): read-only over the worktree's corpus and
 archive; `show` answers a row, an invariant or a question and marks an
 archived one; `paths` states coverage and the rows governing a path;
 `tests` names what proves a row; `why-not` finds the rejected alternative
@@ -17,16 +17,16 @@ from torve.cli import app
 runner = CliRunner()
 
 DETAILS = {
-    "D-1.1": {
+    "S-0001/D-1": {
         "rationale": "because",
-        "cites": ["D-1.2"],
+        "cites": ["S-0001/D-2"],
         "check": "pytest tests/test_cli.py",
         "check_twin": "tests/test_cli_sabotage.py",
     }
 }
 INVARIANTS = [
     {
-        "id": "I-1.1",
+        "id": "S-0001/I-1",
         "statement": "one lander",
         "paths": ["src/torve/cli/**"],
         "check": "pytest tests/test_lane.py",
@@ -38,7 +38,7 @@ ALTERNATIVES = [
         "rejected_because": "buys nothing while the lane serialises",
     }
 ]
-QUESTIONS = [{"id": "Q-1.1", "text": "how long a pass holds the base", "status": "open"}]
+QUESTIONS = [{"id": "S-0001/Q-1", "text": "how long a pass holds the base", "status": "open"}]
 
 
 def _seed(tmp_path: Path) -> Path:
@@ -49,8 +49,8 @@ def _seed(tmp_path: Path) -> Path:
             "0001": document(
                 "0001",
                 [
-                    ("D-1.1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`"),
-                    ("D-1.2", "ASSUMED", "A plain row", "—"),
+                    ("S-0001/D-1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`"),
+                    ("S-0001/D-2", "ASSUMED", "A plain row", "—"),
                 ],
                 details=DETAILS,
                 invariants=INVARIANTS,
@@ -62,7 +62,7 @@ def _seed(tmp_path: Path) -> Path:
     archived(
         rfc_dir,
         "0000",
-        document("0000", [("D-0.1", "LOCKED", "An old rule", "`src/old/**`")], status="superseded"),
+        document("0000", [("S-0000/D-1", "LOCKED", "An old rule", "`src/old/**`")], status="superseded"),
     )
 
     return rfc_dir
@@ -80,11 +80,11 @@ def _spec(tmp_path: Path, *args: str) -> tuple[int, str]:
 def test_show_answers_a_row_with_its_details(tmp_path: Path) -> None:
     _seed(tmp_path)
 
-    code, output = _spec(tmp_path, "show", "D-1.1")
+    code, output = _spec(tmp_path, "show", "S-0001/D-1")
     payload = json.loads(output)
 
     assert code == 0, output
-    assert payload["rationale"] == "because" and payload["cites"] == ["D-1.2"]
+    assert payload["rationale"] == "because" and payload["cites"] == ["S-0001/D-2"]
     assert payload["check"] == "pytest tests/test_cli.py" and payload["check_state"] == "shadow"
     assert payload["archived"] is False
 
@@ -92,16 +92,16 @@ def test_show_answers_a_row_with_its_details(tmp_path: Path) -> None:
 def test_show_answers_an_archived_row_an_invariant_and_a_question(tmp_path: Path) -> None:
     _seed(tmp_path)
 
-    code, output = _spec(tmp_path, "show", "D-0.1")
+    code, output = _spec(tmp_path, "show", "S-0000/D-1")
     assert code == 0 and json.loads(output)["archived"] is True
 
-    code, output = _spec(tmp_path, "show", "I-1.1")
+    code, output = _spec(tmp_path, "show", "S-0001/I-1")
     assert code == 0 and json.loads(output)["check"] == "pytest tests/test_lane.py"
 
-    code, output = _spec(tmp_path, "show", "Q-1.1")
+    code, output = _spec(tmp_path, "show", "S-0001/Q-1")
     assert code == 0 and json.loads(output)["status"] == "open"
 
-    code, _ = _spec(tmp_path, "show", "D-9.9")
+    code, _ = _spec(tmp_path, "show", "S-0009/D-9")
     assert code == 3
 
 
@@ -113,8 +113,8 @@ def test_paths_states_coverage_and_the_governing_rows(tmp_path: Path) -> None:
 
     assert code == 0, output
     assert payload["coverage"] == "governed"
-    assert [r["identifier"] for r in payload["decisions"]] == ["D-1.1"]
-    assert [i["identifier"] for i in payload["invariants"]] == ["I-1.1"]
+    assert [r["identifier"] for r in payload["decisions"]] == ["S-0001/D-1"]
+    assert [i["identifier"] for i in payload["invariants"]] == ["S-0001/I-1"]
 
     code, output = _spec(tmp_path, "paths", "src/old/thing.py")
     assert json.loads(output)["coverage"] == "retired"
@@ -126,15 +126,15 @@ def test_paths_states_coverage_and_the_governing_rows(tmp_path: Path) -> None:
 def test_tests_names_what_proves_a_row(tmp_path: Path) -> None:
     _seed(tmp_path)
 
-    code, output = _spec(tmp_path, "tests", "D-1.1")
+    code, output = _spec(tmp_path, "tests", "S-0001/D-1")
     proofs = json.loads(output)["proofs"]
 
     assert code == 0, output
     assert {"kind": "check", "command": "pytest tests/test_cli.py", "state": "shadow"} in proofs
     assert {"kind": "twin", "path": "tests/test_cli_sabotage.py"} in proofs
-    assert any(p["kind"] == "invariant" and p["identifier"] == "I-1.1" for p in proofs)
+    assert any(p["kind"] == "invariant" and p["identifier"] == "S-0001/I-1" for p in proofs)
 
-    code, output = _spec(tmp_path, "tests", "D-1.2")
+    code, output = _spec(tmp_path, "tests", "S-0001/D-2")
     assert code == 0 and json.loads(output)["proofs"] == []
 
 
@@ -152,15 +152,15 @@ def test_why_not_finds_the_rejected_alternative(tmp_path: Path) -> None:
 
 
 def test_a_corpus_that_does_not_load_is_a_configuration_error(tmp_path: Path) -> None:
-    corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "MAYBE", "x", "—")])})
+    corpus(tmp_path, **{"0001": document("0001", [("S-0001/D-1", "MAYBE", "x", "—")])})
 
-    code, _ = _spec(tmp_path, "show", "D-1.1")
+    code, _ = _spec(tmp_path, "show", "S-0001/D-1")
 
     assert code == 3
 
 
 # ----------------------- #
-# RFC 0057 D-57.10: the row's side of the link
+# S-0057 S-0057/D-10: the row's side of the link
 
 
 def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> None:
@@ -173,7 +173,7 @@ def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> N
         "at": "2026-09-09",
         "entries": [
             {
-                "decision": "D-1.1",
+                "decision": "S-0001/D-1",
                 "grade": "LOCKED",
                 "claim": "held",
                 "evidence": "src/x.py:1 - x",
@@ -185,31 +185,31 @@ def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> N
         "id": "A-1",
         "at": "2026-09-09",
         "title": "regraded",
-        "changes": [{"subject": "D-1.1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
+        "changes": [{"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
     }
     corpus(
         tmp_path,
         **{
             "0001": document(
                 "0001",
-                [("D-1.1", "LOCKED", "Verbs parse and render only", "`src/**`")],
+                [("S-0001/D-1", "LOCKED", "Verbs parse and render only", "`src/**`")],
                 landings=[landing],
                 amendments=[amendment],
             ),
             "0002": document(
                 "0002",
-                [("D-2.1", "ASSUMED", "Built on it", "—")],
-                details={"D-2.1": {"cites": ["D-1.1"]}},
+                [("S-0002/D-1", "ASSUMED", "Built on it", "—")],
+                details={"S-0002/D-1": {"cites": ["S-0001/D-1"]}},
             ),
         },
     )
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "x.py").write_text("# because of D-1.1\n", encoding="utf-8")
+    (tmp_path / "src" / "x.py").write_text("# because of S-0001/D-1\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
 
     result = runner.invoke(
-        app, ["spec", "cites", "D-1.1", "--root", str(tmp_path), "--format", "json"]
+        app, ["spec", "cites", "S-0001/D-1", "--root", str(tmp_path), "--format", "json"]
     )
 
     assert result.exit_code == 0, result.output
@@ -218,10 +218,10 @@ def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> N
     assert found["landings"] == [
         {"task": "T-0007", "attempt": 1, "commit": "abc", "document": "S-0001"}
     ]
-    assert found["amendments"] == [{"id": "A-1", "document": "S-0001"}]
+    assert found["amendments"] == [{"id": "S-0001/A-1", "document": "S-0001"}]
     assert found["documents"] == ["S-0002"]
     assert found["commits"] == []  # nothing committed with a trailer yet
 
-    empty = runner.invoke(app, ["spec", "cites", "D-2.1", "--root", str(tmp_path)])
+    empty = runner.invoke(app, ["spec", "cites", "S-0002/D-1", "--root", str(tmp_path)])
 
     assert empty.exit_code == 0 and "nothing cites it yet" in empty.output

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-70
+  - id: A-1
     at: '2026-08-31'
     title: >-
       the broker's own leg may tunnel (adds via_proxy); the gate demands the pin;
@@ -14,16 +14,16 @@ amendments:
         sandbox's view is unchanged: loopback, run token, no proxy. This is
         what lets a claude tier run brokered — the OAuth token becomes a
         `key_env` like any other, `ANTHROPIC_BASE_URL` points at the route,
-        and D-21.1 holds: the sandbox carries no credential at all.
-      - The `decisions-reported` gate now requires the D-A.7 pin (`repo`,
-        `base_sha`) the format has carried since A-7 — voluntary meant
+        and S-0021/D-1 holds: the sandbox carries no credential at all.
+      - The `decisions-reported` gate now requires the S-0001/D-36 pin (`repo`,
+        `base_sha`) the format has carried since S-0016/A-1 — voluntary meant
         agent-written logs omitted it until the operator repaired them by hand
         every landing.
       - `torve reap --escalated` is the explicit triage-discard for an
         escalation already dealt with outside the state machine — an infra
         failure, a hand landing. The default sweep still keeps every
         escalation: it exists to be looked at.
-  - id: A-56
+  - id: A-2
     at: '2026-08-28'
     title: >-
       phase scopes widened to the measured touch surface (amends §Phasing)
@@ -38,32 +38,32 @@ amendments:
 
       **Changed:** phase 1's scope gains `src/torve/adapters/agent/**`,
       `pyproject.toml`, `uv.lock` and `CHANGELOG.md`; phase 2 gains
-      `src/torve/config/**` (the pass-through host field, wherever D-21.11 lands
+      `src/torve/config/**` (the pass-through host field, wherever S-0021/D-11 lands
       it) and `CHANGELOG.md`. The minted contracts are re-minted — a changed
       contract is a new task.
 
       **Deliberately unchanged:** the scope gate itself did exactly its job;
       three identical reds and a poison ceiling on working code is the designed
       outcome for a mis-drawn fence, and the fix is the fence, never the gate.
-  - id: A-117
+  - id: A-3
     at: '2026-09-05'
     title: Both open rows were settled by execution
     md: |-
-      **Judged in the pass A-113's new flag started.** Both declared phases
+      **Judged in the pass S-0007/A-4's new flag started.** Both declared phases
       shipped, no decision lost its implementation to this month's retirements —
       the broker is the one subsystem neither the tracker nor the standing loop
       touched — and both `OPEN` rows are settled in fact by the phase that was
       supposed to settle them.
 
-      - **D-21.10** asked whether the `local` adapter is a subprocess or an
+      - **S-0021/D-10** asked whether the `local` adapter is a subprocess or an
         in-process thread, and said execution would settle it. It did: the
         adapter is an in-process `ThreadingHTTPServer` per run, opened and closed
         by the runner around the attempt.
-      - **D-21.11** asked where sealed mode's declared pass-through hosts live.
+      - **S-0021/D-11** asked where sealed mode's declared pass-through hosts live.
         The header says phase 2 decided the broker block; `pass_through` is a
         field on `BrokerConfig`, so that is where they live.
 
-      Flagged rather than regraded, as in A-116: naming a settled row is a
+      Flagged rather than regraded, as in S-0020/A-2: naming a settled row is a
       reader's job, flipping its grade is the owner's.
 
       **Changed:** nothing. `implementation: partial` stands for exactly one
@@ -71,4 +71,4 @@ amendments:
       code: §12's live-regime demonstrations accrue as tiers opt into brokered
       seats. The work is done; the evidence is a calendar.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

@@ -2,7 +2,7 @@
 
 ## Decisions governing `migrations/`
 
-### D-55.43 — `ASSUMED` (RFC 0055 — Standing decisions)
+### S-0055/D-43 — `ASSUMED` (Standing decisions)
 
 Migrations are owner-grouped, forward-only SQL under `migrations/`; the substrate is pinned by `FORZE_VERSION`, which `torve doctor` enforces and `config_hash` digests
 

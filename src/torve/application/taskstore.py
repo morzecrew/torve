@@ -1,6 +1,6 @@
-"""TaskStore — the thin facade over the substrate's durable run store (D-5).
+"""TaskStore — the thin facade over the substrate's durable run store (S-0001/D-14).
 
-forze's `DurableFunctionRunner` owns the machinery D-5 warns against
+forze's `DurableFunctionRunner` owns the machinery S-0001/D-14 warns against
 hand-writing: lease heartbeat, disambiguating lease-lost from cancel from
 timeout, fenced terminal writes (the claim's `attempts` counter), and
 recovery that lands a pre-death cancel without invoking the body. Torve
@@ -17,12 +17,12 @@ is direct port calls the store already made safe:
 
 The methods that remain bind the execution context and the function name;
 a plain read goes through `.store` directly rather than being wrapped for
-symmetry (A-49).
+symmetry (S-0002/A-3).
 
 Not adopted: `forze_kits.integrations.quiesce.quiesce`. Its only entry
 point takes a full `ExecutionRuntime` (deps registry, lifecycle plan,
 spec registry) — machinery this facade does not build and a tick has no
-hand-rolled equivalent for (D-42.4 refuses adoption without displacement;
+hand-rolled equivalent for (S-0042/D-4 refuses adoption without displacement;
 see .torve/tasks/T-0245/log.yaml). A tick's own dispatch is already
 synchronous per invocation, so nothing it started survives its return to
 drain.
@@ -63,7 +63,7 @@ def context_for(store: object) -> ExecutionContext:
     """The store registered under both the data plane and the control plane —
     forze's mock and Postgres stores each implement both. Lives here rather
     than beside the adapters: it is forze wiring over the port, and the
-    facade may not import `adapters` (RFC 0015 §2.1)."""
+    facade may not import `adapters` (S-0015/permitted-imports)."""
 
     def provide(_ctx: ExecutionContext) -> object:
         return store

@@ -1,9 +1,9 @@
-"""RFC vocabularies (RFC 0007 §3a, D-7.13): `Grade`, `Status`, `Kind` and
+"""RFC vocabularies (S-0007/format-validation, S-0007/D-13): `Grade`, `Status`, `Kind` and
 `Implementation` are defined here once and imported everywhere. A duplicated
 vocabulary eventually gains a member in one copy only.
 
 The format itself — frontmatter fields, the decision-table shape — is parsed
-and validated in `torve.config.spec` (D-7.12, A-151); this module owns only the
+and validated in `torve.config.spec` (S-0007/D-12, S-0007/A-5); this module owns only the
 words.
 """
 
@@ -21,6 +21,6 @@ Implementation = Literal["none", "partial", "complete", "abandoned"]
 GRADES: tuple[Grade, ...] = ("LOCKED", "ASSUMED", "OPEN")
 STATUSES: tuple[Status, ...] = ("draft", "accepted", "superseded")
 KINDS: tuple[Kind, ...] = ("design", "convention")
-# A judgement, never progress (D-A.11): progress is store-derived and would
+# A judgement, never progress (S-0016/D-21): progress is store-derived and would
 # diverge on the first escalation.
 IMPLEMENTATIONS: tuple[Implementation, ...] = ("none", "partial", "complete", "abandoned")

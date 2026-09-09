@@ -1,13 +1,13 @@
-"""Evidence location, one mechanism with two consumers (D-5.4): the
+"""Evidence location, one mechanism with two consumers (S-0005/D-4): the
 execution log's check inside `decisions-reported`, and the review findings
 filter — a finding whose quoted evidence cannot be located is discarded
 before a human sees it.
 
-The rule is the log's rule (RFC 0001 §6 as amended): a leading `path:line`
+The rule is the log's rule (S-0001/task-contract-and-execution-log as amended): a leading `path:line`
 citation that resolves inside the repository, or a backticked command
 carrying its output. Locating eliminates fabricated *coordinates*, not
 fabricated *claims* — a model can cite a real line and describe something
-that is not there; the defence against that is measurement (RFC 0005 §6),
+that is not there; the defence against that is measurement (S-0005/measuring-the-reviewer-the-actual-advantage),
 and nothing here should be read as more.
 """
 

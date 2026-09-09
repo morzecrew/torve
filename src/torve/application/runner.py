@@ -1,18 +1,18 @@
-"""`torve run` — one task, synchronously, exit code is the outcome (D-3.1).
+"""`torve run` — one task, synchronously, exit code is the outcome (S-0003/D-1).
 
 The attempt loop is one durable function executed through the TaskStore
-facade (D-5): forze's runner owns the lease heartbeat, cancel observation and
+facade (S-0001/D-14): forze's runner owns the lease heartbeat, cancel observation and
 fenced terminal writes; this module owns what the loop *means* — transitions
 executed from facts, the poison ceiling checked before dispatch, gates
-outside the agent session (D-3; shell gates in a fresh sandbox, a
+outside the agent session (S-0001/D-11; shell gates in a fresh sandbox, a
 decision logged in T-0003).
 
 `drive_attempts` is the pure core, driven by hooks: `torve run` supplies the
 real sandbox/gates/landing hooks, and the DST simulation supplies simulated
 ones — one loop, two harnesses, so the invariants exercise the code that
-ships (RFC 0003 §6).
+ships (S-0003/tests).
 
-What the real hooks *do* is steps over a `Dispatch` (RFC 0046): the agent
+What the real hooks *do* is steps over a `Dispatch` (S-0046): the agent
 session and the revert leg in `session`, the review in `review`, and the
 three that stay here beside the loop that sequences them — the gate pass,
 the landing and the budget checkpoint. `real_hooks` binds them.
@@ -97,15 +97,15 @@ class AttemptHooks:
     halted: Callable[[], bool]  # locked-conflict detection after an attempt
     gates: Callable[[RunState], Awaitable[tuple[int, str, str]]]  # exit, summary, config hash
     land: Callable[[RunState, str], Awaitable[str]]  # returns the recorded fact
-    # After green gates, before landing (RFC 0005, D-5.11): returns the fact
+    # After green gates, before landing (S-0005, S-0005/D-11): returns the fact
     # for the reviewed transition, or None when the review escalated the
     # target. Absent -> the review-not-configured bridge.
     review: Callable[[RunState], Awaitable[str | None]] | None = None
     # One close per run, whatever path the loop exits by: the broker's
-    # revocation and final usage land here (RFC 0021 §5.1).
+    # revocation and final usage land here (S-0021/the-port).
     close: Callable[[], None] | None = None
     # Called once, only when the run ends on budget exhaustion — wallclock or
-    # tokens (RFC 0026 D-26.8/9): commits whatever the worktree holds so the
+    # tokens (S-0026 S-0026/D-8/9): commits whatever the worktree holds so the
     # next dispatch has a candidate tip to continue from. Never called on a
     # convicted escalation — that restarts from base unchanged.
     checkpoint: Callable[[RunState], None] | None = None
@@ -114,7 +114,7 @@ class AttemptHooks:
 # ....................... #
 
 
-# Continuation eligibility's shared marker (RFC 0026 D-26.8): every detail
+# Continuation eligibility's shared marker (S-0026 S-0026/D-8): every detail
 # string this module writes for a wallclock-caused budget_exhausted
 # escalation starts with it, and `_continuable` is the only reader — so
 # generation and detection can never drift apart.
@@ -122,7 +122,7 @@ _WALLCLOCK_MARKER = "wallclock budget exhausted"
 
 
 def _continuable(escalation: Escalation) -> bool:
-    """D-26.8 (LOCKED): continuation fires only on budget exhaustion —
+    """S-0026/D-8 (LOCKED): continuation fires only on budget exhaustion —
     wallclock or tokens — never on a gate conviction, review blocker or any
     judged escalation. `iterations` exhaustion (like `poison_ceiling`) is
     excluded on purpose: repeated red gates is a judgement on the work, not
@@ -158,7 +158,7 @@ async def drive_attempts(
     try:
         result = await _attempt_loop(state, task, hooks, ceiling, iterations, wallclock_minutes)
 
-        # D-26.9: the checkpoint is what gives the next dispatch a candidate
+        # S-0026/D-9: the checkpoint is what gives the next dispatch a candidate
         # tip to cut from — taken once, right where the loop actually ended,
         # never for a convicted escalation.
         if (
@@ -173,7 +173,7 @@ async def drive_attempts(
     finally:
         # One close per run, whatever path the loop exits by — a green
         # landing, an escalation, a cancellation. The broker's token is
-        # revoked and its final usage recorded here (RFC 0021 §5.1).
+        # revoked and its final usage recorded here (S-0021/the-port).
         if hooks.close is not None:
             hooks.close()
 
@@ -190,7 +190,7 @@ async def _attempt_loop(
     wallclock_minutes: int | None = None,
 ) -> RunState:
     while True:
-        # Poison ceiling is checked before dispatch, never after (RFC 0001 §4).
+        # Poison ceiling is checked before dispatch, never after (S-0001/state-machine).
         if state.attempts >= ceiling:
             state.escalate(
                 EscalationReason.POISON_CEILING, f"{state.attempts} attempts, ceiling {ceiling}"
@@ -221,14 +221,14 @@ async def _attempt_loop(
         result = await hooks.attempt(state)
 
         # An attempt hook that escalated (the broker refusing the run's
-        # budget, D-21.6) stops the loop: continuing would burn attempts
+        # budget, S-0021/D-6) stops the loop: continuing would burn attempts
         # against a refusal that will not lift.
         if state.escalation is not None:
             return state
 
         if hooks.halted():
             # Terminal by design, not an error: the one case where a task
-            # stops on working code (RFC 0001 §4).
+            # stops on working code (S-0001/state-machine).
             state.escalate(
                 EscalationReason.LOCKED_CONFLICT,
                 f"halted divergence entry in the {task.id} execution log",
@@ -276,7 +276,7 @@ async def _attempt_loop(
         outcome = await _apply_review(hooks, state)
 
         if outcome is None:
-            continue  # D-43.1: blocker revision budget spent, retry in place
+            continue  # S-0043/D-1: blocker revision budget spent, retry in place
 
         if not outcome:
             return state  # a surviving blocker escalated the target
@@ -296,7 +296,7 @@ async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool | None:
     lands; False means the target escalated (a surviving blocker's spent
     budget, an unparseable verdict, or a broker budget refusal) — the caller
     stops the loop without landing; None means a surviving blocker spent
-    revision budget (RFC 0043 D-43.1) without escalating — the caller
+    revision budget (S-0043 S-0043/D-1) without escalating — the caller
     retries the same worktree. The review-not-configured bridge always
     returns True."""
 
@@ -347,7 +347,7 @@ class _SandboxExecutor:
 
 
 def _write_attempt_record(run: Dispatch, record: dict[str, Any], attempt: int) -> None:
-    """One record, both carriers (A-85). The stream is written from the
+    """One record, both carriers (S-0044/A-4). The stream is written from the
     record and the event is the same record with the envelope's fields
     removed, so a projection reading either one is reading the same
     numbers."""
@@ -370,12 +370,12 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     infrastructure failure.
 
     The battery runs in a sandbox of its own over the same image the agent
-    ran under (D-3.8) and the same derived cache (D-35.3), because a pass
+    ran under (S-0003/D-8) and the same derived cache (S-0035/D-3), because a pass
     that judged a different regime than the attempt ran in is judging
     something else.
 
     The attempt record is built once here and written to both carriers from
-    that one object (A-85): the telemetry row every projection reads, and
+    that one object (S-0044/A-4): the telemetry row every projection reads, and
     the event the board folds. The row is written whether or not anything
     is observing — the record exists before either carrier does."""
 
@@ -400,7 +400,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         SandboxSpec(
             name=naming.sandbox_name(run.task.id, state.run_id) + "-gates",
             # Shell gates run over the same image the agent ran under
-            # (D-3.8) — an image swap between attempt and gates would be
+            # (S-0003/D-8) — an image swap between attempt and gates would be
             # its own regime change.
             image=run.image or run.config.runtime.image,
             labels=naming.labels(run.task.id, state.run_id, run.root),
@@ -408,7 +408,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             # The battery pays the toolchain cold tax (mypy, ruff, uv all
             # run under these gates), so the live gates sandbox carries the
             # same derived-cache mount the attempt did — an empty dict here
-            # is the cold pass, shadow's the exclusion (D-35.3).
+            # is the cold pass, shadow's the exclusion (S-0035/D-3).
             volumes=cache_volumes(run),
         ),
         run.worktree,
@@ -429,7 +429,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             # merge base is a no-op — refusing it here makes the loop read a
             # red gates fact and retry toward the poison ceiling, instead of
             # blessing an unchanged tree green. The attempt already spent
-            # (RFC 0004 §6), so the red record carries that cost and names
+            # (S-0004/telemetry-staged), so the red record carries that cost and names
             # the refusal; the battery itself would only repeat the same
             # verdicts over a tree the agent never touched.
             digest = config_hash(
@@ -478,7 +478,7 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
     mint carries no contract, so the gate pass copies it in as an untracked
     file — the engine's bookkeeping, implicitly in scope, and no more
     candidate work than the tree's gitignored artefacts. The integration
-    task's empty diff stays legal (D-26.6: at adoption the parent becomes
+    task's empty diff stays legal (S-0026/D-6: at adoption the parent becomes
     the integration task, the battery over the composed tree is the point,
     and its landing is the decomposition's completion) — but only the
     adoption makes it one: a task is the integration task exactly when some
@@ -492,7 +492,7 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
     if task is None or task.role != "implement" or ctx.merge_base is None:
         return False
 
-    # T-0177: the engine's record of adoption is D-26.5's parent field on
+    # T-0177: the engine's record of adoption is S-0026/D-5's parent field on
     # the children (the adopted.json marker sits beside the decomposition
     # run's contract, not the parent's, so it cannot discriminate at the
     # parent's id). `depends_on` is the wrong discriminator — it exempts
@@ -512,7 +512,7 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
 
 
 def _agent_identity(meta: dict[str, Any]) -> str:
-    """The commit author and Torve-Agent trailer value (RFC 0010 §3):
+    """The commit author and Torve-Agent trailer value (S-0010/branches-and-commits):
     adapter/model@model_version, degrading gracefully — a fake or mechanical
     attempt is named for what it is, never invented."""
 
@@ -528,12 +528,12 @@ def _agent_identity(meta: dict[str, Any]) -> str:
 
 
 def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, Any]) -> str:
-    """The full trailer set (D-10.4): enough that `git log --grep`
+    """The full trailer set (S-0010/D-4): enough that `git log --grep`
     reconstructs a task's history with the store offline. The subject
-    carries the intent's head (D-10.6: composed from the contract, never
+    carries the intent's head (S-0010/D-6: composed from the contract, never
     the agent's prose) — a history readable without opening the task."""
 
-    # A-69: the contract's short title names the landing; the intent's
+    # S-0007/A-1: the contract's short title names the landing; the intent's
     # first line is the fallback for contracts minted before it existed.
     head = task.title.strip() or (
         task.intent.strip().splitlines()[0].strip() if task.intent.strip() else ""
@@ -566,7 +566,7 @@ def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, 
 async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
     """One gate pass over the tree the attempt just left, and the two facts
     the rest of the run reads off it: the convictions retry selection uses
-    (D-34.5) and the pass the reviewer is handed."""
+    (S-0034/D-5) and the pass the reviewer is handed."""
 
     # Deliberately not guarded: a sync that fails leaves the battery judging
     # a log nobody vouched for, and the gates are fail-closed. The raise
@@ -580,7 +580,7 @@ async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
         )
 
     except Exception:
-        # D-38.1: the gates step raising is an attempt ending with no gate
+        # S-0038/D-1: the gates step raising is an attempt ending with no gate
         # record — the loop escalates GATE_INFRASTRUCTURE_FAILURE from here
         # and stops, so the row lands before the exception travels. The
         # agent exited 0 by construction (the loop calls this no other way)
@@ -606,15 +606,15 @@ async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
 
 async def land(run: Dispatch, state: RunState, digest: str) -> str:
     """The candidate commit, and its branch and pull request where the forge
-    leg is on. The commit is the runner's artefact (D-10.1), composed here
+    leg is on. The commit is the runner's artefact (S-0010/D-1), composed here
     where the attempt's model_version is already known: author is the agent
-    identity (D-10.2), trailers complete (D-10.4), one commit per attempt
-    (D-10.8), signed outside the sandbox when a key is configured
-    (D-10.3)."""
+    identity (S-0010/D-2), trailers complete (S-0010/D-4), one commit per attempt
+    (S-0010/D-8), signed outside the sandbox when a key is configured
+    (S-0010/D-3)."""
 
     deps, config, task, worktree = run.deps, run.config, run.task, run.worktree
 
-    # D-57.7: what this attempt found goes beside the rows it cites, in the
+    # S-0057/D-7: what this attempt found goes beside the rows it cites, in the
     # candidate commit; the commit field stays empty — the candidate's own
     # trailers name the task — and a contract naming no document lands
     # nowhere, which is a fact, not a failure.
@@ -638,13 +638,13 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
     )
 
     # The credential is resolved by NAME here, at the runner boundary
-    # (D-4b): the value lives only in this process and the subprocess
+    # (S-0001/D-13): the value lives only in this process and the subprocess
     # environments the adapters compose.
     token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
 
     pushed = (
         await asyncio.to_thread(
-            # supersede (D-10.10, A-37): the attempt owns the task's
+            # supersede (S-0010/D-10, S-0010/A-1): the attempt owns the task's
             # persistent branch — a prior candidate there is superseded
             # under lease, its feedback captured at the requeue.
             deps.vcs.push,
@@ -653,7 +653,7 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
             token,
             True,
         )
-        # Publication follows the forge leg (D-10.11, A-58): with open_pr
+        # Publication follows the forge leg (S-0010/D-11, S-0010/A-2): with open_pr
         # off the candidate stays local — pushing a branch is publishing,
         # and on a repository whose base was never pushed it publishes the
         # entire history.
@@ -692,11 +692,11 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
 def checkpoint(run: Dispatch, final: RunState) -> None:
     """Commit whatever the worktree holds when a run ends on budget
     exhaustion, so the next dispatch has a candidate tip to cut from
-    (D-26.9). Local only: the branch already lives in this repository, and
+    (S-0026/D-9). Local only: the branch already lives in this repository, and
     publishing a WIP tip is the eventual `land`'s job, unchanged.
 
     A trailer of its own (never Torve-Task) keeps this commit from ever
-    being mistaken for a landed candidate (D-10.4's grep, the revert leg's
+    being mistaken for a landed candidate (S-0010/D-4's grep, the revert leg's
     `landed_shas`)."""
 
     message = (
@@ -720,12 +720,12 @@ def real_hooks(
     gates_base: str | None = None,
     resume: bool = False,
 ) -> AttemptHooks:
-    """Bind one dispatch's steps into the hooks the loop drives (RFC 0046).
+    """Bind one dispatch's steps into the hooks the loop drives (S-0046).
 
     The dispatch settles the regime and refuses what must be refused; this
     picks the attempt leg the role calls for and the review leg the
     configuration calls for, and opens the broker last — after every step
-    above it that can still fail (D-46.4).
+    above it that can still fail (S-0046/D-4).
     """
 
     run = open_dispatch(
@@ -739,13 +739,13 @@ def real_hooks(
         resume=resume,
     )
 
-    # Revert is mechanical (RFC 0010 §7, D-10.7): no agent, no attempt
+    # Revert is mechanical (S-0010/revert-as-a-role, S-0010/D-7): no agent, no attempt
     # sandbox — but the gates still run in theirs and the landing carries
     # the revert's own provenance. Its targets resolve now, so an
     # unresolvable one fails here rather than at attempt three.
     attempt = revert_leg(run) if task.role == "revert" else partial(run_agent_session, run)
 
-    # Review follows execution (D-5.11): minted by the run, never by the
+    # Review follows execution (S-0005/D-11): minted by the run, never by the
     # planner, and never for a shadow replay — a replay measures the
     # harness, not the reviewer. Resolving the reviewer here is the last
     # thing that can fail before the broker opens.
@@ -795,7 +795,7 @@ async def _run_task_async(
             final = await drive_attempts(state, task, config, hooks)
 
         except RevertConflict as exc:
-            # RFC 0010 §7: a dependent-commit conflict escalates as
+            # S-0010/revert-as-a-role: a dependent-commit conflict escalates as
             # merge_conflict — the revert aborted and the worktree is clean.
             state.escalate(EscalationReason.MERGE_CONFLICT, str(exc))
             final = state
@@ -845,8 +845,8 @@ async def _run_task_async(
 
 class BlockedDispatch(RuntimeError):
     """Dispatch refused: another active run's scope intersects this task's
-    (RFC 0006 §2 — prevention beats ordering). Never a silent wait: the
-    cause is in the message and counted in telemetry (D-6.6)."""
+    (S-0006/prevention-beats-ordering — prevention beats ordering). Never a silent wait: the
+    cause is in the message and counted in telemetry (S-0006/D-6)."""
 
 
 # ....................... #
@@ -874,7 +874,7 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
     """(blocking task id, contended path) when an active run's allow-set
     intersects this task's; an empty allow-set is unconstrained and
     contends with everything. An active review claims no fence — it
-    writes nothing by construction (D-5.2), so no dispatch is refused
+    writes nothing by construction (S-0005/D-2), so no dispatch is refused
     against it. A review dispatch never reaches the fence at all: the
     front door refuses it (T-0183), so the exemption's assumption holds
     by construction."""
@@ -894,7 +894,7 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
 
         other = load_task(contract)
 
-        # An active review claims no fence (D-5.2): its empty allow-set is
+        # An active review claims no fence (S-0005/D-2): its empty allow-set is
         # never "unconstrained", or an unrelated dispatch is refused by a
         # task that will write nothing.
         if other.role == "review":
@@ -916,7 +916,7 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
 
 def _should_resume(previous: RunState) -> bool:
     """A continuation is legible only immediately off its own escalation
-    (D-26.9): `escalation` is never cleared by design (RFC 0001 §4's history
+    (S-0026/D-9): `escalation` is never cleared by design (S-0001/state-machine's history
     is append-only), so without this the field would resurrect a long-dead
     budget exhaustion on an unrelated re-queue — a lane conflict auto-requeue
     or a review `revise` both land on QUEUED too. Requiring the immediately
@@ -936,7 +936,7 @@ def _should_resume(previous: RunState) -> bool:
 
 class RoleNotDispatchable(ValueError):
     """Direct dispatch of a role the generic attempt path does not implement
-    the isolation contract for (T-0183): review (D-5.2) and draft (D-20.2)
+    the isolation contract for (T-0183): review (S-0005/D-2) and draft (S-0020/D-2)
     each run through a runner-minted path with a read-only workspace, and
     this path would mount the workspace writable. A ValueError, so the run
     CLI's configuration-error catch already handles it."""
@@ -946,13 +946,13 @@ def check_dispatch_role(task: Task) -> None:
     """The front door's role guard (T-0183): refuse direct dispatch of any
     role the generic attempt path does not implement the isolation contract
     for. Implement and revert are the only roles this path isolates; review
-    (D-5.2) and draft (D-20.2) are each refused with the path that owns
+    (S-0005/D-2) and draft (S-0020/D-2) are each refused with the path that owns
     them. Refusing here — before the fence or any claim — makes the review
     exemption's "writes nothing" assumption true by construction: the fence
     never sees a review dispatch."""
 
     if task.role == "review":
-        # D-5.2 (T-0183): a direct dispatch would mount the workspace
+        # S-0005/D-2 (T-0183): a direct dispatch would mount the workspace
         # writable, so the door points at the runner-minted path instead.
         target = task.targets[0] if task.targets else "its target"
         raise RoleNotDispatchable(
@@ -963,7 +963,7 @@ def check_dispatch_role(task: Task) -> None:
         )
 
     if task.role == "draft":
-        # RFC 0020 D-20.2 (T-0183): the drafting path owns the read-only
+        # S-0020 S-0020/D-2 (T-0183): the drafting path owns the read-only
         # workspace; the generic attempt path would mount it writable.
         raise RoleNotDispatchable(
             f"{task.id} is a draft-role task — drafting runs are driven "
@@ -975,7 +975,7 @@ def check_dispatch_role(task: Task) -> None:
 def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> RunState:
     # T-0183: review and draft reach this generic path only through a
     # bypass — each has a runner-minted path with a read-only workspace
-    # (D-5.2, D-20.2), and this path mounts the workspace writable. Refuse
+    # (S-0005/D-2, S-0020/D-2), and this path mounts the workspace writable. Refuse
     # at the door, before state, the fence or any claim exists; implement
     # and revert are the only roles this path implements the isolation
     # contract for.

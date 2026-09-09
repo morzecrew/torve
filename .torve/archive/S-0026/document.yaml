@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0026'
+id: S-0026
 title: Decomposition and continuation
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0002', '0003', '0007', '0020']
-informed_by: ['0001', '0005', '0006', '0022']
+depends_on: [S-0002, S-0003, S-0007, S-0020]
+informed_by: [S-0001, S-0005, S-0006, S-0022]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   What happens when a task is too big for one agent: the size verdict routes to a
@@ -20,7 +20,7 @@ sections:
     md: |
       Today the size estimate is advisory: `torve plan` computes a verdict per
       minted task and the verdict changes nothing. This document makes `too_large`
-      a route. An oversized contract goes to a decomposition run — RFC 0020's
+      a route. An oversized contract goes to a decomposition run — S-0020's
       drafting machinery pointed at a contract instead of a request — whose drafter
       proposes sub-contracts, whose lint checks the split deterministically (children
       inside the parent's scope, pairwise disjoint or dependency-ordered, the
@@ -35,8 +35,8 @@ sections:
     md: |
       - **The verdict already fires and nothing listens.** `sizing.estimate` runs
         on every minted task (`src/torve/application/planner.py`, the `PlannedTask`
-        assembly) and has flagged real work — the RFC 0018 mint flagged both its
-        phases, and the RFC 0021 phases were re-minted under A-56 because the
+        assembly) and has flagged real work — the S-0018 mint flagged both its
+        phases, and the S-0021 phases were re-minted under S-0021/A-2 because the
         authored scopes underestimated the measured touch surface. Authoring-time
         scope guesses run wrong in one direction.
       - **Oversized work fails expensively.** A task whose horizon exceeds an
@@ -51,10 +51,10 @@ sections:
         on it — and wasteful when the previous attempt was simply not finished: the
         work was sound and the clock ran out.
       - **Finer phasing is not the answer.** The author can always write smaller
-        phases, and A-56 is the evidence that authoring-time decomposition guesses
+        phases, and S-0021/A-2 is the evidence that authoring-time decomposition guesses
         wrong even when attempted seriously. The information needed for a good
         split — what the tree actually looks like under the scope — exists at
-        drafting time, in a worktree, which is exactly where RFC 0020 already puts
+        drafting time, in a worktree, which is exactly where S-0020 already puts
         a drafter.
   - key: current-state
     md: |
@@ -62,18 +62,18 @@ sections:
 
       - `src/torve/application/sizing.py` grades on three rules of thumb — allow
         globs, acceptance count, top-level modules — and its own docstring records
-        (A-49) that the `HistoricalPercentile` arm waits on retrospective
-        calibration. RFC 0022's reader now exists and is that calibration's data
+        (S-0002/A-3) that the `HistoricalPercentile` arm waits on retrospective
+        calibration. S-0022's reader now exists and is that calibration's data
         source.
       - `src/torve/application/intake.py` carries the whole drafting kit this
         document reuses: `lint_drafts` with tree-aware glob checks, `lint_contract`,
         `mint_intake_task`, `run_intake`, `adopt` with lock borrowing, decision
         inheritance via the corpus parser.
       - The planner's `globs_intersect` is the pairwise-disjointness primitive
-        (D-7.23's same-phase rule) and is conservative by construction.
+        (S-0007/D-23's same-phase rule) and is conservative by construction.
       - Task contracts carry `depends_on`, `budget` (iterations, wallclock, tokens
         — null on every live contract to date), and no parent field.
-      - The revision loop (RFC 0005 §4a, D-5.12) carries feedback across attempts;
+      - The revision loop (S-0005/the-revision-loop-added-by-a-32-2026-08-24, S-0005/D-12) carries feedback across attempts;
         the branch survives across attempts (one pull request per task); the
         worktree is cut from base each attempt.
   - key: goals-non-goals
@@ -89,8 +89,8 @@ sections:
 
       **Non-goals**
 
-      - **Automatic splitting.** The planner stays deterministic (D-7.1) and the
-        machine never mints work uninvited (D-20.3). Splitting needs judgement,
+      - **Automatic splitting.** The planner stays deterministic (S-0007/D-1) and the
+        machine never mints work uninvited (S-0020/D-3). Splitting needs judgement,
         judgement means a model, and a model's output enters the queue only through
         adoption.
       - **A task tree.** Identifiers stay flat, the state machine is untouched, and
@@ -113,7 +113,7 @@ sections:
       recorded on the run.
   - key: the-decomposition-run
     md: |
-      A draft-role run, exactly RFC 0020's shape: read-only worktree at base, the
+      A draft-role run, exactly S-0020's shape: read-only worktree at base, the
       drafter's prompt built from the parent contract (intent, scope, acceptance,
       inherited decisions) plus the tree under its scope. The drafter proposes
       sub-contracts as a drafts document. Lint — deterministic, refusal by name —
@@ -123,7 +123,7 @@ sections:
          checked with the planner's glob machinery; a child escaping the parent
          scope is a scope grant nobody signed.
       2. Children are pairwise scope-disjoint, or carry explicit `depends_on`
-         edges between them where they overlap (D-7.23's rule, applied inside one
+         edges between them where they overlap (S-0007/D-23's rule, applied inside one
          decomposition).
       3. Every parent acceptance command appears on at least one child or on the
          integration task — the battery may be distributed, never dropped.
@@ -135,7 +135,7 @@ sections:
       (mint-time copy, unchanged doctrine).
   - key: adoption-and-the-integration-task
     md: |
-      Adoption is the human act and the only minting act (D-20.3): children get
+      Adoption is the human act and the only minting act (S-0020/D-3): children get
       identifiers under the tick lock, contracts committed, each carrying
       `parent: <parent-id>`. In the same adoption, the parent's contract gains the
       children in `depends_on` and keeps its scope and full acceptance battery —
@@ -180,18 +180,18 @@ sections:
         attempt starts from, never how many the run gets.
   - key: calibration
     md: |
-      The thresholds in `sizing.py` are declared guesses. RFC 0022's per-document
+      The thresholds in `sizing.py` are declared guesses. S-0022's per-document
       signals — attempts to green, escalations by reason — are the population that
       grades them: the exit criteria require at least one threshold regraded citing
       a `torve rfc health` population, which is also the `HistoricalPercentile`
-      arm's entrance evidence (A-49's deferral, honoured rather than reversed).
+      arm's entrance evidence (S-0002/A-3's deferral, honoured rather than reversed).
   - key: alternatives-considered
     md: |
       - **Planner auto-split.** Deterministic splitting is impossible — a split is
-        a judgement about coupling — and model-in-the-planner is refused by D-7.1.
+        a judgement about coupling — and model-in-the-planner is refused by S-0007/D-1.
         The drafting run is precisely the sanctioned container for that judgement.
       - **Finer authored phases.** Available today, kept as the first line, and
-        demonstrated insufficient by A-56: the author guesses at scope before the
+        demonstrated insufficient by S-0021/A-2: the author guesses at scope before the
         tree is in front of anyone.
       - **A `programme` state over children.** A synthetic roll-up state would
         need its own transitions, projections and disposal. The integration task
@@ -254,16 +254,16 @@ sections:
         measurably underperform restarts, the data will say so — both shapes record
         the same telemetry.
       - **`parent` drifts into semantics.** One field invites dispatch or lane
-        logic to read it someday. D-26.5 grades the projection-only rule; a future
+        logic to read it someday. S-0026/D-5 grades the projection-only rule; a future
         consumer amends or is refused.
   - key: unresolved-questions
     md: |
       - What the decomposition drafter's prompt includes beyond contract and tree —
         whether the parent document's full decision table rides along or only the
-        rows the parent inherited. Execution decides and logs it (D-26.10).
+        rows the parent inherited. Execution decides and logs it (S-0026/D-10).
       - Whether continuation should carry the previous attempt's trace tail into
         the prompt or only the record and commits. Traces are large and unvetted;
-        starting with commits-only is the conservative shape (D-26.11).
+        starting with commits-only is the conservative shape (S-0026/D-11).
       - Whether the `too_large` route should apply to hand-minted contracts at
         admission or only to planner and intake mints. Hand-minting is the
         operator's escape hatch and may deserve to stay unrouted.

@@ -1,11 +1,11 @@
-"""Durable run store adapters (D-5, D-3.6): the forze mock for tests and
+"""Durable run store adapters (S-0001/D-14, S-0003/D-6): the forze mock for tests and
 simulation, forze's Postgres store for real runs. Torve constructs the store
 objects directly and hands the runner a three-line testing context — none of
 the forze runtime is adopted.
 
 Provisioning lives in `migrations/substrate/`, applied by `torve migrate
 substrate` (rfcs/0012-migrations.md): the substrate documents schemas in adapter
-docstrings and ships no migrations, so torve owns them (A-6).
+docstrings and ships no migrations, so torve owns them (S-0003/A-1).
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def resolve_dsn(config: StoreConfig) -> str:
 
     if not dsn:
         # The configuration names the variable; the environment holds the
-        # value, and never a committed file (D-4b).
+        # value, and never a committed file (S-0001/D-13).
         raise RuntimeError(f"store.adapter is 'postgres' but ${config.dsn_env} is not set")
 
     return dsn

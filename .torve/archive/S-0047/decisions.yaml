@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-47.1
+  - id: D-1
     grade: LOCKED
     text: >-
       A decision is a subject in the record: successive `decision.recorded` events
@@ -11,7 +11,7 @@ decisions:
       Version counts, history and the supersession graph all read correctly from one
       fold; conflating the two would make every count wrong and the error would be
       invisible
-  - id: D-47.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Retirement is recorded, never inferred from a row's absence
@@ -20,7 +20,7 @@ decisions:
       Costs one kind in a deliberately closed vocabulary; buys the ability to tell
       a deliberate retirement from a broken table, and works for sources that are
       not files
-  - id: D-47.3
+  - id: D-3
     grade: LOCKED
     text: >-
       Contract minting keeps reading the reviewed document; the record is not consulted
@@ -30,7 +30,7 @@ decisions:
       A contract's grades still come from what a human committed, with no import step
       in between; the cost is two readers of the paths rule until tasks are records
       too
-  - id: D-47.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       A source id is `<namespace>/<slug>`, stable under renaming; the corpus namespace
@@ -38,7 +38,7 @@ decisions:
     paths: [src/torve/domain/source.py]
     consequence: >-
       A document moved on disk keeps its identity in the record; `ref` is what moves
-  - id: D-47.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       The importer computes the events and returns them; the caller appends
@@ -46,15 +46,15 @@ decisions:
     consequence: >-
       A dry run is the same code path with the write skipped, so `--check` cannot
       drift from what an import would do
-  - id: D-47.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       Only accepted, non-superseded documents are imported
     paths: [src/torve/application/decisions.py]
     consequence: >-
-      The same admission every other reader applies (D-7.7, D-30.1); a draft's rows
-      were never in force, so recording them would date them wrongly
-  - id: D-47.7
+      The same admission every other reader applies (S-0007/D-7, S-0030/D-1); a draft's
+      rows were never in force, so recording them would date them wrongly
+  - id: D-7
     grade: ASSUMED
     text: >-
       The decision graph is read by subject type over one partition, not by folding
@@ -65,7 +65,7 @@ decisions:
     consequence: >-
       The corpus-sized slice stays cheap as execution grows, and the read cannot be
       truncated by attempt volume
-  - id: D-47.8
+  - id: D-8
     grade: OPEN
     text: >-
       What `decision.accepted` means — acceptance of a document, or of one row. Settled

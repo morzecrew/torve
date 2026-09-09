@@ -1,12 +1,12 @@
-"""`source-layout` — the module naming rule of RFC 0015 (D-15.5), over the
+"""`source-layout` — the module naming rule of S-0015 (S-0015/D-5), over the
 changed Python files under `src/` (input `diff`). A path rule, not an import
 rule, so it lives beside the other file-level checks rather than in
 `layering`.
 
-RFC 0014's separator form was script-checked here until A-44 retired that
+S-0014's separator form was script-checked here until S-0014/A-1 retired that
 half: width, placement and labelling are house style a reviewer reads at a
 glance, and a linter for them costs more than the drift it caught. Whether a
-module should split, and whether a separator helps, stay review (D-14.10).
+module should split, and whether a separator helps, stay review (S-0014/D-10).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from torve.gates.contract import BuiltinOutcome
 
 # ----------------------- #
 
-# Names that admit anything accumulate everything (D-15.5).
+# Names that admit anything accumulate everything (S-0015/D-5).
 FORBIDDEN_MODULE_NAMES = frozenset({"models.py", "utils.py", "helpers.py", "common.py", "base.py"})
 
 

@@ -1,14 +1,14 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-87
+  - id: A-1
     at: '2026-09-04'
     title: the phase scope owes runconfig its test file
-  - id: A-103
+  - id: A-2
     at: '2026-09-05'
     title: The judgement this document never carried
     md: |-
       **Found taking stock.** This document was accepted with no `implementation`
-      field at all, so it carried no D-A.11 judgement either way — neither built
+      field at all, so it carried no S-0016/D-21 judgement either way — neither built
       nor owed, which reads as an oversight rather than a position and leaves the
       programme view guessing.
 
@@ -19,4 +19,4 @@ amendments:
 
       **Changed:** `implementation: complete`. Nothing normative.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

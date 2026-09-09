@@ -8,7 +8,7 @@ from torve.domain.task import Task
 
 
 def test_decisions_must_be_explicit():
-    """D-7.5: an empty decision list is legal but the field may not be absent."""
+    """S-0007/D-5: an empty decision list is legal but the field may not be absent."""
     with pytest.raises(ValidationError):
         Task.model_validate({"id": "T-1"})
     task = Task.model_validate({"id": "T-1", "decisions": []})

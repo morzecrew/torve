@@ -1,9 +1,11 @@
-"""`torve manager` — the board a partition's event log adds up to (RFC 0044
-§5.4). Parsing and rendering only (D-15.6); the fold is
+"""`torve manager` — the board a partition's event log adds up to (S-0044
+§5.4). Parsing and rendering only (S-0015/D-6); the fold is
 `torve.application.manager`. `serve` rebuilds its whole view from the log
-every pass (D-44.5); `note` writes the manager's half of the live channel,
-which the run polls for rather than being interrupted by (RFC 0045 §5.3,
-D-45.7).
+every pass (S-0044/D-5); `note` writes the manager's half of the live channel,
+which the run polls for rather than being interrupted by (S-0045/notes-and-stopping-on-evidence,
+S-0045/D-7).
+
+References: S-0044/A-13.
 """
 
 from __future__ import annotations
@@ -62,7 +64,7 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
     """The store this manager reads and writes. A DSN names the Postgres
     log; without one the mock stands in, which is a real log for the life of
     the process and nothing afterwards — useful for a dry pass, useless as a
-    board (D-44.11: the port is what makes the two interchangeable)."""
+    board (S-0044/D-11: the port is what makes the two interchangeable)."""
 
     import sys
 
@@ -73,7 +75,7 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
 
     # The runtime narrates itself on stdout by default, and stdout is where
     # this verb's JSON goes. Warnings and worse, on stderr: a machine-read
-    # channel carries one thing (D-15.6).
+    # channel carries one thing (S-0015/D-6).
     configure_logging(level="warning", stream=sys.stderr)
 
     module = await postgres_module(dsn) if dsn else mock_module()
@@ -114,7 +116,7 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
         return None
 
     async def lane() -> list[str]:
-        # Built here rather than above, for A-128's reason one step back:
+        # Built here rather than above, for S-0044/A-11's reason one step back:
         # `_leg` protects a leg's *call*, so anything raised while building
         # one still takes the pass down. `_resolve_ci` refuses a promotion
         # configuration that names no remote, and refusing it out here left
@@ -173,18 +175,18 @@ async def _serve(
 
     config = load_config(root, config_path)
 
-    # The repository's own answer (A-29): a contract the tree already landed
+    # The repository's own answer (S-0019/A-3): a contract the tree already landed
     # is minted onto the board as landed, so a pass over a repository with
     # history does not offer a worker somebody's finished work. One batched
-    # log pass, and the same evidence the projections call shipped (A-97) —
+    # log pass, and the same evidence the projections call shipped (S-0049/A-2) —
     # the engine's trailer and a human's citation both mean finished.
     landings = shipped_landings(root)
     ran = ran_here(root)
 
     async def paused() -> bool:
-        """This root's own pause rule, re-decided every pass (A-110).
+        """This root's own pause rule, re-decided every pass (S-0048/A-1).
 
-        The queue is the union of both carriers (D-48.5): a task escalated
+        The queue is the union of both carriers (S-0048/D-5): a task escalated
         under v1 left a run-state file, one this manager escalated is in
         the log, and a task in both is one task a person has to look at.
         """
@@ -196,7 +198,7 @@ async def _serve(
     async def relay() -> list[str]:
         """Drain the undelivered queue to whatever destination is
         configured. Built per pass from the same log the pass reads —
-        the destination included, for A-128's reason one step back:
+        the destination included, for S-0044/A-11's reason one step back:
         `build_notifier` refuses an adapter it does not know, and refusing
         it outside the leg took the whole pass down with it."""
 
@@ -211,10 +213,10 @@ async def _serve(
         )
 
     def standing() -> tuple[str, bool]:
-        # RFC 0023's leg, unchanged — it mints a contract through the
+        # S-0023's leg, unchanged — it mints a contract through the
         # ordinary adoption path, and the scan above imports whatever it
         # minted onto the board. Nothing about it had to move for the
-        # manager to run it (A-106).
+        # manager to run it (S-0023/A-2).
         from torve.application.standing import standing_leg
 
         return standing_leg(root, config, runtime_for(config, None), landings.__contains__)
@@ -261,7 +263,7 @@ async def _serve(
 def _burn(view: TaskView) -> str:
     """What the burn stream says about this task: how long since it last
     spent anything, and how much. `stalled` is the reading, not a verdict —
-    nothing acts on it (D-45.8 is open)."""
+    nothing acts on it (S-0045/D-8 is open)."""
 
     if view.last_burn is None:
         return "—"
@@ -303,7 +305,7 @@ def board_cmd(
                 "tasks": [
                     {
                         "task": view.task_id,
-                        # A-96: the record holds every contract, and a
+                        # S-0049/A-1: the record holds every contract, and a
                         # review or draft one is queued in the sense that
                         # nobody will ever claim it. The role is what tells
                         # the two kinds of queued apart.
@@ -537,7 +539,7 @@ def return_cmd(
     and a person may still judge it wrong. Before this, the only answers
     were to land it and fix it afterwards or to abandon the work; a lease
     reclaim returns only what is still in flight, and writing an escalation
-    nobody raised would put a lie in the log to move a task (A-134).
+    nobody raised would put a lie in the log to move a task.
 
     `--note` rides the same feedback record a surviving blocker uses, so
     the next attempt is briefed by the person who sent it back rather than
@@ -549,7 +551,7 @@ def return_cmd(
     root = root.resolve()
     asyncio.run(_return(dsn_to_write(root, dsn) or None, partition, task_id, reason, note))
 
-    # The critique travels the way a blocker's does (D-43.2, D-5.13): the
+    # The critique travels the way a blocker's does (S-0043/D-2, S-0005/D-13): the
     # note is a thread, and an empty one captures nothing rather than
     # briefing the next attempt with silence.
     briefed = bool(note) and capture_feedback(

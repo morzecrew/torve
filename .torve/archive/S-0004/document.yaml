@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0004'
+id: S-0004
 title: Agent adapters and tiering
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0003']
+depends_on: [S-0003]
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and
@@ -20,7 +20,7 @@ sections:
 
       | Adapter | Auth | Notes |
       | --- | --- | --- |
-      | `FakeAgent` | none | from RFC 0003; stays the primary test path |
+      | `FakeAgent` | none | from S-0003; stays the primary test path |
       | `ApiAgent` | key in env, ephemeral sandbox | all cheap executors |
       | `HarnessAgent` | key in env, harness in the sandbox | reads `AGENTS.md` and `SKILL.md`, so the existing skill library carries over unchanged; emits a session trace |
       | `SubscriptionAgent` | auth volume **per worker slot** | see §2 |
@@ -46,7 +46,7 @@ sections:
 
       That makes it an empirical question about **your** tasks, answerable only from per-attempt cost and iterations-to-green. The port plus telemetry turns harness selection from taste into measurement — and swapping one is a config change, not a migration.
 
-      **A session trace is not gate evidence.** A harness log records what the model saw; a gate records what the code did, computed where the agent could not influence it. An agent claiming green tests without running them produces a flawless log of that claim. D-3 stands regardless of how good harness logging is, and a gate implemented as a harness plugin does not count — it runs inside the agent's trust boundary.
+      **A session trace is not gate evidence.** A harness log records what the model saw; a gate records what the code did, computed where the agent could not influence it. An agent claiming green tests without running them produces a flawless log of that claim. S-0001/D-11 stands regardless of how good harness logging is, and a gate implemented as a harness plugin does not count — it runs inside the agent's trust boundary.
 
       Traces are still worth capturing: `trace_ref` on the `Attempt` turns triage of an escalation from archaeology through container logs into replay.
   - key: shadow-runs
@@ -55,8 +55,8 @@ sections:
 
       This produces the first honest cost and iteration numbers at zero risk, and it is where the gate set is tuned — not before.
 
-      *Amendment A-57 2026-08-28:* a shadow run's liveness is host truth, and the
-      reaper must consult it — see the amendment and D-4.18.
+      *Amendment S-0004/A-2 2026-08-28:* a shadow run's liveness is host truth, and the
+      reaper must consult it — see the amendment and S-0004/D-18.
   - key: telemetry-staged
     md: |
       The analytics contract is where this ends, not where it starts.
@@ -72,7 +72,7 @@ sections:
 
       Mandatory from the first record, because none can be reconstructed: `schema_version`, `config_hash`, and decisions **denormalised** into the record rather than referenced.
 
-      Per-gate health rides the same records (RFC 0002 §7.6, added by A-8): hit rate, bypass count, flake rate, duration p50/p95 and first-attempt pass rate are all derivable from attempt telemetry — no separate collection path, reviewed quarterly.
+      Per-gate health rides the same records (S-0002/health, added by S-0002/A-2): hit rate, bypass count, flake rate, duration p50/p95 and first-attempt pass rate are all derivable from attempt telemetry — no separate collection path, reviewed quarterly.
 
       The two hand-entered fields — `human_minutes` and `rework_after_review` — are added after merge and live in a separate `ReviewFeedback` record keyed by task id. Appending is easy; updating a row in an append-only store is not.
   - key: measurement-defects-to-fix-before-trusting-a-number
@@ -83,7 +83,7 @@ sections:
 
       **Baseline is a quasi-experiment, not an A/B.** Tasks before and after are different tasks, done under different conditions. This supports direction ("iterations fell") and not magnitude ("40% faster"). Write that down now, because the first attractive number will otherwise become a promise to someone.
 
-      **`config_hash` has no preimage.** *(Added by A-72 2026-08-31.)* The hash names a regime nobody can inspect: the moment any input moves on — gates.yaml edited, a tier's command template changed, the skills vendor tree bumped — the question "what was different between regime `a1b2…` and `c3d4…`?" has no answer anywhere. The fix is D-4.19: the exact `parts` mapping the digest was computed over is written once, content-addressed by the hash it produces, to `.torve/regimes/<config_hash>.json` — host-local and gitignored like the telemetry that references it. Two regimes then diff as two files.
+      **`config_hash` has no preimage.** *(Added by S-0004/A-1 2026-08-31.)* The hash names a regime nobody can inspect: the moment any input moves on — gates.yaml edited, a tier's command template changed, the skills vendor tree bumped — the question "what was different between regime `a1b2…` and `c3d4…`?" has no answer anywhere. The fix is S-0004/D-19: the exact `parts` mapping the digest was computed over is written once, content-addressed by the hash it produces, to `.torve/regimes/<config_hash>.json` — host-local and gitignored like the telemetry that references it. Two regimes then diff as two files.
   - key: provider-routing-and-data-boundaries
     md: |
       Repository contents, fixtures and diffs leave the building for whichever provider an adapter is pointed at. There is currently no policy about which, and that is a gap rather than an oversight.

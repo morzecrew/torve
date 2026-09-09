@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0001'
+id: S-0001
 title: 'Torve: charter'
 kind: design
 status: superseded
@@ -7,7 +7,7 @@ implementation: complete
 depends_on: []
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Domain model, state machine, ports, and the graded-decision contract every child
@@ -66,8 +66,8 @@ sections:
           id: TaskId
           rfc: str | None
           phase: int
-          role: Literal["implement", "review"]        # see RFC 0005
-          intent: str                                  # one paragraph: what changes and why — never steps (A-11)
+          role: Literal["implement", "review"]        # see S-0005
+          intent: str                                  # one paragraph: what changes and why — never steps (S-0001/A-4)
           depends_on: list[TaskId]
           scope: Scope                                 # allow/deny globs
           acceptance: list[str]                        # shell commands; exit 0 == satisfied
@@ -76,7 +76,7 @@ sections:
           tier: Literal["planner", "executor", "reviewer"]
 
       class InheritedDecision(BaseModel):
-          id: str                                      # D-3, matching the RFC's table
+          id: str                                      # S-0001/D-11, matching the RFC's table
           grade: Literal["LOCKED", "ASSUMED", "OPEN"]
           text: str
           paths: list[str] = []                        # declared area; enables the silence check
@@ -106,7 +106,7 @@ sections:
 
       Read models earn their place by diverging: `TaskRead` adds `is_dispatchable` and `blocked_by`, `AttemptRead` adds `duration` and `gates_passed` — both as computed fields **in Python, above the port**, because anything derived below a port is invisible to simulation.
 
-      *Amendment 2026-08-21 (A-4):* task contracts are **derived artefacts**, lockfile-grade — `torve plan` mints them mechanically, and "reviewed intent" overstated it. They belong in git for two reasons stronger than review: **reproducibility** (an attempt pins to a sha, so reconstructing why something landed retrieves exactly the contract the agent saw — replayable in a way no database row is) and **refusability** (the test is not "a human wrote this" but "a human can see it in a diff and refuse it"). The store holds only a reference: `task_id` plus sha.
+      *Amendment 2026-08-21 (S-0001/A-2):* task contracts are **derived artefacts**, lockfile-grade — `torve plan` mints them mechanically, and "reviewed intent" overstated it. They belong in git for two reasons stronger than review: **reproducibility** (an attempt pins to a sha, so reconstructing why something landed retrieves exactly the contract the agent saw — replayable in a way no database row is) and **refusability** (the test is not "a human wrote this" but "a human can see it in a diff and refuse it"). The store holds only a reference: `task_id` plus sha.
   - key: state-machine
     md: |
       ```text
@@ -116,38 +116,38 @@ sections:
       ```
 
       1. **Transitions are executed by the runner from facts, never by a model.** Facts are exit codes, gate outcomes, PR status, approval status. An agent reports observations; it never causes a transition.
-      2. **`ready` is not `merged`.** The engine stops at mergeable (RFC 0006).
+      2. **`ready` is not `merged`.** The engine stops at mergeable (S-0006).
       3. **Poison ceiling.** Attempts increment on entry to `running` and are checked before dispatch. Ceiling reached → `escalated`, never another retry.
       4. **Escalation reasons are enumerated:** `budget_exhausted`, `poison_ceiling`, `locked_conflict`, `merge_conflict`, `blocker_finding`, `gate_infrastructure_failure`, `lease_expired`.
       5. **`locked_conflict` is terminal by design, not an error** — the one case where a task stops on working code.
 
-      *Amendment 2026-08-21 (D-29, D-30):* the vocabulary above is completed by `cost_anomaly` (§5.2) and `killed` (RFC 0006 §5a) and closed as one enum; and `claimed → escalated` is a legal transition, covering a runner that dies between claim and first dispatch.
+      *Amendment 2026-08-21 (S-0001/D-27, S-0001/D-28):* the vocabulary above is completed by `cost_anomaly` (§5.2) and `killed` (S-0006/blocked-dispatch-must-be-visible) and closed as one enum; and `claimed → escalated` is a legal transition, covering a runner that dies between claim and first dispatch.
 
-      *Amendment 2026-08-22 (A-21):* `underspecified` joins the vocabulary — a contract whose execution would require inventing three or more load-bearing decisions halts as a specification defect (0003 A-18), separable in telemetry from `locked_conflict`; both are halts on working judgement, but one indicts the contract and the other the code.
+      *Amendment 2026-08-22 (S-0001/A-7):* `underspecified` joins the vocabulary — a contract whose execution would require inventing three or more load-bearing decisions halts as a specification defect (0003 S-0003/A-3), separable in telemetry from `locked_conflict`; both are halts on working judgement, but one indicts the contract and the other the code.
 
-      *Amendment 2026-08-22 (A-22):* `stale_inheritance` joins the vocabulary — a non-terminal task minted from a document that later became superseded carries decisions that no longer stand (0007 §3.3); `torve plan --reconcile` makes the situation visible by escalating it, and what to do with the in-flight work stays a human decision.
+      *Amendment 2026-08-22 (S-0001/A-8):* `stale_inheritance` joins the vocabulary — a non-terminal task minted from a document that later became superseded carries decisions that no longer stand (S-0007/supersession-after-minting); `torve plan --reconcile` makes the situation visible by escalating it, and what to do with the in-flight work stays a human decision.
 
-      *Amendment 2026-08-23 (A-26):* `ready → escalated` is a legal transition, taken only by the merge lane on a conflicted landing (reason `merge_conflict`, RFC 0006 §1). `ready` stays terminal to the engine — swept by the reaper, refused by `torve kill`, never re-dispatched — but the lane may hand it back to a human.
+      *Amendment 2026-08-23 (S-0001/A-9):* `ready → escalated` is a legal transition, taken only by the merge lane on a conflicted landing (reason `merge_conflict`, S-0006/the-correction-this-document-exists-for). `ready` stays terminal to the engine — swept by the reaper, refused by `torve kill`, never re-dispatched — but the lane may hand it back to a human.
   - key: ports
     md: |
       | Port | Backed by |
       | --- | --- |
       | `TaskStore` | forze durable run store — enqueue, begin, renew, complete, fail, `claim_abandoned`, fenced cancellation |
       | `Workspace` | git worktree |
-      | `Runtime` | OpenSandbox (RFC 0003) |
-      | `Agent` | fake, API, harness, subscription (RFC 0004) |
-      | `GateRunner` | shell in the task sandbox (RFC 0002) |
+      | `Runtime` | OpenSandbox (S-0003) |
+      | `Agent` | fake, API, harness, subscription (S-0004) |
+      | `GateRunner` | shell in the task sandbox (S-0002) |
       | `SCM` | `gh` CLI |
-      | `Telemetry` | JSONL → analytics contract (RFC 0004) |
+      | `Telemetry` | JSONL → analytics contract (S-0004) |
       | `Notifier` | outbox destination |
-      | `ContextRead` | read-only MCP (RFC 0007) |
-      | `Tracker` | outbound projection, restricted inbound commands (RFC 0008) |
-      | `DecisionSource` | importing standing decisions into new tasks (RFC 0007) |
-      | `SizePolicy` | pre-dispatch size estimate and post-hoc calibration (RFC 0002) |
-      | `PromotionPolicy` | what may land without a human (RFC 0006) |
-      | `Vcs` | commit, branch, sign, revert (RFC 0010) |
+      | `ContextRead` | read-only MCP (S-0007) |
+      | `Tracker` | outbound projection, restricted inbound commands (S-0008) |
+      | `DecisionSource` | importing standing decisions into new tasks (S-0007) |
+      | `SizePolicy` | pre-dispatch size estimate and post-hoc calibration (S-0002) |
+      | `PromotionPolicy` | what may land without a human (S-0006) |
+      | `Vcs` | commit, branch, sign, revert (S-0010) |
 
-      *The `Inference` port was removed by A-11 2026-08-22: a reviewer reached through a separate port stops being a run. The reviewer goes through `Agent` like every other run (RFC 0005).*
+      *The `Inference` port was removed by S-0001/A-4 2026-08-22: a reviewer reached through a separate port stops being a run. The reviewer goes through `Agent` like every other run (S-0005).*
 
       `Workspace` (local git) and `SCM` (remote forge) stay separate — merging them binds the domain to GitHub.
 
@@ -162,7 +162,7 @@ sections:
 
       | Port justified | Deliberately not a port |
       | --- | --- |
-      | `Agent`, `Runtime`, `TaskStore`, `Tracker`, `Vcs` | the state machine — pluggability destroys D-5a |
+      | `Agent`, `Runtime`, `TaskStore`, `Tracker`, `Vcs` | the state machine — pluggability destroys S-0001/D-15 |
       | `DecisionSource`, `SizePolicy`, `PromotionPolicy` | the escalation-reason vocabulary — an extensible enum makes telemetry incomparable across time |
       | `Telemetry`, `Notifier` | gates — declarative config, not an interface |
       | | the execution-log format — a second format means two parsers and eventual divergence |
@@ -187,17 +187,17 @@ sections:
 
       Pydantic models are the single source of truth; YAML is their serialization. No hand-maintained JSON Schema until a non-Python consumer exists.
 
-      **Execution log format** — `logs/<task-id>.yaml`, one file per task, append-only, one `entries:` list *(amended by A-1 2026-08-21: serialization moved from markdown with fenced blocks to YAML; every rule below is unchanged)*:
+      **Execution log format** — `logs/<task-id>.yaml`, one file per task, append-only, one `entries:` list *(amended by S-0001/A-1 2026-08-21: serialization moved from markdown with fenced blocks to YAML; every rule below is unchanged)*:
 
       ```yaml
       schema_version: 1
       task: T-0142
       repo: morzecrew/torve
-      base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (D-A.7)
+      base_sha: 7f3a91c8e2b4d6a1f0c3   # evidence resolves against this commit (S-0001/D-36)
       created_at: 2026-08-20T10:58:03Z
       drift_count: 0            # the declared claim, checked against entries classed drift
       entries:
-        - decision: D-3
+        - decision: S-0001/D-11
           grade: LOCKED
           kind: contradicted    # contradicted | departed | resolved | blocked
           at: 2026-08-20T11:04:12Z
@@ -219,10 +219,10 @@ sections:
 
       Two rules that make the log worth keeping: **grade is copied at write time, never resolved at read time** — a log that rewrites its own past is not an audit trail; and **silence is a finding** — the gate fires on the absence of an entry in an area a locked decision declares, because a quiet workaround is not detectable while a missing report trivially is.
 
-      *Amendment 2026-08-21 (D-21b):* the legality table governs contradictions. An entry carries `kind` as above, or the `flag-dont-flip` skill's `class` (`discovery | spec-gap | drift | irreducible`), or both — the axes are orthogonal: `kind` records what happened to the decision, `class` diagnoses whether the design process failed. A `kind: resolved` close-out with `action: decided` attests compliance in an area a `LOCKED` decision declares, which is how the silence check is satisfiable without a conflict.
+      *Amendment 2026-08-21 (S-0001/D-26):* the legality table governs contradictions. An entry carries `kind` as above, or the `flag-dont-flip` skill's `class` (`discovery | spec-gap | drift | irreducible`), or both — the axes are orthogonal: `kind` records what happened to the decision, `class` diagnoses whether the design process failed. A `kind: resolved` close-out with `action: decided` attests compliance in an area a `LOCKED` decision declares, which is how the silence check is satisfiable without a conflict.
   - key: decisions
     md: |
-      The nineteen corpus-convention decisions that lived here (D-A.1 – D-A.12, D-A.16 – D-A.20) moved to RFC 0016 with their identifiers preserved (A-17). D-A.7 and D-A.13 – D-A.15 stay: they concern task directories, logs and retention, which are engine artefacts.
+      The nineteen corpus-convention decisions that lived here (S-0016/D-9 – S-0016/D-22, S-0016/D-23 – S-0016/D-27) moved to S-0016 with their identifiers preserved (S-0001/A-6). S-0001/D-36 and S-0001/D-37 – S-0001/D-39 stay: they concern task directories, logs and retention, which are engine artefacts.
   - key: ownership
     md: |
       Nothing in this corpus works without names attached, and at this team size that is not bureaucracy — an unnamed duty does not exist.
@@ -240,7 +240,7 @@ sections:
       - **The engine becomes a second product.** The realistic failure mode for a small team. Mitigation: a named owner and an explicit weekly time budget, decided before 0003 starts.
       - **Human review becomes the bottleneck.** Parallel workers outpace one reader; the system quietly produces review debt. Addressed in 0006.
       - **Gate theatre.** Checks that cost minutes and catch nothing. Addressed in 0002 via the sabotage suite and per-gate hit counts.
-      - **This document read as licence to automate planning.** The planner is where model calls will try to creep in. D-2 is `LOCKED` and its violation shows up in review as a new dependency.
+      - **This document read as licence to automate planning.** The planner is where model calls will try to creep in. S-0001/D-10 is `LOCKED` and its violation shows up in review as a new dependency.
       - **A second infrastructure dependency** (OpenSandbox). Health indicators are strong but neutrality is younger than the code; re-run `dependency-diligence` before 0003, and keep `Runtime` thin enough that raw Docker remains a fallback.
   - key: stopping
     md: |

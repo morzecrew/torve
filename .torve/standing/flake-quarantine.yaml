@@ -1,7 +1,7 @@
-# RFC 0023 §5.6.2 — the second standing contract. RFC 0002 §7.6 already
+# S-0023 §5.6.2 — the second standing contract. S-0002/health already
 # derives per-command flake counts into telemetry's
 # `flaky_count_by_command`; the predicate is the engine-native
-# flake-threshold kind (A-68): the engine reads its own records with its
+# flake-threshold kind (S-0023/A-1): the engine reads its own records with its
 # own parsers, where the first cut inlined a python heredoc that
 # re-parsed gates.yaml with a regex.
 name: flake-quarantine
@@ -11,7 +11,7 @@ trigger:
 intent: >-
   A gate command's flake count in telemetry has crossed the quarantine
   threshold without the command being quarantined yet. Add it to
-  .torve/gates.yaml's quarantine list (RFC 0002 §6a, D-2.15) — or fix the
+  .torve/gates.yaml's quarantine list (S-0002/three-outcomes-gates-need-beyond-pass-and-fail, S-0002/D-15) — or fix the
   underlying flake — so it stops consuming poison-ceiling attempts while
   still being run and reported.
 scope:

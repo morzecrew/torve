@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-66
+  - id: A-1
     at: '2026-08-31'
     title: >-
-      execution's readings approved (amends D-25.3; records the emitter and sweep
+      execution's readings approved (amends S-0025/D-3; records the emitter and sweep
       readings)
     md: |-
       **From T-0123's and T-0124's execution logs, approved.**
@@ -12,7 +12,7 @@ amendments:
         unwrapped `>-` line: a future document may carry an arbitrarily long
         one, and the corpus enforces no wrap width nothing currently requires.
       - `add-decision` writes `grade: OPEN` as the schema-required
-        non-judgement placeholder (D-25.3's row carries the reading).
+        non-judgement placeholder (S-0025/D-3's row carries the reading).
       - `retire`'s mechanical Paths sweep matches one whole space-separated
         glob token exactly, never a substring — a sweep must not guess a
         boundary the corpus did not draw.
@@ -22,4 +22,4 @@ amendments:
         default manifest rather than repointing at the root — the report is
         recorded here as disposed, not adopted.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

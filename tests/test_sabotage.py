@@ -4,7 +4,7 @@ from torve.gates.sabotage import CASES, run_all
 
 
 def test_every_gate_has_a_red_case_and_a_green_case():
-    """D-2.2: no case, no gate — both directions, for every shipped case."""
+    """S-0002/D-2: no case, no gate — both directions, for every shipped case."""
     for gate in (
         "scope",
         "acceptance",

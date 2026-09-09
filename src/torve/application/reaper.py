@@ -1,17 +1,17 @@
-"""`torve reap` — convention-driven, not tracked (RFC 0003 §4.2): enumerate by
+"""`torve reap` — convention-driven, not tracked (S-0003/reaper): enumerate by
 label and prefix, cross-reference live runs, destroy anything without one.
 
-With a Postgres store the lease is the liveness authority (D-3.10 retired):
+With a Postgres store the lease is the liveness authority (S-0003/D-10 retired):
 `claim_abandoned` decides expiry — the store owns the lease clock — and a
 reclaimed run is landed `lease_expired` under its own fence, the same verdict
-recovery hands out. The engine's state file is escalated on the D-30 edge.
+recovery hands out. The engine's state file is escalated on the S-0001/D-28 edge.
 
 With the in-process mock store there is nothing durable to consult across
-processes (D-3.6: Postgres for real runs), so the v1 heartbeat heuristic
+processes (S-0003/D-6: Postgres for real runs), so the v1 heartbeat heuristic
 stays as the fallback. Worktrees are removed only for terminal runs either
 way; a crashed run's worktree is triage evidence, not garbage.
 
-Containers a socket-mode sandbox starts (RFC 0017 §2a, D-17.11) carry no
+Containers a socket-mode sandbox starts (S-0017/docker-inside-the-sandbox, S-0017/D-11) carry no
 torve labels and are invisible here by design: cleanup-by-convention must
 not pretend to cover what it cannot see. The battery that starts them owns
 their lifecycle, exactly as it does on an operator's machine.
@@ -22,11 +22,11 @@ file that outlives the sweep shows up in `torve status` forever. What
 remains in `.wt/` after a reap is only live and escalated runs. The
 state sweep is driven by the state files themselves, not the worktree
 listing, so a footprint whose worktree is already gone is still
-collected. Traces are gone from that sweep (D-39.1): they live in the
+collected. Traces are gone from that sweep (S-0039/D-1): they live in the
 retention-capped store under `.torve/traces/`, and the only deletion
 there is this reaper's retention pass, enforcing the `traces:` bounds
-oldest-first (D-39.3). The store is local — a sweep deletes files on
-this host and never moves, copies or sends one (D-39.2).
+oldest-first (S-0039/D-3). The store is local — a sweep deletes files on
+this host and never moves, copies or sends one (S-0039/D-2).
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 from torve.domain.states import EscalationReason, TaskState
 
 # Answers "has this task landed on the base?" — wired by the caller from
-# the vcs (D-19.10); None means the reaper cannot know and keeps.
+# the vcs (S-0019/D-10); None means the reaper cannot know and keeps.
 LandedOracle = Callable[[str], bool]
 
 # ----------------------- #
@@ -77,12 +77,12 @@ def _collectable(state: RunState | None, escalated: bool) -> bool:
     """Whether this run's footprint is the sweep's to take.
 
     No state file at all is pure convention debris; a terminal run left its
-    commits on the task branch. `--escalated` (A-70) adds the operator's
+    commits on the task branch. `--escalated` (S-0021/A-1) adds the operator's
     explicit triage-discard for an escalation already dealt with outside
     the state machine — never swept by default, because an escalation
     exists to be looked at.
 
-    One predicate for both halves of the footprint (A-112): the worktree
+    One predicate for both halves of the footprint (S-0003/A-6): the worktree
     sweep and the state sweep answering differently is how one pass leaves
     the worktree of a state it just deleted.
     """
@@ -121,12 +121,12 @@ def _sweep_worktrees(
 
 
 def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> bool:
-    """D-19.10 (A-28, narrowing D-3.23): a READY implement or revert run
+    """S-0019/D-10 (S-0019/A-2, narrowing S-0003/D-23): a READY implement or revert run
     whose task has not landed on the base is the lane's input, not debris —
     its state file survives the sweep. Without a landed oracle the answer
     is conservative: keep. Review-role READY states never land and stay
     sweepable; so does a READY state with no contract to land. A READY
-    draft run is kept unconditionally (RFC 0020, D-20.10): its landing is
+    draft run is kept unconditionally (S-0020, S-0020/D-10): its landing is
     adoption, which disposes of the state itself — the lab's first live
     drafting run was swept one tick after going green, orphaning the
     adoption it awaited."""
@@ -168,9 +168,9 @@ def _sweep_states(
     escalated: bool = False,
 ) -> None:
     """A terminal run's remaining footprint: the state file, named by
-    convention (D-3.4) beside the worktree. Driven by the state files, not
+    convention (S-0003/D-4) beside the worktree. Driven by the state files, not
     the worktree listing — the worktree may already be gone. Traces are not
-    part of this sweep (D-39.1): they live in the durable store, and the
+    part of this sweep (S-0039/D-1): they live in the durable store, and the
     retention pass below is their only remover."""
 
     for state in states:
@@ -190,14 +190,14 @@ def _sweep_states(
 
 
 def _retain_traces(root: Path, config: RunnerConfig, report: ReapReport, dry_run: bool) -> None:
-    """The trace store's retention (D-39.3): past either bound of the
+    """The trace store's retention (S-0039/D-3): past either bound of the
     `traces:` block — `keep_days` of age, `max_mb` of size — the store sheds
-    oldest first. This is the store's only remover (D-39.1): the terminal
+    oldest first. This is the store's only remover (S-0039/D-1): the terminal
     sweep leaves traces to this pass. Age is measured by modification time;
     a trace deleted here while its `trace_ref` still names it is the defined
     outcome of retention, which every reader renders as a reaped pointer,
     never an error. The store is local: this deletes, and nothing else —
-    no copy, no upload, no transmission of a trace (D-39.2)."""
+    no copy, no upload, no transmission of a trace (S-0039/D-2)."""
 
     store = naming.traces_dir(root)
 
@@ -280,7 +280,7 @@ def _heartbeat_reap(
     own = naming.root_key(root)
 
     for sandbox in runtime.list_torve_sandboxes():
-        # The reap keeps to its root (D-3.25, A-38): another engine's
+        # The reap keeps to its root (S-0003/D-25, S-0003/A-4): another engine's
         # sandbox on the shared daemon is not ours to judge; an unlabelled
         # one is a pre-A-38 stray and stays reapable by anyone.
         owner = sandbox.labels.get(naming.LABEL_ROOT)
@@ -311,10 +311,10 @@ async def _reclaim_abandoned(
     force: bool,
     dry_run: bool,
 ) -> None:
-    """The substrate's recovery step (D-42.3): `claim_abandoned` decides
+    """The substrate's recovery step (S-0042/D-3): `claim_abandoned` decides
     expiry and the reclaimed record's own fence lands `lease_expired` —
     the same verdict `expire_abandoned` always gave (forze's `.recover()`
-    re-invokes the body instead, D-5's "own recovery" the reap sweep never
+    re-invokes the body instead, S-0001/D-14's "own recovery" the reap sweep never
     wanted). Standalone now so it is callable ahead of the sweep, not only
     buried inside it — identical semantics, a first-class name."""
 
@@ -360,11 +360,11 @@ def recover(
     force: bool = False,
     dry_run: bool = False,
 ) -> ReapReport:
-    """The substrate's recovery step at tick start (D-42.3): reclaims
+    """The substrate's recovery step at tick start (S-0042/D-3): reclaims
     abandoned durable runs on its own, ahead of and independent from the
     reap sweep that used to be its only caller. The store factory travels
     regardless of adapter (mirroring `reap`'s own dispatch below) — a
-    non-postgres regime has no durable lease authority to reclaim (D-3.6)
+    non-postgres regime has no durable lease authority to reclaim (S-0003/D-6)
     and this is a true no-op rather than a caller-side branch."""
 
     if config.store.adapter != "postgres":
@@ -401,7 +401,7 @@ async def _durable_reap(
     live = await taskstore.live_records()
     live_engine_runs = {str((r.input_json or {}).get("engine_run_id", "")) for r in live}
 
-    # Shadow liveness is host truth (D-4.18, A-57): replays register no
+    # Shadow liveness is host truth (S-0004/D-18, S-0004/A-2): replays register no
     # durable record by design, so a run named by a host state file with a
     # fresh heartbeat is live too — a crashed shadow's heartbeat goes stale
     # and it reaps; an orphan with no state file reaps immediately.
@@ -430,7 +430,7 @@ async def _durable_reap(
     own = naming.root_key(root)
 
     for sandbox in runtime.list_torve_sandboxes():
-        # D-3.25 (A-38): same root fence as the local-regime reap.
+        # S-0003/D-25 (S-0003/A-4): same root fence as the local-regime reap.
         owner = sandbox.labels.get(naming.LABEL_ROOT)
 
         if owner is not None and owner != own:

@@ -1,5 +1,5 @@
-"""RFC 0013 resolution: one path per lookup under `.torve/`, whether or not
-the file exists (D-13.1, A-48). `--config` is the only override (D-13.4)."""
+"""S-0013 resolution: one path per lookup under `.torve/`, whether or not
+the file exists (S-0013/D-1, A-48). `--config` is the only override (S-0013/D-4)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def test_every_lookup_resolves_under_torve_dir(tmp_path: Path) -> None:
         tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
     )
     assert layout.log_file(tmp_path, "T-1") == (tmp_path / ".torve" / "tasks" / "T-1" / "log.yaml")
-    # The corpus's home too (RFC 0057 D-57.3): the default of `specs.path`,
+    # The corpus's home too (S-0057 S-0057/D-3): the default of `specs.path`,
     # with the archive and the schemas resolved as its siblings.
     assert layout.SPECS_DIR == ".torve/specs"
 
@@ -50,7 +50,7 @@ def test_runner_config_missing_explicit_path_is_an_error(tmp_path: Path) -> None
 
 
 def test_runner_config_rejects_unknown_keys(tmp_path: Path) -> None:
-    # D-13.5: a typo must not silently remove a knob.
+    # S-0013/D-5: a typo must not silently remove a knob.
     (tmp_path / ".torve").mkdir()
     (tmp_path / ".torve" / "config.yaml").write_text(
         yaml.safe_dump({"schema_version": 1, "poison_ceilling": 5})

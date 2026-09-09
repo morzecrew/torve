@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0007'
+id: S-0007
 title: Planner and context
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0003', '0016']
+depends_on: [S-0003, S-0016]
 informed_by: []
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Minting tasks from an approved RFC, projecting execution facts back into planning
@@ -41,7 +41,7 @@ sections:
 
       `--dry-run` by default. No model call at any point.
 
-      `torve plan` mints `implement` tasks only; review tasks are minted by the runner at `gated` (RFC 0005 §1.1). Each contract's `intent` paragraph (D-1.7) comes from the phase entry, or is written by hand for a standalone task.
+      `torve plan` mints `implement` tasks only; review tasks are minted by the runner at `gated` (S-0005/the-review-contract). Each contract's `intent` paragraph (S-0001/D-7) comes from the phase entry, or is written by hand for a standalone task.
   - key: admission
     md: |
       Before minting anything, `torve plan <id>` refuses on any of:
@@ -51,9 +51,9 @@ sections:
       - **the document is `superseded`**, or `superseded_by` is set
       - **a cycle exists** in the `depends_on` graph reachable from this document
 
-      Each refusal exits 3 (configuration error, RFC 0011) and names the offending document and edge. `informed_by` is not checked: it is a reading hint and carries no constraint.
+      Each refusal exits 3 (configuration error, S-0011) and names the offending document and edge. `informed_by` is not checked: it is a reading hint and carries no constraint.
 
-      **Why an unsettled dependency is a hard refusal.** A document's decision table inherits rows from the documents it depends on, and inheritance copies the grade at mint time. Inheriting `LOCKED` from a `draft` hands an executor a grade that may change tomorrow — which is exactly what D-A.4 and the copy-grade-at-write-time rule exist to prevent. The refusal is not procedural tidiness; it protects the guarantee the whole conflict protocol rests on.
+      **Why an unsettled dependency is a hard refusal.** A document's decision table inherits rows from the documents it depends on, and inheritance copies the grade at mint time. Inheriting `LOCKED` from a `draft` hands an executor a grade that may change tomorrow — which is exactly what S-0016/D-15 and the copy-grade-at-write-time rule exist to prevent. The refusal is not procedural tidiness; it protects the guarantee the whole conflict protocol rests on.
   - key: one-rfc-at-a-time
     md: |
       `torve plan` takes exactly one identifier. It does not accept a set, a subgraph, or `--all`.
@@ -72,21 +72,21 @@ sections:
       torve rfc check [PATH...]     # schema, decision table, links, cycles
       torve rfc index               # regenerate INDEX.md
       torve rfc graph               # depends_on edges and decision inheritance
-      torve rfc show <identifier>   # resolve one corpus identifier (A-55)
+      torve rfc show <identifier>   # resolve one corpus identifier (S-0007/A-2)
       ```
 
-      *Added by amendment A-55 2026-08-27.* `torve rfc show` resolves any corpus
+      *Added by amendment S-0007/A-2 2026-08-27.* `torve rfc show` resolves any corpus
       identifier from the parse the checks already run — never a second parser
-      (D-7.12, A-47's rule). A decision identifier answers with its row as it
+      (S-0007/D-12, S-0007/A-3's rule). A decision identifier answers with its row as it
       stands: grade, text, paths, consequence, defining document, the documents
       whose prose cites it, and its `retired:` tombstone when one exists. An
       amendment identifier answers with its document, heading line and the rows it
       touched; the A-family output carries the next free amendment number, exactly
       as the index carries the next free document number — allocation by grep is
-      how A-11, A-12 and A-17 each record landing under a different number than
+      how S-0001/A-4, S-0001/A-5 and S-0001/A-6 each record landing under a different number than
       their source patch chose. A document number answers with frontmatter,
       implementation state and phases. Text for a person, JSON for a machine
-      (RFC 0011); an identifier nothing defines exits 3 naming the nearest family.
+      (S-0011); an identifier nothing defines exits 3 naming the nearest family.
       Lookup parses on demand from the committed documents like every `rfc` verb —
       no cache, no store read.
   - key: checks
@@ -95,23 +95,23 @@ sections:
 
       **Decision table:** present; every row graded; `paths:` on every `LOCKED` row; identifiers unique within the document and never reused after removal.
 
-      **Links:** every `depends_on`, `informed_by` and `supersedes` target resolves; the `depends_on` graph is acyclic; no document inherits from one that is not `accepted` (D-A.10).
+      **Links:** every `depends_on`, `informed_by` and `supersedes` target resolves; the `depends_on` graph is acyclic; no document inherits from one that is not `accepted` (S-0016/D-20).
 
       **Rot:** `paths` globs match something in the repository; no source path with a line number appears anywhere in the body — those are stale at the first refactor above them.
 
-      Each failure names the document, the row or field, and what was expected. Exit 3 (RFC 0011): a malformed document is a configuration error.
+      Each failure names the document, the row or field, and what was expected. Exit 3 (S-0011): a malformed document is a configuration error.
   - key: the-rfc-valid-gate
     md: |
       ```yaml
       - name: rfc-valid
         run: "torve rfc check"
         input: worktree
-        state: shadow          # enters per D-2.18; promotion per D-2.23
+        state: shadow          # enters per S-0002/D-18; promotion per S-0002/D-23
         origin: rfc/0007
         timeout: 20
       ```
 
-      A **product gate**, not a self-development one (RFC 0015 §6.4): any repository keeping specifications for `torve plan` needs it. It ships in the package and has no dependency beyond `torve` itself.
+      A **product gate**, not a self-development one (S-0015/two-sets-of-gates-and-they-are-not-the-same-set): any repository keeping specifications for `torve plan` needs it. It ships in the package and has no dependency beyond `torve` itself.
 
       `torve rfc index --check` runs in the same gate — regenerate and fail if the result differs from what is committed, the same discipline as a lockfile.
 
@@ -141,24 +141,24 @@ sections:
 
       **The programme view.** Alongside task-level facts, `torve context` renders the RFC graph: which documents are accepted, which of their phases have shipped, what became plannable when the last one closed, and where a `depends_on` cycle exists. This is where the graph is genuinely useful. It answers "what can be taken on next", which is currently a question held in someone's head.
 
-      **Implementation state.** For each accepted document, its `implementation` assertion (D-A.11) alongside the derived progress of each phase — `planned`, `in_flight`, `blocked`, `shipped`. Progress is computed on demand from task states and stored nowhere (D-A.12); per phase, not per document, because phase-level is the granularity at which decisions get made. Where the assertion and the derivation disagree — `complete` asserted while a phase is `blocked` — say so. That disagreement is usually either a forgotten assertion or a task nobody triaged, and both are worth surfacing.
+      **Implementation state.** For each accepted document, its `implementation` assertion (S-0016/D-21) alongside the derived progress of each phase — `planned`, `in_flight`, `blocked`, `shipped`. Progress is computed on demand from task states and stored nowhere (S-0016/D-22); per phase, not per document, because phase-level is the granularity at which decisions get made. Where the assertion and the derivation disagree — `complete` asserted while a phase is `blocked` — say so. That disagreement is usually either a forgotten assertion or a task nobody triaged, and both are worth surfacing.
   - key: mcp-as-the-read-surface
     md: |
       Copying `torve context` output into a session by hand is exactly the manual transfer this design removes. The planner therefore exposes a **read-only** MCP server over its projections.
 
-      This does not weaken D-2: the direction of control is inverted from the dangerous case. A human-supervised session *pulls* facts; the engine never invokes a model to decide anything. The human still writes and commits the RFC, and `torve plan` still refuses anything uncommitted.
+      This does not weaken S-0001/D-10: the direction of control is inverted from the dangerous case. A human-supervised session *pulls* facts; the engine never invokes a model to decide anything. The human still writes and commits the RFC, and `torve plan` still refuses anything uncommitted.
 
       Two constraints, enforced at wiring rather than by instruction:
 
       - **No write tools are exposed.** Queries only; `torve plan` is not among them.
       - **No agent in an execution sandbox gets this server.** It is for the planning session on a human's machine. An executor that can read other tasks' escalations is an executor that can rationalise its way out of its own scope.
 
-      *Added by amendment A-55 2026-08-27.* The server carries a second read-only
+      *Added by amendment S-0007/A-2 2026-08-27.* The server carries a second read-only
       tool, `show`, over §3a's identifier lookup — same function, same parse, the
-      MCP face of the same answer. A planning session citing D-6.8 gets the row
+      MCP face of the same answer. A planning session citing S-0006/D-8 gets the row
       without a human opening a file, which is this section's founding sentence
       applied to the corpus itself. Executors still inherit their decisions copied
-      into the contract at mint time (D-31); the lookup changes nothing about what
+      into the contract at mint time (S-0001/D-29); the lookup changes nothing about what
       a sandbox sees.
   - key: the-loop-closed
     md: |
@@ -192,7 +192,7 @@ sections:
       | `ExecutionLog` | yes | `resolved` and `departed` entries are decisions someone already made under pressure |
       | `Constitution` | yes | one hand-written standing-decisions document per repository |
 
-      Non-deterministic extraction from unstructured sources — reading a codebase and proposing decisions — runs **outside** the engine, as a skill, in a supervised session, and emits a document a human commits. Identical in shape to `torve context`, and for the same reason: it keeps D-2 intact. No adapter in this port ever calls a model.
+      Non-deterministic extraction from unstructured sources — reading a codebase and proposing decisions — runs **outside** the engine, as a skill, in a supervised session, and emits a document a human commits. Identical in shape to `torve context`, and for the same reason: it keeps S-0001/D-10 intact. No adapter in this port ever calls a model.
 
       The realistic sequence is lazy: start with `RfcDirectory` over what already exists, let `ExecutionLog` accumulate the rest, and write a `Constitution` only for the decisions that keep being rediscovered.
   - key: out-of-scope
@@ -203,7 +203,7 @@ sections:
 
       Universal compatibility would cost exactly the thing that makes this engine worth having.
 
-      The format's surface is narrow by construction: it terminates at the planner. `decisions-reported` reads `InheritedDecision` from the contract; the runner, gates, review, merge and telemetry see task contracts only. Keeping it that way is what keeps a different source possible at all (D-7.18) — a grade is a human judgement about how expensive a decision is to reverse, and it cannot be derived from a document where nobody made that judgement, by any mechanism, ever.
+      The format's surface is narrow by construction: it terminates at the planner. `decisions-reported` reads `InheritedDecision` from the contract; the runner, gates, review, merge and telemetry see task contracts only. Keeping it that way is what keeps a different source possible at all (S-0007/D-18) — a grade is a human judgement about how expensive a decision is to reverse, and it cannot be derived from a document where nobody made that judgement, by any mechanism, ever.
 
       **Reopened when:** a project that already keeps specifications in another format adopts Torve and will not rewrite them. The `DecisionSource` port is the extension point; an adapter is a day's work, and it cannot be deterministic — decisions absent from a document are extracted outside the engine, by a skill, and accepted by a human.
   - key: exit-criteria

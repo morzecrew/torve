@@ -1,4 +1,4 @@
-"""One state per run (RFC 0044 phase 5, A-85).
+"""One state per run (S-0044 phase 5, A-85).
 
 A run's state is held in two places: the aggregate the attempt loop drives,
 and the board the manager folds out of the record. Both are projections of
@@ -137,7 +137,7 @@ def test_the_attempt_count_survives_a_retry(rig):
     view, state = drive(repo, deps)
 
     assert state.attempts == 2
-    # The board counts attempts from the attempts themselves (D-44.3), so a
+    # The board counts attempts from the attempts themselves (S-0044/D-3), so a
     # run that took two tries cannot read as one.
     assert view.attempts == state.attempts
     assert view.state is state.state is TaskState.READY

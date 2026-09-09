@@ -1,4 +1,4 @@
-"""RFC 0007 §3: the deterministic minter. Admission refuses by name with
+"""S-0007/torve-plan: the deterministic minter. Admission refuses by name with
 exit 3; the document's `phasing` list becomes contracts inheriting its
 decisions grade-and-paths intact; dry-run is the default and minted
 contracts load back through the same Task model the gates read."""
@@ -30,8 +30,8 @@ from torve.gates.context import load_task
 # ----------------------- #
 
 TABLE = [
-    ("D-90.1", "LOCKED", "Widgets are idempotent", "`src/widget/**`", "Retries double-charge"),
-    ("D-90.2", "ASSUMED", "Frobnication is lazy", "—", "Cheap to revisit"),
+    ("S-0090/D-1", "LOCKED", "Widgets are idempotent", "`src/widget/**`", "Retries double-charge"),
+    ("S-0090/D-2", "ASSUMED", "Frobnication is lazy", "—", "Cheap to revisit"),
 ]
 
 PHASING = [
@@ -68,7 +68,7 @@ def phasing(**overrides) -> list[dict]:
 
 
 def written(spec_dir: Path, number: str = "0090", title: str = "Widgets", **kwargs) -> Path:
-    """One document's `S-NNNN/` directory under *spec_dir* (D-57.1)."""
+    """One document's `S-NNNN/` directory under *spec_dir* (S-0057/D-1)."""
 
     kwargs.setdefault("rows", TABLE)
     kwargs.setdefault("implementation", "none")
@@ -114,7 +114,7 @@ def test_minting_inherits_the_table_at_write_time(plan_repo):
     assert core.intent == "Build the widget core."
     assert core.role == "implement"
     assert core.acceptance == ["make test"]
-    assert [d.id for d in core.decisions] == ["D-90.1", "D-90.2"]
+    assert [d.id for d in core.decisions] == ["S-0090/D-1", "S-0090/D-2"]
     locked = core.decisions[0]
     assert locked.grade == "LOCKED" and locked.paths == ["src/widget/**"]
     wired = report.tasks[2].task
@@ -143,7 +143,7 @@ def test_draft_documents_are_refused(plan_repo):
     write_doc("0091", "Sketch", status="draft")
     git("add", "-A")
     git("commit", "-qm", "draft")
-    with pytest.raises(PlanError, match="0091 is draft"):
+    with pytest.raises(PlanError, match="S-0091 is draft"):
         plan_document(root, root / ".torve" / "specs", "0091")
 
 
@@ -153,7 +153,7 @@ def test_a_draft_dependency_is_refused(plan_repo):
     write_doc("0092", "Leaning", depends_on=["0091"])
     git("add", "-A")
     git("commit", "-qm", "docs")
-    with pytest.raises(PlanError, match="depends on 0091, which is draft"):
+    with pytest.raises(PlanError, match="S-0092 depends on S-0091, which is draft"):
         plan_document(root, root / ".torve" / "specs", "0092")
 
 
@@ -186,7 +186,7 @@ def test_uncommitted_changes_are_refused(plan_repo):
 
 def test_plan_refuses_a_document_whose_contracts_do_not_lint(plan_repo):
     """A-132: the three drafting paths ran the contract lint and the minting
-    path never did. RFC 0052's phasing block minted three contracts that
+    path never did. S-0052's phasing block minted three contracts that
     could not be satisfied — a deliverable outside every scope, an
     acceptance command no sandbox can run, a module allowed without its test
     file — and two of them cost a full poison ceiling to find. A reviewed
@@ -273,7 +273,7 @@ def test_the_loader_refuses_a_phase_without_an_intent(tmp_path):
 
 
 def test_the_loader_refuses_a_grade_outside_the_vocabulary(tmp_path):
-    ungraded = [("D-90.1", "MAYBE", "Widgets are idempotent", "`src/widget/**`")]
+    ungraded = [("S-0090/D-1", "MAYBE", "Widgets are idempotent", "`src/widget/**`")]
 
     with pytest.raises(SpecError, match=r"decisions\.0\.grade"):
         loaded(tmp_path, rows=ungraded)
@@ -329,13 +329,13 @@ def test_inherit_decisions_copies_the_rows_intact(tmp_path):
     # and paths as the row stands, pathless rows included.
     rows = inherit_decisions(loaded(tmp_path))
     assert [(r.id, r.grade, r.paths) for r in rows] == [
-        ("D-90.1", "LOCKED", ["src/widget/**"]),
-        ("D-90.2", "ASSUMED", []),
+        ("S-0090/D-1", "LOCKED", ["src/widget/**"]),
+        ("S-0090/D-2", "ASSUMED", []),
     ]
 
 
 # ....................... #
-# Standing inheritance (RFC 0030 §5.1): the document-less lane.
+# Standing inheritance (S-0030/standing-inheritance): the document-less lane.
 
 
 def test_standing_decisions_intersect_in_and_out(plan_repo):
@@ -345,21 +345,33 @@ def test_standing_decisions_intersect_in_and_out(plan_repo):
         "Frobs",
         phasing=None,
         rows=[
-            ("D-91.1", "LOCKED", "Frobs are idempotent", "`src/frob/**`", "Retries double-charge"),
-            ("D-91.2", "ASSUMED", "Frob names are short", "`tests/frob/**`", "Cheap to revisit"),
+            (
+                "S-0091/D-1",
+                "LOCKED",
+                "Frobs are idempotent",
+                "`src/frob/**`",
+                "Retries double-charge",
+            ),
+            (
+                "S-0091/D-2",
+                "ASSUMED",
+                "Frob names are short",
+                "`tests/frob/**`",
+                "Cheap to revisit",
+            ),
         ],
     )
     git("add", "-A")
     git("commit", "-qm", "frobs")
 
     inside = standing_decisions(root / ".torve" / "specs", ["src/frob/core.py"])
-    assert [d.id for d in inside] == ["D-91.1"]
+    assert [d.id for d in inside] == ["S-0091/D-1"]
 
     outside = standing_decisions(root / ".torve" / "specs", ["src/widget/core.py"])
-    assert [d.id for d in outside] == ["D-90.1"]
+    assert [d.id for d in outside] == ["S-0090/D-1"]
 
     both = standing_decisions(root / ".torve" / "specs", ["src/**"])
-    assert [d.id for d in both] == ["D-90.1", "D-91.1"]
+    assert [d.id for d in both] == ["S-0090/D-1", "S-0091/D-1"]
 
     unconstrained = standing_decisions(root / ".torve" / "specs", [])
     assert unconstrained == []
@@ -369,7 +381,7 @@ def test_standing_decisions_copy_grade_and_paths_at_write_time(plan_repo):
     root, _, _ = plan_repo
     assert standing_decisions(root / ".torve" / "specs", ["src/widget/core.py"]) == [
         InheritedDecision(
-            id="D-90.1",
+            id="S-0090/D-1",
             grade="LOCKED",
             text="Widgets are idempotent",
             paths=["src/widget/**"],
@@ -380,11 +392,11 @@ def test_standing_decisions_copy_grade_and_paths_at_write_time(plan_repo):
 
 def test_standing_decisions_pathless_rows_are_never_standing(plan_repo):
     root, _, _ = plan_repo
-    # D-90.2 declares no paths — it governs its own document's work only and
+    # S-0090/D-2 declares no paths — it governs its own document's work only and
     # can never be standing, even against an allow that would cover anything.
     rows = standing_decisions(root / ".torve" / "specs", ["src/**", "tests/**"])
-    assert [d.id for d in rows] == ["D-90.1"]
-    assert "D-90.2" not in [d.id for d in rows]
+    assert [d.id for d in rows] == ["S-0090/D-1"]
+    assert "S-0090/D-2" not in [d.id for d in rows]
 
 
 def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
@@ -394,7 +406,7 @@ def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
         "Sketch",
         status="draft",
         phasing=None,
-        rows=[("D-92.1", "LOCKED", "A draft's rule", "`src/widget/**`")],
+        rows=[("S-0092/D-1", "LOCKED", "A draft's rule", "`src/widget/**`")],
     )
     write_doc(
         "0093",
@@ -402,17 +414,17 @@ def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
         status="accepted",
         superseded_by="0090",
         phasing=None,
-        rows=[("D-93.1", "LOCKED", "A superseded rule", "`src/widget/**`")],
+        rows=[("S-0093/D-1", "LOCKED", "A superseded rule", "`src/widget/**`")],
     )
     git("add", "-A")
     git("commit", "-qm", "non-standing docs")
 
     rows = standing_decisions(root / ".torve" / "specs", ["src/widget/**"])
-    assert [d.id for d in rows] == ["D-90.1"]
+    assert [d.id for d in rows] == ["S-0090/D-1"]
 
 
 def test_a_phase_defaults_tier_variant_and_character_to_empty(tmp_path):
-    """RFC 0034 D-34.2: absent means no character, the same
+    """S-0034 S-0034/D-2: absent means no character, the same
     absent-means-default shape tier_variant carries."""
 
     doc = loaded(tmp_path, phasing=PHASING)
@@ -445,7 +457,7 @@ def test_the_loader_accepts_the_closed_character_vocabulary(tmp_path, character)
 
 
 def test_the_loader_refuses_a_character_outside_the_vocabulary(tmp_path):
-    """D-34.1: structural|routine is a closed vocabulary — compliance is
+    """S-0034/D-1: structural|routine is a closed vocabulary — compliance is
     measured, never declarable, and a typo is not a third option."""
 
     with pytest.raises(SpecError, match=r"phasing\.0\.character"):
@@ -479,11 +491,11 @@ def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
 
 
 # ....................... #
-# RFC 0054 phase 1: the row travels whole (D-54.1), and a blocking check
-# needs its twin (D-54.4).
+# S-0054 phase 1: the row travels whole (S-0054/D-1), and a blocking check
+# needs its twin (S-0054/D-4).
 
 DETAILS = {
-    "D-90.1": {
+    "S-0090/D-1": {
         "rationale": "because",
         "check": "pytest tests/test_widget.py",
         "check_state": "blocking",
@@ -503,14 +515,14 @@ def test_inherit_decisions_carries_consequence_and_check(tmp_path):
 
 
 def test_inherit_decisions_refuses_a_blocking_check_without_a_twin(tmp_path):
-    details = {"D-90.1": {k: v for k, v in DETAILS["D-90.1"].items() if k != "check_twin"}}
+    details = {"S-0090/D-1": {k: v for k, v in DETAILS["S-0090/D-1"].items() if k != "check_twin"}}
 
     with pytest.raises(PlanError, match="no check_twin"):
         inherit_decisions(loaded(tmp_path, details=details))
 
 
 # ....................... #
-# RFC 0056 phase 3 (D-56.9): with a store, plan mints into the record and
+# S-0056 phase 3 (S-0056/D-9): with a store, plan mints into the record and
 # writes no file; dispatch projects the contract into the worktree.
 
 
@@ -564,7 +576,7 @@ def test_the_contract_is_projected_into_a_worktree_that_lacks_it(tmp_path):
 
     assert written == tmp_path / ".torve" / "tasks" / "T-0042" / "contract.yaml"
     first, second = written.read_text(encoding="utf-8").splitlines()[:2]
-    assert first == "# yaml-language-server: $schema=../../schemas/contract.json"  # D-57.5
+    assert first == "# yaml-language-server: $schema=../../schemas/contract.json"  # S-0057/D-5
     assert second.startswith("# Projected from the record")
     assert load_task(written).intent == "Hold the line."
     # the file mode: a contract already there is the contract

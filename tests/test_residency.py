@@ -1,4 +1,4 @@
-"""The resident manager (RFC 0044 §5.4, D-44.5).
+"""The resident manager (S-0044/the-manager, S-0044/D-5).
 
 The loop itself is four lines; what is worth testing is what it refuses to
 carry between passes. Minting reads the board rather than remembering what
@@ -175,11 +175,11 @@ def test_a_task_the_record_has_run_is_not_overruled_by_the_repository(tmp_path):
 
 
 def test_the_standing_leg_runs_before_the_scan_and_a_paused_pass_skips_it(tmp_path):
-    """RFC 0023 §5.4: whatever a predicate mints is a contract file, and the
+    """S-0023/bounds-because-this-is-the-leg-that-can-grow: whatever a predicate mints is a contract file, and the
     scan that runs after it is what puts that contract on the board — so
     the leg needs no record-side machinery at all, only its turn (A-106).
 
-    D-23.6's first bound is the caller's, and this is that caller: a paused
+    S-0023/D-6's first bound is the caller's, and this is that caller: a paused
     pass evaluates no predicate, because a predicate that fires creates work
     and a pause says nobody can triage it."""
 
@@ -276,7 +276,7 @@ def test_the_pause_is_asked_again_every_pass(tmp_path):
 
 
 def test_the_relay_runs_before_the_mint_and_through_a_pause(tmp_path):
-    """RFC 0051 D-51.5: what a pass does first is the work already owed, so
+    """S-0051 S-0051/D-5: what a pass does first is the work already owed, so
     a page for an escalation raised an hour ago comes before a contract
     nobody has minted. And a pause is a statement that nobody can triage
     more work — which is exactly when the queue most needs draining, so the
@@ -321,7 +321,7 @@ def test_the_relay_runs_before_the_mint_and_through_a_pause(tmp_path):
 
 
 def test_the_lane_leg_runs_after_the_relay_and_before_the_mint(tmp_path):
-    """RFC 0052 §5.1: what a pass does first is the work already owed, and
+    """S-0052/the-leg-and-where-it-sits: what a pass does first is the work already owed, and
     a candidate that went green an hour ago is owed its landing more than
     a contract nobody has minted is owed its board row. Landing first also
     means the mint that follows sees a base that already moved, which is
@@ -541,7 +541,7 @@ def test_another_partition_sees_none_of_it(tmp_path):
         executed: list[str] = []
         await once(log, worker_over(log, executed), tmp_path, PARTITION)
 
-        # The partition is the boundary (D-44.7): a manager elsewhere reads
+        # The partition is the boundary (S-0044/D-7): a manager elsewhere reads
         # a board with nothing on it, whatever this repository holds.
         assert project(await log.since(partition="other/repo")).tasks == {}
 
@@ -580,7 +580,7 @@ def test_the_pass_records_the_facts_in_the_order_they_became_true(tmp_path):
         await once(log, worker_over(log, []), tmp_path, PARTITION)
 
         # The pass's own facts. What happened inside the run is the run's to
-        # report (D-44.3) and this execute is a stub, so nothing between the
+        # report (S-0044/D-3) and this execute is a stub, so nothing between the
         # claim and the landing is invented here.
         assert [event.kind for event in await log.history("T-0001")] == [
             EventKind.TASK_MINTED,
@@ -640,7 +640,7 @@ def test_the_attempt_burns_into_the_log_and_its_divergences_land_after(tmp_path,
                 "drift_count": 1,
                 "entries": [
                     {
-                        "decision": "D-44.5",
+                        "decision": "S-0044/D-5",
                         "grade": "ASSUMED",
                         "kind": "departed",
                         "class": "spec-gap",
@@ -1160,7 +1160,7 @@ def test_a_promotion_misconfiguration_breaks_the_leg_and_not_the_pass(tmp_path):
 
 
 def test_an_armed_pass_drains_the_lane_serially(tmp_path):
-    """D-52.6 is decided by the wiring rather than by a new choice: the leg
+    """S-0052/D-6 is decided by the wiring rather than by a new choice: the leg
     walks the queue exactly as the manual verb does with no argument — the
     first candidate fast-forwards, its landing moves the base, and the next
     rebases onto it in the same pass. One candidate per pass would be a

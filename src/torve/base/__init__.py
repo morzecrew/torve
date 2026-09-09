@@ -1,1 +1,1 @@
-"""Lowest layer: dependency-free helpers (RFC 0015 §2)."""
+"""Lowest layer: dependency-free helpers (S-0015/layers)."""

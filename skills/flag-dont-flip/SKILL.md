@@ -66,7 +66,7 @@ Fewer than three: decide them, log each as `UNLISTED`, carry on. That is what
 prevent.** A contract that needs three load-bearing inventions is not a contract
 you can satisfy — it is a specification defect, and reporting it is the correct
 outcome, not a failure to complete. The halt escalates as `underspecified`
-(charter A-21): it indicts the contract, not the code, and the fix is an
+(charter S-0001/A-7): it indicts the contract, not the code, and the fix is an
 amendment and a re-mint, never a retry.
 
 ## The log: `torve log divergence`
@@ -145,7 +145,7 @@ carries now, never re-read from the current spec.
 - **`--decision unlisted` owes a `--proposal`**, and takes `--grade UNLISTED`.
 - **`--notes` carries prose that belongs beside the entry** — never a sibling
   document.
-- Bypass records (RFC 0002 §6a) live in a separate `bypasses:` list in the
+- Bypass records (S-0002/three-outcomes-gates-need-beyond-pass-and-fail) live in a separate `bypasses:` list in the
   same file, written by the runner from a human's signed trailer. Not yours.
 
 ## Silence is what gets caught

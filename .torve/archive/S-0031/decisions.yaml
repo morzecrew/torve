@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-31.1
+  - id: D-1
     grade: LOCKED
     text: >-
       The survey is agentless and read-only: no model call, no sandbox, no credentials,
@@ -10,17 +10,17 @@ decisions:
     consequence: >-
       First contact must cost zero trust; an agent or a write in it converts the wedge
       into the commitment it exists to precede
-  - id: D-31.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Baseline extraction runs outside the engine as a skill; the engine only ever
-      reads the committed, human-accepted document, through RFC 0030's standing inheritance
+      reads the committed, human-accepted document, through S-0030's standing inheritance
       and nothing else
     paths: [skills/corpus-bootstrap/**]
     consequence: >-
-      D-2 and D-7.6 unchanged at the exact point they would be most convenient to
-      bend; no new engine surface for the baseline exists to drift
-  - id: D-31.3
+      S-0001/D-10 and S-0007/D-6 unchanged at the exact point they would be most convenient
+      to bend; no new engine surface for the baseline exists to drift
+  - id: D-3
     grade: LOCKED
     text: >-
       The baseline governs contracts minted after its acceptance only; no gate convicts
@@ -29,7 +29,7 @@ decisions:
     consequence: >-
       The ratchet is the entry's survivable property; day-one absolute enforcement
       converts findings into a reason to uninstall
-  - id: D-31.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       Replays are truncated clones at the landing sha with the first parent as gate
@@ -40,7 +40,7 @@ decisions:
     consequence: >-
       The skip line is the pitch: deleting it hides the one thing the survey exists
       to show
-  - id: D-31.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       A target with no gates manifest is surveyed with the shipped product battery
@@ -49,7 +49,7 @@ decisions:
     consequence: >-
       House-convention gates firing on a stranger's history would read as noise and
       indict the survey, not the history
-  - id: D-31.6
+  - id: D-6
     grade: OPEN
     text: >-
       Whether the baseline is one document or several by area, and its naming convention;

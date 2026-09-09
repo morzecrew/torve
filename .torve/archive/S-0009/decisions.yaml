@@ -1,18 +1,18 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-9.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Skills are role-scoped; a run loads only its role's set
     paths: [src/torve/application/skills.py]
     consequence: The cheapest fix for trigger collision
-  - id: D-9.2
+  - id: D-2
     grade: LOCKED
     text: >-
       `max_in_prompt` is enforced and truncation is recorded on the attempt
     paths: [src/torve/application/skills.py]
     consequence: A silently dropped skill makes telemetry wrong
-  - id: D-9.3
+  - id: D-3
     grade: LOCKED
     text: >-
       Skills ship as a versioned package with a per-repository lockfile, included
@@ -20,26 +20,26 @@ decisions:
     paths: [src/torve/application/telemetry.py]
     consequence: >-
       Otherwise measurements are not comparable across repositories
-  - id: D-9.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       A skill that does not beat its without-skill baseline is deleted
     consequence: Applies first to the taste cluster
-  - id: D-9.5
+  - id: D-5
     grade: LOCKED
     text: >-
       Where a rule can be either, prefer the gate and keep the skill only to reduce
-      iterations. *(Amended by A-8 2026-08-21: retiring a gate shrinks or removes
+      iterations. *(Amended by S-0002/A-2 2026-08-21: retiring a gate shrinks or removes
       its paired skill in the same change — otherwise an instruction survives for
       a rule that no longer exists.)*
     paths: [src/torve/gates/**, skills/**]
     consequence: Enforcement over hope
-  - id: D-9.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       Mechanical-format skills migrate to hooks and linters
     consequence: Depart where a hook cannot express the rule
-  - id: D-9.7
+  - id: D-7
     grade: LOCKED
     text: >-
       A skill whose format Torve parses ships with Torve, specialised: skill and gate
@@ -47,21 +47,21 @@ decisions:
       `ratchet-what-you-build` — and the boundary stays narrow (the test: does Torve
       parse what the skill produces?). On the engine path the runner writes the role-scoped
       set into the sandbox from package data at dispatch; nothing is installed into
-      repositories. Added by amendment A-3 2026-08-21
+      repositories. Added by amendment S-0009/A-1 2026-08-21
     paths: [skills/**, src/torve/application/skills.py]
     consequence: >-
       Versioned apart, the gate tightens and the skill does not know
-  - id: D-9.8
+  - id: D-8
     grade: LOCKED
     text: >-
-      `config_hash` includes the Torve package version (A-3) and the pinned forze
-      version (A-6), alongside the gate manifest and the agent-skills lockfile — supersedes
-      the D-9.3 composition and the T-0002 decision to record the toolchain beside
-      the hash. Added by amendments A-3/A-6 2026-08-21
+      `config_hash` includes the Torve package version (S-0009/A-1) and the pinned
+      forze version (S-0003/A-1), alongside the gate manifest and the agent-skills
+      lockfile — supersedes the S-0009/D-3 composition and the T-0002 decision to
+      record the toolchain beside the hash. Added by amendments A-3/A-6 2026-08-21
     paths: [src/torve/application/telemetry.py]
     consequence: >-
       Upgrading either silently changed the regime and telemetry did not notice
-  - id: D-9.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       The eval set includes the underspecification regression: a contract with three
@@ -69,42 +69,42 @@ decisions:
       implementation — the case most likely to regress when the skill is trimmed for
       length. Added by execution 2026-08-22 — see .torve/tasks/T-0018
     paths: [skills/flag-dont-flip/SKILL.md]
-  - id: D-9.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       Shipped skills teach the canonical artefact layout in lockstep with the engine;
       a skill teaching a retired path teaches agents to write files nothing reads.
       Added by execution 2026-08-22 — see .torve/tasks/T-0018
     paths: [skills/**]
-  - id: D-9.11
+  - id: D-11
     grade: ASSUMED
     text: >-
       Vendored skills live under `.torve/skills-vendor/<name>/`, committed and reviewed;
       role sets resolve names against package data and the vendor directory together,
-      and a name unknown to both is a configuration error. Added by amendment A-25
+      and a name unknown to both is a configuration error. Added by amendment S-0009/A-2
       2026-08-22
     paths: [src/torve/application/skills.py, .torve/skills-vendor/**]
     consequence: >-
       The team's library reaches the sandbox as reviewed content, not ambient copies
-  - id: D-9.12
+  - id: D-12
     grade: LOCKED
     text: >-
       A skill name present in both package data and the vendor directory is a configuration
-      error, refused — never shadowed in either direction. Added by amendment A-25
+      error, refused — never shadowed in either direction. Added by amendment S-0009/A-2
       2026-08-22
     paths: [src/torve/application/skills.py]
     consequence: >-
-      A vendored variant of a parsed-format skill drifts against its gate — the A-3
+      A vendored variant of a parsed-format skill drifts against its gate — the S-0009/A-1
       failure reintroduced
-  - id: D-9.13
+  - id: D-13
     grade: LOCKED
     text: >-
       The vendored tree's content digest joins `config_hash`; an edited vendored skill
-      is a visible regime change. Added by amendment A-25 2026-08-22
+      is a visible regime change. Added by amendment S-0009/A-2 2026-08-22
     paths: [src/torve/application/telemetry.py]
     consequence: >-
       The image-digest doctrine applied to prompt-side inputs
-  - id: D-9.14
+  - id: D-14
     grade: ASSUMED
     text: >-
       Every record a run appends names the skills materialized for the attempt, filled
@@ -113,14 +113,14 @@ decisions:
     paths: [src/torve/application/runner.py]
     consequence: >-
       Attribution from configuration archaeology reconstructs intent, not fact
-  - id: D-9.15
+  - id: D-15
     grade: ASSUMED
     text: >-
       The eval loop is `torve eval`: with-skill versus without-skill shadow replays
-      of the same completed tasks (nothing merges, RFC 0004 D-4.4), arms marked on
-      every record, one skill-eval record in the evals ledger with a baseline-matched
+      of the same completed tasks (nothing merges, S-0004 S-0004/D-4), arms marked
+      on every record, one skill-eval record in the evals ledger with a baseline-matched
       verdict as direction, never magnitude; deletion stays a human act on the evidence
-      (D-9.4). A skill in no role set refuses before any spend. Added by execution
+      (S-0009/D-4). A skill in no role set refuses before any spend. Added by execution
       2026-08-24 — see .torve/tasks/T-0071
     paths: [src/torve/application/evals.py, src/torve/cli/evals.py]
     consequence: >-

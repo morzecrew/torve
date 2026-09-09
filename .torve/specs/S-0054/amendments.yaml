@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-153
+  - id: A-1
     at: '2026-09-09'
     title: phase 1 brings the runner's test file
     changes:
@@ -12,7 +12,7 @@ amendments:
           … tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py
     md: |-
       **Found by `torve plan`.** Phase 1 allows `src/torve/gates/runner.py` and
-      not `tests/test_runner.py`, which the lint the planner now runs (A-132)
+      not `tests/test_runner.py`, which the lint the planner now runs (S-0052/A-3)
       refuses under the T-0113 rule: a module in scope brings its test file.
 
       **Changed:** phase 1's scope and acceptance gain `tests/test_runner.py`.
@@ -23,7 +23,7 @@ amendments:
         before: "… tests/test_gates.py tests/test_sabotage.py tests/test_cli.py"
         after: "… tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
       ```
-  - id: A-154
+  - id: A-2
     at: '2026-09-09'
     title: phase 1 reaches the event payload
     changes:
@@ -35,7 +35,7 @@ amendments:
           … src/torve/application/decisions.py src/torve/domain/events.py src/torve/gates/runner.py
           …
     md: |-
-      **Found by executing phase 1.** D-54.1 says `decision.recorded` carries
+      **Found by executing phase 1.** S-0054/D-1 says `decision.recorded` carries
       the consequence and the check, and the payload model that refuses an
       unknown key lives in `src/torve/domain/events.py`, which the phase's
       scope did not name.
@@ -49,7 +49,7 @@ amendments:
         before: "… src/torve/application/decisions.py src/torve/gates/runner.py …"
         after: "… src/torve/application/decisions.py src/torve/domain/events.py src/torve/gates/runner.py …"
       ```
-  - id: A-155
+  - id: A-3
     at: '2026-09-09'
     title: phase 1 reaches the adoption tests
     changes:
@@ -61,7 +61,7 @@ amendments:
           …
     md: |-
       **Found by executing phase 1.** Adoption mints through the same
-      `inherit_decisions` the planner uses (A-47), so an adopted contract's rows
+      `inherit_decisions` the planner uses (S-0007/A-3), so an adopted contract's rows
       gain the four fields too, and three adoption tests compare rows whole.
 
       **Changed:** phase 1's scope and acceptance gain `tests/test_intake.py`.
@@ -72,7 +72,7 @@ amendments:
         before: "… tests/test_events.py tests/test_gates.py …"
         after: "… tests/test_events.py tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
       ```
-  - id: A-156
+  - id: A-4
     at: '2026-09-09'
     title: phase 1 reaches the standing tests
     changes:
@@ -94,7 +94,7 @@ amendments:
         before: "… tests/test_intake.py tests/test_gates.py …"
         after: "… tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
       ```
-  - id: A-158
+  - id: A-5
     at: '2026-09-09'
     title: phase 2 reaches the working rules
     changes:
@@ -119,7 +119,7 @@ amendments:
         before: "… src/torve/cli/main.py .torve/gates.yaml …; tests … tests/test_manifest.py"
         after: "… src/torve/cli/main.py src/torve/adapters/agent/harness.py .torve/gates.yaml …; tests … tests/test_manifest.py tests/test_tiering.py"
       ```
-  - id: A-159
+  - id: A-6
     at: '2026-09-09'
     title: phase 2 renders into every governed directory
     changes:
@@ -131,7 +131,7 @@ amendments:
       **Found by rendering.** The rows govern `migrations/`, `pages/`, `skills/`,
       `tests/`, `web/` and the source tree; the phase's scope named the source
       tree's `AGENTS.md` files alone. The projection skips the corpus path
-      (D-A.18), the archive and every hidden directory — the engine's own state
+      (S-0016/D-25), the archive and every hidden directory — the engine's own state
       under `.torve/` is not where an agent works — and reaches the rest.
 
       **Changed:** phase 2's scope names `**/AGENTS.md`, which covers the root
@@ -143,7 +143,7 @@ amendments:
         before: "AGENTS.md src/torve/**/AGENTS.md"
         after: "**/AGENTS.md"
       ```
-  - id: A-160
+  - id: A-7
     at: '2026-09-09'
     title: phase 3 reaches the working rules
     changes:
@@ -157,7 +157,7 @@ amendments:
     md: |-
       **Found while planning phase 3.** §5.6 gives the working rules one line
       naming the pack's index; the rules live in the harness, which phase 2
-      reached (A-158) before the pack existed and phase 3 did not name.
+      reached (S-0054/A-5) before the pack existed and phase 3 did not name.
 
       **Changed:** phase 3's scope and acceptance gain the harness and the
       prompt's tests.

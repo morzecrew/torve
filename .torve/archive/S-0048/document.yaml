@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: 0048
+id: S-0048
 title: The fleet as partitions
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0024', '0044']
-informed_by: ['0013', 0019, '0035']
+depends_on: [S-0024, S-0044]
+informed_by: [S-0013, S-0019, S-0035]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   The resident manager runs the operator's whole fleet rather than one repository:
@@ -21,7 +21,7 @@ sections:
       processes, two hand-typed partition names and two places to notice that one
       of them died.
 
-      The engine already has the artefact this needs. RFC 0024's fleet manifest
+      The engine already has the artefact this needs. S-0024's fleet manifest
       lists every repository the operator works, in a deterministic order, with a
       trust class per root and one attention budget across all of them — and
       `torve fleet tick` already loops it, isolating failures. What the manifest
@@ -32,7 +32,7 @@ sections:
       per repository in the manifest's order.
   - key: motivation
     md: |
-      **Multi-repo is designed and not operable.** RFC 0044 built the partition
+      **Multi-repo is designed and not operable.** S-0044 built the partition
       column, the per-partition board and a manager that reads one. Everything
       above that is a shell loop the operator writes themselves.
 
@@ -43,13 +43,13 @@ sections:
       any point. Nothing about the current interface makes that hard to do.
 
       **The attention budget is fleet-wide and the resident manager cannot see
-      it.** D-24.2 decided that triage debt is measured once across every
+      it.** S-0024/D-2 decided that triage debt is measured once across every
       repository, because the operator triaging it exists once. `torve fleet tick`
       honours that. A resident manager per repository cannot: each one knows only
       its own queue, so the fleet pauses when no single root is over budget and
       five together are.
 
-      **The trust classes do not reach v2 either.** D-24.6 refuses a root whose
+      **The trust classes do not reach v2 either.** S-0024/D-6 refuses a root whose
       own configuration asks for more than its manifest class allows, checked from
       the operator's file where the repository cannot argue with it. A manager
       started by hand against a root skips that check entirely.
@@ -59,11 +59,11 @@ sections:
 
       - `FleetRepository` is `{root, trust}` — no partition. `FleetManifest` adds
         `attention.pause_escalations` and `order`, whose values are `manifest` and
-        `alphabetical` and deliberately not a priority field (D-24.4).
+        `alphabetical` and deliberately not a priority field (S-0024/D-4).
       - `fleet_tick(manifest, tick)` is the loop this mirrors: survey every root's
         queue, decide the pause once, then per root enforce trust, run, and record
         the outcome — a `TrustRefused` or any other exception is recorded and the
-        pass continues (D-24.5).
+        pass continues (S-0024/D-5).
       - `residency.once(log, worker, root, partition, …)` is one pass over one
         partition: reclaim, mint, then let the worker take at most one task. It
         has no way to skip minting.
@@ -82,7 +82,7 @@ sections:
       - The root-to-partition binding declared once, in a reviewed file, outside
         every repository — so a crossed pair is a diff somebody reads rather than
         a typo nobody sees.
-      - RFC 0024's rules applied to v2 unchanged: deterministic order, trust
+      - S-0024's rules applied to v2 unchanged: deterministic order, trust
         enforced before a root is touched, one failing repository never stopping
         the pass, one attention budget for the fleet.
       - A partition with nothing to do costs one board read.
@@ -121,10 +121,10 @@ sections:
 
       **Never derived.** A partition from the git remote is convenient and wrong in
       exactly the cases that matter — a repository with no remote, with two, or
-      with one that changed. It is the same argument RFC 0024 made about trust:
+      with one that changed. It is the same argument S-0024 made about trust:
       *"a class nobody wrote down is a grant nobody reviewed."*
 
-      **Never read from the root.** D-13.3 keeps the manifest on the operator's
+      **Never read from the root.** S-0013/D-3 keeps the manifest on the operator's
       machine because a repository under work configures nothing about the engine
       that works on it. A repository declaring its own partition is that failure
       exactly: it would let a checkout mint onto a board it was never given.
@@ -145,7 +145,7 @@ sections:
       One round is `fleet_tick`'s shape with `residency.once` where the tick was:
 
       1. survey every repository's escalation queue,
-      2. decide the pause once for the fleet total (D-24.2),
+      2. decide the pause once for the fleet total (S-0024/D-2),
       3. per repository, in the manifest's order: refuse a missing partition,
          enforce its trust class against its own runner configuration, then run one
          pass with the pause decision passed down,
@@ -156,15 +156,15 @@ sections:
 
       `run_pass` is injected exactly as `TickRunner` is, and for the same reason:
       wiring one repository's worker needs adapters, and `torve.application` may
-      not import `torve.adapters` (RFC 0015 §6).
+      not import `torve.adapters` (S-0015/enforcement-the-layering-gate).
 
-      A repository that raises is recorded and the round continues (D-24.5). A
+      A repository that raises is recorded and the round continues (S-0024/D-5). A
       manager that stops serving four healthy repositories because a fifth has a
       broken configuration is worse than one that says so and carries on.
   - key: the-pause-is-the-absence-of-minting
     md: |
       `residency.once` gains `paused: bool = False`, which skips the mint and
-      nothing else. That is D-19.5's rule as it already stands — *the queue may
+      nothing else. That is S-0019/D-5's rule as it already stands — *the queue may
       drain during a pause; it may not grow* — expressed where v2 mints. Work
       already on the board still runs to completion; a worker mid-attempt is not
       interrupted, because a pause is a statement about the operator's capacity to
@@ -219,7 +219,7 @@ sections:
         pass count rather than on a clock.
       - **The escalation union**: one task escalated in both carriers counts once.
       - Explicitly not tested: that two partitions cannot interfere. They share a
-        log and are separated by its partition column, which RFC 0044 phase 1
+        log and are separated by its partition column, which S-0044 phase 1
         already tests; a second test here would be testing the store.
   - key: docs
     md: |
@@ -231,11 +231,11 @@ sections:
   - key: out-of-scope
     md: |
       - **Concurrency across partitions.** What it needs: a seat allocator that
-        will not run two workers under one slot's cache volume (RFC 0035 D-35.4's
+        will not run two workers under one slot's cache volume (S-0035 S-0035/D-4's
         suffixing is already the mechanism), a broker per worker or a broker that
         can hold several runs, and a decision about how many attempts an operator
         wants running unattended. Named, measurable, and deliberately after this.
-      - **Per-partition attention budgets.** D-24.2 decided the budget is shared
+      - **Per-partition attention budgets.** S-0024/D-2 decided the budget is shared
         and this document does not reopen it.
       - **A fleet-wide board.** `torve manager board` reads one partition. A view
         across all of them is a projection, and worth building once there is more

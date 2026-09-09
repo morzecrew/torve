@@ -1,6 +1,6 @@
-"""RFC 0028 phase 1 — agent profiles: `TierConfig.profile`, and the raw-mapping
-merge `load_runner_config` performs before validation (D-28.1-D-28.5). Every
-resolution failure is a refusal naming the file (D-28.3); the D-21.1
+"""S-0028 phase 1 — agent profiles: `TierConfig.profile`, and the raw-mapping
+merge `load_runner_config` performs before validation (S-0028/D-1-D-28.5). Every
+resolution failure is a refusal naming the file (S-0028/D-3); the S-0021/D-1
 broker/credential interaction and the `config_hash` regime property (§5.3)
 are both pinned here since neither needed a code change to hold.
 """
@@ -88,7 +88,7 @@ def test_local_key_wins_over_profile_key(agents_dir: Path, tmp_path: Path):
 def test_locally_written_empty_string_wins_over_a_profile_value(agents_dir: Path, tmp_path: Path):
     """The §5.2 ambiguity: a model-level merge can't tell "set to empty" from
     "never written" because both read as the field default. The raw-mapping
-    merge can, by key presence — this is exactly why D-28.2 mandates it."""
+    merge can, by key presence — this is exactly why S-0028/D-2 mandates it."""
 
     write(agents_dir / "prof.yaml", "model: profile-model\n")
     config = load(
@@ -110,7 +110,7 @@ def test_api_key_env_replaces_wholesale_never_concatenates(agents_dir: Path, tmp
 
 
 def test_tier_skills_replace_a_profiles_skills_wholesale(agents_dir: Path, tmp_path: Path):
-    """D-29.3: `skills` rides the profile merge under D-28.4's rule — a
+    """S-0029/D-3: `skills` rides the profile merge under S-0028/D-4's rule — a
     local list replaces the profile's list entirely, the same way
     `api_key_env` does above; there is no per-field union logic to add."""
 
@@ -135,7 +135,7 @@ def test_tier_skills_carry_through_a_profile_when_not_locally_overridden(
 def test_a_partial_profile_leaves_untouched_fields_at_their_default(
     agents_dir: Path, tmp_path: Path
 ):
-    """D-28.5: a profile body may be a skeleton — only checked for key
+    """S-0028/D-5: a profile body may be a skeleton — only checked for key
     validity at merge time, never validated as a standalone TierConfig."""
 
     write(
@@ -253,7 +253,7 @@ def test_profile_list_unknown_key_names_that_profiles_own_path(agents_dir: Path,
 
 
 def test_profile_to_profile_reference_is_not_chased(agents_dir: Path, tmp_path: Path):
-    """D-28.4: one merge level. A profile body naming its own `profile` key
+    """S-0028/D-4: one merge level. A profile body naming its own `profile` key
     is not itself resolved — `base.yaml` is never read, and the field simply
     carries through like any other unconsumed key."""
 
@@ -270,7 +270,7 @@ def test_profile_to_profile_reference_is_not_chased(agents_dir: Path, tmp_path: 
 
 
 # ....................... #
-# Refusals — D-28.3, every failure names the file
+# Refusals — S-0028/D-3, every failure names the file
 
 
 def test_unknown_profile_name_refuses_naming_the_path_and_present_stems(
@@ -305,7 +305,7 @@ def test_unknown_key_in_profile_body_refuses_naming_key_and_file(agents_dir: Pat
 def test_invalid_merged_result_fails_tierconfig_validation(agents_dir: Path, tmp_path: Path):
     """A real adapter with no command and no provider — the underlying
     pydantic error, now wrapped to name the tier, the profile and its file
-    (D-28.3's fourth refusal class), since local content had the last word
+    (S-0028/D-3's fourth refusal class), since local content had the last word
     (there is none here, so the profile's own gap surfaces)."""
 
     path = write(agents_dir / "half.yaml", "adapter: harness\n")
@@ -321,7 +321,7 @@ def test_invalid_merged_result_fails_tierconfig_validation(agents_dir: Path, tmp
 
 
 # ....................... #
-# D-21.1 interaction: profiles cannot launder a credential channel
+# S-0021/D-1 interaction: profiles cannot launder a credential channel
 
 
 def test_profile_supplied_api_key_env_is_refused_under_a_broker(agents_dir: Path, tmp_path: Path):
@@ -373,7 +373,7 @@ def test_editing_a_profile_changes_the_digest_on_its_next_load(agents_dir: Path,
 
 
 # ....................... #
-# profiles_dir() — beside the fleet manifest (D-28.1)
+# profiles_dir() — beside the fleet manifest (S-0028/D-1)
 
 
 def test_profiles_dir_honours_xdg_config_home(monkeypatch, tmp_path: Path):
@@ -388,7 +388,7 @@ def test_profiles_dir_falls_back_to_the_home_config_dir(monkeypatch, tmp_path: P
 
 
 # ....................... #
-# retry_variants (D-34.6, D-34.7): the axis-keyed mapping, the scalar kept
+# retry_variants (S-0034/D-6, S-0034/D-7): the axis-keyed mapping, the scalar kept
 # as its functional sugar, and one resolution every reader shares.
 
 
@@ -487,7 +487,7 @@ def test_retry_variants_change_the_regime_digest(tmp_path: Path):
 
 
 def test_blocker_revisions_defaults_to_one_and_parses_from_yaml(tmp_path: Path):
-    # RFC 0043 D-43.1/D-43.3: the knob defaults to 1 in-run revision, and a
+    # S-0043 S-0043/D-1/D-43.3: the knob defaults to 1 in-run revision, and a
     # YAML override rides the same `review:` mapping as `on`/`feedback_from`.
     config = load(
         tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  blocker_revisions: 3"])
@@ -497,7 +497,7 @@ def test_blocker_revisions_defaults_to_one_and_parses_from_yaml(tmp_path: Path):
 
 
 # ....................... #
-# The tier clock (D-35.6): a named override wins, absence falls to the global
+# The tier clock (S-0035/D-6): a named override wins, absence falls to the global
 
 
 def test_a_tier_clock_overrides_the_runtime_global(tmp_path: Path):
@@ -559,7 +559,7 @@ def test_tier_clocks_ride_the_profile_merge(agents_dir: Path, tmp_path: Path):
 
 
 # ....................... #
-# The derived-cache volume (RFC 0035 §5.2, D-35.4)
+# The derived-cache volume (S-0035/the-derived-cache-volume, S-0035/D-4)
 
 
 def test_an_unnamed_cache_volume_is_cold_by_default():
@@ -583,7 +583,7 @@ def test_cache_volume_rides_the_profile_merge(agents_dir: Path, tmp_path: Path):
 def test_a_warm_regime_is_a_different_regime_digest(tmp_path: Path):
     # The tier dump `config_hash` already digests carries `cache_volume` for
     # free — warm and cold arms of one campaign are separable populations,
-    # even though the only difference a run may see is wall clock (D-35.1).
+    # even though the only difference a run may see is wall clock (S-0035/D-1).
     cold = RunnerConfig()
     warm = RunnerConfig(tiers={**cold.tiers, "executor": TierConfig(cache_volume="torve-cache")})
     gate = manifest(tmp_path)
@@ -592,7 +592,7 @@ def test_a_warm_regime_is_a_different_regime_digest(tmp_path: Path):
 
 
 # ....................... #
-# character_routing (RFC 0034 D-34.3)
+# character_routing (S-0034 S-0034/D-3)
 
 
 def test_character_routing_names_no_configured_tier_is_a_load_time_refusal():
@@ -659,7 +659,7 @@ def test_resolve_character_tier_leaves_a_task_with_no_character_alone():
 
 
 def test_an_explicit_tier_variant_wins_over_a_mapped_character():
-    """D-34.3: explicit tier_variant always wins over character routing."""
+    """S-0034/D-3: explicit tier_variant always wins over character routing."""
 
     config = RunnerConfig(
         tiers={
@@ -691,7 +691,7 @@ def test_traces_block_loads_from_yaml(tmp_path: Path):
 
 
 def test_traces_block_rejects_unknown_keys(tmp_path: Path):
-    # D-13.5 again: a typo under traces must not silently drop a knob.
+    # S-0013/D-5 again: a typo under traces must not silently drop a knob.
     with pytest.raises(ValidationError):
         load(tmp_path, "traces:\n  keep_weeks: 4\n")
 
@@ -705,7 +705,7 @@ def test_traces_bounds_refuse_non_numbers():
 
 
 # ....................... #
-# Remote endpoint mode (RFC 0041 §5.4): broker.bind and broker.advertise.
+# Remote endpoint mode (S-0041/the-broker-reachable): broker.bind and broker.advertise.
 # The advertised address is resolved once at load and published on the
 # opensandbox config — the runtime composes the sandbox's proxy env from
 # it with no channel to the broker, replacing the Docker-gateway
@@ -811,20 +811,20 @@ def test_remote_broker_proxy_is_silent_for_sealed():
 
 
 def test_the_review_role_loads_a_shipped_skill_by_default() -> None:
-    # D-54.14 as landed: the shipped skill declaring the role reaches it.
+    # S-0054/D-14 as landed: the shipped skill declaring the role reaches it.
     # `reading-isnt-proof` is vendored in this repository, not shipped, so
     # a package default naming it would refuse every adopter's review.
     assert RunnerConfig().skills.sets["review"] == ["ratchet-what-you-build"]
 
 
 def test_the_corpus_path_defaults_beside_everything_else_under_torve() -> None:
-    # D-57.3: one path, and the archive and the schemas are its siblings —
+    # S-0057/D-3: one path, and the archive and the schemas are its siblings —
     # so the default is the layout constant, not a second spelling of it.
     assert RunnerConfig().specs.path == layout.SPECS_DIR == ".torve/specs"
 
 
 def test_the_old_rfcs_key_is_refused_naming_specs() -> None:
-    # D-57.3: renamed, never mapped. Silently accepting `rfcs` would point
+    # S-0057/D-3: renamed, never mapped. Silently accepting `rfcs` would point
     # a converted repository's engine at a corpus that no longer exists.
     with pytest.raises(ValidationError, match=r"`rfcs` is `specs`"):
         RunnerConfig.model_validate({"rfcs": {"path": "rfcs"}})

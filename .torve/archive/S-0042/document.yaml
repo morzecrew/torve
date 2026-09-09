@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0042'
+id: S-0042
 title: The composition root and the substrate runtime
 kind: design
 status: superseded
 implementation: complete
-depends_on: [0008, '0015', 0019]
-informed_by: ['0003', '0012', '0024', '0032', '0041']
+depends_on: [S-0008, S-0015, S-0019]
+informed_by: [S-0003, S-0012, S-0024, S-0032, S-0041]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   One composition root instead of per-verb wiring, and the substrate's runtime machinery
@@ -28,7 +28,7 @@ sections:
       constructed directly "until the forze runtime is adopted". Adoption here
       is in-process and per-invocation — the tick stays a tick. The resident
       server that would own cadence is the one piece this document refuses to
-      smuggle: it contradicts a reasoned LOCKED-grade doctrine (RFC 0019 §2)
+      smuggle: it contradicts a reasoned LOCKED-grade doctrine (S-0019/a-tick-not-a-daemon)
       and gets a named decision for the owner instead of a quiet phase.
   - key: motivation
     md: |
@@ -40,14 +40,14 @@ sections:
         untested-hotspot list is exactly these files (`cli/run.py`,
         `cli/fleet.py`, `cli/sandbox.py`, `cli/review.py`).
       - **Every future deployment shape needs the same extraction.** A serve
-        write path (RFC 0032 defers one), a night-window scheduler, a resident
-        engine, RFC 0041's remote profile — each would today copy the wiring a
+        write path (S-0032 defers one), a night-window scheduler, a resident
+        engine, S-0041's remote profile — each would today copy the wiring a
         fourth, fifth, sixth time or import a CLI verb's internals.
       - **The substrate has already been adopted halfway.** `TaskStore` rides
         forze's `DurableFunctionRunner` for the attempt loop — lease
         heartbeat, fenced terminal writes, `claim_abandoned` recovery — while
         beside it torve hand-rolls what forze also ships: the tracker relay is
-        a hand-built outbox keyed `(task_id, state, attempt)` (D-8.2) in a
+        a hand-built outbox keyed `(task_id, state, attempt)` (S-0008/D-2) in a
         four-fix bug-magnet file, tick shutdown has no quiesce discipline, and
         recovery is invoked ad hoc by the reaper rather than as the substrate's
         lifecycle step. Half-adoption pays integration cost without collecting
@@ -65,19 +65,19 @@ sections:
       - `taskstore.py`'s docstring: torve constructs the store directly
         "until the forze runtime is adopted" — the adoption this document
         scopes was anticipated by the integration's author.
-      - Layering (RFC 0015 §2.1, enforced by `lint-imports`): `application`
+      - Layering (S-0015/permitted-imports, enforced by `lint-imports`): `application`
         may not import `adapters`; `cli` may. A composition root therefore
         lives in `cli` with zero layering change — the point is one builder,
         not a new layer.
       - The tracker outbox is hand-rolled in
-        `src/torve/application/tracker.py` (D-8.2), 4 bug fixes in 90 days.
+        `src/torve/application/tracker.py` (S-0008/D-2), 4 bug fixes in 90 days.
         Whether forze's outbox contract fits it is *unverified* — graded
-        accordingly (D-42.5).
-      - RFC 0019 §2 rejected the resident daemon with reasons that still
+        accordingly (S-0042/D-5).
+      - S-0019/a-tick-not-a-daemon rejected the resident daemon with reasons that still
         hold: the store is the authority, every invocation is inspectable, a
         dead cron entry is visible as silence where a wedged daemon is not.
         `torve serve` is already resident but read-only by its own LOCKED
-        scope (RFC 0032).
+        scope (S-0032).
   - key: goals-non-goals
     md: |
       **Goals**
@@ -97,10 +97,10 @@ sections:
         adapter imports are already legal.
       - No behaviour change to any verb — this is `safe-refactor` material:
         same deps, built in one place.
-      - No scheduler adoption — cadence stays the environment's (RFC 0019);
+      - No scheduler adoption — cadence stays the environment's (S-0019);
         a night window is cron plus a config today, and internalizing it is
         exactly the §5.4 decision, not a rider.
-      - No multi-host anything — RFC 0041 D-41.1 stands.
+      - No multi-host anything — S-0041 S-0041/D-1 stands.
   - key: the-composition-root
     md: |
       `src/torve/cli/assembly.py`: builders that close over `(root, config)`
@@ -122,7 +122,7 @@ sections:
       Both are in-process and per-invocation: nothing becomes resident.
   - key: the-tracker-outbox-investigated
     md: |
-      One timeboxed investigation task: map D-8.2's staging semantics
+      One timeboxed investigation task: map S-0008/D-2's staging semantics
       (keyed effects, at-least-once relay, the poll/apply command loop) onto
       `forze_kits.integrations.outbox`. If the fit is real, a migration
       phase replaces the hand-rolled staging under the same `Tracker` port
@@ -134,16 +134,16 @@ sections:
     md: |
       A server that owns cadence (forze's `DurableScheduler` under a
       long-lived process, the natural home for provider off-peak windows and
-      RFC 0032's deferred write path) collides with RFC 0019 §2's reasoned
-      rejection of the daemon. This document takes no side: D-42.6 records
-      the question, its entry condition (an amendment to RFC 0019, the
+      S-0032's deferred write path) collides with S-0019/a-tick-not-a-daemon's reasoned
+      rejection of the daemon. This document takes no side: S-0042/D-6 records
+      the question, its entry condition (an amendment to S-0019, the
       owner's), and what becomes possible on each answer. Until then the
       composition root is deliberately shaped so a resident entrypoint would
       be one new consumer, not a rewiring.
   - key: alternatives-considered
     md: |
       - **Assembly in `application/`** — rejected: it would need adapter
-        imports, which RFC 0015 §2.1 forbids there; relaxing layering to
+        imports, which S-0015/permitted-imports forbids there; relaxing layering to
         save one import line inverts the priorities.
       - **A plugin/registry DI container** — rejected: three verbs and one
         future entrypoint do not justify indirection; plain builder
@@ -164,14 +164,14 @@ sections:
     md: |
       None user-facing for the extraction (behaviour-preserving). The
       substrate-adoption phase notes which forze integrations are in service
-      — the forze pin's regime meaning (RFC 0012, A-6) already covers the
-      upgrade story. D-42.6's question is documented in this file alone
+      — the forze pin's regime meaning (S-0012, S-0003/A-1) already covers the
+      upgrade story. S-0042/D-6's question is documented in this file alone
       until the owner answers it.
   - key: out-of-scope
     md: |
       - The resident engine profile and any scheduler adoption — gated on
-        D-42.6's owner decision amending RFC 0019.
-      - The serve write path — RFC 0032 excluded it; it becomes cheap after
+        S-0042/D-6's owner decision amending S-0019.
+      - The serve write path — S-0032 excluded it; it becomes cheap after
         §5.1 but remains its own document with its own security posture.
       - forze `stored_file` for artifact transport — relevant only to
         multi-host futures; inspect before inventing, when that document
@@ -195,16 +195,16 @@ sections:
         open.
   - key: unresolved-questions
     md: |
-      - D-42.6 — the resident engine (owner, via RFC 0019 amendment or its
+      - S-0042/D-6 — the resident engine (owner, via S-0019 amendment or its
         refusal).
       - Whether the fleet's per-root loop consumes assembly directly or
         through a thinner per-root handle — implementation decides against
         the actual shape of `TickDeps` reuse across roots, and logs.
   - key: decisions
     md: |
-      D-42.6 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0042/D-6 was retired 2026-09-09; path rot. The identifier is never reused.
 
-      D-42.5 was retired 2026-09-09; path rot. The identifier is never reused.
+      S-0042/D-5 was retired 2026-09-09; path rot. The identifier is never reused.
   - key: phasing
     md: |
       Phase 2 waits on phase 1 because quiesce wiring rides the extracted
@@ -217,8 +217,8 @@ phasing:
     intent: >-
       src/torve/cli/assembly.py: builders producing RunDeps, TickDeps and the intake/review
       legs from (root, config); run_cmd, tick_cmd and the fleet loop consume them;
-      fleet._build_deps is deleted (D-42.1). Behaviour-preserving and layering-preserving
-      (D-42.2): front-door checks stay in the verbs, bundles and ports unchanged.
+      fleet._build_deps is deleted (S-0042/D-1). Behaviour-preserving and layering-preserving
+      (S-0042/D-2): front-door checks stay in the verbs, bundles and ports unchanged.
       Assembly builder tests land with the extraction; verb scenario tests pin behaviour
       unchanged.
     scope:
@@ -241,9 +241,9 @@ phasing:
     intent: >-
       Tick shutdown drains through forze's quiesce plane; the recovery invocation
       moves from the reaper's ad hoc call to the substrate's recovery step at tick
-      start with identical semantics (D-42.3, D-42.4). Per-invocation only — nothing
-      resident (D-42.6 stands). Tick tests pin drain-on-shutdown and recovery equivalence
-      against the current reaper-driven baseline.
+      start with identical semantics (S-0042/D-3, S-0042/D-4). Per-invocation only
+      — nothing resident (S-0042/D-6 stands). Tick tests pin drain-on-shutdown and
+      recovery equivalence against the current reaper-driven baseline.
     scope:
       - src/torve/application/loop.py
       - src/torve/application/taskstore.py
@@ -263,12 +263,12 @@ phasing:
   - phase: 3
     title: the tracker outbox investigation
     intent: >-
-      The timeboxed D-42.5 investigation: map D-8.2's staged-effect semantics onto
-      forze_kits.integrations.outbox and record the verdict in the task log. On fit,
-      the follow-up migration replaces the hand-rolled staging under the same Tracker
-      port with the tracker suite passing unchanged as the acceptance bar; on no-fit,
-      the hand-rolled outbox stays and the decision row gains the finding. This phase
-      is the investigation; the migration mints only from its verdict.
+      The timeboxed S-0042/D-5 investigation: map S-0008/D-2's staged-effect semantics
+      onto forze_kits.integrations.outbox and record the verdict in the task log.
+      On fit, the follow-up migration replaces the hand-rolled staging under the same
+      Tracker port with the tracker suite passing unchanged as the acceptance bar;
+      on no-fit, the hand-rolled outbox stays and the decision row gains the finding.
+      This phase is the investigation; the migration mints only from its verdict.
     scope:
       - src/torve/application/tracker.py
       - tests/test_tracker.py

@@ -2,7 +2,7 @@
   "$defs": {
     "BrokerConfig": {
       "additionalProperties": false,
-      "description": "The egress broker (RFC 0021 \u00a75.1): which adapter is in force and what\nit is fed. `none` is today's behaviour named explicitly \u2014 keys pass\nthrough, no metering, no wire routing \u2014 and stays the phase-1 default;\n`torve doctor` names it and says plainly that it leaves D-4b unmet\n(D-21.9). Under any other adapter a brokered tier names no credential\n(D-21.1): the broker's provider table is the one channel.\n\nThe two modes are D-21.3's split: `endpoint` (the phase-1 default)\ncloses custody and metering on the daemon's default bridge; `sealed`\nadds containment \u2014 the sandbox joins the user-defined internal Docker\nnetwork named here, whose only host-side address is the broker, and\nevery non-provider destination the run needs is declared under\n`pass_through` and CONNECTed without inspection. The same network is\nnamed in `runtime.network` \u2014 egress policy (this block) and sandbox\nprovisioning (`runtime`) are two views of one fact, and the runner\nvalidator refuses them to disagree (D-21.11).\n\nAn endpoint whose sandboxes are remote \u2014 an OpenSandbox server on\nanother machine \u2014 configures `bind` and, across a NAT or a hostname\nsplit, `advertise`: the loopback/bridge derivation reaches nobody out\nthere, and the remote broker answers non-provider requests only with\na refusal naming the destination \u2014 the pass-through leg is a\nsealed-mode mechanism, authenticated by a topology a remote run does\nnot have.",
+      "description": "The egress broker (S-0021/the-port): which adapter is in force and what\nit is fed. `none` is today's behaviour named explicitly \u2014 keys pass\nthrough, no metering, no wire routing \u2014 and stays the phase-1 default;\n`torve doctor` names it and says plainly that it leaves S-0001/D-13 unmet\n(S-0021/D-9). Under any other adapter a brokered tier names no credential\n(S-0021/D-1): the broker's provider table is the one channel.\n\nThe two modes are S-0021/D-3's split: `endpoint` (the phase-1 default)\ncloses custody and metering on the daemon's default bridge; `sealed`\nadds containment \u2014 the sandbox joins the user-defined internal Docker\nnetwork named here, whose only host-side address is the broker, and\nevery non-provider destination the run needs is declared under\n`pass_through` and CONNECTed without inspection. The same network is\nnamed in `runtime.network` \u2014 egress policy (this block) and sandbox\nprovisioning (`runtime`) are two views of one fact, and the runner\nvalidator refuses them to disagree (S-0021/D-11).\n\nAn endpoint whose sandboxes are remote \u2014 an OpenSandbox server on\nanother machine \u2014 configures `bind` and, across a NAT or a hostname\nsplit, `advertise`: the loopback/bridge derivation reaches nobody out\nthere, and the remote broker answers non-provider requests only with\na refusal naming the destination \u2014 the pass-through leg is a\nsealed-mode mechanism, authenticated by a topology a remote run does\nnot have.",
       "properties": {
         "adapter": {
           "default": "none",
@@ -63,7 +63,7 @@
     },
     "BrokerProvider": {
       "additionalProperties": false,
-      "description": "One routed provider's wire facts (RFC 0021 \u00a75.2): where the broker\nforwards and which environment variable in the broker's own environment\nholds the key \u2014 a name, never a value. The configuration names the\ncredential once; a brokered tier names none (D-21.1).",
+      "description": "One routed provider's wire facts (S-0021/two-modes-because-custody-and-containment-are-different-problems): where the broker\nforwards and which environment variable in the broker's own environment\nholds the key \u2014 a name, never a value. The configuration names the\ncredential once; a brokered tier names none (S-0021/D-1).",
       "properties": {
         "key_env": {
           "default": "",
@@ -86,7 +86,7 @@
     },
     "IntakeConfig": {
       "additionalProperties": false,
-      "description": "The drafting run's knobs (RFC 0020). `max_drafts` is D-20.8's\ndecomposition ceiling \u2014 how many contracts one request may yield;\n`iterations` bounds the draft-lint loop like any attempt budget.\n`document_threshold` is the document-threshold rule's starting point \u2014\nthe number of distinct documents whose settled ground a scope must\ncross before the work needs one of its own (RFC 0030 D-30.3), a\ncalibration knob rather than a truth.",
+      "description": "The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's\ndecomposition ceiling \u2014 how many contracts one request may yield;\n`iterations` bounds the draft-lint loop like any attempt budget.\n`document_threshold` is the document-threshold rule's starting point \u2014\nthe number of distinct documents whose settled ground a scope must\ncross before the work needs one of its own (S-0030 S-0030/D-3), a\ncalibration knob rather than a truth.",
       "properties": {
         "document_threshold": {
           "default": 2,
@@ -109,7 +109,7 @@
     },
     "LoopConfig": {
       "additionalProperties": false,
-      "description": "The manager pass's knobs. Named for the standing loop that is gone\n(A-105); the keys stay because a configuration file that has to be\nrewritten to keep working is a worse cost than a section named after\nits ancestor.",
+      "description": "The manager pass's knobs. Named for the standing loop that is gone\n(S-0019/A-8); the keys stay because a configuration file that has to be\nrewritten to keep working is a worse cost than a section named after\nits ancestor.",
       "properties": {
         "pause_escalations": {
           "default": 1,
@@ -132,7 +132,7 @@
     },
     "NotifyConfig": {
       "additionalProperties": false,
-      "description": "Where an interrupt-class escalation is delivered (RFC 0051).\n\n`none` by default and explicitly (D-51.4): a repository that has not\nchosen a destination sends nothing because somebody decided that, the\nsame shape the broker's `none` adapter takes.\n\nThe URL is the destination itself, not a credential \u2014 a webhook URL is\na bearer secret in practice, so it names an environment variable rather\nthan carrying a value into a committed file (D-4b).",
+      "description": "Where an interrupt-class escalation is delivered (S-0051).\n\n`none` by default and explicitly (S-0051/D-4): a repository that has not\nchosen a destination sends nothing because somebody decided that, the\nsame shape the broker's `none` adapter takes.\n\nThe URL is the destination itself, not a credential \u2014 a webhook URL is\na bearer secret in practice, so it names an environment variable rather\nthan carrying a value into a committed file (S-0001/D-13).",
       "properties": {
         "adapter": {
           "default": "none",
@@ -160,7 +160,7 @@
     },
     "OpenSandboxConfig": {
       "additionalProperties": false,
-      "description": "The OpenSandbox server the runtime talks to. The advertised broker\nproxy is not a configured key here (extra=\"forbid\" refuses it in the\nyaml): `RunnerConfig` resolves it once at load from `broker.bind` /\n`broker.advertise` and publishes it on this instance \u2014 one location for\nthe address, the broker block, and one derived read, the runtime's\nproxy-env composition (D-41.6: two adapters, no channel, one fact).",
+      "description": "The OpenSandbox server the runtime talks to. The advertised broker\nproxy is not a configured key here (extra=\"forbid\" refuses it in the\nyaml): `RunnerConfig` resolves it once at load from `broker.bind` /\n`broker.advertise` and publishes it on this instance \u2014 one location for\nthe address, the broker block, and one derived read, the runtime's\nproxy-env composition (S-0041/D-6: two adapters, no channel, one fact).",
       "properties": {
         "api_key_env": {
           "default": "OPENSANDBOX_API_KEY",
@@ -178,7 +178,7 @@
     },
     "PromotionConfig": {
       "additionalProperties": false,
-      "description": "Landing policy (RFC 0006 \u00a73). The operator's `torve merge` is always\nthe recorded approval; `auto_merge` is the opt-in that lets a manager\npass invoke the same lane on the same terms \u2014 it arms the pass's landing\nleg, and every refusal below still applies to it unchanged.\n\n`require_ci` is \u00a73's `ci: green_on_current_head` requirement: the lane\nrefuses to land a candidate whose branch tip is not green on the\nconfigured remote's CI (`scm.repo`), polled with backoff against the\nlightweight runs endpoint (\u00a71). A rebased tree is additionally judged\nby the local battery re-run \u2014 the remote verdict covers the tip the\nremote actually saw.",
+      "description": "Landing policy (S-0006/promotion). The operator's `torve merge` is always\nthe recorded approval; `auto_merge` is the opt-in that lets a manager\npass invoke the same lane on the same terms \u2014 it arms the pass's landing\nleg, and every refusal below still applies to it unchanged.\n\n`require_ci` is \u00a73's `ci: green_on_current_head` requirement: the lane\nrefuses to land a candidate whose branch tip is not green on the\nconfigured remote's CI (`scm.repo`), polled with backoff against the\nlightweight runs endpoint (\u00a71). A rebased tree is additionally judged\nby the local battery re-run \u2014 the remote verdict covers the tip the\nremote actually saw.",
       "properties": {
         "approvals": {
           "default": 0,
@@ -211,7 +211,7 @@
     },
     "ProvidersConfig": {
       "additionalProperties": false,
-      "description": "Which providers a repository's contents may reach (RFC 0004 \u00a76b):\nrepository contents, fixtures and diffs leave the building for whichever\nprovider an adapter is pointed at, so the policy is explicit and enforced\nat dispatch, before a sandbox exists (D-4.8).",
+      "description": "Which providers a repository's contents may reach (S-0004/provider-routing-and-data-boundaries):\nrepository contents, fixtures and diffs leave the building for whichever\nprovider an adapter is pointed at, so the policy is explicit and enforced\nat dispatch, before a sandbox exists (S-0004/D-8).",
       "properties": {
         "default": {
           "items": {
@@ -271,7 +271,7 @@
     },
     "ReviewConfig": {
       "additionalProperties": false,
-      "description": "Review triggers (RFC 0005 \u00a74). Off by default \u2014 a blocker stopping\nthe run is configuration deciding a consequence (D-2), and configuring\nnothing decides nothing. `task_gated` is board-driven; the pull-request\ntriggers admit `torve review pr` as the forge's event delivery.\n`skip_authors` is \u00a74's author skip rule; draft and zero-changed-files\npull requests always skip. `blocker_revisions` (RFC 0043, D-2's framing:\nconfiguration decides the consequence, never the model) bounds how many\nin-run attempts a surviving blocker earns before escalating\n`blocker_finding`; 0 escalates on the first surviving blocker, today's\nbehavior exactly.",
+      "description": "Review triggers (S-0005/triggers). Off by default \u2014 a blocker stopping\nthe run is configuration deciding a consequence (S-0001/D-10), and configuring\nnothing decides nothing. `task_gated` is board-driven; the pull-request\ntriggers admit `torve review pr` as the forge's event delivery.\n`skip_authors` is \u00a74's author skip rule; draft and zero-changed-files\npull requests always skip. `blocker_revisions` (S-0043, S-0001/D-10's framing:\nconfiguration decides the consequence, never the model) bounds how many\nin-run attempts a surviving blocker earns before escalating\n`blocker_finding`; 0 escalates on the first surviving blocker, today's\nbehavior exactly.",
       "properties": {
         "blocker_revisions": {
           "default": 1,
@@ -351,7 +351,7 @@
     },
     "ScmConfig": {
       "additionalProperties": false,
-      "description": "The remote forge (RFC 0010 \u00a72). The credential is named, never held:\n`token_env` is the NAME of the environment variable the runner reads at\npush/PR time (D-4b) \u2014 the value stays in the runner's process and no\nsandbox ever sees it. `repo` is owner/name on the forge.",
+      "description": "The remote forge (S-0010/two-ports-deliberately-separate). The credential is named, never held:\n`token_env` is the NAME of the environment variable the runner reads at\npush/PR time (S-0001/D-13) \u2014 the value stays in the runner's process and no\nsandbox ever sees it. `repo` is owner/name on the forge.",
       "properties": {
         "open_pr": {
           "default": false,
@@ -388,7 +388,7 @@
     },
     "SkillsConfig": {
       "additionalProperties": false,
-      "description": "Role-scoped skill sets (RFC 0009 \u00a73, D-9.1) materialized into the\nsandbox from package data at dispatch (A-3, D-9.7).",
+      "description": "Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1) materialized into the\nsandbox from package data at dispatch (S-0009/A-1, S-0009/D-7).",
       "properties": {
         "sets": {
           "additionalProperties": {
@@ -406,7 +406,7 @@
     },
     "SpecsConfig": {
       "additionalProperties": false,
-      "description": "Where the specification corpus lives (0013 A-16, D-13.7; RFC 0057\nD-57.3): one path, never a list or a glob \u2014 numbering is continuous\nacross a corpus, and two roots mean two counters and a colliding\nidentifier at the first merge (D-A.16). The archive and the schemas are\nits siblings. Read from the runner's configuration per D-13.3, never\nfrom the repository under work.",
+      "description": "Where the specification corpus lives (0013 S-0013/A-1, S-0013/D-7; S-0057\nS-0057/D-3): one path, never a list or a glob \u2014 numbering is continuous\nacross a corpus, and two roots mean two counters and a colliding\nidentifier at the first merge (S-0016/D-23). The archive and the schemas are\nits siblings. Read from the runner's configuration per S-0013/D-3, never\nfrom the repository under work.",
       "properties": {
         "path": {
           "default": ".torve/specs",
@@ -419,7 +419,7 @@
     },
     "StoreConfig": {
       "additionalProperties": false,
-      "description": "The durable run store (D-5, D-5a): mock for tests and simulation,\nPostgres for real runs (D-3.6). The mock is in-process, so cross-process\nguarantees \u2014 a reaper seeing another runner's leases \u2014 need Postgres.\n\n`dsn_env` names the environment variable holding the DSN; the value never\nenters a committed file.",
+      "description": "The durable run store (S-0001/D-14, S-0001/D-15): mock for tests and simulation,\nPostgres for real runs (S-0003/D-6). The mock is in-process, so cross-process\nguarantees \u2014 a reaper seeing another runner's leases \u2014 need Postgres.\n\n`dsn_env` names the environment variable holding the DSN; the value never\nenters a committed file.",
       "properties": {
         "adapter": {
           "default": "mock",
@@ -462,7 +462,7 @@
     },
     "TierConfig": {
       "additionalProperties": false,
-      "description": "One tier's adapter (RFC 0004 \u00a71): `tier` on the task maps to an entry\nhere, and the concern leaks no further into the design. The command runs\n*inside* the sandbox (D-4.1) \u2014 the engine never links a harness SDK, it\nonly shells a line into a container it created.\n\n`api_key_env` carries names, never values (D-4b): the runtime forwards the\nvariables from its own environment, so the secret never transits a spec.\n`auth_volume` is the subscription route (\u00a72, D-4.2): one volume per worker\nslot, `-<slot>` appended, mounted read-write because token refresh writes.",
+      "description": "One tier's adapter (S-0004/adapters): `tier` on the task maps to an entry\nhere, and the concern leaks no further into the design. The command runs\n*inside* the sandbox (S-0004/D-1) \u2014 the engine never links a harness SDK, it\nonly shells a line into a container it created.\n\n`api_key_env` carries names, never values (S-0001/D-13): the runtime forwards the\nvariables from its own environment, so the secret never transits a spec.\n`auth_volume` is the subscription route (\u00a72, S-0004/D-2): one volume per worker\nslot, `-<slot>` appended, mounted read-write because token refresh writes.",
       "properties": {
         "adapter": {
           "default": "fake",
@@ -595,7 +595,7 @@
     },
     "TracesConfig": {
       "additionalProperties": false,
-      "description": "Retention bounds for the durable trace store (RFC 0039 \u00a75.2, D-39.3):\nthe reaper's pass sheds traces oldest-first past either bound. Both\nknobs are operator's \u2014 trace volume is a property of the fleet, not the\nengine \u2014 and the defaults are the drafting values, pending the owner's\nread of dogfood volume. A bound set to zero is kept literal, not taken\nas \"disabled\": zero days or zero megabytes means keep nothing, and the\npass reports every trace it shed.",
+      "description": "Retention bounds for the durable trace store (S-0039/retention, S-0039/D-3):\nthe reaper's pass sheds traces oldest-first past either bound. Both\nknobs are operator's \u2014 trace volume is a property of the fleet, not the\nengine \u2014 and the defaults are the drafting values, pending the owner's\nread of dogfood volume. A bound set to zero is kept literal, not taken\nas \"disabled\": zero days or zero megabytes means keep nothing, and the\npass reports every trace it shed.",
       "properties": {
         "keep_days": {
           "default": 30,
@@ -613,7 +613,7 @@
     },
     "VcsConfig": {
       "additionalProperties": false,
-      "description": "Local git at the runner boundary (RFC 0010 \u00a74). The signing key is a\npath to an SSH private key the RUNNER holds \u2014 it is never mounted into a\nsandbox, and the signature attests \"Torve produced this under its task\",\nnever that a human reviewed it. Unset means unsigned.",
+      "description": "Local git at the runner boundary (S-0010/signing). The signing key is a\npath to an SSH private key the RUNNER holds \u2014 it is never mounted into a\nsandbox, and the signature attests \"Torve produced this under its task\",\nnever that a human reviewed it. Unset means unsigned.",
       "properties": {
         "signing_key": {
           "anyOf": [

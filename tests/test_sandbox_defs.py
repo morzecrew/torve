@@ -1,4 +1,4 @@
-"""The image definitions as reviewed artefacts (RFC 0017 §2, D-17.2).
+"""The image definitions as reviewed artefacts (S-0017/the-image-is-an-input-not-an-environment, S-0017/D-2).
 
 The engine's own CLI now ships inside every agent image, because the prompt
 tells an attempt to call it — `torve log divergence` for the intake, `torve
@@ -50,7 +50,7 @@ def test_the_block_installs_the_cli_where_a_sandbox_can_reach_it():
 
 def test_a_definition_without_the_project_still_builds():
     # The guard is what keeps `docker build .torve/sandbox/<name>` working
-    # for anyone who has not staged a context (D-17.2's reviewed artefact
+    # for anyone who has not staged a context (S-0017/D-2's reviewed artefact
     # stays buildable by hand).
     block = FRAGMENT.read_text(encoding="utf-8")
 

@@ -1,5 +1,5 @@
 """`secrets` — the one failure class a follow-up commit cannot repair
-(RFC 0002 §6a). Blocking, and exempt from bypass (D-2.8): the runner refuses
+(S-0002/three-outcomes-gates-need-beyond-pass-and-fail). Blocking, and exempt from bypass (S-0002/D-8): the runner refuses
 to apply a Torve-Bypass trailer to this gate.
 
 High-confidence patterns only: a noisy secret scanner gets muted, and a muted

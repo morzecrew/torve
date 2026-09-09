@@ -36,7 +36,7 @@ taxonomy of ways a mechanism stops short is in
 
 ## The Torve obligation: no sabotage case, no gate
 
-In this repository the skill has one concrete, non-negotiable form (D-2.2):
+In this repository the skill has one concrete, non-negotiable form (S-0002/D-2):
 **a new gate ships with a sabotage case, or it does not ship.**
 
 - The case lives in the sabotage suite (`src/torve/gates/sabotage.py`,
@@ -47,7 +47,7 @@ In this repository the skill has one concrete, non-negotiable form (D-2.2):
 - The reason is observability, not ceremony: a gate that has never been
   observed to fail is indistinguishable from a gate that never fires because
   the code is clean.
-- The same rule applies to the simulation's invariants (D-3.5): every
+- The same rule applies to the simulation's invariants (S-0003/D-5): every
   invariant ships with a reachability target and a deliberately broken twin
   the oracle must catch. A simulation that cannot fail proves nothing.
 

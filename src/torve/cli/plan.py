@@ -1,8 +1,8 @@
-"""`torve plan` — parsing and rendering only (D-15.6); the minter lives in
-`torve.application.planner`. Dry-run is the default (RFC 0007 §3, and the
+"""`torve plan` — parsing and rendering only (S-0015/D-6); the minter lives in
+`torve.application.planner`. Dry-run is the default (S-0007/torve-plan, and the
 D-11 convention: extend `--dry-run`, never invent a sibling flag). Exactly
-one document per invocation (D-7.8); `--reconcile` is §3.3 under charter
-A-22.
+one document per invocation (S-0007/D-8); `--reconcile` is §3.3 under charter
+S-0001/A-8.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def plan_cmd(
     Deterministic; no model is called at any point. Naming a partition
     mints into that repository's record and writes no file; without one
     the contracts are written under .torve/tasks/."""
-    # D-56.9: the board is the task when a store holds it.
+    # S-0056/D-9: the board is the task when a store holds it.
 
     from torve.application.planner import PlanError, plan_document, write_contracts
 
@@ -107,10 +107,10 @@ def plan_cmd(
     except PlanError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-    # A-132: the same mechanical lint the three drafting paths run, on the
+    # S-0052/A-3: the same mechanical lint the three drafting paths run, on the
     # minting path they never covered. The asymmetry was defensible — a
     # drafted contract is a model's, a planned one comes from a document a
-    # human accepted — until RFC 0052's phasing block minted three
+    # human accepted — until S-0052's phasing block minted three
     # contracts that could not be satisfied, two of them costing a full
     # poison ceiling to discover. A reviewed document is not a linted one.
     from torve.application.intake import lint_task

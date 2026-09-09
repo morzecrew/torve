@@ -108,7 +108,7 @@ torve mcp                        # the same projections as a read-only MCP serve
 torve doctor                     # configuration and environment checks
 torve shadow T-0142              # replay landed work for harness comparison
 torve spec check                 # validate the specification corpus
-torve spec show D-6.8            # resolve any corpus identifier
+torve spec show S-0006/D-8            # resolve any corpus identifier
 ```
 
 Every attempt appends one telemetry record stamped with a `config_hash` of

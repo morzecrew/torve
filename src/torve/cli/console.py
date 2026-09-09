@@ -1,17 +1,17 @@
 """Rendering plumbing and the component vocabulary for every command
-(RFC 0011; RFC 0018 §3): plain detection, the stdout/stderr consoles, raw
+(S-0011; S-0018/one-component-vocabulary): plain detection, the stdout/stderr consoles, raw
 JSON emission, code-carrying failures, and the shared components — header,
 table, verdict marks, failure detail, closing line — every verb renders
-through (D-18.3, never bespoke per-verb string assembly).
+through (S-0018/D-3, never bespoke per-verb string assembly).
 
-Results go to stdout and diagnostics to stderr, never mixed (D-11.6).
+Results go to stdout and diagnostics to stderr, never mixed (S-0011/D-6).
 `--plain` is implied by `CI`, a non-TTY stdout or `--format json`, and
-`NO_COLOR` is honoured by Rich natively (D-11.5). Styling is applied through
+`NO_COLOR` is honoured by Rich natively (S-0011/D-5). Styling is applied through
 renderables and style parameters, never inline markup in data strings —
 `markup=False` stays so bracketed data cannot inject styling, and colour is
-never the only carrier of a distinction (D-18.4). Tables and id lists
-truncate with an explicit remainder count (D-18.8), and `live_status` is the
-one narrow lift of 0011 §7's spinner deferral (RFC 0018 §6).
+never the only carrier of a distinction (S-0018/D-4). Tables and id lists
+truncate with an explicit remainder count (S-0018/D-8), and `live_status` is the
+one narrow lift of S-0011/deferred-deliberately's spinner deferral (S-0018/live-status-for-long-waits).
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ class Format(StrEnum):
 
 # ....................... #
 
-# The fixed colour semantics (RFC 0018 §4) — one vocabulary, applied via
+# The fixed colour semantics (S-0018/colour-and-emphasis) — one vocabulary, applied via
 # style parameters only.
 STYLE_PASS = "green"  # nosec B105 — a rich style name, not a credential
 STYLE_FAIL = "red"
@@ -48,7 +48,7 @@ STYLE_WARN = "yellow"
 STYLE_DIM = "dim"
 STYLE_ID = "cyan"
 
-# The published verdict vocabulary (D-18.5): stable across releases for the
+# The published verdict vocabulary (S-0018/D-5): stable across releases for the
 # same reason exit codes are — people learn it.
 OUTCOME_MARKS = {
     "pass": "✓",  # nosec B105 — a verdict glyph, not a credential

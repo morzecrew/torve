@@ -1,36 +1,36 @@
-"""`torve doctor` — preflight checks, rendered per RFC 0011 §5: each check
+"""`torve doctor` — preflight checks, rendered per S-0011/where-ux-effort-actually-pays: each check
 names what it looked for, what it found, and what to do about it. The forze
-schema pin is D-12.7: a mismatch must be a check, not a symptom. Image
-existence is D-17.2: a configured image the runtime cannot resolve, or a
+schema pin is S-0012/D-7: a mismatch must be a check, not a symptom. Image
+existence is S-0017/D-2: a configured image the runtime cannot resolve, or a
 torve-agent image with no definition directory, is a configuration error
-before it becomes a mid-run surprise. The store check is D-3.6 made
+before it becomes a mid-run surprise. The store check is S-0003/D-6 made
 operational: a postgres store must name a DSN, answer a connection, and
-carry every substrate step (D-12.7's sibling question) before a run
+carry every substrate step (S-0012/D-7's sibling question) before a run
 depends on it — and a mock store states plainly that it is the
 in-process, test-only regime.
 
-The broker check is RFC 0021 D-21.9: the adapter in force is named, and the
+The broker check is S-0021 S-0021/D-9: the adapter in force is named, and the
 `none` adapter — legal and the phase-1 default — is stated plainly to leave
-the credential-custody requirement (D-4b) unmet, so that opting out is a
+the credential-custody requirement (S-0001/D-13) unmet, so that opting out is a
 decision someone can be shown making, never a silent default.
 
-D-27.10 (OPEN, decided here): rather than have a sandbox definition carry a
+S-0027/D-10 (OPEN, decided here): rather than have a sandbox definition carry a
 pointer to the verdict that installed it — a write to `.torve/sandbox/**`
 out of this task's scope — doctor reads the eval ledger directly and
 matches on the digest it already resolved. Read-only, no new record shape.
 
-The profile check is RFC 0028 D-28.7: each tier that resolved through a
+The profile check is S-0028 S-0028/D-7: each tier that resolved through a
 profile (`TierConfig.profile`, set by `load_runner_config`'s raw-mapping
 merge) gets one provenance line naming it — no check attached, so this can
 never turn doctor red, and a tier or profile file nobody referenced gets
-no line and no warning. A-74: a tier composed from a list of profiles
+no line and no warning. S-0028/A-1: a tier composed from a list of profiles
 carries its chain, in order, in that same field and line.
 
-The equipment check is RFC 0029 D-29.5: each tier whose resolved `skills`
+The equipment check is S-0029 S-0029/D-5: each tier whose resolved `skills`
 or `prompt_extras` differ from its role default gets one provenance line —
-no check attached, dispatch already owns the refusals (D-29.2).
+no check attached, dispatch already owns the refusals (S-0029/D-2).
 
-The image line also covers remote references (RFC 0033 §5.5): a tier
+The image line also covers remote references (S-0033/doctor): a tier
 naming a registry reference — an image with an explicit registry host —
 that the runtime cannot resolve asks the registry itself for the digest,
 anonymously and best-effort, and prints the same line a local image
@@ -63,7 +63,7 @@ from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 def _config_eval_verdict(root: Path, digest: str) -> dict[str, Any] | None:
     """The eval ledger's most recent config-eval record citing `digest` as
-    either arm — the same digest a paired replay (D-27.7) measured, whether
+    either arm — the same digest a paired replay (S-0027/D-7) measured, whether
     it won or lost. `None` when the ledger has no such record: an unmeasured
     digest is not a finding, just a fact doctor cannot add to."""
 
@@ -106,7 +106,7 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     checks: list[tuple[str, bool, str]] = []
 
     try:
-        # The runtime's word covers local images (docker daemon, D-17.2).
+        # The runtime's word covers local images (docker daemon, S-0017/D-2).
         # The opensandbox runtime sees no local images — its server pulls
         # from a registry — so only the registry leg speaks for it.
         runtime = runtime_for(config, None) if config.runtime.adapter == "docker" else None
@@ -115,7 +115,7 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
             digest = runtime.resolve_image(image) if runtime is not None else None
 
             if digest is None:
-                # RFC 0033 §5.5: a registry reference the runtime cannot
+                # S-0033/doctor: a registry reference the runtime cannot
                 # resolve answers from the registry itself. Best-effort and
                 # informational — None here keeps the runtime's answer.
                 digest = _registry_digest(image)
@@ -199,7 +199,7 @@ _MANIFEST_ACCEPT = (
 
 def _registry_digest(image: str) -> str | None:
     """A registry reference's content digest, asked of the registry itself
-    (RFC 0033 §5.5): a tier naming a registry reference prints the resolved
+    (S-0033/doctor): a tier naming a registry reference prints the resolved
     digest beside it, the same line a local image already gets.
 
     Only a reference naming an explicit registry host is queried — a
@@ -419,7 +419,7 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
 
 def _broker_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    """D-21.9: the broker adapter in force is named, and `none` — legal and
+    """S-0021/D-9: the broker adapter in force is named, and `none` — legal and
     the phase-1 default — is stated plainly to leave the credential-custody
     requirement unmet. What is not legal is `none` by accident."""
 
@@ -459,7 +459,7 @@ def _broker_check(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
 def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     """A reviewer sharing the executor's model reviews its own kind —
-    models are biased toward output that looks like theirs, and D-5.1's
+    models are biased toward output that looks like theirs, and S-0005/D-1's
     cross-model recommendation exists for exactly this. A warning, never a
     refusal: same-model review is legal and still better than none."""
 
@@ -495,9 +495,9 @@ def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, 
 
 
 def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    """D-28.7: provenance only — a resolved profile is named per tier, and no
+    """S-0028/D-7: provenance only — a resolved profile is named per tier, and no
     check is attached, so this can never turn doctor red. A tier that names
-    no profile, or an unreferenced profile file, gets no line at all. A-74:
+    no profile, or an unreferenced profile file, gets no line at all. S-0028/A-1:
     `tier.profile` already carries a composed tier's chain in order
     (`"a -> b"`), so the same line renders it with no extra formatting."""
 
@@ -518,7 +518,7 @@ def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, boo
 
 
 def _equipment_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    """RFC 0029 D-29.5: provenance only — a tier's resolved equipment is named
+    """S-0029 S-0029/D-5: provenance only — a tier's resolved equipment is named
     when it differs from its role default (`skills` set, or any
     `prompt_extras`), and no check is attached, so this can never turn doctor
     red. A tier that inherits its role's default set and carries no extras
@@ -549,7 +549,7 @@ def _equipment_checks(root: Path, config_path: Path | None) -> list[tuple[str, b
 
 
 def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    """RFC 0057 D-57.5: every schema `torve init` writes matches its model,
+    """S-0057 S-0057/D-5: every schema `torve init` writes matches its model,
     and the ignore file carries every minted pattern — a lagging schema
     has an editor validating against a shape the engine no longer reads,
     a missing pattern has torve's own output reaching a diff."""

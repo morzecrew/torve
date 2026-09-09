@@ -1,16 +1,16 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-165
+  - id: A-1
     at: '2026-09-09'
     title: >-
       phases 3 and 4 carry the test files of their modules
     md: |
       `torve plan` refused the document: a phase that allows a module must allow its existing test file (the T-0113 rule), and phases 3 and 4 named the modules without them. `tests/test_decisions.py` and `tests/test_spec.py` join phase 3's scope, `tests/test_spec.py` phase 4's. Scope only; no row changes.
-  - id: A-166
+  - id: A-2
     at: '2026-09-09'
     title: a document's directory is its identifier
     changes:
-      - subject: D-57.1
+      - subject: D-1
         field: text
         before: >-
           A specification is a directory `NNNN-slug/` of `document.yaml`, `decisions.yaml`,
@@ -23,28 +23,28 @@ amendments:
           split by who writes each; an absent file is an empty list; the loader joins
           them into the one `Document` every reader keeps reading; `schema_version`
           3, and 2 is refused
-      - subject: D-57.1
+      - subject: D-1
         field: fingerprint
         after: d15d8f4d26a17d07/30165c090ea60c7d
     md: |
-      The owner asked, with the conversion in hand, why a directory should carry a slug when the title lives in `document.yaml` and `spec list` shows it — the task directory is `T-NNNN` and says nothing twice. It should not: the directory is `S-NNNN`, the identifier and nothing else, and the slug warning goes with the slug. D-57.1's text, I-57.1's statement and §5.1 say so; the conversion in phase 1 wrote the corpus this way from the start, so no document was ever named twice.
-  - id: A-167
+      The owner asked, with the conversion in hand, why a directory should carry a slug when the title lives in `document.yaml` and `spec list` shows it — the task directory is `T-NNNN` and says nothing twice. It should not: the directory is `S-NNNN`, the identifier and nothing else, and the slug warning goes with the slug. S-0057/D-1's text, S-0057/I-1's statement and §5.1 say so; the conversion in phase 1 wrote the corpus this way from the start, so no document was ever named twice.
+  - id: A-3
     at: '2026-09-09'
     title: >-
       phase 1 reaches every reader of the corpus key and the gate runner
     md: |
       Five CLI modules read the corpus location through the configuration key (`context`, `decisions`, `intake`, `plan`, `serve`) and rename with it; the gate runner derives a decision gate's origin from the contract's document path and read `S-00` where it wanted four digits — the same reading `planner.document_number` does, applied there; the README names the corpus. All join phase 1's scope. Scope only; no row changes.
-  - id: A-168
+  - id: A-4
     at: '2026-09-09'
     title: phase 2 reaches the schema test phase 1 wrote
     md: |
       Phase 1 wrote the test that drives `torve init` and counts the four document schemas it writes; phase 2 makes it eight, and the count lives in `tests/test_rfc_check.py`, which joins phase 2's scope. Scope only; no row changes.
-  - id: A-169
+  - id: A-5
     at: '2026-09-09'
     title: >-
       phase 3 types the log schema and leaves the runner's commit to the trailers
     changes:
-      - subject: D-57.7
+      - subject: D-7
         field: text
         before: >-
           `execution.yaml` holds landings — task, phase, attempt, commit, time, agent,
@@ -58,14 +58,14 @@ amendments:
           whose trailers name the task so the field stays empty there, and `torve
           log land --commit SHA` exposes for a landing made by hand; a contract naming
           no document lands nowhere and says so
-      - subject: D-57.7
+      - subject: D-7
         field: fingerprint
         after: 6a281147d0744d9e/cd640ff2ccdc791f
     md: |
-      Two things phase 2 could not settle. The log's schema was written by hand in `cli/init.py` because the entry had no model; phase 3 gives it one (`LogEntry`, and `TaskLog` for the file), so `init` joins the phase to derive the schema from it. And the runner cannot name the commit its landing rides in — the candidate commit is made after the file is written and D-10.8 allows one commit per attempt — so the row now says what the field is: the commit when the lander knows it, empty for the runner, whose candidate names the task in its trailers; `torve log land --commit` fills it for a landing made by hand.
-  - id: A-170
+      Two things phase 2 could not settle. The log's schema was written by hand in `cli/init.py` because the entry had no model; phase 3 gives it one (`LogEntry`, and `TaskLog` for the file), so `init` joins the phase to derive the schema from it. And the runner cannot name the commit its landing rides in — the candidate commit is made after the file is written and S-0010/D-8 allows one commit per attempt — so the row now says what the field is: the commit when the lander knows it, empty for the runner, whose candidate names the task in its trailers; `torve log land --commit` fills it for a landing made by hand.
+  - id: A-6
     at: '2026-09-09'
     title: >-
       phase 4 reaches the scope gate for the landing file
     md: |
-      Every landing writes the execution file of the document the contract names (D-57.7), and the scope gate judged that file as any other — the first task landed by hand under phase 3 reddened on its own landing. The gate exempts the task's contract and log already; it exempts that document's `execution.yaml` the same way, and `src/torve/gates/scope.py` with its test join phase 4, as does the corpus, which every phase's landing now touches. Scope only; no row changes.
+      Every landing writes the execution file of the document the contract names (S-0057/D-7), and the scope gate judged that file as any other — the first task landed by hand under phase 3 reddened on its own landing. The gate exempts the task's contract and log already; it exempts that document's `execution.yaml` the same way, and `src/torve/gates/scope.py` with its test join phase 4, as does the corpus, which every phase's landing now touches. Scope only; no row changes.

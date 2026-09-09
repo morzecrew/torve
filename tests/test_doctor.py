@@ -1,4 +1,4 @@
-"""RFC 0028 D-28.7: `torve doctor` names, per tier, the profile it resolved
+"""S-0028 S-0028/D-7: `torve doctor` names, per tier, the profile it resolved
 through — informational only, so it can never turn doctor red, and a tier
 or profile file nobody referenced gets no line.
 """
@@ -78,7 +78,7 @@ def test_profile_check_is_silent_with_no_profile_referenced(tmp_path: Path):
 
 
 def test_profile_check_ignores_an_unreferenced_profile_file(monkeypatch, tmp_path: Path):
-    # D-28.7: unreferenced profiles are not warned about.
+    # S-0028/D-7: unreferenced profiles are not warned about.
     _write_profile(monkeypatch, tmp_path, "unused", "adapter: harness\nprovider: p\ncommand: c\n")
     root = _doctor_repo(tmp_path, {})
 
@@ -135,7 +135,7 @@ def test_doctor_json_carries_the_profile_line_and_stays_green(monkeypatch, tmp_p
 
 
 # ----------------------- #
-# RFC 0057 D-57.5: doctor reddens when a schema lags its model or the ignore
+# S-0057 S-0057/D-5: doctor reddens when a schema lags its model or the ignore
 # file lacks a minted pattern
 
 

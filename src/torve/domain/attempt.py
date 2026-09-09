@@ -1,7 +1,7 @@
-"""What a gate pass produces (RFC 0002 §3): results, bypass records, size
-verdicts — and what a review run produces (RFC 0005 §2): findings, the
+"""What a gate pass produces (S-0002/the-gate-contract): results, bypass records, size
+verdicts — and what a review run produces (S-0005/what-makes-review-independent-rather-than-ceremonial): findings, the
 structured output whose severities are data; configuration, never the
-model, decides whether one stops the work (D-2).
+model, decides whether one stops the work (S-0001/D-10).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from torve.domain.task import SCHEMA_VERSION
 
 GateInput = Literal["worktree", "diff", "task", "log"]
 GateState = Literal["shadow", "blocking", "quarantined"]
-# pass/fail per RFC 0002 §3; flaky per D-2.6; bypassed per D-2.7; skipped for
+# pass/fail per S-0002/the-gate-contract; flaky per S-0002/D-6; bypassed per S-0002/D-7; skipped for
 # gates whose input does not exist on this run (recorded, never silently green);
 # error for gate-infrastructure failures, kept distinct from a red result.
 GateOutcome = Literal["pass", "fail", "flaky", "skipped", "bypassed", "error"]
@@ -26,7 +26,7 @@ GateOutcome = Literal["pass", "fail", "flaky", "skipped", "bypassed", "error"]
 
 
 class BypassRecord(BaseModel):
-    """A human's Torve-Bypass commit trailer (D-2.7): the signature is the
+    """A human's Torve-Bypass commit trailer (S-0002/D-7): the signature is the
     commit's authorship, the reason is mandatory, and the record is counted."""
 
     model_config = ConfigDict(extra="forbid")
@@ -62,7 +62,7 @@ class GateResult(BaseModel):
 
 # ....................... #
 
-# Severity discipline (RFC 0005 §5): blocker stops the run by configuration;
+# Severity discipline (S-0005/calibration): blocker stops the run by configuration;
 # major a reviewer would insist on; minor/nit are preferences, rate-limited.
 FindingSeverity = Literal["blocker", "major", "minor", "nit"]
 
@@ -71,10 +71,10 @@ FindingSeverity = Literal["blocker", "major", "minor", "nit"]
 
 
 class Finding(BaseModel):
-    """One review finding (RFC 0005 §2): a claim with severities as data and
+    """One review finding (S-0005/what-makes-review-independent-rather-than-ceremonial): a claim with severities as data and
     evidence in the execution log's format — a leading path:line citation or
     a backticked command with output — so the same locator that checks log
-    entries can discard a finding nothing can resolve (D-5.4)."""
+    entries can discard a finding nothing can resolve (S-0005/D-4)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -88,7 +88,7 @@ class Finding(BaseModel):
 
 
 class SizeVerdict(BaseModel):
-    """Pre-dispatch size estimate (RFC 0002 §6b, D-2.9)."""
+    """Pre-dispatch size estimate (S-0002/task-size, S-0002/D-9)."""
 
     model_config = ConfigDict(extra="forbid")
 

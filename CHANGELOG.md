@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (RFC 0058):** one identifier grammar. A document is `S-NNNN`
+  and every item of it is `S-NNNN/<local>` — `D-n`, `I-n`, `Q-n`, `A-n`,
+  `P-n`, or a prose section's key — written by the local half alone inside
+  the document's own files and by the global form everywhere else. Every
+  identifier that stood before was renumbered once through
+  `.torve/archive/identifiers.yaml`; `torve spec show` answers a legacy
+  identifier through it, and `spec check` refuses one anywhere it reads.
+  Amendments number per document. The record re-imports, retiring the old
+  subjects as renumbered.
+
 - **Breaking (RFC 0057):** a specification is a directory `S-NNNN/` of four
   YAML files split by who writes each — `document.yaml` and
   `decisions.yaml` the author's, `amendments.yaml` the tool's,

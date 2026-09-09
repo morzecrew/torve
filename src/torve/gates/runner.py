@@ -1,11 +1,11 @@
-"""Gate execution (RFC 0002 §3): cheapest first, every gate run, every
+"""Gate execution (S-0002/the-gate-contract): cheapest first, every gate run, every
 result persisted. A blocking-state gate's failure sets the exit code and
 does not stop the battery — the ladder that picks a retry rung reads the
 axis of each conviction, and short-circuiting handed it only the cheapest
 one (T-0234). Shadow and quarantined gates never touch the exit code
-(RFC 0002 §7.3).
+(S-0002/states).
 
-Gates execute here, outside any agent session (D-3): outcomes are computed
+Gates execute here, outside any agent session (S-0001/D-11): outcomes are computed
 from exit codes and prepared inputs, never reported by a model.
 """
 
@@ -56,7 +56,7 @@ class RunReport:
 
 
 def _substitute_base(gate: Gate, ctx: GateContext) -> str:
-    """Hand the shell the base the battery itself computed (D-36.1's judgment
+    """Hand the shell the base the battery itself computed (S-0036/D-1's judgment
     surface depends on it): every `{base}` in a shell gate's command is
     replaced with the merge-base the context was built from — the exact value
     every diff-input builtin judges against, so the battery's base and a
@@ -81,20 +81,20 @@ def _substitute_base(gate: Gate, ctx: GateContext) -> str:
 
 
 def decision_gates(ctx: GateContext) -> list[Gate]:
-    """The contract's checkable rows as gates (RFC 0054 D-54.2): one
+    """The contract's checkable rows as gates (S-0054 S-0054/D-2): one
     `decision:<id>` shell gate per inherited row with a `check`, under the
     compliance axis, at the row's `check_state` — `shadow` until an
-    amendment promotes it (D-54.4) — with the row's twin as its sabotage
+    amendment promotes it (S-0054/D-4) — with the row's twin as its sabotage
     reference. Contract-borne: never written into the manifest, and gone
     with the contract. Read from the contract alone, never the corpus
-    (D-7.18)."""
+    (S-0007/D-18)."""
 
     if ctx.task is None:
         return []
 
     # The four digits, whatever shape the path had when the contract was
-    # minted — `S-0054` since RFC 0057, `0054-something.yaml` before it —
-    # so the origin D-54.2 fixes stays `rfc/NNNN#<id>` across the
+    # minted — `S-0054` since S-0057, `0054-something.yaml` before it —
+    # so the origin S-0054/D-2 fixes stays `rfc/NNNN#<id>` across the
     # conversion (the rule `planner.document_number` reads).
     named = re.search(r"\d{4}", (ctx.task.rfc or "").rsplit("/", 1)[-1])
     document = named.group(0) if named else "task"
@@ -146,7 +146,7 @@ def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
 def _find_bypass(gate: Gate, ctx: GateContext) -> BypassRecord | None:
     if gate.builtin == "secrets":
-        return None  # D-2.8: no bypass, ever
+        return None  # S-0002/D-8: no bypass, ever
 
     for record in ctx.bypasses:
         if record.gate == gate.name:
@@ -159,8 +159,8 @@ def _find_bypass(gate: Gate, ctx: GateContext) -> BypassRecord | None:
 
 
 def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
-    """Append the bypass to the task's `bypasses:` list (D-2.7) — the same
-    A-1 YAML log, structurally appended: items are never removed or edited,
+    """Append the bypass to the task's `bypasses:` list (S-0002/D-7) — the same
+    S-0001/A-1 YAML log, structurally appended: items are never removed or edited,
     which is what append-only means for a structured file."""
 
     if ctx.log_path is None:
@@ -228,13 +228,13 @@ def run_gates(
     # Short-circuiting there made the severity ladder inert: with the
     # cheapest-first order above, a 20-second form gate hid the functional
     # verdict behind it, `retry_rung_for` saw one axis where the ladder
-    # assumes several, and D-34.7's boundary masking could never fire from
+    # assumes several, and S-0034/D-7's boundary masking could never fire from
     # under a lighter gate. Nothing new can block — the exit code is already
     # 1 — so what this buys is the axes, at the price a green attempt
     # already pays for the same battery.
     for _, gate in ordered:
         if progress is not None:
-            # Presentation's window into the pass (RFC 0018 §6): the name of
+            # Presentation's window into the pass (S-0018/live-status-for-long-waits): the name of
             # the gate about to run, nothing more — the runner stays silent.
             progress(gate.name)
 

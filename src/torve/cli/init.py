@@ -1,5 +1,5 @@
-"""`torve init` — what the code derives, written into `.torve/` (RFC 0057
-D-57.5): the JSON Schema of every file torve reads from YAML, named by
+"""`torve init` — what the code derives, written into `.torve/` (S-0057
+S-0057/D-5): the JSON Schema of every file torve reads from YAML, named by
 the first line of each such file so an editor validates it as it is
 typed, and the ignore file for what torve alone writes. Idempotent: a
 schema is rewritten when it lags, a pattern the ignore file lacks is
@@ -26,8 +26,8 @@ from torve.domain.states import EXIT_OK
 
 # ----------------------- #
 
-# What torve alone writes under `.torve/` (D-57.5): the task directory
-# and the pack are projections (RFC 0056), the streams are append targets,
+# What torve alone writes under `.torve/` (S-0057/D-5): the task directory
+# and the pack are projections (S-0056), the streams are append targets,
 # the rest is run state. The manifest, the configuration, the standing
 # contracts, the specifications and the schemas are reviewed artefacts and
 # stay tracked.

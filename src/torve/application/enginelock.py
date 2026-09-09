@@ -1,15 +1,15 @@
 """The engine lock and the escalation queue's depth — what outlived the
-standing loop (RFC 0019, abandoned by A-105).
+standing loop (S-0019, abandoned by S-0019/A-8).
 
 The lock is what makes id assignment safe when two things adopt at once: a
 human running `torve intake`, and a manager pass whose standing leg mints a
-contract (RFC 0023 D-23.4). The tick it was named for is gone; the
+contract (S-0023 S-0023/D-4). The tick it was named for is gone; the
 contention it prevents is not, so the file keeps its name on disk — a lock
 file whose name changes under a running process is a lock nobody holds.
 
 The escalation count that used to live beside it is gone: it counted one
 carrier, and the pause rule now asks `fleet.escalated_tasks`, which counts
-both (D-48.5, A-110).
+both (S-0048/D-5, S-0048/A-1).
 """
 
 from __future__ import annotations

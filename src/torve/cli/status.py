@@ -1,5 +1,5 @@
-"""`torve status` and `torve reap` — parsing and rendering only (D-15.6); the
-sweep logic lives in `torve.application.reaper` (RFC 0003 §4.2: cleanup by
+"""`torve status` and `torve reap` — parsing and rendering only (S-0015/D-6); the
+sweep logic lives in `torve.application.reaper` (S-0003/reaper: cleanup by
 convention).
 """
 
@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 def _board(dsn: str, partition: str) -> Board | None:
     """The partition's board, when one was named. None means nobody asked
     for the record, which is different from a record holding no run
-    (RFC 0050 D-50.2)."""
+    (S-0050 S-0050/D-2)."""
 
     events = task_events(dsn, partition)
 
@@ -100,7 +100,7 @@ def status(
     from torve.application.projections import status_report
 
     # The projection, verbatim: the serve endpoint renders the same
-    # envelope, so the browser and the terminal cannot disagree (D-32.1).
+    # envelope, so the browser and the terminal cannot disagree (S-0032/D-1).
     envelope = status_report(root, board=_board(dsn_for(root, dsn), partition))
 
     if fmt is Format.JSON:
@@ -163,7 +163,7 @@ def _swept(
         force=force,
         dry_run=dry_run,
         store=open_store,
-        # The landed oracle (D-19.10): a READY implement state whose landing
+        # The landed oracle (S-0019/D-10): a READY implement state whose landing
         # trailer is in history is collectable — without it this verb kept
         # every landed candidate forever.
         landed=lambda t: bool(vcs.landed_shas(root, t)),
@@ -217,7 +217,7 @@ def reap_cmd(
     except RuntimeError as exc:
         # A store the sweep cannot reach is infrastructure, not a crash: the
         # durable half is what decides expiry, so a reap without it would
-        # report a sweep it never performed (A-110).
+        # report a sweep it never performed (S-0048/A-1).
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
     if fmt is Format.JSON:

@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0056'
+id: S-0056
 title: Structure for everything
 kind: design
 status: accepted
 implementation: none
-depends_on: ['0053', '0054']
-informed_by: [0049, '0050', '0055']
+depends_on: [S-0053, S-0054]
+informed_by: [S-0049, S-0050, S-0055]
 supersedes: []
 superseded_by: null
 owner: misery7100
@@ -60,12 +60,12 @@ sections:
         400 characters; a change to its text is a whole-line replacement that
         no reviewer reads. As YAML the same change is three lines.
       - **The task directory is a fossil.** 292 directories, 462 tracked files,
-        3.3 MB; 280 of them under documents archived by RFC 0053. RFC 0049 made
-        the record the source and RFC 0050 left the file readers "gated on the
+        3.3 MB; 280 of them under documents archived by S-0053. S-0049 made
+        the record the source and S-0050 left the file readers "gated on the
         migration"; the migration is this document.
       - **The telemetry file is still the source it was told not to be.** RFC
         0050 found the record holding 10 attempt rows against the file's 636.
-        Every reader written since, including RFC 0054's pack, reads the file
+        Every reader written since, including S-0054's pack, reads the file
         because the file is where the rows are.
   - key: current-state
     md: |
@@ -90,7 +90,7 @@ sections:
       carriers; the archived task history gone.
 
       Non-goals: changing what a row means (grade semantics, paths-as-scope,
-      check-as-gate, the fingerprint rule and the silence check are RFC 0053
+      check-as-gate, the fingerprint rule and the silence check are S-0053
       and 0054, untouched); typing prose (a section body is a string and
       markdown inside it is welcome); changing `SKILL.md`, `AGENTS.md`, the
       colocated projections or the human page (rendered, not sourced);
@@ -118,13 +118,13 @@ sections:
           md: |
             A document becomes `rfcs/NNNN-slug.yaml` …
       decisions:
-        - id: D-56.1
+        - id: S-0056/D-1
           grade: LOCKED
           text: A document is one YAML file in the Document model's shape …
           paths: [src/torve/config/spec.py]
           consequence: the parser is deleted …
           rationale: …
-          cites: [D-53.1]
+          cites: [S-0053/D-1]
           check: uv run pytest tests/test_spec_load.py
           check_state: shadow
           fingerprint: 3f9a1c…
@@ -137,11 +137,11 @@ sections:
         - phase: 1
           title: …
       amendments:
-        - id: A-161
+        - id: S-0056/A-1
           at: 2026-09-10
           title: …
           changes:
-            - {subject: D-56.4, field: text, before: …, after: …}
+            - {subject: S-0056/D-4, field: text, before: …, after: …}
       ```
 
       `DecisionDetail` folds into `Decision`: `rationale`, `cites`, `check`,
@@ -198,7 +198,7 @@ sections:
   - key: the-task-directory-is-a-projection
     md: |
       With a store configured, `torve plan` mints `task.minted` carrying the
-      contract (D-49.1, already true) and writes no file. At dispatch the
+      contract (S-0049/D-1, already true) and writes no file. At dispatch the
       session projects `.torve/tasks/<id>/contract.yaml` into the worktree
       beside the pack, gitignored the same way; the executor's `torve log`
       verbs write through the channel when there is one (already true) and to
@@ -211,7 +211,7 @@ sections:
       Every `.torve/tasks/T-*` directory whose contract names an archived
       document is deleted in one commit, and `.torve/tasks/` leaves the
       `.gitignore` exception list: git keeps the history, the record keeps the
-      landings (204 imported by RFC 0050), and no standing row cites a task
+      landings (204 imported by S-0050), and no standing row cites a task
       log — 0055 cites into the archive, not into `.torve/tasks/`. The
       retention leg over task directories is deleted with them.
   - key: the-telemetry-file-is-a-carrier
@@ -255,7 +255,7 @@ sections:
       The library extraction (the model, loader, writers, colocation and `torve
       spec` as a package other repositories depend on): it follows this
       document and is smaller for it. Retention of `traces/` and `regimes/`
-      (RFC 0039). Any change to the record's event kinds.
+      (S-0039). Any change to the record's event kinds.
   - key: risks
     md: |
       - **A hand-edited YAML document breaks in ways a table did not** (indent,
@@ -265,7 +265,7 @@ sections:
         Mitigation: `check_cites` runs over the tree before the commit; git
         keeps the bytes.
       - **The projection makes a store-configured run depend on the store at
-        dispatch.** It already does: the board is read there (RFC 0049).
+        dispatch.** It already does: the board is read there (S-0049).
   - key: phasing
     md: |
       Phase 1 is one unit on purpose: the loader, the writers and the
@@ -304,14 +304,14 @@ alternatives:
       a repository trying torve has no Postgres; the file mode costs one branch in
       one reader function
 questions:
-  - id: Q-56.1
+  - id: Q-1
     text: >-
       Whether the human page (`rfc render`) ships in phase 2 or waits for someone
       to want it
-  - id: Q-56.2
+  - id: Q-2
     text: >-
       Whether `traces/` and `regimes/` get a retention window in this document's phase
-      4 or stay with RFC 0039
+      4 or stay with S-0039
 phasing:
   - phase: 1
     title: the document is the model
@@ -489,7 +489,7 @@ contract_example:
   acceptance:
     - uv run torve rfc check
   decisions:
-    - id: D-56.1
+    - id: D-1
       grade: LOCKED
       text: >-
         A document is one YAML file in the Document model's own shape and key order

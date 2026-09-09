@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0040'
+id: S-0040
 title: The why projection
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0007', '0032', 0038]
-informed_by: [0008, '0034', '0037', 0039]
+depends_on: [S-0007, S-0032, S-0038]
+informed_by: [S-0008, S-0034, S-0037, S-0039]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   One on-demand per-task projection — torve why — joining attempt rows, verdicts,
@@ -32,7 +32,7 @@ sections:
     md: |
       - **The join exists only as labor.** The stream holds five record kinds
         keyed three ways (`task_id`, `task`, review `target`); the state
-        file's transition history is overwritten per dispatch (RFC 0037 §3)
+        file's transition history is overwritten per dispatch (S-0037/current-state)
         and swept at reap. Reconstructing T-0213 — six attempts, two
         compliance convictions, one 1200-second timeout, one review pass,
         $1.6 — took a dozen ad-hoc queries, each re-derived from memory of
@@ -43,8 +43,8 @@ sections:
         the stream by task and orders it by attempt — the one shape a human
         triaging a specific task actually wants.
       - **Every consumer already exists.** The operator asks in the terminal,
-        the planning session asks over MCP (RFC 0007's projection doctrine),
-        and the browser asks serve; D-32.1 already settled that these read
+        the planning session asks over MCP (S-0007's projection doctrine),
+        and the browser asks serve; S-0032/D-1 already settled that these read
         one envelope. Only the envelope is missing.
   - key: current-state
     md: |
@@ -52,18 +52,18 @@ sections:
 
       - `projections.py` holds the pattern this copies: `status_report` and
         `context_report` compute from files the engine already writes, on
-        demand, stored nowhere (D-A.12), with `render_markdown` beside them;
+        demand, stored nowhere (S-0016/D-22), with `render_markdown` beside them;
         `QUASI_EXPERIMENT_CAVEAT` already words the cross-regime comparison
         warning this document reuses.
       - The MCP server exposes exactly two read-only tools, `context(section)`
         and `show(identifier)` (`src/torve/cli/mcp.py`); serve renders the
-        status envelope the CLI renders (D-32.1).
-      - Attempt rows carry tier-actually-ran (D-27.11), token counts
-        (T-0186), and — with RFC 0038 — attempt numbers and verdicts;
+        status envelope the CLI renders (S-0032/D-1).
+      - Attempt rows carry tier-actually-ran (S-0027/D-11), token counts
+        (T-0186), and — with S-0038 — attempt numbers and verdicts;
         engine events carry escalations (0038), blocked/oversize dispatches
-        and lane outcomes (D-6.7); review records carry findings per target;
+        and lane outcomes (S-0006/D-7); review records carry findings per target;
         the feedback stream carries human minutes per task.
-      - Rows older than RFC 0038 lack `attempt` and `verdict`; T-0186-era
+      - Rows older than S-0038 lack `attempt` and `verdict`; T-0186-era
         rows lack token counts; the earliest rows lack the agent block —
         the projection must render partial history honestly.
   - key: goals-non-goals
@@ -84,7 +84,7 @@ sections:
         0008) — the tracker narrates outward to a team surface; this answers
         an operator's pointed question inward.
       - Not judgement — the projection emits data and the human reads it
-        (RFC 0007's doctrine); no severity ranking, no advice.
+        (S-0007's doctrine); no severity ranking, no advice.
       - Not an anomaly detector — the comparator displays; wiring
         `COST_ANOMALY` to it is actuation and a separate document (§8).
   - key: the-reader
@@ -138,12 +138,12 @@ sections:
       The regime block compares against the same `config_hash`'s attempt
       rows, carrying the existing caveat verbatim — a comparator, not a
       verdict. An unknown task id returns an envelope with `"found": false`
-      and the CLI exits 3 (configuration problem, D-11.4's family), because
+      and the CLI exits 3 (configuration problem, S-0011/D-4's family), because
       a typo should not read as a taskless history.
   - key: the-renderers
     md: |
       - **CLI:** `torve why <task-id>` in `src/torve/cli/why.py`, following
-        the presentation contract (RFC 0018): markdown timeline on a TTY,
+        the presentation contract (S-0018): markdown timeline on a TTY,
         `--format json` emits the envelope. Exit 0 whatever the history says
         — a red history read successfully is a successful read (the survey's
         doctrine).
@@ -151,7 +151,7 @@ sections:
         `show`, returning the envelope verbatim — a planning session
         triaging its own escalations reads the same facts the operator does.
       - **Serve:** one endpoint re-exposing the envelope verbatim per
-        D-32.1; browser presentation beyond JSON is out of scope.
+        S-0032/D-1; browser presentation beyond JSON is out of scope.
   - key: alternatives-considered
     md: |
       - **A `task:` section inside `context()`** — rejected: context is the
@@ -162,9 +162,9 @@ sections:
         overwritten per dispatch and swept at reap, so any projection
         leaning on it is complete only for the currently-live run; the
         stream is the one source that is always as complete as it will ever
-        be (D-40.2).
+        be (S-0040/D-2).
       - **Ranking or flagging outliers in the envelope** — rejected: the
-        projection emits data, judgement stays with the reader (RFC 0007);
+        projection emits data, judgement stays with the reader (S-0007);
         a flag is a threshold, a threshold is a detector, and that document
         should own its calibration.
   - key: tests
@@ -174,10 +174,10 @@ sections:
       chronological event interleave, totals arithmetic, the regime
       comparator against same-hash rows only, `trace_present` against a
       present and an absent file, and the `found: false` envelope. CLI:
-      content-only assertions per D-18.1, the json format emitting the
+      content-only assertions per S-0018/D-1, the json format emitting the
       envelope unchanged, exit 3 on unknown id, exit 0 on a red history.
       MCP and serve: the tool and endpoint return the projection's envelope
-      byte-identical (the D-32.1 parity assertion the status pair already
+      byte-identical (the S-0032/D-1 parity assertion the status pair already
       has).
   - key: docs
     md: |
@@ -194,14 +194,14 @@ sections:
       - Browser rendering of the timeline — returns with the serve surface's
         own roadmap, on the verbatim envelope.
       - Cross-task and per-RFC rollups ("why is phase 2 expensive") — the
-        programme view's territory (D-7.11); a per-task reader lands first.
+        programme view's territory (S-0007/D-11); a per-task reader lands first.
       - Reading 0037 `state.yaml` snapshots into the timeline — display of
         agent-authored state is 0037's own triage surface; joining the two
         waits until both exist.
   - key: risks
     md: |
       - **The stream grows and the reader is O(stream) per call.** Accepted
-        at current volume (the dogfood stream is hundreds of rows); D-2.4
+        at current volume (the dogfood stream is hundreds of rows); S-0002/D-4
         names the exit — a query that hurts is the demand that justifies a
         store, and this projection is exactly the query that would surface
         it.
@@ -224,20 +224,21 @@ sections:
       One phase: the reader and its three thin renderers are one unit —
       splitting them would mint a projection nobody can call.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: the why projection
     intent: >-
       why_report in projections.py assembles the per-task envelope from the telemetry
-      stream, feedback stream and contract head (D-40.1, D-40.2): attempts grouped
-      by the 0038 stamp with the pre_verdict fallback (D-40.3), chronological events
-      and reviews, totals, and the same-regime cost comparator carrying the quasi-experiment
-      caveat in-envelope (D-40.4, D-40.5). Three renderers re-expose it verbatim:
-      torve why <task-id> per the presentation contract with json format and the D-40.6
-      exit codes, the why(task_id) MCP tool beside context and show, and a serve endpoint.
-      Tests pin grouping, fallback marking, totals, comparator scoping, trace_present,
-      the found:false envelope, and byte-identical parity across the three surfaces.
+      stream, feedback stream and contract head (S-0040/D-1, S-0040/D-2): attempts
+      grouped by the 0038 stamp with the pre_verdict fallback (S-0040/D-3), chronological
+      events and reviews, totals, and the same-regime cost comparator carrying the
+      quasi-experiment caveat in-envelope (S-0040/D-4, S-0040/D-5). Three renderers
+      re-expose it verbatim: torve why <task-id> per the presentation contract with
+      json format and the S-0040/D-6 exit codes, the why(task_id) MCP tool beside
+      context and show, and a serve endpoint. Tests pin grouping, fallback marking,
+      totals, comparator scoping, trace_present, the found:false envelope, and byte-identical
+      parity across the three surfaces.
     scope:
       - src/torve/application/projections.py
       - src/torve/cli/why.py

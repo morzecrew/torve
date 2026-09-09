@@ -1,17 +1,17 @@
 # yaml-language-server: $schema=schemas/gates.json
-# Gate manifest for this repository (RFC 0002, D-2.5: manifests live in the
+# Gate manifest for this repository (S-0002, S-0002/D-5: manifests live in the
 # consuming repository, not in the package). Torve gates its own development.
 #
-# Every entry carries `state` and `origin` (D-2.19, A-8): state is the
-# activation lifecycle (shadow | blocking | quarantined — RFC 0002 §7.3),
+# Every entry carries `state` and `origin` (S-0002/D-19, S-0002/A-2): state is the
+# activation lifecycle (shadow | blocking | quarantined — S-0002/states),
 # origin answers "why do we have this" for as long as the gate exists.
 #
-# `axis` labels what a red from this gate means (RFC 0034 §5.3):
+# `axis` labels what a red from this gate means (S-0034/convictions-classified):
 # functional | boundary | compliance | form. An unlabeled gate reads as
-# functional, so a label appears only where that default is wrong (D-34.4).
+# functional, so a label appears only where that default is wrong (S-0034/D-4).
 #
-# `sabotage` names the twin that proves the entry can convict (RFC 0036 §5.2,
-# D-36.3): a CASES family in the shipped sabotage suite or a repository test
+# `sabotage` names the twin that proves the entry can convict (S-0036/the-sabotage-pair-lint,
+# S-0036/D-3): a CASES family in the shipped sabotage suite or a repository test
 # path that reddens when the gate stops working. Builtins name their shipped
 # family; shell gates name their test file. The load refuses a twinless
 # entry in a manifest that names any twin, so the battery carries zero
@@ -51,7 +51,7 @@ gates:
     axis: compliance
     added: 2026-08-21
     sabotage: decisions-reported
-  # The one gate that was non-blocking, which is what shadow is (A-8): it
+  # The one gate that was non-blocking, which is what shadow is (S-0002/A-2): it
   # runs, reports, and is measured before it may ever block.
   - name: self-audit
     run: "@self-audit"
@@ -60,11 +60,11 @@ gates:
     axis: compliance
     added: 2026-08-21
     sabotage: self-audit
-  # The corpus validator, the product gate of RFC 0007 §3a (D-7.14):
+  # The corpus validator, the product gate of S-0007/format-validation (S-0007/D-14):
   # `torve rfc check` covers format, graph and index drift in one run, from
-  # the package alone (D-7.12) — no store, no skill. Promoted out of its
+  # the package alone (S-0007/D-12) — no store, no skill. Promoted out of its
   # shadow tenure when CI stopped running the battery a second time itself
-  # (A-52): this is now the only place the corpus is checked, so it blocks,
+  # (S-0002/A-4): this is now the only place the corpus is checked, so it blocks,
   # and it is named, so a red corpus does not read as a red test suite.
   - name: spec-valid
     run: "uv run torve spec check"
@@ -75,8 +75,8 @@ gates:
     added: 2026-08-22
     timeout: 20
     sabotage: tests/test_rfc_check.py
-  # The checkable half of RFC 0014 (D-14.11), entering at shadow per D-2.18
-  # after the one-time repository sweep (D-14.12).
+  # The checkable half of S-0014 (S-0014/D-11), entering at shadow per S-0002/D-18
+  # after the one-time repository sweep (S-0014/D-12).
   - name: source-layout
     run: "@source-layout"
     state: shadow
@@ -84,7 +84,7 @@ gates:
     axis: form
     added: 2026-08-21
     sabotage: source-layout
-  # The audience rule of RFC 0011 §5a (D-11.11, A-23): no corpus identifiers
+  # The audience rule of S-0011/audience-who-reads-the-string (S-0011/D-11, S-0011/A-1): no corpus identifiers
   # in user-facing strings. Entered at shadow, whole-tree report read clean
   # after the one-time rewrite, sabotage red on demand (including the
   # must-pass docstring twin), then promoted — a deterministic AST check has
@@ -96,12 +96,12 @@ gates:
     axis: compliance
     added: 2026-08-22
     sabotage: user-facing-text
-  # RFC 0015 §6 (D-15.8): the layer contracts, checked by import-linter over
-  # the whole package — a self-development gate (D-15.10), meaningful only in
+  # S-0015/enforcement-the-layering-gate (S-0015/D-8): the layer contracts, checked by import-linter over
+  # the whole package — a self-development gate (S-0015/D-10), meaningful only in
   # this repository; the tool is a dev dependency and never ships. Entered at
   # shadow (§7.6), report read clean, sabotage red on demand, then promoted to
   # blocking per §7.7 — a deterministic graph check has no false-positive rate
-  # to soak (departure from D-2.23's 30-change criterion, logged in T-0014).
+  # to soak (departure from S-0002/D-23's 30-change criterion, logged in T-0014).
   - name: layering
     run: "uv run lint-imports"
     state: blocking
@@ -110,16 +110,16 @@ gates:
     input: worktree
     timeout: 60
     sabotage: tests/test_layering.py
-  # RFC 0036 §5.1 (D-36.1): does the suite meet the attempt's changed lines?
+  # S-0036/the-coverage-delta-gate (S-0036/D-1): does the suite meet the attempt's changed lines?
   # diff-cover intersects the coverage report with the diff against {base} —
   # the merge-base the battery itself computed, substituted by the runner from
   # the same context every builtin judges against. The command never resolves
   # a ref in shell, so live runs and replays measure an identical surface. The
   # judgment is the attempt's added and changed lines only — never the
   # inherited tree, never a whole-repo threshold (0031's ratchet doctrine).
-  # Entering shadow per D-2.18; promotion is a separate act on soak evidence.
+  # Entering shadow per S-0002/D-18; promotion is a separate act on soak evidence.
   # The threshold and this exact invocation are settled by measurement over
-  # the landing (D-36.2, numbers in this task's execution log): 100% on the
+  # the landing (S-0036/D-2, numbers in this task's execution log): 100% on the
   # landing's 37 changed src lines, 25% on the sabotage defect, ~50 s for
   # the full suite under coverage against the 600 s shell default; a later
   # branch-level tightening has `--branch-coverage` in reserve.
@@ -130,9 +130,9 @@ gates:
     added: 2026-09-03
     input: worktree
     sabotage: coverage-delta
-  # RFC 0054 §5.4 (D-54.7): the managed AGENTS.md sections beside the code
+  # S-0054/the-projections-beside-the-code (S-0054/D-7): the managed AGENTS.md sections beside the code
   # are rendered from the corpus and drift-checked like the index; a hand
-  # edit inside the markers names its file. Entering at shadow per D-2.18.
+  # edit inside the markers names its file. Entering at shadow per S-0002/D-18.
   - name: spec-projection
     run: "uv run torve spec project --check"
     input: worktree

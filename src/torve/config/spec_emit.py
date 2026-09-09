@@ -1,5 +1,5 @@
-"""The one writer of a document (RFC 0025 §5.1, D-25.1; RFC 0056 D-56.4;
-RFC 0057 D-57.1): every verb that changes a document — `amend`, `fix`,
+"""The one writer of a document (S-0025/the-canonical-emitter, S-0025/D-1; S-0056 S-0056/D-4;
+S-0057 S-0057/D-1): every verb that changes a document — `amend`, `fix`,
 `retire`, `archive`, `add-decision`, `relocate-paths`, `new` — mutates the
 loaded model and writes it through `dump_document`, one serializer that
 splits the model into the directory's four files with the model's key
@@ -8,7 +8,7 @@ long lines and flow lists for short lists of identifiers. Comments are not
 preserved: there is no second renderer to drop a field, and a row that
 needs a note needs a `rationale`.
 
-Every verb is a parse-mutate-dump-check transaction (D-25.2): the
+Every verb is a parse-mutate-dump-check transaction (S-0025/D-2): the
 mutated corpus is checked whole in a scratch copy with the archive in
 view, and only a clean check is copied back.
 """
@@ -40,7 +40,9 @@ from torve.domain.spec import (
     Change,
     Decision,
     Document,
+    document_id,
     heading_of,
+    qualify,
 )
 
 # ----------------------- #
@@ -130,9 +132,30 @@ def _value(doc: Document, name: str) -> Any:
     return value
 
 
+# The fields that carry identifiers (S-0058/D-1): written by the local half
+# alone when the identifier is the document's own.
+IDENTIFIER_FIELDS = {"id", "cites", "superseded_by", "settled_by", "subject", "retired", "decision"}
+
+
+def _localize(doc: Document, value: Any, key: str | None = None) -> Any:
+    """The payload with this document's own identifiers written local."""
+
+    if isinstance(value, dict):
+        return {k: _localize(doc, v, str(k)) for k, v in cast("dict[str, Any]", value).items()}
+
+    if isinstance(value, list):
+        return [_localize(doc, v, key) for v in value]
+
+    if isinstance(value, str) and key in IDENTIFIER_FIELDS:
+        return doc.local(value)
+
+    return value
+
+
 def _payload(doc: Document) -> dict[str, dict[str, Any]]:
-    """The document split into its files (D-57.1): the header fields
-    always, every list only when non-empty."""
+    """The document split into its files (S-0057/D-1): the header fields
+    always, every list only when non-empty, the document's own
+    identifiers local (S-0058/D-1)."""
 
     head = doc.model_dump(mode="json", include=set(HEADER_FIELDS))
     files: dict[str, dict[str, Any]] = {}
@@ -145,7 +168,7 @@ def _payload(doc: Document) -> dict[str, dict[str, Any]]:
                 body[name] = head[name]
                 continue
 
-            value = _value(doc, name)
+            value = _localize(doc, _value(doc, name), name)
 
             if value is not None:
                 body[name] = value
@@ -220,7 +243,7 @@ def _row(doc: Document, identifier: str) -> Decision:
     row = doc.decision(identifier)
 
     if row is None:
-        raise ValueError(f"no decision {identifier!r} in this document")
+        raise ValueError(f"no decision {qualify(doc.id, identifier)!r} in this document")
 
     return row
 
@@ -237,12 +260,13 @@ def amend_row(
     paths: list[str] | None = None,
     new_text: str | None = None,
 ) -> tuple[Document, list[dict[str, Any]]]:
-    """One row changed by the tool (D-53.4): grade, paths or text replaced,
+    """One row changed by the tool (S-0053/D-4): grade, paths or text replaced,
     the row re-stamped, and the typed diff returned for the amendment that
     records it. Raises `ValueError` when the row is unknown or nothing was
     asked to change."""
 
     current = _row(doc, identifier)
+    identifier = current.id
     changes: list[dict[str, Any]] = []
     update: dict[str, Any] = {}
 
@@ -290,11 +314,12 @@ def amend_row(
 def fix_row_text(
     doc: Document, identifier: str, new_text: str
 ) -> tuple[Document, list[dict[str, Any]]]:
-    """The editorial lane (D-53.4): the text replaced, the row re-stamped,
+    """The editorial lane (S-0053/D-4): the text replaced, the row re-stamped,
     the before and after recorded under `editorial` — never an amendment
     number. A rewording that changes the rule is an amendment."""
 
     current = _row(doc, identifier)
+    identifier = current.id
     text = new_text.strip()
 
     # The text as it now reads, hand-edited and unstamped, is exactly what
@@ -326,8 +351,10 @@ def append_amendment(
     today: str,
     changes: list[dict[str, Any]] | None = None,
 ) -> Document:
-    """`spec amend` (D-25.4): the next amendment appended with its typed
-    diff (D-53.4); the words are the author's to write."""
+    """`spec amend` (S-0025/D-4): the next amendment appended with its typed
+    diff (S-0053/D-4); the words are the author's to write."""
+
+    amendment = qualify(doc.id, amendment)
 
     if any(a.id == amendment for a in doc.amendments):
         raise ValueError(f"{amendment} already exists on this document")
@@ -340,31 +367,31 @@ def append_amendment(
 
 
 def append_decision(doc: Document, identifier: str) -> Document:
-    """`spec add-decision` (D-25.3): a row under the next free identifier,
+    """`spec add-decision` (S-0025/D-3): a row under the next free identifier,
     grade OPEN — the vocabulary's own "not yet decided" — and the text
     left for the author."""
 
     if doc.decision(identifier) is not None:
-        raise ValueError(f"{identifier} already exists on this document")
+        raise ValueError(f"{qualify(doc.id, identifier)} already exists on this document")
 
-    row = Decision(id=identifier, grade="OPEN", text="<decision>")
+    row = Decision(id=qualify(doc.id, identifier), grade="OPEN", text="<decision>")
 
     return _with_rows(doc, [*doc.decisions, row])
 
 
 def retire_decision(doc: Document, identifier: str, today: str, reason: str = "") -> Document:
-    """`spec retire` (D-25.6, D-16.1): the row removed and its identifier
+    """`spec retire` (S-0025/D-6, S-0016/D-1): the row removed and its identifier
     recorded in `retired`, never reused. The reason rides the amendment's
     diff that records the retirement."""
 
-    _row(doc, identifier)
-    rows = [row for row in doc.decisions if row.id != identifier]
+    gone = _row(doc, identifier).id
+    rows = [row for row in doc.decisions if row.id != gone]
 
-    return doc.model_copy(update={"decisions": rows, "retired": [*doc.retired, identifier]})
+    return doc.model_copy(update={"decisions": rows, "retired": [*doc.retired, gone]})
 
 
 def relocate_paths(doc: Document, old: str, new: str) -> tuple[Document, list[str]]:
-    """`spec relocate-paths` (D-25.7): every row carrying the exact glob
+    """`spec relocate-paths` (S-0025/D-7): every row carrying the exact glob
     *old* carries *new*; the rows touched are returned. Text is never
     touched."""
 
@@ -382,7 +409,7 @@ def relocate_paths(doc: Document, old: str, new: str) -> tuple[Document, list[st
 
 
 def archive_document(doc: Document, superseded_by: str) -> Document:
-    """What a retired document carries in the archive (D-53.8): `status:
+    """What a retired document carries in the archive (S-0053/D-8): `status:
     superseded`, `superseded_by` naming the baseline. Every identifier
     stays and still resolves."""
 
@@ -390,16 +417,21 @@ def archive_document(doc: Document, superseded_by: str) -> Document:
         raise ValueError(f"document {doc.id} is already superseded by {doc.superseded_by}")
 
     return doc.model_copy(
-        update={"status": "superseded", "superseded_by": superseded_by, "archived": True}
+        update={
+            "status": "superseded",
+            "superseded_by": document_id(superseded_by),  # S-0058/D-1
+            "archived": True,
+        }
     )
 
 
 def new_document(number: str, title: str, owner: str, kind: str = "design") -> Document:
-    """`spec new`: the smallest document that checks."""
+    """`spec new`: the smallest document that checks. The number is written
+    as the one grammar spells it (S-0058/D-1), however the caller spells it."""
 
     return Document.model_validate(
         {
-            "id": number,
+            "id": document_id(number),
             "title": title,
             "kind": kind,
             "status": "draft",
@@ -422,11 +454,11 @@ def write_transaction(
     deletions: tuple[str, ...] = (),
     archived: dict[str, Document] | None = None,
 ) -> CheckReport:
-    """One parse-mutate-dump-check cycle (D-25.2): *mutations* (directory
+    """One parse-mutate-dump-check cycle (S-0025/D-2): *mutations* (directory
     name -> document) is applied and *deletions* removed in a scratch copy
     of the corpus, *archived* is placed in a scratch copy of the archive
     beside it, and the scratch corpus is checked whole with the archive and
-    the schemas in view (A-140). Only a clean check is copied back; a red
+    the schemas in view (S-0053/A-1). Only a clean check is copied back; a red
     check leaves the tree untouched."""
 
     real_archive = archive_dir(spec_dir)
@@ -480,12 +512,12 @@ def load_or_fail(directory: Path) -> Document:
 
 
 # ----------------------- #
-# The human page (D-56.7): the only markdown writer, never the source
+# The human page (S-0056/D-7): the only markdown writer, never the source
 
 
 def render_markdown(doc: Document) -> str:
     """One document as a page a person reads: the header facts, the prose
-    in order with headings from the keys (D-57.2), the rows as a table,
+    in order with headings from the keys (S-0057/D-2), the rows as a table,
     then invariants, alternatives, questions, phasing and amendments.
     Generated; nothing parses it."""
 

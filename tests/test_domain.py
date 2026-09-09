@@ -29,8 +29,8 @@ def test_the_happy_path_is_legal():
 
 def test_terminal_states_are_terminal_to_the_engine():
     # ready keeps two exits, both human-or-lane acts: the lane's conflict
-    # edge (charter A-26, RFC 0006 D-6.10) and the commander's revise
-    # (RFC 0008 D-8.18, A-40); abandoned keeps none.
+    # edge (charter A-26, S-0006 S-0006/D-10) and the commander's revise
+    # (S-0008 S-0008/D-18, A-40); abandoned keeps none.
     assert TRANSITIONS[TaskState.READY] == frozenset({TaskState.ESCALATED, TaskState.QUEUED})
     assert TRANSITIONS[TaskState.ABANDONED] == frozenset()
     check_transition(TaskState.READY, TaskState.ESCALATED)
@@ -87,7 +87,7 @@ def test_illegal_transition_does_not_corrupt_state(tmp_path):
 
 
 def test_every_escalation_reason_has_an_exit_code():
-    # D-11.4: one taxonomy, two views — a new reason without a code (or a
+    # S-0011/D-4: one taxonomy, two views — a new reason without a code (or a
     # code without a reason) must fail here, not in a caller's script.
     from torve.domain.states import EXIT_BY_REASON, EscalationReason
 
@@ -96,7 +96,7 @@ def test_every_escalation_reason_has_an_exit_code():
 
 
 def test_an_inherited_row_carries_its_consequence_and_check_with_shadow_defaults():
-    """RFC 0054 D-54.1, D-54.4: the four new fields default so a contract
+    """S-0054 S-0054/D-1, S-0054/D-4: the four new fields default so a contract
     minted before the document loads unchanged."""
 
     from torve.domain.task import InheritedDecision

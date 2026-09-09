@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/torve/adapters/vcs/`
 
-### D-55.40 — `ASSUMED` (RFC 0055 — Standing decisions)
+### S-0055/D-40 — `ASSUMED` (Standing decisions)
 
 A landing is recorded from the `Torve-Task` trailer on the commit; git log is the surviving record and the importer mints landed history from it
 

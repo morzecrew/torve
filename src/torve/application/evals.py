@@ -1,25 +1,25 @@
-"""The eval loop (RFC 0009 §5): with-skill versus without-skill shadow
+"""The eval loop (S-0009/evals): with-skill versus without-skill shadow
 replays of the same completed tasks. Each task replays twice — once under
 the configured role sets, once with the skill removed from every set —
-and nothing a replay produces ever merges (RFC 0004 D-4.4): the record is
+and nothing a replay produces ever merges (S-0004 S-0004/D-4): the record is
 the product.
 
-The verdict compares arms as direction, never magnitude (RFC 0004 §6a —
+The verdict compares arms as direction, never magnitude (S-0004/measurement-defects-to-fix-before-trusting-a-number —
 a quasi-experiment): green outcomes first, then iterations, then cost.
 `baseline_matched` true means the without-skill arm did as well as the
 with-skill arm on this evidence; deleting a skill that does not earn its
-tokens stays a human act (D-9.4), and this record is what the human acts
+tokens stays a human act (S-0009/D-4), and this record is what the human acts
 on. Eval records append to the evals ledger beside the telemetry, one
 line per eval, replayable and diffable like every other engine record.
 
-RFC 0027 §5.4 (D-27.7) adds the paired-digest measurement beside it: an
+S-0027/the-measurement-obligation (S-0027/D-7) adds the paired-digest measurement beside it: an
 incumbent configuration versus a candidate with one tier's image
 overridden, the same tasks replayed through the same shadow machinery.
 Landing a configuration change never displaces the department's regime by
 itself — only a verdict here, citing both digests, does — and that verdict
 stays a quasi-experiment like every other eval in this ledger.
 
-RFC 0034 (D-34.10) extends the paired measurement with a tier-variant
+S-0034 (S-0034/D-10) extends the paired measurement with a tier-variant
 override beside the image override: the candidate arm resolves the seat to
 a configured dotted variant, the record names the variant and cites both
 config hashes, and image and variant overrides refuse to combine in one
@@ -75,7 +75,7 @@ def candidate_config(
     *,
     variant: str | None = None,
 ) -> RunnerConfig:
-    """The candidate arm's configuration (D-27.7, D-34.10): `tier`'s image
+    """The candidate arm's configuration (S-0027/D-7, S-0034/D-10): `tier`'s image
     overridden, or the seat resolved to a configured dotted variant — one
     override per invocation, the same shape as `without_skill`'s role-set
     override. An override the tier already resolves is a configuration
@@ -100,7 +100,7 @@ def candidate_config(
 
         return config.model_copy(update={"tiers": {**config.tiers, tier: updated}})
 
-    # D-34.10: a tier variant is a dotted tier entry beside the seat; the
+    # S-0034/D-10: a tier variant is a dotted tier entry beside the seat; the
     # candidate resolves the seat to the variant's content, so a candidate
     # differing in model, command, adapter or image runs as itself in every
     # respect, never as the incumbent's agent under a candidate label.
@@ -157,10 +157,10 @@ def run_skill_eval(
     commit; RuntimeError on infrastructure failure — as run_shadow does."""
 
     seat = config.tiers.get("executor")
-    # D-4.6: a fake adapter is simulation, neither spend nor conviction. The
+    # S-0004/D-6: a fake adapter is simulation, neither spend nor conviction. The
     # cost and quality projections already exclude its rows; an eval that
     # ignored it compares two arms of nothing and matches them at zero
-    # (A-125). Recorded rather than refused, because a test asserting the
+    # (S-0009/A-5). Recorded rather than refused, because a test asserting the
     # record's shape runs a fake agent on purpose — what must not happen is
     # a *verdict*.
     simulated = seat is not None and seat.adapter == "fake"
@@ -183,7 +183,7 @@ def run_skill_eval(
     # it is the replay failing for a reason upstream of the skill — and a
     # simulated arm is not a measurement at all. Either way the verdict is
     # absent rather than false, because a false one invites a deletion on no
-    # evidence (A-125).
+    # evidence (S-0009/A-5).
     matched: bool | None = None
 
     if not simulated and (with_arm["green"] or without_arm["green"]):
@@ -201,10 +201,10 @@ def run_skill_eval(
         "arms": results,
         "summary": {"with": with_arm, "without": without_arm},
         # What the arms ran on, so a reader can tell a measurement from a
-        # rehearsal without reconstructing the configuration (D-4.6).
+        # rehearsal without reconstructing the configuration (S-0004/D-6).
         "simulated": simulated,
         # Direction, never magnitude: true says the baseline did as well
-        # here — the deletion decision stays with a person (D-9.4).
+        # here — the deletion decision stays with a person (S-0009/D-4).
         "baseline_matched": matched,
     }
 
@@ -228,7 +228,7 @@ def run_config_eval(
     variant: str | None = None,
     candidate_agent: Agent | None = None,
 ) -> dict[str, Any]:
-    """The paired replay (D-27.7, D-34.10): the incumbent configuration
+    """The paired replay (S-0027/D-7, S-0034/D-10): the incumbent configuration
     against a candidate with `tier`'s image overridden, or the seat
     resolved to a configured dotted variant — one override per invocation —
     both arms over every task, one eval record appended and returned. Each
@@ -285,11 +285,11 @@ def run_config_eval(
     }
 
     if variant is not None:
-        # D-34.10: the record names the dotted variant the candidate arm
+        # S-0034/D-10: the record names the dotted variant the candidate arm
         # resolved and cites both config hashes — the regime identity of
         # each arm. A variant eval is a config measurement, not an image
         # displacement: it carries no digests, so it never feeds the
-        # D-27.7 displacement guard.
+        # S-0027/D-7 displacement guard.
         record["variant"] = f"{tier}.{variant}"
     else:
         assert image is not None
@@ -304,7 +304,7 @@ def run_config_eval(
             "summary": {"incumbent": incumbent_arm, "candidate": candidate_arm},
             # Direction, never magnitude: true says the candidate did as
             # well here — displacing the incumbent default stays a human
-            # act reading both digests (D-27.7), never this record acting
+            # act reading both digests (S-0027/D-7), never this record acting
             # on its own verdict.
             "candidate_matched": matched,
         }

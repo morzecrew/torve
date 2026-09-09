@@ -1,8 +1,8 @@
-"""RFC 0009 §5: the eval loop — with-skill versus without-skill shadow
+"""S-0009/evals: the eval loop — with-skill versus without-skill shadow
 replays of the same task, arms marked on the shadow records, one eval
 record in the ledger, and the baseline verdict as direction only.
 
-RFC 0034 (D-34.10) extends the paired configuration eval with a
+S-0034 (S-0034/D-10) extends the paired configuration eval with a
 tier-variant override beside the image override: the candidate arm
 resolves the dotted variant, the record names it and cites both config
 hashes, and the two overrides refuse to combine in one invocation.
@@ -86,7 +86,7 @@ def test_candidate_config_resolves_a_configured_variant_onto_the_seat():
     config = RunnerConfig(
         tiers={
             **RunnerConfig().tiers,
-            # D-34.10: a tier variant is a dotted tier entry beside the seat.
+            # S-0034/D-10: a tier variant is a dotted tier entry beside the seat.
             "executor.indexed": TierConfig(model="candidate-model", image="torve-agent:candidate"),
         }
     )
@@ -234,7 +234,7 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     runtime = DockerRuntime()
 
     # A candidate image distinguishable from the incumbent's by a single
-    # extra layer — same base, a different digest to measure (D-27.7).
+    # extra layer — same base, a different digest to measure (S-0027/D-7).
     context = tmp_path / "candidate-image"
     context.mkdir()
     context.joinpath("Dockerfile").write_text(
@@ -283,10 +283,10 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     assert [r["task"] for r in record["arms"]["incumbent"]] == [TASK_ID]
     assert [r["task"] for r in record["arms"]["candidate"]] == [TASK_ID]
     assert isinstance(record["candidate_matched"], bool)
-    # Both digests cited, and they name two different regimes (D-27.7).
+    # Both digests cited, and they name two different regimes (S-0027/D-7).
     assert record["digests"]["incumbent"] and record["digests"]["candidate"]
     assert record["digests"]["incumbent"] != record["digests"]["candidate"]
-    # Both config hashes cited too — the regime identity of each arm (D-34.10).
+    # Both config hashes cited too — the regime identity of each arm (S-0034/D-10).
     assert record["configs"]["incumbent"] and record["configs"]["candidate"]
     assert record["configs"]["incumbent"] != record["configs"]["candidate"]
 
@@ -331,7 +331,7 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
         poison_ceiling=2,
         tiers={
             **RunnerConfig().tiers,
-            # D-34.10: the candidate arm resolves the dotted variant.
+            # S-0034/D-10: the candidate arm resolves the dotted variant.
             "executor.indexed": TierConfig(model="candidate-model"),
         },
     )
@@ -369,7 +369,7 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
     )
 
     assert record["kind"] == "config-eval" and record["tier"] == "executor"
-    # D-34.10: the record names the dotted variant the candidate arm resolved.
+    # S-0034/D-10: the record names the dotted variant the candidate arm resolved.
     assert record["variant"] == "executor.indexed"
     assert [r["task"] for r in record["arms"]["incumbent"]] == [TASK_ID]
     assert [r["task"] for r in record["arms"]["candidate"]] == [TASK_ID]
@@ -378,7 +378,7 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
     assert record["configs"]["incumbent"] and record["configs"]["candidate"]
     assert record["configs"]["incumbent"] != record["configs"]["candidate"]
     # A variant eval is a config measurement, not an image displacement: no
-    # image, no digests to feed the image-displacement guard (D-27.7).
+    # image, no digests to feed the image-displacement guard (S-0027/D-7).
     assert "image" not in record and "digests" not in record
 
     # One line in the ledger; two arm-marked shadow records in telemetry,

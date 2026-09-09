@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/torve/adapters/broker/`
 
-### D-55.4 — `LOCKED` (RFC 0055 — Standing decisions)
+### S-0055/D-4 — `LOCKED` (Standing decisions)
 
 Agents hold no provider credentials; the broker injects them at its own boundary, routes providers at the wire and meters spend; every configuration file carries variable names, never values
 

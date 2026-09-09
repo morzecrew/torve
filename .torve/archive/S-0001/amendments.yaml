@@ -2,58 +2,58 @@
 amendments:
   - id: A-1
     at: '2026-08-21'
-    title: log serialization (amends D-21a, §6)
+    title: log serialization (amends S-0001/D-17, §6)
     md: |-
       **Found in implementation.** Extracting entries from markdown required a regular expression — a reliable sign the data was in the wrong container. Task contracts were already YAML; the log being markdown was an inconsistency with no reason behind it.
 
       **Changed:** `logs/<task-id>.md` with fenced ```divergence``` blocks → `logs/<task-id>.yaml`, one `entries:` list. Prose stays inside the entry, in `notes:` — a sibling `.md` beside the `.yaml` was considered and rejected as two sources of truth in the one artefact that exists to have exactly one. JSONL was rejected as materially worse to read in a pull request during escalation triage.
 
-      **Unchanged — the substance of D-21a stands in full:** one file per task, append-only, grade copied at write time, silence is a finding, evidence must be locatable.
+      **Unchanged — the substance of S-0001/D-17 stands in full:** one file per task, append-only, grade copied at write time, silence is a finding, evidence must be locatable.
 
       **Migration:** a single-use `scripts/migrate_logs.py`; the gate accepts YAML only — dual-format support is two code paths forever, so compatibility lived in the converter and died with it.
 
-      **Also edits:** RFC 0003 §7 (example), the shipped `flag-dont-flip` skill (format section).
-  - id: A-4
+      **Also edits:** S-0003/storage (example), the shipped `flag-dont-flip` skill (format section).
+  - id: A-2
     at: '2026-08-21'
     title: >-
-      git and store: a boundary, not a prohibition (amends D-27)
+      git and store: a boundary, not a prohibition (amends S-0001/D-24)
     md: |-
-      **Found in review.** D-27 read as "nothing ever moves from git to a database", which raised a fair question: how does anything query execution history, then? The decision was written as a ban when it is a division of authority.
+      **Found in review.** S-0001/D-24 read as "nothing ever moves from git to a database", which raised a fair question: how does anything query execution history, then? The decision was written as a ban when it is a division of authority.
 
       **The boundary:** git holds what should be (task contracts, gate manifests, RFCs, decision tables, divergence logs — diffable, sha-pinned, reviewed); the store holds what happened (run state, leases, attempts, gate results, findings, telemetry). The engine **may** index git-held artefacts into the store for querying; what is forbidden is the reverse — making the store authoritative for them. One direction: git → store, read-only projection.
 
       **Also clarified — task contracts are derived artefacts**, lockfile-grade: `torve plan` mints them mechanically. They belong in git for reproducibility (an attempt is pinned to a sha; six months later the contract the agent saw is retrievable) and refusability (a human can see it in a diff and refuse it). The store holds only `task_id` plus sha.
-  - id: A-5
+  - id: A-3
     at: '2026-08-21'
     title: >-
-      agents do not communicate; the runner coordinates (records D-31)
+      agents do not communicate; the runner coordinates (records S-0001/D-29)
     md: |-
       **Raised in review:** if execution facts live in a store, how do agents become aware of what other agents are doing? **They do not, by design.** What an agent may touch is copied into its contract; what has already been decided is copied there too, with grades; what others are doing is known to the runner, which uses it to avoid dispatching overlapping tasks. Quality comes from every agent receiving a complete, isolated, non-overlapping contract — not from agents sharing knowledge. Knowledge accumulates as facts in the store and is read once per phase by a human with an expensive model, who writes the next contracts.
 
       **Falsifiable prediction:** if this model is wrong, tasks escalate with "insufficient context about adjacent work". Until that appears in telemetry, no change.
-  - id: A-11
+  - id: A-4
     at: '2026-08-22'
     title: >-
       task intent, and removal of the Inference port (amends §3, §5)
     md: |-
-      **Found in implementation.** Two defects surfaced together while wiring the reviewer. *(The source patch numbered this A-8 and its context-assembly decision D-3.7; both were taken, so they land as A-11 and D-3.19 per D-A.4/D-A.5.)*
+      **Found in implementation.** Two defects surfaced together while wiring the reviewer. *(The source patch numbered this S-0002/A-2 and its context-assembly decision S-0003/D-7; both were taken, so they land as S-0001/A-4 and S-0003/D-19 per D-A.4/D-A.5.)*
 
       The task model carried no field stating what a task is *for*: `scope` says where, `acceptance` says how it will be judged, `decisions` says what binds it — and the change itself appeared nowhere. An executor was left inferring intent from acceptance commands, which is guessing.
 
-      Separately, the `Inference` port contradicted D-5.1 in 0005. A reviewer reached through a separate port is not a run, and loses sandbox, budget, cancellation, `Attempt` and telemetry with it.
+      Separately, the `Inference` port contradicted S-0005/D-1 in 0005. A reviewer reached through a separate port is not a run, and loses sandbox, budget, cancellation, `Attempt` and telemetry with it.
 
-      **Changed:** `Task` gains `intent: str` — one paragraph on what changes and why, never steps (D-1.7). The `Inference` port is removed from the port table and from §5; the reviewer runs through `Agent` like every other run, with the cross-model requirement met by pointing `tier: reviewer` at a different vendor.
+      **Changed:** `Task` gains `intent: str` — one paragraph on what changes and why, never steps (S-0001/D-7). The `Inference` port is removed from the port table and from §5; the reviewer runs through `Agent` like every other run, with the cross-model requirement met by pointing `tier: reviewer` at a different vendor.
 
-      **Unchanged:** D-5.1 stands, and is the reason for the second change rather than a casualty of it. Everything else about review in 0005 is unaffected.
+      **Unchanged:** S-0005/D-1 stands, and is the reason for the second change rather than a casualty of it. Everything else about review in 0005 is unaffected.
 
-      **Also edits:** 0002 §4 (acceptance skipped for `role: review`), 0003 §5a and D-3.19 (context assembly), 0005 §1.1/§3/decisions, 0007 §3.
-  - id: A-12
+      **Also edits:** S-0002/starting-set (acceptance skipped for `role: review`), S-0003/context-assembly and S-0003/D-19 (context assembly), 0005 §1.1/§3/decisions, 0007 §3.
+  - id: A-5
     at: '2026-08-22'
     title: task directories and retention (amends §6)
     md: |-
-      **Found in use.** `tasks/` and `logs/` grew as parallel trees with only a matching filename relating them, so retention would have had to delete from two places and sharding would have had to be decided twice. *(The source patch numbered this A-10; that was taken, so it lands as A-12 per D-A.5.)*
+      **Found in use.** `tasks/` and `logs/` grew as parallel trees with only a matching filename relating them, so retention would have had to delete from two places and sharding would have had to be decided twice. *(The source patch numbered this S-0016/A-3; that was taken, so it lands as S-0001/A-5 per S-0016/D-16.)*
 
-      **Changed:** one directory per task — `.torve/tasks/T-0142/` containing `contract.yaml` and, when anything was written, `log.yaml`. If sharding is ever needed it happens by RFC or phase, never by date, and is one function in `config/layout.py` plus a migration — path resolution lives there and nowhere else (D-A.13).
+      **Changed:** one directory per task — `.torve/tasks/T-0142/` containing `contract.yaml` and, when anything was written, `log.yaml`. If sharding is ever needed it happens by RFC or phase, never by date, and is one function in `config/layout.py` plus a migration — path resolution lives there and nowhere else (S-0001/D-37).
 
       **Added:** task deletion is a supported operation. A contract holds no unique information once its work has landed — the `Attempt` in the store carries `task_id`, `config_hash` and the sha, and the contract is recoverable from the commit that introduced it. Deletion requires that `resolved` and `departed` entries have first been promoted into decision tables, and that no non-terminal task references the directory.
 
@@ -61,56 +61,56 @@ amendments:
 
       **Not changed:** logs stay in git. Both reasons still hold — evidence arrives in a pull request beside the diff, and `base_sha` keeps it resolvable.
 
-      **Also edits:** 0003 (amendment A-13, logs created by writing), 0013 §1 (layout diagram note).
-  - id: A-17
+      **Also edits:** 0003 (amendment S-0003/A-2, logs created by writing), S-0013/layout (layout diagram note).
+  - id: A-6
     at: '2026-08-22'
     title: >-
-      corpus conventions extracted to RFC 0016 (amends §7, §10)
+      corpus conventions extracted to S-0016 (amends §7, §10)
     md: |-
-      **Found in review.** Half this document's amendments and forty-five per cent of its decisions were about keeping a corpus of documents rather than about Torve. The mismatch is categorical: those rules apply to a repository with no engine in it. They lived here because A-7 had nowhere else to put them, and every later clarification about numbering or indexing then amended the document that defines what Torve is. *(The source patch numbered this A-16; that was taken by 0013's corpus-path amendment, so it lands as A-17 per D-A.5.)*
+      **Found in review.** Half this document's amendments and forty-five per cent of its decisions were about keeping a corpus of documents rather than about Torve. The mismatch is categorical: those rules apply to a repository with no engine in it. They lived here because S-0016/A-1 had nowhere else to put them, and every later clarification about numbering or indexing then amended the document that defines what Torve is. *(The source patch numbered this S-0013/A-1; that was taken by 0013's corpus-path amendment, so it lands as S-0001/A-6 per S-0016/D-16.)*
 
-      **Changed:** nineteen `D-A.*` decisions and amendments A-7, A-9, A-10, A-14 and A-15 move to RFC 0016, keeping their identifiers exactly. The §10 prose explaining how amendments work is a convention and moves with them; the `## Amendments` container section stays, here and in every document.
+      **Changed:** nineteen `D-A.*` decisions and amendments S-0016/A-1, S-0016/A-2, S-0016/A-3, S-0016/A-4 and S-0016/A-5 move to S-0016, keeping their identifiers exactly. The §10 prose explaining how amendments work is a convention and moves with them; the `## Amendments` container section stays, here and in every document.
 
-      **Deliberately not moved:** D-A.7, D-A.13, D-A.14 and D-A.15. They carry the `D-A.` prefix but concern task directories, logs and retention — engine artefacts. The prefix records when a decision was written, not where it belongs, and the split is by subject. Renumbering was rejected: it would break citations in 0007, 0011, 0013 and 0015 and violate D-A.4.
+      **Deliberately not moved:** S-0001/D-36, S-0001/D-37, S-0001/D-38 and S-0001/D-39. They carry the `D-A.` prefix but concern task directories, logs and retention — engine artefacts. The prefix records when a decision was written, not where it belongs, and the split is by subject. Renumbering was rejected: it would break citations in 0007, 0011, 0013 and 0015 and violate S-0016/D-15.
 
       **Closed:** `D-A.*` takes no new members. New decisions use `D-<rfc-number>.<n>`.
 
       **Also edits:** 0007, 0011, 0013, 0015 gain `depends_on: ["0016"]`.
-  - id: A-21
+  - id: A-7
     at: '2026-08-22'
     title: >-
-      `underspecified` joins the escalation vocabulary (amends §4, D-29)
+      `underspecified` joins the escalation vocabulary (amends §4, S-0001/D-27)
     md: |-
-      **Found in specialising `flag-dont-flip` for autonomous execution (0003 A-18).** The rewritten skill halts when a contract needs three or more load-bearing decisions invented — a specification defect, reported rather than papered over. The halt had no reason of its own: riding `locked_conflict` conflates two different indictments. Both are halts on working judgement, but a `locked_conflict` says the code contradicts a settled decision, while an underspecified contract says the *document* was not ready — and the whole point of separable telemetry (D-29's closed enum exists for comparability) is that those two populations answer different questions: the first measures drift, the second measures planning quality.
+      **Found in specialising `flag-dont-flip` for autonomous execution (0003 S-0003/A-3).** The rewritten skill halts when a contract needs three or more load-bearing decisions invented — a specification defect, reported rather than papered over. The halt had no reason of its own: riding `locked_conflict` conflates two different indictments. Both are halts on working judgement, but a `locked_conflict` says the code contradicts a settled decision, while an underspecified contract says the *document* was not ready — and the whole point of separable telemetry (S-0001/D-27's closed enum exists for comparability) is that those two populations answer different questions: the first measures drift, the second measures planning quality.
 
-      **Changed:** `underspecified` joins the enum, projected to exit 2 with the rest of the human-decision family (0011 D-11.9). The triage response differs from every other member: the fix is an amendment to the source document and a re-mint, never a retry of the task.
+      **Changed:** `underspecified` joins the enum, projected to exit 2 with the rest of the human-decision family (0011 S-0011/D-9). The triage response differs from every other member: the fix is an amendment to the source document and a re-mint, never a retry of the task.
 
-      **Deliberately unchanged:** the threshold stays in the skill (three or more load-bearing gaps), not in the engine — the engine cannot count what a contract fails to say; it can only record that an agent said so, which is exactly the D-2 division.
+      **Deliberately unchanged:** the threshold stays in the skill (three or more load-bearing gaps), not in the engine — the engine cannot count what a contract fails to say; it can only record that an agent said so, which is exactly the S-0001/D-10 division.
 
-      **Also edits:** 0011 D-11.9 (the projection row).
-  - id: A-22
+      **Also edits:** 0011 S-0011/D-9 (the projection row).
+  - id: A-8
     at: '2026-08-22'
     title: >-
-      `stale_inheritance` joins the escalation vocabulary (amends §4, D-29)
+      `stale_inheritance` joins the escalation vocabulary (amends §4, S-0001/D-27)
     md: |-
       **Found in executing 0007 §3.3.** `torve plan --reconcile` marks every non-terminal task minted from a document that later became superseded: those tasks inherit decisions that no longer stand, and running them anyway executes a specification nobody stands behind. The situation had no reason of its own — it is not `locked_conflict` (no code contradicts anything), not `underspecified` (the document was complete when it minted), and riding either would make three different planning-quality signals one indistinguishable population.
 
-      **Changed:** `stale_inheritance` joins the enum, projected to exit 2 with the human-decision family (0011 D-11.9). Like `underspecified`, the triage response is document-side: re-mint from the superseding document, or abandon — never retry, and the engine never rewrites the minted contract (D-7.10).
+      **Changed:** `stale_inheritance` joins the enum, projected to exit 2 with the human-decision family (0011 S-0011/D-9). Like `underspecified`, the triage response is document-side: re-mint from the superseding document, or abandon — never retry, and the engine never rewrites the minted contract (S-0007/D-10).
 
-      **Deliberately unchanged:** the planner still has no verb that touches a running aggregate (0007 §2); `--reconcile` records a fact about a task's inheritance, it does not cancel, re-scope or resolve anything — what to do with in-flight work is a human decision.
+      **Deliberately unchanged:** the planner still has no verb that touches a running aggregate (S-0007/asymmetry-by-write-authority); `--reconcile` records a fact about a task's inheritance, it does not cancel, re-scope or resolve anything — what to do with in-flight work is a human decision.
 
-      **Also edits:** 0011 D-11.9 (the projection row).
-  - id: A-26
+      **Also edits:** 0011 S-0011/D-9 (the projection row).
+  - id: A-9
     at: '2026-08-23'
     title: >-
       `ready → escalated` on a conflicted landing (amends §4)
     md: |-
-      **Found in executing 0006 phase 2 (T-0042).** The lane's conflict path honoured the letter of the transition table over the letter of 0006 §1 — "a merge conflict is an escalation with reason `merge_conflict`" — and recorded a conflicted landing only as an engine event plus exit code, leaving the run `ready`. That leaves the escalation queue blind to exactly the failure 0006 §5b names as the most likely: a candidate that cannot land sits green in the lane report and nowhere else, and the queue's age — the primary alert (D-6.8) — never starts counting. The narrow reading was logged in T-0042 as a discovery with a proposal; the owner resolved it the other way.
+      **Found in executing 0006 phase 2 (T-0042).** The lane's conflict path honoured the letter of the transition table over the letter of S-0006/the-correction-this-document-exists-for — "a merge conflict is an escalation with reason `merge_conflict`" — and recorded a conflicted landing only as an engine event plus exit code, leaving the run `ready`. That leaves the escalation queue blind to exactly the failure S-0006/engine-health names as the most likely: a candidate that cannot land sits green in the lane report and nowhere else, and the queue's age — the primary alert (S-0006/D-8) — never starts counting. The narrow reading was logged in T-0042 as a discovery with a proposal; the owner resolved it the other way.
 
       **Changed:** `ready → escalated` joins the transition table, taken only by the merge lane when a rebase conflicts. The run escalates with reason `merge_conflict` (in the vocabulary since v1, reachable for the first time); the branch is left exactly as measured — the engine still never resolves a conflict. Resolution is the standard escalated fork: re-queue, and the task re-runs against the moved base; or abandon, when a human landed the work by hand.
 
       **Deliberately unchanged:** `ready` remains terminal to the engine — the reaper sweeps it, `torve kill` refuses it, dispatch treats it as done. The new edge belongs to the lane alone. The operator who merges before reaping keeps the edge reachable; a swept state file has nothing left to escalate, which is the existing convention that `ready` footprints are collected once their landing is settled.
 
-      **Also edits:** RFC 0006 §1 (the escalation is literal) and its decisions table (D-6.10).
+      **Also edits:** S-0006/the-correction-this-document-exists-for (the escalation is literal) and its decisions table (S-0006/D-10).
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

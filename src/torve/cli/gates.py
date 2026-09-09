@@ -1,6 +1,6 @@
 """`torve gates run/check` and `torve size` — the gates-library commands
-(RFC 0002 §2). Parsing and rendering only (D-15.6); the checking lives in
-`torve.gates`. The sabotage suite is D-2.2; the size estimate, D-2.9.
+(S-0002/delivery). Parsing and rendering only (S-0015/D-6); the checking lives in
+`torve.gates`. The sabotage suite is S-0002/D-2; the size estimate, S-0002/D-9.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ from torve.gates.runner import run_gates
 
 # ----------------------- #
 
-# The verdict marks live in the shared component vocabulary (D-18.5).
+# The verdict marks live in the shared component vocabulary (S-0018/D-5).
 
 
 def gates_run(
@@ -98,7 +98,7 @@ def gates_run(
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-    # The runner configuration joins the hash (RFC 0004 §6, D-4.3): the tier
+    # The runner configuration joins the hash (S-0004/telemetry-staged, S-0004/D-3): the tier
     # mapping and provider policy are part of the regime a number belongs to.
     record = build_record(ctx, report, config_hash(manifest_path, root, load_config(root, None)))
     append_record(root / manifest.telemetry, record)

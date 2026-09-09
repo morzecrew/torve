@@ -1,6 +1,6 @@
--- Torve: the event log (RFC 0044 §5.1). Owner: torve — this file changes for
--- torve's own reasons, never for a forze upgrade (D-12.1). Forward-only
--- (D-12.4).
+-- Torve: the event log (S-0044/the-event-log). Owner: torve — this file changes for
+-- torve's own reasons, never for a forze upgrade (S-0012/D-1). Forward-only
+-- (S-0012/D-4).
 --
 -- The relation backs the `torve-events` document spec, so every column name
 -- is a field name on the aggregate's models and the two must move together;
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.torve_event (
     causation_id     text
 );
 
--- The log's two reads (RFC 0044 §5.7): one subject's history, and one
+-- The log's two reads (S-0044/ports-and-what-binds-first): one subject's history, and one
 -- partition's tail. Both order by (created_at, id) — the timestamp is not a
 -- total order under concurrency and the id is the stable tiebreak, so the
 -- index carries both or the sort spills.

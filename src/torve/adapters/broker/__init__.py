@@ -1,4 +1,4 @@
-"""The egress broker's adapters (RFC 0021 §5.1, D-21.2): `local` is a
+"""The egress broker's adapters (S-0021/the-port, S-0021/D-2): `local` is a
 reverse proxy the runner starts on loopback for the life of the run and
 holds the real provider keys in its own environment; `none` is today's
 behaviour named explicitly and stays the phase-1 default; `opensandbox`

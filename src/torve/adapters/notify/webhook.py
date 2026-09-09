@@ -1,4 +1,4 @@
-"""The webhook destination (RFC 0051 D-51.4).
+"""The webhook destination (S-0051 S-0051/D-4).
 
 First because it needs no account, no vendor SDK and no credential beyond a
 URL the operator already holds — which makes Slack, Discord and PagerDuty a
@@ -34,7 +34,7 @@ RETRYABLE = frozenset({408, 429})
 
 class WebhookNotifier:
     """One POST per notification, carrying the escalation's own id as the
-    idempotency key (D-51.6).
+    idempotency key (S-0051/D-6).
 
     The key rides both the body and an `Idempotency-Key` header: the header
     is what a destination that implements the convention reads, and the
@@ -63,7 +63,7 @@ class WebhookNotifier:
                 "at": notification.at.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "age_s": round(notification.age_s, 1),
                 # Composed from records, saying what happened and never what
-                # the finding deserves (RFC 0051 §5.3).
+                # the finding deserves (S-0051/the-port).
                 "text": (
                     f"{notification.task_id} escalated: {notification.reason}"
                     f" — {notification.detail}"

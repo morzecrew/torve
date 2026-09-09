@@ -1,4 +1,4 @@
-"""Binding v1's runner to the worker (RFC 0044 D-44.12).
+"""Binding v1's runner to the worker (S-0044 S-0044/D-12).
 
 The machinery that runs an agent in a sandbox, drives the battery, mints the
 review and lands the work is v1's and stays v1's: the second architecture
@@ -80,7 +80,7 @@ def _log_root(state: RunState, root: Path) -> Path:
 
 
 # What a dispatch needs resolved per task rather than per root: the tier a
-# character routes to (D-34.3), the providers that tier is permitted, and
+# character routes to (S-0034/D-3), the providers that tier is permitted, and
 # the agent built for it. The worker holds one of these, not a dep bundle,
 # because a bundle built once would pin every task to one tier's agent.
 Prepare = Callable[["Task"], "tuple[Task, RunDeps]"]
@@ -103,10 +103,10 @@ def runner_execute(
 
     With a log, the run is also observed. Three things go in before it
     starts: each attempt reports itself as it happens, under the tier that
-    actually ran it (D-44.3); the broker's metering lands per response (RFC
-    0045 D-45.4); and the journal sync records the attempt's divergences and
+    actually ran it (S-0044/D-3); the broker's metering lands per response (RFC
+    0045 S-0045/D-4); and the journal sync records the attempt's divergences and
     rewrites the worktree's log from the record before each gate pass reads
-    it (A-82) — host-side, because the sandbox that wrote them has no route
+    it (S-0044/A-3) — host-side, because the sandbox that wrote them has no route
     to the store. Without a log the runner behaves exactly as v1 does: the
     observation is wiring, not a dependency of execution.
     """

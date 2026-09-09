@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0053'
+id: S-0053
 title: The item model and the rebuilt corpus
 kind: design
 status: accepted
 implementation: complete
-depends_on: ['0016', '0031', '0047']
-informed_by: ['0007', '0022', '0025', '0030', 0049]
+depends_on: [S-0016, S-0031, S-0047]
+informed_by: [S-0007, S-0022, S-0025, S-0030, S-0049]
 supersedes: []
 superseded_by: null
 owner: misery7100
@@ -54,13 +54,13 @@ sections:
         lint and the standing-inheritance layer each take rows and re-derive what
         they need. There is no model; there is a parser and six consumers.
       - **Amendments lose the prior value.** In the probe, 12 of 14 typed changes in
-        RFC 0044 had no `from`: the rows were edited in place and the previous text
-        survives only in `git log -p`. RFC 0047 §2 names this exact question —
-        "when did D-27.7 become LOCKED, and what was it before?" — as one the
+        S-0044 had no `from`: the rows were edited in place and the previous text
+        survives only in `git log -p`. S-0047/motivation names this exact question —
+        "when did S-0027/D-7 become LOCKED, and what was it before?" — as one the
         engine cannot answer.
-      - **Design prose rots in place.** RFC 0044 §5.1–§5.3 do not mention
-        `decision.retired` (A-89), `task.returned` (A-134) or the contract on
-        `task.minted` (A-91). The current design is the section plus a fold over
+      - **Design prose rots in place.** S-0044/the-event-log–§5.3 do not mention
+        `decision.retired` (S-0044/A-6), `task.returned` (S-0044/A-13) or the contract on
+        `task.minted` (S-0044/A-8). The current design is the section plus a fold over
         the amendments, and no reader performs the fold.
       - **Coverage is invisible, and rot masquerades as governance.** 27 rows
         declare paths that match nothing in the tree; 8 of them are `LOCKED`.
@@ -74,7 +74,7 @@ sections:
         no longer exists; their decisions are the residue worth keeping. 292 rows
         have never been cited by a log entry; 196 have never been inherited by a
         contract; 32 belong to abandoned documents.
-      - **The adopter's door has never been walked.** RFC 0031 shipped `torve
+      - **The adopter's door has never been walked.** S-0031 shipped `torve
         survey` and the corpus-bootstrap skill for a repository with no corpus.
         The one repository they have never been run against is this one, which
         had a corpus before it had an engine. Every other repository this engine
@@ -84,7 +84,7 @@ sections:
       Verified at `1bb0615`:
 
       - **The parser.** `src/torve/config/rfc_parse.py`, 1,353 lines, is the sole
-        owner of the format (D-7.12). It reads: frontmatter (`REQUIRED_KEYS`
+        owner of the format (S-0007/D-12). It reads: frontmatter (`REQUIRED_KEYS`
         at :30-41), the decision table under a byte-exact header (`TABLE_HEADER`
         :29, `decision_section` :319-378 → `DecisionRow(identifier, grade, text,
         paths, consequence)`), the `yaml` phasing fence (`PhasingEntry` :418-445,
@@ -94,14 +94,14 @@ sections:
         `rfc_dir.glob("*.md")` (:99). LOCKED globs are walked only for accepted,
         implemented documents (`_check_locked_row` :598).
       - **The emitter.** `src/torve/config/rfc_emit.py`, 461 lines: structure-
-        preserving rewrite, prose byte-for-byte (D-25.1). `torve rfc amend`,
+        preserving rewrite, prose byte-for-byte (S-0025/D-1). `torve rfc amend`,
         `add-decision`, `retire` and `relocate-paths` are parse-mutate-emit-check
         transactions. `amend` writes a dated heading skeleton and `amended_by`;
         the entry's words, and any change to a row, are the author's to hand-edit.
         Found while drafting this document: `fmt` renders `tier_variant` on a
         phasing entry (`rfc_emit.py:204`) and not `character`, so `torve rfc fmt`
         silently drops a field the parser accepts and `torve plan` copies onto the
-        contract (D-34.1). D-25.1's structure-preserving promise is broken for one
+        contract (S-0034/D-1). S-0025/D-1's structure-preserving promise is broken for one
         field today; the loader of §5.1 and the emitter share a model so it cannot
         be broken again.
       - **The record.** `src/torve/application/decisions.py`, 422 lines:
@@ -114,24 +114,24 @@ sections:
         `STATUSES`, `KINDS`, `IMPLEMENTATIONS`); nothing else about the format
         lives in `domain/`.
       - **Layering.** `pyproject.toml` forbids `gates`, `adapters.runtime` and
-        `adapters.agent` from importing `torve.config.rfc_parse` (0015 A-19,
-        enforcing D-7.18). `config` may import `domain`. Nothing forbids `domain`
+        `adapters.agent` from importing `torve.config.rfc_parse` (0015 S-0015/A-1,
+        enforcing S-0007/D-18). `config` may import `domain`. Nothing forbids `domain`
         from holding a model.
-      - **The conventions.** RFC 0016 D-A.3 keeps decision tables in markdown;
-        D-A.16 one corpus path; D-A.17 next number = max + 1 over that path;
-        D-A.18 only `NNNN-slug.md` and `INDEX.md` in it, no subdirectories;
-        D-A.19 documents are never deleted, identifiers never reused.
+      - **The conventions.** S-0016 S-0016/D-14 keeps decision tables in markdown;
+        S-0016/D-23 one corpus path; S-0016/D-24 next number = max + 1 over that path;
+        S-0016/D-25 only `NNNN-slug.md` and `INDEX.md` in it, no subdirectories;
+        S-0016/D-26 documents are never deleted, identifiers never reused.
       - **The lane.** `torve survey --last N` replays landings through the
-        battery, writes nothing (D-31.1). `skills/corpus-bootstrap/SKILL.md`
+        battery, writes nothing (S-0031/D-1). `skills/corpus-bootstrap/SKILL.md`
         drafts one standing-decisions document — frontmatter, H1, a decision
         table, no phasing — in a supervised session, never by the engine
-        (D-31.2); the baseline governs only contracts minted after acceptance
-        (D-31.3). It has never been run against this repository.
+        (S-0031/D-2); the baseline governs only contracts minted after acceptance
+        (S-0031/D-3). It has never been run against this repository.
       - **The probe.** Scratchpad only, 2026-09-09: a 171-line pydantic model
         (source, decision, invariant, phase, amendment with typed changes, design
-        section) with 103 derived links loaded RFC 0052 and RFC 0044 from three
+        section) with 103 derived links loaded S-0052 and S-0044 from three
         storages losslessly and rendered T-0281's contract with one line of
-        difference — the path A-130 added after the mint, which is copy-at-mint
+        difference — the path S-0052/A-1 added after the mint, which is copy-at-mint
         doing its job.
   - key: goals-non-goals
     md: |
@@ -150,7 +150,7 @@ sections:
 
       **Non-goals**
 
-      - **A new authoring format.** Markdown stays; the table stays (D-A.3); the
+      - **A new authoring format.** Markdown stays; the table stays (S-0016/D-14); the
         probe showed YAML-per-document and per-item storages buy nothing the model
         does not already give and cost either a second parser or 43 files per
         document.
@@ -161,7 +161,7 @@ sections:
         archive.
       - **Touching the engine, the record, the skills, `gates.yaml` or the task
         directory in the rebuild.** Only `rfcs/` moves.
-      - **A corpus score.** RFC 0022's non-goal stands; the health report gains
+      - **A corpus score.** S-0022's non-goal stands; the health report gains
         coverage and suspect rows, not a number.
   - key: the-model
     md: |
@@ -170,7 +170,7 @@ sections:
 
       ```python
       class Decision(BaseModel):
-          id: str                       # D-53.4, permanent (D-A.4)
+          id: str                       # S-0053/D-4, permanent (S-0016/D-15)
           grade: Grade                  # LOCKED | ASSUMED | OPEN
           text: str
           paths: list[str]
@@ -179,10 +179,10 @@ sections:
           cites: list[str] = []         # D-x.y, A-n, NNNN — resolved at load
           check: str | None = None      # authored, never derived (§5.3)
           superseded_by: str | None = None
-          fingerprint: str              # over text, grade, paths (D-53.16); text-only drift is editorial (§5.4)
+          fingerprint: str              # over text, grade, paths (S-0053/D-16); text-only drift is editorial (§5.4)
 
       class Invariant(BaseModel):
-          id: str                       # I-53.1
+          id: str                       # S-0053/I-1
           statement: str
           paths: list[str]
           check: str
@@ -193,7 +193,7 @@ sections:
           cites: list[str] = []
 
       class Question(BaseModel):
-          id: str                       # Q-53.1
+          id: str                       # S-0053/Q-1
           text: str
           status: Literal["open", "settled"]
           settled_by: str | None = None # a task, an amendment, a decision
@@ -205,7 +205,7 @@ sections:
           after: Any
 
       class Amendment(BaseModel):
-          id: str                       # A-n, global (D-A.5)
+          id: str                       # A-n, global (S-0016/D-16)
           at: date
           title: str
           changes: list[Change]         # written by `torve rfc amend`, may be empty
@@ -255,14 +255,14 @@ sections:
       The prose sections stay prose and become `DesignSection`s keyed by heading
       slug. A heading is the anchor a log cites; the duplicate-heading check
       already guarantees it is unique. Nothing about §Design is typed further:
-      the probe measured 84 % of RFC 0044 as prose in every storage, and typing an
+      the probe measured 84 % of S-0044 as prose in every storage, and typing an
       argument fragments it. What is typed is what was already a list.
 
       **Why not YAML-per-document as the root.** The probe wrote the same content
       that way: everything fits by construction, and ~1,000 of 0044's 1,339 lines
       become indentation-sensitive literal blocks with `§5.2` cross-references as
       inert strings. The model is what torve reads either way; the storage that
-      keeps a person's argument readable wins, and D-A.3's reason stands
+      keeps a person's argument readable wins, and S-0016/D-14's reason stands
       ("frontmatter would split rows from rationale").
   - key: a-check-is-authored-never-derived
     md: |
@@ -278,9 +278,9 @@ sections:
     md: |
       `torve rfc amend NUMBER` today appends a heading skeleton and leaves the
       row edit to the author, which is how 12 of 14 prior values were lost. It
-      gains the mutation: `torve rfc amend NUMBER --regrade D-53.4 LOCKED`,
-      `--paths D-53.4 a/** b/**`, `--text D-53.4 "..."`, `--retire D-53.4`,
-      `--settle Q-53.1 T-0300`, each applied in the same parse-mutate-emit-check
+      gains the mutation: `torve rfc amend NUMBER --regrade S-0053/D-4 LOCKED`,
+      `--paths S-0053/D-4 a/** b/**`, `--text S-0053/D-4 "..."`, `--retire S-0053/D-4`,
+      `--settle S-0053/Q-1 T-0300`, each applied in the same parse-mutate-emit-check
       transaction `rfc_emit` already runs, and each recorded as a `Change` in the
       `yaml changes` fence under the new heading with `before` read from the
       document as it stood. The words under the heading stay the author's.
@@ -309,7 +309,7 @@ sections:
       directory a phase is actively changing must not read as ungoverned.
 
       Ungoverned is never a check failure. It is the ratchet's frontier
-      (D-31.3), and `torve decisions paths` and `rfc health` show it per
+      (S-0031/D-3), and `torve decisions paths` and `rfc health` show it per
       directory so the frontier is visible and moves. What is a finding is the
       third state pretending to be the first: a row whose every glob matches
       nothing on an accepted, implemented document. Today that is 27 rows. The
@@ -325,25 +325,25 @@ sections:
   - key: the-archive
     md: |
       Retired documents move — not delete — to `archive/rfcs/`, a directory
-      outside the corpus path (D-A.16), keeping filename and identifier, with
+      outside the corpus path (S-0016/D-23), keeping filename and identifier, with
       frontmatter `status: superseded` and `superseded_by` naming the baseline.
       Nothing reads the archive but the importer, which imports every archived
       document as a source and every row as retired, and `torve rfc show`, which
       resolves an archived identifier and says so. Logs, amendments and commit
-      trailers that cite `D-44.12` keep resolving; `torve why` keeps its
+      trailers that cite `S-0044/D-12` keep resolving; `torve why` keeps its
       decision leg.
 
-      This needs three amendments to RFC 0016, proposed at acceptance of this
-      document and written into 0016's own section (D-A.5): D-A.17's next-number
+      This needs three amendments to S-0016, proposed at acceptance of this
+      document and written into 0016's own section (S-0016/D-16): S-0016/D-24's next-number
       derivation runs over the corpus **and** the archive, so a number is never
-      reused after a retirement; D-A.18 gains the archive as the one legal
-      destination of a retired document; D-A.19's "never deleted" is satisfied by
-      the move and is restated to say so. D-7.12's "one owner of the format"
+      reused after a retirement; S-0016/D-25 gains the archive as the one legal
+      destination of a retired document; S-0016/D-26's "never deleted" is satisfied by
+      the move and is restated to say so. S-0007/D-12's "one owner of the format"
       transfers from `rfc_parse.py` to `config/spec.py` by amendment to 0007.
   - key: the-rebuild
     md: |
       After the archive, the corpus path holds this document and nothing else.
-      Then, in a supervised session and not by the engine (D-31.2, unchanged):
+      Then, in a supervised session and not by the engine (S-0031/D-2, unchanged):
 
       1. `torve survey --last 40` over `main`, JSON report.
       2. The corpus-bootstrap skill, against the report and the tree: mostly
@@ -352,11 +352,11 @@ sections:
       3. The human grades the rows and accepts. Expect on the order of a tenth of
          today's 597, because a baseline holds what governs the tree now, not the
          argument that produced each increment. A row may carry `cites:
-         [0044#D-44.12]` into the archive when its reasoning came from there.
+         [0044#S-0044/D-12]` into the archive when its reasoning came from there.
       4. `torve decisions import`; `torve decisions paths src/**` shows the
          frontier.
 
-      The baseline governs contracts minted after its acceptance only (D-31.3);
+      The baseline governs contracts minted after its acceptance only (S-0031/D-3);
       nothing in the tree is convicted retroactively. From then on every new
       document is written in the shape of §5.2, and every row that changes
       changes through §5.4.
@@ -406,19 +406,19 @@ sections:
         before it; the next document owns them. Named here so nobody builds them
         onto the parser.
       - **Extracting the model into its own distribution** for other
-        repositories. D-53.14 keeps `domain/spec.py` dependency-free so that stays
+        repositories. S-0053/D-14 keeps `domain/spec.py` dependency-free so that stays
         a packaging act; when is settled by the first other repository that runs
         the bootstrap.
       - **Re-executing evidence** and the trace as data. RFC 0036/0038/0039's
         line; a later document.
-      - **RFC 0022's observation floor.** The health reader gains coverage and
+      - **S-0022's observation floor.** The health reader gains coverage and
         suspect rows here; regrading its floor is its own amendment.
   - key: risks
     md: |
       - **Two owners of the format for one window.** Between phase 1 landing and
         phase 5 deleting, `rfc_parse` and `config/spec.py` both exist. The parity
-        test is the whole defence; readers switch one at a time (D-53.13), each
-        beside its old path, the way RFC 0050 moved projections.
+        test is the whole defence; readers switch one at a time (S-0053/D-13), each
+        beside its old path, the way S-0050 moved projections.
       - **The rebuild loses reasoning.** The archive keeps every word and every
         identifier resolves; a baseline row may cite into it. What is lost is the
         habit of reading 183,000 words to find the twelve rows that matter, which
@@ -432,14 +432,14 @@ sections:
         sees both texts, which is more than the corpus offers today for the
         12 of 14 rows it lost.
       - **Ungoverned read as a defect.** It is the frontier. The health report
-        labels it as such, and D-53.6 says it is never a red.
+        labels it as such, and S-0053/D-6 says it is never a red.
       - **A gap in numbering after the archive** reads as deleted documents.
-        D-A.19 already accepts gaps; `show` on an archived number answers.
+        S-0016/D-26 already accepts gaps; `show` on an archived number answers.
   - key: phasing
     md: |
       The baseline (§5.8) is a supervised-session act between phases 3 and 5 and
-      is deliberately not a phase: D-31.2 forbids the engine running it, and a
-      minted contract for it would be exactly the engine surface RFC 0031
+      is deliberately not a phase: S-0031/D-2 forbids the engine running it, and a
+      minted contract for it would be exactly the engine surface S-0031
       refuses. Phase 4 is reserved for it in prose and absent from the fence.
 alternatives:
   - option: >-
@@ -447,8 +447,8 @@ alternatives:
     rejected_because: >-
       The probe fit everything by construction and turned 84 % of a large document
       into indentation-sensitive literal blocks nobody can navigate; the model is
-      what torve reads either way, and D-A.3's reason for keeping rows beside rationale
-      stands.
+      what torve reads either way, and S-0016/D-14's reason for keeping rows beside
+      rationale stands.
   - option: One YAML file per item (Doorstop)
     rejected_because: >-
       43 files per document, link kinds collapse into one list, torve identifiers
@@ -461,8 +461,8 @@ alternatives:
       needs.json stays worth emitting as an interchange export later, from the model.
   - option: Record-first authoring, the file as an export
     rejected_because: >-
-      Loses git diff as the refusal surface (A-4) and needs the store to author. RFC
-      0047 chose the file as importer; the record is the intermediate representation,
+      Loses git diff as the refusal surface (S-0001/A-2) and needs the store to author.
+      S-0047 chose the file as importer; the record is the intermediate representation,
       not the editor.
   - option: >-
       Migrate the 597 rows onto the model instead of rebuilding
@@ -473,29 +473,29 @@ alternatives:
   - option: >-
       Retire documents in place with status superseded, no archive directory
     rejected_because: >-
-      Honours D-A.18 and D-A.19 without amendment, but every reader — the programme
-      block, intake's execution facts, rfc health — keeps walking 52 documents to
-      find the two that stand, and the corpus directory keeps looking like the specification
-      it no longer is.
+      Honours S-0016/D-25 and S-0016/D-26 without amendment, but every reader — the
+      programme block, intake's execution facts, rfc health — keeps walking 52 documents
+      to find the two that stand, and the corpus directory keeps looking like the
+      specification it no longer is.
   - option: Typed §Design as a list of atomic claims
     rejected_because: >-
       Argument fragments; the probe's 2,932 words of 0044 design prose have no list
       shape. Headings as keys give logs an anchor; that is all the typing §Design
       needs.
 questions:
-  - id: Q-53.1
+  - id: Q-1
     text: >-
       Which fields the fingerprint covers — text, grade and paths only, or consequence
       and check as well. Text, grade and paths is what a contract copies at mint;
       the rest is what a human reads.
     status: settled
     settled_by: >-
-      0053 §5.4 — text, grade and paths; a text-only mismatch is editorial
-  - id: Q-53.2
+      the-tool-writes-the-diff — text, grade and paths; a text-only mismatch is editorial
+  - id: Q-2
     text: >-
-      Whether the baseline is one document or several by area (D-31.6 left it to the
-      first adoption). This repository is the first adoption.
-  - id: Q-53.3
+      Whether the baseline is one document or several by area (S-0031/D-6 left it
+      to the first adoption). This repository is the first adoption.
+  - id: Q-3
     text: >-
       When domain/spec.py is extracted into its own distribution, and under what name.
       Settled by the first other repository that runs the bootstrap against it.
@@ -507,11 +507,11 @@ phasing:
       it from the markdown corpus as it stands: frontmatter, the decision table, the
       phasing fence, the contract example, amendment headings, and the five fenced
       kinds of §5.2, which the existing corpus does not yet carry and which load as
-      empty. The loader owns number derivation over corpus and archive (D-53.10) and
-      the fingerprint (D-53.5). A parity test asserts, document by document over the
-      whole corpus, that the loader yields what `rfc_parse` yields today; nothing
-      else switches to the model in this phase, so the parser stays the owner of every
-      reader until phase 2.
+      empty. The loader owns number derivation over corpus and archive (S-0053/D-10)
+      and the fingerprint (S-0053/D-5). A parity test asserts, document by document
+      over the whole corpus, that the loader yields what `rfc_parse` yields today;
+      nothing else switches to the model in this phase, so the parser stays the owner
+      of every reader until phase 2.
     scope:
       - src/torve/domain/spec.py
       - src/torve/config/spec.py
@@ -528,15 +528,16 @@ phasing:
       the readers, the amend forms, coverage and the archive verb
     intent: >-
       Every reader switches to the model beside its old path with a parity assertion
-      (D-53.13): `rfc check`, `show`, `index`, `health`, the importer, `decisions
+      (S-0053/D-13): `rfc check`, `show`, `index`, `health`, the importer, `decisions
       paths`. `torve rfc amend` gains the mutating forms of §5.4 and writes the `changes`
       fence with the prior value; `retire` becomes one of them; `torve rfc fix` re-stamps
       a text-only edit as editorial; a hand-edited grade or paths fails the check.
-      Coverage (D-53.6) and rot (D-53.7) land in the importer's module and surface
-      through `decisions paths` and `rfc health`. `torve rfc archive NUMBER` moves
-      a document to `archive/rfcs/` with the frontmatter of D-53.8, and the importer
-      records archived documents and rows as retired (D-53.9). `rfc_parse.py` is untouched
-      in this phase so the parity assertions have something to assert against.
+      Coverage (S-0053/D-6) and rot (S-0053/D-7) land in the importer's module and
+      surface through `decisions paths` and `rfc health`. `torve rfc archive NUMBER`
+      moves a document to `archive/rfcs/` with the frontmatter of S-0053/D-8, and
+      the importer records archived documents and rows as retired (S-0053/D-9). `rfc_parse.py`
+      is untouched in this phase so the parity assertions have something to assert
+      against.
     scope:
       - src/torve/config/rfc_emit.py
       - src/torve/application/decisions.py
@@ -560,9 +561,9 @@ phasing:
   - phase: 2
     title: the check learns the archive
     intent: >-
-      The parser's corpus check resolves what the archive defines (A-140): a `D-x.y`
-      citation into an archived document resolves, a `depends_on`, `informed_by` or
-      `supersedes` reference to an archived number is a warning naming the archive
+      The parser's corpus check resolves what the archive defines (S-0053/A-1): a
+      `D-x.y` citation into an archived document resolves, a `depends_on`, `informed_by`
+      or `supersedes` reference to an archived number is a warning naming the archive
       rather than "no such RFC", the parser's own `next_number` derives over corpus
       and archive exactly as the loader's does, and `lookup` answers an archived identifier
       marked archived so the MCP `show` face keeps resolving what the CLI already
@@ -581,14 +582,14 @@ phasing:
   - phase: 3
     title: the archive lands
     intent: >-
-      The three amendments to RFC 0016 and the one to RFC 0007 named in §5.7 are written
+      The three amendments to S-0016 and the one to S-0007 named in §5.7 are written
       into their documents' own Amendments sections through `torve rfc amend`, and
       every accepted document except this one is moved by `torve rfc archive` — fifty-one
       documents, filenames and identifiers kept, `status: superseded`. Path-rotted
       rows are retired through `rfc check --fix-rot` before the move so the archive
       records what was already dead as retired for that reason and not for the move.
       `torve decisions import` brings the record level. The pages named in §7 describe
-      the archive. `rfc check` is green on a corpus of one document, and `show D-44.12`
+      the archive. `rfc check` is green on a corpus of one document, and `show S-0044/D-12`
       answers from the archive.
     scope:
       - rfcs/**
@@ -643,7 +644,7 @@ contract_example:
     - >-
       uv run pytest tests/test_spec.py tests/test_spec_load.py
   decisions:
-    - id: D-53.1
+    - id: D-1
       grade: LOCKED
       text: >-
         The specification the engine reads is one pydantic model in domain/spec.py;

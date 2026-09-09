@@ -1,9 +1,9 @@
 """`torve log` — the divergence intake, the verb an agent calls instead of
-writing the execution log by hand (RFC 0044 D-44.10). Parsing and rendering
-only (D-15.6); the checking, the serialization and the staging are
+writing the execution log by hand (S-0044 S-0044/D-10). Parsing and rendering
+only (S-0015/D-6); the checking, the serialization and the staging are
 `torve.application.divergence`. The entry travels through the run's live
 channel when it has one and into the worktree's log when it does not, and
-the notes verb reads the other direction of that channel (RFC 0045 §5.2,
+the notes verb reads the other direction of that channel (S-0045/the-intake-route,
 §5.3).
 """
 
@@ -313,7 +313,7 @@ def land_cmd(
     record's when a partition is given. Staged, so the commit that lands
     the task carries it. A contract naming no document lands nowhere, and
     this says so."""
-    # RFC 0057 D-57.7: the by-hand lander; the runner calls the same function.
+    # S-0057 S-0057/D-7: the by-hand lander; the runner calls the same function.
 
     from torve.application import decisions, divergence
     from torve.cli.options import dsn_for, load_config, read_log

@@ -1,4 +1,4 @@
-"""The prepared inputs a gate receives (RFC 0002 §3): worktree, diff, task, log.
+"""The prepared inputs a gate receives (S-0002/the-gate-contract): worktree, diff, task, log.
 
 Everything is computed once, against `git merge-base` (never current base —
 otherwise `scope` reddens on other people's work that landed mid-task), and
@@ -150,10 +150,10 @@ def _untracked(root: Path) -> list[str]:
 
 
 def parse_bypasses(root: Path, merge_base: str, head: str) -> list[BypassRecord]:
-    """Torve-Bypass trailers from every commit in merge_base..head (D-2.7).
+    """Torve-Bypass trailers from every commit in merge_base..head (S-0002/D-7).
 
     The record carries the commit's author: the signature is authorship of a
-    reviewed commit, and RFC 0010 keeps agent-authored commits identifiable, so
+    reviewed commit, and S-0010 keeps agent-authored commits identifiable, so
     a trailer minted by an agent is visible for exactly what it is.
     """
 

@@ -1,7 +1,7 @@
-"""The divergence intake (RFC 0044 §5.6, D-44.10): the agent tells the
+"""The divergence intake (S-0044/the-typed-divergence-intake, S-0044/D-10): the agent tells the
 engine, and the engine writes the log.
 
-Every poison ceiling in the measurement window that produced RFC 0044 was a
+Every poison ceiling in the measurement window that produced S-0044 was a
 defect in a hand-written file, not in the work it described — a scalar that
 made the YAML unparseable, an evidence line in the wrong grammar, a log
 never staged and so invisible to the gate that judged the diff. All three
@@ -16,7 +16,7 @@ An unparseable log, a malformed evidence line and an unstaged log all stop
 being reachable states rather than becoming rarer ones.
 
 The recorded event is written host-side (`ingest`). An agent runs inside a
-sandbox and has no route to the store — nor should it, which is what D-44.2
+sandbox and has no route to the store — nor should it, which is what S-0044/D-2
 means by an agent writing only through a validating intake: this module is
 the agent-facing half, and the worker holds the other.
 """
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 # ----------------------- #
 
-# The order the format reads in (RFC 0001 §6), so a projected log looks like
+# The order the format reads in (S-0001/task-contract-and-execution-log), so a projected log looks like
 # the logs the corpus already carries rather than like a serializer's idea
 # of one.
 ENTRY_ORDER = (
@@ -62,7 +62,7 @@ ENTRY_ORDER = (
     "notes",
 )
 DOCUMENT_ORDER = ("schema_version", "task", "repo", "base_sha", "drift_count", "entries")
-# Engine scratch, generated and never committed (RFC 0013 §5).
+# Engine scratch, generated and never committed (S-0013/what-does-not-belong-in-either).
 PIN_FILE = "pin.json"
 SCHEMA_VERSION = 1
 LOG_SCHEMA_LINE = "# yaml-language-server: $schema=../../schemas/log.json"
@@ -97,7 +97,7 @@ def _git(root: Path, *args: str) -> str:
 
 
 def _pin(root: Path) -> dict[str, str]:
-    """The log's opening pin (D-A.7): the repository its evidence resolves
+    """The log's opening pin (S-0001/D-36): the repository its evidence resolves
     against, and the commit the work started from. Derived here because an
     agent transcribing it is one more thing that can be wrong — and was.
 
@@ -134,7 +134,7 @@ def _pin(root: Path) -> dict[str, str]:
 
 def open_log(root: Path, task_id: str) -> dict[str, Any]:
     """The task's log as a document — the file when it exists, an empty one
-    pinned to this worktree when it does not (A-13, D-3.21)."""
+    pinned to this worktree when it does not (S-0003/A-2, S-0003/D-21)."""
 
     path = layout.log_file(root, task_id)
 
@@ -171,7 +171,7 @@ def render(document: dict[str, Any]) -> str:
         for entry in document["entries"]
     ]
 
-    # D-57.5: the first line names the schema `torve init` writes, two
+    # S-0057/D-5: the first line names the schema `torve init` writes, two
     # levels up from the task directory in the default layout.
     return f"{LOG_SCHEMA_LINE}\n" + yaml.safe_dump(
         ordered, sort_keys=False, allow_unicode=True, width=88
@@ -190,8 +190,8 @@ def seed(root: Path, task_id: str, *, base_sha: str | None = None) -> Path:
     engine knows it, drops it here, and the intake reads it back — which is
     why the agent is no longer asked to copy a pin it has no way to check.
 
-    It is a pin, not a log: an empty log is not the same as no log (A-13,
-    D-3.21), and a run with nothing to report must still leave no file
+    It is a pin, not a log: an empty log is not the same as no log (S-0003/A-2,
+    S-0003/D-21), and a run with nothing to report must still leave no file
     behind. The pin lives under the engine's own scratch directory, which
     is generated and never committed.
     """
@@ -354,7 +354,7 @@ def record(
     notes: str = "",
 ) -> tuple[Path, dict[str, Any], bool]:
     """Check, append, serialize, stage — the file path, for a run with no
-    channel to post through (D-45.6). A rejected entry leaves the log
+    channel to post through (S-0045/D-6). A rejected entry leaves the log
     exactly as it was."""
 
     return append(
@@ -473,8 +473,8 @@ async def recorded_entries(
 
 
 async def project(log: EventLog, root: Path, task_id: str, *, partition: str | None = None) -> int:
-    """Rewrite the worktree's log from what the store holds (RFC 0044
-    D-44.10, A-82).
+    """Rewrite the worktree's log from what the store holds (S-0044
+    S-0044/D-10, S-0044/A-3).
 
     The gate runs inside a sandbox and cannot reach the store, so the store
     is made authoritative the only way it can be: the engine writes the file
@@ -483,7 +483,7 @@ async def project(log: EventLog, root: Path, task_id: str, *, partition: str | N
     appears whether or not the worktree's copy survived.
 
     A task with nothing recorded leaves no file — a missing log is an empty
-    log (A-13, D-3.21), and writing an empty one would turn that into a
+    log (S-0003/A-2, S-0003/D-21), and writing an empty one would turn that into a
     claim nobody made.
     """
 
@@ -525,7 +525,7 @@ def journal_sync(
     task_id: str,
     seat: str,
 ) -> JournalSync:
-    """The runner's hook between an attempt and its gate pass (A-82).
+    """The runner's hook between an attempt and its gate pass (S-0044/A-3).
 
     Two halves in one call, and the order matters: record what the attempt
     wrote, then rewrite the file from the record. After it, the log in the

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-35.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Warm state is derived state: only artifacts rebuilt deterministically from committed
@@ -8,16 +8,16 @@ decisions:
       may cross attempts, and deleting all of it may change nothing but wall clock
     paths: [.torve/sandbox/battery/Dockerfile, src/torve/application/runner.py]
     consequence: >-
-      Anything an agent authors stays per-attempt (D-17.7 untouched); a cache that
-      fails the delete test is memory and is refused
-  - id: D-35.2
+      Anything an agent authors stays per-attempt (S-0017/D-7 untouched); a cache
+      that fails the delete test is memory and is refused
+  - id: D-2
     grade: ASSUMED
     text: >-
       The battery image bakes a lockfile-keyed dependency layer (`uv sync` at build,
       `UV_PROJECT_ENVIRONMENT` fixed); a lockfile change rebuilds the layer and the
-      digest change is the visible regime change (D-17.1)
+      digest change is the visible regime change (S-0017/D-1)
     paths: [.torve/sandbox/battery/Dockerfile]
-  - id: D-35.3
+  - id: D-3
     grade: LOCKED
     text: >-
       Shadow replays and evals never mount warm state: a tier's `cache_volume` is
@@ -27,20 +27,20 @@ decisions:
     consequence: >-
       Live-vs-replay wall clocks differ by the warm delta by design; the telemetry
       stamps both
-  - id: D-35.4
+  - id: D-4
     grade: ASSUMED
     text: >-
       `cache_volume` on a tier opts into a slot-suffixed derived-cache volume at a
       fixed mount outside the workspace, with toolchain cache homes pointed at it;
       empty (the default) is cold exactly as today
     paths: [src/torve/config/runconfig.py, src/torve/adapters/runtime/docker.py]
-  - id: D-35.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       The opensandbox runtime refuses a tier naming `cache_volume` loudly until a
       server-side analog exists — never a quiet cold fallback
     paths: [src/torve/adapters/runtime/opensandbox.py]
-  - id: D-35.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       TierConfig gains optional `agent_timeout` and `sandbox_timeout`; absent falls

@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-35
+  - id: A-1
     at: '2026-08-24'
     title: >-
-      a conflicted landing re-queues through the revision loop (amends D-6.10, adds
-      D-6.12)
+      a conflicted landing re-queues through the revision loop (amends S-0006/D-10,
+      adds S-0006/D-12)
     md: |-
       **Found in operation** — twice in one evening the owner approved a
       candidate and watched it escalate `merge_conflict` seconds later: a
@@ -15,8 +15,8 @@ amendments:
 
       **Changed:** the standing loop applies that disposal itself. The
       conflict still escalates — the record and the queue-age alarm stand —
-      and is then re-queued in place: feedback captured (RFC 0005 §4a),
-      branch dropped, run queued, at most once per base tip (D-6.12). The
+      and is then re-queued in place: feedback captured (S-0005/the-revision-loop-added-by-a-32-2026-08-24),
+      branch dropped, run queued, at most once per base tip (S-0006/D-12). The
       re-run's fresh candidate prompts for its own sha-bound approval as
       always: the feedback channel steers attempts, never landings.
 
@@ -27,11 +27,11 @@ amendments:
       running it by hand is present to decide. The deeper reorder — probing
       the rebase before requesting approvals, so a doomed tip is never
       offered for approval at all — is left to a future amendment.
-  - id: A-42
+  - id: A-2
     at: '2026-08-25'
-    title: the probe precedes the prompt (adds D-6.13)
+    title: the probe precedes the prompt (adds S-0006/D-13)
     md: |-
-      **Found in operation** — the deferred half of A-35, promised in its
+      **Found in operation** — the deferred half of S-0006/A-1, promised in its
       own closing paragraph. Through two live batches the pattern repeated:
       the commander approves a candidate, a same-file sibling has landed
       first, the sha-bound approval burns with the superseded tip seconds
@@ -39,31 +39,31 @@ amendments:
       automatic; the burned ask was not. Every one of those conflicts was
       knowable before the prompt went out.
 
-      **Changed:** the lane asks the question first (D-6.13). A candidate
+      **Changed:** the lane asks the question first (S-0006/D-13). A candidate
       short of approvals whose base has moved is probed with
       `git merge-tree --write-tree` — read-only, no worktree, no ref moves,
-      and exact for single-commit candidates (RFC 0010 D-10.8) — and a
-      provably conflicting tip is never offered for approval: the A-35
+      and exact for single-commit candidates (S-0010 S-0010/D-8) — and a
+      provably conflicting tip is never offered for approval: the S-0006/A-1
       disposal fires at probe time, capture and re-queue included, under
-      D-6.12's progress bound. The prompt the human sees is now always for
+      S-0006/D-12's progress bound. The prompt the human sees is now always for
       a tip whose landing no known conflict can void.
 
       **Deliberately unchanged:** a clean probe changes nothing — the prompt
       goes out and the approval is honoured through the landing's mechanical
-      rebase, exactly D-6.3's regime, so a stale-but-compatible tip still
+      rebase, exactly S-0006/D-3's regime, so a stale-but-compatible tip still
       costs one approval, not two; the landing-time rebase and its own
       conflict disposal, which still guard the same-pass race the probe
       cannot see; and the manual lane, which never probes — an operator
       running `torve merge` by hand is present to read the refusal.
-  - id: A-43
+  - id: A-3
     at: '2026-08-26'
     title: >-
-      the review verdict becomes a landing predicate (adds D-6.14)
+      the review verdict becomes a landing predicate (adds S-0006/D-14)
     md: |-
       **Found in audit** — §3 has listed `review: no_blocker_findings` among
       the promotion criteria since acceptance, and the runner honours it: the
       task-gated review runs after green gates, before `ready`, and a
-      surviving blocker escalates (RFC 0005 D-5.11). But the lane never
+      surviving blocker escalates (S-0005 S-0005/D-11). But the lane never
       checks. Enforcement is a courtesy of the runner's configuration
       (`review.on: task_gated`), not a property of the landing policy — edit
       `review.on`, or run a repository that never configured it, and the lane
@@ -71,7 +71,7 @@ amendments:
       predicate at T-0048, approvals at T-0060; the criterion listed between
       them never did.
 
-      **Changed:** `promotion.require_review` (D-6.14), default false,
+      **Changed:** `promotion.require_review` (S-0006/D-14), default false,
       zero-disabled like its siblings. The run state carries `reviewed_by` —
       the review task's id, set by the runner when the task-gated review
       concludes without a surviving blocker, cleared on every entry to
@@ -79,100 +79,100 @@ amendments:
       unconfigured-review bridge never sets it. The lane refuses a `ready`
       candidate without one (`lane_review_missing`, a standing refusal like
       `ci not green`), placed before the approvals check so a candidate the
-      policy cannot land is never offered for approval — D-6.13's ordering
+      policy cannot land is never offered for approval — S-0006/D-13's ordering
       generalized. Both lanes enforce it: promotion policy, unlike the
       loop-only conflict disposal.
 
       **Deliberately unchanged:** the runner-side escalation on blockers —
-      D-5.11's order stands, a surviving blocker still never reaches `ready`;
+      S-0005/D-11's order stands, a surviving blocker still never reaches `ready`;
       an unparseable review still concludes — the predicate asserts a review
-      ran and no blocker survived, and reviewer output quality is RFC 0005
+      ran and no blocker survived, and reviewer output quality is S-0005
       §7's ladder, not this knob; and the pull-request-triggered reviews stay
       report-only — task state is never mutated on that path.
-  - id: A-115
+  - id: A-4
     at: '2026-09-05'
     title: >-
       Four decisions lost their carrier to two retirements
     md: |-
-      **Judged in the pass A-113's new flag started.** Both declared phases
+      **Judged in the pass S-0007/A-4's new flag started.** Both declared phases
       shipped, and the header's account of what is outstanding — §7's exit
       criteria accruing with dogfood use, "the calendar, not work" — was true
       when written and is no longer the whole of it. Four decisions lost their
       implementation to two retirements this month, and neither retirement said
       so here.
 
-      - **D-6.2 is unimplemented, and it is `LOCKED`.** Auto-merge off by
+      - **S-0006/D-2 is unimplemented, and it is `LOCKED`.** Auto-merge off by
         default, opt-in per repository: the switch a scheduler consulted was
         `promotion.auto_merge`, whose only reader was the standing loop's lane
-        leg. The loop was retired (A-105) and the knob deleted as a setting
-        nothing could act on (A-110). The *rule* is unchanged and the default it
+        leg. The loop was retired (S-0019/A-8) and the knob deleted as a setting
+        nothing could act on (S-0048/A-1). The *rule* is unchanged and the default it
         names is now the only behaviour there is — `torve merge` lands when a
         person runs it — so nothing landed that this decision forbade. What is
         gone is the opt-in half, and a scheduler that wants it reintroduces the
         switch here rather than inheriting one nothing read.
-      - **D-6.11 is unimplemented.** Interrupt-class escalations paged through
+      - **S-0006/D-11 is unimplemented.** Interrupt-class escalations paged through
         `tracker.notify` and the outbox. The tracker projection was deleted
-        (RFC 0008 A-92) and no surface produces those notifications now. An
+        (S-0008 S-0008/A-5) and no surface produces those notifications now. An
         escalation is still recorded, still ages, and still shows in `torve
         status` and the fleet's queue — what is gone is the delivery.
-      - **D-6.12 and D-6.13 are unimplemented.** Both describe the lane's
+      - **S-0006/D-12 and S-0006/D-13 are unimplemented.** Both describe the lane's
         *automatic* conflict disposal — the bounded re-queue and the probe that
         precedes the approvals prompt — which ran only under the tick's
-        `on_conflict` hook (A-110). D-6.10 is untouched and is what happens now:
+        `on_conflict` hook (S-0048/A-1). S-0006/D-10 is untouched and is what happens now:
         a conflicted landing escalates and waits for a person, which is this
         document's manual behaviour and always was.
 
-      The header's claim that "RFC 0008's `approve` supplies approvals from the
+      The header's claim that "S-0008's `approve` supplies approvals from the
       board" is also stale in a way worth correcting rather than deleting: that
       surface went with the tracker, and `torve approve` is the surface now
-      (A-110), recording the same sha-bound approval on the same run state.
+      (S-0048/A-1), recording the same sha-bound approval on the same run state.
 
       **Changed:** `implementation: partial` stands. What is owed is no longer
       only a calendar: it is one `LOCKED` decision and three `ASSUMED` ones whose
       carriers were removed by documents that did not name them, and §7's exit
       criteria on top.
-  - id: A-127
+  - id: A-5
     at: '2026-09-06'
     title: >-
-      D-6.11's rule is satisfied; its mechanism is not the one it named
+      S-0006/D-11's rule is satisfied; its mechanism is not the one it named
     md: |-
-      **A-115 is out of date, by two hours.** It recorded D-6.11 as
+      **S-0006/A-4 is out of date, by two hours.** It recorded S-0006/D-11 as
       unimplemented, which was true when written and stopped being true when
-      RFC 0051 landed. Recorded here rather than left for the next reader to
+      S-0051 landed. Recorded here rather than left for the next reader to
       discover, because a document that says a capability is missing when it is
       present is the same defect as one that says it is present when it is
       missing — and the corpus spent this week fixing the second kind.
 
-      **The rule holds; the mechanism is a substitution.** D-6.11 asks that an
+      **The rule holds; the mechanism is a substitution.** S-0006/D-11 asks that an
       interrupt-class escalation produce exactly one delivered notification, and
       names the machinery of the day: `tracker.notify`, an issue assignment and
-      an @mention through the tracker's outbox. All of that is deleted (A-92).
-      What delivers now is RFC 0051 — the undelivered queue folded from the log,
+      an @mention through the tracker's outbox. All of that is deleted (S-0008/A-5).
+      What delivers now is S-0051 — the undelivered queue folded from the log,
       a `Notifier` port, and a relay leg of the manager's pass — and the
       destination is a webhook rather than a forge.
 
-      Two clauses of D-6.11 are worth reading against what shipped:
+      Two clauses of S-0006/D-11 are worth reading against what shipped:
 
       - *"exactly one delivered notification"* is assembled rather than assumed
-        (RFC 0051 D-51.6). No transport offers exactly-once; the escalation's own
+        (S-0051 S-0051/D-6). No transport offers exactly-once; the escalation's own
         event id rides the wire as an idempotency key, the delivery is recorded
         after it happens, and a crash in between redelivers. A destination that
         honours the key collapses that; one that does not sends a duplicate page,
         which is the failure this engine chooses over a page that never arrives.
-      - *"batch stays board-visible only"* survives verbatim as D-51.8, and its
+      - *"batch stays board-visible only"* survives verbatim as S-0051/D-8, and its
         interrupt/batch split is this document's §4, inherited rather than
         re-decided.
 
-      **Changed:** nothing in the table. D-6.11 keeps its text, its grade and its
+      **Changed:** nothing in the table. S-0006/D-11 keeps its text, its grade and its
       identifier; what changed is that something implements it. The three
-      decisions A-115 listed beside it — D-6.2, D-6.12, D-6.13 — are still
+      decisions S-0006/A-4 listed beside it — S-0006/D-2, S-0006/D-12, S-0006/D-13 — are still
       unimplemented, and still for the reason it gave.
-  - id: A-142
+  - id: A-6
     at: '2026-09-09'
     title: >-
       1 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:
-      - subject: D-6.11
+      - subject: D-11
         field: retired
         before: >-
           src/torve/application/tracker.py src/torve/adapters/tracker/github.py
@@ -180,10 +180,10 @@ amendments:
           path rot: every declared glob matches nothing in the tree
     md: |-
       ```yaml changes
-      - subject: D-6.11
+      - subject: S-0006/D-11
         field: retired
         before: src/torve/application/tracker.py src/torve/adapters/tracker/github.py
         after: "path rot: every declared glob matches nothing in the tree"
       ```
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

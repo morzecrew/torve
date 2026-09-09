@@ -1,4 +1,4 @@
-"""The resident manager over the whole fleet (RFC 0048).
+"""The resident manager over the whole fleet (S-0048).
 
 `serve_fleet` is `fleet_tick`'s shape with a manager pass where the tick
 was, so what is asserted here is the shape rather than the pass: the
@@ -81,7 +81,7 @@ def test_every_repository_is_served_once_a_round_in_the_manifests_order(tmp_path
 
 
 def test_a_repository_with_no_partition_is_refused_and_the_round_continues(tmp_path):
-    """D-48.2: a partition nobody wrote down is a board nobody chose — and a
+    """S-0048/D-2: a partition nobody wrote down is a board nobody chose — and a
     fleet does not stop for one missing field."""
 
     one, two = root(tmp_path, "one"), root(tmp_path, "two")
@@ -107,7 +107,7 @@ def test_a_repository_with_no_partition_is_refused_and_the_round_continues(tmp_p
 
 
 def test_trust_is_enforced_before_the_pass_not_after(tmp_path):
-    """D-24.6 reaches v2 unchanged: a root whose own configuration asks for
+    """S-0024/D-6 reaches v2 unchanged: a root whose own configuration asks for
     more than its class allows never reaches the pass at all."""
 
     one, two = root(tmp_path, "one"), root(tmp_path, "two")
@@ -135,7 +135,7 @@ def test_trust_is_enforced_before_the_pass_not_after(tmp_path):
 
 
 def test_a_failing_repository_is_recorded_and_the_rest_still_run(tmp_path):
-    """D-24.5: a manager that stops serving four healthy repositories
+    """S-0024/D-5: a manager that stops serving four healthy repositories
     because a fifth is broken is worse than one that says so."""
 
     one, two = root(tmp_path, "one"), root(tmp_path, "two")
@@ -159,9 +159,9 @@ def test_a_failing_repository_is_recorded_and_the_rest_still_run(tmp_path):
 
 
 def test_the_pause_is_decided_for_the_fleet_not_per_repository(tmp_path):
-    """D-24.2: two repositories under their own thresholds and over the
+    """S-0024/D-2: two repositories under their own thresholds and over the
     fleet's pause both. The pause reaches the pass, which is what skips the
-    mint (D-48.4)."""
+    mint (S-0048/D-4)."""
 
     one, two = root(tmp_path, "one"), root(tmp_path, "two")
     escalate(one, "T-0001")
@@ -245,7 +245,7 @@ def test_a_productive_round_goes_straight_round_again_and_an_idle_one_waits(tmp_
 
 
 def test_the_escalation_count_unions_both_carriers(tmp_path):
-    """D-48.5: a task escalated under v1 and re-escalated on the board is
+    """S-0048/D-5: a task escalated under v1 and re-escalated on the board is
     one task to triage, and counting it twice pauses a fleet for work that
     does not exist."""
 
@@ -269,7 +269,7 @@ def test_the_escalation_count_unions_both_carriers(tmp_path):
 
 @pytest.mark.parametrize("order", ["manifest", "alphabetical"])
 def test_the_order_is_the_manifests_and_never_a_priority(tmp_path, order):
-    """D-24.4: a fleet that serves in a chosen order is one config change
+    """S-0024/D-4: a fleet that serves in a chosen order is one config change
     from being a scheduler with opinions."""
 
     beta, alpha = root(tmp_path, "beta"), root(tmp_path, "alpha")
@@ -290,7 +290,7 @@ def test_the_order_is_the_manifests_and_never_a_priority(tmp_path, order):
 
 
 def test_the_pause_counts_the_record_and_not_only_the_files(tmp_path):
-    """D-48.5's union was written, tested and never called: `survey` counted
+    """S-0048/D-5's union was written, tested and never called: `survey` counted
     run-state files, so a fleet was blind to every escalation the manager
     had raised — which is now all of them (A-110)."""
 

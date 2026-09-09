@@ -20,7 +20,7 @@ from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 
 def manifest_with(gates: list[dict], **extra) -> dict:
     # Test convenience only: real manifests must carry state and origin
-    # explicitly (D-2.19); the schema requirement has its own test.
+    # explicitly (S-0002/D-19); the schema requirement has its own test.
     for gate in gates:
         gate.setdefault("state", "blocking")
         gate.setdefault("origin", "structural")
@@ -179,7 +179,7 @@ def test_telemetry_record_shape(repo, tmp_path):
 
 # ....................... #
 
-# T-0120 (RFC 0027 D-27.7): a live run's dispatch resolves its tier's image
+# T-0120 (S-0027 S-0027/D-7): a live run's dispatch resolves its tier's image
 # digest and refuses to proceed when the task names no explicit tier_variant
 # and that digest is neither arm the eval ledger's most recent citing verdict
 # measured — a regime change nobody measured must not ship silently.
@@ -285,7 +285,7 @@ def test_real_dispatch_allows_the_unchanged_measured_default(tmp_path):
 
 def test_real_dispatch_allows_the_digest_the_verdict_measured_as_the_candidate(tmp_path):
     """A human reading a green verdict and flipping the committed config to
-    the measured candidate (D-27.7) is the sanctioned path to a new regime —
+    the measured candidate (S-0027/D-7) is the sanctioned path to a new regime —
     the guard must not refuse the very digest the ledger already names."""
     from torve.application.runner import real_hooks
     from torve.config.runconfig import RunnerConfig
@@ -299,7 +299,7 @@ def test_real_dispatch_allows_the_digest_the_verdict_measured_as_the_candidate(t
 
 def test_real_dispatch_allows_anything_before_any_verdict_cites_the_tier(tmp_path):
     """No citing verdict means nothing has been measured yet, so nothing can
-    have been displaced — the bootstrap case for a tier RFC 0027 has not
+    have been displaced — the bootstrap case for a tier S-0027 has not
     reached (an empty ledger)."""
     from torve.application.runner import real_hooks
     from torve.config.runconfig import RunnerConfig
@@ -311,7 +311,7 @@ def test_real_dispatch_allows_anything_before_any_verdict_cites_the_tier(tmp_pat
 
 
 def test_an_explicit_tier_variant_dispatches_freely_even_against_an_unmeasured_digest(tmp_path):
-    """D-27.3: naming a variant is naming and running a candidate on
+    """S-0027/D-3: naming a variant is naming and running a candidate on
     purpose — the displacement refusal is scoped to the base seat's silent
     resolution alone."""
     from torve.application.runner import real_hooks
@@ -335,9 +335,9 @@ def test_an_explicit_tier_variant_dispatches_freely_even_against_an_unmeasured_d
 
 
 def test_a_character_routed_task_dispatches_freely_like_an_explicit_variant(tmp_path):
-    """RFC 0034 D-34.3: character routing resolves to a tier_variant before
+    """S-0034 S-0034/D-3: character routing resolves to a tier_variant before
     real_hooks ever sees the task — the same free-dispatch path an explicit
-    tier_variant already takes (D-27.3), never the silently-resolved base
+    tier_variant already takes (S-0027/D-3), never the silently-resolved base
     seat's displacement refusal."""
     from torve.application.runner import real_hooks
     from torve.config.runconfig import RunnerConfig, TierConfig, resolve_character_tier
@@ -359,7 +359,7 @@ def test_a_character_routed_task_dispatches_freely_like_an_explicit_variant(tmp_
 
 
 def test_run_routing_includes_the_character_routed_variants_provider(tmp_path):
-    """D-21.4 parity with include_retry: once resolve_character_tier has run
+    """S-0021/D-4 parity with include_retry: once resolve_character_tier has run
     upstream, the run's routing derivation sees the character-routed
     variant's provider, not the seat default's."""
     from torve.application.dispatch import run_routing
@@ -408,7 +408,7 @@ def test_shadow_dispatch_never_trips_the_guard(tmp_path):
 
 
 def test_a_failed_attempt_still_appends_its_cost(tmp_path):
-    """RFC 0004 §6: a budget-killed or nonzero-exit attempt never reaches the
+    """S-0004/telemetry-staged: a budget-killed or nonzero-exit attempt never reaches the
     gates leg, and its record used to vanish with it — four ~$4 first
     attempts were missing from cost-and-iterations when this was found. The
     attempt hook appends a gates_run:false record with the spend."""
@@ -480,17 +480,17 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
     assert failed and failed[0]["agent"]["cost_usd"] == 4.05
     assert failed[0]["task_id"] == "T-9020"
     assert failed[0]["exit_code"] == 1
-    # RFC 0038: the ending names itself, and the row knows its attempt.
+    # S-0038: the ending names itself, and the row knows its attempt.
     assert failed[0]["verdict"] == "agent_error"
     assert failed[0]["agent"]["attempt"] == 1
 
 
 def test_a_red_attempt_row_carries_the_burn_profile(tmp_path):
     """The burn profile rides the runner into the agent block beside the
-    token totals on every row shape (RFC 0039 §5.3): an attempt that never
+    token totals on every row shape (S-0039/the-burn-profile): an attempt that never
     reaches the gates still answers "where did the output go", because its
     trace was profiled at capture — and an adapter without a profile leaves
-    the key absent, never zeroed (D-4.6)."""
+    the key absent, never zeroed (S-0004/D-6)."""
     import asyncio
     import subprocess
 
@@ -592,7 +592,7 @@ def test_a_red_attempt_row_carries_the_burn_profile(tmp_path):
 
 
 # ....................... #
-# The tier clock (RFC 0035 §5.3, D-35.6): the attempt hook reads the
+# The tier clock (S-0035/the-tier-clock, S-0035/D-6): the attempt hook reads the
 # resolved tier's values, so the heavy rung carries its own clocks.
 
 
@@ -802,7 +802,7 @@ def test_the_empty_implement_diff_predicate(tmp_path):
     assert not _is_empty_implement_diff(ctx(task=None), tmp_path)
 
     # The adoption record decides: a contract naming the task as parent
-    # (D-26.5) makes it the integration task, whose empty diff stays legal.
+    # (S-0026/D-5) makes it the integration task, whose empty diff stays legal.
     adopted = tmp_path / "with-children"
     (adopted / ".torve" / "tasks" / "T-9000").mkdir(parents=True)
     (adopted / ".torve" / "tasks" / "T-9000" / "contract.yaml").write_text(
@@ -834,7 +834,7 @@ def _gate_dispatch(
     base="main",
 ):
     """A dispatch with nothing running behind it — enough for the steps that
-    only read the regime off it (RFC 0046)."""
+    only read the regime off it (S-0046)."""
 
     from pathlib import Path
 
@@ -867,7 +867,7 @@ def _gate_dispatch(
 
 
 def _gate_pass(repo, worktree, *, base="main"):
-    """The shipped gate pass over a cut worktree (RFC 0046): the pass reads
+    """The shipped gate pass over a cut worktree (S-0046): the pass reads
     its regime off a dispatch now, so the test builds one instead of
     threading thirteen positional arguments and hoping the order held."""
 
@@ -883,7 +883,7 @@ def _gate_pass(repo, worktree, *, base="main"):
 def test_an_empty_implement_diff_is_refused_before_the_battery(repo):
     """T-0172: end to end through the shipped gate pass — an implement
     attempt that changed nothing comes back red with a fact naming the
-    empty diff, and the attempt's spend survives as a red record (RFC 0004
+    empty diff, and the attempt's spend survives as a red record (S-0004
     §6). The battery is never blessed over a tree the agent never touched."""
 
     repo.seed()
@@ -934,7 +934,7 @@ def test_an_empty_implement_diff_is_refused_when_the_contract_was_minted_after_b
 
 
 def test_an_integration_tasks_empty_diff_stays_legal(repo):
-    """D-26.6 + T-0177: at adoption the parent becomes the integration
+    """S-0026/D-6 + T-0177: at adoption the parent becomes the integration
     task — its `depends_on` grows with every child and its landing is the
     decomposition's completion, so its legitimately-empty diff is not a
     refused no-op. What makes it the integration task is the engine's
@@ -945,7 +945,7 @@ def test_an_integration_tasks_empty_diff_stays_legal(repo):
     repo.seed()
     task_doc = base_task(allow=["src/**"])
     task_doc["depends_on"] = ["T-9000"]
-    # The adopted children carry the parent (D-26.5) — the engine's record
+    # The adopted children carry the parent (S-0026/D-5) — the engine's record
     # the discriminator reads. It lives in the engine root's task
     # directory; the worktree cut at base carries the committed copy.
     repo.write(
@@ -993,17 +993,17 @@ def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
 
 
 # ....................... #
-# RFC 0038 — the attempt verdict (T-0247). Every attempt ends in exactly
-# one row (D-38.1) carrying an engine-derived verdict from the closed
-# vocabulary (D-38.2, D-38.3), and every row the attempt appends is stamped
-# with its attempt number (D-38.4). One test per ending, driven through the
+# S-0038 — the attempt verdict (T-0247). Every attempt ends in exactly
+# one row (S-0038/D-1) carrying an engine-derived verdict from the closed
+# vocabulary (S-0038/D-2, S-0038/D-3), and every row the attempt appends is stamped
+# with its attempt number (S-0038/D-4). One test per ending, driven through the
 # real attempt hook over the real gate pass.
 
 
 def _stream(root: Path) -> tuple[list[dict], list[dict]]:
     """(attempt rows, engine events) — the split every 0038 reader makes:
     a `kind: engine` record names no attempt and carries no agent block;
-    absence of the additive keys reads as pre-0038 (D-38.6)."""
+    absence of the additive keys reads as pre-0038 (S-0038/D-6)."""
     path = root / ".torve" / "telemetry.jsonl"
     lines = [json.loads(line) for line in path.read_text().splitlines()] if path.is_file() else []
     return (
@@ -1013,7 +1013,7 @@ def _stream(root: Path) -> tuple[list[dict], list[dict]]:
 
 
 class RefusingBroker:
-    """The budget refusal mid-attempt (D-21.6): the run's agent succeeds,
+    """The budget refusal mid-attempt (S-0021/D-6): the run's agent succeeds,
     the broker says the next request would be refused too."""
 
     name = "local"
@@ -1034,7 +1034,7 @@ class RefusingBroker:
 class _EndingsAgent:
     """A fake agent scripted to a different ending per attempt: the result
     at index attempt-1; optionally writing a candidate file (so a gate pass
-    sees a real diff) or a halted divergence entry (RFC 0001 §4)."""
+    sees a real diff) or a halted divergence entry (S-0001/state-machine)."""
 
     kind = "fake"
 
@@ -1097,11 +1097,11 @@ def _drive_endings(repo, results, *, write_on=None, halted_on=None, broker=None,
 
 
 def test_each_attempt_ending_appends_exactly_one_row_with_its_verdict(repo):
-    """The one-attempt-one-row invariant (D-38.1) over a single run that
+    """The one-attempt-one-row invariant (S-0038/D-1) over a single run that
     ends four attempts four different ways: a timeout, an agent error, a
     refused empty diff (the gate report went red), and a green landing.
     Four attempts, four rows, one verdict each, every row stamped
-    (D-38.4)."""
+    (S-0038/D-4)."""
     from test_run_loop import CRASH, TIMEOUT
 
     from torve.application.ports import AgentResult
@@ -1121,7 +1121,7 @@ def test_each_attempt_ending_appends_exactly_one_row_with_its_verdict(repo):
     assert [r["agent"]["attempt"] for r in rows] == [1, 2, 3, 4]
     assert all(r["verdict"] in ATTEMPT_VERDICTS for r in rows)
     # The red-agent shape for every gates-less ending; the gate-row shape
-    # for the two that reached the battery (D-38.1 subsumes the inline
+    # for the two that reached the battery (S-0038/D-1 subsumes the inline
     # append rather than duplicating it).
     assert rows[0]["gates_run"] is False and rows[0]["timed_out"] is True
     assert rows[0]["exit_code"] is None and rows[1]["exit_code"] == 137
@@ -1130,7 +1130,7 @@ def test_each_attempt_ending_appends_exactly_one_row_with_its_verdict(repo):
 
 
 def test_a_broker_refusal_appends_the_row_that_today_leaves_no_record(repo):
-    """D-21.6's hole (RFC 0038 §2): an agent that exits 0 into a refused
+    """S-0021/D-6's hole (S-0038/motivation): an agent that exits 0 into a refused
     budget stops the loop before the gates — an ending that appends nothing
     at all today. It now lands the red-agent shape with the
     `broker_refused` verdict, and the refusal itself is in the record
@@ -1149,14 +1149,14 @@ def test_a_broker_refusal_appends_the_row_that_today_leaves_no_record(repo):
     assert row["escalation"] == "cost_anomaly"
     assert row["agent"]["attempt"] == 1
     assert row["agent"]["broker"]["refusals"] == {"budget": 2}
-    # D-38.5: the escalation itself is durable too, beside the row.
+    # S-0038/D-5: the escalation itself is durable too, beside the row.
     escalations = [e for e in events if e["event"] == "escalation"]
     assert [e["reason"] for e in escalations] == ["cost_anomaly"]
     assert [e["task"] for e in escalations] == [TASK_ID]
 
 
 def test_a_halted_attempt_appends_its_verdict_row(repo):
-    """The halt (RFC 0001 §4) is terminal by design and used to end the
+    """The halt (S-0001/state-machine) is terminal by design and used to end the
     attempt with no row: now the red-agent shape carries `halted`, with
     the escalation reason the loop will act on beside it."""
     from torve.application.ports import AgentResult
@@ -1197,7 +1197,7 @@ def test_a_gates_hook_failure_appends_its_verdict_row(repo, monkeypatch):
 
 
 # ....................... #
-# D-38.2's determinism argument made testable: the verdict adds no
+# S-0038/D-2's determinism argument made testable: the verdict adds no
 # information the row does not already imply. Re-derive it from the other
 # recorded fields — the same facts, inspected in the order the loop
 # inspects them — over every ending.
@@ -1225,7 +1225,7 @@ def derive_verdict_from_row(row: dict) -> str:
 def test_the_verdict_is_derivable_from_the_rows_other_fields(tmp_path, monkeypatch):
     """Replay over rows carrying every verdict value: each row's verdict
     equals what its other fields already say — the vocabulary adds
-    convenience, never information (keeps D-34.5's determinism argument
+    convenience, never information (keeps S-0034/D-5's determinism argument
     honest with the verdict in the stream)."""
     from test_run_loop import CRASH, TIMEOUT
 
@@ -1267,7 +1267,7 @@ def test_the_verdict_is_derivable_from_the_rows_other_fields(tmp_path, monkeypat
 
 
 # ....................... #
-# D-38.5 — RunState.escalate is the single place an escalation is set, so
+# S-0038/D-5 — RunState.escalate is the single place an escalation is set, so
 # it is the single place the durable event lands (one call site, not
 # twenty-two). The state-file write is the one that gates correctness:
 # the stream append rides after it, and never turns an escalation into a
@@ -1335,7 +1335,7 @@ def test_the_escalation_event_derives_its_root_from_the_state_file(tmp_path):
 
 
 # ....................... #
-# Conviction-routed retries (T-0216, D-34.5/D-34.6/D-34.7): the red attempt's
+# Conviction-routed retries (T-0216, S-0034/D-5, S-0034/D-6, S-0034/D-7): the red attempt's
 # recorded gate outcomes resolve the rung — the axis-keyed mapping read at
 # the most severe axis present, the scalar read as its functional sugar. The
 # selection sees outcomes, states and declared labels only, never a trace or
@@ -1740,7 +1740,7 @@ def test_a_boundary_conviction_retries_under_the_same_tier_never_a_heavier_one(r
 
 
 def test_the_scalar_mirror_still_routes_every_unclassified_red(repo, monkeypatch):
-    """D-27.11 compatibility: a configured scalar is the functional rung of
+    """S-0027/D-11 compatibility: a configured scalar is the functional rung of
     the resolved mapping, and it still fires after reds whose record names
     no gate (the scripted recordless red — the empty-diff shape)."""
     from test_run_loop import OK, ScriptedAgent, task_for
@@ -1775,7 +1775,7 @@ def test_the_scalar_mirror_still_routes_every_unclassified_red(repo, monkeypatch
 
 
 def test_the_chosen_rung_is_derivable_from_telemetry_records_alone(repo, monkeypatch):
-    """D-34.5's claim made testable: replay the rung choice from the rows —
+    """S-0034/D-5's claim made testable: replay the rung choice from the rows —
     names, outcomes and states are the record's own fields, the axis labels
     and the rung map are the configuration they were recorded beside — and
     no attempt-level trace enters the derivation."""
@@ -1826,9 +1826,9 @@ def test_the_chosen_rung_is_derivable_from_telemetry_records_alone(repo, monkeyp
 
 
 # ....................... #
-# The derived-cache volume (RFC 0035 §5.2, D-35.4): slot-suffixed naming
+# The derived-cache volume (S-0035/the-derived-cache-volume, S-0035/D-4): slot-suffixed naming
 # like the auth volume, a fixed mount outside the workspace, and the gates
-# lane of a live run carrying the same warmth the attempt got. D-35.3's
+# lane of a live run carrying the same warmth the attempt got. S-0035/D-3's
 # replay exclusion is pinned beside the replay, in test_shadow.py.
 
 
@@ -1849,7 +1849,7 @@ def test_an_unnamed_cache_mounts_nothing_a_named_one_is_slot_suffixed():
     # Slot-scoped like auth volumes: two concurrent workers share nothing.
     assert mounts_for(TierConfig(cache_volume="torve-cache"), 3) != mounts
 
-    # D-35.3: a replay measures the cold truth even when the tier names a
+    # S-0035/D-3: a replay measures the cold truth even when the tier names a
     # cache — one function, so the attempt and the battery cannot disagree.
     assert mounts_for(TierConfig(cache_volume="torve-cache"), 2, shadow=True) == {}
 
@@ -1952,13 +1952,13 @@ def test_a_cold_run_mounts_nothing_at_all(repo, monkeypatch):
 
     run_task(repo.root, task_for(repo), RunnerConfig(), _cache_deps(repo, runtime))
 
-    # Empty (the default) is cold exactly as today (D-35.4).
+    # Empty (the default) is cold exactly as today (S-0035/D-4).
     assert runtime.specs and all(spec.volumes == {} for spec in runtime.specs)
     assert gate_caches == [{}]
 
 
 def test_the_prompt_renders_the_consequence_and_names_the_checkable_row():
-    """RFC 0054 D-54.1, D-54.3: the executor reads the reason after each row,
+    """S-0054 S-0054/D-1, S-0054/D-3: the executor reads the reason after each row,
     and a checkable row says the battery judges it and no entry is owed."""
 
     from torve.adapters.agent.harness import build_prompt
@@ -1989,7 +1989,7 @@ def test_the_prompt_renders_the_consequence_and_names_the_checkable_row():
 
 
 def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
-    """RFC 0054 D-54.10: the pack is materialised beside the skills before
+    """S-0054 S-0054/D-10: the pack is materialised beside the skills before
     the prompt is written, from the record and the tree, with no model."""
     import asyncio
     import json
@@ -2072,7 +2072,7 @@ def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
 
 
 # ----------------------- #
-# RFC 0057 D-57.7: the runner lands what the attempt found before it commits
+# S-0057 S-0057/D-7: the runner lands what the attempt found before it commits
 
 
 def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
@@ -2089,7 +2089,7 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
 
     worktree = tmp_path / "wt"
     spec_dir = corpus(
-        worktree, **{"0001": document("0001", [("D-1.1", "LOCKED", "x", "`src/**`")])}
+        worktree, **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/**`")])}
     )
     task = Task(id="T-0001", rfc=".torve/specs/S-0001", phase=1, decisions=[])
     log_path = worktree / ".torve" / "tasks" / task.id / "log.yaml"
@@ -2101,7 +2101,7 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
                 "task": task.id,
                 "entries": [
                     {
-                        "decision": "D-1.1",
+                        "decision": "S-0001/D-1",
                         "grade": "LOCKED",
                         "claim": "held",
                         "evidence": "src/a.py:1 - x",

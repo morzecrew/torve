@@ -1,4 +1,4 @@
-"""RFC 0005 phase 1: the Finding type, the review role's contract shape,
+"""S-0005 phase 1: the Finding type, the review role's contract shape,
 the acceptance-gate skip, and the shared evidence locator that discards
 findings nothing can resolve."""
 

@@ -1,4 +1,4 @@
-"""`torve spec fmt` (RFC 0025 §5.2; RFC 0056 D-56.4; RFC 0057 D-57.1):
+"""`torve spec fmt` (S-0025/torve-rfc-fmt; S-0056 S-0056/D-4; S-0057 S-0057/D-1):
 `--check` is the only mode. It reports every file of every document whose
 text differs from what the serializer would write for it (DRIFT), names
 the document the loader refuses (REFUSE, exit 3), and writes nothing
@@ -20,7 +20,7 @@ runner = CliRunner()
 
 EXIT_CONFIG = 3
 
-ROWS = [("D-1.1", "ASSUMED", "Something is decided.", "`src/torve/cli/**`")]
+ROWS = [("S-0001/D-1", "ASSUMED", "Something is decided.", "`src/torve/cli/**`")]
 SECTIONS = [{"key": "summary", "md": "Prose.\n\nMore prose."}]
 
 # What a person types: the model's keys, PyYAML's own indentation — which
@@ -78,7 +78,7 @@ def test_fmt_check_refuses_a_document_the_loader_refuses(tmp_path: Path) -> None
 
 def test_fmt_targets_a_single_document_by_number(tmp_path: Path) -> None:
     first = seed(tmp_path, HAND_WRITTEN)
-    other = document("0002", [("D-2.1", "ASSUMED", "Another decision.", "—")])
+    other = document("0002", [("S-0002/D-1", "ASSUMED", "Another decision.", "—")])
     second = seed(tmp_path, other, "0002")
 
     result = invoke(tmp_path, "fmt", "0001")

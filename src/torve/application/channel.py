@@ -1,19 +1,19 @@
-"""The sandbox's end of the live channel (RFC 0045 §5.2).
+"""The sandbox's end of the live channel (S-0045/the-intake-route).
 
 An agent's process cannot reach the store and must not be able to: with a
 store credential inside a sandbox the authority table becomes advice, since
-anything holding the connection can write anything (D-45.1). What it gets
+anything holding the connection can write anything (S-0045/D-1). What it gets
 instead is one authenticated route on the broker the run already has, and a
 file naming it — the same trick the log's pin uses, for the same reason
 (nothing inside the sandbox can derive either).
 
 What travels is content. Who is writing, which partition and which task are
 the broker's to stamp from the run-scoped token, so this module has no way
-to say them and no way to get them wrong (D-45.2).
+to say them and no way to get them wrong (S-0045/D-2).
 
 Without a channel every verb here reports its absence rather than failing:
 a run with no broker writes its worktree file exactly as it did before
-(D-45.6), and the channel is an addition, never a dependency.
+(S-0045/D-6), and the channel is an addition, never a dependency.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 # ----------------------- #
 
-# Engine scratch, generated and never committed (RFC 0013 §5) — beside the
+# Engine scratch, generated and never committed (S-0013/what-does-not-belong-in-either) — beside the
 # log's pin, which the sandbox reads for the same reason.
 CHANNEL_FILE = "channel.json"
 TIMEOUT_S = 30.0

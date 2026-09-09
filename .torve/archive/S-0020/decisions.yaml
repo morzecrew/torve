@@ -1,27 +1,27 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-20.1
+  - id: D-1
     grade: LOCKED
     text: >-
-      A draft never dispatches without a human's adoption; adoption is RFC 0007 §6's
+      A draft never dispatches without a human's adoption; adoption is S-0007/the-loop-closed's
       signature, relocated but never removed
     paths: [src/torve/application/intake.py, src/torve/cli/intake.py]
     consequence: >-
-      Remove it and the engine plans autonomously — the boundary 0007 §2 exists to
-      prevent
-  - id: D-20.2
+      Remove it and the engine plans autonomously — the boundary S-0007/asymmetry-by-write-authority
+      exists to prevent
+  - id: D-2
     grade: LOCKED
     text: >-
       Drafting is a run under the runner — role `draft`, its own tier seat, read-only
-      workspace — never a planner-module model call; D-7.1 stands untouched
+      workspace — never a planner-module model call; S-0007/D-1 stands untouched
     paths:
       - src/torve/application/intake.py
       - src/torve/application/runner.py
       - src/torve/domain/task.py
     consequence: >-
       The review precedent (0005) is the load-bearing argument that the run boundary
-      suffices; breaching D-7.1 instead forfeits it
-  - id: D-20.3
+      suffices; breaching S-0007/D-1 instead forfeits it
+  - id: D-3
     grade: LOCKED
     text: >-
       Draft output is data gated by the deterministic contract lint; red lint is a
@@ -30,7 +30,7 @@ decisions:
     consequence: >-
       A draft a human sees has already passed every mechanical check — the T-0113
       class dies before the board
-  - id: D-20.4
+  - id: D-4
     grade: LOCKED
     text: >-
       Task ids are minted at adoption, atomically with the contract commit under the
@@ -39,13 +39,13 @@ decisions:
     consequence: >-
       Closes the id race hit twice in dogfood (T-0101, T-0103); reservation ledgers
       rejected in §5.3's alternatives
-  - id: D-20.5
+  - id: D-5
     grade: ASSUMED
     text: >-
-      Intake authorization is the commander list (D-8.9); requests arrive as `torve.intake`-labeled
-      issues in phase 2, CLI in phase 1
+      Intake authorization is the commander list (S-0008/D-9); requests arrive as
+      `torve.intake`-labeled issues in phase 2, CLI in phase 1
     paths: [src/torve/application/tracker.py, src/torve/cli/**]
-  - id: D-20.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       The intake thread is a revision loop: `/torve revise` captures thread feedback
@@ -53,7 +53,7 @@ decisions:
     paths: [src/torve/application/tracker.py, src/torve/application/feedback.py]
     consequence: >-
       A second capture mechanism would drift from the first; reuse is the guard
-  - id: D-20.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       Adopted contracts commit as engine records on base and dispatch through the
@@ -61,13 +61,13 @@ decisions:
     paths: [src/torve/application/intake.py, src/torve/application/loop.py]
     consequence: >-
       A parallel dispatch path is a second loop to keep honest
-  - id: D-20.8
+  - id: D-8
     grade: OPEN
     text: >-
       The decomposition ceiling per request — the knob's default and where it lives;
       settled by the first weeks of drafting telemetry
     paths: [src/torve/config/runconfig.py]
-  - id: D-20.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       Decision inheritance at adoption is a deterministic copy from a named accepted
@@ -75,9 +75,9 @@ decisions:
       in prose only and never writes a row or a grade
     paths: [src/torve/application/intake.py, src/torve/application/planner.py]
     consequence: >-
-      A model-assigned grade is a human judgement faked; D-A.4's copy-at-write-time
+      A model-assigned grade is a human judgement faked; S-0016/D-15's copy-at-write-time
       guarantee would silently rot
-  - id: D-20.10
+  - id: D-10
     grade: OPEN
     text: >-
       Disposal of a consumed drafting task (adopted or abandoned) — expected to follow

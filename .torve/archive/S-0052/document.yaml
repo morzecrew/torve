@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0052'
+id: S-0052
 title: The lane as a manager leg
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0006', '0044']
-informed_by: [0019, '0051']
+depends_on: [S-0006, S-0044]
+informed_by: [S-0019, S-0051]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   Restoring the landing half of an unattended session: the serialized lane becomes
@@ -22,7 +22,7 @@ sections:
       and lands none of them, which makes it a session nobody can leave.
 
       This makes the lane a leg of the pass, under a switch that is off by default —
-      restoring D-6.2's opt-in — and gives a conflict the disposal the retired loop
+      restoring S-0006/D-2's opt-in — and gives a conflict the disposal the retired loop
       performed: capture what the attempt should see next, re-queue it, and let the
       board carry it.
   - key: motivation
@@ -33,9 +33,9 @@ sections:
 
       What stops a session from being left alone is not dispatch — that works — but
       what happens after `ready`. The lane exists, is tested, and lands correctly;
-      it simply has no caller inside the loop that produces its input. RFC 0019
-      A-105 removed the caller when it retired the tick, and A-115 recorded D-6.2,
-      D-6.12 and D-6.13 as unimplemented in consequence.
+      it simply has no caller inside the loop that produces its input. S-0019
+      S-0019/A-8 removed the caller when it retired the tick, and S-0006/A-4 recorded S-0006/D-2,
+      S-0006/D-12 and S-0006/D-13 as unimplemented in consequence.
 
       An unattended run therefore ends in one of two ways: the poison ceiling, or a
       queue of candidates nobody merged. Both look like the engine stopping.
@@ -50,15 +50,15 @@ sections:
         refusals. `torve merge` is a thin renderer over it.
       - **Nothing calls it in a loop.** `on_conflict` has no production caller at
         all: the tick's `_capture_for_revision` was its only one, and it is
-        deleted. `torve merge` passes nothing, which is D-6.10's manual behaviour
+        deleted. `torve merge` passes nothing, which is S-0006/D-10's manual behaviour
         and correct for a person.
       - **`promotion.auto_merge` is gone.** Deleted as a knob nothing could read
-        (A-110), so restoring the leg restores its switch too rather than
+        (S-0048/A-1), so restoring the leg restores its switch too rather than
         reviving a field.
       - **The pass has the shape for it.** `residency.once` already takes
-        `standing` and `relay` legs as injected callables (A-106, RFC 0051
-        D-51.5), so a lane leg is the third of a kind rather than a new idea.
-      - **`review.feedback_from` is gone too** (A-110), so the disposal's
+        `standing` and `relay` legs as injected callables (S-0023/A-2, S-0051
+        S-0051/D-5), so a lane leg is the third of a kind rather than a new idea.
+      - **`review.feedback_from` is gone too** (S-0048/A-1), so the disposal's
         forge-thread capture cannot be restored as it was; §5.3 says what is
         restored instead.
   - key: goals-non-goals
@@ -99,20 +99,20 @@ sections:
       loop that read it existed.
   - key: a-conflict-disposes-of-itself
     md: |
-      `on_conflict` gets a caller again (D-6.12, D-6.13). The disposal is what the
+      `on_conflict` gets a caller again (S-0006/D-12, S-0006/D-13). The disposal is what the
       tick's was, minus the half that cannot be restored:
 
       - **Restored:** the candidate's diff is captured into the task's feedback
         record before the branch is superseded, so the next attempt sees what it
         collided with; the branch is kept; the task is re-queued through the
-        escalation the lane already raises (D-6.10), which the operator resolves
+        escalation the lane already raises (S-0006/D-10), which the operator resolves
         or the disposal resolves for it.
       - **Not restored:** the pull request's review threads. Their allow-list
-        (`review.feedback_from`) was deleted with the loop (A-110) and their
-        capture rode the same hook. RFC 0005 D-5.12's forge half stays
+        (`review.feedback_from`) was deleted with the loop (S-0048/A-1) and their
+        capture rode the same hook. S-0005 S-0005/D-12's forge half stays
         unimplemented, and this document does not pretend otherwise.
 
-      D-6.12's bound is unchanged and is why this is safe to automate: the disposal
+      S-0006/D-12's bound is unchanged and is why this is safe to automate: the disposal
       re-queues **only when the base tip has moved** since the last attempt. A
       conflict against a base that has not moved is not a race, it is the same
       conflict, and re-queueing it is a loop.
@@ -123,7 +123,7 @@ sections:
       to advance one base, which is the throughput wall arriving as a race
       condition rather than as a queue.
 
-      **A separate lander process.** The same argument as RFC 0051 §5.4: a process
+      **A separate lander process.** The same argument as S-0051/the-relay-is-a-leg-of-the-manager-s-pass: a process
       whose only job is draining a queue that another process visits every pass is
       a second thing to run and supervise, for no throughput anybody needs while
       one base serializes everything anyway.
@@ -153,13 +153,13 @@ sections:
   - key: out-of-scope
     md: |
       - **The post-landing publish.** Base push, candidate republish and
-        pull-request close-out left with the loop (A-105). Restoring them is a
+        pull-request close-out left with the loop (S-0019/A-8). Restoring them is a
         forge conversation — the adapter methods are still there and named — and
-        it belongs to RFC 0006's own rebuild rather than to the leg that lands.
+        it belongs to S-0006's own rebuild rather than to the leg that lands.
       - **Parallel landing.** One base, one lander; `distribution.md` item 2 is
         the wall and this document does not move it.
       - **The review-thread half of the disposal.** Named in §5.3, owed by
-        RFC 0005.
+        S-0005.
   - key: risks
     md: |
       - **An unattended session that lands badly is worse than one that lands
@@ -168,7 +168,7 @@ sections:
       - **The pass grows a second kind of I/O.** It already writes to a database
         and reads a filesystem; now it also rewrites a git base. A lane that hangs
         hangs the pass, and would present as "the manager stopped".
-      - **The disposal loops.** D-6.12's moved-base bound is the whole defence, and
+      - **The disposal loops.** S-0006/D-12's moved-base bound is the whole defence, and
         the test that pins it is the one to read first when a task starts
         re-queueing itself.
   - key: unresolved-questions
@@ -209,7 +209,7 @@ phasing:
       into the task's feedback record before the branch is replaced, so the next attempt
       sees what it collided with, and re-queues only when the base tip has moved since
       the last attempt. The forge-thread half is deliberately absent and stays owed
-      by RFC 0005. What must not change is the manual lane: `torve merge` passes no
+      by S-0005. What must not change is the manual lane: `torve merge` passes no
       disposal and escalates as it always has.
     scope:
       - src/torve/application/lane.py

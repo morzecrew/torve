@@ -1,6 +1,6 @@
-"""The specification model (RFC 0053 §5.1, RFC 0056 D-56.1): every typed
-list refuses unknown keys by name (D-53.3); the fingerprint covers text,
-grade and paths and nothing a human reads beside them (D-53.5, D-53.16);
+"""The specification model (S-0053/the-model, S-0056 S-0056/D-1): every typed
+list refuses unknown keys by name (S-0053/D-3); the fingerprint covers text,
+grade and paths and nothing a human reads beside them (S-0053/D-5, S-0053/D-16);
 the stamp is the content fingerprint beside the rule fingerprint; the
 document tells what it defines; the corpus joins across documents and
 knows which documents may be inherited from."""
@@ -29,7 +29,7 @@ from torve.domain.spec import (
 
 def _doc(number: str, status: str = "accepted", **extra: object) -> Document:
     return Document(
-        id=number,
+        id=f"S-{number}",
         title=f"Document {number}",
         status=status,  # type: ignore[arg-type]
         owner="Test Owner",
@@ -42,7 +42,7 @@ def _doc(number: str, status: str = "accepted", **extra: object) -> Document:
 
 
 def test_the_fingerprint_covers_text_grade_and_paths_only() -> None:
-    base = Decision(id="D-1.1", grade="LOCKED", text="Sessions in Redis", paths=["a/**"])
+    base = Decision(id="S-0001/D-1", grade="LOCKED", text="Sessions in Redis", paths=["a/**"])
     same_with_consequence = base.model_copy(update={"consequence": "reopening is expensive"})
     same_with_check = base.model_copy(update={"check": "pytest tests/test_a.py"})
 
@@ -66,7 +66,7 @@ def test_the_fingerprint_covers_text_grade_and_paths_only() -> None:
 
 
 def test_the_stamp_pairs_the_content_with_the_rule() -> None:
-    row = Decision(id="D-1.1", grade="LOCKED", text="x", paths=["a/**"])
+    row = Decision(id="S-0001/D-1", grade="LOCKED", text="x", paths=["a/**"])
     content, rule = row.stamp().split("/")
 
     assert content == row.content_fingerprint()
@@ -87,14 +87,14 @@ def test_the_fingerprint_is_order_and_whitespace_stable() -> None:
 @pytest.mark.parametrize(
     ("model", "entry"),
     [
-        (Decision, {"id": "D-1.1", "grade": "OPEN", "text": "x", "why": "not a field"}),
+        (Decision, {"id": "S-0001/D-1", "grade": "OPEN", "text": "x", "why": "not a field"}),
         (
             Invariant,
-            {"id": "I-1.1", "statement": "one lander", "check": "x", "paths": [], "cmd": "y"},
+            {"id": "S-0001/I-1", "statement": "one lander", "check": "x", "paths": [], "cmd": "y"},
         ),
         (Alternative, {"option": "x", "rejected_because": "y", "rejected": True}),
-        (Question, {"id": "Q-1.1", "text": "x", "state": "open"}),
-        (Change, {"subject": "D-1.1", "field": "grade", "from": "OPEN", "after": "LOCKED"}),
+        (Question, {"id": "S-0001/Q-1", "text": "x", "state": "open"}),
+        (Change, {"subject": "S-0001/D-1", "field": "grade", "from": "OPEN", "after": "LOCKED"}),
     ],
 )
 def test_an_unknown_key_in_a_typed_entry_is_refused_by_name(
@@ -110,14 +110,14 @@ def test_an_unknown_key_in_a_typed_entry_is_refused_by_name(
 
 def test_a_question_status_is_closed_vocabulary() -> None:
     with pytest.raises(ValidationError):
-        Question(id="Q-1.1", text="x", status="maybe")  # type: ignore[arg-type]
+        Question(id="S-0001/Q-1", text="x", status="maybe")  # type: ignore[arg-type]
 
-    assert Question(id="Q-1.1", text="x").status == "open"
+    assert Question(id="S-0001/Q-1", text="x").status == "open"
 
 
 def test_an_invariant_needs_its_check() -> None:
     with pytest.raises(ValidationError):
-        Invariant.model_validate({"id": "I-1.1", "statement": "x"})
+        Invariant.model_validate({"id": "S-0001/I-1", "statement": "x"})
 
 
 # ....................... #
@@ -126,30 +126,41 @@ def test_an_invariant_needs_its_check() -> None:
 def test_a_document_defines_its_number_rows_invariants_questions_amendments_and_retired() -> None:
     doc = _doc(
         "0001",
-        decisions=[Decision(id="D-1.1", grade="OPEN", text="x")],
-        invariants=[Invariant(id="I-1.1", statement="x", check="true")],
-        questions=[Question(id="Q-1.1", text="x")],
+        # written by their local half alone, as the document's own files write
+        # them; every one is global in memory (S-0058/D-1)
+        decisions=[Decision(id="D-1", grade="OPEN", text="x")],
+        invariants=[Invariant(id="I-1", statement="x", check="true")],
+        questions=[Question(id="Q-1", text="x")],
         amendments=[Amendment(id="A-3")],
-        retired=["D-1.9"],
+        retired=["D-9"],
     )
 
-    assert doc.defined_identifiers() == {"0001", "D-1.1", "I-1.1", "Q-1.1", "A-3", "D-1.9"}
-    assert doc.decision("D-1.1") is not None
-    assert doc.decision("D-1.2") is None
+    assert doc.defined_identifiers() == {
+        "S-0001",
+        "S-0001/D-1",
+        "S-0001/I-1",
+        "S-0001/Q-1",
+        "S-0001/A-3",
+        "S-0001/D-9",
+    }
+    assert doc.decision("S-0001/D-1") is not None
+    assert doc.decision("S-0001/D-2") is None
 
 
 def test_the_corpus_joins_a_decision_to_its_document_and_knows_what_stands() -> None:
-    standing = _doc("0001", decisions=[Decision(id="D-1.1", grade="OPEN", text="x")])
+    standing = _doc("0001", decisions=[Decision(id="S-0001/D-1", grade="OPEN", text="x")])
     draft = _doc("0002", status="draft")
-    archived = _doc("0003", archived=True, decisions=[Decision(id="D-3.1", grade="OPEN", text="x")])
+    archived = _doc(
+        "0003", archived=True, decisions=[Decision(id="S-0003/D-1", grade="OPEN", text="x")]
+    )
     corpus = Corpus(documents=[standing, draft, archived])
 
-    found = corpus.decision("D-3.1")
+    found = corpus.decision("S-0003/D-1")
 
     assert found is not None and found[0].archived
-    assert corpus.decision("D-9.9") is None
-    assert [d.id for d in corpus.standing()] == ["0001"]
-    assert "D-3.1" in corpus.defined_identifiers()
+    assert corpus.decision("S-0009/D-9") is None
+    assert [d.id for d in corpus.standing()] == ["S-0001"]
+    assert "S-0003/D-1" in corpus.defined_identifiers()
 
 
 def test_an_amendment_may_change_nothing_typed() -> None:
@@ -165,17 +176,20 @@ def test_an_amendment_may_change_nothing_typed() -> None:
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("D-53.6", True),
-        ("D-A.3", True),
-        ("D-A.1a", True),
-        ("D-2", True),
-        ("I-44.4", True),
-        ("Q-53.1", True),
-        ("A-130", True),
-        ("0052", True),
+        ("S-0053/D-6", True),
+        ("S-0016/D-14", True),
+        ("S-0001/D-10", True),
+        ("S-0044/I-4", True),
+        ("S-0053/Q-1", True),
+        ("S-0052/A-1", True),
+        ("S-0044/P-1", True),
+        ("S-0058/the-grammar", True),  # a prose key is an item too (S-0058/D-1)
+        ("S-0052", True),  # a document is a citation whole
+        ("0052", False),  # ... but only spelt as the one grammar spells it
+        ("D-53", False),  # a bare local is nobody's citation
+        ("D-53.6", False),  # the old grammar (S-0058/D-2)
         ("RFC 0052", False),
         ("§5.2", False),
-        ("D-53", True),
     ],
 )
 def test_what_counts_as_a_citation(value: str, expected: bool) -> None:
@@ -184,12 +198,14 @@ def test_what_counts_as_a_citation(value: str, expected: bool) -> None:
 
 def test_a_check_state_is_closed_vocabulary_and_defaults_to_shadow() -> None:
     with pytest.raises(ValidationError):
-        Decision(id="D-1.1", grade="OPEN", text="x", check="true", check_state="on")  # type: ignore[arg-type]
+        Decision(id="S-0001/D-1", grade="OPEN", text="x", check="true", check_state="on")  # type: ignore[arg-type]
 
-    row = Decision(id="D-1.1", grade="OPEN", text="x", check="true", check_twin="tests/test_x.py")
+    row = Decision(
+        id="S-0001/D-1", grade="OPEN", text="x", check="true", check_twin="tests/test_x.py"
+    )
 
     assert row.check_state == "shadow"
-    assert Decision(id="D-1.1", grade="OPEN", text="x").check_state == "shadow"
+    assert Decision(id="S-0001/D-1", grade="OPEN", text="x").check_state == "shadow"
 
 
 def test_the_loaders_fields_are_never_part_of_the_dump() -> None:
@@ -201,7 +217,7 @@ def test_the_loaders_fields_are_never_part_of_the_dump() -> None:
 
 
 # ----------------------- #
-# RFC 0057 D-57.7: the landing and its entries are models
+# S-0057 S-0057/D-7: the landing and its entries are models
 
 
 def test_a_log_entry_reads_and_writes_the_logs_class_key():
@@ -209,7 +225,7 @@ def test_a_log_entry_reads_and_writes_the_logs_class_key():
 
     entry = LogEntry.model_validate(
         {
-            "decision": "D-1.1",
+            "decision": "S-0001/D-1",
             "grade": "LOCKED",
             "kind": "departed",
             "class": "drift",

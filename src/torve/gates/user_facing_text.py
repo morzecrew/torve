@@ -1,4 +1,4 @@
-"""`user-facing-text` — the audience rule of RFC 0011 §5a (D-11.11): a string
+"""`user-facing-text` — the audience rule of S-0011/audience-who-reads-the-string (S-0011/D-11): a string
 shown to whoever runs the command carries no corpus identifiers, because that
 reader has no corpus and the reference rots invisibly on every amendment.
 
@@ -8,7 +8,7 @@ whoever edits the line — module and class docstrings, and docstrings of
 private, nested and non-CLI functions. Public module-level function
 docstrings in the cli package stay in scope because Typer renders them as
 help text. Comments never enter the AST, so they are structurally exempt —
-D-11.12: references belong there, and displaced ones move up into the module
+S-0011/D-12: references belong there, and displaced ones move up into the module
 docstring, not out of the file.
 """
 
@@ -38,6 +38,7 @@ IDENTIFIERS = re.compile(
     "|".join(
         (
             r"RFC 0[0-9]{3}",
+            r"\bS-[0-9]{4}(?:/[A-Za-z0-9-]+)?",
             r"\bD-[A-Za-z0-9][A-Za-z0-9.]*",
             chr(0xA7),  # the section mark
             r"\brfcs" + "/",

@@ -1,4 +1,4 @@
-"""RFC 0024's fleet-wide readings: survey every root's escalation queue,
+"""S-0024's fleet-wide readings: survey every root's escalation queue,
 decide the pause once for the fleet total, refuse a root whose own
 configuration exceeds its manifest trust class, and read every root into
 one table ordered by escalation age.
@@ -91,7 +91,7 @@ def test_decide_pause_is_the_fleet_total_not_a_per_root_check(tmp_path: Path):
 
 
 # ----------------------- #
-# Trust (D-24.6). These were tick cases; the check they exercise is a pure
+# Trust (S-0024/D-6). These were tick cases; the check they exercise is a pure
 # function of one repository and its own configuration, so they are asked
 # of it directly now — `serve_fleet` calls the same one before every pass
 # (tests/test_fleet_serve.py), and the tick that used to is gone (A-105).

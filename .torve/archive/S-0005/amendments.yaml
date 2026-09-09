@@ -1,19 +1,19 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-75
+  - id: A-1
     at: '2026-09-01'
-    title: the findings ledger (adds D-5.15)
+    title: the findings ledger (adds S-0005/D-15)
     md: |-
       **Found in the first capable-reviewer week.** With opus on the review seat
       the non-blocking findings became consistently worth acting on — and the
       operator was hand-minting a follow-up task per finding within minutes,
       because the alternative was guaranteed loss: a kept finding lands in the
       review's telemetry record and no surface ever shows it again. Proposals
-      got "awaiting the author" (D-7.24); findings got silence, and the
+      got "awaiting the author" (S-0007/D-24); findings got silence, and the
       silence was being papered over by operator reflex at finding granularity
       — fix-forward churn with no batch judgement.
 
-      **Changed:** D-5.15 — `torve context` gains "Findings awaiting the
+      **Changed:** S-0005/D-15 — `torve context` gains "Findings awaiting the
       operator": every kept finding from a landed target's review, with its
       review id, severity and claim, marked `possibly_addressed` when a later
       contract's text cites the review's task id — the same weak-citation
@@ -27,9 +27,10 @@ amendments:
       model's opinion, the blocker escalation path exists for certainty, and
       promoting majors to blocking would hand the reviewer a veto the corpus
       never graded. Reopen against ledger evidence, not incident memory.
-  - id: A-32
+  - id: A-2
     at: '2026-08-24'
-    title: the revision loop (adds §4a, D-5.12–D-5.13)
+    title: >-
+      the revision loop (adds §4a, S-0005/D-12–S-0005/D-13)
     md: |-
       **Found in operation** — the first external reviewer connected to the
       lab made the gap concrete: its findings reached the human at the
@@ -46,16 +47,17 @@ amendments:
       whole threads from allow-listed logins only, attributed, capped with
       recorded truncation, quoted as data under a contract that still governs.
 
-      **Changed:** §4a states the loop; D-5.12 the capture at retry-apply,
-      D-5.13 the delivery into the re-run's sandbox and prompt.
+      **Changed:** §4a states the loop; S-0005/D-12 the capture at retry-apply,
+      S-0005/D-13 the delivery into the re-run's sandbox and prompt.
 
-      **Deliberately unchanged:** D-5.2's separation (the reviewer still never
+      **Deliberately unchanged:** S-0005/D-2's separation (the reviewer still never
       fixes; the *implementer* revises); the three containment layers; and the
       human act gating all spend — nothing auto-retries because a bot
       commented.
-  - id: A-41
+  - id: A-3
     at: '2026-08-25'
-    title: the engine answers its reviewers (adds D-5.14)
+    title: >-
+      the engine answers its reviewers (adds S-0005/D-14)
     md: |-
       **Found in operation** — the disjoint experiment batch's Major finding
       travelled the whole loop: captured, revised against, fixed, landed —
@@ -64,7 +66,7 @@ amendments:
       a purple merge with no acknowledgement learns to stop reading. The
       owner named the gap the day the first true finding existed.
 
-      **Changed:** the loop closes its own conversations (D-5.14). Capture
+      **Changed:** the loop closes its own conversations (S-0005/D-14). Capture
       retains each thread's reply address beside the feedback record; when
       the landing that consumed the record goes through, the tick's landing
       leg posts one reply per captured root: *captured into the task's
@@ -78,28 +80,28 @@ amendments:
 
       **Deliberately unchanged:** the capture allow-list (only threads that
       entered the revision record are answered — the engine does not chat);
-      D-8.5's untrusted-text doctrine, which governs what comes *in*, not
+      S-0008/D-5's untrusted-text doctrine, which governs what comes *in*, not
       this outbound record; and the human acts — approve, revise — that
       create the relationship the reply reports.
-  - id: A-78
+  - id: A-4
     at: '2026-09-01'
     title: >-
       The reviewer may execute — in a copy nothing survives
     md: |-
       A reviewer that can only read judges tests by their text; the operator
       asked for representative feedback — the reviewer running the battery it
-      is judging. The separation D-5.2 exists for ("an agent that can
+      is judging. The separation S-0005/D-2 exists for ("an agent that can
       fix-and-approve is not a reviewer") is not reading versus running: it is
       that nothing the reviewer does can alter what lands. So the boundary
       moves from the filesystem to the lifecycle:
 
-      - **D-5.2 is reworded** (was: "The reviewer gets a read-only workspace
+      - **S-0005/D-2 is reworded** (was: "The reviewer gets a read-only workspace
         and no forge credential; the runner posts comments"): *The reviewer
         works in a disposable copy of the target worktree and holds no forge
         credential; the diff under judgment is composed before the copy
         exists, nothing written in the copy survives the review, and the
         runner posts comments.* The consequence stands unchanged.
-      - **D-5.16 (`ASSUMED`, added)**: Inside its copy the reviewer may
+      - **S-0005/D-16 (`ASSUMED`, added)**: Inside its copy the reviewer may
         execute the target's acceptance commands and gates; command output it
         cites is evidence like any `path:line`, and the execution spends the
         review attempt's own budget and timeout — a battery too slow for the
@@ -109,10 +111,10 @@ amendments:
         now true: the copy is disposable, running the acceptance commands is
         allowed and encouraged, and no edit made in the copy reaches anyone.
 
-      Deliberately unchanged: D-5.3 (no author trace), D-5.4 (unlocatable
-      evidence discarded), the runner-posts-comments half of D-5.2, and the
+      Deliberately unchanged: S-0005/D-3 (no author trace), S-0005/D-4 (unlocatable
+      evidence discarded), the runner-posts-comments half of S-0005/D-2, and the
       reviewer's lack of any forge credential.
-  - id: A-79
+  - id: A-5
     at: '2026-09-02'
     title: >-
       The staged diff — the reviewer reads, the prompt points
@@ -122,28 +124,28 @@ amendments:
       pagination diff (a rebuilt 270KB bundle) first blew the executing
       shell's argument limit and then, piped, the model's own context —
       "Prompt is too long", two unparseable-review escalations on a green
-      change. A-78 removed the design's premise: a reviewer with tools and a
+      change. S-0005/A-4 removed the design's premise: a reviewer with tools and a
       workspace copy does not need its input pre-chewed.
 
       So the diff moves from the prompt to the copy: `run_review` writes the
       composed diff to `.torve/tmp/review.diff` inside the staged copy —
-      after composition, before the sandbox, so D-5.2's order guarantee is
+      after composition, before the sandbox, so S-0005/D-2's order guarantee is
       untouched (the judgment input predates anything the reviewer can
       write). The prompt keeps the contract, decisions, gate results and
       acceptance commands, names the staged path as the thing to read first,
       and carries only a short head of the diff as orientation. The reviewer
       pulls hunks and surrounding tree context lazily — something the inline
       shape could never offer — and skims vendored or generated bulk by
-      filename instead of paying context for it. The evidence rule (D-5.4)
+      filename instead of paying context for it. The evidence rule (S-0005/D-4)
       is the guard against a reviewer that skips the reading: findings that
       do not locate are discarded, and the reviewer measurement corpus
       watches for empty-handed reviews of substantial diffs.
-  - id: A-114
+  - id: A-6
     at: '2026-09-05'
     title: >-
       What phases 1-3 left, and what the loop's retirement took
     md: |-
-      **Judged in the pass A-113's new flag started.** The programme view reports
+      **Judged in the pass S-0007/A-4's new flag started.** The programme view reports
       every declared phase of this document shipped, and `partial` is still the
       right assertion — but for a different reason than the header gives, and the
       list of what is owed has grown since it was written.
@@ -151,20 +153,20 @@ amendments:
       **Still owed, as the header says:** §7's replacement sequence. The
       comparison window opened 2026-08-26 and the ledger reads complementary
       classes rather than redundancy, which is a finding about the incumbent and
-      not about this engine. D-5.7 says removal needs numbers; the numbers are
+      not about this engine. S-0005/D-7 says removal needs numbers; the numbers are
       not in yet.
 
       **Newly owed, and this is the part the header cannot know:** two decisions
-      lost their implementation to the standing loop's retirement (A-105, A-110),
-      and A-110 named the code without naming them.
+      lost their implementation to the standing loop's retirement (S-0019/A-8, S-0048/A-1),
+      and S-0048/A-1 named the code without naming them.
 
-      - **D-5.14 is unimplemented.** It says the landing answers the review
+      - **S-0005/D-14 is unimplemented.** It says the landing answers the review
         threads its revision consumed, and names *the tick's landing leg* as what
         posts the replies. That leg is deleted. `answer_captured_threads` remains
-        on the forge adapter with no caller — A-110 lists it among the five kept
+        on the forge adapter with no caller — S-0048/A-1 lists it among the five kept
         deliberately — so the capability is one call site away, on whatever lands
         next.
-      - **D-5.12 is half-implemented.** Its blocker path is alive and is RFC
+      - **S-0005/D-12 is half-implemented.** Its blocker path is alive and is RFC
         0043's: a surviving blocker's claims and the convicted diff reach the next
         attempt in-run. Its forge path is gone — the pull request's threads were
         captured by the lane's automatic conflict disposal, and the allow-list it
@@ -178,12 +180,12 @@ amendments:
 
       **Changed:** `implementation: partial` stands, now with three things owed
       rather than one.
-  - id: A-135
+  - id: A-7
     at: '2026-09-08'
     title: >-
-      the ledger hid the severity it most needed to show (amends D-5.15)
+      the ledger hid the severity it most needed to show (amends S-0005/D-15)
     md: |-
-      **Found by triaging the ledger itself.** D-5.15 gave non-blocking findings
+      **Found by triaging the ledger itself.** S-0005/D-15 gave non-blocking findings
       a ledger and excluded blockers, on the premise recorded in the code as "a
       blocker escalates its target and never lands beside it". That premise holds
       on the task-gated path. It is false on the pull-request path, whose own
@@ -194,30 +196,30 @@ amendments:
       like any other, and the ledger then dropped it for being a blocker. It
       appeared on no surface at all. This repository had accumulated **fourteen**
       of them — the highest severity the reviewer can assign, recorded in
-      telemetry, read by nobody. D-5.15's own rationale is the sentence that
+      telemetry, read by nobody. S-0005/D-15's own rationale is the sentence that
       condemns this: *"A finding recorded into telemetry and read by nobody is a
       review that ran for nothing."*
 
-      **Changed (D-5.15, `ASSUMED`, departed per the grade):** the ledger carries
+      **Changed (S-0005/D-15, `ASSUMED`, departed per the grade):** the ledger carries
       a blocker whose target never escalated `blocker_finding`. One that did was
-      handed to a person by the lifecycle D-5.15 defers to and stays out — five
+      handed to a person by the lifecycle S-0005/D-15 defers to and stays out — five
       of this repository's nineteen, correctly. The discriminator is the
       escalation record rather than the review record, because it is the
       escalation that says whether anything stopped.
 
       **What this did not change.** The engine still mints nothing from a
-      finding, and the operator still triages in batch (D-2). A blocker in the
+      finding, and the operator still triages in batch (S-0001/D-10). A blocker in the
       ledger is a blocker that stopped nothing, which is a fact about the
       engine's own handling and not an instruction to it.
 
-      **Read this beside A-136's severity bar.** These fourteen escaped because
+      **Read this beside S-0005/A-8's severity bar.** These fourteen escaped because
       nothing stopped them; the `major` findings escaped because the bar that
       stops sat above every severity the reviewer actually assigns. Same hole,
       two different halves of the same mechanism.
-  - id: A-136
+  - id: A-8
     at: '2026-09-08'
     title: >-
-      what stops a promotion is configuration's, not the reviewer's (adds D-5.17)
+      what stops a promotion is configuration's, not the reviewer's (adds S-0005/D-17)
     md: |-
       **Found by three consecutive reviews of this engine's own work.** T-0283
       found a leg that shipped the next phase's deliverable; T-0284 found a leg
@@ -229,34 +231,34 @@ amendments:
       The reviewer uses `major` for "this must be fixed" and reserves `blocker`
       for what it judges must stop the work. ~~On this corpus it has assigned
       `blocker` nineteen times and never once for a defect that stopped
-      anything.~~ *(Struck 2026-09-08 by A-137: false. All nineteen stopped
+      anything.~~ *(Struck 2026-09-08 by S-0005/A-9: false. All nineteen stopped
       something — five escalated and fourteen were revised in-run. The claim came
-      from A-135's mistaken reading and is not load-bearing for this decision,
+      from S-0005/A-7's mistaken reading and is not load-bearing for this decision,
       which rests on three `major` findings that promoted and were verified
       directly.)*
 
-      **Added — D-5.17 (`ASSUMED`):** `review.blocks_at` names the severity at or
+      **Added — S-0005/D-17 (`ASSUMED`):** `review.blocks_at` names the severity at or
       above which a kept finding stops a promotion, defaulting to `major`. The
       finding keeps the grade the reviewer gave it, in the record and in every
-      reading; what stops a promotion is configuration's to decide, which is D-2
+      reading; what stops a promotion is configuration's to decide, which is S-0001/D-10
       exactly. `blocks_at: blocker` restores every reading before this one.
 
       Deliberately not a prompt change. Re-teaching a model where its own bar sits
       is a guess about calibration; a knob is mechanical, testable and reversible,
       and it leaves the reviewer's judgement intact to be read later.
 
-      This matters now in a way it did not before RFC 0052: with
+      This matters now in a way it did not before S-0052: with
       `promotion.auto_merge` armed, an unattended pass would have landed all
       three.
-  - id: A-137
+  - id: A-9
     at: '2026-09-08'
     title: >-
-      A-135 was wrong about what it had found (corrects A-135, amends D-5.15)
+      S-0005/A-7 was wrong about what it had found (corrects S-0005/A-7, amends S-0005/D-15)
     md: |-
       **Found by triaging the fourteen it surfaced.** Every one is FIXED. Not one
       was an escape.
 
-      A-135 read "no `blocker_finding` escalation" as "nothing stopped this". It
+      S-0005/A-7 read "no `blocker_finding` escalation" as "nothing stopped this". It
       does not. The task-gated path revises a blocker *inside* the run and only
       escalates once the revision budget is spent, so a blocker fixed on the
       first revision escalates nothing and its target lands — handled, silently.
@@ -264,10 +266,10 @@ amendments:
       `.github/workflows/publish.yml` under a comment naming the exact `set -u`
       failure the finding described: somebody read that blocker and acted on it.
 
-      So the filter A-135 shipped surfaced fourteen resolved findings as awaiting
+      So the filter S-0005/A-7 shipped surfaced fourteen resolved findings as awaiting
       the operator, which is the opposite of the ledger's purpose. Corrected.
 
-      **The hole A-135 aimed at is real and has never fired.** `review_pull_request`
+      **The hole S-0005/A-7 aimed at is real and has never fired.** `review_pull_request`
       reports and never touches task state, so a blocker found there escalates
       nothing, revises nothing, and its target lands — genuinely invisible. But
       both paths called `run_review` and wrote the identical record, so nothing
@@ -287,25 +289,25 @@ amendments:
       caught it is the same triage that made the ledger worth fixing: 26 of 35
       open `major` findings still true, and 14 of 14 blockers already handled.
       The two numbers together are the actual finding — **`blocker` is acted on
-      and `major` is not** — which is the case for D-5.17 far better than the
-      sentence A-135 gave it.
-  - id: A-139
+      and `major` is not** — which is the case for S-0005/D-17 far better than the
+      sentence S-0005/A-7 gave it.
+  - id: A-10
     at: '2026-09-09'
     title: >-
-      the reviewer is promised only what its copy can run (narrows D-5.16)
+      the reviewer is promised only what its copy can run (narrows S-0005/D-16)
     md: |-
       **Found in the finding ledger against T-0227, and again by the reviewer
-      itself.** D-5.16 gave the reviewer the target's acceptance commands *and*
+      itself.** S-0005/D-16 gave the reviewer the target's acceptance commands *and*
       its gate battery to execute in the copy. The copy is staged with `.git`
-      excluded (D-5.2), so `torve gates` and every gate context fail at the door
+      excluded (S-0005/D-2), so `torve gates` and every gate context fail at the door
       with "not a git repository" — the promise was refused on every review this
       document has ever produced, and the reviewer spent part of its one bounded
       attempt discovering it. T-0285 filed it as a `nit` against its own review;
-      A-131 records the same wall from the executor's side.
+      S-0052/A-2 records the same wall from the executor's side.
 
       **Changed (narrowing, not departing):** the prompt offers acceptance
       commands, which run, and says plainly that the battery does not — it runs
-      outside the sandbox on the candidate, after the attempt. D-5.16's argument
+      outside the sandbox on the candidate, after the attempt. S-0005/D-16's argument
       is untouched: *"a reviewer that can only read judges tests by their text"*
       still holds for the half that works.
 
@@ -313,8 +315,8 @@ amendments:
       able to run the battery is a real question with two real answers — seed the
       copy with a throwaway repository, or copy `.git` shallowly so the battery
       diffs against the true merge base — and the second puts a repository inside
-      the disposable copy, which D-5.2's isolation argument may refuse. That is
+      the disposable copy, which S-0005/D-2's isolation argument may refuse. That is
       its own document. This amendment only stops the engine promising something
       it refuses, which cost every review a little and taught nothing.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

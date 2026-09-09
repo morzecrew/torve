@@ -1,7 +1,7 @@
 # The torve operator surface
 
 React + Tailwind + TanStack Table over the two `torve serve` endpoints
-(RFC 0032; A-77): eight tabs, sortable data tables, filters, glass. Built
+(S-0032; S-0032/A-2): eight tabs, sortable data tables, filters, glass. Built
 with Vite into `src/torve/_web/`, which ships as wheel package data — the
 build is deterministic per lockfile, so CI byte-compares the vendored
 bundle against a fresh build.

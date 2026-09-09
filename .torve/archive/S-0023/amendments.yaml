@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-68
+  - id: A-1
     at: '2026-08-31'
     title: >-
-      the third predicate kind arrives with its job (amends D-23.8)
+      the third predicate kind arrives with its job (amends S-0023/D-8)
     md: |-
-      **Found reading the first cut.** D-23.8 said a third kind arrives with a
+      **Found reading the first cut.** S-0023/D-8 said a third kind arrives with a
       job that needs it and not before; `flake-quarantine` was that job from
       the day it shipped — its `command` predicate inlined a 36-line python
       heredoc that re-parsed `gates.yaml` with a regex to reach records the
@@ -16,11 +16,11 @@ amendments:
       **Deliberately unchanged:** `command` stays for predicates over inputs
       the engine does not own; the doctrine that a kind arrives only with its
       job is what this amendment obeys, not what it revises.
-  - id: A-106
+  - id: A-2
     at: '2026-09-05'
     title: The leg runs in the manager's pass
     md: |-
-      **Found retiring the standing loop (A-105).** §5.4 gives this leg its turn
+      **Found retiring the standing loop (S-0019/A-8).** §5.4 gives this leg its turn
       inside the tick. The tick is gone — and the leg had never run anyway: it is
       a `TickDeps` field, and the composition root never set it, so every
       invocation since this document landed recorded `skipped: no standing leg
@@ -31,18 +31,18 @@ amendments:
       **Changed:** the leg's turn is now the manager's pass, before the scan that
       imports contracts onto the board — the same ordering §5.4 asks for and for
       the same reason: what a predicate mints this pass is a contract the board
-      carries this pass. D-23.6's first bound moves with it: a paused pass
+      carries this pass. S-0023/D-6's first bound moves with it: a paused pass
       evaluates no predicate, because a predicate that fires creates work and a
       pause says nobody can triage it.
 
       Nothing else moved, and that is the point. `instantiate` mints through
-      RFC 0020's adoption path, which writes a contract file; the manager's
+      S-0020's adoption path, which writes a contract file; the manager's
       importer reads contract files. The leg needed no record-side machinery to
       join the second architecture — only a caller.
 
-      The adoption lock this depends on (D-23.4) outlived the loop it was named
+      The adoption lock this depends on (S-0023/D-4) outlived the loop it was named
       for, in `application/enginelock.py`. It still matters: a human running
       `torve intake` and a manager pass minting a standing instance can now race
       for an id where before only one of them existed.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

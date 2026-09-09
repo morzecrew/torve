@@ -117,7 +117,7 @@
     },
     "Change": {
       "additionalProperties": false,
-      "description": "One typed edit an amendment made (D-53.4): the prior value is read at\namendment time, which is the only moment it exists.",
+      "description": "One typed edit an amendment made (S-0053/D-4): the prior value is read at\namendment time, which is the only moment it exists.",
       "properties": {
         "after": {
           "default": null,
@@ -145,7 +145,7 @@
     },
     "Decision": {
       "additionalProperties": false,
-      "description": "One decision row, whole (D-56.2): grade, text and paths \u2014 the three\nfields a contract copies at mint \u2014 with its consequence, rationale,\ncitations, check and the stamp the tool last wrote on it.",
+      "description": "One decision row, whole (S-0056/D-2): grade, text and paths \u2014 the three\nfields a contract copies at mint \u2014 with its consequence, rationale,\ncitations, check and the stamp the tool last wrote on it.",
       "properties": {
         "check": {
           "anyOf": [
@@ -249,7 +249,7 @@
     },
     "DesignSection": {
       "additionalProperties": false,
-      "description": "One prose section: the key a log cites and a markdown body the\nengine never parses (D-53.3, D-56.3). The heading is the key and the\nnumber is the position (D-57.2); order is the list's.",
+      "description": "One prose section: the key a log cites and a markdown body the\nengine never parses (S-0053/D-3, S-0056/D-3). The heading is the key and the\nnumber is the position (S-0057/D-2); order is the list's.",
       "properties": {
         "key": {
           "title": "Key",
@@ -269,7 +269,7 @@
     },
     "InheritedDecision": {
       "additionalProperties": false,
-      "description": "One row as a contract carries it (charter \u00a73; RFC 0054 D-54.1): grade,\ntext and paths copied at mint and fingerprinted; `consequence` beside\nthem so the executor gets the reason, and `check` \u2014 a command whose\nexit code judges the row \u2014 which the runner appends to the battery as\na `decision:<id>` gate at `check_state`, with `check_twin` the test\nthat proves the check can fail (D-54.4). A contract minted before\nRFC 0054 loads with the four defaults, which is the old behaviour.",
+      "description": "One row as a contract carries it (charter \u00a73; S-0054 S-0054/D-1): grade,\ntext and paths copied at mint and fingerprinted; `consequence` beside\nthem so the executor gets the reason, and `check` \u2014 a command whose\nexit code judges the row \u2014 which the runner appends to the battery as\na `decision:<id>` gate at `check_state`, with `check_twin` the test\nthat proves the check can fail (S-0054/D-4). A contract minted before\nS-0054 loads with the four defaults, which is the old behaviour.",
       "properties": {
         "check": {
           "anyOf": [
@@ -376,7 +376,7 @@
     },
     "Landing": {
       "additionalProperties": false,
-      "description": "What one task found, kept beside the rows it informs (D-57.7): the\ntask, its phase and attempt, the commit when the lander knew it (the\nrunner's rides in the candidate commit whose trailers name the task,\nso it leaves the field empty), when, by whom, and the log's entries.",
+      "description": "What one task found, kept beside the rows it informs (S-0057/D-7): the\ntask, its phase and attempt, the commit when the lander knew it (the\nrunner's rides in the candidate commit whose trailers name the task,\nso it leaves the field empty), when, by whom, and the log's entries.",
       "properties": {
         "agent": {
           "default": "",
@@ -432,7 +432,7 @@
     },
     "LogEntry": {
       "additionalProperties": false,
-      "description": "One divergence entry as the task log carries it and a landing keeps\nit (D-57.7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
+      "description": "One divergence entry as the task log carries it and a landing keeps\nit (S-0057/D-7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
       "properties": {
         "action": {
           "enum": [
@@ -628,7 +628,7 @@
     },
     "Scope": {
       "additionalProperties": false,
-      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (RFC 0002 \u00a76).",
+      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
       "properties": {
         "allow": {
           "items": {
@@ -650,7 +650,7 @@
     },
     "Task": {
       "additionalProperties": false,
-      "description": "The task contract, `.torve/tasks/T-nnnn.yaml` (RFC 0001 \u00a73, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (D-7.5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
+      "description": "The task contract, `.torve/tasks/T-nnnn.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
       "properties": {
         "acceptance": {
           "items": {
@@ -793,7 +793,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "execution.yaml of a specification directory (RFC 0057).",
+  "description": "execution.yaml of a specification directory (S-0057).",
   "properties": {
     "landings": {
       "items": {

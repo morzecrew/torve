@@ -1,4 +1,4 @@
-"""RFC 0005 phase 2: the review run through the pipeline — runner-minted at
+"""S-0005 phase 2: the review run through the pipeline — runner-minted at
 gates green, findings as data, blocker escalation as a configured consequence,
 and the reviewer at work in a disposable copy of the target worktree: it runs
 what it judges, and nothing it writes survives the review."""
@@ -118,7 +118,7 @@ def test_clean_review_lets_the_target_land(review_rig):
     assert state.state is TaskState.READY
     facts = [h["fact"] for h in state.history]
     assert any("review clean" in fact for fact in facts)
-    # The verdict the lane's require_review predicate reads (D-6.14, A-43).
+    # The verdict the lane's require_review predicate reads (S-0006/D-14, A-43).
     assert state.reviewed_by is not None
     # The review was minted as a contract and ran to its own terminal state.
     minted = sorted((repo.root / ".torve" / "tasks").glob("T-*/contract.yaml"))
@@ -128,7 +128,7 @@ def test_clean_review_lets_the_target_land(review_rig):
     review_state = RunState.load(naming.state_file(repo.root, review_id))
     assert review_state.state is TaskState.READY
     # The reviewer's sandbox ran on a copy of the worktree, writable and gone
-    # with the sandbox — not on the worktree itself (D-5.2).
+    # with the sandbox — not on the worktree itself (S-0005/D-2).
     review_mounts = [
         (spec, path)
         for spec, path in zip(runtime.specs, runtime.workspaces, strict=False)
@@ -169,9 +169,9 @@ def test_a_surviving_blocker_escalates_the_target(review_rig):
 
     assert state.state is TaskState.ESCALATED
     assert state.escalation.reason == "blocker_finding"
-    # A surviving blocker never records a verdict (D-6.14).
+    # A surviving blocker never records a verdict (S-0006/D-14).
     assert state.reviewed_by is None
-    # RFC 0043 D-43.1: the default budget (1) bought one revision attempt —
+    # S-0043 S-0043/D-1: the default budget (1) bought one revision attempt —
     # the same blocker survived it, so the target spent two attempts, not
     # one, before escalating.
     assert state.attempts == 2
@@ -181,7 +181,7 @@ def test_a_surviving_blocker_escalates_the_target(review_rig):
 
 class SequencedReviewer:
     """A different verdict per call. `run_review` always stamps its own
-    AgentContext attempt=1 (one iteration budget, RFC 0005 §1.1), so
+    AgentContext attempt=1 (one iteration budget, S-0005/the-review-contract), so
     ScriptedAgent's index-by-ctx.attempt cannot vary a revision's second
     verdict from its first — this fake counts calls instead."""
 
@@ -198,8 +198,8 @@ class SequencedReviewer:
 
 
 def test_a_blocker_with_budget_left_continues_in_the_same_worktree(review_rig):
-    # RFC 0043 D-43.1/D-43.2: a surviving blocker with revision budget left
-    # writes the RFC 0005 §4a feedback record and continues in place instead
+    # S-0043 S-0043/D-1/D-43.2: a surviving blocker with revision budget left
+    # writes the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback record and continues in place instead
     # of escalating; a clean revision lands like any other.
     repo, _runtime, deps_for = review_rig
     worktree = repo.root / ".wt" / "T-9001"
@@ -233,11 +233,11 @@ def test_a_blocker_with_budget_left_continues_in_the_same_worktree(review_rig):
     facts = [h["fact"] for h in state.history]
     assert any(f.startswith("review blocker (revision 1 of 1):") for f in facts)
     # The revision's own verdict landed the target — the second review's id,
-    # not the first blocker's (D-6.14, A-43).
+    # not the first blocker's (S-0006/D-14, A-43).
     assert state.reviewed_by is not None
 
-    # D-43.2: the blockers and the convicted diff rode the record — root
-    # side (D-43.5), so it outlives this run.
+    # S-0043/D-2: the blockers and the convicted diff rode the record — root
+    # side (S-0043/D-5), so it outlives this run.
     record = feedback_file(repo.root, "T-9001").read_text(encoding="utf-8")
     assert "the change is wrong" in record
     assert "app.py:1" in record
@@ -257,7 +257,7 @@ def test_a_blocker_with_budget_left_continues_in_the_same_worktree(review_rig):
 
 
 def test_blocker_revisions_zero_reproduces_todays_transitions_byte_for_byte(review_rig):
-    # D-43.3: the conservative setting is always reachable — zero spends no
+    # S-0043/D-3: the conservative setting is always reachable — zero spends no
     # revision, so the transition sequence is exactly the pre-0043 one.
     repo, _runtime, deps_for = review_rig
     worktree = repo.root / ".wt" / "T-9001"
@@ -292,7 +292,7 @@ def test_blocker_revisions_zero_reproduces_todays_transitions_byte_for_byte(revi
 
 
 def test_a_revision_that_would_pass_the_poison_ceiling_escalates_the_ceiling(review_rig):
-    # RFC 0043 §5.3: revisions above 1 are legal but interact with the
+    # S-0043/the-knob: revisions above 1 are legal but interact with the
     # poison ceiling — the ceiling still wins, so the escalation names it,
     # not blocker_finding.
     repo, _runtime, deps_for = review_rig
@@ -331,7 +331,7 @@ def test_a_revision_that_would_pass_the_poison_ceiling_escalates_the_ceiling(rev
 
 
 class RefusingBroker:
-    """The budget refusal mid-attempt (D-21.6): usage always reports one
+    """The budget refusal mid-attempt (S-0021/D-6): usage always reports one
     refusal, so any request the review makes reads as over budget."""
 
     name = "local"
@@ -347,7 +347,7 @@ class RefusingBroker:
 
 
 def test_broker_budget_refusal_during_review_escalates_immediately(review_rig):
-    # D-43.4: a broker budget refusal is a cost conviction, not a revisable
+    # S-0043/D-4: a broker budget refusal is a cost conviction, not a revisable
     # defect — it escalates immediately even with revision budget unspent.
     repo, runtime, deps_for = review_rig
     reviewer = ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output([]))])
@@ -373,7 +373,7 @@ def test_broker_budget_refusal_during_review_escalates_immediately(review_rig):
 
 
 def test_the_unconfigured_bridge_never_records_a_verdict(review_rig):
-    # D-6.14: with require_review set, an unreviewed candidate must be
+    # S-0006/D-14: with require_review set, an unreviewed candidate must be
     # unlandable — so the "review not configured" bridge sets nothing.
     repo, _runtime, deps_for = review_rig
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps_for(None))
@@ -407,7 +407,7 @@ def test_a_blocker_with_unlocatable_evidence_is_discarded(review_rig):
 
 
 def test_unparseable_review_output_escalates_never_promotes(review_rig):
-    # Fail closed (D-5.4): an opus review once carried two blockers inside a
+    # Fail closed (S-0005/D-4): an opus review once carried two blockers inside a
     # harness envelope, parsed as nothing, and waved a no-op to ready.
     repo, _runtime, deps_for = review_rig
     reviewer = ScriptedAgent([AgentResult(exit_code=0, output="prose, no document")])
@@ -450,7 +450,7 @@ def test_unquoted_on_key_is_refused_not_silently_dropped():
 
 
 # ....................... #
-# the disposable copy the reviewer works in (D-5.2 as reworded, D-5.16)
+# the disposable copy the reviewer works in (S-0005/D-2 as reworded, S-0005/D-16)
 
 
 class BatteryRunningReviewer:
@@ -584,7 +584,7 @@ def test_an_edit_in_the_copy_leaves_the_target_worktree_byte_identical(repo):
 
     # And an edit inside it cannot manufacture evidence: the coordinate that
     # only the reviewer's own write created is discarded, the one the change
-    # really holds is kept (D-5.4, D-5.16).
+    # really holds is kept (S-0005/D-4, S-0005/D-16).
     assert [f.evidence for f in outcome.kept] == ["src/app.py:1 — the line as it arrived"]
     assert len(outcome.discarded) == 2
     # The surviving finding is `major`, which stops a promotion under the
@@ -632,7 +632,7 @@ def test_the_copy_is_destroyed_even_when_the_reviewer_dies(repo):
 
 
 def test_the_review_input_is_composed_before_the_copy_exists(repo, monkeypatch):
-    # D-5.2 as reworded: the judgment is composed, and the executor's evidence
+    # S-0005/D-2 as reworded: the judgment is composed, and the executor's evidence
     # taken in hand, while there is no copy to be tainted by — so nothing the
     # reviewer writes can be part of what it was handed to judge.
     repo.seed()
@@ -675,7 +675,7 @@ def test_the_review_input_is_composed_before_the_copy_exists(repo, monkeypatch):
 
 
 def test_a_command_the_reviewer_ran_is_evidence_for_a_finding(review_rig):
-    # D-5.16 through the whole run: output the reviewer produced in its copy
+    # S-0005/D-16 through the whole run: output the reviewer produced in its copy
     # locates like any path:line, so a blocker found by executing still stops
     # the target.
     repo, _runtime, deps_for = review_rig
@@ -752,7 +752,7 @@ def test_parse_findings_takes_the_last_document():
     assert found == [Finding(severity="nit", claim="c", evidence="e")]
     assert parse_findings("no document here") is None
 
-    # D-54.15: a document that exists but fails the model is refused by the
+    # S-0054/D-15: a document that exists but fails the model is refused by the
     # field it fails on — never folded into "unparseable", which is the
     # word for no document at all.
     with pytest.raises(SchemaRefusal, match=r"findings document\.findings: Input should be"):
@@ -806,11 +806,11 @@ class HarnessLikeReviewer:
 def test_the_review_trace_lands_under_the_review_id_and_spares_the_executors(review_rig):
     # T-0172: the reviewer's session used to overwrite the executor's trace —
     # the review's own trace must land under the review id in the durable
-    # store (D-39.1) and the executor's evidence must survive byte-for-byte
+    # store (S-0039/D-1) and the executor's evidence must survive byte-for-byte
     # (its record still cites it).
     repo, _runtime, deps_for = review_rig
 
-    # The executor's trace, as its own record cites it (RFC 0004 §4) —
+    # The executor's trace, as its own record cites it (S-0004/why-the-agent-port-earns-its-existence) —
     # written through the store's one path helper, which creates the home.
     executor_trace = naming.trace_file(repo.root / ".wt" / "T-9001", 1)
     executor_trace.write_bytes(b"the executor's session, verbatim\n")
@@ -839,7 +839,7 @@ def test_the_review_trace_lands_under_the_review_id_and_spares_the_executors(rev
     assert review_trace.is_file()
     assert review_trace.read_text(encoding="utf-8") == output
 
-    # And the review's record cites it — root-relative (D-39.1), so the
+    # And the review's record cites it — root-relative (S-0039/D-1), so the
     # pointer resolves from the stream alone on the host that owns the
     # store — and it is never the executor's path.
     telemetry = repo.root / ".torve" / "telemetry.jsonl"
@@ -904,7 +904,7 @@ def test_a_review_session_never_leaks_onto_the_executors_trace_path(review_rig):
 
 
 # ....................... #
-# The tier clock (RFC 0035 §5.3, D-35.6): the review lane reads the
+# The tier clock (S-0035/the-tier-clock, S-0035/D-6): the review lane reads the
 # resolved reviewer tier's values.
 
 
@@ -970,7 +970,7 @@ def test_a_reviewer_tier_without_clocks_keeps_the_globals(review_rig):
 
 
 # ....................... #
-# RFC 0054 §5.8: what the reviewer reads besides the diff
+# S-0054/the-reviewer: what the reviewer reads besides the diff
 
 
 def test_the_prompt_points_at_the_pack_and_the_schema():
@@ -1008,8 +1008,8 @@ def test_the_reviewer_gets_the_pack_touched_and_its_own_skills(repo):
     repo.seed()
     target, review, worktree = review_inputs(repo)
     target.decisions = [
-        InheritedDecision(id="D-1.1", grade="LOCKED", text="app stays", paths=["src/app.py"]),
-        InheritedDecision(id="D-1.2", grade="LOCKED", text="elsewhere", paths=["docs/**"]),
+        InheritedDecision(id="S-0001/D-1", grade="LOCKED", text="app stays", paths=["src/app.py"]),
+        InheritedDecision(id="S-0001/D-2", grade="LOCKED", text="elsewhere", paths=["docs/**"]),
     ]
     # the executor's skills travel with the copy; the review set replaces them
     (worktree / ".torve" / "skills" / "flag-dont-flip").mkdir(parents=True)
@@ -1030,7 +1030,7 @@ def test_the_reviewer_gets_the_pack_touched_and_its_own_skills(repo):
 
     touched = json.loads(reviewer.seen["touched.json"])
     assert touched["changed_paths"] == ["src/app.py"]
-    assert [row["id"] for row in touched["decisions"]] == ["D-1.1"]
+    assert [row["id"] for row in touched["decisions"]] == ["S-0001/D-1"]
     assert touched["prior_reviews"] == []
     assert "touched.json" in reviewer.seen["index.md"]
     # a replay: nothing model-authored, not even this task's own attempts

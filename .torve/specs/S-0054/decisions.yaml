@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-54.1
+  - id: D-1
     grade: LOCKED
     text: >-
       `InheritedDecision` gains `consequence` and `check`, copied at mint from the
@@ -8,9 +8,9 @@ decisions:
       the fingerprinted set stays text, grade and paths
     paths: [src/torve/domain/task.py, src/torve/application/planner.py]
     consequence: >-
-      A gate reads the contract and never the corpus (D-7.18 stands); the reason a
-      row exists reaches the executor for the first time
-  - id: D-54.2
+      A gate reads the contract and never the corpus (S-0007/D-18 stands); the reason
+      a row exists reaches the executor for the first time
+  - id: D-2
     grade: LOCKED
     text: >-
       A contract's row with a `check` runs as a gate appended to the battery by the
@@ -19,13 +19,13 @@ decisions:
     paths: [src/torve/gates/runner.py]
     consequence: >-
       Decision gates exist exactly as long as the contract; the manifest stays the
-      operator's (D-2.5); the retry ladder reads them as any compliance conviction
-      (D-34.4)
+      operator's (S-0002/D-5); the retry ladder reads them as any compliance conviction
+      (S-0034/D-4)
     rationale: >-
       Three decisions are gates by hand today with origin as a comment; the row is
       the place the check belongs, and the contract is the only thing a gate may read.
-    cites: [D-2.5, D-7.18, D-34.4, D-53.15]
-  - id: D-54.3
+    cites: [S-0002/D-5, S-0007/D-18, S-0034/D-4, S-0053/D-15]
+  - id: D-3
     grade: LOCKED
     text: >-
       A row whose check ran in the same pass, green or red, is not owed a divergence
@@ -38,8 +38,8 @@ decisions:
       The silence check is the strongest anti-drift guarantee and the most expensive
       habit; a command proving compliance retires the prose without weakening the
       check.
-    cites: [D-7.5, D-2.10]
-  - id: D-54.4
+    cites: [S-0007/D-5, S-0002/D-10]
+  - id: D-4
     grade: LOCKED
     text: >-
       A decision gate enters at `shadow`; promotion to blocking is `check_state` on
@@ -47,18 +47,18 @@ decisions:
       must name a `check_twin` that `torve gates check` runs
     paths: [src/torve/gates/runner.py, src/torve/gates/sabotage.py]
     consequence: >-
-      D-2.18 and D-36.3 apply to rows exactly as to manifest entries; no row convicts
-      before someone has seen it fail
-  - id: D-54.5
+      S-0002/D-18 and S-0036/D-3 apply to rows exactly as to manifest entries; no
+      row convicts before someone has seen it fail
+  - id: D-5
     grade: ASSUMED
     text: >-
       A `LOCKED` row with no check is reported *soft* by `rfc health`, counted beside
       the hard ones, never regraded by the engine
     paths: [src/torve/application/specquality.py]
     consequence: >-
-      The author sees which locks are prose; RFC 0022's non-goal on automatic edits
+      The author sees which locks are prose; S-0022's non-goal on automatic edits
       stands
-  - id: D-54.6
+  - id: D-6
     grade: LOCKED
     text: >-
       `torve spec project` renders a managed section into the `AGENTS.md` of every
@@ -73,8 +73,8 @@ decisions:
       The harness docstring already relies on AGENTS.md for everything the prompt
       omits; it is twelve lines of Repowise. Nearest-file precedence is what every
       harness does.
-    cites: [D-A.6, D-11.11, D-17.4]
-  - id: D-54.7
+    cites: [S-0016/D-17, S-0011/D-11, S-0017/D-4]
+  - id: D-7
     grade: LOCKED
     text: >-
       The rendered sections are committed and drift-checked by a manifest gate running
@@ -82,9 +82,9 @@ decisions:
       the file
     paths: [.torve/gates.yaml, src/torve/cli/spec.py]
     consequence: >-
-      The INDEX.md rule (D-A.6) applied to the tree; the projection cannot lie about
-      the corpus
-  - id: D-54.8
+      The INDEX.md rule (S-0016/D-17) applied to the tree; the projection cannot lie
+      about the corpus
+  - id: D-8
     grade: ASSUMED
     text: >-
       `AGENTS.md` sections carry rows, invariants, checks, tests and warnings only;
@@ -93,7 +93,7 @@ decisions:
     consequence: >-
       The one controlled study says overviews cost and do not help; rules and facts
       do
-  - id: D-54.9
+  - id: D-9
     grade: LOCKED
     text: >-
       `torve spec show`, `paths`, `tests` and `why-not` form a read-only verb over
@@ -101,9 +101,9 @@ decisions:
       record, another task or an escalation is refused by design
     paths: [src/torve/cli/spec.py]
     consequence: >-
-      RFC 0007 §5 stands: the sandbox gains disclosure over files it could open, never
-      reach
-  - id: D-54.10
+      S-0007/mcp-as-the-read-surface stands: the sandbox gains disclosure over files
+      it could open, never reach
+  - id: D-10
     grade: LOCKED
     text: >-
       The context pack under `.torve/context/` is computed host-side from the record
@@ -112,13 +112,13 @@ decisions:
       a shadow run; own task only
     paths: [src/torve/application/contextpack.py, src/torve/application/session.py]
     consequence: >-
-      RFC 0035's rule for derived state applied to knowledge; D-17.4, D-17.7 and D-31
-      hold; a replay stays comparable
+      S-0035's rule for derived state applied to knowledge; S-0017/D-4, S-0017/D-7
+      and S-0001/D-29 hold; a replay stays comparable
     rationale: >-
       Every thinness in the sandbox has a good decision behind it, and every one is
       about state or other agents' output. A projection of own-task facts is neither.
-    cites: [D-17.4, D-17.6, D-17.7, D-31, D-35.1]
-  - id: D-54.11
+    cites: [S-0017/D-4, S-0017/D-6, S-0017/D-7, S-0001/D-29, S-0035/D-1]
+  - id: D-11
     grade: ASSUMED
     text: >-
       The pack's files are `index.md`, `decisions.json`, `gates.json`, `tests.json`
@@ -130,23 +130,23 @@ decisions:
     consequence: >-
       Nothing that adds tokens to every attempt ships without a number; the study's
       +20 % is the prior to beat
-  - id: D-54.12
+  - id: D-12
     grade: ASSUMED
     text: >-
       A red pass writes its gate report into the next attempt's `attempts.json` —
       output tails with byte-loss markers, governing decision ids for `decisions-reported`
       and `scope`, failed test ids from JUnit — and the retry ladder still selects
-      the tier from outcome and axis alone (D-34.5)
+      the tier from outcome and axis alone (S-0034/D-5)
     paths: [src/torve/application/runner.py, src/torve/application/session.py]
     consequence: >-
-      What tier runs next is unchanged; what it is told is the change; RFC 0043's
-      loop becomes the general case
-  - id: D-54.13
+      What tier runs next is unchanged; what it is told is the change; S-0043's loop
+      becomes the general case
+  - id: D-13
     grade: LOCKED
     text: >-
       The reviewer reads the pack minus any model-authored entry, plus `touched.json`
       (rows the diff intersects, coverage of changed lines, prior findings on the
-      task); nothing the author wrote enters (D-5.3 unchanged)
+      task); nothing the author wrote enters (S-0005/D-3 unchanged)
     paths: [src/torve/application/review.py]
     consequence: >-
       Engine facts about the diff are not the author's voice; the reviewer stops being
@@ -154,14 +154,14 @@ decisions:
     rationale: >-
       Reviewer independence is from the author's reasoning, not from the engine's
       facts; owed() already computes what the diff touches and throws it away.
-    cites: [D-5.3, D-5.1]
-  - id: D-54.14
+    cites: [S-0005/D-3, S-0005/D-1]
+  - id: D-14
     grade: ASSUMED
     text: >-
       The default review skill set is `[reading-isnt-proof, ratchet-what-you-build]`
     paths: [src/torve/config/runconfig.py]
     consequence: Two skills that declare the role reach it
-  - id: D-54.15
+  - id: D-15
     grade: ASSUMED
     text: >-
       Findings and drafts are validated against the pydantic models' JSON Schema shipped
@@ -171,7 +171,7 @@ decisions:
     consequence: >-
       The output contract is a contract the agent can read; two of three unparseable
       rows on record were shape failures
-  - id: D-54.16
+  - id: D-16
     grade: ASSUMED
     text: >-
       The drafter's 400-path listing is replaced by the pack's `index.md` and `torve
@@ -179,11 +179,11 @@ decisions:
     paths: [src/torve/application/intake.py]
     consequence: >-
       A split is proposed against the rows it would cross, not a list of filenames
-  - id: D-54.17
+  - id: D-17
     grade: OPEN
     text: >-
-      A decision gate's timeout: the row's or the manifest default's (Q-54.1); settled
-      when the first checkable row runs the full suite
-  - id: D-54.18
+      A decision gate's timeout: the row's or the manifest default's (S-0054/Q-1);
+      settled when the first checkable row runs the full suite
+  - id: D-18
     grade: OPEN
-    text: The window for `contended.json` (Q-54.2)
+    text: The window for `contended.json` (S-0054/Q-2)

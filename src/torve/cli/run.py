@@ -1,8 +1,8 @@
 """`torve run` and `torve cancel` — parsing, front-door policy and
-rendering only (D-15.6); the attempt loop lives in
-`torve.application.runner` (RFC 0003) and every adapter it runs on is
+rendering only (S-0015/D-6); the attempt loop lives in
+`torve.application.runner` (S-0003) and every adapter it runs on is
 built by the composition root, `torve.cli.assembly`. The task's tier
-picks the adapter (RFC 0004 §1); the exit code projection is D-11.4.
+picks the adapter (S-0004/adapters); the exit code projection is S-0011/D-4.
 """
 
 from __future__ import annotations
@@ -107,14 +107,14 @@ def run_cmd(
 
     task = load_task(task_file)
     config = load_config(root, config_path)
-    # RFC 0034 D-34.3: resolved once, here, before anything reads the
+    # S-0034 S-0034/D-3: resolved once, here, before anything reads the
     # task's tier — sizing, provider routing, agent construction and the
     # dispatched run all see the same already-resolved task.
     task = resolve_character_tier(config, task)
 
     # T-0183: the front door refuses any role the generic attempt path does
-    # not implement the isolation contract for — review (D-5.2) and draft
-    # (D-20.2) each have a runner-minted path with a read-only workspace,
+    # not implement the isolation contract for — review (S-0005/D-2) and draft
+    # (S-0020/D-2) each have a runner-minted path with a read-only workspace,
     # and this path would mount the workspace writable. Refused here,
     # before sizing, provider routing or an agent exists, with the way out;
     # run_task enforces the same guard, so no caller can bypass the door.
@@ -124,7 +124,7 @@ def run_cmd(
     except RoleNotDispatchable as exc:
         raise fail(str(exc), EXIT_CONFIG) from exc
 
-    # RFC 0026 D-26.7: a too_large verdict routes to decomposition; a
+    # S-0026 S-0026/D-7: a too_large verdict routes to decomposition; a
     # manual dispatch needs the explicit, recorded override to bypass it.
     from torve.application import sizing
     from torve.application.telemetry import engine_event
@@ -151,7 +151,7 @@ def run_cmd(
         tier = tier_for(config, tier_name_for(task))
 
         # Provider routing is enforced here — at dispatch, before a sandbox
-        # exists (D-4.8). The --agent fake override sends nothing anywhere,
+        # exists (S-0004/D-8). The --agent fake override sends nothing anywhere,
         # so it routes as fake does; every retry rung routes too, which is
         # the assembly's rule for every dispatching consumer.
         if agent_name is None:
@@ -197,7 +197,7 @@ def run_cmd(
     except RuntimeError as exc:
         raise fail(f"infrastructure failure: {exc}", EXIT_INFRASTRUCTURE) from exc
 
-    # D-22.11, A-62: the envelope prints beside the size verdict — expected
+    # S-0022/D-11, S-0022/A-3: the envelope prints beside the size verdict — expected
     # attempts, cost and wall minutes for tasks that shared this dispatch's
     # size class, a base rate the operator reads, never a bound the engine
     # acts on.

@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-27
+  - id: A-1
     at: '2026-08-24'
     title: >-
-      the lane precedes the reaper inside the tick (amends §3, D-19.3)
+      the lane precedes the reaper inside the tick (amends §3, S-0019/D-3)
     md: |-
       **Found in implementation** — by the second live tick. Tick 1 dispatched
       a task to `ready` (its lane leg refused on unrelated content dirt); tick
@@ -15,7 +15,7 @@ amendments:
       pull request.
 
       **Changed:** the tick order is poll → lane → reap → dispatch → sync.
-      The lane moves ahead of the reaper — A-26's merge-before-reap ordering,
+      The lane moves ahead of the reaper — S-0001/A-9's merge-before-reap ordering,
       which the corpus had already established for exactly this reason,
       applied inside the tick. Reap keeps its place ahead of dispatch, so the
       scope-overlap check still sees a corpse-free picture. A candidate
@@ -31,11 +31,11 @@ amendments:
       and pull request survive the state file. Recreating the READY run state
       is explicit operator surgery, recorded as such, and the next tick lands
       it through the normal path.
-  - id: A-28
+  - id: A-2
     at: '2026-08-24'
     title: >-
-      the loop publishes, the reaper waits, the lane adopts (adds D-19.9–D-19.11;
-      also edits RFC 0003 D-3.23)
+      the loop publishes, the reaper waits, the lane adopts (adds S-0019/D-9–S-0019/D-11;
+      also edits S-0003 S-0003/D-23)
     md: |-
       **Found in implementation** — by the first live drain, three defects
       with one theme: the scheduled regime removes the operator whose habits
@@ -46,34 +46,34 @@ amendments:
          stale, so the next task was implemented against a base missing the
          previous landing and conflicted on rebase — systematically, not by
          bad luck. In the manual regime the operator pushed after
-         `torve merge`; the loop has no operator. **Changed:** D-19.9 — after
+         `torve merge`; the loop has no operator. **Changed:** S-0019/D-9 — after
          at least one landing the tick's lane leg pushes the base,
          fast-forward only, and a refused push is a loud leg error.
-      2. **The reaper still ate unlanded candidates.** A-27 protects a
+      2. **The reaper still ate unlanded candidates.** S-0019/A-1 protects a
          candidate the lane lands in the same tick; one the lane *refused*
          (pending CI, dirt, a transient error) was swept by that same tick's
          reap, because READY is terminal to the engine and sweepable.
-         **Changed:** D-19.10 — the reaper keeps the *state file* of a READY
+         **Changed:** S-0019/D-10 — the reaper keeps the *state file* of a READY
          implement or revert run whose task has not landed on the base; the
          worktree stays disposable (its work lives on the branch), and
-         review-role READY states remain sweepable. This narrows RFC 0003
-         D-3.23's sweep scope, noted on that row.
+         review-role READY states remain sweepable. This narrows S-0003
+         S-0003/D-23's sweep scope, noted on that row.
       3. **The landing collided with its own contract.** The runner's
          provenance commit carries the task's contract inside the worktree;
          the root held the same file untracked, and git refused the
-         fast-forward rather than overwrite. **Changed:** D-19.11 — the lane
+         fast-forward rather than overwrite. **Changed:** S-0019/D-11 — the lane
          removes an untracked root file the incoming landing carries with
          byte-identical content; any difference still refuses. Committing the
          contract from the runner was rejected again for the same reason as
          in T-0052: the engine does not commit into the operator's checkout.
 
-      **Deliberately unchanged:** D-10.5 — no force path exists anywhere,
-      including the new base push; the tick order (A-27) stands; the reaper's
+      **Deliberately unchanged:** S-0010/D-5 — no force path exists anywhere,
+      including the new base push; the tick order (S-0019/A-1) stands; the reaper's
       treatment of escalated runs (keep everything for triage) stands.
-  - id: A-29
+  - id: A-3
     at: '2026-08-24'
     title: >-
-      landings are repo truth, run records are host truth (amends §4, D-19.4)
+      landings are repo truth, run records are host truth (amends §4, S-0019/D-4)
     md: |-
       **Found in implementation** — by the very first tick under the installed
       schedule, which ran against a fresh clone of the lab. The T-0055
@@ -87,10 +87,10 @@ amendments:
       but the failure repeats one wasted dispatch per tick, on every fresh
       clone, forever: spend and board noise with no bound.
 
-      **Changed:** §4 gains a fourth condition and D-19.4 records it —
+      **Changed:** §4 gains a fourth condition and S-0019/D-4 records it —
       selection asks the repository before it trusts the host. A task whose
       landing trailer is already in base history is never queued, whatever run
-      records the host holds; the oracle is the one the reaper (D-19.10) and
+      records the host holds; the oracle is the one the reaper (S-0019/D-10) and
       the dependency check already consult. Run records still decide
       everything short of landing — an attempt that escalated on one host is
       that host's business to triage — but a landing is repo truth and
@@ -100,11 +100,11 @@ amendments:
       still guards the reaped-but-unlanded history on the host that ran it);
       QUEUED re-entry (T-0059) stands, but the repo check is authoritative
       over it — a landed task's re-entry is a revert and a new contract,
-      never a re-run; and the tick still creates nothing (D-19.8).
-  - id: A-31
+      never a re-run; and the tick still creates nothing (S-0019/D-8).
+  - id: A-4
     at: '2026-08-24'
     title: >-
-      a dependency is satisfied only by its landing (amends §4, D-19.4)
+      a dependency is satisfied only by its landing (amends §4, S-0019/D-4)
     md: |-
       **Found in operation** — within the first hour of a twelve-task batch
       under the approvals regime at one-minute cadence. T-0045 reached ready
@@ -118,7 +118,7 @@ amendments:
       the automatic regime the lane precedes dispatch inside the tick, so a
       ready dependency lands moments before its dependent dispatches, and the
       clause was satisfied by `landed` in every drain that succeeded. The
-      approvals regime (RFC 0006 §3) broke the coincidence — ready now dwells
+      approvals regime (S-0006/promotion) broke the coincidence — ready now dwells
       unlanded for as long as a human deliberates.
 
       **Changed:** a `depends_on` entry is satisfied by its landing alone —
@@ -131,10 +131,10 @@ amendments:
       costs at most its place in line); the escalation pause, which contained
       this defect exactly as designed; and the QUEUED re-entry path — a
       re-queued dependent re-checks its dependencies like everything else.
-  - id: A-34
+  - id: A-5
     at: '2026-08-24'
     title: >-
-      the forge sees the landing (adds D-19.12/D-19.13; scopes RFC 0010 D-10.5)
+      the forge sees the landing (adds D-19.12/D-19.13; scopes S-0010 S-0010/D-5)
     md: |-
       **Found in operation** — the owner read the pull-request board as a
       disconnected mess: most landed work wore the red "closed" of rejected
@@ -150,22 +150,22 @@ amendments:
       **Changed:** the loop publishes the landed form where the forge watches
       for it. Before the base push, each rebased landing's candidate branch is
       republished to its landed tip — force-with-lease, engine-owned `torve/*`
-      namespace, at landing time only (D-19.12); the base push then makes the
+      namespace, at landing time only (S-0019/D-12); the base push then makes the
       forge mark the pull request merged, its review threads anchored to the
       code that actually landed. A landed pull request the forge does not flip
       within a short grace is closed with the landing note exactly as before,
       and the candidate branch is deleted in every landed case — the close-out
-      is now the fallback, not the rule (D-19.13).
+      is now the fallback, not the rule (S-0019/D-13).
 
       **Deliberately unchanged:** the base advances by fast-forward only, no
-      force path (D-19.9); and RFC 0010 D-10.5's force-push prohibition during
+      force path (S-0019/D-9); and S-0010 S-0010/D-5's force-push prohibition during
       review — the republish happens at landing, after the sha-bound approvals
       have concluded the review that row protects, and is precisely what keeps
       its line comments anchored to the landed history.
-  - id: A-39
+  - id: A-6
     at: '2026-08-25'
     title: >-
-      the loop dispatches what cannot collide (amends D-19.4, adds D-19.14)
+      the loop dispatches what cannot collide (amends S-0019/D-4, adds S-0019/D-14)
     md: |-
       **Found in operation** — the first twelve-task batch ran strictly
       serially: one dispatch per tick, each landing conflicting the remaining
@@ -173,41 +173,41 @@ amendments:
       rounds for N siblings. The owner read it correctly: for same-file work
       the serialization is the physics — no system lands colliding appends
       in parallel — but for scope-disjoint work it was pure queue discipline,
-      and RFC 0006 §4's own rule for raising parallelism ("one dimension at a
+      and S-0006/human-attention-is-the-scarce-resource's own rule for raising parallelism ("one dimension at a
       time, while escalation rate is low") had just been satisfied by that
       batch's drain: one empty diff, zero infrastructure escalations.
 
-      **Changed:** the dispatch leg admits a batch (D-19.14). Up to
+      **Changed:** the dispatch leg admits a batch (S-0019/D-14). Up to
       `loop.dispatch_workers` queued tasks run concurrently in one tick when
       their contract scopes are pairwise disjoint and disjoint from every
       in-flight run's — judged by the planner's conservative intersection, so
       what is provably shared serializes and an unscoped task (empty allow:
-      unconstrained, RFC 0002 §6) shares a batch with nothing. Each member
-      runs under its own worker slot (auth volumes are per-slot, D-4.2);
+      unconstrained, S-0002/scope-in-detail) shares a batch with nothing. Each member
+      runs under its own worker slot (auth volumes are per-slot, S-0004/D-2);
       worktree creation and telemetry appends — the two shared touchpoints —
       serialize behind in-process locks, and the store's per-task claims
-      (D-6.9) remain the mutual-exclusion backstop.
+      (S-0006/D-9) remain the mutual-exclusion backstop.
 
       **Deliberately unchanged:** the lane — landing stays strictly serial,
-      which is RFC 0006's founding argument; one tick at a time per root
-      (D-19.2), the batch living entirely inside its tick; the escalation
+      which is S-0006's founding argument; one tick at a time per root
+      (S-0019/D-2), the batch living entirely inside its tick; the escalation
       pause, checked before any admission; and the default of 1, which keeps
-      every existing deployment on D-19.4's original regime until its owner
+      every existing deployment on S-0019/D-4's original regime until its owner
       raises the knob deliberately.
-  - id: A-94
+  - id: A-7
     at: '2026-09-05'
     title: >-
-      the poll and sync legs left with the tracker (amends §5, cites A-92)
+      the poll and sync legs left with the tracker (amends §5, cites S-0008/A-5)
     md: |-
-      **Found deleting the tracker (A-92).** Three of the tick's legs existed only
+      **Found deleting the tracker (S-0008/A-5).** Three of the tick's legs existed only
       to talk to it: `poll` applied inbound commands, `intake` claimed
-      tracker-filed requests (RFC 0020 §5.4, A-93), and `sync` projected the board
+      tracker-filed requests (S-0020/board-intake-phase-2, S-0020/A-1), and `sync` projected the board
       outward. All three are gone, and `TickDeps` loses the three fields.
 
       The tick is now recovery, lane, reap, standing, dispatch. **The order rule
-      that mattered is untouched**: the lane still runs before the reaper (A-27),
+      that mattered is untouched**: the lane still runs before the reaper (S-0019/A-1),
       because READY is sweepable and a reap ahead of the lane destroys the lane's
-      own input. Recovery still runs first of all (D-42.3).
+      own input. Recovery still runs first of all (S-0042/D-3).
 
       One test changed shape rather than assertion. "A leg error is recorded and
       the tick reaches its sync leg" was written against `sync` because it was
@@ -216,16 +216,16 @@ amendments:
       property is *a bounded tick reaches its last leg and releases its lock* —
       `sync` was only ever how it was spelled.
 
-      D-19.3's own text names the legs in order and is left as written: the
+      S-0019/D-3's own text names the legs in order and is left as written: the
       document says what the loop was, and this amendment says what it is.
-  - id: A-105
+  - id: A-8
     at: '2026-09-05'
     title: >-
       The loop is retired; what it carried, and what left with it
     md: |-
-      **Retired, not superseded in place.** RFC 0044 §12 phase 6 said the scan
+      **Retired, not superseded in place.** S-0044/phasing phase 6 said the scan
       would go once the same rules lived over the record. They have since
-      d75f7c1, and both carriers stayed under A-86 because a v1 run leaves no
+      d75f7c1, and both carriers stayed under S-0044/A-5 because a v1 run leaves no
       log. What settled it was measurement rather than the rule: on this
       repository the tick had run **3 times, last on 2026-08-31**, against 47
       landings through `torve merge`; nothing in CI, the justfile or any
@@ -239,7 +239,7 @@ amendments:
       standing  paused: escalation queue at 1
       ```
 
-      The pause is one escalation from August. D-19.5 as written pauses on a
+      The pause is one escalation from August. S-0019/D-5 as written pauses on a
       queue of one, so a single un-triaged v1 escalation had been suppressing
       dispatch and standing for a week, silently, in the only loop that could
       have noticed.
@@ -252,64 +252,64 @@ amendments:
 
       **What moved.** The dispatch rules are the manager's and were already
       shared; the last two the board could not answer moved with this change —
-      the oversize skip (D-26.7) is now `manager.decomposed` over the board's own
+      the oversize skip (S-0026/D-7) is now `manager.decomposed` over the board's own
       contracts, and the "already ran here" test is `residency.ran_here`, built
       once per pass instead of re-reading the telemetry stream per contract. The
-      reap leg is `torve reap`; the standing leg is a manager leg (A-105 on RFC
+      reap leg is `torve reap`; the standing leg is a manager leg (S-0019/A-8 on RFC
       0023); recovery is `residency.reclaim`.
 
       **What left, and is not coming back by itself.** The tick's lane leg did
       more than `torve merge` does: after a landing it pushed the base
-      fast-forward-only (D-19.9), republished each landed candidate branch
-      (D-19.12), closed a landed pull request the forge had not marked merged
-      (D-19.13), and answered captured review threads. `torve merge` lands and
+      fast-forward-only (S-0019/D-9), republished each landed candidate branch
+      (S-0019/D-12), closed a landed pull request the forge had not marked merged
+      (S-0019/D-13), and answered captured review threads. `torve merge` lands and
       stops. With `auto_merge` off, none of that has run on this repository
       either — it is deleted rather than moved, and if it is wanted it belongs on
-      the lane and RFC 0006, not on a loop nobody schedules. Batched dispatch
-      (D-19.14, `loop.dispatch_workers`) also goes: the manager claims one task
+      the lane and S-0006, not on a loop nobody schedules. Batched dispatch
+      (S-0019/D-14, `loop.dispatch_workers`) also goes: the manager claims one task
       per worker, and concurrency is a second worker rather than a thread pool.
-      The solo dispatch line's size envelope (D-22.11) goes with the leg that
+      The solo dispatch line's size envelope (S-0022/D-11) goes with the leg that
       printed it.
 
-      The document stays. D-19.5's rule — a queue may drain during a pause and
-      may not grow — survives as D-48.4 and now covers the standing leg too.
-  - id: A-145
+      The document stays. S-0019/D-5's rule — a queue may drain during a pause and
+      may not grow — survives as S-0048/D-4 and now covers the standing leg too.
+  - id: A-9
     at: '2026-09-09'
     title: >-
       7 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:
-      - subject: D-19.1
+      - subject: D-1
         field: retired
         before: >-
           src/torve/application/loop.py src/torve/cli/tick.py
         after: >-
           path rot: every declared glob matches nothing in the tree
-      - subject: D-19.2
+      - subject: D-2
         field: retired
         before: src/torve/application/loop.py
         after: >-
           path rot: every declared glob matches nothing in the tree
-      - subject: D-19.3
+      - subject: D-3
         field: retired
         before: src/torve/application/loop.py
         after: >-
           path rot: every declared glob matches nothing in the tree
-      - subject: D-19.4
+      - subject: D-4
         field: retired
         before: src/torve/application/loop.py
         after: >-
           path rot: every declared glob matches nothing in the tree
-      - subject: D-19.6
+      - subject: D-6
         field: retired
         before: src/torve/application/loop.py
         after: >-
           path rot: every declared glob matches nothing in the tree
-      - subject: D-19.8
+      - subject: D-8
         field: retired
         before: src/torve/application/loop.py
         after: >-
           path rot: every declared glob matches nothing in the tree
-      - subject: D-19.14
+      - subject: D-14
         field: retired
         before: >-
           src/torve/application/loop.py src/torve/cli/tick.py
@@ -317,34 +317,34 @@ amendments:
           path rot: every declared glob matches nothing in the tree
     md: |-
       ```yaml changes
-      - subject: D-19.1
+      - subject: S-0019/D-1
         field: retired
         before: src/torve/application/loop.py src/torve/cli/tick.py
         after: "path rot: every declared glob matches nothing in the tree"
-      - subject: D-19.2
+      - subject: S-0019/D-2
         field: retired
         before: src/torve/application/loop.py
         after: "path rot: every declared glob matches nothing in the tree"
-      - subject: D-19.3
+      - subject: S-0019/D-3
         field: retired
         before: src/torve/application/loop.py
         after: "path rot: every declared glob matches nothing in the tree"
-      - subject: D-19.4
+      - subject: S-0019/D-4
         field: retired
         before: src/torve/application/loop.py
         after: "path rot: every declared glob matches nothing in the tree"
-      - subject: D-19.6
+      - subject: S-0019/D-6
         field: retired
         before: src/torve/application/loop.py
         after: "path rot: every declared glob matches nothing in the tree"
-      - subject: D-19.8
+      - subject: S-0019/D-8
         field: retired
         before: src/torve/application/loop.py
         after: "path rot: every declared glob matches nothing in the tree"
-      - subject: D-19.14
+      - subject: S-0019/D-14
         field: retired
         before: src/torve/application/loop.py src/torve/cli/tick.py
         after: "path rot: every declared glob matches nothing in the tree"
       ```
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

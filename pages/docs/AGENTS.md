@@ -2,7 +2,7 @@
 
 ## Decisions governing `pages/docs/`
 
-### D-58.10 — `ASSUMED` (RFC 0058 — One grammar and the anatomy)
+### S-0058/D-10 — `ASSUMED` (One grammar and the anatomy)
 
 The skill and its template, the schemas `torve init` writes, the projections beside the code and the operating page follow the grammar and the anatomy in the same phase that changes them
 

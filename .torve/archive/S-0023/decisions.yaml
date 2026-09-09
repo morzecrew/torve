@@ -1,24 +1,24 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-23.1
+  - id: D-1
     grade: LOCKED
     text: >-
       A standing contract is a committed, reviewed file under `.torve/standing/`;
       the human signature is the file in a diff, never a per-firing approval
     paths: [.torve/standing/**, src/torve/config/layout.py]
     consequence: >-
-      Moves the signature upstream exactly as RFC 0007 does for phasing; a per-firing
+      Moves the signature upstream exactly as S-0007 does for phasing; a per-firing
       approval would restore the human-as-trigger arrangement this removes
-  - id: D-23.2
+  - id: D-2
     grade: LOCKED
     text: >-
       A trigger predicate is deterministic, runs in a sandbox with no agent, and answers
       by exit code; no model participates in deciding that work is due
     paths: [src/torve/application/standing.py]
     consequence: >-
-      D-2 and D-7.1 unchanged: a model that decides work exists is the exact non-determinism
-      this project removes
-  - id: D-23.3
+      S-0001/D-10 and S-0007/D-1 unchanged: a model that decides work exists is the
+      exact non-determinism this project removes
+  - id: D-3
     grade: LOCKED
     text: >-
       A predicate that errors mints nothing and records an engine event; the leg fails
@@ -27,16 +27,16 @@ decisions:
     consequence: >-
       A missed firing is a delay; a spurious firing is spend plus a contract someone
       must triage — the asymmetry decides the default
-  - id: D-23.4
+  - id: D-4
     grade: LOCKED
     text: >-
-      Instantiation uses RFC 0020 §5.3's adoption path unchanged — id under the tick
-      lock, contract committed as an engine record — and inherits decisions only through
-      `inherit_decisions`
+      Instantiation uses S-0020/adoption's adoption path unchanged — id under the
+      tick lock, contract committed as an engine record — and inherits decisions only
+      through `inherit_decisions`
     paths: [src/torve/application/standing.py, src/torve/application/intake.py]
     consequence: >-
       One minting path; a second would reopen the id race that §5.3 closed structurally
-  - id: D-23.5
+  - id: D-5
     grade: LOCKED
     text: >-
       A standing instance's intent is fixed at authoring time and identical across
@@ -44,9 +44,9 @@ decisions:
       a planner in disguise
     paths: [.torve/standing/**, src/torve/application/standing.py]
     consequence: >-
-      The falsifiable test of §5.5 — the mechanism must be able to fail it, or D-19.8
+      The falsifiable test of §5.5 — the mechanism must be able to fail it, or S-0019/D-8
       was weakened rather than preserved
-  - id: D-23.6
+  - id: D-6
     grade: ASSUMED
     text: >-
       Four bounds, in order: the escalation pause suppresses evaluation entirely;
@@ -57,44 +57,45 @@ decisions:
       The one leg that grows the backlog must be bounded by the same attention budget
       as everything else, and a predicate that fires forever must stop rather than
       grind
-  - id: D-23.7
+  - id: D-7
     grade: ASSUMED
     text: >-
       No enable flag: an empty `.torve/standing/` is off and deleting a file is the
       disable
     paths: [src/torve/config/layout.py]
     consequence: >-
-      RFC 0019's doctrine — scheduling the verb is the enablement — applied one level
+      S-0019's doctrine — scheduling the verb is the enablement — applied one level
       in; a second switch is a second place to look
-  - id: D-23.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       Two predicate kinds ship, `command` and `path-digest`; a third arrives with
-      a job that needs it and not before. Amended by A-68 2026-08-31: the third kind
-      is flake-threshold — telemetry's flaky_count_by_command summed against a threshold,
-      the gate manifest's quarantine list honoured, read with the engine's own parsers
+      a job that needs it and not before. Amended by S-0023/A-1 2026-08-31: the third
+      kind is flake-threshold — telemetry's flaky_count_by_command summed against
+      a threshold, the gate manifest's quarantine list honoured, read with the engine's
+      own parsers
     paths: [src/torve/application/standing.py]
     consequence: >-
       Predicate kinds are a language, and a language grown speculatively is one nobody
       can read
-  - id: D-23.9
+  - id: D-9
     grade: ASSUMED
     text: >-
-      A standing contract's body is validated by RFC 0020's contract lint, unchanged
+      A standing contract's body is validated by S-0020's contract lint, unchanged
     paths: [src/torve/application/intake.py]
     consequence: >-
       A hand-written template must not be able to carry a defect a drafted contract
       would have been refused for
-  - id: D-23.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       Each instance records its originating job, so repeated firings form one population
-      for RFC 0022
+      for S-0022
     paths: [src/torve/application/standing.py, src/torve/application/telemetry.py]
     consequence: >-
       Comparability is the second reason for fixed intent, and it is lost silently
       if the link is not recorded
-  - id: D-23.11
+  - id: D-11
     grade: OPEN
     text: >-
       Where the firing ledger lives — the host-local telemetry stream or a committed

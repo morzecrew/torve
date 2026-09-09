@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0034'
+id: S-0034
 title: Task character and conviction-routed retries
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0007', '0027', 0029]
-informed_by: ['0004', 0009, '0026']
+depends_on: [S-0007, S-0027, S-0029]
+informed_by: [S-0004, S-0009, S-0026]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Three task-character axes — structural and routine declared per phase, compliance
@@ -30,7 +30,7 @@ sections:
       keep lying get corrected the way sizing estimates already are. The eval
       loop learns to replay a tier-variant candidate so every routing choice
       this document introduces is displaceable only by a measured verdict,
-      per D-27.7.
+      per S-0027/D-7.
   - key: motivation
     md: |
       Three measured facts, from this repository's own ledger.
@@ -62,18 +62,18 @@ sections:
       `scope` convictions (T-0198, T-0200) were operator phasing defects, not
       agent errors. A boundary conviction is as much a contract-quality signal
       as an agent failure, which is why boundary retries stay on the same rung
-      (D-34.7) and the repair path is the fence-discipline decision already
+      (S-0034/D-7) and the repair path is the fence-discipline decision already
       accepted by the owner.
   - key: current-state
     md: |
       Verified against the tree at drafting time:
 
       - A Phasing entry may carry `tier_variant`, copied verbatim by the
-        planner onto the minted contract (RFC 0029 §1; landed via T-0156,
+        planner onto the minted contract (S-0029/summary; landed via T-0156,
         rendered by `torve rfc emit` via T-0158). `character` follows exactly
         this path.
       - A tier may name `retry_variant` — one rung, resolved after any
-        gate-red (D-27.11, `src/torve/application/runner.py`). The rung does
+        gate-red (S-0027/D-11, `src/torve/application/runner.py`). The rung does
         not know which gate convicted.
       - Gate declarations (`config/manifest.py`, `.torve/gates.yaml`) carry
         `state` and `origin` but nothing that classifies what a conviction
@@ -82,7 +82,7 @@ sections:
         token shape and wall clock (`application/projections.py`); the raw
         material for calibration exists, ungrouped.
       - `torve eval` overrides only a tier's *image* in the candidate arm
-        (`application/evals.py::candidate_config`, D-27.7); an equipped-variant
+        (`application/evals.py::candidate_config`, S-0027/D-7); an equipped-variant
         candidate — the exact thing the campaign needed — required baking the
         prompt into the image as a workaround.
   - key: goals-non-goals
@@ -99,17 +99,17 @@ sections:
 
       **Non-goals**
 
-      - Changing any gate's rules or thresholds — D-34.9 names the one
+      - Changing any gate's rules or thresholds — S-0034/D-9 names the one
         candidate and leaves it to a measurement window; this document only
         classifies gates.
       - Inferring character mechanically from intent text or scope shape —
         the campaign showed fence breadth carries no signal beyond the
         declared intent; inference would launder a guess into a routing key.
-      - Automatic displacement of any default — D-27.7 stands; everything
+      - Automatic displacement of any default — S-0027/D-7 stands; everything
         here lands as measurable configuration, not as a new regime.
   - key: character-declared
     md: |
-      The Phasing format (D-7.21) gains an optional `character` key with the
+      The Phasing format (S-0007/D-21) gains an optional `character` key with the
       closed vocabulary `structural | routine`:
 
       ```yaml
@@ -147,7 +147,7 @@ sections:
       spoke); an absent mapping entry falls through to the seat default. The
       mapping lives in configuration, not the corpus, because which variant
       serves a character is a regime choice — `config_hash` already separates
-      it, and D-27.7 already governs displacing it.
+      it, and S-0027/D-7 already governs displacing it.
   - key: convictions-classified
     md: |
       A gate declaration gains an optional `axis` with the closed vocabulary
@@ -176,19 +176,19 @@ sections:
       reads only the recorded gate outcomes of the attempt — never the trace,
       never model output — so the routing of every retry is reproducible from
       telemetry alone. Boundary convictions resolve no rung by default
-      (D-34.7): a broken fence is repaired by the operator's disclosed chore,
+      (S-0034/D-7): a broken fence is repaired by the operator's disclosed chore,
       not escaped by a heavier model. Every attempt's telemetry row already
-      stamps the tier it actually ran under (D-27.11's second clause), which
+      stamps the tier it actually ran under (S-0027/D-11's second clause), which
       is what keeps a multi-rung regime enumerable.
   - key: calibration-projected
     md: |
       A `character` section joins the context projection: one row per task
       carrying a declaration or any conviction — declared character, realized
       conviction profile grouped by axis, attempts, and token shape. The serve
-      surface re-exposes it verbatim per D-32.1. The section is measurement,
+      surface re-exposes it verbatim per S-0032/D-1. The section is measurement,
       not enforcement: a `routine` declaration whose runs keep drawing
       functional convictions is corrected in the document by its author, the
-      way sizing estimates already earn D-26.7 observations.
+      way sizing estimates already earn S-0026/D-7 observations.
   - key: evals-extended
     md: |
       `candidate_config` accepts a tier-*variant* override beside the existing
@@ -207,7 +207,7 @@ sections:
         campaign's six tasks came from four documents whose phases mixed
         characters (0031's survey is structural, its bootstrap skill routine).
       - **Retry keyed on the specific gate name** — rejected: per-gate rungs
-        explode the enumerable regime space D-27.11 protects, and the axis is
+        explode the enumerable regime space S-0027/D-11 protects, and the axis is
         the level at which the evidence differentiates.
   - key: tests
     md: |
@@ -217,7 +217,7 @@ sections:
       Retry: axis grouping, severity order, boundary-resolves-nothing, sugar
       compatibility for the scalar form, and a telemetry-replay test asserting
       the chosen rung is derivable from the recorded gate outcomes alone.
-      Projection: content-only assertions per D-18.1. Evals: variant candidate
+      Projection: content-only assertions per S-0018/D-1. Evals: variant candidate
       arm produces a distinct config hash and a record naming the variant;
       image and variant overrides refuse to combine in one invocation until a
       need is shown.
@@ -229,15 +229,15 @@ sections:
       field is optional and absent behaves exactly as today.
   - key: out-of-scope
     md: |
-      - Rewording any gate's grammar — D-34.9 defers the evidence-format
+      - Rewording any gate's grammar — S-0034/D-9 defers the evidence-format
         question to a measurement window over post-T-0203 tasks; this
         document must not smuggle a rules change under a classification.
       - The scribe log post-pass (a second agent writing `log.yaml` from the
-        finished diff) — collides with D-4.6's self-report doctrine; named in
-        D-34.11 as the escalation if routing and gate-taught repair fail to
+        finished diff) — collides with S-0004/D-6's self-report doctrine; named in
+        S-0034/D-11 as the escalation if routing and gate-taught repair fail to
         bend the 58%.
       - Dashboard rendering of the calibration section beyond the verbatim
-        re-exposure D-32.1 already mandates.
+        re-exposure S-0032/D-1 already mandates.
   - key: risks
     md: |
       - **Declarations rot.** Mitigated by §5.5 being cheap to read and by
@@ -245,14 +245,14 @@ sections:
       - **Compliance retries loop on the same conviction.** The compliance
         rung defaults to the same seat, so a task that cannot satisfy the
         grammar still meets the poison ceiling unchanged; the mitigation is
-        T-0203's repair-teaching output, and D-34.9's window measures whether
+        T-0203's repair-teaching output, and S-0034/D-9's window measures whether
         that suffices.
       - **Axis mislabeling routes retries wrong.** The vocabulary is four
         words and the manifest diff is reviewed; the fail-safe default is the
         heaviest rung, so a missing label costs money, never correctness.
   - key: unresolved-questions
     md: |
-      - The size of D-34.9's measurement window (proposal: the next 20
+      - The size of S-0034/D-9's measurement window (proposal: the next 20
         implement tasks after T-0203's landing) — the owner settles it when
         the window closes.
       - Whether `character_routing` belongs on the seat only or also on
@@ -263,16 +263,16 @@ sections:
       Phase 1's two units are disjoint and parallel. Phase 2 needs nothing
       from phase 1 but lands the axis vocabulary phase 3 routes on.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
 phasing:
   - phase: 1
     title: character declared and routed
     intent: >-
       The character field end to end: parse_phasing validates the structural|routine
-      vocabulary (D-34.2), the planner copies it verbatim onto the minted contract
+      vocabulary (S-0034/D-2), the planner copies it verbatim onto the minted contract
       beside tier_variant, Task carries it optionally, and dispatch resolves character_routing
-      (D-34.3) — explicit tier_variant wins, unmapped character falls through to the
-      seat default. The rfc-writer template documents the field.
+      (S-0034/D-3) — explicit tier_variant wins, unmapped character falls through
+      to the seat default. The rfc-writer template documents the field.
     scope:
       - src/torve/config/rfc_parse.py
       - src/torve/domain/task.py
@@ -293,7 +293,7 @@ phasing:
   - phase: 1
     title: eval variant override
     intent: >-
-      candidate_config accepts a tier-variant override beside the image override (D-34.10):
+      candidate_config accepts a tier-variant override beside the image override (S-0034/D-10):
       torve eval --tier <seat> --variant <name> replays with the candidate arm resolving
       the dotted variant; the eval record carries the variant name and both config
       hashes; combining --image and --variant in one invocation is refused with an
@@ -311,11 +311,11 @@ phasing:
     title: axis vocabulary and calibration
     intent: >-
       Gate declarations carry the optional axis field with the four-word vocabulary,
-      unlabeled reads as functional (D-34.4); this repository's gates.yaml labels
+      unlabeled reads as functional (S-0034/D-4); this repository's gates.yaml labels
       its battery per §5.3; the context projection gains the character calibration
-      section (D-34.8) — declared character against realized conviction profile grouped
-      by axis, attempts and token shape — rendered in context and re-exposed verbatim
-      by serve.
+      section (S-0034/D-8) — declared character against realized conviction profile
+      grouped by axis, attempts and token shape — rendered in context and re-exposed
+      verbatim by serve.
     scope:
       - src/torve/config/manifest.py
       - .torve/gates.yaml
@@ -333,11 +333,11 @@ phasing:
     title: conviction-routed retries
     intent: >-
       retry_variants keyed by axis with the scalar form kept as sugar for functional
-      (D-34.6); after a red attempt the runner groups the attempt's failing gates
+      (S-0034/D-6); after a red attempt the runner groups the attempt's failing gates
       by axis and resolves the rung for the most severe axis present in the fixed
       order functional > boundary > compliance > form, reading only recorded gate
-      outcomes (D-34.5); boundary resolves no rung (D-34.7). A replay-shaped test
-      derives the chosen rung from telemetry records alone.
+      outcomes (S-0034/D-5); boundary resolves no rung (S-0034/D-7). A replay-shaped
+      test derives the chosen rung from telemetry records alone.
     scope:
       - src/torve/config/runconfig.py
       - src/torve/application/runner.py

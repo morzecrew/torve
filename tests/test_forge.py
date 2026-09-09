@@ -1,4 +1,4 @@
-"""RFC 0010 phase 2: the credentialed forge leg — PR bodies from data only,
+"""S-0010 phase 2: the credentialed forge leg — PR bodies from data only,
 the token resolved by name at the runner boundary and never on argv."""
 
 from __future__ import annotations
@@ -136,7 +136,7 @@ def test_a_named_but_absent_token_fails_loudly(tmp_path, monkeypatch):
 
 
 def test_open_pr_reuses_the_branchs_open_pull_request(tmp_path, monkeypatch):
-    # One pull request per task (D-10.10, A-37): a create refused because
+    # One pull request per task (S-0010/D-10, A-37): a create refused because
     # the branch already has one finds it, refreshes title and body, and
     # returns its url — attempts iterate one thread of review.
     calls: list[list[str]] = []
@@ -173,7 +173,7 @@ def test_open_pr_reuses_the_branchs_open_pull_request(tmp_path, monkeypatch):
 
 
 # ....................... #
-# GhCi (RFC 0006 §3): the lightweight runs endpoint, polled with backoff,
+# GhCi (S-0006/promotion): the lightweight runs endpoint, polled with backoff,
 # settling to one word — the rate budget is shared with the agents.
 
 

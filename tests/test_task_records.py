@@ -1,4 +1,4 @@
-"""Tasks as records (RFC 0049).
+"""Tasks as records (S-0049).
 
 What the record did not hold was the contract — the one field every reader
 had to be standing next to the repository for. These cases are about the
@@ -56,7 +56,7 @@ async def record(log, kind, task_id, payload, *, actor=ActorKind.WORKER, actor_i
 
 
 def test_a_minted_contract_reads_back_off_the_board_unchanged(tmp_path):
-    """D-49.1: the whole contract, not a summary of it — the scope and the
+    """S-0049/D-1: the whole contract, not a summary of it — the scope and the
     decisions are what the gates enforce, so a lossy record would be worse
     than none."""
 
@@ -91,7 +91,7 @@ def test_an_unchanged_repository_mints_once(tmp_path):
 
 
 def test_a_changed_contract_is_re_minted_as_a_new_version(tmp_path):
-    """D-49.4: the operator's recourse after an escalation is to fix the
+    """S-0049/D-4: the operator's recourse after an escalation is to fix the
     contract, and a record that could not accept the fix would send them to
     delete the task and mint a new id."""
 
@@ -119,7 +119,7 @@ def test_a_changed_contract_is_re_minted_as_a_new_version(tmp_path):
 
 
 def test_a_re_mint_does_not_transition_an_escalated_task(tmp_path):
-    """D-49.2: a manager that could re-queue an escalated task by noticing an
+    """S-0049/D-2: a manager that could re-queue an escalated task by noticing an
     edited file would be writing an `escalation.resolved` it has no authority
     to write, under another name."""
 
@@ -147,7 +147,7 @@ def test_a_re_mint_does_not_transition_an_escalated_task(tmp_path):
 
 def test_the_operators_whole_recourse_works_end_to_end(tmp_path):
     """Escalate, fix the contract, resolve — and the next pass records the
-    change and puts it in force. The workflow D-49.4 exists for."""
+    change and puts it in force. The workflow S-0049/D-4 exists for."""
 
     contract(tmp_path, "T-0001", allow="src/a/**")
 
@@ -193,7 +193,7 @@ def test_the_operators_whole_recourse_works_end_to_end(tmp_path):
     ],
 )
 def test_a_task_in_flight_is_never_re_minted(tmp_path, kind, payload, actor):
-    """D-49.3: the contract an attempt is judged against is the one it
+    """S-0049/D-3: the contract an attempt is judged against is the one it
     started under. Parameterised because "in flight" is a set, and a rule
     that holds for one member is not a rule."""
 
@@ -235,7 +235,7 @@ def test_the_flat_fields_agree_with_the_contract_at_write_time(tmp_path):
 
 
 def test_a_mint_written_before_the_amendment_stays_readable(tmp_path):
-    """D-49.5: 192 of them, over 184 tasks, are already in the lab log. A
+    """S-0049/D-5: 192 of them, over 184 tasks, are already in the lab log. A
     fold that raised on one would take a whole board down."""
 
     async def scenario(log):

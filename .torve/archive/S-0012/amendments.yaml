@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-101
+  - id: A-1
     at: '2026-09-05'
     title: The status line says why there is no database
     md: |-
@@ -24,4 +24,4 @@ amendments:
       `CREATE INDEX IF NOT EXISTS`, so applying it against the index it describes
       is a no-op that records the row.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

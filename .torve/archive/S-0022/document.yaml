@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0022'
+id: S-0022
 title: Specification quality as a measured quantity
 kind: design
 status: superseded
 implementation: partial
-depends_on: ['0004', '0007']
-informed_by: ['0001', '0002', 0009, '0016', '0020']
+depends_on: [S-0004, S-0007]
+informed_by: [S-0001, S-0002, S-0009, S-0016, S-0020]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   Reading the records the engine already writes to measure the corpus that produced
@@ -20,7 +20,7 @@ sections:
       The engine measures its gates, its skills and its harnesses. It has never
       measured the corpus, which is the thing the charter names as the
       differentiator. Every input already exists in the records — decisions are
-      denormalised into every telemetry row by a rule written in RFC 0004 §6
+      denormalised into every telemetry row by a rule written in S-0004/telemetry-staged
       precisely so this would be possible later; the escalation enum was kept
       separable so that `underspecified` and `stale_inheritance` would be distinct
       populations; the log carries `drift_count`, actions and cited decision ids;
@@ -52,15 +52,15 @@ sections:
         and constrains nothing.
 
       None of those is a hunch that could be argued about; each is a query. And
-      RFC 0020 §5.2 already committed to a rule set that "is expected to grow from
+      S-0020/the-contract-lint already committed to a rule set that "is expected to grow from
       escalation evidence, each rule citing the escalation that produced it" — with
       no mechanism anywhere that produces that evidence in aggregate.
 
-      The absence is also asymmetric in a way worth naming. RFC 0002 §7.6 measures
-      whether a gate earns its minutes. RFC 0009 §5 retires a skill that does not
-      earn its tokens. RFC 0004 §5 replays a task to compare harnesses. The one
+      The absence is also asymmetric in a way worth naming. S-0002/health measures
+      whether a gate earns its minutes. S-0009/evals retires a skill that does not
+      earn its tokens. S-0004/shadow-runs replays a task to compare harnesses. The one
       artefact with no measurement attached is the one the charter says is the whole
-      point (D-25).
+      point (S-0001/D-19).
   - key: current-state
     md: |
       - Telemetry is one JSONL file per root, `.torve/telemetry.jsonl`, host-local
@@ -78,9 +78,9 @@ sections:
         join exists and is under test as part of `torve rfc check`.
       - `src/torve/application/projections.py` already walks the logs: `_proposals`
         collects entries carrying a `proposal` and marks them `possibly_landed` by
-        corpus citation (D-7.24). That is the only existing read of a log for
+        corpus citation (S-0007/D-24). That is the only existing read of a log for
         anything but gating, and it covers one field of one entry kind.
-      - RFC 0004 §6 staged storage: JSONL, then DuckDB "when a query needs window
+      - S-0004/telemetry-staged staged storage: JSONL, then DuckDB "when a query needs window
         functions or joins", then a port, then ClickHouse. Nothing has moved past
         stage 1, and nothing reads stage 1 for this purpose.
   - key: goals-non-goals
@@ -92,7 +92,7 @@ sections:
       - Make a mis-graded decision visible as a population, not as a memory.
       - Make a decoration row visible, and distinguish "governs nothing" from
         "declares the wrong paths".
-      - Give RFC 0020 §5.2's rule growth the evidence it was promised.
+      - Give S-0020/the-contract-lint's rule growth the evidence it was promised.
 
       **Non-goals**
 
@@ -101,7 +101,7 @@ sections:
         would be defended rather than read.
       - **Automatic amendments.** The report is input to a human writing an
         amendment. An engine that edits decision tables is an engine that decides
-        what work exists (D-2).
+        what work exists (S-0001/D-10).
       - **New recorded fields.** Everything needed is already recorded, and the
         reason it is recorded is that denormalisation was made mandatory from the
         first record. Adding fields now would restart the comparable history.
@@ -125,7 +125,7 @@ sections:
       old grade. This is the charter's "grade is copied at write time, never
       resolved at read time", applied to the reader instead of the writer.
 
-      Tasks with no `rfc` (RFC 0020's adopted intake work, hand-minted contracts)
+      Tasks with no `rfc` (S-0020's adopted intake work, hand-minted contracts)
       join at the decision level only and are reported as their own population.
   - key: decision-level-report
     md: |
@@ -156,29 +156,29 @@ sections:
         they are different defects.
 
       That last reading is the one only this corpus can produce, because it needs
-      the Paths column (D-32) and the silence check to exist at all.
+      the Paths column (S-0001/D-32) and the silence check to exist at all.
   - key: document-level-report
     md: |
       Per document: tasks minted, attempts to green (median, over landed tasks
-      only — an abandoned attempt's count indicts nothing yet, per D-22.10),
+      only — an abandoned attempt's count indicts nothing yet, per S-0022/D-10),
       escalations by reason, log entries classed `drift` raised against its tasks
-      (A-59: the field the corpus actually carries), `drift_count`
+      (S-0022/A-4: the field the corpus actually carries), `drift_count`
       sum, `human_minutes` median, rework rate. Tasks without an `rfc` are
-      excluded from document populations exactly as D-22.9 excludes them at the
+      excluded from document populations exactly as S-0022/D-9 excludes them at the
       decision level. Plus the two reasons that exist
       specifically to indict a document rather than code — `underspecified` and
-      `stale_inheritance` — reported as their own line, since RFC 0001's amendments
-      A-21 and A-22 separated them precisely so this line could be read.
+      `stale_inheritance` — reported as their own line, since S-0001's amendments
+      S-0001/A-7 and S-0001/A-8 separated them precisely so this line could be read.
 
-      RFC 0004 §6a's warning is inherited whole and printed with the report, not
+      S-0004/measurement-defects-to-fix-before-trusting-a-number's warning is inherited whole and printed with the report, not
       paraphrased: this is a quasi-experiment across different tasks under different
       conditions, and it supports direction, never magnitude.
   - key: the-surface
     md: |
       `torve rfc health [NNNN]` — a subcommand beside `check`, `index` and `graph`,
       because it reads the same corpus with the same parser and a new top-level verb
-      would be a second front door to one subject. Text for a human under RFC 0018's
-      vocabulary, JSON for machines under RFC 0011's contract. With a number, one
+      would be a second front door to one subject. Text for a human under S-0018's
+      vocabulary, JSON for machines under S-0011's contract. With a number, one
       document in full; without, the corpus summary plus the rows that met a reading
       in §5.2.
 
@@ -187,7 +187,7 @@ sections:
       tool — the section is the consumer that justifies computing it at all.
   - key: storage-stays-at-stage-1
     md: |
-      RFC 0004 §6's move-on condition for DuckDB is "a query needs window functions
+      S-0004/telemetry-staged's move-on condition for DuckDB is "a query needs window functions
       or joins". These queries are joins over three files of a few thousand rows
       between them, expressible as a dictionary keyed by task id built in one pass.
       A plain reader is smaller than the optional extra it would replace, needs no
@@ -204,7 +204,7 @@ sections:
         under charter §8a it would become a target nobody chose. Populations with a
         named reading each are harder to glance at and are the only form that ends
         in an amendment.
-      - **DuckDB now, per RFC 0004 §6 stage 2.** Its trade is a dependency and an
+      - **DuckDB now, per S-0004/telemetry-staged stage 2.** Its trade is a dependency and an
         extra for queries that do not need it at this volume. Reconsidered the first
         time a query in this document is genuinely a window function.
       - **Recording new fields to make the analysis easier.** Its trade is that the
@@ -212,11 +212,11 @@ sections:
         reason denormalisation was made mandatory from the first record was to avoid
         paying that.
       - **Feeding the report to a model that proposes amendments.** Refused under
-        D-2, and separately unnecessary: the four readings in §5.2 each name their
+        S-0001/D-10, and separately unnecessary: the four readings in §5.2 each name their
         own act.
   - key: tests
     md: |
-      A seeded corpus fixture — the shape RFC 0005 already uses for review
+      A seeded corpus fixture — the shape S-0005 already uses for review
       calibration — carrying documents, contracts, logs and telemetry with each of
       §5.2's four readings planted, plus one row that looks like decoration but is
       not (declared paths never touched by any task, which is silence about nothing
@@ -233,10 +233,10 @@ sections:
   - key: out-of-scope
     md: |
       - **Acting on the report.** Amendments stay hand-written by the charter owner.
-        Reopened by nothing: this is D-2.
+        Reopened by nothing: this is S-0001/D-10.
       - **Cross-repository aggregation.** One root, one corpus. The fleet view is
-        RFC 0024's problem and needs this report to exist first.
-      - **Retention and log deletion.** D-A.15 requires promotion before deletion,
+        S-0024's problem and needs this report to exist first.
+      - **Retention and log deletion.** S-0001/D-39 requires promotion before deletion,
         and this report is the closest thing to a promotion ledger the corpus will
         have — but wiring deletion to it is a separate decision about what may be
         destroyed, and it should not ride in on a reporting change.
@@ -278,7 +278,7 @@ sections:
         produced the regrade.
       - One row identified as decoration and either deleted or repathed, with the
         report distinguishing which of the two causes applied.
-      - One contract-lint rule added under RFC 0020 §5.2 citing an escalation
+      - One contract-lint rule added under S-0020/the-contract-lint citing an escalation
         population this report surfaced rather than a single remembered incident.
       - The report run over the corpus with no reading fired on a decision whose
         tasks never touched its declared paths — silence about nothing stays quiet.
@@ -306,9 +306,9 @@ phasing:
       The document-level half and the planning-session consumer: per-document attempts,
       escalation reasons with underspecified and stale_inheritance on their own line,
       spec-drift findings, drift_count, human_minutes and rework rate, each carrying
-      RFC 0004 §6a's caveat printed with it. The same data joins the torve context
-      projection as one section, which the existing MCP surface then exposes to a
-      planning session without a new tool.
+      S-0004/measurement-defects-to-fix-before-trusting-a-number's caveat printed
+      with it. The same data joins the torve context projection as one section, which
+      the existing MCP surface then exposes to a planning session without a new tool.
     scope: [src/torve/application/projections.py, src/torve/cli/context.py, tests/**]
     acceptance:
       - uv run ruff check src tests
@@ -321,10 +321,10 @@ phasing:
   - phase: 3
     title: dispatch-envelope
     intent: >-
-      The envelope at dispatch (D-22.11, A-62): torve run and the tick's dispatch
-      leg print expected attempts, cost and wall minutes for the task's size class
-      beside the size verdict, computed from the same join this document already reads,
-      denominator printed, reading suppressed below the floor, the quasi-experiment
+      The envelope at dispatch (S-0022/D-11, S-0022/A-3): torve run and the tick's
+      dispatch leg print expected attempts, cost and wall minutes for the task's size
+      class beside the size verdict, computed from the same join this document already
+      reads, denominator printed, reading suppressed below the floor, the quasi-experiment
       caveat printed with it. Nothing in the engine acts on the envelope; the operator
       does.
     scope:
@@ -343,12 +343,12 @@ phasing:
   - phase: 4
     title: operator-attention-line
     intent: >-
-      The operator-attention line (D-22.12, A-73): landed changes per window and the
-      operator interventions behind them — feedback human_minutes, command and approval
-      events, escalations triaged — joined from the records the engine already writes,
-      printed in the corpus summary of torve rfc health and the context section, denominators
-      printed, suppressed below the floor, the quasi-experiment caveat attached. No
-      new recorded fields.
+      The operator-attention line (S-0022/D-12, S-0022/A-5): landed changes per window
+      and the operator interventions behind them — feedback human_minutes, command
+      and approval events, escalations triaged — joined from the records the engine
+      already writes, printed in the corpus summary of torve rfc health and the context
+      section, denominators printed, suppressed below the floor, the quasi-experiment
+      caveat attached. No new recorded fields.
     scope:
       - src/torve/application/specquality.py
       - src/torve/application/projections.py

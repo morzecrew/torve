@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-58.1
+  - id: D-1
     grade: LOCKED
     text: >-
       Every item the corpus defines has one global identifier, `S-NNNN/<local>` —
@@ -14,7 +14,7 @@ decisions:
     rationale: >-
       four families spelled four ways, and the two items cited most from code — sections
       — had no identifier at all
-  - id: D-58.2
+  - id: D-2
     grade: LOCKED
     text: >-
       Every existing identifier converts once through a mapping committed as `.torve/archive/identifiers.yaml`,
@@ -28,7 +28,7 @@ decisions:
     rationale: >-
       no release exists; the record and every citation are this repository's own,
       and a renumbering is a script once rather than two grammars forever
-  - id: D-58.3
+  - id: D-3
     grade: LOCKED
     text: >-
       `check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar;
@@ -38,8 +38,8 @@ decisions:
     paths: [src/torve/config/spec.py, src/torve/cli/spec.py]
     consequence: >-
       A citation written the old way after the conversion cannot survive a check
-    cites: [D-57.9, D-57.10]
-  - id: D-58.4
+    cites: [S-0057/D-9, S-0057/D-10]
+  - id: D-4
     grade: LOCKED
     text: >-
       `document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`,
@@ -58,7 +58,7 @@ decisions:
     rationale: >-
       the anatomy already stood in four of five live documents and nothing enforced
       it
-  - id: D-58.5
+  - id: D-5
     grade: LOCKED
     text: >-
       `phasing.yaml` holds `phasing` and `contract_example`, author-written and planner-read;
@@ -66,8 +66,8 @@ decisions:
     paths: [src/torve/domain/spec.py, src/torve/application/planner.py]
     consequence: >-
       Six files per document; the planner's list diffs apart from the prose
-    cites: [D-57.1]
-  - id: D-58.6
+    cites: [S-0057/D-1]
+  - id: D-6
     grade: LOCKED
     text: >-
       Execution is a directory, `execution/<task>-<attempt>-<instant>.yaml`, one landing
@@ -83,8 +83,8 @@ decisions:
     consequence: >-
       Two candidates of one document never conflict at merge; no landing is refused
       for a number
-    cites: [D-57.7]
-  - id: D-58.7
+    cites: [S-0057/D-7]
+  - id: D-7
     grade: LOCKED
     text: >-
       The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`,
@@ -104,7 +104,7 @@ decisions:
     rationale: >-
       27 writers already agreed on the instant; seven did not, and the seven are the
       ones a timeline needs
-  - id: D-58.8
+  - id: D-8
     grade: ASSUMED
     text: >-
       `check` warns for a LOCKED row whose declared paths match files none of which
@@ -113,7 +113,7 @@ decisions:
     consequence: >-
       A comment an agent deletes is heard; a row over generated files reads a warning
       and decides
-  - id: D-58.9
+  - id: D-9
     grade: ASSUMED
     text: >-
       The `decision:<id>` gate names, the pack's decisions file, the log entry's `decision`
@@ -128,7 +128,7 @@ decisions:
     consequence: >-
       The record's history keeps the old ids as retired rows and the new ones as what
       stands
-  - id: D-58.10
+  - id: D-10
     grade: ASSUMED
     text: >-
       The skill and its template, the schemas `torve init` writes, the projections
@@ -141,7 +141,7 @@ decisions:
       - pages/docs/operating.md
     consequence: >-
       Nothing a harness or a person reads names an identifier the check refuses
-  - id: D-58.11
+  - id: D-11
     grade: OPEN
     text: >-
       Whether the mapping stays readable after the first release or is deleted with
@@ -149,7 +149,7 @@ decisions:
     paths: [.torve/archive/**]
     consequence: Decided at the first release, logged
 invariants:
-  - id: I-58.1
+  - id: I-1
     statement: >-
       Every identifier the corpus defines and every citation the tree carries matches
       the one grammar, `S-NNNN`, `S-NNNN/<F>-<n>` or `S-NNNN/<key>`; a legacy shape

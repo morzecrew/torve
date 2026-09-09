@@ -1,26 +1,26 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0054'
+id: S-0054
 title: >-
   Decisions as gates and the projections beside the code
 kind: design
 status: accepted
 implementation: complete
-depends_on: ['0053']
+depends_on: [S-0053]
 informed_by:
-  - '0002'
-  - '0007'
-  - '0017'
-  - 0029
-  - '0031'
-  - '0034'
-  - '0035'
-  - '0036'
-  - '0043'
+  - S-0002
+  - S-0007
+  - S-0017
+  - S-0029
+  - S-0031
+  - S-0034
+  - S-0035
+  - S-0036
+  - S-0043
 supersedes: []
 superseded_by: null
 owner: misery7100
 description: >-
-  The backends over RFC 0053's model: a decision with a check runs as a gate and owes
+  The backends over S-0053's model: a decision with a check runs as a gate and owes
   no attestation; the rows governing a directory are rendered beside it; a sandbox
   reads the specification through a verb; and a deterministic context pack carries
   the facts the corpus cannot.
@@ -28,7 +28,7 @@ schema_version: 3
 sections:
   - key: summary
     md: |
-      RFC 0053 gives the specification a model. This document renders it to the
+      S-0053 gives the specification a model. This document renders it to the
       five places an agent actually looks, none of which see it today.
 
       A decision row that carries a `check` becomes a gate: its command runs in
@@ -58,7 +58,7 @@ sections:
         `acceptance` 18, `self-audit` 8, `source-layout` 4, `layering` 2. Roughly
         92 % of convictions are compliance, form or boundary. The rules behind
         them live in `gates.yaml`, in the corpus and in five import-linter
-        contracts, none of which is in the worktree the agent works in (D-13.3)
+        contracts, none of which is in the worktree the agent works in (S-0013/D-3)
         or in the prompt it reads.
       - **The log is 95 % ceremony.** 670 of 705 entries are `kind: resolved`,
         `action: decided`: the executor attesting that it complied with a `LOCKED`
@@ -66,9 +66,9 @@ sections:
         check that produces the attestations is the strongest anti-drift
         guarantee the engine has and also its most expensive habit, because a
         row whose compliance a command could prove is proven by prose instead.
-      - **Three decisions are already gates, by hand.** `layering` is RFC 0015
-        §6, `user-facing-text` is D-11.11, `source-layout` is D-14.11; `rfc-valid`
-        is D-7.14, `coverage-delta` is D-36.1. Five manifest entries carry
+      - **Three decisions are already gates, by hand.** `layering` is S-0015
+        §6, `user-facing-text` is S-0011/D-11, `source-layout` is S-0014/D-11; `rfc-valid`
+        is S-0007/D-14, `coverage-delta` is S-0036/D-1. Five manifest entries carry
         `origin: rfc/NNNN` as a comment-grade string and no reader joins them to
         the row. Five of 253 `LOCKED` rows have a check; the other 248 are
         enforced by attestation.
@@ -77,7 +77,7 @@ sections:
         (`runner.py:261-272`); `GateResult.output` is stored in telemetry and
         never handed forward. The retry rung reads only outcome and axis
         (`session.py:95-136`), so a heavier tier is dispatched with no word of
-        what the lighter one hit. Only review blockers feed back (RFC 0043,
+        what the lighter one hit. Only review blockers feed back (S-0043,
         `feedback.md`). T-0213 burned nine attempts and $7.59 on a contract the
         engine had flagged oversize seven times to a stream nobody reads mid-run.
       - **The reviewer gets the least.** Its prompt is the target intent,
@@ -113,8 +113,8 @@ sections:
         flaky_commands, quarantined_failures`. A manifest entry is
         `{name, run, state, origin, axis, added, sabotage, input, timeout,
         commands}` (`config/manifest.py`); the load refuses a twinless entry in a
-        manifest that names any twin (D-36.3). `gates` may import `domain`,
-        `base` and `config` and may not import the RFC format (0015 A-19).
+        manifest that names any twin (S-0036/D-3). `gates` may import `domain`,
+        `base` and `config` and may not import the RFC format (0015 S-0015/A-1).
       - **The silence check.** `owed()` (`decisions_reported.py:323-359`) is the
         set of inherited rows whose declared paths intersect the diff and which
         no entry cites; `torve log owed <id> --touched …` exposes it in the
@@ -134,11 +134,11 @@ sections:
         contended paths top 4, last 8 landings, harness populations —
         `intake.py:974-1024`), the 400-path listing, lint refusals, the output
         schema as prose. Drafts parsed by `parse_drafts` (`intake.py:98-141`).
-      - **Channels.** D-17.4: task context travels in the workspace; D-17.6
-        stdio MCP is image content, remote MCP is egress; D-17.7 memory off for
-        executors, per slot, never in a shadow run. RFC 0007 §5: no read surface
-        in an execution sandbox. D-31: agents do not communicate.
-      - **Derived state.** RFC 0035 warms venv and type-checker caches per slot:
+      - **Channels.** S-0017/D-4: task context travels in the workspace; S-0017/D-6
+        stdio MCP is image content, remote MCP is egress; S-0017/D-7 memory off for
+        executors, per slot, never in a shadow run. S-0007/mcp-as-the-read-surface: no read surface
+        in an execution sandbox. S-0001/D-29: agents do not communicate.
+      - **Derived state.** S-0035 warms venv and type-checker caches per slot:
         derived from committed inputs, always safe to delete, never in an image.
       - **Coverage of changed lines** already exists as an artefact:
         `coverage-delta` runs `pytest --cov=src --cov-report=xml` and
@@ -150,7 +150,7 @@ sections:
       - **The parser does not see fences.** Found while drafting: a `## ` line
         inside a fenced code block is sliced as a section heading, so the
         rendered-section example in §5.4 shadowed this document's own Decisions
-        section until its heading was reworded. RFC 0053's loader owns fences
+        section until its heading was reworded. S-0053's loader owns fences
         (its five typed kinds are fences) and must not repeat this.
       - **`AGENTS.md`** at the root: a Repowise-managed distill block, 12 lines.
         No nested files. Codex applies the nearest `AGENTS.md`; Claude Code loads
@@ -175,13 +175,13 @@ sections:
       **Non-goals**
 
       - **A read surface in the sandbox.** No MCP, no store, no record. Files in
-        the worktree and a verb over them (RFC 0007 §5 stands).
+        the worktree and a verb over them (S-0007/mcp-as-the-read-surface stands).
       - **Memory.** The pack is derived state, rebuilt per attempt, identical for
-        a shadow run (D-17.7 stands).
+        a shadow run (S-0017/D-7 stands).
       - **The author's trace to the reviewer.** Engine-derived facts about a
-        diff, yes; anything the author wrote or reasoned, no (D-5.3 stands).
+        diff, yes; anything the author wrote or reasoned, no (S-0005/D-3 stands).
       - **Editing `gates.yaml` from a document.** The manifest stays the
-        operator's file in the consuming repository (D-2.5); decision gates are
+        operator's file in the consuming repository (S-0002/D-5); decision gates are
         contract-borne and never written into it.
       - **Prose in `AGENTS.md`.** Rows, invariants, checks, tests, warnings.
         Never an overview.
@@ -203,19 +203,19 @@ sections:
       `inherit_decisions` copies both from the model; `decision.recorded`
       carries both; `build_prompt` renders the consequence after each row. The
       grade, text and paths a contract copies are still the fingerprinted set
-      (D-53.16); `consequence` and `check` ride beside them. A contract minted
+      (S-0053/D-16); `consequence` and `check` ride beside them. A contract minted
       before this document loads with both empty, which is the old behaviour.
   - key: a-decision-with-a-check-is-a-gate
     md: |
-      At gate time the runner reads the contract, not the corpus (D-7.18: the
+      At gate time the runner reads the contract, not the corpus (S-0007/D-18: the
       format terminates at the planner, and `gates` cannot import it). For every
       inherited row with a `check`, `run_gates` appends a gate to the battery:
 
       ```yaml
-      name: decision:D-53.6
+      name: decision:S-0053/D-6
       run: "<the row's check>"
       state: shadow            # §5.3 — until promoted per row
-      origin: rfc/0053#D-53.6
+      origin: rfc/0053#S-0053/D-6
       axis: compliance
       input: worktree
       ```
@@ -223,7 +223,7 @@ sections:
       The gate runs with the others, cheapest first, never short-circuiting;
       its `GateResult` is one more row in the same report; its red is a
       compliance conviction the retry ladder reads as it reads any other
-      (D-34.4). Nothing is written into `gates.yaml`: the manifest is the
+      (S-0034/D-4). Nothing is written into `gates.yaml`: the manifest is the
       operator's, and a decision gate exists exactly as long as the contract
       that carries it.
 
@@ -239,20 +239,20 @@ sections:
       not a grade change: a reading, for the author who might write the check.
   - key: a-decision-gate-enters-at-shadow-and-is-promoted-per-row
     md: |
-      D-2.18 says a new gate runs at shadow until soak evidence promotes it;
-      D-36.3 says a blocking gate names the twin that proves it can fail. Both
+      S-0002/D-18 says a new gate runs at shadow until soak evidence promotes it;
+      S-0036/D-3 says a blocking gate names the twin that proves it can fail. Both
       apply to a row's check, and neither can be satisfied by a document alone:
 
       - A decision gate is `shadow` by default. It runs, reports, convicts
         nothing. Promotion is a field on the row — `check_state: blocking` in
         `decision-details` — written by `torve rfc amend` like any other change
-        (D-53.4), citing the soak evidence: the attempts it ran green on and the
+        (S-0053/D-4), citing the soak evidence: the attempts it ran green on and the
         sabotage that made it red.
       - The twin is a test path the row names beside its check
         (`check_twin: tests/test_layering.py`), and `torve gates check` runs
         decision twins the way it runs manifest twins. A blocking decision gate
         without a twin is refused at mint, the same rule the manifest load
-        applies to an entry (D-36.3), moved one level up.
+        applies to an entry (S-0036/D-3), moved one level up.
 
       So a row is born checkable, becomes a shadow gate on its first inherited
       contract, and is promoted by an author who has seen it fail. The three
@@ -269,13 +269,13 @@ sections:
       ```markdown
       <!-- torve:managed src/torve/cli/ — rendered from the corpus; do not edit by hand -->
       ## Rows governing `src/torve/cli/`
-      ### D-52.4 — `ASSUMED` (RFC 0052 — The lane as a manager leg)
+      ### S-0052/D-4 — `ASSUMED` (S-0052 — The lane as a manager leg)
       The conflict disposal is restored without its forge-thread half …
       - Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py`
       - Consequence: The next attempt sees the diff it collided with …
       - Check: `uv run pytest tests/test_residency.py tests/test_lane.py` (shadow)
       ## Invariants governing `src/torve/cli/`
-      - **I-52.1** One base, one lander … — `uv run pytest tests/test_lane.py -k one_lander`
+      - **S-0052/I-1** One base, one lander … — `uv run pytest tests/test_lane.py -k one_lander`
       ## Contended now
       - `src/torve/application/runner.py` — 3 blocked dispatches in the last 500 attempts
       <!-- /torve:managed -->
@@ -292,15 +292,15 @@ sections:
 
       The output is committed like a lockfile and drift-checked by a manifest
       gate, `spec-projection`, running `torve spec project --check` — the
-      `INDEX.md` precedent (D-A.6) applied to the tree. The sections are
+      `INDEX.md` precedent (S-0016/D-17) applied to the tree. The sections are
       rendered, never edited: a hand edit inside the markers is drift and the
       gate says which file.
 
       **Why files and not the prompt.** The prompt is one channel to one harness
       under one adapter. A nested `AGENTS.md` is read by Codex, Claude Code,
       Cursor, opencode and a person with an editor, and by torve's own agents
-      without a line of prompt change. RFC 0011's audience rule (no corpus
-      coordinates in user-facing strings, D-11.11) is not touched: `AGENTS.md`
+      without a line of prompt change. S-0011's audience rule (no corpus
+      coordinates in user-facing strings, S-0011/D-11) is not touched: `AGENTS.md`
       is agent-facing by name, and the `user-facing-text` gate reads source
       strings, not documentation.
   - key: torve-spec-in-the-sandbox
@@ -310,12 +310,12 @@ sections:
       fourth, read-only, over the corpus already in the worktree and the archive
       beside it:
 
-      - `torve spec show D-53.6` — the row with consequence, rationale, check,
+      - `torve spec show S-0053/D-6` — the row with consequence, rationale, check,
         check state, and the amendments that touched it.
       - `torve spec paths src/torve/cli/manager.py` — the rows and invariants
         governing a path, and the coverage state (governed, ungoverned,
         retired).
-      - `torve spec tests D-53.6` — the tests that pin the row (from
+      - `torve spec tests S-0053/D-6` — the tests that pin the row (from
         `decision-details` and, after the evidence document, from mined
         citations).
       - `torve spec why-not "one candidate per pass"` — the alternatives whose
@@ -323,7 +323,7 @@ sections:
 
       Nothing here reaches the record, another task, or an escalation. It is
       progressive disclosure over files the agent could have opened anyway,
-      which is what RFC 0007 §5 permits and what the 400-path listing was a poor
+      which is what S-0007/mcp-as-the-read-surface permits and what the 400-path listing was a poor
       substitute for. The working rules gain one line naming the verb.
   - key: the-context-pack
     md: |
@@ -331,22 +331,22 @@ sections:
       is written, the session drops `.torve/context/` into the worktree:
       computed host-side from the record and the tree, no model, deterministic
       for a given base sha and record state, gitignored, never in an image,
-      always safe to delete — RFC 0035's rule for derived state, applied to
+      always safe to delete — S-0035's rule for derived state, applied to
       knowledge.
 
       | file | contents | source | why it cannot be grepped |
       | --- | --- | --- | --- |
       | `index.md` | one line per file below, what it holds, when to open it | — | progressive disclosure: identifiers up front, bodies on demand |
-      | `decisions.json` | the contract's rows with consequence, check, check state; the amendments that changed each; accepted rows from other documents whose paths intersect `scope.allow` | the model; `standing_decisions` | the document lane never saw other documents' rows (D-30.6, now closed for both lanes) |
-      | `gates.json` | the battery this attempt will face: name, axis, state, what convicts, plus the contract's decision gates | manifest + contract | `gates.yaml` is not in the worktree (D-13.3) |
+      | `decisions.json` | the contract's rows with consequence, check, check state; the amendments that changed each; accepted rows from other documents whose paths intersect `scope.allow` | the model; `standing_decisions` | the document lane never saw other documents' rows (S-0030/D-6, now closed for both lanes) |
+      | `gates.json` | the battery this attempt will face: name, axis, state, what convicts, plus the contract's decision gates | manifest + contract | `gates.yaml` is not in the worktree (S-0013/D-3) |
       | `tests.json` | tests whose executed lines fall under `scope.allow`, by test id, with the files each covers | `coverage.xml` from the last green battery | coverage is runtime knowledge |
-      | `attempts.json` | this task's prior attempts: verdict, convictions with gate output tails and byte-loss markers, failed test ids, escalation reason, tier | `why_report` and the gate report | the record is not in the tree; own task only (RFC 0007 §5) |
+      | `attempts.json` | this task's prior attempts: verdict, convictions with gate output tails and byte-loss markers, failed test ids, escalation reason, tier | `why_report` and the gate report | the record is not in the tree; own task only (S-0007/mcp-as-the-read-surface) |
       | `contended.json` | paths blocked dispatches collided on, recent window | `execution_facts` | today reaches the drafter only |
       | `schema/` | JSON Schema for `Document`, `Task`, the findings and drafts envelopes, the log entry | pydantic | the output contract, as a contract |
 
       The executor's working rules gain one line: "`.torve/context/index.md`
       lists what the engine knows about this task; nothing in it outranks the
-      contract." The revision note (RFC 0043) and the continuation note are
+      contract." The revision note (S-0043) and the continuation note are
       unchanged; `attempts.json` is the general case of which `feedback.md` was
       the review-only instance.
 
@@ -363,7 +363,7 @@ sections:
       `owed()` and the scope gate already compute and today throw away), and
       the failed test ids when the acceptance output is JUnit (a `--junitxml`
       flag on the acceptance fallback and on `coverage-delta`, recorded beside
-      the row). The retry ladder still reads outcome and axis only (D-34.5):
+      the row). The retry ladder still reads outcome and axis only (S-0034/D-5):
       what tier runs next is unchanged; what that tier is told is the change.
   - key: the-reviewer
     md: |
@@ -378,7 +378,7 @@ sections:
       `ratchet-what-you-build` already declare the role and reach nobody. Its
       output is validated against the findings schema shipped in `schema/`, and
       the prompt says so with the file's path rather than restating the shape
-      in prose. Nothing the author wrote enters: not the trace (D-5.3), not the
+      in prose. Nothing the author wrote enters: not the trace (S-0005/D-3), not the
       attestations, not the prompt. Engine facts about the diff are not the
       author's.
   - key: the-drafter
@@ -389,7 +389,7 @@ sections:
       populations stay. The output is validated against the drafts schema in
       `schema/`, and a draft that fails validation is refused by the lint with
       the validator's message — the same shape the lint already uses for its
-      own refusals (D-20.3) — instead of counting as `unparseable`.
+      own refusals (S-0020/D-3) — instead of counting as `unparseable`.
   - key: measurement-and-what-ships-without-it
     md: |
       Every piece of the pack is one file, added one at a time, behind
@@ -477,33 +477,34 @@ sections:
         reads files; a form that needs the record is refused by design.
   - key: phasing
     md: |
-      Every phase waits on RFC 0053 phase 2 landing: the model is what these
+      Every phase waits on S-0053 phase 2 landing: the model is what these
       render, and the parity-tested loader is what makes `check` and
       `consequence` available at mint. `depends_on` in the frontmatter carries
-      that (D-A.9); the fence orders only this document's own units.
+      that (S-0016/D-19); the fence orders only this document's own units.
 alternatives:
   - option: Render decision gates into gates.yaml at mint
     rejected_because: >-
-      The manifest is the operator's file in the consuming repository (D-2.5); a document
-      that writes it is an engine that edits the operator's policy. Contract-borne
+      The manifest is the operator's file in the consuming repository (S-0002/D-5);
+      a document that writes it is an engine that edits the operator's policy. Contract-borne
       gates exist exactly as long as the contract and touch nothing the operator owns.
   - option: Read the corpus from the gate to find checks
     rejected_because: >-
-      D-7.18 and the import-linter contract keep the format out of gates; the contract
-      is the only thing a gate may read about a task, and copy-at-mint is the point.
+      S-0007/D-18 and the import-linter contract keep the format out of gates; the
+      contract is the only thing a gate may read about a task, and copy-at-mint is
+      the point.
   - option: >-
       An MCP server in the sandbox instead of files and a verb
     rejected_because: >-
-      RFC 0007 §5's failure mode is real — an executor that can read other tasks'
-      escalations can rationalise its way out of scope — and D-17.6 makes any remote
-      endpoint an egress destination. Files carry the same facts with none of the
-      reach.
+      S-0007/mcp-as-the-read-surface's failure mode is real — an executor that can
+      read other tasks' escalations can rationalise its way out of scope — and S-0017/D-6
+      makes any remote endpoint an egress destination. Files carry the same facts
+      with none of the reach.
   - option: >-
       A memory volume carrying prior attempts across dispatches
     rejected_because: >-
-      D-17.7 and D-31: memory is agent communication with a euphemism, and a remembered
-      shadow run is an incomparable number. A pack rebuilt from the record per attempt
-      is identical for a replay and shares nothing.
+      S-0017/D-7 and S-0001/D-29: memory is agent communication with a euphemism,
+      and a remembered shadow run is an incomparable number. A pack rebuilt from the
+      record per attempt is identical for a replay and shares nothing.
   - option: Prompt-only delivery of the governing rows
     rejected_because: >-
       One channel, one harness. A nested AGENTS.md is read by every harness and every
@@ -516,8 +517,8 @@ alternatives:
   - option: >-
       Hand the reviewer the author's attestations as context
     rejected_because: >-
-      They are model output about the diff by the model that made it (D-5.3). The
-      engine's own facts about which rows the diff touches carry the same information
+      They are model output about the diff by the model that made it (S-0005/D-3).
+      The engine's own facts about which rows the diff touches carry the same information
       without the author's framing.
   - option: >-
       Ship every pack file at once and measure the bundle
@@ -525,16 +526,16 @@ alternatives:
       A bundle number attributes to nothing; a file that hurts hides behind one that
       helps. One file per eval, in the order the convictions suggest.
 questions:
-  - id: Q-54.1
+  - id: Q-1
     text: >-
       Whether a decision gate's timeout is the row's to declare or the manifest default's;
       a check that runs the full suite wants the acceptance timeout, a grep wants
       none.
-  - id: Q-54.2
+  - id: Q-2
     text: >-
       The window for contended.json — the drafter's last 500 telemetry rows, or the
       record's blocked dispatches since the task was minted.
-  - id: Q-54.3
+  - id: Q-3
     text: >-
       Whether the root AGENTS.md index is enough for Claude Code's lazy nested load,
       or whether the pack's decisions.json must duplicate the sections for the attempt's
@@ -627,9 +628,9 @@ phasing:
       for a shadow run, gitignored. The runner's red path writes the gate report into
       the next attempt's `attempts.json` with output tails, byte-loss markers, governing
       decision ids and JUnit failed-test ids; `--junitxml` joins the acceptance fallback.
-      Every file lands behind its own config-eval per D-54.11; this phase ships the
-      builders and the wiring, and the evals that decide which files stay are the
-      operator's runs after it.
+      Every file lands behind its own config-eval per S-0054/D-11; this phase ships
+      the builders and the wiring, and the evals that decide which files stay are
+      the operator's runs after it.
     scope:
       - src/torve/application/contextpack.py
       - src/torve/application/session.py
@@ -702,7 +703,7 @@ contract_example:
   acceptance:
     - uv run pytest tests/test_gates.py
   decisions:
-    - id: D-54.3
+    - id: D-3
       grade: LOCKED
       text: >-
         A row whose check ran in the same pass, green or red, is not owed a divergence

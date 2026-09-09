@@ -1,7 +1,7 @@
-"""The divergence intake (RFC 0044 §5.6, D-44.10).
+"""The divergence intake (S-0044/the-typed-divergence-intake, S-0044/D-10).
 
 Each case here is one of the failure classes that produced a poison ceiling
-in the window RFC 0044 cites, asserted as unreachable rather than rarer: an
+in the window S-0044 cites, asserted as unreachable rather than rarer: an
 unparseable log, an evidence line in the wrong grammar, a log the gate never
 saw because nothing staged it, and a bookkeeping count an agent had to keep
 by hand.
@@ -45,7 +45,7 @@ PARTITION = "morzecrew/torve"
 
 def one_entry(worktree, **overrides):
     fields = {
-        "decision": "D-1",
+        "decision": "S-0001/D-1",
         "grade": "LOCKED",
         "kind": "resolved",
         "klass": "spec-gap",
@@ -77,7 +77,7 @@ def test_the_refusal_is_the_gates_own_judgement(worktree):
         one_entry(worktree, action="halted")
 
     stated = {
-        "decision": "D-1",
+        "decision": "S-0001/D-1",
         "grade": "LOCKED",
         "kind": "resolved",
         "class": "spec-gap",
@@ -186,7 +186,7 @@ def test_ingest_records_one_event_per_entry(worktree):
 
             payload = recorded[0].typed_payload().model_dump()
 
-            assert payload["decision_id"] == "D-1"
+            assert payload["decision_id"] == "S-0001/D-1"
             assert payload["entry_class"] == "spec-gap"
             assert payload["evidence"] == HOSTILE
             assert len(await log.history(TASK_ID)) == 2
@@ -204,7 +204,7 @@ def test_the_verb_refuses_with_a_config_exit_and_writes_nothing(worktree):
             "--root",
             str(worktree.root),
             "--decision",
-            "D-1",
+            "S-0001/D-1",
             "--grade",
             "LOCKED",
             "--kind",
@@ -234,7 +234,7 @@ def test_the_verb_reports_what_it_wrote(worktree):
             "--root",
             str(worktree.root),
             "--decision",
-            "D-1",
+            "S-0001/D-1",
             "--grade",
             "LOCKED",
             "--kind",
@@ -257,7 +257,7 @@ def test_the_verb_reports_what_it_wrote(worktree):
     assert reported == {
         "accepted": True,
         # No broker in this worktree, so no channel: the file is the carrier
-        # and the report says which one (D-45.6).
+        # and the report says which one (S-0045/D-6).
         "channel": False,
         "log": f".torve/tasks/{TASK_ID}/log.yaml",
         "entries": 1,
@@ -293,7 +293,7 @@ def test_the_dropped_pin_serves_a_worktree_git_cannot_read(tmp_path):
     _, document, staged = record(
         tmp_path,
         TASK_ID,
-        decision="D-1",
+        decision="S-0001/D-1",
         grade="ASSUMED",
         kind="departed",
         klass="discovery",
@@ -366,7 +366,7 @@ def test_the_projection_rewrites_the_log_from_the_record(worktree):
 
             assert len(document["entries"]) == 1
             assert document["entries"][0]["evidence"] == HOSTILE
-            assert document["entries"][0]["decision"] == "D-1"
+            assert document["entries"][0]["decision"] == "S-0001/D-1"
             # The pin survives, and the count stays derived.
             assert document["base_sha"]
             assert document["drift_count"] == 0
@@ -394,7 +394,7 @@ def test_a_task_with_nothing_recorded_gets_no_log(worktree):
             log = event_log(runtime.get_context())
 
             assert await project(log, worktree.root, TASK_ID, partition=PARTITION) == 0
-            # A missing log is an empty log (A-13, D-3.21): writing an empty
+            # A missing log is an empty log (A-13, S-0003/D-21): writing an empty
             # one turns "nothing to report" into a claim somebody made.
             assert not path.exists()
 
@@ -456,7 +456,7 @@ def test_the_gate_judges_what_the_record_holds(worktree):
                 actor_id="agent-1",
                 payload={
                     "attempt": 1,
-                    "decision_id": "D-1",
+                    "decision_id": "S-0001/D-1",
                     "grade": "LOCKED",
                     "entry_kind": "resolved",
                     "entry_class": "spec-gap",
@@ -532,7 +532,7 @@ def test_owed_names_the_decisions_the_log_has_not_cited(worktree):
 
     assert result.exit_code == EXIT_OK
     assert reported["owed"], "a LOCKED decision governs src/app.py and nothing cites it"
-    assert "D-1" in reported["owed"][0]
+    assert "S-0001/D-1" in reported["owed"][0]
 
 
 def test_owed_goes_quiet_once_the_entry_exists(worktree):
@@ -592,7 +592,7 @@ def test_owed_refuses_a_task_with_no_contract(tmp_path):
 
 
 # ----------------------- #
-# RFC 0057 D-57.7: the landing goes beside the rows it cites
+# S-0057 S-0057/D-7: the landing goes beside the rows it cites
 
 
 def _landing_repo(tmp_path):
@@ -603,7 +603,7 @@ def _landing_repo(tmp_path):
     from torve.domain.task import Task
 
     spec_dir = corpus(
-        tmp_path, **{"0001": document("0001", [("D-1.1", "LOCKED", "x", "`src/**`")])}
+        tmp_path, **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/**`")])}
     )
     task = Task(id="T-0001", rfc=".torve/specs/S-0001", phase=1, decisions=[])
     (tmp_path / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
@@ -612,7 +612,7 @@ def _landing_repo(tmp_path):
 
 
 ENTRY = {
-    "decision": "D-1.1",
+    "decision": "S-0001/D-1",
     "grade": "LOCKED",
     "kind": "resolved",
     "at": "2026-09-09T10:00:00Z",
@@ -709,7 +709,7 @@ def test_the_log_land_verb_lands_the_contracts_task_with_the_commit_named(tmp_pa
     assert (landing.commit, landing.agent, landing.entries[0].decision) == (
         "abc123",
         "session/x",
-        "D-1.1",
+        "S-0001/D-1",
     )
 
     refused = CliRunner().invoke(

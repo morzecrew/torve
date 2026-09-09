@@ -1,45 +1,45 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-109
+  - id: A-1
     at: '2026-09-05'
     title: The tick's consumer is the manager's
     md: |-
-      **Found retiring the standing loop (RFC 0019 A-105).** D-42.1's Paths named
+      **Found retiring the standing loop (S-0019 S-0019/A-8).** S-0042/D-1's Paths named
       `cli/tick.py` as one of the root's consumers. That verb is deleted, and so
       are `build_tick_deps`, `build_fleet_tick_deps` and the leg bundle they
       built — roughly 320 lines of the root, which was most of it.
 
       The decision is unchanged and its consumer list is one shorter and one
       longer: `cli/manager.py` takes `build_dispatch_prepare` where the tick took
-      `TickDeps`. D-42.1's point stands better than before — the fourth copy of
+      `TickDeps`. S-0042/D-1's point stands better than before — the fourth copy of
       the wiring never happened, and the third was deleted rather than forked.
 
-      **Changed:** D-42.1's Paths only.
-  - id: A-147
+      **Changed:** S-0042/D-1's Paths only.
+  - id: A-2
     at: '2026-09-09'
     title: >-
       2 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:
-      - subject: D-42.5
+      - subject: D-5
         field: retired
         before: src/torve/application/tracker.py
         after: >-
           path rot: every declared glob matches nothing in the tree
-      - subject: D-42.6
+      - subject: D-6
         field: retired
         before: src/torve/application/loop.py
         after: >-
           path rot: every declared glob matches nothing in the tree
     md: |-
       ```yaml changes
-      - subject: D-42.5
+      - subject: S-0042/D-5
         field: retired
         before: src/torve/application/tracker.py
         after: "path rot: every declared glob matches nothing in the tree"
-      - subject: D-42.6
+      - subject: S-0042/D-6
         field: retired
         before: src/torve/application/loop.py
         after: "path rot: every declared glob matches nothing in the tree"
       ```
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

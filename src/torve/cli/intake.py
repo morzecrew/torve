@@ -1,5 +1,5 @@
-"""`torve intake` / `torve adopt` / `torve lint-contract` — RFC 0020's
-phase-1 face. Parsing and rendering only (D-15.6); the drafting run, the
+"""`torve intake` / `torve adopt` / `torve lint-contract` — S-0020's
+phase-1 face. Parsing and rendering only (S-0015/D-6); the drafting run, the
 lint and adoption live in `torve.application.intake`.
 """
 
@@ -301,10 +301,10 @@ def lint_contract_cmd(
         raise fail(f"configuration error: no contract at {contract}", EXIT_CONFIG)
 
     errors = lint_contract(root, contract)
-    # D-30.4: advisory only — a hand-minted contract is already signed, so
+    # S-0030/D-4: advisory only — a hand-minted contract is already signed, so
     # crossing the document threshold warns here rather than refusing. The
     # standing rows whose paths this scope crosses warn on the same terms
-    # (RFC 0030 §5.1); the advisory existed and nothing printed it (A-110).
+    # (S-0030/standing-inheritance); the advisory existed and nothing printed it (S-0048/A-1).
     warnings = document_threshold_warnings(root, contract, config) + standing_warnings(
         root, contract, root / config.specs.path
     )

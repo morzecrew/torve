@@ -1,5 +1,5 @@
 """`no-test-tampering` — tests edited where the task did not license it
-(RFC 0002 §4).
+(S-0002/starting-set).
 
 A test edit is licensed when the file falls inside the task's `scope.allow`
 (an empty allow licenses everything, and is already loud in task review).

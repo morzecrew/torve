@@ -1,5 +1,5 @@
 """One dispatch of one task: its ports, its regime, and the facts its steps
-share (RFC 0046).
+share (S-0046).
 
 A dispatch is one `torve run` — a worktree, a resolved tier, and up to
 `poison_ceiling` attempts inside it. Everything a step of that run needs to
@@ -8,12 +8,12 @@ of in the closure cells of a factory nothing could call a piece of.
 
 The regime is the load-bearing part. `tier`, `image` and `image_digest` name
 what is running *right now*, not what the contract asked for: a gate-red
-hands off to a retry rung (D-27.11) and the fields move with it, so the
+hands off to a retry rung (S-0027/D-11) and the fields move with it, so the
 record every step stamps names the tier that actually produced the work.
 
 `open_dispatch` settles all of that and refuses what must be refused before
 anything runs. `open_broker` is deliberately separate and deliberately last
-(D-46.4): the broker is a live credential route, and a setup failure after
+(S-0046/D-4): the broker is a live credential route, and a setup failure after
 it opened would leak one.
 """
 
@@ -77,16 +77,16 @@ class RunDeps:
     vcs: Vcs
     scm: Scm
     store: StoreFactory
-    # The reviewer's agent (RFC 0005), built by the CLI from the reviewer
+    # The reviewer's agent (S-0005), built by the CLI from the reviewer
     # tier when review is configured — cross-model by pointing the tier at
-    # a different vendor (D-5.1). None means review cannot run.
+    # a different vendor (S-0005/D-1). None means review cannot run.
     review_agent: Agent | None = None
-    # The egress broker adapter in force (RFC 0021): built by the CLI from
+    # The egress broker adapter in force (S-0021): built by the CLI from
     # the configuration; None means the port was never wired (tests,
     # simulation). Under a configured broker the run opens it around the
     # attempts and closes it when the loop ends.
     broker: Broker | None = None
-    # D-27.11: builds the Agent for a tier resolved mid-run — the attempt
+    # S-0027/D-11: builds the Agent for a tier resolved mid-run — the attempt
     # after a gate-red, when the tier that just ran names a retry_variant.
     # Building an Agent is a CLI-layer act (it reaches into adapters), so
     # the runner is handed a factory rather than importing one; None means
@@ -94,23 +94,23 @@ class RunDeps:
     # running every attempt, and telemetry never stamps a tier that did not
     # actually produce the work.
     retry_agent: Callable[[TierConfig], Agent] | None = None
-    # RFC 0045 D-45.4: where the broker's per-response metering goes. The
+    # S-0045 S-0045/D-4: where the broker's per-response metering goes. The
     # runner only hands it to the broker at open; what it does with a burn
     # — record it, count it, drop it — is the caller's, and None is the
     # unobserved run every test and simulation already assumes.
     sink: BurnSink | None = None
-    # RFC 0044 D-44.3: where each attempt's own facts go, as they become
+    # S-0044 S-0044/D-3: where each attempt's own facts go, as they become
     # true. A dispatch is up to `poison_ceiling` attempts, and the summary
     # of one is not the record of three.
     facts: AttemptSink | None = None
-    # RFC 0044 A-82: brings the store and the worktree's divergence log into
+    # S-0044 S-0044/A-3: brings the store and the worktree's divergence log into
     # agreement before the gates read it, so the battery judges the record
     # rather than whatever the sandbox left behind. None keeps v1's
     # behaviour — the file the agent's intake wrote is the only carrier.
     journal: JournalSync | None = None
-    # RFC 0045 §5.2: the run's route into the record, handed to the broker
+    # S-0045/the-intake-route: the run's route into the record, handed to the broker
     # at open. The sandbox reaches the record through the broker or not at
-    # all — it never holds a store credential (D-45.1).
+    # all — it never holds a store credential (S-0045/D-1).
     channel: RunChannel | None = None
 
 
@@ -120,7 +120,7 @@ class RunDeps:
 @dataclass
 class GatePass:
     """What the last gate pass produced. The reviewer judges exactly what the
-    gates judged (RFC 0005), so the results, the patch and the configuration
+    gates judged (S-0005), so the results, the patch and the configuration
     digest travel together or the review is judging something else."""
 
     results: list[GateResult] = field(default_factory=list)
@@ -146,28 +146,28 @@ class Dispatch:
     gates_base: str | None
     resume: bool
 
-    # The regime in force right now (D-27.11): seeded from the task's own
+    # The regime in force right now (S-0027/D-11): seeded from the task's own
     # tier, advanced only when a gate-red routes the next attempt to a retry
-    # rung. A gate pass judges the same image the agent ran under (D-3.8),
+    # rung. A gate pass judges the same image the agent ran under (S-0003/D-8),
     # so both legs read these fields rather than re-resolving the tier.
     tier_name: str
     tier: TierConfig
     image: str
     image_digest: str | None
 
-    # Denormalised into every record this run appends (RFC 0004 §6): which
+    # Denormalised into every record this run appends (S-0004/telemetry-staged): which
     # adapter and model did the work cannot be reconstructed later. Still a
     # dictionary because it is a telemetry row under construction, not a
-    # domain object (D-46.6).
+    # domain object (S-0046/D-6).
     meta: dict[str, Any]
 
-    # The run's broker route table and handle, opened last (D-46.4) and
+    # The run's broker route table and handle, opened last (S-0046/D-4) and
     # closed once however the loop ends.
     routing: BrokerRouting = field(default_factory=BrokerRouting)
     broker_handle: BrokerHandle | None = None
 
     # The most recent gate pass, restamped every pass: `convictions` is what
-    # retry selection reads after a red (D-34.5), `last_pass` is what the
+    # retry selection reads after a red (S-0034/D-5), `last_pass` is what the
     # review is handed.
     convictions: list[GateResult] = field(default_factory=list)
     last_pass: GatePass = field(default_factory=GatePass)
@@ -187,7 +187,7 @@ class Dispatch:
 
 
 def review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
-    """Review follows execution (D-5.11) only for live implement runs with
+    """Review follows execution (S-0005/D-11) only for live implement runs with
     the task-gated trigger configured — one predicate, shared by the review
     hook and the broker's routing derivation so they cannot disagree."""
 
@@ -200,12 +200,12 @@ def review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
 def run_routing(
     config: RunnerConfig, task: Task, review_on: bool, include_retry: bool = False
 ) -> BrokerRouting:
-    """The run's routing (D-21.4): every provider the run's agents will use,
+    """The run's routing (S-0021/D-4): every provider the run's agents will use,
     resolved once and handed to the broker. Dispatch allowed them at the CLI;
     the broker enforces them at the wire. A provider the broker configuration
     does not route is a configuration error, never a quiet fallback.
 
-    `include_retry` (D-27.11, generalized by D-34.6) also routes every rung
+    `include_retry` (S-0027/D-11, generalized by S-0034/D-6) also routes every rung
     the task's tier resolves for a retry — every axis of `retry_variants`,
     not only the scalar's functional one: the broker opens once, before the
     first attempt, so a provider only a later conviction-routed retry
@@ -235,7 +235,7 @@ def run_routing(
         if provider is None and not broker_in_force(config):
             # The none adapter routes nothing at the wire: keys keep their
             # existing channel and an empty provider table is the named
-            # default, not a configuration error (D-21.9).
+            # default, not a configuration error (S-0021/D-9).
             continue
 
         if provider is None:
@@ -261,7 +261,7 @@ def run_routing(
 
 def _measured_config_eval_digests(root: Path, tier_name: str) -> tuple[str, str] | None:
     """(incumbent, candidate) digests the eval ledger's most recent
-    config-eval verdict citing `tier_name` measured (D-27.7), or None when no
+    config-eval verdict citing `tier_name` measured (S-0027/D-7), or None when no
     verdict cites it — nothing has been measured, so nothing can have been
     displaced from it. The ledger is append-only, so the last matching line
     is the most recent."""
@@ -308,12 +308,12 @@ def _measured_config_eval_digests(root: Path, tier_name: str) -> tuple[str, str]
 
 
 def _refuse_credentialed_tier(config: RunnerConfig, name: str, candidate: TierConfig) -> None:
-    # D-21.1's second line: the configuration validator already refuses a
+    # S-0021/D-1's second line: the configuration validator already refuses a
     # brokered tier that names a credential; the runner refuses again so
     # a programmatically-built configuration cannot slip a key name past
     # the validator into the sandbox's env. Checked for every retry rung
-    # too (D-27.11, D-34.6) — a run never dispatches under a regime it
-    # hasn't already validated (D-27.1's spirit, applied ahead of time).
+    # too (S-0027/D-11, S-0034/D-6) — a run never dispatches under a regime it
+    # hasn't already validated (S-0027/D-1's spirit, applied ahead of time).
     if broker_in_force(config) and candidate.api_key_env:
         raise ValueError(
             f"tier {name!r} names api_key_env {candidate.api_key_env} under broker "
@@ -338,7 +338,7 @@ def open_dispatch(
     """Settle the regime this run starts under, refusing what must be
     refused first. Every fallible step of setup happens here; the broker
     opens afterwards, in `open_broker`, so a refusal can never leak a live
-    credential route (D-46.4)."""
+    credential route (S-0046/D-4)."""
 
     tier_name = tier_name_for(task)
     tier = tier_for(config, tier_name)
@@ -353,17 +353,17 @@ def open_dispatch(
     # override must not masquerade as a model in the telemetry.
     kind = getattr(deps.agent, "kind", tier.adapter)
     real = kind != "fake"
-    # The digest is the sandbox's identity (D-17.1): resolved once, at
+    # The digest is the sandbox's identity (S-0017/D-1): resolved once, at
     # dispatch; None is recorded as unresolved, never invented.
     image = image_for(config, tier)
     image_digest = deps.runtime.resolve_image(image)
 
-    # D-27.7: a candidate configuration displaces the incumbent default only
+    # S-0027/D-7: a candidate configuration displaces the incumbent default only
     # through a paired replay verdict recorded in the eval ledger citing both
     # digests — never by a definition edit quietly changing what a tier's
     # image tag resolves to. Scoped to the live (non-shadow) dispatch of the
     # task's own seat, with no explicit tier_variant named: a variant is
-    # naming and running a candidate on purpose (free, per D-27.3), and the
+    # naming and running a candidate on purpose (free, per S-0027/D-3), and the
     # eval loop's own shadow arms (run_config_eval) must not trip on the very
     # candidate they exist to measure.
     if not shadow and not task.tier_variant and image_digest is not None:
@@ -373,7 +373,7 @@ def open_dispatch(
             incumbent, candidate = measured
 
             if config.unmeasured_images == "allow":
-                # The rebuild escape hatch (A-88): dispatch proceeds and the
+                # The rebuild escape hatch (S-0027/A-2): dispatch proceeds and the
                 # unmeasured regime is recorded rather than assumed. What
                 # the rule protects — comparing numbers from regimes nobody
                 # measured — is protected by the record saying so, not by
@@ -418,9 +418,9 @@ def open_dispatch(
         # Shadow gate passes are marked so the measurement population stays
         # separable from live attempts in one stream. The attempt leg
         # restamps tier/adapter/provider/model/image_digest and the attempt
-        # number (RFC 0038 §5.1, D-38.4) every call — this is only the
+        # number (S-0038/the-attempt-number, S-0038/D-4) every call — this is only the
         # shape, so every record joins deterministically to its trace file
-        # and RFC 0026's continuation chain.
+        # and S-0026's continuation chain.
         meta={
             "tier": tier_name,
             "attempt": None,
@@ -431,12 +431,12 @@ def open_dispatch(
             "cost_usd": None,
             "trace_ref": None,
             # The image tag beside its digest: harness identity is the image
-            # (D-17.4), and a projection labeling "which harness" reads the
+            # (S-0017/D-4), and a projection labeling "which harness" reads the
             # tag.
             "image": image,
             "image_digest": image_digest,
             "shadow": shadow,
-            # Per-skill attribution (RFC 0009 §5): filled with what
+            # Per-skill attribution (S-0009/evals): filled with what
             # materialize actually wrote, so cohorts group by skill regime
             # from the record alone.
             "skills": None,
@@ -448,10 +448,10 @@ def open_dispatch(
 
 
 def open_broker(run: Dispatch) -> None:
-    """The broker's life spans the run (RFC 0021 §5.1): one loopback route
+    """The broker's life spans the run (S-0021/the-port): one loopback route
     per routed provider, a run-scoped token, and the task's token budget held
     at the wire. `none` opens trivially and the record carries the adapter in
-    force either way (D-21.9: opting out is explicit).
+    force either way (S-0021/D-9: opting out is explicit).
 
     Called last, after every fallible step of setup, so a setup failure
     cannot leak a live broker; `close_dispatch` revokes it when the loop
@@ -482,9 +482,9 @@ def open_broker(run: Dispatch) -> None:
 
 def close_dispatch(run: Dispatch) -> None:
     """The run's one close: the broker revokes the run-scoped token and
-    reports the authoritative usage (D-21.5). Wire refusals become engine
+    reports the authoritative usage (S-0021/D-5). Wire refusals become engine
     events — a refusal for a provider the run's routing carried is a defect
-    report about the configuration reader (D-21.4)."""
+    report about the configuration reader (S-0021/D-4)."""
 
     broker, handle = run.broker, run.broker_handle
 
@@ -551,13 +551,13 @@ def emit(run: Dispatch, kind: str, attempt: int, /, **payload: object) -> None:
 
 
 def cache_volumes(run: Dispatch) -> dict[str, str]:
-    """The derived-cache volume this run's current regime mounts (RFC 0035
-    §5.2, D-35.4): named like the auth volume — base plus `-<slot>`, so two
+    """The derived-cache volume this run's current regime mounts (S-0035
+    §5.2, S-0035/D-4): named like the auth volume — base plus `-<slot>`, so two
     concurrent workers never share a cache — at the fixed address outside
     the workspace. An unnamed cache is no volume at all: cold exactly as
     before the field existed.
 
-    Always empty under shadow (D-35.3): a replay measures the cold truth
+    Always empty under shadow (S-0035/D-3): a replay measures the cold truth
     even when the tier names a cache, so an eval comparing arms never
     compares caches. Both the agent's sandbox and the gate battery's read
     it here, because a pass that judged a different cache than the attempt
@@ -598,13 +598,13 @@ def attempt_row(
     escalation: str | None = None,
 ) -> dict[str, Any]:
     """One row for one ending of an attempt that produces no gate record
-    (D-38.1): the red-agent shape — the spend survives even though the gates
+    (S-0038/D-1): the red-agent shape — the spend survives even though the gates
     never ran — with the engine-derived verdict naming how the attempt ended.
     The attempt's facts, not its prose: exec results, escalation state,
-    whatever the adapter reported (D-38.2).
+    whatever the adapter reported (S-0038/D-2).
 
     Rendered rather than appended directly, so the stream is provably a view
-    of the record the event carries (A-85) — the round trip is what a test
+    of the record the event carries (S-0044/A-4) — the round trip is what a test
     can pin, and a field added to one carrier and not the other stops being
     possible."""
 

@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0015'
+id: S-0015
 title: Source tree structure
 kind: convention
 status: superseded
 implementation: complete
-depends_on: ['0016']
-informed_by: ['0002', '0003', '0014']
+depends_on: [S-0016]
+informed_by: [S-0002, S-0003, S-0014]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: Lev Litvinov
 description: >-
   The package layout of src/torve — layers, permitted import directions, module naming,
@@ -22,7 +22,7 @@ sections:
 
       **Names collide in meaning.** `domain.py` beside `models.py`; `run.py`, `runner.py`, `runstate.py` and `runconfig.py`; `layout.py` beside `manifest.py`. A reader cannot predict which file holds what, so they open three. An agent, which cannot open three cheaply, guesses — and writes to the wrong one.
 
-      **Nothing prevents a layer violation.** RFC 0002 ships gates as a standalone library that runs in CI with no store, no sandbox and no runner. A flat root means `from torve.taskstore import ...` inside a gate is one autocomplete away, and nothing would fail. The standalone property of the first increment is currently protected by nobody noticing.
+      **Nothing prevents a layer violation.** S-0002 ships gates as a standalone library that runs in CI with no store, no sandbox and no runner. A flat root means `from torve.taskstore import ...` inside a gate is one autocomplete away, and nothing would fail. The standalone property of the first increment is currently protected by nobody noticing.
 
       ---
   - key: layers
@@ -38,7 +38,7 @@ sections:
         gates/           the standalone checking library
         config/          on-disk manifest models and path resolution
         cli/             presentation
-        migrations/      package data (RFC 0012)
+        migrations/      package data (S-0012)
         py.typed
       ```
   - key: permitted-imports
@@ -54,7 +54,7 @@ sections:
 
       Read as: `domain` imports only `base`; `application` imports `domain` and `base`; `adapters` import `application` (for the port they implement), `domain` and `base`; `cli` imports anything.
 
-      **The load-bearing edge: `gates` may import `domain`, `base` and `config` — and nothing else.** No `application`, no `adapters`. That is what keeps `pip install torve` plus `torve gates run` working in a repository with no database and no sandbox, which is the entire promise of RFC 0002. Today that promise rests on nobody making a mistake; §6 makes it rest on a check.
+      **The load-bearing edge: `gates` may import `domain`, `base` and `config` — and nothing else.** No `application`, no `adapters`. That is what keeps `pip install torve` plus `torve gates run` working in a repository with no database and no sandbox, which is the entire promise of S-0002. Today that promise rests on nobody making a mistake; §6 makes it rest on a check.
 
       `adapters` never import each other. A Docker runtime that reaches into the git workspace adapter is two adapters welded together, and swapping either becomes a rewrite.
 
@@ -68,7 +68,7 @@ sections:
 
         base/
           shell.py                 subprocess execution, timeouts, process groups
-          naming.py                names derived from a task id (D-3.4)
+          naming.py                names derived from a task id (S-0003/D-4)
 
         domain/
           task.py                  Task, Scope, Budget, InheritedDecision
@@ -80,10 +80,10 @@ sections:
           ports.py                 every Protocol
           runner.py                the run loop
           reaper.py
-          sizing.py                SizePolicy (RFC 0002 §6b)
+          sizing.py                SizePolicy (S-0002/task-size)
           skills.py                role-scoped skill resolution
           telemetry.py
-          planner.py               plan and context (RFC 0007, later)
+          planner.py               plan and context (S-0007, later)
 
         adapters/
           agent/
@@ -141,7 +141,7 @@ sections:
     md: |
       | Now | Goes to | Because |
       | --- | --- | --- |
-      | `domain.py` + `models.py` | `domain/` split by aggregate | two names for one concept; split by aggregate matches D-22 |
+      | `domain.py` + `models.py` | `domain/` split by aggregate | two names for one concept; split by aggregate matches S-0001/D-18 |
       | `run.py` | `cli/run.py` | it is a command |
       | `runner.py` | `application/runner.py` | it is the loop |
       | `runstate.py` | `domain/states.py` | the state machine is domain |
@@ -150,7 +150,7 @@ sections:
       | `manifest.py` | `config/manifest.py` | `gates.yaml` model |
       | `context.py` | `cli/` if it is the command, `application/planner.py` if it is the logic | see the rule below |
       | `shell.py`, `naming.py` | `base/` | dependency-free helpers |
-      | `gates/base.py` | `gates/contract.py` | see D-15.5 |
+      | `gates/base.py` | `gates/contract.py` | see S-0015/D-5 |
 
       **Rule for the `context.py` case, and every future one like it:** a module named after a CLI verb belongs in `cli/` and contains argument parsing and output rendering only. The logic it calls lives in `application/` under a name describing what it does. If a single file currently holds both, splitting it is the point of the move, not a side effect.
 
@@ -158,7 +158,7 @@ sections:
   - key: module-naming
     md: |
       - **No `models.py`, `utils.py`, `helpers.py`, `common.py`, `base.py`.** These are names that attract unrelated code, because anything can be argued into them. A module is named for what it holds; if that name cannot be written, the module has no single subject and should not exist yet.
-      - **One gate, one file** (D-14.8), named for the gate, matching the name in `gates.yaml`.
+      - **One gate, one file** (S-0014/D-8), named for the gate, matching the name in `gates.yaml`.
       - **Adapter files are named for the technology**, never for the port — the port is already the directory.
       - **Singular for a subject, plural only for a genuine collection.** `domain/task.py` holds the `Task` family; `gates/` is a collection.
 
@@ -229,13 +229,13 @@ sections:
 
       **`input: worktree`, not `diff`.** The graph is built over the whole package, which is the entire reason for choosing the tool.
 
-      Sabotage cases, one per contract: a domain module importing an adapter, a gate importing the task store, and a runtime adapter importing the workspace adapter. Enters at `shadow` per D-2.18 like any other gate.
+      Sabotage cases, one per contract: a domain module importing an adapter, a gate importing the task store, and a runtime adapter importing the workspace adapter. Enters at `shadow` per S-0002/D-18 like any other gate.
   - key: module-naming-goes-elsewhere
     md: |
-      D-15.5 — no `models.py`, `utils.py`, `helpers.py`, `common.py`, `base.py` — is not about imports and `import-linter` cannot see it. It moves to the `source-layout` gate (RFC 0014 §9), where file-level layout rules already live: one regex over the changed paths, one more sabotage case.
+      S-0015/D-5 — no `models.py`, `utils.py`, `helpers.py`, `common.py`, `base.py` — is not about imports and `import-linter` cannot see it. It moves to the `source-layout` gate (S-0014/enforcement-the-source-layout-gate), where file-level layout rules already live: one regex over the changed paths, one more sabotage case.
   - key: two-sets-of-gates-and-they-are-not-the-same-set
     md: |
-      This document surfaces a distinction RFC 0002 does not currently draw.
+      This document surfaces a distinction S-0002 does not currently draw.
 
       | Set | Examples | Ships | Dependency |
       | --- | --- | --- | --- |
@@ -256,7 +256,7 @@ sections:
       5. Rewrite `__init__.py` as the lazy front door.
       6. Add the `import-linter` contracts and the `layering` gate at `shadow`, then read what it reports. **Expect violations** — that report is the point of the step, not a failure of it.
       7. Fix them, then promote to `blocking`.
-      8. Sweep for RFC 0014 compliance in the moved files while they are already open.
+      8. Sweep for S-0014 compliance in the moved files while they are already open.
 
       **Do this before any task contract references a path under `src/torve/`.** Moving files invalidates `scope.allow` globs in minted contracts, and a scope gate that reddens because the tree moved is the fastest way to teach people that the scope gate is noise.
 

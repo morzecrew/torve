@@ -1,23 +1,23 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
-  - id: D-36.1
+  - id: D-1
     grade: LOCKED
     text: >-
       The coverage-delta gate judges the attempt's changed lines only — never the
       inherited tree, never a whole-repo threshold — and enters shadow like every
-      gate (D-2.18); promotion to blocking is a separate act on soak evidence
+      gate (S-0002/D-18); promotion to blocking is a separate act on soak evidence
     paths: [.torve/gates.yaml, src/torve/gates/sabotage.py]
     consequence: >-
       No retroactive conviction of history; the number measures the change, so it
       cannot become a negotiation about the past
-  - id: D-36.2
+  - id: D-2
     grade: OPEN
     text: >-
       The changed-lines threshold and the exact pytest-cov/diff-cover invocation:
       the executor measures candidate values against recent landings and logs the
       settled command
     paths: [.torve/gates.yaml]
-  - id: D-36.3
+  - id: D-3
     grade: ASSUMED
     text: >-
       A manifest gate entry names its sabotage twin (`sabotage:` — a CASES family
@@ -27,7 +27,7 @@ decisions:
     consequence: >-
       A gate that cannot prove it convicts cannot be declared — the sabotage discipline
       becomes structure
-  - id: D-36.4
+  - id: D-4
     grade: LOCKED
     text: >-
       A fix for an escaped defect owes a review-corpus entry beside the fix: the defective
@@ -38,7 +38,7 @@ decisions:
     consequence: >-
       The reviewer's regression suite is fed by exactly what got past it; a static
       corpus is a visible failure of this rule
-  - id: D-36.5
+  - id: D-5
     grade: ASSUMED
     text: >-
       `torve review corpus add <fixing-commit>` scaffolds the entry from the commit

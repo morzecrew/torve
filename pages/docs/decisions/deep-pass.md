@@ -2,7 +2,7 @@
 
 !!! info "A record, not documentation — 2026-09-03"
 
-    This is the external review that produced RFC 0044. It describes the
+    This is the external review that produced S-0044. It describes the
     engine as it stood on 2026-09-03 and argues for replacing part of it;
     both the description and the argument are kept unedited, because the
     rebuild rests on them, and an argument revised after it won is not
@@ -10,7 +10,7 @@
 
     What the engine does now is [the architecture
     section](../architecture/overview.md). What was decided here is
-    [RFC 0044](https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md).
+    [S-0044](https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md).
 
 Written 2026-09-04, after the thirteen-contract queue closed, in response to
 the owner's challenge: *"persistence can hold the truth, repo can project
@@ -32,7 +32,7 @@ and what actually contains it. Several of those findings, read honestly,
 argue *against* the current architecture. The owner's instinct to invert the
 truth boundary is supported by our own data, not just by taste.
 
-The strongest single piece of evidence: in the D-34.9 measurement window,
+The strongest single piece of evidence: in the S-0034/D-9 measurement window,
 **every poison-ceiling was a form conviction — six of them — and zero were
 functional**. Unquoted YAML scalars, evidence-grammar mismatches, unstaged
 files. The work was green; the *machine interface* — hand-written repo files
@@ -73,7 +73,7 @@ keepers.
 **Agreed — with one invariant worth rescuing from each doctrine before it
 is dropped.**
 
-- *Tick-not-daemon* (D-19.1) bought crash-correctness by construction and
+- *Tick-not-daemon* (S-0019/D-1) bought crash-correctness by construction and
   trivial observability while the loop was fragile. That job is done; a
   durable-execution substrate provides both properties in resident form.
   The doctrine is scaffolding, not charter. Let it go.
@@ -103,7 +103,7 @@ Honesty requires the flip side: derive-don't-record was chosen when the
 only durable thing was git and the mock store was a torn JSONL. It was the
 right call *for that substrate*. With Postgres-grade persistence as truth,
 record-at-write with idempotent handlers is simply the correct default, and
-D-8.2's rebuild property is preserved as "replay the log", which is
+S-0008/D-2's rebuild property is preserved as "replay the log", which is
 stronger, not weaker.
 
 ### 5. "Self-hosted durable stuff vs maintained Temporal — not completely sure"
@@ -156,7 +156,7 @@ written through a typed intake (a tool call into persistence, projected
 into the landing for human review) cannot be unparseable, cannot violate
 evidence grammar, cannot be left unstaged. Six poison-ceilings and three
 unstaged-artifact escalations — the whole triage burden of the last
-week — are artifacts of hand-written files as protocol. RFC 0043 patches
+week — are artifacts of hand-written files as protocol. S-0043 patches
 this class; the v2 seam deletes it.
 
 **One structural note on the code itself:** the internal hexagonality is
@@ -198,7 +198,7 @@ that keeps the proof while replacing the vehicle:
    the event schema, the authority rule, the typed-communication invariant,
    the per-repo landing partition). This is where the graded-decision
    discipline gets applied to its own successor.
-   *Done 2026-09-04 — RFC 0044 "The manager domain", 13 decisions, three
+   *Done 2026-09-04 — S-0044 "The manager domain", 13 decisions, three
    mintable phases (event log → divergence intake → manager and worker),
    awaiting acceptance.*
 2. **Stand up the persistence schema** behind a durable-execution port;

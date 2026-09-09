@@ -1,4 +1,4 @@
-"""RFC 0006 phase 1: dispatch refusal on scope overlap, torve kill, engine
+"""S-0006 phase 1: dispatch refusal on scope overlap, torve kill, engine
 events on the telemetry stream, and the escalation queue's age and route in
 the context projection."""
 

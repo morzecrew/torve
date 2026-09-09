@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-157
+  - id: A-1
     at: '2026-09-09'
     title: the survey landed, and confirms the reading
     changes:
@@ -16,12 +16,12 @@ amendments:
       `rfc-valid`, `source-layout`, `user-facing-text` and `layering` measured
       clean on all forty. `coverage-delta` fired on eight (it is `shadow`) and
       was flaky on one. `acceptance` fired on two: `80096f8` and `a1d0096` — the
-      second is RFC 0053 phase 3's own landing, whose tree carried the parity
+      second is S-0053 phase 3's own landing, whose tree carried the parity
       test T-0295 corrected two commits later, which is the doctrine's
-      defended-boundary evidence for D-55.54 exactly as the record already
+      defended-boundary evidence for S-0055/D-54 exactly as the record already
       showed it. `no-test-tampering`, `decisions-reported` and `self-audit`
       skipped all forty with the no-task skip, and the report's `corpus_adds`
-      names exactly those three: the rows D-55.10, D-55.11 and D-55.19 give
+      names exactly those three: the rows S-0055/D-10, S-0055/D-11 and S-0055/D-19 give
       them what to measure once work is minted, as §1 expected. Nothing in the
       survey adds or regrades a row.
 

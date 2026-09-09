@@ -1,17 +1,18 @@
 # yaml-language-server: $schema=../../schemas/document.json
-id: '0043'
+id: S-0043
 title: Blocker revision
 kind: design
 status: superseded
 implementation: complete
-depends_on: ['0005']
-informed_by: [0038]
+depends_on: [S-0005]
+informed_by: [S-0038]
 supersedes: []
-superseded_by: '0055'
+superseded_by: S-0055
 owner: misery7100
 description: >-
   A surviving review blocker feeds a bounded in-run revision attempt in the same worktree
-  — carried by the RFC 0005 §4a feedback record — before it escalates the run.
+  — carried by the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback record
+  — before it escalates the run.
 schema_version: 3
 sections:
   - key: summary
@@ -19,7 +20,7 @@ sections:
       A review blocker today escalates the run immediately; the operator reaps and
       re-dispatches, and the fresh attempt starts from scratch. This RFC gives the
       run one bounded revision attempt first: the reviewer's blockers and the
-      convicted candidate diff are written into the RFC 0005 §4a feedback record,
+      convicted candidate diff are written into the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback record,
       the loop continues in the same worktree, and the agent revises instead of
       rebuilding. A blocker that survives revision escalates exactly as today. Gate
       convictions already retry in-run; this closes the same loop for review
@@ -41,7 +42,7 @@ sections:
       preserved, poison ceiling counting. A *review* blocker takes
       `state.escalate(BLOCKER_FINDING)` and returns; the worktree is reaped and the
       next dispatch sees only the escalation's history text. The engine already
-      knows how to carry review critique into a retry — the RFC 0005 §4a feedback
+      knows how to carry review critique into a retry — the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback
       record does exactly this for forge review threads — but the internal
       reviewer's findings never use it.
   - key: current-state
@@ -53,17 +54,17 @@ sections:
         loop — `review_hook_fn` escalated `BLOCKER_FINDING` with the blockers'
         claims joined into the detail text (capped 300 chars).
       - `run_review` (`src/torve/application/review.py`) drives one reviewer
-        attempt in a disposable copy (D-5.2/A-78, D-5.16) and returns findings as
-        data; unlocatable evidence is discarded before the runner sees it (D-5.4).
+        attempt in a disposable copy (D-5.2/A-78, S-0005/D-16) and returns findings as
+        data; unlocatable evidence is discarded before the runner sees it (S-0005/D-4).
       - `feedback_file(root, task_id)` → `.torve/tasks/<id>/feedback.md`
         (`src/torve/application/feedback.py`): rendered threads + superseded diff,
-        capped at 24,000 bytes with truncation recorded (D-5.12). At dispatch the
+        capped at 24,000 bytes with truncation recorded (S-0005/D-12). At dispatch the
         runner plants a copy at `<worktree>/.torve/feedback.md` and the prompt
-        names it as untrusted review data (D-5.13). Today only the forge adapter
-        writes it, from allow-listed PR threads (A-32, A-52).
+        names it as untrusted review data (S-0005/D-13). Today only the forge adapter
+        writes it, from allow-listed PR threads (S-0005/A-2, S-0002/A-4).
       - The runner already re-mints a fresh review task per invocation
         (`mint_review_task`), so a revision attempt's review gets its own id and
-        its own RFC 0038 verdict row with no extra work.
+        its own S-0038 verdict row with no extra work.
       - `ReviewConfig` (`src/torve/config/runconfig.py`): `on`, `skip_authors`,
         `feedback_from` — no retry knob.
   - key: goals-non-goals
@@ -72,19 +73,19 @@ sections:
 
       - A mechanical blocker costs a revision, not a rebuild: same worktree, prior
         diff and findings in front of the agent.
-      - The consequence stays configuration-decided (D-2): a knob bounds the
+      - The consequence stays configuration-decided (S-0001/D-10): a knob bounds the
         revisions; zero restores today's behavior exactly.
-      - Both reviews stay auditable: per-attempt verdict rows (RFC 0038) name what
+      - Both reviews stay auditable: per-attempt verdict rows (S-0038) name what
         each review convicted and what the revision changed.
 
       **Non-goals**
 
       - Resuming an *escalated* run into its kept worktree — that is the
         resume-from-gated engine-repair track, a different lifecycle change.
-      - Reconciling cumulative ceilings across re-dispatches (RFC 0026 §5.5 gap,
-        noted in 0037 §3) — this RFC only spends attempts inside one run.
+      - Reconciling cumulative ceilings across re-dispatches (S-0026/continuation-attempts gap,
+        noted in S-0037/current-state) — this RFC only spends attempts inside one run.
       - Any change to reviewer mechanics, finding shapes, or the discard rule
-        (D-5.4) — the reviewer neither knows nor cares that its verdict feeds a
+        (S-0005/D-4) — the reviewer neither knows nor cares that its verdict feeds a
         revision.
   - key: the-loop-keeps-going
     md: |
@@ -99,7 +100,7 @@ sections:
       3. signals the loop to `continue` rather than land.
 
       The next iteration dispatches into the same worktree, plants the record, and
-      the existing prompt rule (D-5.13) frames it. The poison ceiling and the
+      the existing prompt rule (S-0005/D-13) frames it. The poison ceiling and the
       `iterations`/`wallclock` budgets are checked at the top of the loop exactly
       as before — a revision is an attempt, nothing about the ceiling changes.
 
@@ -114,7 +115,7 @@ sections:
       finding becomes one thread — `path`/`line` from its evidence citation,
       `author` the review id, `body` the claim plus evidence. The superseded diff
       is the convicted candidate's patch (the runner holds it as
-      `last_pass["patch"]`). The cap and truncation honesty (D-5.12) apply
+      `last_pass["patch"]`). The cap and truncation honesty (S-0005/D-12) apply
       unchanged.
 
       The record is written root-side, so it outlives the run: if the revision
@@ -162,7 +163,7 @@ sections:
         (extends `test_review_run.py`).
   - key: docs
     md: |
-      `ReviewConfig` docstring gains the knob and its D-2 framing; RFC 0005 §4a
+      `ReviewConfig` docstring gains the knob and its S-0001/D-10 framing; S-0005/the-revision-loop-added-by-a-32-2026-08-24
       gains a dated cross-reference note (amendment on acceptance, not an edit).
   - key: out-of-scope
     md: |
@@ -177,7 +178,7 @@ sections:
         default; the escalation then carries two convictions' context, which is
         better triage material than one.
       - **The record leaks reviewer text into an executor prompt.** Already the
-        case for forge threads under D-5.13's untrusted framing; internal
+        case for forge threads under S-0005/D-13's untrusted framing; internal
         reviewer text is no more privileged.
       - **Double review cost per blocker.** Real, and accepted: a review is
         cheap relative to a rebuilt attempt (T-0250's re-dispatch ran a full
@@ -191,11 +192,11 @@ phasing:
     title: the blocker revision loop
     intent: >-
       A surviving review blocker no longer escalates while the run has revision budget:
-      the runner renders the blockers and the convicted candidate diff into the RFC
-      0005 §4a feedback record at the task's root-side feedback path, appends a revision
-      history fact, and continues the attempt loop in the same worktree; the record
-      is planted and framed by the existing D-5.13 mechanics, the poison ceiling and
-      task budgets count revisions unchanged, and a blocker surviving the spent budget
+      the runner renders the blockers and the convicted candidate diff into the S-0005/the-revision-loop-added-by-a-32-2026-08-24
+      feedback record at the task's root-side feedback path, appends a revision history
+      fact, and continues the attempt loop in the same worktree; the record is planted
+      and framed by the existing S-0005/D-13 mechanics, the poison ceiling and task
+      budgets count revisions unchanged, and a blocker surviving the spent budget
       — or an unparseable verdict or broker budget refusal at any point — escalates
       exactly as today. ReviewConfig gains `blocker_revisions` (default 1; 0 restores
       the pre-0043 sequence byte-for-byte).

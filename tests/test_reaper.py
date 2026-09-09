@@ -79,11 +79,11 @@ def test_stale_run_is_expired_and_its_sandbox_destroyed(tmp_path):
     assert reloaded.escalation.reason == "lease_expired"
     assert RunState.load(tmp_path / ".wt" / "T-9102.state.json").state is TaskState.RUNNING
 
-    # RFC 0038 §10's open question, decided by the reaper's actual knowledge
+    # S-0038/unresolved-questions's open question, decided by the reaper's actual knowledge
     # at sweep time: the sweep escalates through RunState.escalate, so the
-    # durable engine event lands (D-38.5) — but the reaper holds no exec
+    # durable engine event lands (S-0038/D-5) — but the reaper holds no exec
     # result, no gate report, nothing from which a verdict could be
-    # *derived*, and D-38.2 forbids inventing one. It stamps no verdict row
+    # *derived*, and S-0038/D-2 forbids inventing one. It stamps no verdict row
     # for the orphaned attempt; the event is the record.
     lines = [
         json.loads(line)
@@ -108,7 +108,7 @@ def test_orphaned_sandbox_with_no_state_at_all_is_destroyed(tmp_path):
 
 
 def test_the_reap_keeps_to_its_root(tmp_path):
-    # D-3.25 (A-38): on a shared daemon, another engine's sandbox is not
+    # S-0003/D-25 (A-38): on a shared daemon, another engine's sandbox is not
     # ours to judge — found live when the lab's one-minute reap destroyed
     # the dev suite's test containers mid-test. Unlabelled strays predate
     # the amendment and stay reapable by anyone.
@@ -149,7 +149,7 @@ def test_labels_carry_the_root_identity(tmp_path):
 
 
 def test_intake_worktree_of_a_live_claim_survives_the_sweep(tmp_path):
-    # T-0131: `.intake` is the drafting run's worktree suffix (RFC 0020
+    # T-0131: `.intake` is the drafting run's worktree suffix (S-0020
     # §5.4) over the same state file a bare task id names — unstripped, a
     # concurrent tick reads it as convention debris and destroys it mid-run.
     state_at(tmp_path, "T-9501", TaskState.CLAIMED)
@@ -182,9 +182,9 @@ def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):
 
 
 def test_terminal_run_footprint_is_swept_whole(tmp_path):
-    # RFC 0003 §4.2: the sweep destroys anything without a live lease — for
+    # S-0003/reaper: the sweep destroys anything without a live lease — for
     # a terminal run that is the worktree and the state file. The trace is
-    # not (D-39.1): it lives in the durable store, which the retention pass
+    # not (S-0039/D-1): it lives in the durable store, which the retention pass
     # alone empties — triage now really does outlive the workspace.
     ready = state_at(tmp_path, "T-9401", TaskState.READY)
     escalated = state_at(tmp_path, "T-9402", TaskState.ESCALATED)
@@ -206,7 +206,7 @@ def test_terminal_run_footprint_is_swept_whole(tmp_path):
 
 
 # ....................... #
-# The store's retention (D-39.3): the reaper's pass is the trace's only
+# The store's retention (S-0039/D-3): the reaper's pass is the trace's only
 # remover, and it sheds oldest-first past either bound.
 
 
@@ -279,7 +279,7 @@ def test_force_expires_even_fresh_runs(tmp_path):
 
 
 def test_dry_run_reports_without_touching_anything(tmp_path):
-    # RFC 0011 §6: --dry-run on anything that mutates.
+    # S-0011/command-surface-for-now: --dry-run on anything that mutates.
     stale = state_at(tmp_path, "T-9105", TaskState.RUNNING, age_s=3600)
     done = state_at(tmp_path, "T-9106", TaskState.READY)
     runtime = MockRuntime()
@@ -300,7 +300,7 @@ def test_dry_run_reports_without_touching_anything(tmp_path):
     assert reloaded.state is TaskState.RUNNING  # nothing escalated, nothing saved
 
 
-# D-19.10 (A-28, narrowing D-3.23): a READY implement run whose task has
+# S-0019/D-10 (A-28, narrowing S-0003/D-23): a READY implement run whose task has
 # not landed is the lane's input, not debris.
 
 
@@ -359,7 +359,7 @@ def test_without_a_landed_oracle_the_reaper_keeps_conservatively(tmp_path):
 
 
 def test_a_ready_draft_state_survives_unconditionally(tmp_path):
-    # RFC 0020 D-20.10: a draft's landing is adoption — the lab's first
+    # S-0020 S-0020/D-10: a draft's landing is adoption — the lab's first
     # live drafting run was swept one tick after green, orphaning it.
     (tmp_path / ".torve").mkdir()
     implement_contract(tmp_path, "T-9114", role="draft")
@@ -372,7 +372,7 @@ def test_a_ready_draft_state_survives_unconditionally(tmp_path):
 
 
 def test_durable_reap_keeps_a_fresh_shadow_sandbox(tmp_path, monkeypatch):
-    """D-4.18 (A-57): a shadow run registers no durable record by design, so
+    """S-0004/D-18 (A-57): a shadow run registers no durable record by design, so
     its liveness is the host state file — the durable-regime sweep must not
     destroy a sandbox whose run a fresh-heartbeat state names, and must
     still destroy one no state file knows."""
@@ -506,7 +506,7 @@ def test_durable_reap_dry_run_predicts_no_live_run_escalation_without_mutating(
 
 
 def test_recover_reclaims_an_abandoned_durable_run_before_reap_would(tmp_path):
-    """D-42.3: the substrate's recovery step is now standalone, callable
+    """S-0042/D-3: the substrate's recovery step is now standalone, callable
     ahead of and independent from the reap sweep — the same claim_abandoned
     + escalate verdict _durable_reap's embedded call always gave."""
     import asyncio
@@ -548,7 +548,7 @@ def test_recover_reclaims_an_abandoned_durable_run_before_reap_would(tmp_path):
 
 
 def test_recover_is_a_true_noop_without_a_postgres_store(tmp_path):
-    """D-3.6: the mock regime has no durable lease authority to reclaim —
+    """S-0003/D-6: the mock regime has no durable lease authority to reclaim —
     recover() must not even call the store factory."""
     from torve.application.reaper import recover
 

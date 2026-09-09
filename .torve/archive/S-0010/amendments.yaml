@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
-  - id: A-37
+  - id: A-1
     at: '2026-08-25'
     title: >-
-      one pull request per task (amends D-10.5, adds D-10.10)
+      one pull request per task (amends S-0010/D-5, adds S-0010/D-10)
     md: |-
       **Found in operation** — reviewing the first fully drained batch, the
       owner counted the pull requests: every re-queue deleted the candidate
@@ -13,28 +13,28 @@ amendments:
       branch per unit of work, iterated by pushes, one thread of review.
 
       **Changed:** the branch is the task's, for the task's whole life
-      (D-10.10). A requeue captures revision feedback (D-5.12 order
+      (S-0010/D-10). A requeue captures revision feedback (S-0005/D-12 order
       unchanged: capture first) and keeps the branch; the next attempt
-      force-pushes it with lease — the supersession D-10.5 now sanctions,
+      force-pushes it with lease — the supersession S-0010/D-5 now sanctions,
       after capture — and `open_pr` finding an open pull request for the
       branch reuses it, refreshing the body to the current attempt. Review
       threads accumulate on one PR, superseded lines marked outdated by the
       forge and already preserved verbatim in the revision record. The
-      branch's death moves to the landing retirement (A-34's D-19.13), and
-      the retry command's cleanup (0008 D-8.10) becomes capture-only — its
+      branch's death moves to the landing retirement (S-0019/A-5's S-0019/D-13), and
+      the retry command's cleanup (0008 S-0008/D-10) becomes capture-only — its
       original rationale, "the stale branch would refuse the re-run's push",
       is dissolved by the leased supersession itself.
 
       **Deliberately unchanged:** the base push stays fast-forward-only with
-      no force path (D-19.9); one commit per attempt (D-10.8) — the pull
+      no force path (S-0019/D-9); one commit per attempt (S-0010/D-8) — the pull
       request always shows exactly the candidate, which is the squash
-      discipline; capture-before-supersede (D-5.12); and the abandon command,
+      discipline; capture-before-supersede (S-0005/D-12); and the abandon command,
       which leaves the branch for the operator — rare, and a deletion there
       is a human's call.
-  - id: A-58
+  - id: A-2
     at: '2026-08-28'
     title: >-
-      candidate publication follows the forge leg (adds D-10.11)
+      candidate publication follows the forge leg (adds S-0010/D-11)
     md: |-
       **Found twice in one day of engine-repo dogfood.** `scm.open_pr: false`
       deferred the pull request but the candidate branch still pushed — and on a
@@ -53,4 +53,4 @@ amendments:
       push with no pull request serves nobody the corpus knows about, and a knob
       whose only use is republishing the accident is not a feature.
 
-      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+      *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*

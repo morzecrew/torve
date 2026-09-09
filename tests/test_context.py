@@ -1,7 +1,7 @@
-"""RFC 0007 §4: the projection. Facts in files — contracts, run states,
+"""S-0007/torve-context: the projection. Facts in files — contracts, run states,
 logs, telemetry, the corpus — one report out, rendered as markdown for a
 planning session or JSON for machines; progress derived on demand and
-stored nowhere (D-A.12)."""
+stored nowhere (S-0016/D-22)."""
 
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ def test_context_report_projects_the_facts(plan_repo):  # noqa: F811
     kinds = {c["kind"] for c in report["costs"]}
     assert kinds == {"attempt", "shadow"}
 
-    doc = next(d for d in report["programme"] if d["rfc"] == "0090")
+    doc = next(d for d in report["programme"] if d["rfc"] == "S-0090")
     # Phase 1 holds T-0001 (ready) and T-0002 (escalated) -> blocked wins;
     # phase 2 holds unstarted T-0003 -> planned.
     assert doc["progress"] == {"1": "blocked", "2": "planned"}
@@ -124,7 +124,7 @@ def test_disagreement_is_flagged(plan_repo):  # noqa: F811
         encoding="utf-8",
     )
     report = context_report(root, root / SPECS_DIR)
-    entry = next(d for d in report["programme"] if d["rfc"] == "0090")
+    entry = next(d for d in report["programme"] if d["rfc"] == "S-0090")
     assert entry["disagreement"] == "asserted complete, but a phase is not shipped"
 
 
@@ -144,7 +144,7 @@ def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # n
     # While a phase is short of shipped, `partial` is exactly right and the
     # projection says nothing.
     entry = next(
-        d for d in context_report(root, root / SPECS_DIR)["programme"] if d["rfc"] == "0090"
+        d for d in context_report(root, root / SPECS_DIR)["programme"] if d["rfc"] == "S-0090"
     )
     assert entry["disagreement"] is None
 
@@ -164,7 +164,7 @@ def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # n
         state.save()
 
     entry = next(
-        d for d in context_report(root, root / SPECS_DIR)["programme"] if d["rfc"] == "0090"
+        d for d in context_report(root, root / SPECS_DIR)["programme"] if d["rfc"] == "S-0090"
     )
     assert entry["disagreement"] == "asserted partial, but every declared phase shipped"
 
@@ -172,7 +172,7 @@ def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # n
 def test_unminted_accepted_document_is_plannable(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     report = context_report(root, root / SPECS_DIR)  # nothing minted yet
-    entry = next(d for d in report["programme"] if d["rfc"] == "0090")
+    entry = next(d for d in report["programme"] if d["rfc"] == "S-0090")
     assert entry["plannable"] is True
     assert entry["declared_phases"] == [1, 2]
 
@@ -180,7 +180,7 @@ def test_unminted_accepted_document_is_plannable(plan_repo):  # noqa: F811
 def test_markdown_json_and_rich_render_one_report(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     seed_facts(root)
-    # Markdown: the pasteable document (D-18.6), first-class on this command.
+    # Markdown: the pasteable document (S-0018/D-6), first-class on this command.
     document = CliRunner().invoke(app, ["context", "--root", str(root), "--format", "markdown"])
     assert document.exit_code == 0, document.output
     for heading in (
@@ -194,7 +194,7 @@ def test_markdown_json_and_rich_render_one_report(plan_repo):  # noqa: F811
         assert heading in document.output
     assert "underspecified (1): T-0002" in document.output
 
-    # Default text: rich sections — asserted by content, never layout (D-18.1).
+    # Default text: rich sections — asserted by content, never layout (S-0018/D-1).
     result = CliRunner().invoke(app, ["context", "--root", str(root)])
     assert result.exit_code == 0, result.output
     for content in (
@@ -229,7 +229,7 @@ def test_settled_documents_leave_the_programme_table_for_a_count(plan_repo):  # 
 
     report = context_report(root, root / SPECS_DIR)
     # The report itself keeps every document — hiding is presentation.
-    assert any(d["rfc"] == "0091" for d in report["programme"])
+    assert any(d["rfc"] == "S-0091" for d in report["programme"])
 
     result = CliRunner().invoke(app, ["context", "--root", str(root)])
     assert result.exit_code == 0, result.output
@@ -244,7 +244,7 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
     root, _, _git = plan_repo
     seed_facts(root)
     # T-0003 never ran through the engine, but history records its shipping
-    # by the provenance trailer (RFC 0010) — a mere id mention in a chore
+    # by the provenance trailer (S-0010) — a mere id mention in a chore
     # subject no longer counts, which is what keeps mint commits from
     # shipping whole phases in the programme view.
     subprocess.run(
@@ -265,7 +265,7 @@ def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # no
     states = {t["id"]: t["state"] for t in report["tasks"]}
     assert states["T-0003"] == "shipped"
     assert states["T-0001"] == "ready"  # a run state still outranks history
-    doc = next(d for d in report["programme"] if d["rfc"] == "0090")
+    doc = next(d for d in report["programme"] if d["rfc"] == "S-0090")
     assert doc["progress"]["2"] == "shipped"  # phase 2's only task shipped
 
 
@@ -317,7 +317,7 @@ def test_costs_are_newest_first_and_carry_the_model(plan_repo):  # noqa: F811
 
 
 def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
-    """D-7.26: only a landing citation — a parenthesized (T-nnnn), the
+    """S-0007/D-26: only a landing citation — a parenthesized (T-nnnn), the
     merge-branch shape torve/T-nnnn, or the Torve-Task trailer — ships a
     task. A bare prose mention must not: a mint chore whose subject says
     'T-0097–T-0104' shipped a whole phase in the programme view once."""
@@ -368,8 +368,8 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
 
 
 # ----------------------- #
-# RFC 0022 §5.3: the document-level half of the specification-quality
-# report, joined into `torve context` as its own section (D-22.6). Tasks
+# S-0022/document-level-report: the document-level half of the specification-quality
+# report, joined into `torve context` as its own section (S-0022/D-6). Tasks
 # written directly as `.torve/tasks/T-nnnn/{contract,log}.yaml` — the shape
 # `test_specquality.py` already uses — so each test seeds exactly the
 # population it means to exercise, with no dependency on an rfc document
@@ -421,7 +421,7 @@ def _write_log(root, task_id: str, entries: list[dict]) -> None:
 
 def _drift_entry(claim: str) -> dict:
     return {
-        "decision": "D-1.1",
+        "decision": "S-0001/D-1",
         "grade": "ASSUMED",
         "kind": "departed",
         "class": "drift",
@@ -474,7 +474,7 @@ def test_minted_counts_every_task_regardless_of_state(tmp_path):
 
 
 def test_children_are_grouped_under_their_parent(tmp_path):
-    # RFC 0026 D-26.5/D-26.6: the parent field is projection-only — this is
+    # S-0026/D-5, S-0026/D-6: the parent field is projection-only — this is
     # the one place it is read.
     _write_task(tmp_path, "T-0100", rfc=None)
     _write_task(tmp_path, "T-0101", rfc=None, parent="T-0100")
@@ -500,7 +500,7 @@ def test_attempts_to_green_only_counts_tasks_that_landed(tmp_path):
 
 
 def test_document_indicting_reasons_are_always_on_their_own_line(tmp_path):
-    """RFC 0022 §5.3: underspecified and stale_inheritance print even at
+    """S-0022/document-level-report: underspecified and stale_inheritance print even at
     zero, because they are the two reasons that indict the document rather
     than the code that executed it (charter A-21, A-22)."""
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
@@ -518,7 +518,7 @@ def test_document_indicting_reasons_are_always_on_their_own_line(tmp_path):
 
 def test_spec_drift_findings_are_class_drift_log_entries(tmp_path):
     """`class: drift` is the same field `decisions-reported` checks a
-    task's declared `drift_count` against (RFC 0022's own spec-drift
+    task's declared `drift_count` against (S-0022's own spec-drift
     signal), reused here rather than a second reading of the word."""
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
     _write_log(
@@ -599,7 +599,7 @@ def test_context_cli_renders_specification_quality_in_all_three_formats(tmp_path
 
 
 # ....................... #
-# operator_attention (D-22.12, A-73): the corpus-wide line beside the
+# operator_attention (S-0022/D-12, A-73): the corpus-wide line beside the
 # document-level signals above
 
 
@@ -622,7 +622,7 @@ def test_operator_attention_human_minutes_suppressed_below_the_default_floor(tmp
     report = context_report(tmp_path, tmp_path / SPECS_DIR)
     attention = report["spec_quality"]["operator_attention"]
     assert attention["human_minutes_median"] is None  # 2 observations, default floor is 5
-    assert attention["human_minutes_n"] == 2  # denominator prints regardless (D-22.8)
+    assert attention["human_minutes_n"] == 2  # denominator prints regardless (S-0022/D-8)
 
 
 def _land_commit(root, task_id: str) -> None:
@@ -642,7 +642,7 @@ def _land_commit(root, task_id: str) -> None:
 
 
 def test_operator_attention_joins_interventions_to_landed_changes(tmp_path):
-    """D-22.12: the interventions behind landed changes — feedback and the
+    """S-0022/D-12: the interventions behind landed changes — feedback and the
     escalations a human triaged — join per task id, with the raw total
     carrying whatever never landed in the window."""
     _write_task(tmp_path, "T-0001", rfc="rfcs/0090-a.md")
@@ -682,9 +682,9 @@ def test_context_cli_markdown_prints_operator_attention_line(tmp_path):
 
 
 # ....................... #
-# D-5.15 (A-75): the findings ledger — every kept non-blocking finding
+# S-0005/D-15 (A-75): the findings ledger — every kept non-blocking finding
 # from a landed target's review, read from the review records telemetry
-# already carries, marked possibly_addressed under D-7.24's weak-citation
+# already carries, marked possibly_addressed under S-0007/D-24's weak-citation
 # discipline applied to findings.
 
 
@@ -741,7 +741,7 @@ def test_a_drafting_run_is_not_one_of_the_task_s_attempts(tmp_path):
 
 
 def test_only_a_pull_request_blocker_reaches_the_ledger(tmp_path):
-    """T-0184, corrected by A-137. D-5.15 excluded blockers because "a
+    """T-0184, corrected by A-137. S-0005/D-15 excluded blockers because "a
     blocker escalates its target and never lands beside it" — true on the
     task-gated path, where a blocker is revised in-run or escalates, and
     false on the pull-request path, whose docstring says it "reports" and
@@ -790,7 +790,7 @@ def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tm
     report = context_report(tmp_path, tmp_path / SPECS_DIR)
     findings = report["findings"]
     # A task-gated blocker is revised in-run or escalates, so it never
-    # lands unhandled: non-blocking only, as D-5.15 wrote it. The
+    # lands unhandled: non-blocking only, as S-0005/D-15 wrote it. The
     # pull-request path is the exception, and has its own case below.
     assert [f["severity"] for f in findings] == ["major", "minor"]
     assert all(f["review"] == "T-0101" for f in findings)
@@ -905,7 +905,7 @@ def test_addressed_findings_collapse_to_the_plus_line(tmp_path):
 
 
 # ....................... #
-# RFC 0034 §5.5: the character calibration section — declared character
+# S-0034/calibration-projected: the character calibration section — declared character
 # against the realized conviction profile grouped by gate axis, attempts and
 # token shape. Measurement, never enforcement, and part of the report serve
 # re-exposes verbatim.
@@ -937,7 +937,7 @@ def _append_attempt(root, task_id, results, agent=None, kind=None, stream=".torv
 
 
 # acceptance is declared here unlabeled on purpose: the default reading is
-# the whole fail-safe of D-34.4.
+# the whole fail-safe of S-0034/D-4.
 _LABELED_GATES = [
     {"name": "acceptance", "run": "@task.acceptance", "state": "blocking", "origin": "structural"},
     {
@@ -1465,7 +1465,7 @@ def test_why_envelope_is_deterministic_across_reads(plan_repo):  # noqa: F811
 
 
 def test_gate_health_reports_recency_beside_the_lifetime_rate():
-    """RFC 0004's shadow-run reading found `coverage-delta` at 59% failures
+    """S-0004's shadow-run reading found `coverage-delta` at 59% failures
     over its whole life, and 100%, 76%, 0% over the three days that life
     consists of — a gate being calibrated, read by the aggregate as a
     broken one (A-124). A rate that is moving is a different fact from a

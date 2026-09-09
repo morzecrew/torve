@@ -1,8 +1,8 @@
 # The record
 
 One append-only, typed log is the system of record for intent and execution
-([RFC 0044](https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md),
-D-44.1). Every other view of engine state — the board, the projections, the
+([S-0044](https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md),
+S-0044/D-1). Every other view of engine state — the board, the projections, the
 telemetry stream — is rebuildable from it. Source code stays git's; only
 intent and record moved.
 
@@ -18,7 +18,7 @@ kind:
 
 | Envelope | Meaning |
 | --- | --- |
-| `partition` | the repository this fact belongs to — landings serialize within one, and partitions run independently (D-44.7) |
+| `partition` | the repository this fact belongs to — landings serialize within one, and partitions run independently (S-0044/D-7) |
 | `subject_type`, `subject_id` | what the fact is about: a task, a decision, a source |
 | `actor_kind`, `actor_id` | who wrote it, checked against the authority table below |
 | `created_at`, `id` | the store's clock and its identity — ordering is both, because a timestamp alone is not a total order |
@@ -33,7 +33,7 @@ adapter is asked to decide anything.
 ## Who may write what
 
 Write authority is a table over (actor kind, event kind), enforced in the
-domain before a record is built (D-44.2). It is the load-bearing half of the
+domain before a record is built (S-0044/D-2). It is the load-bearing half of the
 old git-holds-truth rule, kept without git holding truth: **nothing becomes
 executable intent without a human signature.**
 
@@ -80,7 +80,7 @@ places a task on a partition rather than a note somebody left.
 
 ## Recorded, never derived
 
-Facts are written when they become true, and rebuild is replay (D-44.3).
+Facts are written when they become true, and rebuild is replay (S-0044/D-3).
 This retired the previous engine's derive-don't-record rule, which
 reconstructed effects from artifacts afterwards and drifted whenever the
 artifacts and the reconstruction disagreed.
@@ -117,12 +117,12 @@ twice, because getting it backwards makes every count wrong and the error
 invisible:
 
 - **A second record on the same subject is a new version of that
-  decision.** `D-27.7` regraded from `ASSUMED` to `LOCKED` is a second
-  record on `D-27.7`. Its current state is the last one; its history is all
+  decision.** `S-0027/D-7` regraded from `ASSUMED` to `LOCKED` is a second
+  record on `S-0027/D-7`. Its current state is the last one; its history is all
   of them — the question `git log -p` over the corpus answers today, by
   hand, from diffs.
-- **`supersedes` is an edge to a different decision.** `D-14.13` retired in
-  favour of `A-44` is one decision naming another. It is not how a regrade
+- **`supersedes` is an edge to a different decision.** `S-0014/D-13` retired in
+  favour of `S-0014/A-1` is one decision naming another. It is not how a regrade
   is expressed.
 
 Retirement is recorded, never inferred from a row that stopped appearing.
@@ -131,7 +131,7 @@ for a source that is an incident rather than a file it means nothing at all.
 
 ```bash
 torve decisions import <repo>          # idempotent: an unchanged corpus appends nothing
-torve decisions show <repo> D-44.9     # what it says now, and every version behind it
+torve decisions show <repo> S-0044/D-9     # what it says now, and every version behind it
 torve decisions paths <repo> "src/torve/application/**"
 ```
 

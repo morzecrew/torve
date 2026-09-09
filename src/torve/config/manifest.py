@@ -1,5 +1,5 @@
 """gates.yaml — the reviewed gate manifest, one per consuming repository
-(D-2.5): the Gate entry model and the manifest it composes into.
+(S-0002/D-5): the Gate entry model and the manifest it composes into.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from torve.domain.task import SCHEMA_VERSION, Scope
 
 # ----------------------- #
 
-# What a conviction from this gate means (D-34.4). The tuple is the vocabulary
+# What a conviction from this gate means (S-0034/D-4). The tuple is the vocabulary
 # in the order the corpus lists it — retry selection reads it as a severity
 # order, but that reading is the runner's rule, not this file's. An unlabeled
 # gate resolves to UNLABELED_AXIS in `resolved_gates()`: the fail-safe routes
@@ -29,25 +29,25 @@ UNLABELED_AXIS: GateAxis = "functional"
 
 
 class Gate(BaseModel):
-    """One entry in gates.yaml (RFC 0002 §3, lifecycle §7 per A-8).
+    """One entry in gates.yaml (S-0002/the-gate-contract, lifecycle §7 per S-0002/A-2).
 
     `run` is a shell command, or an `@`-prefixed builtin reference. The RFC's
     `@task.acceptance` is the acceptance builtin; the other builtins follow the
     same convention (`@scope`, `@secrets`, ...). `commands` is the acceptance
     fallback for runs with no task file.
 
-    `state` and `origin` are required on every entry (D-2.19): a boolean
+    `state` and `origin` are required on every entry (S-0002/D-19): a boolean
     cannot express shadow or quarantine, and provenance is unrecoverable
     later. `shadow` and `quarantined` gates run and report but never affect
     the exit code (§7.3).
 
-    `axis` is the optional conviction label (D-34.4): what a red result from
+    `axis` is the optional conviction label (S-0034/D-4): what a red result from
     this gate means. An entry without it reads as `functional` once
     `resolved_gates()` fills the default; the declaration itself stays absent
     so the manifest diff shows only labels the operator chose.
 
     `sabotage` names this gate's twin — a CASES family in the sabotage suite
-    or a repository test path — the evidence that the gate can convict (D-36.3).
+    or a repository test path — the evidence that the gate can convict (S-0036/D-3).
     The load refuses a twinless entry once the manifest names a twin for any
     gate; a manifest naming none at all predates the field and is only voiced
     by `twinless_gates()`. The value must be a non-blank reference; resolving
@@ -65,7 +65,7 @@ class Gate(BaseModel):
     input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
     timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
     axis: GateAxis | None = None  # derived for unlabeled entries, functional
-    sabotage: str | None = None  # the twin's CASES family or test path (D-36.3)
+    sabotage: str | None = None  # the twin's CASES family or test path (S-0036/D-3)
     commands: list[str] = Field(default_factory=list)
 
     # ....................... #
@@ -77,7 +77,7 @@ class Gate(BaseModel):
             return value
 
         raise ValueError(
-            f"origin {value!r} must be 'structural', 'leak/<task>' or 'rfc/<id>' (D-2.19)"
+            f"origin {value!r} must be 'structural', 'leak/<task>' or 'rfc/<id>' (S-0002/D-19)"
         )
 
     # ....................... #
@@ -89,7 +89,7 @@ class Gate(BaseModel):
             return value
 
         if not value.strip():
-            raise ValueError("gate sabotage twin must be a non-blank reference (D-36.3)")
+            raise ValueError("gate sabotage twin must be a non-blank reference (S-0036/D-3)")
 
         return value
 
@@ -119,7 +119,7 @@ class Gate(BaseModel):
 
 
 class TwinlessGateWarning(UserWarning):
-    """A gate entry declares no sabotage twin (D-36.3), in a manifest that
+    """A gate entry declares no sabotage twin (S-0036/D-3), in a manifest that
     declares none at all.
 
     The voice on the pre-field side of the refusal: a manifest where no
@@ -182,7 +182,7 @@ class TestsConfig(BaseModel):
 class SecretsConfig(BaseModel):
     """`allow_patterns` are regexes that suppress a match on the line they
     match. Reviewed configuration, not a bypass: the manifest arrives in a
-    pull request, and D-2.8 stays intact because no signature at run time can
+    pull request, and S-0002/D-8 stays intact because no signature at run time can
     widen it."""
 
     model_config = ConfigDict(extra="forbid")
@@ -201,8 +201,8 @@ class Manifest(BaseModel):
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
 
     # Acceptance commands that flake; their failures are recorded but stop
-    # blocking until fixed (RFC 0002 §6a). Maintained by humans from the flake
-    # counters in telemetry until a store exists (RFC 0003).
+    # blocking until fixed (S-0002/three-outcomes-gates-need-beyond-pass-and-fail). Maintained by humans from the flake
+    # counters in telemetry until a store exists (S-0003).
     quarantine: list[str] = Field(default_factory=list)
     telemetry: str = ".torve/telemetry.jsonl"
     gates: list[Gate] = Field(default_factory=list)
@@ -210,7 +210,7 @@ class Manifest(BaseModel):
     # ....................... #
 
     def twinless_gates(self) -> list[str]:
-        """Names of entries declaring no sabotage twin (D-36.3)."""
+        """Names of entries declaring no sabotage twin (S-0036/D-3)."""
 
         return [gate.name for gate in self.gates if gate.sabotage is None]
 
@@ -261,7 +261,7 @@ def load_manifest(path: Path) -> Manifest:
     manifest = Manifest.model_validate(raw)
     manifest.resolved_gates()  # surface builtin/name errors at load time
 
-    # D-36.3, refusal stage: a manifest that names the twin for any gate has
+    # S-0036/D-3, refusal stage: a manifest that names the twin for any gate has
     # adopted the field, and every remaining twinless entry is a load error —
     # a gate that cannot prove it convicts cannot be declared. A manifest
     # naming no twins at all predates the field and is voiced, not refused:

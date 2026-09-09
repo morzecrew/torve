@@ -1,14 +1,14 @@
-"""`torve spec` — the corpus checks of RFC 0007 §3a and charter A-15, each
-observed to fail (D-2.2 discipline): sabotage the model refuses (ungraded
+"""`torve spec` — the corpus checks of S-0007/format-validation and charter A-15, each
+observed to fail (S-0002/D-2 discipline): sabotage the model refuses (ungraded
 row, unknown vocabulary, a key outside the schema), sabotage only the
 corpus can see (LOCKED without paths, duplicate identifier, cycle, a
-comment), directory contents with routing messages (D-A.18, I-57.1),
-derived numbering over a hole and over the archive (D-A.17/D-A.19), and
+comment), directory contents with routing messages (S-0016/D-25, S-0057/I-1),
+derived numbering over a hole and over the archive (S-0016/D-24/D-A.19), and
 line-cite rot.
 
-Inheriting from a non-accepted document is a problem (D-A.10, hardened once
+Inheriting from a non-accepted document is a problem (S-0016/D-20, hardened once
 the corpus's one violation was resolved). Citation resolution is a problem
-too: retired identifiers resolve through `retired:` (D-16.1), so an
+too: retired identifiers resolve through `retired:` (S-0016/D-1), so an
 unresolvable citation is a typo, and a retired identifier can never be
 redefined.
 """
@@ -33,7 +33,7 @@ EXIT_CONFIG = 3
 def rfc_text(
     number: str,
     title: str,
-    decision: str = "D-T.1",
+    decision: str = "D-1",
     status: str = "draft",
     implementation: str = "none",
     *,
@@ -64,7 +64,7 @@ def invoke(root: Path, *args: str):
 
 def seed(tmp_path: Path, *docs: tuple[str, Doc]) -> Path:
     """Write (number, document) documents and return the corpus dir. There
-    is no index to generate any more (D-56.7)."""
+    is no index to generate any more (S-0056/D-7)."""
 
     specs = corpus(tmp_path)
 
@@ -79,7 +79,7 @@ def loaded(specs: Path, name: str):
 
 
 # ....................... #
-# format sabotage (0007 §3a): each check observed to fail
+# format sabotage (S-0007/format-validation): each check observed to fail
 
 
 def test_a_conforming_corpus_passes(tmp_path: Path) -> None:
@@ -89,7 +89,7 @@ def test_a_conforming_corpus_passes(tmp_path: Path) -> None:
 
 
 def test_an_ungraded_row_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", rows=[("D-T.1", "PROBABLY", "Something is decided", "—")])
+    doc = rfc_text("0001", "Widget", rows=[("D-1", "PROBABLY", "Something is decided", "—")])
     seed(tmp_path, ("0001", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -97,7 +97,7 @@ def test_an_ungraded_row_reddens(tmp_path: Path) -> None:
 
 
 def test_a_locked_row_without_paths_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", rows=[("D-T.1", "LOCKED", "Something is decided", "—")])
+    doc = rfc_text("0001", "Widget", rows=[("D-1", "LOCKED", "Something is decided", "—")])
     seed(tmp_path, ("0001", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -107,8 +107,8 @@ def test_a_locked_row_without_paths_reddens(tmp_path: Path) -> None:
 def test_a_duplicate_identifier_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002", rfc_text("0002", "Beta", "D-T.1")),
+        ("0001", rfc_text("0001", "Alpha", "D-1")),
+        ("0002", rfc_text("0002", "Beta", "S-0001/D-1")),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -118,8 +118,8 @@ def test_a_duplicate_identifier_reddens(tmp_path: Path) -> None:
 def test_a_two_document_cycle_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1", depends_on=["0002"])),
-        ("0002", rfc_text("0002", "Beta", "D-T.2", depends_on=["0001"])),
+        ("0001", rfc_text("0001", "Alpha", "D-1", depends_on=["0002"])),
+        ("0002", rfc_text("0002", "Beta", "D-1", depends_on=["0001"])),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -127,8 +127,8 @@ def test_a_two_document_cycle_reddens(tmp_path: Path) -> None:
 
 
 def test_a_comment_reddens_naming_the_line(tmp_path: Path) -> None:
-    # D-56.4: the schema header is the one legal comment; anything else is
-    # meaning outside the model — per file (D-57.1).
+    # S-0056/D-4: the schema header is the one legal comment; anything else is
+    # meaning outside the model — per file (S-0057/D-1).
     doc = rfc_text("0001", "Widget")
     head, rest = doc["document.yaml"].split("\n", 1)
     doc["document.yaml"] = f"{head}\n# a note nobody can read\n{rest}"
@@ -146,22 +146,22 @@ def test_schema_version_one_is_refused_naming_the_conversion(tmp_path: Path) -> 
     result = invoke(tmp_path, "check")
 
     assert result.exit_code == EXIT_CONFIG
-    assert "RFC 0057 phase 1" in result.output
+    assert "S-0057 phase 1" in result.output
 
 
 def test_inheriting_from_a_draft_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1", status="accepted", depends_on=["0002"])),
-        ("0002", rfc_text("0002", "Beta", "D-T.2")),
+        ("0001", rfc_text("0001", "Alpha", "D-1", status="accepted", depends_on=["0002"])),
+        ("0002", rfc_text("0002", "Beta", "D-1")),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "D-A.10" in result.output
+    assert "S-0016/D-20" in result.output
 
 
 def test_check_reports_a_key_the_model_refuses(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", questions=[{"id": "Q-1.1", "text": "x", "state": "open"}])
+    doc = rfc_text("0001", "Widget", questions=[{"id": "S-0001/Q-1", "text": "x", "state": "open"}])
     seed(tmp_path, ("0001", doc))
 
     result = invoke(tmp_path, "check")
@@ -171,7 +171,7 @@ def test_check_reports_a_key_the_model_refuses(tmp_path: Path) -> None:
 
 
 def test_a_key_in_the_wrong_file_reddens_naming_the_file_that_owns_it(tmp_path: Path) -> None:
-    # D-57.1: each file carries the slice of the model one hand writes.
+    # S-0057/D-1: each file carries the slice of the model one hand writes.
     doc = rfc_text("0001", "Widget")
     doc["decisions.yaml"] += "sections: []\n"
     seed(tmp_path, ("0001", doc))
@@ -183,7 +183,7 @@ def test_a_key_in_the_wrong_file_reddens_naming_the_file_that_owns_it(tmp_path: 
 
 
 # ....................... #
-# the contract example (RFC 0025 §5.4, D-25.10): typed, so a schema change
+# the contract example (S-0025/typed-example-fences, S-0025/D-10): typed, so a schema change
 # reddens the example rather than letting it rot
 
 
@@ -214,7 +214,7 @@ def test_a_document_without_a_contract_example_passes(tmp_path: Path) -> None:
 
 
 # ....................... #
-# directory contents (charter A-15, D-A.18, I-57.1): refusals that route
+# directory contents (charter A-15, S-0016/D-25, S-0057/I-1): refusals that route
 
 
 def test_a_stray_file_reddens(tmp_path: Path) -> None:
@@ -236,7 +236,7 @@ def test_a_subdirectory_reddens(tmp_path: Path) -> None:
 
 
 def test_a_file_inside_a_document_directory_reddens(tmp_path: Path) -> None:
-    # I-57.1: a document directory holds the four files and nothing else.
+    # S-0057/I-1: a document directory holds the four files and nothing else.
     specs = seed(tmp_path)
     (specs / "S-0001" / "notes.md").write_text("scratch\n", encoding="utf-8")
     result = invoke(tmp_path, "check")
@@ -298,7 +298,7 @@ def locked_doc(implementation: str) -> Doc:
         "Widget",
         status="accepted",
         implementation=implementation,
-        rows=[("D-T.1", "LOCKED", "Something is decided", "`src/ghost/**`")],
+        rows=[("D-1", "LOCKED", "Something is decided", "`src/ghost/**`")],
     )
 
 
@@ -323,7 +323,7 @@ def test_an_accepted_but_unbuilt_rfc_may_name_intended_modules(tmp_path: Path) -
 
 
 # ....................... #
-# line-cite rot (0007 §3a): real paths redden, illustrations do not
+# line-cite rot (S-0007/format-validation): real paths redden, illustrations do not
 
 
 def test_citing_a_real_path_with_a_line_number_reddens(tmp_path: Path) -> None:
@@ -346,14 +346,14 @@ def test_an_illustrative_location_passes(tmp_path: Path) -> None:
 
 
 # ....................... #
-# numbering (D-A.17, D-A.19): derived, holes stay holes
+# numbering (S-0016/D-24, S-0016/D-26): derived, holes stay holes
 
 
 def test_new_derives_max_plus_one_over_a_hole(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0003", rfc_text("0003", "Gamma", "D-T.3")),
+        ("0001", rfc_text("0001", "Alpha", "D-1")),
+        ("0003", rfc_text("0003", "Gamma", "D-1")),
     )
     result = invoke(tmp_path, "new", "Delta thing")
     assert result.exit_code == 0, result.output
@@ -361,7 +361,7 @@ def test_new_derives_max_plus_one_over_a_hole(tmp_path: Path) -> None:
     assert created.is_dir()  # the 0002 hole stays a hole, and there is no slug
     text = (created / "document.yaml").read_text(encoding="utf-8")
     assert text.startswith("# yaml-language-server: $schema=../../schemas/document.json\n")
-    assert "id: '0004'" in text
+    assert "id: S-0004" in text
     assert invoke(tmp_path, "check").exit_code == 0
 
 
@@ -394,20 +394,20 @@ def test_two_sections_keyed_the_same_redden(tmp_path: Path) -> None:
 
 
 def test_an_unresolvable_citation_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", sections=prose("See D-9.9 for details.\n"))
+    doc = rfc_text("0001", "Widget", sections=prose("See S-0009/D-9 for details.\n"))
     seed(tmp_path, ("0001", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "cites D-9.9" in result.output
+    assert "cites S-0009/D-9" in result.output
 
 
 def test_a_retired_identifier_resolves(tmp_path: Path) -> None:
-    # D-16.1: a citation of a retired identifier is history, not a typo.
+    # S-0016/D-1: a citation of a retired identifier is history, not a typo.
     doc = rfc_text(
         "0001",
         "Widget",
-        retired=["D-T.9"],
-        sections=prose("D-T.9 was removed; the identifier is retired.\n"),
+        retired=["D-9"],
+        sections=prose("D-9 was removed; the identifier is retired.\n"),
     )
     seed(tmp_path, ("0001", doc))
     result = invoke(tmp_path, "check")
@@ -417,8 +417,8 @@ def test_a_retired_identifier_resolves(tmp_path: Path) -> None:
 def test_redefining_a_retired_identifier_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1", retired=["D-T.9"])),
-        ("0002", rfc_text("0002", "Beta", "D-T.9")),
+        ("0001", rfc_text("0001", "Alpha", "D-1", retired=["D-9"])),
+        ("0002", rfc_text("0002", "Beta", "S-0001/D-9")),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -428,8 +428,11 @@ def test_redefining_a_retired_identifier_reddens(tmp_path: Path) -> None:
 def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002", rfc_text("0002", "Beta", "D-T.2", sections=prose("Inherits D-T.1 from Alpha.\n"))),
+        ("0001", rfc_text("0001", "Alpha", "D-1")),
+        (
+            "0002",
+            rfc_text("0002", "Beta", "D-1", sections=prose("Inherits S-0001/D-1 from Alpha.\n")),
+        ),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
@@ -437,7 +440,7 @@ def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
 
 
 def test_a_citation_inside_a_code_fence_is_illustration(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", sections=prose('```json\n{"decision": "D-9.9"}\n```\n'))
+    doc = rfc_text("0001", "Widget", sections=prose('```json\n{"decision": "S-0009/D-9"}\n```\n'))
     seed(tmp_path, ("0001", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
@@ -445,7 +448,7 @@ def test_a_citation_inside_a_code_fence_is_illustration(tmp_path: Path) -> None:
 
 
 # ....................... #
-# what a section may not carry (D-57.2): prose, and nothing a typed list
+# what a section may not carry (S-0057/D-2): prose, and nothing a typed list
 # holds — each refusal observed
 
 
@@ -486,12 +489,12 @@ def test_check_json_is_one_parseable_document(tmp_path: Path) -> None:
 def test_graph_lists_edges_with_statuses(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002", rfc_text("0002", "Beta", "D-T.2", depends_on=["0001"])),
+        ("0001", rfc_text("0001", "Alpha", "D-1")),
+        ("0002", rfc_text("0002", "Beta", "D-1", depends_on=["0001"])),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
-    # Content, not layout (D-18.1): both ends of the edge and their statuses.
+    # Content, not layout (S-0018/D-1): both ends of the edge and their statuses.
     assert "0001" in result.output
     assert "0002" in result.output
     assert "draft" in result.output
@@ -502,9 +505,9 @@ def test_graph_shows_standalone_documents(tmp_path: Path) -> None:
     # tree renders it as a bare root.
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002", rfc_text("0002", "Beta", "D-T.2", depends_on=["0001"])),
-        ("0003", rfc_text("0003", "Gamma", "D-T.3")),
+        ("0001", rfc_text("0001", "Alpha", "D-1")),
+        ("0002", rfc_text("0002", "Beta", "D-1", depends_on=["0001"])),
+        ("0003", rfc_text("0003", "Gamma", "D-1")),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
@@ -514,19 +517,19 @@ def test_graph_shows_standalone_documents(tmp_path: Path) -> None:
 def test_graph_shows_implementation_state_and_omits_finished_documents(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1", status="accepted", implementation="partial")),
+        ("0001", rfc_text("0001", "Alpha", "D-1", status="accepted", implementation="partial")),
         (
             "0002",
             rfc_text(
                 "0002",
                 "Beta",
-                "D-T.2",
+                "D-1",
                 status="accepted",
                 implementation="complete",
                 depends_on=["0001"],
             ),
         ),
-        ("0003", rfc_text("0003", "Gamma", "D-T.3", depends_on=["0002"])),
+        ("0003", rfc_text("0003", "Gamma", "D-1", depends_on=["0002"])),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
@@ -541,9 +544,9 @@ def test_graph_shows_implementation_state_and_omits_finished_documents(tmp_path:
 def test_graph_renders_a_multi_parent_document_once(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002", rfc_text("0002", "Beta", "D-T.2")),
-        ("0003", rfc_text("0003", "Gamma", "D-T.3", depends_on=["0001", "0002"])),
+        ("0001", rfc_text("0001", "Alpha", "D-1")),
+        ("0002", rfc_text("0002", "Beta", "D-1")),
+        ("0003", rfc_text("0003", "Gamma", "D-1", depends_on=["0001", "0002"])),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
@@ -561,17 +564,15 @@ def test_the_corpus_of_this_repository_is_clean() -> None:
 
 # ----------------------- #
 # What the model adds to `check`, `--fix-rot`, `archive` and `show` over
-# the archive (RFC 0053 phase 2)
+# the archive (S-0053 phase 2)
 
 
-def _accepted(number: str, decision: str, paths: str, sections: Any = None) -> Doc:
-    family = decision.rsplit(".", 1)[0]
-
+def _accepted(number: str, decision: str = "D-1", paths: str = "—", sections: Any = None) -> Doc:
     return document(
         number,
         [
             (decision, "ASSUMED", "Something is decided", paths),
-            (f"{family}.9", "OPEN", "A second row, so a retirement leaves one", "—"),
+            ("D-9", "OPEN", "A second row, so a retirement leaves one", "—"),
         ],
         title=f"Doc {number}",
         status="accepted",
@@ -595,7 +596,7 @@ def test_check_reports_a_hand_edited_grade_and_warns_on_a_hand_edited_text(
         "--title",
         "regrade",
         "--row",
-        "D-T.1",
+        "S-0001/D-1",
         "--grade",
         "LOCKED",
         "--path",
@@ -619,14 +620,14 @@ def test_check_reports_a_hand_edited_grade_and_warns_on_a_hand_edited_text(
     assert result.exit_code == 0, result.output
     assert "editorial drift" in result.output
 
-    fixed = invoke(tmp_path, "fix", "D-T.1", "Something is decided, once.")
+    fixed = invoke(tmp_path, "fix", "S-0001/D-1", "Something is decided, once.")
 
     assert fixed.exit_code == 0, fixed.output
     assert "editorial drift" not in invoke(tmp_path, "check").output
 
 
 def test_amend_with_retire_records_the_reason_and_the_diff(tmp_path: Path) -> None:
-    specs = seed(tmp_path, ("0001", _accepted("0001", "D-T.1", "—")))
+    specs = seed(tmp_path, ("0001", _accepted("0001")))
     result = invoke(
         tmp_path,
         "amend",
@@ -634,7 +635,7 @@ def test_amend_with_retire_records_the_reason_and_the_diff(tmp_path: Path) -> No
         "--title",
         "gone",
         "--row",
-        "D-T.1",
+        "S-0001/D-1",
         "--retire",
         "--reason",
         "path rot",
@@ -643,9 +644,9 @@ def test_amend_with_retire_records_the_reason_and_the_diff(tmp_path: Path) -> No
     assert result.exit_code == 0, result.output
     doc = loaded(specs, _name("0001"))
 
-    assert doc.retired == ["D-T.1"] and doc.decision("D-T.1") is None
+    assert doc.retired == ["S-0001/D-1"] and doc.decision("S-0001/D-1") is None
     (change,) = [c for c in doc.amendments[-1].changes if c.field == "retired"]
-    assert change.subject == "D-T.1" and change.after == "path rot"
+    assert change.subject == "S-0001/D-1" and change.after == "path rot"
     assert invoke(tmp_path, "check").exit_code == 0
 
 
@@ -654,24 +655,26 @@ def test_check_warns_on_path_rot_and_fix_rot_retires_it(tmp_path: Path) -> None:
     (tmp_path / "src" / "alive.py").write_text("", encoding="utf-8")
     specs = seed(
         tmp_path,
-        ("0001", _accepted("0001", "D-T.1", "`src/gone/**`")),
-        ("0002", _accepted("0002", "D-G.1", "`src/alive.py`")),
+        ("0001", _accepted("0001", paths="`src/gone/**`")),
+        ("0002", _accepted("0002", paths="`src/alive.py`")),
     )
 
     result = invoke(tmp_path, "check")
 
     assert result.exit_code == 0, result.output
-    assert "D-T.1 (ASSUMED) declares src/gone/** and nothing in the tree matches" in result.output
-    assert "D-G.1" not in result.output
+    assert (
+        "S-0001/D-1 (ASSUMED) declares src/gone/** and nothing in the tree matches" in result.output
+    )
+    assert "S-0002/D-1" not in result.output
 
     fixed = invoke(tmp_path, "check", "--fix-rot")
 
     assert fixed.exit_code == 0, fixed.output
-    assert "retired D-T.1 (path rot)" in fixed.output
+    assert "retired S-0001/D-1 (path rot)" in fixed.output
 
     doc = loaded(specs, _name("0001"))
 
-    assert doc.retired == ["D-T.1"]
+    assert doc.retired == ["S-0001/D-1"]
     assert "path-rotted row(s) retired by `torve spec check --fix-rot`" in doc.amendments[-1].title
     assert "nothing in the tree matches" not in invoke(tmp_path, "check").output
 
@@ -679,8 +682,8 @@ def test_check_warns_on_path_rot_and_fix_rot_retires_it(tmp_path: Path) -> None:
 def test_archive_moves_the_document_and_show_still_resolves_its_row(tmp_path: Path) -> None:
     specs = seed(
         tmp_path,
-        ("0001", _accepted("0001", "D-T.1", "`src/x/**`")),
-        ("0002", _accepted("0002", "D-G.1", "`src/y/**`")),
+        ("0001", _accepted("0001", paths="`src/x/**`")),
+        ("0002", _accepted("0002", paths="`src/y/**`")),
     )
 
     result = invoke(tmp_path, "archive", "0001", "--superseded-by", "0002")
@@ -691,10 +694,10 @@ def test_archive_moves_the_document_and_show_still_resolves_its_row(tmp_path: Pa
     archived = tmp_path / ".torve" / "archive" / _name("0001")
 
     assert archived.is_dir()
-    assert "superseded_by: '0002'" in (archived / "document.yaml").read_text(encoding="utf-8")
+    assert "superseded_by: S-0002" in (archived / "document.yaml").read_text(encoding="utf-8")
     assert invoke(tmp_path, "check").exit_code == 0
 
-    shown = invoke(tmp_path, "show", "D-T.1", "--format", "json")
+    shown = invoke(tmp_path, "show", "S-0001/D-1", "--format", "json")
 
     assert shown.exit_code == 0, shown.output
     payload = json.loads(shown.output)
@@ -704,17 +707,19 @@ def test_archive_moves_the_document_and_show_still_resolves_its_row(tmp_path: Pa
     doc = invoke(tmp_path, "show", "0001", "--format", "json")
 
     assert doc.exit_code == 0, doc.output
-    assert json.loads(doc.output)["superseded_by"] == "0002"
+    assert json.loads(doc.output)["superseded_by"] == "S-0002"
 
 
 def test_archive_refuses_when_the_corpus_without_it_does_not_check(tmp_path: Path) -> None:
     specs = seed(
         tmp_path,
-        ("0001", _accepted("0001", "D-T.1", "`src/x/**`")),
+        ("0001", _accepted("0001", paths="`src/x/**`")),
         (
             "0002",
             _accepted(
-                "0002", "D-G.1", "`src/y/**`", prose("Built on D-Z.9, which nothing defines.\n")
+                "0002",
+                paths="`src/y/**`",
+                sections=prose("Built on S-0009/D-9, which nothing defines.\n"),
             ),
         ),
     )
@@ -731,7 +736,7 @@ def test_new_derives_its_number_over_the_archive(tmp_path: Path) -> None:
     place(
         tmp_path / ".torve" / "archive",
         "0007",
-        rfc_text("0007", "Old", "D-O.1", status="superseded", superseded_by="0001"),
+        rfc_text("0007", "Old", "D-1", status="superseded", superseded_by="0001"),
     )
 
     result = invoke(tmp_path, "new", "Fresh")
@@ -745,9 +750,9 @@ def test_show_enriches_a_row_with_its_details(tmp_path: Path) -> None:
         "0001",
         "Widget",
         details={
-            "D-T.1": {
+            "D-1": {
                 "rationale": "because",
-                "cites": ["D-T.1"],
+                "cites": ["D-1"],
                 "check": "pytest tests/test_x.py",
                 "fingerprint": "0123456789abcdef/fedcba9876543210",
             }
@@ -755,7 +760,7 @@ def test_show_enriches_a_row_with_its_details(tmp_path: Path) -> None:
     )
     seed(tmp_path, ("0001", doc))
 
-    shown = invoke(tmp_path, "show", "D-T.1", "--format", "json")
+    shown = invoke(tmp_path, "show", "S-0001/D-1", "--format", "json")
 
     assert shown.exit_code == 0, shown.output
     payload = json.loads(shown.output)
@@ -769,18 +774,18 @@ def test_archive_moves_a_document_that_others_cite_and_depend_on(tmp_path: Path)
     citing = document(
         "0002",
         [
-            ("D-G.1", "ASSUMED", "Something is decided", "`src/y/**`"),
-            ("D-G.9", "OPEN", "A second row", "—"),
+            ("D-1", "ASSUMED", "Something is decided", "`src/y/**`"),
+            ("D-9", "OPEN", "A second row", "—"),
         ],
         title="Doc 0002",
         status="accepted",
         implementation="complete",
         depends_on=["0001"],
-        sections=prose("Built on D-T.1.\n"),
+        sections=prose("Built on S-0001/D-1.\n"),
     )
     specs = seed(
         tmp_path,
-        ("0001", _accepted("0001", "D-T.1", "`src/x/**`")),
+        ("0001", _accepted("0001", paths="`src/x/**`")),
         ("0002", citing),
     )
 
@@ -792,10 +797,10 @@ def test_archive_moves_a_document_that_others_cite_and_depend_on(tmp_path: Path)
     checked = invoke(tmp_path, "check")
 
     assert checked.exit_code == 0, checked.output
-    assert "depends_on names 0001, which is archived" in checked.output
+    assert "depends_on names S-0001, which is archived" in checked.output
 
     # a second document may leave while the first is already archived
-    place(specs, "0003", _accepted("0003", "D-H.1", "`src/z/**`"))
+    place(specs, "0003", _accepted("0003", paths="`src/z/**`"))
 
     second = invoke(tmp_path, "archive", "0003", "--superseded-by", "0002")
 
@@ -804,12 +809,12 @@ def test_archive_moves_a_document_that_others_cite_and_depend_on(tmp_path: Path)
 
 
 # ....................... #
-# RFC 0056 phase 2 / RFC 0057 D-57.5: the schema is the authoring contract
-# (D-56.6), one per file, written by `torve init`
+# S-0056 phase 2 / S-0057 S-0057/D-5: the schema is the authoring contract
+# (S-0056/D-6), one per file, written by `torve init`
 
 
 def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001", document("0001", [("D-1.1", "OPEN", "x", "—")])))
+    seed(tmp_path, ("0001", document("0001", [("S-0001/D-1", "OPEN", "x", "—")])))
 
     checked = invoke(tmp_path, "check")
     assert checked.exit_code == 0, checked.output
@@ -853,7 +858,7 @@ def test_the_repository_schema_matches_the_model() -> None:
 
 
 # ....................... #
-# RFC 0057 D-57.9: the code's citations resolve, or the check names the line
+# S-0057 S-0057/D-9: the code's citations resolve, or the check names the line
 
 
 def _git_tree(root: Path, files: dict[str, str]) -> None:
@@ -872,58 +877,58 @@ def test_a_source_citation_nothing_defines_reddens_and_a_test_file_is_never_scan
 ) -> None:
     seed(
         tmp_path,
-        ("0001", document("0001", [("D-1.1", "OPEN", "x", "—")], retired=["D-1.9"])),
+        ("0001", document("0001", [("S-0001/D-1", "OPEN", "x", "—")], retired=["D-9"])),
     )
     _git_tree(
         tmp_path,
         {
-            "src/a.py": "# the rule is D-1.1\n",
-            "src/b.py": "x = 1\n# see D-9.9 and A-7\n",
-            "tests/t.py": "# fixtures invent D-9.9\n",
-            "skills/s/SKILL.md": "D-9.9 again\n",
-            "README.md": "cites D-1.1\n",
+            "src/a.py": "# the rule is S-0001/D-1\n",
+            "src/b.py": "x = 1\n# see S-0009/D-9 and S-0009/A-7\n",
+            "tests/t.py": "# fixtures invent S-0009/D-9\n",
+            "skills/s/SKILL.md": "S-0009/D-9 again\n",
+            "README.md": "cites S-0001/D-1\n",
         },
     )
 
     red = invoke(tmp_path, "check")
 
     assert red.exit_code == EXIT_CONFIG, red.output
-    assert "src/b.py:2: cites D-9.9, which no document" in red.output
-    assert "src/b.py:2: cites A-7, which no document" in red.output
+    assert "src/b.py:2: cites S-0009/D-9, which no document" in red.output
+    assert "src/b.py:2: cites S-0009/A-7, which no document" in red.output
     assert "tests/t.py" not in red.output and "skills/s" not in red.output
 
-    (tmp_path / "src" / "b.py").write_text("# D-1.9 once stood here\n", encoding="utf-8")
+    (tmp_path / "src" / "b.py").write_text("# S-0001/D-9 once stood here\n", encoding="utf-8")
 
     amber = invoke(tmp_path, "check")
 
     assert amber.exit_code == 0, amber.output
-    assert "src/b.py:1: cites D-1.9, which is retired" in amber.output
+    assert "src/b.py:1: cites S-0001/D-9, which is retired" in amber.output
 
 
 def test_an_archived_identifier_cited_from_code_checks_clean(tmp_path: Path) -> None:
     from test_decisions import archived
 
-    specs = seed(tmp_path, ("0002", document("0002", [("D-2.1", "OPEN", "x", "—")])))
+    specs = seed(tmp_path, ("0002", document("0002", [("S-0002/D-1", "OPEN", "x", "—")])))
     archived(
         specs,
         "0001",
         document(
             "0001",
-            [("D-1.1", "LOCKED", "was", "`src/**`")],
+            [("S-0001/D-1", "LOCKED", "was", "`src/**`")],
             status="superseded",
             superseded_by="0002",
         ),
     )
-    _git_tree(tmp_path, {"src/a.py": "# history: D-1.1\n"})
+    _git_tree(tmp_path, {"src/a.py": "# history: S-0001/D-1\n"})
 
     result = invoke(tmp_path, "check")
 
     assert result.exit_code == 0, result.output
-    assert "D-1.1" not in result.output
+    assert "S-0001/D-1" not in result.output
 
 
 # ....................... #
-# RFC 0057 D-57.11: the status field and the execution file agree
+# S-0057 S-0057/D-11: the status field and the execution file agree
 
 
 def test_implementation_and_the_landings_disagreeing_is_a_warning(tmp_path: Path) -> None:
@@ -941,14 +946,17 @@ def test_implementation_and_the_landings_disagreeing_is_a_warning(tmp_path: Path
         (
             "0001",
             document(
-                "0001", [("D-1.1", "OPEN", "x", "—")], phasing=[PHASE], implementation="complete"
+                "0001",
+                [("S-0001/D-1", "OPEN", "x", "—")],
+                phasing=[PHASE],
+                implementation="complete",
             ),
         ),
         (
             "0002",
             document(
                 "0002",
-                [("D-2.1", "OPEN", "x", "—")],
+                [("S-0002/D-1", "OPEN", "x", "—")],
                 phasing=[PHASE],
                 implementation="partial",
                 landings=[landing],
@@ -958,7 +966,7 @@ def test_implementation_and_the_landings_disagreeing_is_a_warning(tmp_path: Path
             "0003",
             document(
                 "0003",
-                [("D-3.1", "OPEN", "x", "—")],
+                [("S-0003/D-1", "OPEN", "x", "—")],
                 phasing=[PHASE],
                 implementation="complete",
                 landings=[{**landing, "task": "T-0002"}],
