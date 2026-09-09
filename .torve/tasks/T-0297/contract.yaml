@@ -1,4 +1,4 @@
-# Minted by `torve plan 0054` — phase 2: the projections beside the code and the spec verb; re-minted by hand under A-158 — a re-mint is a version.
+# Minted by `torve plan 0054` — phase 2: the projections beside the code and the spec verb; re-minted by hand under A-158 and A-159 — a re-mint is a version.
 schema_version: 1
 id: T-0297
 rfc: rfcs/0054-decisions-as-gates-and-the-projections-beside-the-code.md
@@ -22,8 +22,7 @@ scope:
   - src/torve/cli/main.py
   - src/torve/adapters/agent/harness.py
   - .torve/gates.yaml
-  - AGENTS.md
-  - src/torve/**/AGENTS.md
+  - '**/AGENTS.md'
   - tests/test_colocation.py
   - tests/test_cli_spec.py
   - tests/test_manifest.py

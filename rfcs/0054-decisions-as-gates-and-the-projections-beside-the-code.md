@@ -8,7 +8,7 @@ depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-153", "A-154", "A-155", "A-156", "A-158"]
+amended_by: ["A-153", "A-154", "A-155", "A-156", "A-158", "A-159"]
 owner: misery7100
 description: >-
   The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot.
@@ -683,8 +683,7 @@ that (D-A.9); the fence orders only this document's own units.
     - "src/torve/cli/main.py"
     - "src/torve/adapters/agent/harness.py"
     - ".torve/gates.yaml"
-    - "AGENTS.md"
-    - "src/torve/**/AGENTS.md"
+    - "**/AGENTS.md"
     - "tests/test_colocation.py"
     - "tests/test_cli_spec.py"
     - "tests/test_manifest.py"
@@ -828,4 +827,21 @@ not, and the prompt's tests live in `tests/test_tiering.py`.
   field: scope
   before: "… src/torve/cli/main.py .torve/gates.yaml …; tests … tests/test_manifest.py"
   after: "… src/torve/cli/main.py src/torve/adapters/agent/harness.py .torve/gates.yaml …; tests … tests/test_manifest.py tests/test_tiering.py"
+```
+
+### A-159 — 2026-09-09 — phase 2 renders into every governed directory
+**Found by rendering.** The rows govern `migrations/`, `pages/`, `skills/`,
+`tests/`, `web/` and the source tree; the phase's scope named the source
+tree's `AGENTS.md` files alone. The projection skips the corpus path
+(D-A.18), the archive and every hidden directory — the engine's own state
+under `.torve/` is not where an agent works — and reaches the rest.
+
+**Changed:** phase 2's scope names `**/AGENTS.md`, which covers the root
+file too.
+
+```yaml changes
+- subject: phase 2
+  field: scope
+  before: "AGENTS.md src/torve/**/AGENTS.md"
+  after: "**/AGENTS.md"
 ```
