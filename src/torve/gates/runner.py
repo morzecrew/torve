@@ -1,6 +1,9 @@
-"""Gate execution (RFC 0002 §3): cheapest first, fail-fast on the first
-failure of a blocking-state gate; shadow and quarantined gates run regardless
-and never touch the exit code (RFC 0002 §7.3), every result persisted.
+"""Gate execution (RFC 0002 §3): cheapest first, every gate run, every
+result persisted. A blocking-state gate's failure sets the exit code and
+does not stop the battery — the ladder that picks a retry rung reads the
+axis of each conviction, and short-circuiting handed it only the cheapest
+one (T-0234). Shadow and quarantined gates never touch the exit code
+(RFC 0002 §7.3).
 
 Gates execute here, outside any agent session (D-3): outcomes are computed
 from exit codes and prepared inputs, never reported by a model.
@@ -177,20 +180,15 @@ def run_gates(
     report = RunReport()
     blocking_failed = False
 
+    # Every gate runs, including after a blocking one has failed (T-0234).
+    # Short-circuiting there made the severity ladder inert: with the
+    # cheapest-first order above, a 20-second form gate hid the functional
+    # verdict behind it, `retry_rung_for` saw one axis where the ladder
+    # assumes several, and D-34.7's boundary masking could never fire from
+    # under a lighter gate. Nothing new can block — the exit code is already
+    # 1 — so what this buys is the axes, at the price a green attempt
+    # already pays for the same battery.
     for _, gate in ordered:
-        if blocking_failed and gate.state == "blocking":
-            report.results.append(
-                GateResult(
-                    name=gate.name,
-                    outcome="skipped",
-                    state=gate.state,
-                    sha=ctx.head_sha,
-                    output="not run: an earlier blocking gate failed",
-                )
-            )
-
-            continue
-
         if progress is not None:
             # Presentation's window into the pass (RFC 0018 §6): the name of
             # the gate about to run, nothing more — the runner stays silent.

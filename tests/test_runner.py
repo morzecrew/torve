@@ -44,7 +44,7 @@ def test_cheapest_first_ordering(repo):
     assert [r.name for r in report.results] == ["fast", "slow"]
 
 
-def test_fail_fast_skips_later_blocking_but_runs_shadow(repo):
+def test_a_blocking_failure_sets_the_exit_code_and_stops_nothing(repo):
     repo.seed(
         manifest_with(
             [
@@ -60,7 +60,10 @@ def test_fail_fast_skips_later_blocking_but_runs_shadow(repo):
     by_name = {r.name: r for r in report.results}
     assert by_name["red"].outcome == "fail"
     assert by_name["red"].exit_code == 3
-    assert by_name["later-blocking"].outcome == "skipped"
+    # A-138: the later blocking gate runs too. `retry_rung_for` picks a rung
+    # from the axis of each conviction, and skipping the tail handed it only
+    # the cheapest one. Nothing new blocks — the exit code was already 1.
+    assert by_name["later-blocking"].outcome == "pass"
     assert by_name["advisory"].outcome == "pass"
     assert report.exit_code == 1
 

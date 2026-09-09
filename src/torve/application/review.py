@@ -148,13 +148,18 @@ Nothing you write here reaches the branch, the candidate, or anyone's view of
 them, so an edit of yours cannot fix what you found, and cannot count as
 evidence for it either.
 
-Run what you are judging. The target's acceptance commands and its gate
-battery are yours to execute in this copy, and a change you have executed is
-worth more than a change you have read: run the tests, not only the diff.
-That execution spends this attempt's own budget and timeout — the review
-never waits, never restarts, and never extends itself. A battery too slow to
-finish inside the window is a finding about the battery; say so, and say what
-you did not get to run.
+Run what you are judging. The target's acceptance commands are yours to
+execute in this copy, and a change you have executed is worth more than a
+change you have read: run the tests, not only the diff. That execution
+spends this attempt's own budget and timeout — the review never waits,
+never restarts, and never extends itself. A battery too slow to finish
+inside the window is a finding about the battery; say so, and say what you
+did not get to run.
+
+The gate battery is not among them here. This copy is staged without a
+repository, so `torve gates` and anything else needing git fails at the
+door — the battery runs outside the sandbox, on the candidate, after the
+attempt. Do not spend the window discovering that.
 
 {spec_block}
 

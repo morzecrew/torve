@@ -227,7 +227,10 @@ def test_target_manifest_battery(tmp_path):
     newest = doc["landings"][0]  # rogue.txt lands
     outcomes = _outcomes(newest)
     assert outcomes["scope"] == "fail"  # rogue.txt sits outside src/**
-    assert outcomes["secrets"] == "skipped"  # not reached: scope fired first
+    # A-138: reached, because scope firing first no longer stops the battery.
+    # A survey exists to report what each gate would have fired, and the
+    # short-circuit made that answer depend on which gate was cheapest.
+    assert outcomes["secrets"] == "pass"
 
     leak = doc["landings"][1]  # the credential lands inside src/
     outcomes = _outcomes(leak)
@@ -240,7 +243,9 @@ def test_target_manifest_battery(tmp_path):
 
     summary = doc["summary"]
     assert summary["by_gate"]["scope"] == {"fired": 1, "clean": 3, "skipped": 0}
-    assert summary["by_gate"]["secrets"] == {"fired": 1, "clean": 2, "skipped": 1}
+    # A-138: nothing is skipped for being behind a failure any more, so the
+    # landing that used to contribute a skip contributes a clean read.
+    assert summary["by_gate"]["secrets"] == {"fired": 1, "clean": 3, "skipped": 0}
     assert summary["corpus_adds"] == NO_CORPUS_GATES
 
 

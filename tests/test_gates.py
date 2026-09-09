@@ -180,6 +180,50 @@ def test_decisions_empty_list_with_no_log_passes(repo):
     assert result.outcome == "pass"
 
 
+def test_a_later_blocking_gate_still_reports_after_an_earlier_one_fails(repo):
+    """T-0234: the runner short-circuited every blocking gate after the
+    first blocking failure, and it orders them cheapest-timeout-first — so a
+    form gate failing in under a second hid the functional verdict behind
+    it. `retry_rung_for` then saw one axis where the ladder assumes several,
+    and D-34.7's boundary masking could never fire from under a lighter
+    gate. Nothing new blocks: the exit code was already 1."""
+
+    from torve.gates.runner import run_gates
+
+    manifest = {
+        "schema_version": 1,
+        "scope": {"allow": [], "deny": []},
+        "gates": [
+            # Ordered cheapest-first by the runner, so `cheap` runs first.
+            {
+                "name": "cheap",
+                "run": "sh -c 'exit 1'",
+                "state": "blocking",
+                "timeout": 1,
+                "origin": "structural",
+            },
+            {
+                "name": "dear",
+                "run": "sh -c 'exit 1'",
+                "state": "blocking",
+                "timeout": 900,
+                "origin": "structural",
+            },
+        ],
+    }
+    repo.seed(manifest=manifest)
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    report = run_gates(context_for(repo))
+    outcomes = {r.name: r.outcome for r in report.results}
+
+    # Both convictions are on the record, not just the cheap one.
+    assert outcomes == {"cheap": "fail", "dear": "fail"}
+    assert report.exit_code == 1
+    assert not any("an earlier blocking gate failed" in (r.output or "") for r in report.results)
+
+
 def test_decisions_no_paths_is_skipped_never_passed(repo):
     decisions = [{"id": "D-9", "grade": "LOCKED", "text": "an area-less lock", "paths": []}]
     repo.seed()
@@ -214,10 +258,8 @@ def test_run_gates_reports_progress_by_gate_name(repo):
     repo.commit("change")
     seen: list[str] = []
     report = run_gates(context_for(repo), progress=seen.append)
-    announced = [
-        r.name for r in report.results if "an earlier blocking gate failed" not in r.output
-    ]
-    assert seen == announced  # every gate that ran announced itself, in order
+    # Every gate runs now (T-0234), so every result announced itself.
+    assert seen == [r.name for r in report.results]
     # (a degraded-mode gate runs and reports skipped — it still announces)
     assert "scope" in seen and "secrets" in seen
 

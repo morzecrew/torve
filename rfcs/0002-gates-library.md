@@ -7,7 +7,7 @@ depends_on: ["0001"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-2", "A-8", "A-49", "A-52", "A-119"]
+amended_by: ["A-2", "A-8", "A-49", "A-52", "A-119", "A-138"]
 owner: Lev Litvinov
 description: >-
   The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment.
@@ -359,3 +359,28 @@ calendar, not on work". The calendar has arrived.
 **Changed:** `implementation: complete`. Nothing normative — this records
 that the last criterion was time, and the time passed.
 
+
+### A-138 — 2026-09-09 — the battery runs every gate, so the ladder can read every axis
+**Found in the finding ledger, recorded against T-0216 and never read.** The
+runner ordered blocking gates cheapest-timeout-first and marked every
+blocking gate after the first failure `skipped`. §3's fail-fast was written
+when a gate's verdict was a boolean and the only question was whether to
+stop.
+
+RFC 0034 made the verdict an *axis*. `retry_rung_for` picks a retry rung
+from what the battery convicted on, and short-circuiting handed it only the
+cheapest conviction — a 20-second form gate hid the 900-second functional
+one behind it, and D-34.7's boundary masking could never fire from under a
+lighter gate. The ladder was inert in production and its tests could not
+see it, because they exercise the chooser and not the runner that feeds it.
+
+**Changed:** every gate runs. Nothing new blocks — the exit code is already
+1 once a blocking gate fails — so what this buys is the axes. The cost is
+that a red attempt now pays the battery's full runtime, which is what a
+green attempt already pays; fail-fast bought time on the failure path, and
+that path is the one where the engine is about to spend a whole retry.
+
+Considered and rejected: ordering by axis severity instead of timeout, which
+buys the same thing and gives up the cheap-fail-fast property deliberately
+chosen in §3; and running the tail as shadow, which would discard the very
+axis information this exists to produce.

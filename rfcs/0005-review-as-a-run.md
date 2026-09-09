@@ -7,7 +7,7 @@ depends_on: ["0003", "0004"]
 informed_by: []
 supersedes: []
 superseded_by: null
-amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79", "A-114", "A-135", "A-136", "A-137"]
+amended_by: ["A-32", "A-41", "A-75", "A-78", "A-79", "A-114", "A-135", "A-136", "A-137", "A-139"]
 retired: ["D-5.5"]
 owner: Lev Litvinov
 description: >-
@@ -200,7 +200,7 @@ Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4
 | D-5.13 | `ASSUMED` | A re-run whose task carries a feedback record gets it in the sandbox and its prompt names it as untrusted review data under a contract that still governs — revise, not restart; scope, gates and the sha-bound approval are unchanged, and revision spend stays behind the human retry. Added by amendment A-32 2026-08-24 | `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py` | The feedback channel steers attempts, never landings |
 | D-5.14 | `ASSUMED` | The landing answers the review threads its revision consumed: capture retains each thread's reply address, and the tick's landing leg posts one reply per captured root — composed from records, saying what the loop did (captured, revised, landed as this sha) and never what the finding deserves; each reply carries its idempotency marker so a replay is absorbed at the destination, a failed answer waits for the next tick, and an unconsumed record answers nothing. Added by amendment A-41 2026-08-25 | `src/torve/application/feedback.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/tick.py` | A reviewer whose finding vanishes into a merged pull request stops reading; the loop must close its own conversations |
 | D-5.15 | `ASSUMED` | *(amended A-135, corrected A-137: the ledger admits a blocker from the pull-request trigger, which escalates and revises nothing; task-gated blockers stay out.)* Non-blocking findings get a ledger, not a lifecycle: `torve context` gains "Findings awaiting the operator" — every kept finding from a landed target's review, marked possibly_addressed when a later contract's text cites the review's task id (D-7.24's possibly_landed discipline applied to findings); the engine still mints nothing from a finding, and the operator triages the ledger in batch — per-finding instant minting is a habit, never a requirement. Added by amendment A-75 2026-09-01 | `src/torve/application/projections.py` | A finding recorded into telemetry and read by nobody is a review that ran for nothing; a ledger keeps the operator honest without making the engine decide work exists (D-2) |
-| D-5.16 | `ASSUMED` | Inside its disposable copy the reviewer may execute the target's acceptance commands and gates; command output it cites is evidence like any path:line, and execution spends the review attempt's own budget and timeout — a battery too slow for the review window is a finding about the battery, never a license to extend the review. Added by amendment A-78 2026-09-01 | `src/torve/application/review.py` | A reviewer that can only read judges tests by their text; one that runs them reports what the change actually does |
+| D-5.16 | `ASSUMED` | *(narrowed A-139: acceptance commands only — the copy is staged without `.git`, so the battery cannot run there.)* Inside its disposable copy the reviewer may execute the target's acceptance commands and gates; command output it cites is evidence like any path:line, and execution spends the review attempt's own budget and timeout — a battery too slow for the review window is a finding about the battery, never a license to extend the review. Added by amendment A-78 2026-09-01 | `src/torve/application/review.py` | A reviewer that can only read judges tests by their text; one that runs them reports what the change actually does |
 | D-5.17 | `ASSUMED` | `review.blocks_at` names the severity at or above which a kept finding stops a promotion, default `major`; the finding keeps the grade the reviewer gave it and configuration decides what stops (D-2). Added by amendment A-136 2026-09-08 | `src/torve/application/review.py` `src/torve/config/runconfig.py` | Three consecutive reviews graded a pass-killing defect `major` and nothing `blocker`, so the bar that stopped a promotion sat above every severity the reviewer assigns |
 
 D-5.5 (`Inference`-port default) was removed 2026-08-22 with charter A-11; the identifier is retired, never reused (D-A.4).
@@ -535,3 +535,27 @@ open `major` findings still true, and 14 of 14 blockers already handled.
 The two numbers together are the actual finding — **`blocker` is acted on
 and `major` is not** — which is the case for D-5.17 far better than the
 sentence A-135 gave it.
+
+### A-139 — 2026-09-09 — the reviewer is promised only what its copy can run (narrows D-5.16)
+**Found in the finding ledger against T-0227, and again by the reviewer
+itself.** D-5.16 gave the reviewer the target's acceptance commands *and*
+its gate battery to execute in the copy. The copy is staged with `.git`
+excluded (D-5.2), so `torve gates` and every gate context fail at the door
+with "not a git repository" — the promise was refused on every review this
+document has ever produced, and the reviewer spent part of its one bounded
+attempt discovering it. T-0285 filed it as a `nit` against its own review;
+A-131 records the same wall from the executor's side.
+
+**Changed (narrowing, not departing):** the prompt offers acceptance
+commands, which run, and says plainly that the battery does not — it runs
+outside the sandbox on the candidate, after the attempt. D-5.16's argument
+is untouched: *"a reviewer that can only read judges tests by their text"*
+still holds for the half that works.
+
+**What is deliberately not decided here.** Whether the reviewer *should* be
+able to run the battery is a real question with two real answers — seed the
+copy with a throwaway repository, or copy `.git` shallowly so the battery
+diffs against the true merge base — and the second puts a repository inside
+the disposable copy, which D-5.2's isolation argument may refuse. That is
+its own document. This amendment only stops the engine promising something
+it refuses, which cost every review a little and taught nothing.
