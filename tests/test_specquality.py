@@ -910,3 +910,35 @@ def test_health_cli_document_filter_has_no_operator_attention(tmp_path):
     assert result.exit_code == 0, result.output
     document = json.loads(result.output)
     assert document["operator_attention"] is None
+
+
+# ----------------------- #
+# RFC 0053 phase 2: the report carries path rot and the coverage frontier
+
+
+def test_the_report_carries_path_rot_and_the_coverage_frontier(tmp_path):
+    from test_decisions import corpus, document
+
+    src = tmp_path / "src" / "torve" / "cli"
+    src.mkdir(parents=True)
+    (src / "rfc.py").write_text("", encoding="utf-8")
+    (tmp_path / "src" / "torve" / "gates").mkdir()
+    (tmp_path / "src" / "torve" / "gates" / "scope.py").write_text("", encoding="utf-8")
+    rfc_dir = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [
+                    ("D-1.1", "LOCKED", "x", "`src/torve/cli/**`"),
+                    ("D-1.2", "ASSUMED", "y", "`src/torve/gone/**`"),
+                ],
+            )
+        },
+    )
+
+    report = decision_report(tmp_path, rfc_dir)
+
+    assert [r["identifier"] for r in report["path_rot"]] == ["D-1.2"]
+    assert report["coverage"]["src/torve/cli"] == {"governed": 1, "ungoverned": 0, "retired": 0}
+    assert report["coverage"]["src/torve/gates"] == {"governed": 0, "ungoverned": 1, "retired": 0}

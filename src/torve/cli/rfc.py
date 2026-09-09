@@ -141,19 +141,36 @@ def _own_problems(problems: list[str], name: str) -> list[str]:
 @rfc_app.command("check")
 def check(
     paths: PathsArgument = None,
+    fix_rot: Annotated[
+        bool,
+        typer.Option(
+            "--fix-rot",
+            help="Retire every path-rotted row through an amendment on its document, "
+            "one transaction per document; nothing else changes.",
+        ),
+    ] = False,
     root: RootOption = Path("."),
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Validate the corpus: directory contents, frontmatter, decision tables,
-    links, the dependency graph, and INDEX.md drift. A malformed corpus is a
-    configuration error — exit 3."""
+    links, the dependency graph, and INDEX.md drift; then the typed fences,
+    citations into the archive, a row changed by hand since the tool last
+    stamped it, and rows whose declared paths match nothing in the tree.
+    A malformed corpus is a configuration error — exit 3."""
 
     from torve.config.rfc_parse import check_corpus
 
     rfc_dir = corpus_dir(root, config)
     report = check_corpus(rfc_dir, root)
-    problems, warnings = report.problems, report.warnings
+    problems, warnings = list(report.problems), list(report.warnings)
+    model_problems, model_warnings, rotted = _model_findings(rfc_dir, root)
+    problems += model_problems
+    warnings += model_warnings
+
+    if fix_rot and rotted and not problems:
+        warnings = [w for w in warnings if "and nothing in the tree matches" not in w]
+        warnings += _retire_rotted(rfc_dir, root, rotted)
 
     if paths:
         names = {p.name for p in paths}
@@ -189,6 +206,90 @@ def check(
         )
 
     raise typer.Exit(EXIT_OK if not problems else EXIT_CONFIG)
+
+
+# ....................... #
+
+
+def _model_findings(rfc_dir: Path, root: Path) -> tuple[list[str], list[str], list[Any]]:
+    """What the model sees that the parser does not: fence problems and
+    unresolvable citations (problems), fingerprint drift by field (a
+    hand-edited grade or paths is a problem, a hand-edited text a
+    warning), and path rot (a warning naming the retiring verb)."""
+
+    from pydantic import ValidationError
+
+    from torve.application.decisions import fingerprint_drift, path_rot
+    from torve.config.spec import SpecError, load_corpus
+
+    try:
+        corpus = load_corpus(rfc_dir)
+    except SpecError as exc:
+        return list(exc.problems), [], []
+    except ValidationError as exc:
+        return [f"{rfc_dir}: {exc.errors()[0]['msg']}"], [], []
+
+    problems, warnings = fingerprint_drift(corpus)
+    rotted = path_rot(corpus, root)
+    warnings += [one.line() for one in rotted]
+    return problems, warnings, rotted
+
+
+# ....................... #
+
+
+def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
+    """`check --fix-rot`: one amendment per document, retiring every rotted
+    row it carries with the reason recorded (D-53.7). Each document is its
+    own transaction; a red check on one leaves that document untouched and
+    is reported, never silently skipped."""
+
+    from torve.config.rfc_emit import append_amendment, retire_decision, write_transaction
+    from torve.config.rfc_parse import next_amendment, rfc_files
+
+    lines: list[str] = []
+    by_document: dict[str, list[Any]] = {}
+
+    for one in rotted:
+        by_document.setdefault(one.document, []).append(one)
+
+    for name, rows in sorted(by_document.items()):
+        files = rfc_files(rfc_dir)
+        text = (rfc_dir / name).read_text(encoding="utf-8")
+        today = date.today().isoformat()
+        changes: list[dict[str, Any]] = []
+
+        try:
+            for one in rows:
+                text = retire_decision(text, one.identifier, today, reason="path rot")
+                changes.append(
+                    {
+                        "subject": one.identifier,
+                        "field": "retired",
+                        "before": " ".join(one.paths),
+                        "after": "path rot: every declared glob matches nothing in the tree",
+                    }
+                )
+
+            text = append_amendment(
+                text,
+                next_amendment(files),
+                f"{len(rows)} path-rotted row(s) retired by `torve rfc check --fix-rot`",
+                today,
+                changes,
+            )
+        except ValueError as exc:
+            lines.append(f"{name}: fix-rot refused — {exc}")
+            continue
+
+        report = write_transaction(rfc_dir, root, {name: text})
+
+        if report.ok:
+            lines.append(f"{name}: retired {', '.join(r.identifier for r in rows)} (path rot)")
+        else:
+            lines.append(f"{name}: fix-rot aborted — {'; '.join(report.problems)}")
+
+    return lines
 
 
 # ....................... #
@@ -319,17 +420,152 @@ def _finish_transaction(report: CheckReport, success: str) -> None:
 def amend(
     number: Annotated[str, typer.Argument(help="The document being amended, e.g. 0016.")],
     title: Annotated[str, typer.Option("--title", help="The new amendment heading's title.")],
+    row: Annotated[
+        str | None, typer.Option("--row", help="The decision row this amendment changes.")
+    ] = None,
+    grade: Annotated[str | None, typer.Option("--grade", help="The row's new grade.")] = None,
+    paths: Annotated[
+        list[str] | None, typer.Option("--path", help="The row's new paths (repeat per glob).")
+    ] = None,
+    text: Annotated[str | None, typer.Option("--text", help="The row's new decision text.")] = None,
+    retire: Annotated[
+        bool, typer.Option("--retire", help="Retire the row instead of changing it.")
+    ] = False,
+    reason: Annotated[
+        str, typer.Option("--reason", help="Why the row is retired (with --retire).")
+    ] = "",
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Append the next amendment number as a dated heading skeleton to
-    NUMBER's Amendments section and record it in amended_by — one
-    parse-mutate-emit-check transaction; a red check leaves the tree
-    untouched. The entry's own words are left for the author to write."""
-    # D-25.4: the number is derived via next_amendment, never chosen.
+    """Append the next amendment number as a dated heading to NUMBER's
+    Amendments section and record it in amended_by — one parse-mutate-emit-
+    check transaction; a red check leaves the tree untouched. With --row,
+    the same transaction changes that row's grade, paths or text (or
+    retires it) and records the typed diff with the prior value beneath the
+    heading; the row is re-stamped so a later hand edit is caught. The
+    entry's own words are left for the author to write."""
+    # D-25.4: the number is derived via next_amendment, never chosen. D-53.4:
+    # a row's grade or paths change only here, and the diff is written now.
 
-    from torve.config.rfc_emit import append_amendment, write_transaction
-    from torve.config.rfc_parse import next_amendment, rfc_files
+    from torve.config.rfc_emit import (
+        amend_row,
+        append_amendment,
+        retire_decision,
+        write_transaction,
+    )
+    from torve.config.rfc_parse import decision_table, next_amendment, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    files = rfc_files(rfc_dir)
+    key = number.strip().removesuffix(".md").zfill(4)
+
+    if key not in files:
+        raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
+
+    if row is None and (grade or paths or text or retire):
+        raise fail(
+            "configuration error: --grade, --path, --text and --retire need --row", EXIT_CONFIG
+        )
+
+    path = files[key]
+    amendment = next_amendment(files)
+    today = date.today().isoformat()
+    source = path.read_text(encoding="utf-8")
+    changes: list[dict[str, Any]] = []
+
+    try:
+        if row is not None and retire:
+            before = next((r for r in decision_table(source) if r.identifier == row), None)
+            source = retire_decision(source, row, today, reason=reason)
+            changes.append(
+                {
+                    "subject": row,
+                    "field": "retired",
+                    "before": " ".join(before.paths) if before else None,
+                    "after": reason or "retired",
+                }
+            )
+        elif row is not None:
+            source, changes = amend_row(source, row, grade=grade, paths=paths, new_text=text)
+
+        mutated = append_amendment(source, amendment, title, today, changes)
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
+
+    report = write_transaction(rfc_dir, root, {path.name: mutated})
+    what = f" ({row} {'retired' if retire else 'changed'})" if row else ""
+    _finish_transaction(
+        report, f"appended {amendment} to {path.name}{what} — write the entry's own words"
+    )
+
+
+# ....................... #
+
+
+@rfc_app.command("fix")
+def fix(
+    identifier: Annotated[str, typer.Argument(help="The decision row whose text is fixed.")],
+    text: Annotated[str, typer.Argument(help="The row's corrected text.")],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Editorial: replace IDENTIFIER's text and re-stamp the row, recording
+    the before and after under the table — never an amendment number. For
+    a typo; a rewording that changes the rule's meaning is an amendment."""
+    # D-53.4's editorial lane.
+
+    from torve.config.rfc_emit import fix_row_text, write_transaction
+    from torve.config.rfc_parse import decision_table, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    defining = next(
+        (
+            path
+            for path in rfc_files(rfc_dir).values()
+            if any(
+                one.identifier == identifier
+                for one in decision_table(path.read_text(encoding="utf-8"))
+            )
+        ),
+        None,
+    )
+
+    if defining is None:
+        raise fail(
+            f"configuration error: no decision {identifier!r} defined in the corpus", EXIT_CONFIG
+        )
+
+    try:
+        mutated, _ = fix_row_text(defining.read_text(encoding="utf-8"), identifier, text)
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
+
+    report = write_transaction(rfc_dir, root, {defining.name: mutated})
+    _finish_transaction(report, f"fixed {identifier}'s text in {defining.name} (editorial)")
+
+
+# ....................... #
+
+
+@rfc_app.command("archive")
+def archive(
+    number: Annotated[str, typer.Argument(help="The document to retire into the archive.")],
+    superseded_by: Annotated[
+        str, typer.Option("--superseded-by", help="The document that now stands for it.")
+    ],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Move NUMBER into the archive beside the corpus path, keeping its
+    filename and every identifier, with status superseded — one
+    transaction: the corpus without it must check clean, or nothing moves.
+    Archived identifiers still resolve through show and the record."""
+    # D-53.8. Deletion from the corpus path is the one thing this verb does
+    # that no other verb may.
+
+    from torve.config.rfc_emit import archive_document, write_transaction
+    from torve.config.rfc_parse import rfc_files
+    from torve.config.spec import archive_dir
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -339,19 +575,26 @@ def amend(
         raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
 
     path = files[key]
-    amendment = next_amendment(files)
+    target_dir = archive_dir(rfc_dir)
+    target = target_dir / path.name
+
+    if target.exists():
+        raise fail(f"configuration error: {target} already exists", EXIT_CONFIG)
 
     try:
-        mutated = append_amendment(
-            path.read_text(encoding="utf-8"), amendment, title, date.today().isoformat()
+        archived = archive_document(
+            path.read_text(encoding="utf-8"), superseded_by, date.today().isoformat()
         )
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
-    report = write_transaction(rfc_dir, root, {path.name: mutated})
-    _finish_transaction(
-        report, f"appended {amendment} to {path.name} — write the entry's own words"
-    )
+    report = write_transaction(rfc_dir, root, {}, deletions=(path.name,))
+
+    if report.ok:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target.write_text(archived, encoding="utf-8")
+
+    _finish_transaction(report, f"archived {path.name} → {target} (superseded by {superseded_by})")
 
 
 # ....................... #
@@ -511,9 +754,29 @@ def _show_lines(found: dict[str, Any]) -> list[tuple[str, str]]:
             ("decision", str(found.get("text") or "")),
             ("paths", joined("paths")),
             ("consequence", str(found.get("consequence") or "")),
+            ("rationale", str(found.get("rationale") or "")),
+            ("cites", joined("cites")),
+            ("check", str(found.get("check") or "")),
             ("defined in", str(found.get("defined_in") or "")),
             ("cited by", joined("cited_by")),
             ("retired in", str(found.get("retired_in") or "")),
+            ("archived", "yes" if found.get("archived") else ""),
+        ]
+    elif kind == "invariant":
+        rows = [
+            ("statement", str(found.get("statement") or "")),
+            ("paths", joined("paths")),
+            ("check", str(found.get("check") or "")),
+            ("defined in", str(found.get("defined_in") or "")),
+            ("archived", "yes" if found.get("archived") else ""),
+        ]
+    elif kind == "question":
+        rows = [
+            ("question", str(found.get("text") or "")),
+            ("status", str(found.get("status") or "")),
+            ("settled by", str(found.get("settled_by") or "")),
+            ("defined in", str(found.get("defined_in") or "")),
+            ("archived", "yes" if found.get("archived") else ""),
         ]
     elif kind == "amendment":
         rows = [
@@ -541,6 +804,97 @@ def _show_lines(found: dict[str, Any]) -> list[tuple[str, str]]:
 # ....................... #
 
 
+def _from_model(
+    rfc_dir: Path, identifier: str, found: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """What the model adds to a lookup (D-53.1, D-53.9): a row's rationale,
+    cites, check and fingerprint; an archived identifier that the parser no
+    longer sees, answered and marked archived; an invariant or a question."""
+
+    from pydantic import ValidationError
+
+    from torve.config.spec import SpecError, load_corpus
+
+    try:
+        corpus = load_corpus(rfc_dir)
+    except (SpecError, ValidationError):
+        return found
+
+    hit = corpus.decision(identifier)
+
+    if hit is not None:
+        doc, row = hit
+        extra = {
+            "rationale": row.rationale,
+            "cites": list(row.cites),
+            "check": row.check,
+            "fingerprint": row.fingerprint,
+            "archived": doc.archived,
+        }
+
+        if found is not None:
+            return {**found, **extra}
+
+        return {
+            "kind": "decision",
+            "identifier": row.id,
+            "grade": row.grade,
+            "text": row.text,
+            "paths": list(row.paths),
+            "consequence": row.consequence,
+            "defined_in": Path(doc.path).name if doc.path else doc.id,
+            **extra,
+        }
+
+    if found is not None:
+        return found
+
+    for doc in corpus.documents:
+        for invariant in doc.invariants:
+            if invariant.id == identifier:
+                return {
+                    "kind": "invariant",
+                    "identifier": invariant.id,
+                    "statement": invariant.statement,
+                    "paths": list(invariant.paths),
+                    "check": invariant.check,
+                    "defined_in": Path(doc.path).name if doc.path else doc.id,
+                    "archived": doc.archived,
+                }
+
+        for question in doc.questions:
+            if question.id == identifier:
+                return {
+                    "kind": "question",
+                    "identifier": question.id,
+                    "text": question.text,
+                    "status": question.status,
+                    "settled_by": question.settled_by,
+                    "defined_in": Path(doc.path).name if doc.path else doc.id,
+                    "archived": doc.archived,
+                }
+
+        if doc.archived and doc.id == identifier.strip().removesuffix(".md").zfill(4):
+            return {
+                "kind": "document",
+                "title": doc.title,
+                "status": doc.status,
+                "implementation": doc.implementation,
+                "depends_on": list(doc.depends_on),
+                "amended_by": list(doc.amended_by),
+                "description": doc.description,
+                "implementation_state": "",
+                "phases": [{"phase": p.phase, "title": p.title} for p in doc.phasing],
+                "superseded_by": doc.superseded_by,
+                "archived": True,
+            }
+
+    return None
+
+
+# ....................... #
+
+
 @rfc_app.command("show")
 def show(
     identifier: Annotated[
@@ -561,6 +915,7 @@ def show(
 
     rfc_dir = corpus_dir(root, config)
     found = lookup(rfc_dir, identifier)
+    found = _from_model(rfc_dir, identifier, found)
 
     if found is None:
         files = rfc_files(rfc_dir)
@@ -642,7 +997,8 @@ def new(
     index is regenerated."""
 
     from torve.application.skills import skills_root
-    from torve.config.rfc_parse import build_index, next_number, rfc_files, slugify
+    from torve.config.rfc_parse import build_index, rfc_files, slugify
+    from torve.config.spec import next_number
 
     if kind not in KINDS:
         raise fail(

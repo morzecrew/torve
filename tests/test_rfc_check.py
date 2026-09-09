@@ -513,3 +513,210 @@ def test_the_corpus_of_this_repository_is_clean() -> None:
     repo = Path(__file__).resolve().parent.parent
     result = invoke(repo, "check")
     assert result.exit_code == 0, result.output
+
+
+# ----------------------- #
+# RFC 0053 phase 2: what the model adds to `check`, `--fix-rot`, `archive`
+# and `show` over the archive
+
+
+def _accepted(number: str, decision: str, paths: str, body_extra: str = "") -> str:
+    family = decision.rsplit(".", 1)[0]
+    text = rfc_text(
+        number,
+        f"Doc {number}",
+        decision,
+        status="accepted",
+        implementation="complete",
+        body_extra=body_extra,
+    )
+    row = f"| {decision} | `ASSUMED` | Something is decided | — | — |"
+
+    return text.replace(
+        row,
+        f"| {decision} | `ASSUMED` | Something is decided | {paths} | — |\n"
+        f"| {family}.9 | `OPEN` | A second row, so a retirement leaves one | — | — |",
+    )
+
+
+def test_check_reports_a_fence_the_model_refuses(tmp_path: Path) -> None:
+    body = "\n```yaml questions\n- id: Q-1.1\n  text: x\n  state: open\n```\n"
+    seed(tmp_path, ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1", body_extra=body)))
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "`yaml questions` entry 1, state" in result.output
+
+
+def test_check_reports_a_hand_edited_grade_and_warns_on_a_hand_edited_text(
+    tmp_path: Path,
+) -> None:
+    seed(
+        tmp_path,
+        ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1", body_extra="\n## Amendments\n")),
+    )
+    amended = invoke(
+        tmp_path,
+        "amend",
+        "0001",
+        "--title",
+        "regrade",
+        "--row",
+        "D-T.1",
+        "--grade",
+        "LOCKED",
+        "--path",
+        "src/x/**",
+    )
+
+    assert amended.exit_code == 0, amended.output
+    assert invoke(tmp_path, "check").exit_code == 0
+
+    path = tmp_path / "rfcs" / "0001-widget.md"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("`LOCKED`", "`OPEN`"), encoding="utf-8")
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "grade or paths changed by hand" in result.output
+
+    path.write_text(text.replace("Something is decided", "Something is decided!"), encoding="utf-8")
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == 0, result.output
+    assert "editorial drift" in result.output
+
+    fixed = invoke(tmp_path, "fix", "D-T.1", "Something is decided!")
+
+    assert fixed.exit_code == 0, fixed.output
+    assert "editorial drift" not in invoke(tmp_path, "check").output
+
+
+def test_amend_with_retire_records_the_reason_and_the_diff(tmp_path: Path) -> None:
+    seed(tmp_path, ("0001-widget.md", _accepted("0001", "D-T.1", "—", "\n## Amendments\n")))
+    result = invoke(
+        tmp_path,
+        "amend",
+        "0001",
+        "--title",
+        "gone",
+        "--row",
+        "D-T.1",
+        "--retire",
+        "--reason",
+        "path rot",
+    )
+
+    assert result.exit_code == 0, result.output
+    text = (tmp_path / "rfcs" / "0001-widget.md").read_text(encoding="utf-8")
+
+    assert "D-T.1 was retired" in text and "path rot" in text
+    assert "field: retired" in text
+    assert invoke(tmp_path, "check").exit_code == 0
+
+
+def test_check_warns_on_path_rot_and_fix_rot_retires_it(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "alive.py").write_text("", encoding="utf-8")
+    seed(
+        tmp_path,
+        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/gone/**`", "\n## Amendments\n")),
+        ("0002-gadget.md", _accepted("0002", "D-G.1", "`src/alive.py`")),
+    )
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == 0, result.output
+    assert "D-T.1 (ASSUMED) declares src/gone/** and nothing in the tree matches" in result.output
+    assert "D-G.1" not in result.output
+
+    fixed = invoke(tmp_path, "check", "--fix-rot")
+
+    assert fixed.exit_code == 0, fixed.output
+    assert "retired D-T.1 (path rot)" in fixed.output
+
+    text = (tmp_path / "rfcs" / "0001-widget.md").read_text(encoding="utf-8")
+
+    assert "D-T.1 was retired" in text
+    assert "path-rotted row(s) retired by `torve rfc check --fix-rot`" in text
+    assert "nothing in the tree matches" not in invoke(tmp_path, "check").output
+
+
+def test_archive_moves_the_document_and_show_still_resolves_its_row(tmp_path: Path) -> None:
+    seed(
+        tmp_path,
+        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/x/**`")),
+        ("0002-gadget.md", _accepted("0002", "D-G.1", "`src/y/**`")),
+    )
+
+    result = invoke(tmp_path, "archive", "0001", "--superseded-by", "0002")
+
+    assert result.exit_code == 0, result.output
+    assert not (tmp_path / "rfcs" / "0001-widget.md").exists()
+
+    archived = tmp_path / "archive" / "rfcs" / "0001-widget.md"
+
+    assert archived.exists()
+    assert 'superseded_by: "0002"' in archived.read_text(encoding="utf-8")
+    assert invoke(tmp_path, "check").exit_code == 0
+
+    shown = invoke(tmp_path, "show", "D-T.1", "--format", "json")
+
+    assert shown.exit_code == 0, shown.output
+    payload = json.loads(shown.output)
+
+    assert payload["archived"] is True and payload["defined_in"] == "0001-widget.md"
+
+    doc = invoke(tmp_path, "show", "0001", "--format", "json")
+
+    assert doc.exit_code == 0, doc.output
+    assert json.loads(doc.output)["superseded_by"] == "0002"
+
+
+def test_archive_refuses_when_the_corpus_without_it_does_not_check(tmp_path: Path) -> None:
+    seed(
+        tmp_path,
+        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/x/**`")),
+        (
+            "0002-gadget.md",
+            rfc_text("0002", "Gadget", "D-G.1", status="accepted", depends='["0001"]'),
+        ),
+    )
+
+    result = invoke(tmp_path, "archive", "0001", "--superseded-by", "0002")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert (tmp_path / "rfcs" / "0001-widget.md").exists()
+    assert not (tmp_path / "archive").exists()
+
+
+def test_new_derives_its_number_over_the_archive(tmp_path: Path) -> None:
+    seed(tmp_path, ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1")))
+    archive = tmp_path / "archive" / "rfcs"
+    archive.mkdir(parents=True)
+    (archive / "0007-old.md").write_text(
+        rfc_text("0007", "Old", "D-O.1", status="superseded"), encoding="utf-8"
+    )
+
+    result = invoke(tmp_path, "new", "Fresh")
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "rfcs" / "0008-fresh.md").exists()
+
+
+def test_show_enriches_a_row_with_its_details(tmp_path: Path) -> None:
+    body = (
+        "\n```yaml decision-details\n- id: D-T.1\n  rationale: because\n  cites: [D-T.1]\n"
+        "  check: pytest tests/test_x.py\n```\n"
+    )
+    seed(tmp_path, ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1", body_extra=body)))
+
+    shown = invoke(tmp_path, "show", "D-T.1", "--format", "json")
+
+    assert shown.exit_code == 0, shown.output
+    payload = json.loads(shown.output)
+
+    assert payload["rationale"] == "because"
+    assert payload["check"] == "pytest tests/test_x.py"
+    assert len(payload["fingerprint"]) == 16

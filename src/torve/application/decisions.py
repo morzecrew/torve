@@ -30,20 +30,25 @@ about when someone last imported, and is what the parity test measures.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
-from torve.application.planner import PlanError, globs_intersect, inherit_decisions
-from torve.config import rfc_parse
+from pathspec import GitIgnoreSpec
+from pydantic import ValidationError
+
+from torve.application.planner import PlanError, globs_intersect
+from torve.config import rfc_parse, spec
+from torve.config.rfc_emit import FINGERPRINTS_KEY, rule_fingerprint
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.source import Source, corpus_source_id
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from datetime import datetime
-    from pathlib import Path
 
     from torve.application.eventlog import EventLog
     from torve.domain.rfc import Grade
+    from torve.domain.spec import Corpus, Coverage, Document
 
 # ----------------------- #
 
@@ -273,6 +278,41 @@ def corpus_sources(rfc_dir: Path) -> dict[str, tuple[Source, str]]:
 # ....................... #
 
 
+def load_corpus(rfc_dir: Path) -> Corpus:
+    """The corpus and its archive as the model (D-53.1), with the loader's
+    refusals raised as `PlanError` so an import never records a grade
+    `torve rfc check` would not accept — the same promise the parser-based
+    importer made, kept at the same boundary."""
+
+    try:
+        return spec.load_corpus(rfc_dir)
+    except spec.SpecError as exc:
+        raise PlanError("; ".join(exc.problems)) from exc
+    except ValidationError as exc:
+        # A row the model refuses outright (a grade outside the vocabulary):
+        # the parser's own check names it too, and the loader is owed a
+        # collected refusal for it in RFC 0053 phase 5.
+        raise PlanError(
+            f"{rfc_dir}: a decision row is not mintable — {exc.errors()[0]['msg']} "
+            "(run `torve rfc check`)"
+        ) from exc
+
+
+# ....................... #
+
+
+def _source_of(doc: Document) -> Source:
+    return Source(
+        id=corpus_source_id(doc.id),
+        kind="specification",
+        ref=str(Path(doc.path).name) if doc.path else f"{doc.id}.md",
+        title=doc.title,
+    )
+
+
+# ....................... #
+
+
 def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
     """The events that would bring the record level with the corpus.
 
@@ -280,31 +320,29 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
     running this on a schedule safe, and the headline property of the tests.
     Raises `PlanError` on a table the corpus's own checker would refuse, so
     an import never records a grade `torve rfc check` would not accept.
+
+    Read through the model (D-53.13): a standing document's rows are
+    recorded as before; an archived document (D-53.8) is recorded as a
+    source and every row it carries is retired with the archive named as
+    the reason (D-53.9), so an identifier cited from the archive still
+    resolves in the record.
     """
 
+    corpus = load_corpus(rfc_dir)
     pending: list[PendingEvent] = []
-    sources = corpus_sources(rfc_dir)
+    standing_docs = {corpus_source_id(d.id): d for d in corpus.standing() if not d.superseded_by}
+    archived_docs = {corpus_source_id(d.id): d for d in corpus.documents if d.archived}
     seen: set[str] = set()
 
-    for source_id in sorted(sources):
-        source, text = sources[source_id]
+    for source_id in sorted(standing_docs):
+        doc = standing_docs[source_id]
+        source = _source_of(doc)
         known = graph.sources.get(source_id)
 
         if known is None or known.ref != source.ref or known.title != source.title:
-            pending.append(
-                PendingEvent(
-                    kind=EventKind.SOURCE_IMPORTED,
-                    subject_type=SubjectType.SOURCE,
-                    subject_id=source.id,
-                    payload={
-                        "source_kind": source.kind,
-                        "ref": source.ref,
-                        "title": source.title,
-                    },
-                )
-            )
+            pending.append(_source_event(source))
 
-        for row in inherit_decisions(text, source.ref):
+        for row in doc.decisions:
             seen.add(row.id)
             standing = graph.get(row.id)
 
@@ -312,7 +350,7 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
                 standing is not None
                 and not standing.retired
                 and standing.grade == row.grade
-                and standing.text == row.text
+                and standing.text == row.text.strip()
                 and standing.paths == row.paths
                 and standing.source_id == source.id
             ):
@@ -325,10 +363,53 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
                     subject_id=row.id,
                     payload={
                         "grade": row.grade,
-                        "text": row.text,
+                        "text": row.text.strip(),
                         "paths": list(row.paths),
                         "source_id": source.id,
                     },
+                )
+            )
+
+    # An archived document: its source is recorded so the archive is a
+    # provenance the record knows, and every row it still carries retires
+    # with the archive as the reason (D-53.9). A row already retired stays
+    # as it was — the first reason is the true one.
+    for source_id in sorted(archived_docs):
+        doc = archived_docs[source_id]
+        source = _source_of(doc)
+        known = graph.sources.get(source_id)
+
+        if known is None or known.ref != source.ref or known.title != source.title:
+            pending.append(_source_event(source))
+
+        for row in doc.decisions:
+            seen.add(row.id)
+            standing = graph.get(row.id)
+            superseded = f", superseded by {doc.superseded_by}" if doc.superseded_by else ""
+
+            if standing is None:
+                pending.append(
+                    PendingEvent(
+                        kind=EventKind.DECISION_RECORDED,
+                        subject_type=SubjectType.DECISION,
+                        subject_id=row.id,
+                        payload={
+                            "grade": row.grade,
+                            "text": row.text.strip(),
+                            "paths": list(row.paths),
+                            "source_id": source.id,
+                        },
+                    )
+                )
+            elif standing.retired:
+                continue
+
+            pending.append(
+                PendingEvent(
+                    kind=EventKind.DECISION_RETIRED,
+                    subject_type=SubjectType.DECISION,
+                    subject_id=row.id,
+                    payload={"reason": f"archived in {Path(doc.path).name}{superseded}"},
                 )
             )
 
@@ -336,7 +417,10 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
     # carries. Scoped to sources this import actually read: a decision from
     # an incident or an operator ask is not retired by a corpus import that
     # never had anything to say about it.
-    retired_where = rfc_parse.retired_identifiers(rfc_parse.rfc_files(rfc_dir))
+    sources = {**standing_docs, **archived_docs}
+    retired_where = {
+        ident: Path(doc.path).name for doc in corpus.documents for ident in doc.retired if doc.path
+    }
 
     for state in graph.current():
         if state.id in seen or state.source_id not in sources:
@@ -352,13 +436,183 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
                     "reason": (
                         f"retired in {where}"
                         if where
-                        else f"no longer in {sources[state.source_id][0].ref}"
+                        else f"no longer in {_source_of(sources[state.source_id]).ref}"
                     )
                 },
             )
         )
 
     return pending
+
+
+# ....................... #
+
+
+def _source_event(source: Source) -> PendingEvent:
+    return PendingEvent(
+        kind=EventKind.SOURCE_IMPORTED,
+        subject_type=SubjectType.SOURCE,
+        subject_id=source.id,
+        payload={"source_kind": source.kind, "ref": source.ref, "title": source.title},
+    )
+
+
+# ----------------------- #
+
+
+def _governs(globs: list[str], path: str) -> bool:
+    """Whether one set of declared globs reaches a path: the path matches
+    a glob, or a glob names something under the path (a directory asked
+    about is governed by rows that reach into it)."""
+
+    if not globs:
+        return False
+
+    if GitIgnoreSpec.from_lines(globs).match_file(path):
+        return True
+
+    return globs_intersect(globs, [path.rstrip("/") + "/**" if not path.endswith("**") else path])
+
+
+# ....................... #
+
+
+def coverage(corpus: Corpus, path: str) -> Coverage:
+    """One of three for any path (D-53.6): governed — a standing row's
+    paths or an accepted document's phase scope reaches it; retired — only
+    archived documents' rows ever did; ungoverned — nothing, which is the
+    ratchet's frontier and never a finding."""
+
+    for doc in corpus.standing():
+        if doc.superseded_by:
+            continue
+
+        if any(_governs(row.paths, path) for row in doc.decisions):
+            return "governed"
+
+        if any(_governs(entry.scope, path) for entry in doc.phasing):
+            return "governed"
+
+    for doc in corpus.documents:
+        if not doc.archived:
+            continue
+
+        if any(_governs(row.paths, path) for row in doc.decisions):
+            return "retired"
+
+    return "ungoverned"
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class RottedRow:
+    """A row whose every glob matches nothing in the tree (D-53.7)."""
+
+    document: str
+    identifier: str
+    grade: str
+    paths: list[str]
+
+    def line(self) -> str:
+        return (
+            f"{self.document}: {self.identifier} ({self.grade}) declares "
+            f"{' '.join(self.paths)} and nothing in the tree matches — retire it "
+            f"with `torve rfc amend {self.document[:4]} --retire {self.identifier} "
+            "--reason path-rot`"
+        )
+
+
+# ....................... #
+
+
+def _matches(root: Path, pattern: str) -> bool:
+    try:
+        return next(root.glob(pattern), None) is not None
+    except (ValueError, NotImplementedError):
+        return False
+
+
+def path_rot(corpus: Corpus, root: Path) -> list[RottedRow]:
+    """Every standing row on an accepted, implemented document whose globs
+    all match nothing under *root* — governance that governs nothing. A
+    document not yet implemented names areas that do not exist yet, which
+    is intent, not rot (D-32)."""
+
+    rotted: list[RottedRow] = []
+
+    for doc in corpus.standing():
+        if doc.implementation == "none" or doc.superseded_by:
+            continue
+
+        for row in doc.decisions:
+            if not row.paths:
+                continue
+
+            if any(_matches(root, pattern) for pattern in row.paths):
+                continue
+
+            rotted.append(
+                RottedRow(
+                    document=Path(doc.path).name if doc.path else doc.id,
+                    identifier=row.id,
+                    grade=row.grade,
+                    paths=list(row.paths),
+                )
+            )
+
+    return rotted
+
+
+# ----------------------- #
+
+
+def fingerprint_drift(corpus: Corpus) -> tuple[list[str], list[str]]:
+    """(problems, warnings) over every row the tool has ever stamped: a
+    grade or paths change by hand is a problem — a row with no history —
+    and a text-only change is editorial drift, a warning that names the
+    verb that re-stamps it (D-53.4). A row never stamped is not compared:
+    the corpus's existing rows have no recorded change to differ from."""
+
+    problems: list[str] = []
+    warnings: list[str] = []
+
+    for doc in corpus.documents:
+        if doc.archived or not doc.path:
+            continue
+
+        fm = rfc_parse.parse_frontmatter(Path(doc.path).read_text(encoding="utf-8")) or {}
+        stamped = fm.get(FINGERPRINTS_KEY)
+
+        if not isinstance(stamped, dict):
+            continue
+
+        where = Path(doc.path).name
+
+        for identifier, recorded in cast("dict[object, object]", stamped).items():
+            row = doc.decision(str(identifier))
+
+            if row is None:
+                continue  # retired since; the tombstone and `retired:` carry it
+
+            full, _, rule = str(recorded).partition("/")
+
+            if row.fingerprint == full:
+                continue
+
+            if rule and rule_fingerprint(row.grade, row.paths) == rule:
+                warnings.append(
+                    f"{where}: {row.id}'s text changed by hand since its last recorded change "
+                    f'(editorial drift) — `torve rfc fix {row.id} "…"` re-stamps it'
+                )
+            else:
+                problems.append(
+                    f"{where}: {row.id}'s grade or paths changed by hand since its last recorded "
+                    "change — a row with no history; change it through `torve rfc amend`"
+                )
+
+    return problems, warnings
 
 
 # ....................... #
@@ -414,9 +668,14 @@ __all__ = [
     "Graph",
     "PendingEvent",
     "PlanError",
+    "RottedRow",
     "corpus_sources",
+    "coverage",
+    "fingerprint_drift",
     "import_corpus",
     "load",
+    "load_corpus",
+    "path_rot",
     "project",
     "record_all",
 ]

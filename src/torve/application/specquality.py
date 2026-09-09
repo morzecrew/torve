@@ -67,6 +67,7 @@ from torve.application.runstate import RunState
 from torve.application.sizing import estimate_scope
 from torve.base import naming
 from torve.config import layout, rfc_parse
+from torve.domain.spec import Corpus
 from torve.domain.states import TaskState
 from torve.domain.task import Scope
 from torve.gates.decisions_reported import ACTIONS as LOG_ACTIONS
@@ -373,17 +374,64 @@ def _amendment_cited_ids(rfc_dir: Path) -> set[str]:
 
     cited: set[str] = set()
 
-    for path in rfc_parse.rfc_files(rfc_dir).values():
-        text = path.read_text(encoding="utf-8")
-        section = rfc_parse.AMENDMENTS_SECTION.search(text)
-
-        if not section:
-            continue
-
-        body = rfc_parse.strip_fences(text[section.end() :])
-        cited.update(rfc_parse.DECISION_CITE.findall(body))
+    for doc in _corpus(rfc_dir).documents:
+        for amendment in doc.amendments:
+            cited.update(rfc_parse.DECISION_CITE.findall(rfc_parse.strip_fences(amendment.body_md)))
+            cited.update(change.subject for change in amendment.changes)
 
     return cited
+
+
+# ....................... #
+
+
+def _corpus(rfc_dir: Path) -> Corpus:
+    """The corpus as the model (D-53.13), or an empty one when it does not
+    load: the health report is evidence for a human and never the thing
+    that refuses a corpus — `torve rfc check` is."""
+
+    from pydantic import ValidationError
+
+    from torve.config.spec import SpecError, load_corpus
+
+    try:
+        return load_corpus(rfc_dir)
+    except (SpecError, ValidationError):
+        return Corpus()
+
+
+# ....................... #
+
+
+def corpus_shape(root: Path, rfc_dir: Path) -> dict[str, Any]:
+    """What the model says about the corpus beside the populations (D-53.6,
+    D-53.7): the rows whose paths match nothing in the tree, and the
+    coverage frontier by top-level source directory — governed, ungoverned
+    or retired, counted over the files under `src/`."""
+
+    from torve.application.decisions import coverage, path_rot
+
+    corpus = _corpus(rfc_dir)
+    rot = [
+        {
+            "document": one.document,
+            "identifier": one.identifier,
+            "grade": one.grade,
+            "paths": one.paths,
+        }
+        for one in path_rot(corpus, root)
+    ]
+    frontier: dict[str, dict[str, int]] = {}
+    source = root / "src"
+
+    if corpus.documents and source.is_dir():
+        for path in sorted(source.rglob("*.py")):
+            relative = path.relative_to(root).as_posix()
+            top = "/".join(relative.split("/")[:3])
+            counts = frontier.setdefault(top, {"governed": 0, "ungoverned": 0, "retired": 0})
+            counts[coverage(corpus, relative)] += 1
+
+    return {"path_rot": rot, "coverage": frontier}
 
 
 # ....................... #
@@ -393,13 +441,12 @@ def identifiers_for_document(rfc_dir: Path, number: str) -> set[str] | None:
     """Every identifier RFC `number` defines, or None when no such document
     exists in the corpus — the CLI's `torve rfc health NNNN` filter."""
 
-    files = rfc_parse.rfc_files(rfc_dir)
-    path = files.get(number)
+    doc = _corpus(rfc_dir).document(number)
 
-    if path is None:
+    if doc is None or doc.archived:
         return None
 
-    return {row.identifier for row in rfc_parse.decision_table(path.read_text(encoding="utf-8"))}
+    return {row.id for row in doc.decisions}
 
 
 # ....................... #
@@ -596,7 +643,12 @@ def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> di
 
     populations = [_finish(buckets[i], floor, amended_ids) for i in sorted(buckets)]
 
-    return {"schema_version": 1, "floor": floor, "populations": populations}
+    return {
+        "schema_version": 1,
+        "floor": floor,
+        "populations": populations,
+        **corpus_shape(root, rfc_dir),
+    }
 
 
 # ....................... #

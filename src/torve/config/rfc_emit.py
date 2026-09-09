@@ -23,13 +23,14 @@ leaving the tree untouched").
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
 import tempfile
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -50,6 +51,7 @@ from torve.config.rfc_parse import (
     parse_phasing,
     rfc_files,
 )
+from torve.domain.spec import fingerprint
 
 # ----------------------- #
 
@@ -73,6 +75,41 @@ FRONTMATTER_ORDER: tuple[str, ...] = (
     "description",
     "schema_version",
 )
+
+# `fingerprints:` in frontmatter (RFC 0053 D-53.4, D-53.5): identifier ->
+# "<full>/<rule>", full over text, grade and paths, rule over grade and
+# paths alone. Written by every mutating verb, read by `rfc check` to tell
+# a hand-edited grade or paths (a problem) from a hand-edited text (a
+# warning that `rfc fix` re-stamps).
+FINGERPRINTS_KEY = "fingerprints"
+
+
+def rule_fingerprint(grade: str, paths: list[str]) -> str:
+    material = "\n".join([grade, " ".join(sorted(paths))])
+
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def stamp(row: DecisionRow) -> str:
+    """The value the tool records for a row it just changed."""
+
+    return f"{fingerprint(row.text, row.grade, row.paths)}/{rule_fingerprint(row.grade, row.paths)}"
+
+
+def _stamps(fm: dict[str, Any]) -> dict[str, str]:
+    raw = fm.get(FINGERPRINTS_KEY)
+
+    if not isinstance(raw, dict):
+        return {}
+
+    return {str(k): str(v) for k, v in cast("dict[object, object]", raw).items()}
+
+
+def _stamped(fm: dict[str, Any], row: DecisionRow) -> dict[str, Any]:
+    stamps = {**_stamps(fm), row.identifier: stamp(row)}
+
+    return {**fm, FINGERPRINTS_KEY: stamps}
+
 
 # `### A-n — YYYY-MM-DD — title` (D-A.5's dated form): the separator is
 # matched loosely (a hand-typed "-" is the exact trap this normalises) and
@@ -127,6 +164,13 @@ def _render_field(key: str, value: Any) -> str:
 
     if isinstance(value, list):
         return f"{key}: {_dump_list(value)}"
+
+    if isinstance(value, dict):
+        entries = "\n".join(
+            f"  {_yaml_scalar(k)}: {_yaml_scalar(v)}"
+            for k, v in sorted(cast("dict[str, Any]", value).items())
+        )
+        return f"{key}:\n{entries}" if entries else f"{key}: {{}}"
 
     return f"{key}: {_yaml_scalar(value)}"
 
@@ -322,12 +366,45 @@ def _replace_table(rest: str, new_rows: list[DecisionRow]) -> str:
 # ....................... #
 
 
-def append_amendment(text: str, amendment: str, title: str, today: str) -> str:
+def render_changes(changes: list[dict[str, Any]]) -> str:
+    """A `yaml changes` fence (RFC 0053 §5.2): one entry per typed edit,
+    `before` read from the document as it stood."""
+
+    lines = ["```yaml changes"]
+
+    for change in changes:
+        lines.append(f"- subject: {_yaml_scalar(change['subject'])}")
+        lines.append(f"  field: {_yaml_scalar(change['field'])}")
+
+        for key in ("before", "after"):
+            value = change.get(key)
+
+            if isinstance(value, list):
+                lines.append(f"  {key}: {_dump_list(value)}")
+            else:
+                lines.append(f"  {key}: {_yaml_scalar(value)}")
+
+    lines.append("```")
+    return "\n".join(lines) + "\n"
+
+
+# ....................... #
+
+
+def append_amendment(
+    text: str,
+    amendment: str,
+    title: str,
+    today: str,
+    changes: list[dict[str, Any]] | None = None,
+) -> str:
     """`rfc amend` (D-25.4): appends the dated `### A-nn — date — title`
     skeleton to the end of the document's `## Amendments` container — the
     section runs to end of file by the same convention `check_amendments`
     already assumes — and records *amendment* in `amended_by`. The entry's
-    own words are left for the author to write."""
+    own words are left for the author to write; the typed diff of any row
+    the same verb changed rides beneath the heading as a `changes` fence
+    (D-53.4), which is the only moment the prior value still exists."""
 
     fm, rest = _split(text)
 
@@ -336,7 +413,151 @@ def append_amendment(text: str, amendment: str, title: str, today: str) -> str:
 
     fm = {**fm, "amended_by": [*fm_list(fm, "amended_by"), amendment]}
     rest = rest.rstrip("\n") + f"\n\n### {amendment} — {today} — {title}\n"
+
+    if changes:
+        rest += "\n" + render_changes(changes)
+
     return emit(render_frontmatter(fm) + rest)
+
+
+# ....................... #
+
+
+def amend_row(
+    text: str,
+    identifier: str,
+    *,
+    grade: str | None = None,
+    paths: list[str] | None = None,
+    new_text: str | None = None,
+) -> tuple[str, list[dict[str, Any]]]:
+    """One row changed by the tool (D-53.4): grade, paths or text replaced,
+    the row re-stamped in `fingerprints:`, and the typed diff returned for
+    the amendment heading that records it. Raises `ValueError` when the
+    row is unknown or nothing was asked to change."""
+
+    fm, rest = _split(text)
+    rows = decision_table(rest)
+    current = next((row for row in rows if row.identifier == identifier), None)
+
+    if current is None:
+        raise ValueError(f"no decision {identifier!r} in this document's table")
+
+    changes: list[dict[str, Any]] = []
+    updated = current
+
+    if grade is not None and grade != current.grade:
+        changes.append(
+            {"subject": identifier, "field": "grade", "before": current.grade, "after": grade}
+        )
+        updated = replace(updated, grade=grade)
+
+    if paths is not None and paths != current.paths:
+        changes.append(
+            {"subject": identifier, "field": "paths", "before": current.paths, "after": paths}
+        )
+        updated = replace(updated, paths=paths)
+
+    if new_text is not None and new_text.strip() != current.text.strip():
+        changes.append(
+            {
+                "subject": identifier,
+                "field": "text",
+                "before": current.text,
+                "after": new_text.strip(),
+            }
+        )
+        updated = replace(updated, text=new_text.strip())
+
+    if not changes:
+        raise ValueError(f"nothing to change on {identifier}")
+
+    changes.append(
+        {
+            "subject": identifier,
+            "field": "fingerprint",
+            "before": _stamps(fm).get(identifier),
+            "after": stamp(updated),
+        }
+    )
+    rest = _replace_table(rest, [updated if row.identifier == identifier else row for row in rows])
+    return emit(render_frontmatter(_stamped(fm, updated)) + rest), changes
+
+
+# ....................... #
+
+
+def fix_row_text(text: str, identifier: str, new_text: str) -> tuple[str, list[dict[str, Any]]]:
+    """`rfc fix` (D-53.4's editorial lane): the row's text replaced and the
+    row re-stamped, with the before and after recorded in a `changes`
+    fence directly under the decision table — never an amendment number.
+    A typo costs one command and loses nothing; a rewording that changes
+    the rule's meaning is the author's judgement to raise to an amendment,
+    and the recorded pair is what lets a reviewer say so."""
+
+    fm, rest = _split(text)
+    rows = decision_table(rest)
+    current = next((row for row in rows if row.identifier == identifier), None)
+
+    if current is None:
+        raise ValueError(f"no decision {identifier!r} in this document's table")
+
+    updated = replace(current, text=new_text.strip())
+    already = _stamps(fm).get(identifier)
+
+    if updated.text == current.text and already == stamp(updated):
+        raise ValueError(f"{identifier}'s text already reads that way, and it is stamped")
+
+    changes: list[dict[str, Any]] = []
+
+    if updated.text != current.text:
+        changes.append(
+            {"subject": identifier, "field": "text", "before": current.text, "after": updated.text}
+        )
+
+    # The same text, re-stamped: the row was edited by hand and the author
+    # is accepting the edit as editorial — the pair recorded is the stamped
+    # fingerprint against the one the row now carries.
+    changes.append(
+        {"subject": identifier, "field": "fingerprint", "before": already, "after": stamp(updated)}
+    )
+    rest = _replace_table(rest, [updated if row.identifier == identifier else row for row in rows])
+    rest = _append_editorial(rest, changes)
+    return emit(render_frontmatter(_stamped(fm, updated)) + rest), changes
+
+
+# ....................... #
+
+_EDITORIAL_MARK = "<!-- editorial changes, recorded by `torve rfc fix` -->"
+
+
+def _append_editorial(rest: str, changes: list[dict[str, Any]]) -> str:
+    """The editorial fence lives right after the decision table, one fence
+    per document, entries appended in order."""
+
+    fence_lines = render_changes(changes).splitlines()[1:-1]  # entries only
+    marker = rest.find(_EDITORIAL_MARK)
+
+    if marker != -1:
+        fence_start = rest.find("```yaml changes", marker)
+        fence_end = rest.find("```", fence_start + len("```yaml changes"))
+
+        if fence_start != -1 and fence_end != -1:
+            body = rest[fence_start:fence_end].rstrip("\n")
+            return (
+                rest[:fence_start] + body + "\n" + "\n".join(fence_lines) + "\n" + rest[fence_end:]
+            )
+
+    start = rest.find(TABLE_HEADER)
+    rows = decision_table(rest)
+    pos = start
+
+    for _ in range(2 + len(rows)):
+        newline = rest.find("\n", pos)
+        pos = newline + 1 if newline != -1 else len(rest)
+
+    block = "\n" + _EDITORIAL_MARK + "\n" + render_changes(changes)
+    return rest[:pos] + block + rest[pos:]
 
 
 # ....................... #
@@ -364,7 +585,7 @@ def append_decision(text: str, identifier: str) -> str:
 # ....................... #
 
 
-def retire_decision(text: str, identifier: str, today: str) -> str:
+def retire_decision(text: str, identifier: str, today: str, reason: str = "") -> str:
     """`rfc retire` (D-25.6): executes D-16.1 whole — removes *identifier*'s
     row, records it in `retired:`, and leaves a tombstone stub immediately
     after the table for the author to complete. Whether the result still
@@ -393,9 +614,16 @@ def retire_decision(text: str, identifier: str, today: str) -> str:
     # No citation of the "never reused" rule itself: which decision states it
     # (D-A.4 in this repository's own corpus) is a fact about one corpus, not
     # something this generic verb may assume of the corpus it is run against.
-    tombstone = f"\n{identifier} was retired {today}; <why>. The identifier is never reused.\n"
+    why = reason or "<why>"
+    tombstone = f"\n{identifier} was retired {today}; {why}. The identifier is never reused.\n"
     rest = rest[:start] + _render_decision_table(remaining) + tombstone + rest[pos:]
+    stamps = {k: v for k, v in _stamps(fm).items() if k != identifier}
     fm = {**fm, "retired": [*fm_list(fm, "retired"), identifier]}
+    fm = (
+        {**fm, FINGERPRINTS_KEY: stamps}
+        if stamps
+        else {k: v for k, v in fm.items() if k != FINGERPRINTS_KEY}
+    )
     return emit(render_frontmatter(fm) + rest)
 
 
@@ -431,18 +659,26 @@ def relocate_paths_text(text: str, old: str, new: str) -> tuple[str, list[str]] 
 # ....................... #
 
 
-def write_transaction(rfc_dir: Path, root: Path, mutations: dict[str, str]) -> CheckReport:
+def write_transaction(
+    rfc_dir: Path,
+    root: Path,
+    mutations: dict[str, str],
+    deletions: tuple[str, ...] = (),
+) -> CheckReport:
     """One parse-mutate-emit-check cycle (D-25.2): *mutations* (filename ->
-    new text) is applied to a scratch copy of the corpus, the index is
-    regenerated there, and the scratch corpus is checked whole. Only a clean
-    check is copied back to *rfc_dir* — a red check leaves the real tree
-    untouched."""
+    new text) is applied and *deletions* removed in a scratch copy of the
+    corpus, the index is regenerated there, and the scratch corpus is
+    checked whole. Only a clean check is copied back to *rfc_dir* — a red
+    check leaves the real tree untouched. A deletion is what `rfc archive`
+    does to the corpus path once the document's copy exists in the archive
+    (D-53.8); nothing else deletes."""
 
     with tempfile.TemporaryDirectory() as scratch_name:
         scratch = Path(scratch_name)
 
         for path in rfc_dir.glob("*.md"):
-            shutil.copy2(path, scratch / path.name)
+            if path.name not in deletions:
+                shutil.copy2(path, scratch / path.name)
 
         for name, mutated in mutations.items():
             (scratch / name).write_text(mutated, encoding="utf-8")
@@ -458,4 +694,25 @@ def write_transaction(rfc_dir: Path, root: Path, mutations: dict[str, str]) -> C
                 (scratch / name).read_text(encoding="utf-8"), encoding="utf-8"
             )
 
+        for name in deletions:
+            (rfc_dir / name).unlink(missing_ok=True)
+
     return report
+
+
+# ....................... #
+
+
+def archive_document(text: str, superseded_by: str, today: str) -> str:
+    """The frontmatter a retired document carries in the archive (D-53.8):
+    `status: superseded`, `superseded_by` naming the baseline. Every other
+    byte, every identifier, stays — an archived identifier still resolves."""
+
+    fm, rest = _split(text)
+
+    if str(fm.get("status")) == "superseded" and fm.get("superseded_by"):
+        raise ValueError(f"RFC {fm.get('id')} is already superseded by {fm.get('superseded_by')}")
+
+    fm = {**fm, "status": "superseded", "superseded_by": superseded_by}
+    marker = f"\n*Archived {today}: superseded by {superseded_by} (RFC 0053 D-53.8).*\n"
+    return render_frontmatter(fm) + rest.rstrip("\n") + "\n" + marker

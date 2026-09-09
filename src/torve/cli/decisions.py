@@ -16,8 +16,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
+from rich.text import Text
 
 from torve.cli.console import (
+    STYLE_DIM,
+    STYLE_WARN,
     Format,
     add_rows_truncated,
     closing,
@@ -339,6 +342,26 @@ def show_cmd(
 # ....................... #
 
 
+def _coverage(root: Path, config_path: Path | None, globs: list[str]) -> dict[str, str]:
+    """Coverage per glob from the corpus and its archive (D-53.6); an
+    unreadable corpus answers nothing rather than failing the record read."""
+
+    from pydantic import ValidationError
+
+    from torve.application.decisions import coverage
+    from torve.config.spec import SpecError, load_corpus
+
+    try:
+        corpus = load_corpus(_corpus_dir(root, config_path))
+    except (SpecError, ValidationError, typer.Exit):
+        return {}
+
+    return {glob: coverage(corpus, glob) for glob in globs}
+
+
+# ....................... #
+
+
 @decisions_app.command("paths")
 def paths_cmd(
     partition: PartitionArgument,
@@ -347,10 +370,13 @@ def paths_cmd(
     ],
     dsn: DsnOption = "",
     root: RootOption = Path("."),
+    config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """The decisions in force whose declared paths cross these globs — what
-    work under them inherits.
+    work under them inherits — and, per glob, the coverage the corpus
+    states for it: governed, ungoverned (the ratchet's frontier, never a
+    finding) or retired (only archived rows ever named it).
 
     Rows without declared paths never appear: they govern their own
     document's work only. The rule is deliberately conservative, since a
@@ -360,12 +386,14 @@ def paths_cmd(
 
     graph = asyncio.run(_graph(dsn_for(root, dsn) or None, partition))
     states = graph.for_paths(list(globs))
+    covered = _coverage(root, config, list(globs))
 
     if fmt is Format.JSON:
         emit_json(
             {
                 "partition": partition,
                 "globs": list(globs),
+                "coverage": covered,
                 "decisions": [
                     {
                         "id": one.id,
@@ -381,6 +409,10 @@ def paths_cmd(
 
     console = out(fmt)
     header(console, "decisions crossing", ", ".join(globs))
+
+    for glob, state in covered.items():
+        console.print(Text(f"  {glob}: {state}", STYLE_DIM if state == "governed" else STYLE_WARN))
+
     table = make_table("decision", "grade", "source", "version", "paths")
     withheld = add_rows_truncated(table, [_row(one) for one in states])
     console.print(table)
