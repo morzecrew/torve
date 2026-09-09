@@ -8,7 +8,7 @@ depends_on: ["0053", "0054"]
 informed_by: ["0049", "0050", "0055"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-161"]
 owner: misery7100
 description: >-
   A document is one YAML file in the item model's own shape and markdown is only ever rendered from it; the task directory and the telemetry file stop being sources when a store is configured; the task history of archived documents is deleted.
@@ -394,7 +394,6 @@ what makes it safe to land whole.
     - "uv run torve rfc check"
     - "uv run lint-imports --config pyproject.toml"
   depends_on: []
-  character: structural
 - phase: 2
   title: the schema is the authoring contract
   intent: >-
@@ -413,7 +412,6 @@ what makes it safe to land whole.
     - "uv run pytest tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_cli.py"
     - "uv run torve rfc check"
   depends_on: [1]
-  character: routine
 - phase: 3
   title: the task directory is a projection
   intent: >-
@@ -432,11 +430,11 @@ what makes it safe to land whole.
     - "tests/test_dispatch.py"
     - "tests/test_reaper.py"
     - "tests/test_task_records.py"
+    - "tests/test_layout.py"
   acceptance:
-    - "uv run pytest tests/test_plan.py tests/test_session.py tests/test_dispatch.py tests/test_reaper.py tests/test_task_records.py"
+    - "uv run pytest tests/test_plan.py tests/test_session.py tests/test_dispatch.py tests/test_reaper.py tests/test_task_records.py tests/test_layout.py"
     - "uv run torve rfc check"
   depends_on: [1]
-  character: structural
 - phase: 4
   title: the telemetry file is a carrier
   intent: >-
@@ -462,7 +460,6 @@ what makes it safe to land whole.
     - "uv run pytest tests/test_attempt_record.py tests/test_migrate.py tests/test_contextpack.py tests/test_intake.py tests/test_specquality.py tests/test_review_run.py tests/test_reaper.py"
     - "uv run torve rfc check"
   depends_on: [3]
-  character: routine
 ```
 
 ## 13. Contract example
@@ -492,3 +489,5 @@ decisions:
 ## Amendments
 
 _None yet._
+
+### A-161 — 2026-09-09 — phase 3 brings the layout test
