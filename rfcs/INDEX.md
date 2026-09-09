@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0055**.
+number is **0056**.
 
 ## Design
 
@@ -14,6 +14,7 @@ number is **0055**.
 | --- | --- | --- | --- | --- | --- | --- |
 | [0053](0053-the-item-model-and-the-rebuilt-corpus.md) | The item model and the rebuilt corpus | accepted | none | 0016, 0031, 0047 | A-140 | The specification becomes a typed item model the engine reads instead of a document it parses; the tool writes every amendment as a diff; coverage becomes a fact; and the corpus is archived and rebuilt through the brownfield lane on this repository. |
 | [0054](0054-decisions-as-gates-and-the-projections-beside-the-code.md) | Decisions as gates and the projections beside the code | draft | none | 0053 | — | The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot. |
+| [0055](0055-standing-decisions.md) | Standing decisions | draft | complete | — | — | The standing baseline for this repository after RFC 0053's archive: the rows that govern the tree as it is, drafted through the brownfield lane from the survey, the gate record and the archive, for the owner to grade and accept. |
 
 Statuses: draft · accepted · superseded. Impl is the D-A.11 judgement:
 none · partial · complete · abandoned.
