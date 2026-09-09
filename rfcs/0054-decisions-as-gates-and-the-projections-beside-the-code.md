@@ -8,7 +8,7 @@ depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-153"]
+amended_by: ["A-153", "A-154"]
 owner: misery7100
 description: >-
   The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot.
@@ -649,6 +649,7 @@ that (D-A.9); the fence orders only this document's own units.
     - "src/torve/config/spec.py"
     - "src/torve/application/planner.py"
     - "src/torve/application/decisions.py"
+    - "src/torve/domain/events.py"  # A-154: the decision.recorded payload model
     - "src/torve/gates/runner.py"
     - "src/torve/gates/decisions_reported.py"
     - "src/torve/gates/sabotage.py"
@@ -659,12 +660,13 @@ that (D-A.9); the fence orders only this document's own units.
     - "tests/test_spec_load.py"
     - "tests/test_plan.py"
     - "tests/test_decisions.py"
+    - "tests/test_events.py"  # A-154
     - "tests/test_gates.py"
-    - "tests/test_runner.py"  # A-153: the T-0113 rule
+    - "tests/test_runner.py"
     - "tests/test_sabotage.py"
     - "tests/test_cli.py"
   acceptance:
-    - "uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
+    - "uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py tests/test_events.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
     - "uv run lint-imports --config pyproject.toml"
     - "uv run torve rfc check"
   depends_on: []
@@ -763,4 +765,20 @@ refuses under the T-0113 rule: a module in scope brings its test file.
   field: scope
   before: "… tests/test_gates.py tests/test_sabotage.py tests/test_cli.py"
   after: "… tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
+```
+
+### A-154 — 2026-09-09 — phase 1 reaches the event payload
+**Found by executing phase 1.** D-54.1 says `decision.recorded` carries
+the consequence and the check, and the payload model that refuses an
+unknown key lives in `src/torve/domain/events.py`, which the phase's
+scope did not name.
+
+**Changed:** phase 1's scope and acceptance gain the events module and
+its test.
+
+```yaml changes
+- subject: phase 1
+  field: scope
+  before: "… src/torve/application/decisions.py src/torve/gates/runner.py …"
+  after: "… src/torve/application/decisions.py src/torve/domain/events.py src/torve/gates/runner.py …"
 ```

@@ -1,18 +1,18 @@
-# Minted by `torve plan 0054` — phase 1: the row travels whole and a check is a gate
+# Minted by `torve plan 0054` — phase 1: the row travels whole and a check is a gate; re-minted by hand under A-154 (the event payload model joins the scope) — a re-mint is a version.
 schema_version: 1
 id: T-0296
 rfc: rfcs/0054-decisions-as-gates-and-the-projections-beside-the-code.md
 phase: 1
 role: implement
 title: the row travels whole and a check is a gate
-intent: '`InheritedDecision` gains `consequence` and `check`; the model''s `Decision` and
-  its `decision-details` entry gain `check_state` and `check_twin`; `inherit_decisions` copies
-  consequence and check from the model, `decision.recorded` carries both, and `build_prompt`
-  renders the consequence after each row. The gate runner appends a `decision:<id>` gate at
-  shadow for every checkable inherited row, under the compliance axis, never touching the
-  manifest; `owed()` skips a row whose check ran in the same pass and `torve log owed` reports
-  the three states; `torve gates check` runs a row''s `check_twin`, and a blocking row without
-  one is refused at mint. The three hand-wired manifest gates are left exactly as they are.'
+intent: '`InheritedDecision` gains `consequence` and `check`; the model''s `Decision` and its `decision-details`
+  entry gain `check_state` and `check_twin`; `inherit_decisions` copies consequence and check from the
+  model, `decision.recorded` carries both, and `build_prompt` renders the consequence after each row.
+  The gate runner appends a `decision:<id>` gate at shadow for every checkable inherited row, under the
+  compliance axis, never touching the manifest; `owed()` skips a row whose check ran in the same pass
+  and `torve log owed` reports the three states; `torve gates check` runs a row''s `check_twin`, and a
+  blocking row without one is refused at mint. The three hand-wired manifest gates are left exactly as
+  they are.'
 depends_on: []
 parent: null
 targets: []
@@ -23,6 +23,7 @@ scope:
   - src/torve/config/spec.py
   - src/torve/application/planner.py
   - src/torve/application/decisions.py
+  - src/torve/domain/events.py
   - src/torve/gates/runner.py
   - src/torve/gates/decisions_reported.py
   - src/torve/gates/sabotage.py
@@ -33,112 +34,110 @@ scope:
   - tests/test_spec_load.py
   - tests/test_plan.py
   - tests/test_decisions.py
+  - tests/test_events.py
   - tests/test_gates.py
   - tests/test_runner.py
   - tests/test_sabotage.py
   - tests/test_cli.py
   deny: []
 acceptance:
-- uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py
-  tests/test_decisions.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py
-  tests/test_cli.py
+- uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py
+  tests/test_events.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py
 - uv run lint-imports --config pyproject.toml
 - uv run torve rfc check
 decisions:
 - id: D-54.1
   grade: LOCKED
-  text: '`InheritedDecision` gains `consequence` and `check`, copied at mint from the model,
-    carried by `decision.recorded`, rendered after each row in the prompt; the fingerprinted
-    set stays text, grade and paths'
+  text: '`InheritedDecision` gains `consequence` and `check`, copied at mint from the model, carried by
+    `decision.recorded`, rendered after each row in the prompt; the fingerprinted set stays text, grade
+    and paths'
   paths:
   - src/torve/domain/task.py
   - src/torve/application/planner.py
 - id: D-54.2
   grade: LOCKED
-  text: 'A contract''s row with a `check` runs as a gate appended to the battery by the runner,
-    named `decision:<id>`, axis compliance, `origin: rfc/NNNN#<id>`, never written into `gates.yaml`'
+  text: 'A contract''s row with a `check` runs as a gate appended to the battery by the runner, named
+    `decision:<id>`, axis compliance, `origin: rfc/NNNN#<id>`, never written into `gates.yaml`'
   paths:
   - src/torve/gates/runner.py
 - id: D-54.3
   grade: LOCKED
-  text: A row whose check ran in the same pass, green or red, is not owed a divergence entry;
-    a row with no check keeps the silence check
+  text: A row whose check ran in the same pass, green or red, is not owed a divergence entry; a row with
+    no check keeps the silence check
   paths:
   - src/torve/gates/decisions_reported.py
 - id: D-54.4
   grade: LOCKED
-  text: A decision gate enters at `shadow`; promotion to blocking is `check_state` on the
-    row, written by `torve rfc amend` citing soak evidence, and a blocking row must name a
-    `check_twin` that `torve gates check` runs
+  text: A decision gate enters at `shadow`; promotion to blocking is `check_state` on the row, written
+    by `torve rfc amend` citing soak evidence, and a blocking row must name a `check_twin` that `torve
+    gates check` runs
   paths:
   - src/torve/gates/runner.py
   - src/torve/gates/sabotage.py
 - id: D-54.5
   grade: ASSUMED
-  text: A `LOCKED` row with no check is reported *soft* by `rfc health`, counted beside the
-    hard ones, never regraded by the engine
+  text: A `LOCKED` row with no check is reported *soft* by `rfc health`, counted beside the hard ones,
+    never regraded by the engine
   paths:
   - src/torve/application/specquality.py
 - id: D-54.6
   grade: LOCKED
-  text: '`torve spec project` renders a managed section into the `AGENTS.md` of every directory
-    a standing row''s paths or an accepted phase''s scope names — rows with grade, text, consequence,
-    check and state; invariants; contended paths — and a root index of governed directories;
-    text outside the markers is never touched'
+  text: '`torve spec project` renders a managed section into the `AGENTS.md` of every directory a standing
+    row''s paths or an accepted phase''s scope names — rows with grade, text, consequence, check and state;
+    invariants; contended paths — and a root index of governed directories; text outside the markers is
+    never touched'
   paths:
   - src/torve/application/colocation.py
   - src/torve/cli/spec.py
 - id: D-54.7
   grade: LOCKED
-  text: The rendered sections are committed and drift-checked by a manifest gate running `torve
-    spec project --check`; a hand edit inside the markers is drift naming the file
+  text: The rendered sections are committed and drift-checked by a manifest gate running `torve spec project
+    --check`; a hand edit inside the markers is drift naming the file
   paths:
   - .torve/gates.yaml
   - src/torve/cli/spec.py
 - id: D-54.8
   grade: ASSUMED
-  text: '`AGENTS.md` sections carry rows, invariants, checks, tests and warnings only; no
-    generated overview, no prose beyond the row''s own text and consequence'
+  text: '`AGENTS.md` sections carry rows, invariants, checks, tests and warnings only; no generated overview,
+    no prose beyond the row''s own text and consequence'
   paths:
   - src/torve/application/colocation.py
 - id: D-54.9
   grade: LOCKED
-  text: '`torve spec show`, `paths`, `tests` and `why-not` form a read-only verb over the
-    worktree''s corpus and the archive beside it; a form that would need the record, another
-    task or an escalation is refused by design'
+  text: '`torve spec show`, `paths`, `tests` and `why-not` form a read-only verb over the worktree''s
+    corpus and the archive beside it; a form that would need the record, another task or an escalation
+    is refused by design'
   paths:
   - src/torve/cli/spec.py
 - id: D-54.10
   grade: LOCKED
-  text: The context pack under `.torve/context/` is computed host-side from the record and
-    the tree, with no model, before the prompt is written; deterministic for a base sha and
-    record state; gitignored; never in an image; byte-identical for a shadow run; own task
-    only
+  text: The context pack under `.torve/context/` is computed host-side from the record and the tree, with
+    no model, before the prompt is written; deterministic for a base sha and record state; gitignored;
+    never in an image; byte-identical for a shadow run; own task only
   paths:
   - src/torve/application/contextpack.py
   - src/torve/application/session.py
 - id: D-54.11
   grade: ASSUMED
-  text: The pack's files are `index.md`, `decisions.json`, `gates.json`, `tests.json` (from
-    `coverage.xml`), `attempts.json`, `contended.json`, `schema/`; each lands one at a time
-    behind a config-eval on the compliance-red population and is deleted if attempts to green
-    and dollars per landing do not fall by more than its tokens cost
+  text: The pack's files are `index.md`, `decisions.json`, `gates.json`, `tests.json` (from `coverage.xml`),
+    `attempts.json`, `contended.json`, `schema/`; each lands one at a time behind a config-eval on the
+    compliance-red population and is deleted if attempts to green and dollars per landing do not fall
+    by more than its tokens cost
   paths:
   - src/torve/application/contextpack.py
 - id: D-54.12
   grade: ASSUMED
-  text: A red pass writes its gate report into the next attempt's `attempts.json` — output
-    tails with byte-loss markers, governing decision ids for `decisions-reported` and `scope`,
-    failed test ids from JUnit — and the retry ladder still selects the tier from outcome
-    and axis alone (D-34.5)
+  text: A red pass writes its gate report into the next attempt's `attempts.json` — output tails with
+    byte-loss markers, governing decision ids for `decisions-reported` and `scope`, failed test ids from
+    JUnit — and the retry ladder still selects the tier from outcome and axis alone (D-34.5)
   paths:
   - src/torve/application/runner.py
   - src/torve/application/session.py
 - id: D-54.13
   grade: LOCKED
-  text: The reviewer reads the pack minus any model-authored entry, plus `touched.json` (rows
-    the diff intersects, coverage of changed lines, prior findings on the task); nothing the
-    author wrote enters (D-5.3 unchanged)
+  text: The reviewer reads the pack minus any model-authored entry, plus `touched.json` (rows the diff
+    intersects, coverage of changed lines, prior findings on the task); nothing the author wrote enters
+    (D-5.3 unchanged)
   paths:
   - src/torve/application/review.py
 - id: D-54.14
@@ -148,22 +147,21 @@ decisions:
   - src/torve/config/runconfig.py
 - id: D-54.15
   grade: ASSUMED
-  text: Findings and drafts are validated against the pydantic models' JSON Schema shipped
-    in `schema/`; a validation failure is a lint refusal naming the field, never an `unparseable`
-    row
+  text: Findings and drafts are validated against the pydantic models' JSON Schema shipped in `schema/`;
+    a validation failure is a lint refusal naming the field, never an `unparseable` row
   paths:
   - src/torve/application/review.py
   - src/torve/application/intake.py
 - id: D-54.16
   grade: ASSUMED
-  text: The drafter's 400-path listing is replaced by the pack's `index.md` and `torve spec
-    paths` over the candidate scope
+  text: The drafter's 400-path listing is replaced by the pack's `index.md` and `torve spec paths` over
+    the candidate scope
   paths:
   - src/torve/application/intake.py
 - id: D-54.17
   grade: OPEN
-  text: 'A decision gate''s timeout: the row''s or the manifest default''s (Q-54.1); settled
-    when the first checkable row runs the full suite'
+  text: 'A decision gate''s timeout: the row''s or the manifest default''s (Q-54.1); settled when the
+    first checkable row runs the full suite'
   paths: []
 - id: D-54.18
   grade: OPEN
