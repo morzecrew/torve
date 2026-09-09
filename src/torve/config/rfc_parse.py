@@ -91,6 +91,27 @@ class CheckReport:
 # ....................... #
 
 
+# The archive beside the corpus path (RFC 0053 D-53.8): retired documents
+# keep their filenames and identifiers there, and the check resolves what
+# they define (A-140) without ever reading them as standing.
+ARCHIVE_RELATIVE = Path("archive") / "rfcs"
+
+
+def archive_dir(rfc_dir: Path) -> Path:
+    return rfc_dir.parent / ARCHIVE_RELATIVE
+
+
+def archive_files(rfc_dir: Path) -> dict[str, Path]:
+    """Zero-padded id -> file, over the archive; empty when there is none."""
+
+    archive = archive_dir(rfc_dir)
+
+    return rfc_files(archive) if archive.is_dir() else {}
+
+
+# ....................... #
+
+
 def rfc_files(rfc_dir: Path) -> dict[str, Path]:
     """Zero-padded id -> file. Duplicate numbers are reported by check."""
 
@@ -145,9 +166,13 @@ def fm_list(fm: dict[str, Any], fname: str) -> list[str]:
 
 
 def next_number(rfc_dir: Path) -> int:
-    """The maximum that exists, plus one (D-A.17): derived, never stored.
-    Holes below the maximum stay holes — a number that once existed may be
-    cited, and reuse silently redirects every citation (D-A.19)."""
+    """The maximum that exists in the corpus path, plus one (D-A.17):
+    derived, never stored. Holes below the maximum stay holes — a number
+    that once existed may be cited, and reuse silently redirects every
+    citation (D-A.19). The archive-aware derivation the `new` verb uses is
+    the loader's (`torve.config.spec.next_number`, D-53.10); this one stays
+    corpus-only until phase 5 deletes it, and the phase 1 parity test pins
+    the difference."""
 
     return max((int(n) for n in rfc_files(rfc_dir)), default=0) + 1
 
@@ -974,7 +999,23 @@ def lookup(rfc_dir: Path, identifier: str) -> dict[str, Any] | None:
     defines it — the caller names the nearest family."""
 
     files = rfc_files(rfc_dir)
+    found = _lookup_in(files, identifier)
 
+    if found is not None:
+        return found
+
+    # An archived identifier still resolves (A-140, D-53.9), marked so a
+    # reader knows nothing inherits from it.
+    archived = archive_files(rfc_dir)
+    found = _lookup_in(archived, identifier) if archived else None
+
+    return {**found, "archived": True} if found is not None else None
+
+
+# ....................... #
+
+
+def _lookup_in(files: dict[str, Path], identifier: str) -> dict[str, Any] | None:
     if re.fullmatch(r"\d{4}", identifier):
         return _lookup_document(files, identifier)
 
@@ -1086,6 +1127,7 @@ def _lookup_document(files: dict[str, Path], number: str) -> dict[str, Any] | No
         "status": str(fm.get("status", "")),
         "implementation": str(fm.get("implementation") or "none"),
         "depends_on": fm_list(fm, "depends_on"),
+        "superseded_by": fm.get("superseded_by"),
         "amended_by": fm_list(fm, "amended_by"),
         "description": str(fm.get("description", "")).strip(),
         "implementation_state": " ".join(state.group(1).split()) if state else "",
@@ -1273,10 +1315,20 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
             )
 
     files = rfc_files(rfc_dir)
+    archived = archive_files(rfc_dir)
     report.count = len(files)
     defined = defined_identifiers(files)
     retired = retired_identifiers(files)
-    resolvable = defined | set(retired)
+    # What the archive defines resolves too (A-140): a citation into a
+    # retired document is history, not a typo, and the archive is where
+    # that history lives once a document leaves the corpus path.
+    resolvable = (
+        defined
+        | set(retired)
+        | defined_identifiers(archived)
+        | set(retired_identifiers(archived))
+        | {f"D-{n}" for n in archived}
+    )
     frontmatter: dict[str, dict[str, Any]] = {}
     seen_ids: dict[str, str] = {}
 
@@ -1314,7 +1366,15 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
 
         for fname in ("depends_on", "informed_by", "supersedes"):
             for ref in fm_list(fm, fname):
-                if ref not in files:
+                if ref in files:
+                    continue
+
+                if ref in archived:
+                    report.warnings.append(
+                        f"{path.name}: {fname} names {ref}, which is archived "
+                        f"({archived[ref].name}) — nothing inherits from it (D-53.8)"
+                    )
+                else:
                     report.problems.append(f"{path.name}: {fname} names {ref!r}, no such RFC")
 
         decision_problems, decision_warnings = check_decisions(path, text, fm, root, seen_ids)
