@@ -9,12 +9,14 @@ informed_by: [S-0002, S-0011]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Semantic separators and module preamble structure for Torve's Python source, extracted
-  from forze by reading and counting; the checkable half ships as the source-layout
-  gate.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Semantic separators and module preamble structure for Torve's Python source, extracted from forze by reading and counting; the checkable half ships as the source-layout gate.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: why-this-is-written-down
     md: |
       The convention already exists — it is what forze does, consistently, across every module. Writing it down is not an act of design but of extraction, so that agents writing Torve's source produce code that reads like the substrate it sits on, and so that the mechanical parts can be enforced rather than reviewed.
@@ -252,3 +254,7 @@ sections:
       The gate will fire on existing source, which was written before this document existed.
 
       Do the sweep now rather than scoping the gate to changed files only. At the current size it is an hour; in a month it is a day, and for that whole month the gate reddens on files the task never touched — which teaches people to ignore it, and an ignored gate is worse than none.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''

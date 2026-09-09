@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: fleet-tick-and-the-shared-pause
+    intent: >-
+      The operator-side manifest and torve fleet tick: survey every root's escalation
+      queue, decide the pause once for the fleet, tick each root in deterministic
+      order under its own lock with the decision passed down, and record one fleet
+      event. A locked-out or failing root is recorded and the pass continues. torve
+      fleet status reads every root into one table ordered by escalation age. No writes
+      across roots and no fleet store of any kind.
+    scope:
+      - src/torve/application/fleet.py
+      - src/torve/config/fleet.py
+      - src/torve/cli/fleet.py
+      - src/torve/cli/main.py
+      - src/torve/application/loop.py
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: trust-classes-bind-capability
+    intent: >-
+      Trust classes enforced against each root's own configuration before the root
+      is ticked, so that the capabilities the corpus already grants unevenly — socket
+      mode, host networking, provider routing breadth, and S-0021's broker mode where
+      it exists — are refused when a repository asks for more than its class allows,
+      naming the class and the setting. This is what turns S-0017/D-10 from a sentence
+      an operator remembers into a refusal an operator reads.
+    scope: [src/torve/config/fleet.py, src/torve/application/fleet.py, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 1

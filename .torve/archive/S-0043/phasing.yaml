@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the blocker revision loop
+    intent: >-
+      A surviving review blocker no longer escalates while the run has revision budget:
+      the runner renders the blockers and the convicted candidate diff into the S-0005/the-revision-loop-added-by-a-32-2026-08-24
+      feedback record at the task's root-side feedback path, appends a revision history
+      fact, and continues the attempt loop in the same worktree; the record is planted
+      and framed by the existing S-0005/D-13 mechanics, the poison ceiling and task
+      budgets count revisions unchanged, and a blocker surviving the spent budget
+      — or an unparseable verdict or broker budget refusal at any point — escalates
+      exactly as today. ReviewConfig gains `blocker_revisions` (default 1; 0 restores
+      the pre-0043 sequence byte-for-byte).
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/review.py
+      - src/torve/application/feedback.py
+      - src/torve/config/runconfig.py
+      - tests/test_runconfig.py
+      - tests/test_runner.py
+      - tests/test_review_run.py
+      - tests/test_feedback.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_review_run.py tests/test_feedback.py
+      - uv run torve gates check
+      - uv run torve rfc check

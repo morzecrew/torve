@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: character declared and routed
+    intent: >-
+      The character field end to end: parse_phasing validates the structural|routine
+      vocabulary (S-0034/D-2), the planner copies it verbatim onto the minted contract
+      beside tier_variant, Task carries it optionally, and dispatch resolves character_routing
+      (S-0034/D-3) — explicit tier_variant wins, unmapped character falls through
+      to the seat default. The rfc-writer template documents the field.
+    scope:
+      - src/torve/config/rfc_parse.py
+      - src/torve/domain/task.py
+      - src/torve/application/planner.py
+      - src/torve/config/runconfig.py
+      - src/torve/application/runner.py
+      - skills/rfc-writer/**
+      - tests/test_plan.py
+      - tests/test_rfc_check.py
+      - tests/test_runner.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_rfc_check.py tests/test_runner.py
+      - uv run torve rfc check
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 1
+    title: eval variant override
+    intent: >-
+      candidate_config accepts a tier-variant override beside the image override (S-0034/D-10):
+      torve eval --tier <seat> --variant <name> replays with the candidate arm resolving
+      the dotted variant; the eval record carries the variant name and both config
+      hashes; combining --image and --variant in one invocation is refused with an
+      instructive message.
+    scope:
+      - src/torve/application/evals.py
+      - src/torve/cli/evals.py
+      - tests/test_evals.py
+    acceptance:
+      - uv run pytest tests/test_evals.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: axis vocabulary and calibration
+    intent: >-
+      Gate declarations carry the optional axis field with the four-word vocabulary,
+      unlabeled reads as functional (S-0034/D-4); this repository's gates.yaml labels
+      its battery per §5.3; the context projection gains the character calibration
+      section (S-0034/D-8) — declared character against realized conviction profile
+      grouped by axis, attempts and token shape — rendered in context and re-exposed
+      verbatim by serve.
+    scope:
+      - src/torve/config/manifest.py
+      - .torve/gates.yaml
+      - src/torve/application/projections.py
+      - src/torve/cli/context.py
+      - tests/test_context.py
+      - tests/test_gates.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_context.py tests/test_gates.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 3
+    title: conviction-routed retries
+    intent: >-
+      retry_variants keyed by axis with the scalar form kept as sugar for functional
+      (S-0034/D-6); after a red attempt the runner groups the attempt's failing gates
+      by axis and resolves the rung for the most severe axis present in the fixed
+      order functional > boundary > compliance > form, reading only recorded gate
+      outcomes (S-0034/D-5); boundary resolves no rung (S-0034/D-7). A replay-shaped
+      test derives the chosen rung from telemetry records alone.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/application/runner.py
+      - tests/test_runner.py
+    acceptance:
+      - uv run pytest tests/test_runner.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 2

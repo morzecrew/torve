@@ -9,22 +9,21 @@ informed_by: []
 supersedes: []
 superseded_by: null
 owner: <adopter>
-description: >-
-  The brownfield baseline for this repository: the standing rows the survey extracted
-  from its history, drafted by the corpus-bootstrap skill for a human to edit, commit
-  and accept.
-schema_version: 3
-sections:
-  - key: summary
-    md: |-
-      The survey found two crossed boundaries and three gates that never measured
-      a single landing. The secrets boundary was defended: a key landed in
-      `src/leak.py` and the next landing removed it, so that row stands `LOCKED`.
-      The source-layout boundary was crossed once and left uncorrected in the
-      window, so its row stands `ASSUMED`. The three gates that never measured
-      anything for want of a corpus — test licensing, decision recording, and the
-      self-audit log — each get an `ASSUMED` row that gives them something to
-      measure once work is minted.
+schema_version: 4
+summary: |-
+  The survey found two crossed boundaries and three gates that never measured
+  a single landing. The secrets boundary was defended: a key landed in
+  `src/leak.py` and the next landing removed it, so that row stands `LOCKED`.
+  The source-layout boundary was crossed once and left uncorrected in the
+  window, so its row stands `ASSUMED`. The three gates that never measured
+  anything for want of a corpus — test licensing, decision recording, and the
+  self-audit log — each get an `ASSUMED` row that gives them something to
+  measure once work is minted.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: the-survey-findings
     md: |-
       - **`secrets` fired** on landing `f901a7b` ("chore: wire stripe
@@ -51,3 +50,7 @@ sections:
       | S-0001/D-3 | `ASSUMED` | Test files are edited only under a task's licence; adding a test is an addition, editing one needs scope | `tests/**` | The no-test-tampering gate never measured a single landing — no task existed — so this row gives the gate a spec once work is minted |
       | S-0001/D-4 | `ASSUMED` | Work touching governed areas records its decisions in the task log | `.torve/tasks/**` `logs/**` | The decisions-reported gate never measured a landing; this row is the corpus layer that turns its no-task skip into something that can fire |
       | S-0001/D-5 | `ASSUMED` | Execution logs carry the declared drift count | `.torve/tasks/**` `logs/**` | The self-audit gate never measured a landing; this row names the log discipline the gate reads |
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''

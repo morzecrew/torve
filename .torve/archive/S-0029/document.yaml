@@ -9,85 +9,75 @@ informed_by: [S-0004, S-0007, S-0026]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Per-tier skill sets and prompt extras layered over role-scoped defaults, so a named
-  variant becomes a persona — equipped, addressable from a document's phasing, and
-  measured as its own regime by machinery that already exists.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      A tier entry (seat or dotted variant, in the repository's config or in a
-      profile) may carry `skills:` — a full override of the role-scoped skill set,
-      resolved by the same fail-closed materializer — and `prompt_extras:` — short
-      working-rule lines appended to the built prompt after the charter's base
-      rules, which are never removable. A Phasing entry may carry `tier_variant:`,
-      which `torve plan` copies onto the minted contract, so "the docs phases run
-      under the copywriter" is a line in a reviewed document. Equipment is part of
-      the resolved tier, so `config_hash` already separates an equipped variant
-      into its own regime, and S-0027's replay-and-displace machinery already
-      answers whether the persona earns its name. Doctor prints what each tier
-      resolved to carry.
-  - key: motivation
-    md: |
-      Three facts, all verified in code, currently make a persona inexpressible:
+schema_version: 4
+summary: |
+  A tier entry (seat or dotted variant, in the repository's config or in a
+  profile) may carry `skills:` — a full override of the role-scoped skill set,
+  resolved by the same fail-closed materializer — and `prompt_extras:` — short
+  working-rule lines appended to the built prompt after the charter's base
+  rules, which are never removable. A Phasing entry may carry `tier_variant:`,
+  which `torve plan` copies onto the minted contract, so "the docs phases run
+  under the copywriter" is a line in a reviewed document. Equipment is part of
+  the resolved tier, so `config_hash` already separates an equipped variant
+  into its own regime, and S-0027's replay-and-displace machinery already
+  answers whether the persona earns its name. Doctor prints what each tier
+  resolved to carry.
+motivation: |
+  Three facts, all verified in code, currently make a persona inexpressible:
 
-      - Skill selection is **role**-scoped only: `SkillsConfig.sets` keys on
-        `implement`/`review`/`revert`/`author` and `materialize` receives the
-        role alone (`src/torve/application/skills.py`) — every executor variant,
-        whatever its name, gets the same set.
-      - The prompt is uniform: `build_prompt` composes the same working rules for
-        every tier (`src/torve/adapters/agent/harness.py`); a rule that only one
-        kind of work needs ("docstrings follow the house voice") can be added for
-        everyone or no one.
-      - A document cannot address a variant: `PhasingEntry`
-        (`src/torve/config/rfc_parse.py`) has no `tier_variant`, so even though
-        `Task.tier_variant` and dotted-tier resolution exist since S-0027, the
-        only way to route a minted phase to a variant is hand-editing contracts
-        after `torve plan`.
+  - Skill selection is **role**-scoped only: `SkillsConfig.sets` keys on
+    `implement`/`review`/`revert`/`author` and `materialize` receives the
+    role alone (`src/torve/application/skills.py`) — every executor variant,
+    whatever its name, gets the same set.
+  - The prompt is uniform: `build_prompt` composes the same working rules for
+    every tier (`src/torve/adapters/agent/harness.py`); a rule that only one
+    kind of work needs ("docstrings follow the house voice") can be added for
+    everyone or no one.
+  - A document cannot address a variant: `PhasingEntry`
+    (`src/torve/config/rfc_parse.py`) has no `tier_variant`, so even though
+    `Task.tier_variant` and dotted-tier resolution exist since S-0027, the
+    only way to route a minted phase to a variant is hand-editing contracts
+    after `torve plan`.
 
-      Meanwhile the measurement side is already finished: telemetry digests the
-      resolved tier mapping into `config_hash`, and S-0027/tier-variants built variants
-      precisely so "two tasks on different variants are two regimes, visibly".
-      Equipment is the last missing input; everything downstream of it exists.
-  - key: current-state
-    md: |
-      - `SkillsConfig.sets: dict[str, list[str]]`, defaults per role, materialized
-        at dispatch by `materialize(role, dest, sets, vendor_root)` — fail-closed
-        on unknown names, refusing a name both shipped and vendored (S-0009/D-12).
-      - `TierConfig` is flat with `extra="forbid"`; profiles (S-0028) merge
-        raw-mapping first, local keys win, list fields replace wholesale (S-0028/D-4).
-      - Variant resolution is `tiers["{seat}.{variant}"]`, loud refusal on unknown
-        (S-0027/D-2); `retry_variant` names a one-rung ladder (S-0027/D-11).
-      - `build_prompt` points the agent at `.torve/skills/` and carries the
-        charter working rules (base-sha pin, no corpus coordinates in user-facing
-        strings) accreted from execution evidence.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  Meanwhile the measurement side is already finished: telemetry digests the
+  resolved tier mapping into `config_hash`, and S-0027/tier-variants built variants
+  precisely so "two tasks on different variants are two regimes, visibly".
+  Equipment is the last missing input; everything downstream of it exists.
+current_state: |
+  - `SkillsConfig.sets: dict[str, list[str]]`, defaults per role, materialized
+    at dispatch by `materialize(role, dest, sets, vendor_root)` — fail-closed
+    on unknown names, refusing a name both shipped and vendored (S-0009/D-12).
+  - `TierConfig` is flat with `extra="forbid"`; profiles (S-0028) merge
+    raw-mapping first, local keys win, list fields replace wholesale (S-0028/D-4).
+  - Variant resolution is `tiers["{seat}.{variant}"]`, loud refusal on unknown
+    (S-0027/D-2); `retry_variant` names a one-rung ladder (S-0027/D-11).
+  - `build_prompt` points the agent at `.torve/skills/` and carries the
+    charter working rules (base-sha pin, no corpus coordinates in user-facing
+    strings) accreted from execution evidence.
+goals: |
+  **Goals**
 
-      - A variant can carry its own skill set and its own extra working rules.
-      - A document's phasing can name the variant a unit runs under.
-      - Equipment differences are visible in doctor and measured by the existing
-        hash, with zero telemetry changes.
-
-      **Non-goals**
-
-      - **Engine-side assignment.** The engine never infers a variant from task
-        content; classification-by-engine is the engine deciding what work looks
-        like, one step from deciding what work exists (S-0001/D-10). Authors and drafters
-        assign, in documents a human reviews.
-      - **Multi-agent collaboration inside a task.** One task, one fence, one
-        sandbox, one attempt remains load-bearing for scope, attribution, review
-        and telemetry. Parallel collaboration is decomposition (S-0026);
-        sequential collaboration is the review lane (S-0005) and the retry
-        ladder (S-0027/D-11). Nothing here adds a third kind.
-      - **Per-skill prompt rewriting.** `prompt_extras` appends lines; it does not
-        template, reorder or remove the charter rules — those encode incidents,
-        and a persona that can shed them is a persona that can re-cause them.
-      - **A persona registry beyond configuration.** A persona is a named,
-        equipped tier entry — committed config or an operator profile. No new
-        artefact type.
+  - A variant can carry its own skill set and its own extra working rules.
+  - A document's phasing can name the variant a unit runs under.
+  - Equipment differences are visible in doctor and measured by the existing
+    hash, with zero telemetry changes.
+non_goals: |
+  - **Engine-side assignment.** The engine never infers a variant from task
+    content; classification-by-engine is the engine deciding what work looks
+    like, one step from deciding what work exists (S-0001/D-10). Authors and drafters
+    assign, in documents a human reviews.
+  - **Multi-agent collaboration inside a task.** One task, one fence, one
+    sandbox, one attempt remains load-bearing for scope, attribution, review
+    and telemetry. Parallel collaboration is decomposition (S-0026);
+    sequential collaboration is the review lane (S-0005) and the retry
+    ladder (S-0027/D-11). Nothing here adds a third kind.
+  - **Per-skill prompt rewriting.** `prompt_extras` appends lines; it does not
+    template, reorder or remove the charter rules — those encode incidents,
+    and a persona that can shed them is a persona that can re-cause them.
+  - **A persona registry beyond configuration.** A persona is a named,
+    equipped tier entry — committed config or an operator profile. No new
+    artefact type.
+design:
   - key: equipment-on-the-tier
     md: |
       ```yaml
@@ -158,52 +148,49 @@ sections:
       - **A `personas:` top-level block.** Rejected: it would duplicate the tier
         mapping's resolution, refusal and hash paths for a concept that is
         exactly "a tier entry with two more fields".
-  - key: tests
-    md: |
-      - `TierConfig` field family: `skills: None` inherits, `[]` equips nothing,
-        unknown name refused at dispatch with the materializer's message;
-        profile-merge property — a local `skills` list replaces a profile's
-        wholesale.
-      - `build_prompt`: extras appear after the base working rules; base rules
-        present regardless of extras.
-      - `parse_phasing`: `tier_variant` accepted, defaulted empty, copied by
-        `torve plan` onto the contract (planner test).
-      - Hash property: two configs differing only in `prompt_extras` produce
-        different `config_hash` — the test is the proof measurement needed no
-        new code.
-  - key: docs
-    md: |
-      README configuration section: one persona example (the §5.1 block) and the
-      two-personas doctrine sentence. rfc-writer skill: Phasing reference gains
-      `tier_variant` as an optional key.
-  - key: out-of-scope
-    md: |
-      - **Roster-aware decomposition** — the drafter reading persona descriptions
-        and routing children by fit. Named as the escape hatch, not built: it
-        needs personas with accumulated evidence to route *toward*, and the
-        drafter can already set `tier_variant` mechanically (§5.2). When two
-        personas have displacement-grade history, an amendment teaches the
-        drafter's rules to cite it.
-      - **Per-persona images or gate sets** — the image is the harness identity
-        (S-0017/D-4) and gates are the repository's, not the agent's; both stay
-        where they are.
-      - **Skill authoring** — S-0009's pipeline unchanged; equipment selects,
-        never defines.
-  - key: risks
-    md: |
-      - **Persona sprawl**: cheap to name, slow to measure. Mitigated by the
-        §5.4 doctrine line and by the observation floor already suppressing
-        envelope readings for thin regimes — a persona with no history visibly
-        has none.
-      - **Equipment drift between similar personas**: two variants meant to be
-        identical but for one skill can diverge silently over time. The doctor
-        line (§5.3) makes the resolved equipment inspectable; the regime
-        preimage (S-0004/D-19) makes any historical difference diffable.
-      - **Prompt extras as a policy side-channel**: a rule that belongs in the
-        charter's base set living in one persona's extras applies to one seat
-        only. Accepted with the same answer skills already use: what execution
-        evidence proves general gets promoted into `build_prompt`, extras are
-        for genuinely local voice.
+tests: |
+  - `TierConfig` field family: `skills: None` inherits, `[]` equips nothing,
+    unknown name refused at dispatch with the materializer's message;
+    profile-merge property — a local `skills` list replaces a profile's
+    wholesale.
+  - `build_prompt`: extras appear after the base working rules; base rules
+    present regardless of extras.
+  - `parse_phasing`: `tier_variant` accepted, defaulted empty, copied by
+    `torve plan` onto the contract (planner test).
+  - Hash property: two configs differing only in `prompt_extras` produce
+    different `config_hash` — the test is the proof measurement needed no
+    new code.
+docs: |
+  README configuration section: one persona example (the §5.1 block) and the
+  two-personas doctrine sentence. rfc-writer skill: Phasing reference gains
+  `tier_variant` as an optional key.
+out_of_scope: |
+  - **Roster-aware decomposition** — the drafter reading persona descriptions
+    and routing children by fit. Named as the escape hatch, not built: it
+    needs personas with accumulated evidence to route *toward*, and the
+    drafter can already set `tier_variant` mechanically (§5.2). When two
+    personas have displacement-grade history, an amendment teaches the
+    drafter's rules to cite it.
+  - **Per-persona images or gate sets** — the image is the harness identity
+    (S-0017/D-4) and gates are the repository's, not the agent's; both stay
+    where they are.
+  - **Skill authoring** — S-0009's pipeline unchanged; equipment selects,
+    never defines.
+risks: |
+  - **Persona sprawl**: cheap to name, slow to measure. Mitigated by the
+    §5.4 doctrine line and by the observation floor already suppressing
+    envelope readings for thin regimes — a persona with no history visibly
+    has none.
+  - **Equipment drift between similar personas**: two variants meant to be
+    identical but for one skill can diverge silently over time. The doctor
+    line (§5.3) makes the resolved equipment inspectable; the regime
+    preimage (S-0004/D-19) makes any historical difference diffable.
+  - **Prompt extras as a policy side-channel**: a rule that belongs in the
+    charter's base set living in one persona's extras applies to one seat
+    only. Accepted with the same answer skills already use: what execution
+    evidence proves general gets promoted into `build_prompt`, extras are
+    for genuinely local voice.
+sections:
   - key: unresolved-questions
     md: |
       - S-0029/D-6 (below): whether `review`-role skill sets should ever be
@@ -213,46 +200,3 @@ sections:
   - key: phasing
     md: |
       *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
-phasing:
-  - phase: 1
-    title: equipment-on-the-tier
-    intent: >-
-      TierConfig gains skills (None inherits the role set, a list overrides it wholesale)
-      and prompt_extras (appended after the charter's base working rules, which stay
-      unaddressable); the runner threads the override into materialize and build_prompt
-      appends the extras (S-0029/D-1–S-0029/D-3). Tests pin inheritance, override,
-      the fail-closed unknown-name refusal, the profile-merge replace property, extras-after-
-      base ordering, and the config_hash separation of equipped regimes.
-    scope:
-      - src/torve/config/runconfig.py
-      - src/torve/application/runner.py
-      - src/torve/adapters/agent/harness.py
-      - tests/test_runconfig.py
-      - tests/test_tiering.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_runconfig.py tests/test_tiering.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-  - phase: 2
-    title: variant-in-the-phasing
-    intent: >-
-      PhasingEntry gains tier_variant, defaulted empty, copied verbatim by torve plan
-      onto the minted contract (S-0029/D-4); the doctor prints resolved equipment
-      for tiers that differ from their role default (S-0029/D-5). Tests pin parse,
-      mint copy-through, and the doctor line.
-    scope:
-      - src/torve/config/rfc_parse.py
-      - src/torve/application/planner.py
-      - src/torve/cli/doctor.py
-      - tests/test_plan.py
-      - tests/test_doctor.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_plan.py tests/test_doctor.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-    depends_on:
-      - 1

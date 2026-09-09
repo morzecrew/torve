@@ -9,12 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  How a specification corpus is organised, numbered, versioned and validated; applies
-  to a repository with no engine in it. Extracted from the charter with identifiers
-  preserved.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  How a specification corpus is organised, numbered, versioned and validated; applies to a repository with no engine in it. Extracted from the charter with identifiers preserved.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: why-this-is-separate-from-the-charter
     md: |
       These rules were written into S-0001 because there was nowhere else to put them, and the consequences showed up in the numbers: **half the charter's amendments and forty-five per cent of its decisions were about document conventions rather than about Torve.**
@@ -93,3 +95,7 @@ sections:
   - key: amendments
     md: |
       Carried over with the decisions they introduced. Numbering stays global, so citations elsewhere continue to resolve.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''

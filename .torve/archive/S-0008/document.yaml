@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Any task tracker as a presentation surface: outbound projection over the outbox,
-  restricted inbound commands, no authoritative state in the board.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Any task tracker as a presentation surface: outbound projection over the outbox, restricted inbound commands, no authoritative state in the board.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: the-rule-this-document-exists-to-fix-in-place
     md: |
       **The tracker is an output port. It never holds authoritative state.**
@@ -95,6 +98,14 @@ sections:
       A phase spanning services produces tasks in several repositories. The projection groups them under the RFC as the parent unit, so the board shows the phase and its parts rather than a flat list nobody can read across.
 
       Scheduling across repositories — weights, fair share, pausing a project — belongs to the runner, not here. The board displays the result; it does not decide it.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: |
+  - **The board becomes the perceived source of truth.** People trust what they look at. Mitigation: refusals and divergences are visible, and `torve status` is the stated authority in documentation and in escalation comments.
+  - **Comment volume.** Even one per attempt is a lot across many tasks. Watch it; collapse retries into an edited summary comment if needed — the only place where editing rather than appending is acceptable, because it is a projection, not the record.
+  - **Rate limits shared with agents.** Projection is bursty at state transitions. Relay with backoff and a per-forge budget separate from the agents' own.
+sections:
   - key: decisions
     md: |
       S-0008/D-17 was retired 2026-09-09; path rot. The identifier is never reused.
@@ -120,11 +131,6 @@ sections:
       S-0008/D-2 was retired 2026-09-09; path rot. The identifier is never reused.
 
       S-0008/D-1 was retired 2026-09-09; path rot. The identifier is never reused.
-  - key: risks
-    md: |
-      - **The board becomes the perceived source of truth.** People trust what they look at. Mitigation: refusals and divergences are visible, and `torve status` is the stated authority in documentation and in escalation comments.
-      - **Comment volume.** Even one per attempt is a lot across many tasks. Watch it; collapse retries into an edited summary comment if needed — the only place where editing rather than appending is acceptable, because it is a projection, not the record.
-      - **Rate limits shared with agents.** Projection is bursty at state transitions. Relay with backoff and a per-forge budget separate from the agents' own.
   - key: phasing
     md: |
       *(Added 2026-08-23 while draft, with the path relocation to S-0015's tree
@@ -141,54 +147,3 @@ sections:
       - One tracker adapter projecting all states, with idempotency verified by deliberately replaying the relay.
       - Four inbound commands working, including at least one refusal path exercised.
       - A `reflect` refusal observed, logged, and surfaced without corrupting engine state.
-phasing:
-  - phase: 1
-    title: The outbox the projection rides
-    intent: >-
-      The transactional outbox from S-0003/lease-and-cancellation, built for its first
-      consumer: effects are staged in the same transaction as the state change they
-      announce, relayed at-least-once by an explicit relay step, and every effect
-      carries an idempotency key so a replay is a no-op rather than a duplicate. The
-      engine's existing events keep flowing unchanged; the outbox is a new, durable
-      leg beside them — staged rows survive a runner crash and relay later, which
-      is the property the projection cannot live without.
-    scope:
-      - src/torve/application/**
-      - src/torve/adapters/**
-      - src/torve/config/**
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: The GitHub Issues projection
-    intent: >-
-      The Tracker port and its first adapter: reflect maps engine states to issue
-      state and labels and returns applied, refused or unsupported — a refusal is
-      a logged divergence, never an exception; comments are one per attempt, keyed
-      on task, state and attempt through the idempotency rule; findings annotate;
-      escalations label from the enumerated vocabulary and assign. Inbound is the
-      fixed command vocabulary — retry, abandon, unblock — parsed allow-listed from
-      comments, validated against the real store, refusals posted back. Tracker text
-      is untrusted input everywhere. Proven against the lab repository: all states
-      projected, idempotency verified by deliberately replaying the relay, one refusal
-      path exercised.
-    scope:
-      - src/torve/application/**
-      - src/torve/adapters/**
-      - src/torve/cli/**
-      - src/torve/config/**
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-    depends_on:
-      - 1

@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the why projection
+    intent: >-
+      why_report in projections.py assembles the per-task envelope from the telemetry
+      stream, feedback stream and contract head (S-0040/D-1, S-0040/D-2): attempts
+      grouped by the 0038 stamp with the pre_verdict fallback (S-0040/D-3), chronological
+      events and reviews, totals, and the same-regime cost comparator carrying the
+      quasi-experiment caveat in-envelope (S-0040/D-4, S-0040/D-5). Three renderers
+      re-expose it verbatim: torve why <task-id> per the presentation contract with
+      json format and the S-0040/D-6 exit codes, the why(task_id) MCP tool beside
+      context and show, and a serve endpoint. Tests pin grouping, fallback marking,
+      totals, comparator scoping, trace_present, the found:false envelope, and byte-identical
+      parity across the three surfaces.
+    scope:
+      - src/torve/application/projections.py
+      - src/torve/cli/why.py
+      - src/torve/cli/main.py
+      - src/torve/cli/mcp.py
+      - src/torve/cli/serve.py
+      - tests/test_context.py
+      - tests/test_mcp.py
+      - tests/test_serve.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_context.py tests/test_mcp.py tests/test_serve.py
+        tests/test_cli.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .

@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation,
-  reaper, and the simulation harness that proves the state machine.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  `torve run` for one task synchronously: sandbox lifecycle, lease and cancellation, reaper, and the simulation harness that proves the state machine.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: the-increment
     md: |
       ```bash
@@ -100,30 +103,33 @@ sections:
       Not included, deliberately: other tasks' state, other tasks' escalations, the divergence logs of adjacent work. An executor that can read them is an executor that can argue its way out of its own scope (S-0001/D-29).
 
       Also not included, deliberately (S-0003/A-3): **the source specification document**. The contract is its projection, and an executor that reads the original is reading rejected alternatives — arguments for the decisions that did not survive — along with the phasing of adjacent tasks. Where a rejected alternative genuinely bears on a task, it belongs in `decisions` as a graded row, not as a document to browse.
-  - key: tests
-    md: |
-      Four layers, the first three free of model calls.
+tests: |
+  Four layers, the first three free of model calls.
 
-      1. **Domain and state machine** — pure unit tests, frozen clock, mock store. Every transition, escalation reason, ceiling, lease expiry, reclaim.
-      2. **Runner against `FakeAgent`** — full loop including sandbox lifecycle, timeouts, reaper, gate ordering, artefact persistence. Fast, always green.
-      3. **Deterministic simulation** — the harness over the operation registry with mock deps. One master seed parametrises interleaving, injected faults, latency, generated inputs and crash points; on a violation the workload is minimised to the smallest failing case and a seed replays it exactly. This replaces the concurrency tests this RFC would otherwise specify by hand.
+  1. **Domain and state machine** — pure unit tests, frozen clock, mock store. Every transition, escalation reason, ceiling, lease expiry, reclaim.
+  2. **Runner against `FakeAgent`** — full loop including sandbox lifecycle, timeouts, reaper, gate ordering, artefact persistence. Fast, always green.
+  3. **Deterministic simulation** — the harness over the operation registry with mock deps. One master seed parametrises interleaving, injected faults, latency, generated inputs and crash points; on a violation the workload is minimised to the smallest failing case and a seed replays it exactly. This replaces the concurrency tests this RFC would otherwise specify by hand.
 
-         | Invariant (must always hold) | Reachability (must sometimes fire) |
-         | --- | --- |
-         | No task reaches `ready` with a blocking gate not green | a gate failed after another had passed |
-         | No two workers hold the same task | a lease expired mid-attempt |
-         | Attempt count never exceeds the ceiling | a crash landed between increment and dispatch |
-         | Every `escalated` task has exactly one delivered notification | the crash landed between state write and relay |
-         | No duplicate PR for one task | a retry followed a push whose result was lost |
-         | An entry written before a crash is on disk (S-0003/A-2) | the crash landed between an entry write and the end of the run |
+     | Invariant (must always hold) | Reachability (must sometimes fire) |
+     | --- | --- |
+     | No task reaches `ready` with a blocking gate not green | a gate failed after another had passed |
+     | No two workers hold the same task | a lease expired mid-attempt |
+     | Attempt count never exceeds the ceiling | a crash landed between increment and dispatch |
+     | Every `escalated` task has exactly one delivered notification | the crash landed between state write and relay |
+     | No duplicate PR for one task | a retry followed a push whose result was lost |
+     | An entry written before a crash is on disk (S-0003/A-2) | the crash landed between an entry write and the end of the run |
 
-         Each scenario keeps a deliberately broken twin — remove the ceiling check, drop the lease — that the oracle must catch and reproduce. A simulation that cannot fail proves nothing.
+     Each scenario keeps a deliberately broken twin — remove the ceiling check, drop the lease — that the oracle must catch and reproduce. A simulation that cannot fail proves nothing.
 
-      4. **Gate sabotage suite** — inherited from S-0002.
+  4. **Gate sabotage suite** — inherited from S-0002.
 
-      Layer 3 proves the engine cannot lie about concurrency; layer 4 proves the gates cannot lie about correctness. Both verified by keeping something broken around on purpose.
+  Layer 3 proves the engine cannot lie about concurrency; layer 4 proves the gates cannot lie about correctness. Both verified by keeping something broken around on purpose.
 
-      **Caveat that shapes the code:** simulation exercises handlers over the ports, so anything derived below a port — triggers, generated columns, enriched read views — is invisible to it and can produce false positives. Keep scope-overlap computation, gate ordering and escalation classification in Python above the port, where mock and real agree.
+  **Caveat that shapes the code:** simulation exercises handlers over the ports, so anything derived below a port — triggers, generated columns, enriched read views — is invisible to it and can produce false positives. Keep scope-overlap computation, gate ordering and escalation classification in Python above the port, where mock and real agree.
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: storage
     md: |
       Mock for tests and simulation. **Postgres for any real run** — not a preference, a property of the substrate: the self-hosted durable tier ships on Postgres.

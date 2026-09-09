@@ -9,12 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze
-  version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and
-  the conformance battery as the gate.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Owner-grouped, forward-only SQL migrations: torve, substrate (pinned to a forze version), telemetry from stage 3; yoyo behind the migrate extra, torve doctor, and the conformance battery as the gate.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: group-by-owner-not-by-engine
     md: |
       The obvious split is by database engine. The harder and more consequential split is by **who decides when the schema changes**.
@@ -134,6 +136,11 @@ sections:
       Both are blocking gates in the Torve repository's own CI. A migration that has never been applied to a populated database has not been tested.
 
       ---
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: decisions
     md: |
       *Provenance note 2026-08-22:* the migration regime rows above — yoyo over alembic, canonical table names, the pin checked by doctor, owner directories as stable no-ops, DSN normalisation — absorbed the discoveries of the provisioning era; see .torve/tasks/T-0005 and .torve/tasks/T-0006.

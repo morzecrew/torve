@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the-survey
+    intent: >-
+      torve survey: first-parent walk of the last N landings, truncated clone-at-landing
+      via the shadow workspace mechanics, the battery run with the parent as base,
+      per-gate outcomes collected and the clone removed; no-corpus skips reported
+      as findings, product battery under manifest defaults when the target has none,
+      read-only throughout, exit 0 on completed measurement (S-0031/D-1, S-0031/D-4,
+      S-0031/D-5). Tests pin the fixture-history outcomes, the read-only property
+      and the JSON report shape.
+    scope:
+      - src/torve/application/survey.py
+      - src/torve/cli/survey.py
+      - src/torve/adapters/workspace/git.py
+      - tests/test_survey.py
+    acceptance:
+      - uv run pytest tests/test_survey.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+      - uv run lint-imports
+  - phase: 2
+    title: the-bootstrap-skill
+    intent: >-
+      skills/corpus-bootstrap shipped as wheel data: the extraction doctrine (mostly
+      ASSUMED, LOCKED only on defended boundaries, paths on every row, no phasing),
+      the survey report as input, one draft document in this corpus's format as output
+      for a human to edit, commit and accept (S-0031/D-2, S-0031/D-3, S-0031/D-6).
+      A sample survey report and the checkable output shape ride the skill as its
+      fixture.
+    scope: [skills/corpus-bootstrap/**, tests/test_skills.py]
+    acceptance:
+      - uv run pytest tests/test_skills.py
+      - uv run torve rfc check
+    depends_on:
+      - 1

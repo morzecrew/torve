@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: console-components
+    intent: >-
+      One component vocabulary lands in torve.cli.console — header line, table, verdict
+      marks, failure detail, closing line — and the three highest-read surfaces (gates
+      run, status, context) render through it; torve context gains --format markdown
+      carrying today's pasteable rendering while its default becomes tables and sections.
+      Every JSON byte-shape is unchanged, pinned by test.
+    scope: [src/torve/cli/**, tests/test_cli.py, tests/test_context.py]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+  - phase: 2
+    title: verb-sweep-and-live-status
+    intent: >-
+      Every remaining verb — plan, shadow, rfc, migrate, doctor, feedback, reap, cancel
+      — renders through the shared components, and steps longer than a moment show
+      the single-line TTY-only live status, absent under --plain, CI and JSON. No
+      interactive prompt appears anywhere, and the verdict-mark vocabulary is byte-identical
+      to phase 1's.
+    scope:
+      - src/torve/cli/plan.py
+      - src/torve/cli/shadow.py
+      - src/torve/cli/rfc.py
+      - src/torve/cli/migrate.py
+      - src/torve/cli/doctor.py
+      - src/torve/cli/feedback.py
+      - src/torve/cli/status.py
+      - tests/test_plan.py
+      - tests/test_shadow.py
+      - tests/test_rfc_check.py
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+    depends_on:
+      - 1

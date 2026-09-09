@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: emitter-and-fmt
+    intent: |
+      The canonical emitter beside the parser and torve rfc fmt as its
+      surface: frontmatter in fixed key order with trap scalars quoted,
+      decision tables at the validated header, phasing fences re-serialised,
+      amendment headings in dated form — prose byte-for-byte. Idempotence
+      pinned over the live corpus; fmt refuses documents whose parse already
+      reports problems; --check reports without writing.
+    scope: [src/torve/config/**, src/torve/cli/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: transactional-verbs
+    intent: |
+      rfc amend, rfc add-decision, rfc retire and rfc relocate-paths as
+      parse-mutate-emit-check transactions that abort whole on a red check:
+      derived amendment and decision identifiers, S-0016/D-1 retirement executed
+      in one motion, mechanical Paths sweeps. Verbs write structure and
+      identifiers only; grades, prose and status stay hand-written.
+    scope: [src/torve/config/**, src/torve/cli/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 1
+  - phase: 3
+    title: typed-example-fences
+    intent: |
+      The contract-example fence validated against the task contract schema
+      as part of torve rfc check, following the phasing-fence pattern, so a
+      corpus document can carry a runnable contract example that reddens
+      when the schema moves. The rfc-writer skill's template gains the fence;
+      no other tags ship.
+    scope: [src/torve/config/**, skills/rfc-writer/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 1

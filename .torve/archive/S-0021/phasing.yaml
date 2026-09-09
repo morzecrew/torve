@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: broker-port-and-endpoint-mode
+    intent: >-
+      The Broker port and its local adapter in endpoint mode, so that a run's provider
+      credential never enters a sandbox: the broker holds the keys, exposes one loopback
+      route per routed provider, issues a run-scoped token, and the tier command is
+      substituted with the broker's URL. A brokered tier naming api_key_env is refused.
+      Wire-side routing refusal, per-run usage metering from provider responses, mid-run
+      budget refusal escalating cost_anomaly, the broker adapter and routing in config_hash,
+      and torve doctor naming the adapter in force. The `none` adapter makes today's
+      behaviour explicit and stays the default for this phase.
+    scope:
+      - src/torve/adapters/broker/**
+      - src/torve/adapters/agent/**
+      - src/torve/application/**
+      - src/torve/config/**
+      - src/torve/cli/**
+      - tests/**
+      - pyproject.toml
+      - uv.lock
+      - CHANGELOG.md
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: sealed-mode-containment
+    intent: >-
+      Containment on top of custody: the sandbox joins an internal Docker network
+      shared with the broker, so no destination is reachable except through it, and
+      every non-provider host the run legitimately needs is declared and CONNECTed
+      without inspection. An undeclared destination fails loudly and the run escalates
+      as a configuration error rather than succeeding through a path nobody meant
+      to leave open. This is what makes S-0017/D-10's trust sentence checkable for
+      a repository the operator does not trust as their own shell.
+    scope:
+      - src/torve/adapters/runtime/**
+      - src/torve/adapters/broker/**
+      - src/torve/config/**
+      - tests/**
+      - CHANGELOG.md
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 1

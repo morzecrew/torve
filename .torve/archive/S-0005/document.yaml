@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Independent automated review as a second run role: isolation rules, the finding
-  contract, calibration, and replacing third-party PR reviewers.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Independent automated review as a second run role: isolation rules, the finding contract, calibration, and replacing third-party PR reviewers.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: the-reframing
     md: |
       Earlier drafts treated review as "a gate that happens to call a model", and then had to explain why that did not violate S-0001/D-10. The explanation was strained, and the strain was a signal.
@@ -157,12 +160,15 @@ sections:
       4. **Remove.** Only once blocker precision and escaped defects are at least as good, over a real sample.
 
       Steps 1–2 cost only tokens and are the whole basis for deciding whether step 4 is honest.
-  - key: risks
-    md: |
-      - **Noise, and the muting it causes.** Mitigated by evidence verification, severity limits, debounce, and permission to be clean. Watch the action rate; if it falls below a threshold, cut severities rather than tuning prose.
-      - **Cross-model requirement versus budget.** The reviewer is a second model on every change. If the tiering budget cannot carry it, review non-trivial diffs only — but say so in configuration rather than letting it silently degrade.
-      - **Reviewing without a spec.** On pull requests with no task, the strongest finding class is unavailable. Do not compensate by letting the reviewer infer a specification; an inferred spec produces confident findings against a standard nobody agreed to.
-      - **Review debt.** Automated review does not reduce the human bottleneck, it feeds it. S-0006 owns that.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: |
+  - **Noise, and the muting it causes.** Mitigated by evidence verification, severity limits, debounce, and permission to be clean. Watch the action rate; if it falls below a threshold, cut severities rather than tuning prose.
+  - **Cross-model requirement versus budget.** The reviewer is a second model on every change. If the tiering budget cannot carry it, review non-trivial diffs only — but say so in configuration rather than letting it silently degrade.
+  - **Reviewing without a spec.** On pull requests with no task, the strongest finding class is unavailable. Do not compensate by letting the reviewer infer a specification; an inferred spec produces confident findings against a standard nobody agreed to.
+  - **Review debt.** Automated review does not reduce the human bottleneck, it feeds it. S-0006 owns that.
+sections:
   - key: decisions
     md: |
       S-0005/D-5 (`Inference`-port default) was removed 2026-08-22 with charter S-0001/A-4; the identifier is retired, never reused (S-0016/D-15).
@@ -176,63 +182,3 @@ sections:
       - Review runs produce `Attempt` records indistinguishable in shape from implementation runs.
       - Seeded-defect corpus passing.
       - Two weeks of shadow-mode comparison against the incumbent, with blocker precision and escape rate recorded.
-phasing:
-  - phase: 1
-    title: The finding and the role's mechanics
-    intent: >-
-      Findings become a domain type and the review role becomes real in the contract:
-      Task gains targets, a review task refuses acceptance commands by validation,
-      the acceptance gate is skipped for the role rather than passed with an empty
-      list, and evidence location becomes a check that discards findings citing coordinates
-      nothing can resolve.
-    scope: [src/torve/domain/**, src/torve/gates/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: The review run
-    intent: >-
-      Review runs through the pipeline: input assembled from the diff, the target's
-      contract, inherited decisions and gate results — never the author's trace; the
-      workspace mounts read-only and the reviewer holds no credential beyond its tier's;
-      findings parse from the agent's output, unlocatable evidence is discarded before
-      anyone sees it, a surviving blocker escalates the target as blocker_finding
-      and everything else is recorded on the attempt; the runner mints and drives
-      the review task when its target's gates go green, replacing the review-not-configured
-      bridge — off by default in configuration.
-    scope:
-      - src/torve/application/**
-      - src/torve/adapters/**
-      - src/torve/config/**
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-    depends_on:
-      - 1
-  - phase: 3
-    title: Degraded mode and the seeded corpus
-    intent: >-
-      Reviews without a contract run in degraded mode and are told so explicitly,
-      so no specification is invented; the seeded-defect corpus becomes a repository
-      artefact under .torve/review-corpus/ with a command that replays every case
-      through the reviewer tier and reports which expected findings were caught —
-      the regression harness that gates every prompt or model change.
-    scope: [src/torve/cli/**, .torve/review-corpus/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-    depends_on:
-      - 2

@@ -9,84 +9,74 @@ informed_by: [S-0003, S-0004, S-0021, S-0028]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  The in-repo sandbox definitions for claude, dsh and mimo published to ghcr.io with
-  immutable version tags and a thin baked-in toolkit — a convenience reference, never
-  a requirement, with the digest staying the only identity.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      CI builds the three harness definitions this repository already tests and
-      pushes them to `ghcr.io/morzecrew/torve-agent-<name>` with immutable
-      `<harness-version>-r<image-rev>` tags plus a convenience `latest`. Harness
-      versions become pinned-default build arguments, so one definition serves
-      many versions and no rebuild silently upgrades anything. Each image bakes
-      a thin `/opt/torve/` toolkit — the usage reporter and seed helper that
-      already exist, formalized — which shortens the command templates a profile
-      carries. A consuming configuration points `image:` at the ghcr reference
-      and configures nothing else; a suspicious operator builds the identical
-      image locally from the identical definition with one command. The digest
-      remains the only identity the engine trusts.
-  - key: motivation
-    md: |
-      - **The OpenSandbox runtime requires a registry.** Its adapter refuses
-        `build_image` by design; live-server work (S-0003, condition fired
-        2026-08-31) is image-delivery-blocked until something is published.
-      - **Zero-config onboarding is otherwise a lie.** S-0028's profiles made
-        the wiring one reference — but the reference points at a local image the
-        operator must build from a definition they must copy. A ghcr reference
-        plus a profile is the first genuinely configuration-free tier.
-      - **Version drift is live, not hypothetical.** The dsh image rebuilt with
-        an unpinned npm install and silently jumped to 0.1.1-rc.2 mid-campaign;
-        the pin landed as a hotfix (f68f4e7). Build arguments with pinned
-        defaults are that fix as a convention instead of a memory.
-      - **The toolkit already exists, undeclared.** `report-usage.js` and the
-        claude-seed copy ship in images and are load-bearing for telemetry —
-        they deserve a named home and a versioning story instead of living as
-        incidental COPY lines.
-  - key: current-state
-    md: |
-      - Five definitions under `.torve/sandbox/` (`battery`, `claude`, `dsh`,
-        `mimo`, `opencode`); `torve sandbox build` builds them and reports
-        digests; the digest joins `config_hash` at dispatch (S-0017/D-1), so a
-        mutated tag cannot silently merge regimes — verified doctrine, not
-        intent.
-      - `tier.image` and `runtime.image` accept arbitrary references already;
-        the docker runtime uses what the daemon resolves. No engine change is
-        needed for a remote reference to work.
-      - dsh's Dockerfile pins `@deepseek-ai/dsh@0.1.1-rc.2` inline (the
-        hotfix); claude's and mimo's harness versions are unpinned installs.
-      - `.github/workflows/ci.yml` exists; no publish job.
-      - The images already carry utilities ad hoc: `/opt/dsh/report-usage.js`,
-        `/opt/dsh/*.yml` overlays, `/opt/claude-seed/`.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+schema_version: 4
+summary: |
+  CI builds the three harness definitions this repository already tests and
+  pushes them to `ghcr.io/morzecrew/torve-agent-<name>` with immutable
+  `<harness-version>-r<image-rev>` tags plus a convenience `latest`. Harness
+  versions become pinned-default build arguments, so one definition serves
+  many versions and no rebuild silently upgrades anything. Each image bakes
+  a thin `/opt/torve/` toolkit — the usage reporter and seed helper that
+  already exist, formalized — which shortens the command templates a profile
+  carries. A consuming configuration points `image:` at the ghcr reference
+  and configures nothing else; a suspicious operator builds the identical
+  image locally from the identical definition with one command. The digest
+  remains the only identity the engine trusts.
+motivation: |
+  - **The OpenSandbox runtime requires a registry.** Its adapter refuses
+    `build_image` by design; live-server work (S-0003, condition fired
+    2026-08-31) is image-delivery-blocked until something is published.
+  - **Zero-config onboarding is otherwise a lie.** S-0028's profiles made
+    the wiring one reference — but the reference points at a local image the
+    operator must build from a definition they must copy. A ghcr reference
+    plus a profile is the first genuinely configuration-free tier.
+  - **Version drift is live, not hypothetical.** The dsh image rebuilt with
+    an unpinned npm install and silently jumped to 0.1.1-rc.2 mid-campaign;
+    the pin landed as a hotfix (f68f4e7). Build arguments with pinned
+    defaults are that fix as a convention instead of a memory.
+  - **The toolkit already exists, undeclared.** `report-usage.js` and the
+    claude-seed copy ship in images and are load-bearing for telemetry —
+    they deserve a named home and a versioning story instead of living as
+    incidental COPY lines.
+current_state: |
+  - Five definitions under `.torve/sandbox/` (`battery`, `claude`, `dsh`,
+    `mimo`, `opencode`); `torve sandbox build` builds them and reports
+    digests; the digest joins `config_hash` at dispatch (S-0017/D-1), so a
+    mutated tag cannot silently merge regimes — verified doctrine, not
+    intent.
+  - `tier.image` and `runtime.image` accept arbitrary references already;
+    the docker runtime uses what the daemon resolves. No engine change is
+    needed for a remote reference to work.
+  - dsh's Dockerfile pins `@deepseek-ai/dsh@0.1.1-rc.2` inline (the
+    hotfix); claude's and mimo's harness versions are unpinned installs.
+  - `.github/workflows/ci.yml` exists; no publish job.
+  - The images already carry utilities ad hoc: `/opt/dsh/report-usage.js`,
+    `/opt/dsh/*.yml` overlays, `/opt/claude-seed/`.
+goals: |
+  **Goals**
 
-      - A consuming repository (or this one) configures a tier with a ghcr
-        reference and builds nothing.
-      - Every published tag is immutable and names its harness version; every
-        rebuild is a deliberate, diffable bump commit.
-      - The toolkit is a named, versioned convention rather than incidental
-        COPY lines.
-      - Local build parity: the published image and the local build come from
-        one definition.
-
-      **Non-goals**
-
-      - **Requiring these images.** No engine behavior may ever be conditioned
-        on an in-house image (S-0033/D-1). A stock upstream image plus a longer
-        command template must always work.
-      - **Publishing the battery.** It mounts the docker socket in dogfood and
-        its contents are repository-shaped; publishing it invites using it as a
-        base image, which is a support surface this document refuses.
-      - **Signing and attestation.** Named in §8 with the trust statement made
-        plainly instead; a signature ceremony without a verification consumer
-        is theater.
-      - **Auto-rebuild on upstream releases.** A harness release becomes an
-        image only through a human bump commit — a regime change is chosen,
-        never scheduled.
+  - A consuming repository (or this one) configures a tier with a ghcr
+    reference and builds nothing.
+  - Every published tag is immutable and names its harness version; every
+    rebuild is a deliberate, diffable bump commit.
+  - The toolkit is a named, versioned convention rather than incidental
+    COPY lines.
+  - Local build parity: the published image and the local build come from
+    one definition.
+non_goals: |
+  - **Requiring these images.** No engine behavior may ever be conditioned
+    on an in-house image (S-0033/D-1). A stock upstream image plus a longer
+    command template must always work.
+  - **Publishing the battery.** It mounts the docker socket in dogfood and
+    its contents are repository-shaped; publishing it invites using it as a
+    base image, which is a support surface this document refuses.
+  - **Signing and attestation.** Named in §8 with the trust statement made
+    plainly instead; a signature ceremony without a verification consumer
+    is theater.
+  - **Auto-rebuild on upstream releases.** A harness release becomes an
+    image only through a human bump commit — a regime change is chosen,
+    never scheduled.
+design:
   - key: names-and-tags
     md: |
       `ghcr.io/morzecrew/torve-agent-claude`, `…-dsh`, `…-mimo`.
@@ -157,48 +147,45 @@ sections:
       - **Mutable version tags (`:0.1.1`).** Refused: S-0017/D-1 protects the
         engine from tag mutation, but humans read tags, and a re-pushed tag
         lies to them even when the hash catches it.
-  - key: tests
-    md: |
-      - The conformance battery keeps gating the definitions (unchanged — it is
-        the publish gate).
-      - A definition test asserting each Dockerfile's harness install goes
-        through a pinned-default `ARG` (a regex-level check, cheap and honest
-        about what it is).
-      - Toolkit contract test per image: the container answers
-        `/opt/torve/report-usage --help` (or equivalent existence checks) so a
-        publish cannot drop a utility a profile depends on.
-      - The publish workflow itself is exercised by publishing — CI dry-run
-        modes are a simulation nobody maintains.
-  - key: docs
-    md: |
-      README configuration section gains the ghcr reference example beside the
-      profile example — the two together are the zero-config quickstart. The
-      trust statement, plainly: pulling these images trusts this repository's CI
-      and the ghcr account; operators who prefer not to build locally from the
-      same definitions with `torve sandbox build`.
-  - key: out-of-scope
-    md: |
-      - **Signing/attestation** — the escape hatch is named: it arrives when a
-        consumer exists that verifies, likely alongside the first external
-        adopter.
-      - **arm64** — one flag in the buildx step when the first arm host
-        appears.
-      - **Publishing battery or opencode** — battery for the §4 reason;
-        opencode when its shadow rerun earns a telemetry-backed slot.
-      - **A torve-side pull/cache verb** — the daemon and the server already
-        own pulling; a wrapper verb would be ceremony.
-  - key: risks
-    md: |
-      - **The toolkit calcifies into an API.** Profiles across machines start
-        depending on `/opt/torve/*` paths; a rename breaks them silently.
-        Mitigated by the symlink transition rule (§5.3) and by the toolkit
-        contract test (§6); accepted residual: the toolkit is versioned by the
-        image revision, and that is what image revisions are for.
-      - **`latest` misread as a pin.** The README example uses a full version
-        tag, never `latest`; `latest` exists for kicking tires.
-      - **ghcr outage blocks dispatch** for configurations naming remote
-        references. Accepted plainly: the mitigation is the one-command local
-        build parity (S-0033/D-1's consequence), not a mirror.
+tests: |
+  - The conformance battery keeps gating the definitions (unchanged — it is
+    the publish gate).
+  - A definition test asserting each Dockerfile's harness install goes
+    through a pinned-default `ARG` (a regex-level check, cheap and honest
+    about what it is).
+  - Toolkit contract test per image: the container answers
+    `/opt/torve/report-usage --help` (or equivalent existence checks) so a
+    publish cannot drop a utility a profile depends on.
+  - The publish workflow itself is exercised by publishing — CI dry-run
+    modes are a simulation nobody maintains.
+docs: |
+  README configuration section gains the ghcr reference example beside the
+  profile example — the two together are the zero-config quickstart. The
+  trust statement, plainly: pulling these images trusts this repository's CI
+  and the ghcr account; operators who prefer not to build locally from the
+  same definitions with `torve sandbox build`.
+out_of_scope: |
+  - **Signing/attestation** — the escape hatch is named: it arrives when a
+    consumer exists that verifies, likely alongside the first external
+    adopter.
+  - **arm64** — one flag in the buildx step when the first arm host
+    appears.
+  - **Publishing battery or opencode** — battery for the §4 reason;
+    opencode when its shadow rerun earns a telemetry-backed slot.
+  - **A torve-side pull/cache verb** — the daemon and the server already
+    own pulling; a wrapper verb would be ceremony.
+risks: |
+  - **The toolkit calcifies into an API.** Profiles across machines start
+    depending on `/opt/torve/*` paths; a rename breaks them silently.
+    Mitigated by the symlink transition rule (§5.3) and by the toolkit
+    contract test (§6); accepted residual: the toolkit is versioned by the
+    image revision, and that is what image revisions are for.
+  - **`latest` misread as a pin.** The README example uses a full version
+    tag, never `latest`; `latest` exists for kicking tires.
+  - **ghcr outage blocks dispatch** for configurations naming remote
+    references. Accepted plainly: the mitigation is the one-command local
+    build parity (S-0033/D-1's consequence), not a mirror.
+sections:
   - key: unresolved-questions
     md: |
       - S-0033/D-6 (below): whether published images embed their definition's git
@@ -210,49 +197,3 @@ sections:
       the original combined phase `too_large`.)*
 
       *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
-phasing:
-  - phase: 1
-    title: toolkit-and-args
-    intent: >-
-      The three publishable definitions converge on the conventions: harness installs
-      behind pinned-default ARGs (S-0033/D-3), the existing utilities moved under
-      /opt/torve with symlinks at their old paths for one transition revision (S-0033/D-4),
-      and the definition-level tests — the ARG-pin check and the toolkit existence
-      checks — joining the sandbox battery. Profile command templates in the README
-      examples shorten to the toolkit paths.
-    scope:
-      - .torve/sandbox/claude/**
-      - .torve/sandbox/dsh/**
-      - .torve/sandbox/mimo/**
-      - tests/test_sandbox_images.py
-      - README.md
-    acceptance:
-      - uv run pytest tests/test_sandbox_images.py
-      - uv run ruff check .
-  - phase: 2
-    title: publish-workflow
-    intent: >-
-      The ghcr publish job: buildx over the three definitions on manual or tag-shaped
-      triggers, the immutable tag scheme with re-push refusal (S-0033/D-2), conformance
-      battery as the gate (S-0033/D-5), linux/amd64 only. README gains the ghcr quickstart
-      with a full version tag.
-    scope: [.github/workflows/**, README.md]
-    acceptance:
-      - uv run ruff check .
-    depends_on:
-      - 1
-  - phase: 3
-    title: doctor-remote-digest
-    intent: >-
-      Doctor's image line covers remote references: a tier naming a registry reference
-      prints the resolved digest beside it, the same line local images already get,
-      so "what exactly will run" has one answer for both kinds of reference. No new
-      check — resolution failure already fails dispatch loudly.
-    scope: [src/torve/cli/doctor.py, tests/test_cli.py]
-    acceptance:
-      - uv run pytest tests/test_cli.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-    depends_on:
-      - 1

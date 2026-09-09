@@ -1,0 +1,156 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the model and its loader
+    intent: >-
+      `domain/spec.py` holds the pydantic model of §5.1 and `config/spec.py` loads
+      it from the markdown corpus as it stands: frontmatter, the decision table, the
+      phasing fence, the contract example, amendment headings, and the five fenced
+      kinds of §5.2, which the existing corpus does not yet carry and which load as
+      empty. The loader owns number derivation over corpus and archive (S-0053/D-10)
+      and the fingerprint (S-0053/D-5). A parity test asserts, document by document
+      over the whole corpus, that the loader yields what `rfc_parse` yields today;
+      nothing else switches to the model in this phase, so the parser stays the owner
+      of every reader until phase 2.
+    scope:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_spec_load.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    character: structural
+  - phase: 2
+    title: >-
+      the readers, the amend forms, coverage and the archive verb
+    intent: >-
+      Every reader switches to the model beside its old path with a parity assertion
+      (S-0053/D-13): `rfc check`, `show`, `index`, `health`, the importer, `decisions
+      paths`. `torve rfc amend` gains the mutating forms of §5.4 and writes the `changes`
+      fence with the prior value; `retire` becomes one of them; `torve rfc fix` re-stamps
+      a text-only edit as editorial; a hand-edited grade or paths fails the check.
+      Coverage (S-0053/D-6) and rot (S-0053/D-7) land in the importer's module and
+      surface through `decisions paths` and `rfc health`. `torve rfc archive NUMBER`
+      moves a document to `archive/rfcs/` with the frontmatter of S-0053/D-8, and
+      the importer records archived documents and rows as retired (S-0053/D-9). `rfc_parse.py`
+      is untouched in this phase so the parity assertions have something to assert
+      against.
+    scope:
+      - src/torve/config/rfc_emit.py
+      - src/torve/application/decisions.py
+      - src/torve/application/specquality.py
+      - src/torve/cli/rfc.py
+      - src/torve/cli/decisions.py
+      - tests/test_rfc_emit.py
+      - tests/test_decisions.py
+      - tests/test_specquality.py
+      - tests/test_rfc_check.py
+      - tests/test_cli_decisions.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_rfc_emit.py tests/test_decisions.py tests/test_specquality.py
+        tests/test_rfc_check.py tests/test_cli_decisions.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    depends_on:
+      - 1
+    character: structural
+  - phase: 2
+    title: the check learns the archive
+    intent: >-
+      The parser's corpus check resolves what the archive defines (S-0053/A-1): a
+      `D-x.y` citation into an archived document resolves, a `depends_on`, `informed_by`
+      or `supersedes` reference to an archived number is a warning naming the archive
+      rather than "no such RFC", the parser's own `next_number` derives over corpus
+      and archive exactly as the loader's does, and `lookup` answers an archived identifier
+      marked archived so the MCP `show` face keeps resolving what the CLI already
+      does. Nothing about the format changes and no reader moves; this is the one
+      piece of archive awareness the parser must have before phase 3 can move a document
+      that others cite.
+    scope: [src/torve/config/rfc_parse.py, tests/test_rfc_archive.py]
+    acceptance:
+      - >-
+        uv run pytest tests/test_rfc_archive.py tests/test_rfc_check.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: the archive lands
+    intent: >-
+      The three amendments to S-0016 and the one to S-0007 named in §5.7 are written
+      into their documents' own Amendments sections through `torve rfc amend`, and
+      every accepted document except this one is moved by `torve rfc archive` — fifty-one
+      documents, filenames and identifiers kept, `status: superseded`. Path-rotted
+      rows are retired through `rfc check --fix-rot` before the move so the archive
+      records what was already dead as retired for that reason and not for the move.
+      `torve decisions import` brings the record level. The pages named in §7 describe
+      the archive. `rfc check` is green on a corpus of one document, and `show S-0044/D-12`
+      answers from the archive.
+    scope:
+      - rfcs/**
+      - archive/**
+      - pages/docs/operating.md
+      - pages/docs/architecture/record.md
+    acceptance:
+      - uv run torve rfc check
+      - >-
+        uv run pytest tests/test_rfc_check.py tests/test_decisions.py
+    depends_on:
+      - 2
+    character: routine
+  - phase: 5
+    title: one owner of the format
+    intent: >-
+      `rfc_parse.py` is deleted along with its parity harness, the import-linter contract
+      that named it is re-pointed at `config/spec.py` so the format still terminates
+      at the planner, and the rfc-writer skill is rewritten for the five fenced kinds
+      and the `amend` forms, its references updated, its symlinks under `.claude/skills`
+      and `.agents/skills` intact. After this phase there is one owner of the format
+      and it is the loader.
+    scope: [src/torve/**, pyproject.toml, skills/rfc-writer/**, tests/**]
+    acceptance:
+      - uv run pytest
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    depends_on:
+      - 3
+    character: routine
+contract_example:
+  schema_version: 1
+  id: T-0290
+  rfc: rfcs/0053-the-item-model-and-the-rebuilt-corpus.md
+  phase: 0
+  role: implement
+  title: ''
+  intent: >-
+    `domain/spec.py` holds the pydantic model and `config/spec.py` loads it from the
+    markdown corpus as it stands; a parity test asserts the loader yields what `rfc_parse`
+    yields today, document by document.
+  depends_on: []
+  targets: []
+  scope:
+    allow:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+    deny: []
+  acceptance:
+    - >-
+      uv run pytest tests/test_spec.py tests/test_spec_load.py
+  decisions:
+    - id: D-1
+      grade: LOCKED
+      text: >-
+        The specification the engine reads is one pydantic model in domain/spec.py;
+        every reader consumes the model and never a parser's rows
+      paths: [src/torve/domain/spec.py, src/torve/config/spec.py]
+      consequence: ''
+      check_state: shadow
+  budget: {}
+  tier: executor

@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Minting tasks from an approved RFC, projecting execution facts back into planning
-  sessions, and the read-only MCP surface.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Minting tasks from an approved RFC, projecting execution facts back into planning sessions, and the read-only MCP surface.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: why-last
     md: |
       The planner projects accumulated facts. With no accumulation there is nothing to project, and the module degenerates into a task-file generator that a shell script would do better.
@@ -195,17 +198,20 @@ sections:
       Non-deterministic extraction from unstructured sources — reading a codebase and proposing decisions — runs **outside** the engine, as a skill, in a supervised session, and emits a document a human commits. Identical in shape to `torve context`, and for the same reason: it keeps S-0001/D-10 intact. No adapter in this port ever calls a model.
 
       The realistic sequence is lazy: start with `RfcDirectory` over what already exists, let `ExecutionLog` accumulate the rest, and write a `Constitution` only for the decisions that keep being rediscovered.
-  - key: out-of-scope
-    md: |
-      **Compatibility with foreign spec-driven formats.** Excluded, and not for effort reasons.
+tests: ''
+docs: ''
+out_of_scope: |
+  **Compatibility with foreign spec-driven formats.** Excluded, and not for effort reasons.
 
-      Spec Kit, OpenSpec and similar tools generate phased specifications. They do not produce graded decisions, declared paths, per-task scope, or identifiers a divergence log can cite — so a document bridged from one of them would carry nothing to inherit, and `torve plan` would mint tasks with an empty `decisions` list. The anti-drift contour would not degrade; it would be absent.
+  Spec Kit, OpenSpec and similar tools generate phased specifications. They do not produce graded decisions, declared paths, per-task scope, or identifiers a divergence log can cite — so a document bridged from one of them would carry nothing to inherit, and `torve plan` would mint tasks with an empty `decisions` list. The anti-drift contour would not degrade; it would be absent.
 
-      Universal compatibility would cost exactly the thing that makes this engine worth having.
+  Universal compatibility would cost exactly the thing that makes this engine worth having.
 
-      The format's surface is narrow by construction: it terminates at the planner. `decisions-reported` reads `InheritedDecision` from the contract; the runner, gates, review, merge and telemetry see task contracts only. Keeping it that way is what keeps a different source possible at all (S-0007/D-18) — a grade is a human judgement about how expensive a decision is to reverse, and it cannot be derived from a document where nobody made that judgement, by any mechanism, ever.
+  The format's surface is narrow by construction: it terminates at the planner. `decisions-reported` reads `InheritedDecision` from the contract; the runner, gates, review, merge and telemetry see task contracts only. Keeping it that way is what keeps a different source possible at all (S-0007/D-18) — a grade is a human judgement about how expensive a decision is to reverse, and it cannot be derived from a document where nobody made that judgement, by any mechanism, ever.
 
-      **Reopened when:** a project that already keeps specifications in another format adopts Torve and will not rewrite them. The `DecisionSource` port is the extension point; an adapter is a day's work, and it cannot be deterministic — decisions absent from a document are extracted outside the engine, by a skill, and accepted by a human.
+  **Reopened when:** a project that already keeps specifications in another format adopts Torve and will not rewrite them. The `DecisionSource` port is the extension point; an adapter is a day's work, and it cannot be deterministic — decisions absent from a document are extracted outside the engine, by a skill, and accepted by a human.
+risks: ''
+sections:
   - key: exit-criteria
     md: |
       - `torve plan` mints a phase from a real RFC with no manual editing of the result.

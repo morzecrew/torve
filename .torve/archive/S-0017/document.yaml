@@ -9,12 +9,14 @@ informed_by: [S-0013, S-0016]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  How a sandbox image comes to exist and how a harness's configuration reaches it:
-  images as digest-pinned inputs to the run, five configuration channels routed by
-  nature, and the policy lines for MCP servers and persistent memory.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  How a sandbox image comes to exist and how a harness's configuration reaches it: images as digest-pinned inputs to the run, five configuration channels routed by nature, and the policy lines for MCP servers and persistent memory.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: two-gaps-found-by-measurement
     md: |
       The first shadow-run campaign (2026-08-22) surfaced both problems this
@@ -152,6 +154,11 @@ sections:
         to understand run N has a contract that failed to say what changes and
         why. Memory off is the default for executor tiers; enabling it is a
         per-tier decision made knowingly, and it lives on the slot's volume.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: decisions
     md: |
       S-0017/D-9 was retired 2026-09-09; path rot. The identifier is never reused.

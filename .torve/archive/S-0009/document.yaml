@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Skill routing per role, versioned distribution, trigger collision, and the eval
-  loop that retires skills that do not earn their tokens.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Skill routing per role, versioned distribution, trigger collision, and the eval loop that retires skills that do not earn their tokens.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: why-this-needs-a-document
     md: |
       Skills are load-bearing: they are how an agent passes a gate on the first attempt instead of the third, and `config_hash` already treats the skill set as part of the regime a measurement belongs to. Yet nothing in this corpus says which skills load for which role, what happens when several fire at once, or how one is retired.
@@ -96,6 +99,11 @@ sections:
       A skill without a gate is a convention. A gate without a skill is a gate that fails a lot and costs iterations. Both, or the rule is not really enforced.
 
       This also gives a retirement path in the other direction: once a gate exists and its first-attempt pass rate is high, the corresponding skill may be shrinkable to a sentence.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: exit-criteria
     md: |
       - Role-scoped sets configured and truncation events visible in telemetry.

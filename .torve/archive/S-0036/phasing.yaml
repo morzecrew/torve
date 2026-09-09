@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the coverage-delta gate
+    intent: >-
+      pytest-cov and diff-cover join the dev dependencies; the coverage-delta shell
+      gate enters the manifest in shadow (S-0036/D-1), judging the attempt's changed
+      lines against the gate base; the executor measures and settles the threshold
+      and invocation (S-0036/D-2) and logs the choice; sabotage twins ship with it
+      — untested new branch red, tested twin green, untouched legacy file unconvicted.
+    scope:
+      - .torve/gates.yaml
+      - pyproject.toml
+      - uv.lock
+      - src/torve/gates/sabotage.py
+      - tests/test_gates.py
+    acceptance:
+      - uv run pytest tests/test_gates.py
+      - uv run torve gates check
+      - uv run torve rfc check
+      - uv run ruff check .
+  - phase: 2
+    title: the sabotage-pair lint
+    intent: >-
+      Gate declarations carry `sabotage:` naming a CASES family or a test path; manifest
+      load refuses a twinless gate (S-0036/D-3); every existing entry in this repository's
+      gates.yaml is backfilled in the same landing so the lint ships with zero grandfather
+      exceptions. A red case pins the refusal, a green one pins the shipped manifest.
+    scope: [src/torve/config/manifest.py, .torve/gates.yaml, tests/test_manifest.py]
+    acceptance:
+      - uv run pytest tests/test_manifest.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: escapes mint corpus entries
+    intent: >-
+      The corpus duty (S-0036/D-4) lands as mechanism: torve review corpus add <fixing-commit>
+      scaffolds an entry from the commit pair (S-0036/D-5) — defective landing located
+      by its task trailer, fix parent as the tree, the finding paragraph left explicitly
+      for the operator with a refusing placeholder the loader rejects until written.
+      A commit with no shipped defective ancestor is refused with an instructive message.
+      The review page documents the duty.
+    scope: [src/torve/cli/review.py, tests/test_review_corpus.py]
+    acceptance:
+      - uv run pytest tests/test_review_corpus.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .

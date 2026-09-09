@@ -120,3 +120,92 @@ landings:
           skills/spec-writer/SKILL.md:122 - the grammar taught; src/torve/application/colocation.py:202
           - the heading
         action: decided
+  - task: T-0309
+    phase: 2
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-4
+        grade: LOCKED
+        at: '2026-09-09T19:54:44Z'
+        claim: >-
+          document.yaml carries the prose as typed keys — summary, motivation, current_state,
+          goals, non_goals, tests, risks required of an accepted design, docs and
+          out_of_scope optional, design a keyed list with at least one entry once
+          a design is accepted, sections the extras capped at eight — keys unique
+          document-wide and never a typed name or a family shape; description is dropped
+          and the summary's first sentence routes, warning past 300 characters; a
+          convention owes its summary alone (A-2); every prose section is an identifier
+          S-NNNN/<key>
+        evidence: >-
+          src/torve/domain/spec.py:192 - PROSE_FIELDS and the anatomy; src/torve/config/spec.py:735
+          - check_anatomy
+        action: decided
+        notes: >-
+          the conversion split 37 goals-non-goals sections at their Non-goals line,
+          took 19 summaries from the description where no summary stood (the oldest
+          documents), sorted 387 sections into the design and 98 into the extras by
+          their place before or after the tests key; no document exceeded the cap;
+          S-0055 became a convention, which it is
+      - decision: D-5
+        grade: LOCKED
+        at: '2026-09-09T19:54:45Z'
+        claim: >-
+          phasing.yaml holds phasing and contract_example, author-written and planner-read;
+          the loader joins it as any file and the planner reads doc.phasing unchanged;
+          the schemas grew a ninth
+        evidence: >-
+          src/torve/domain/spec.py:285 - PHASING_FILE in FILE_FIELDS
+        action: decided
+      - decision: D-1
+        grade: LOCKED
+        at: '2026-09-09T19:54:45Z'
+        claim: >-
+          the grammar is untouched; a typed prose key is an identifier S-NNNN/<key>
+          through doc.prose(), which defined_identifiers reads
+        evidence: src/torve/domain/spec.py:330 - prose()
+        action: decided
+      - decision: D-2
+        grade: LOCKED
+        at: '2026-09-09T19:54:45Z'
+        claim: >-
+          no identifier changed; the corpus and the archive converted once more, by
+          key, from a schema-3 dump — 58 documents, 971 items compared, the two count
+          differences being the amendments this phase appended
+        evidence: >-
+          `uv run python scratchpad/parity59.py` — documents 58 items 971 mismatches
+          2, both S-0055/A-2 and S-0058/A-2
+        action: decided
+      - decision: D-3
+        grade: LOCKED
+        at: '2026-09-09T19:54:46Z'
+        claim: >-
+          the checks grew check_anatomy beside check_sections; nothing of the citation
+          reading changed
+        evidence: src/torve/config/spec.py:735 - check_anatomy
+        action: decided
+      - decision: D-6
+        grade: LOCKED
+        at: '2026-09-09T19:54:46Z'
+        claim: >-
+          not built here: phase 3 owns the execution directory; the files named changed
+          for the anatomy only
+        evidence: >-
+          src/torve/config/spec_emit.py:1 - the emitter as phase 2 leaves it
+        action: decided
+      - decision: D-7
+        grade: LOCKED
+        at: '2026-09-09T19:54:47Z'
+        claim: 'not built here: phase 3 owns the instant'
+        evidence: src/torve/domain/spec.py:1 - no clock
+        action: decided
+      - decision: D-10
+        grade: ASSUMED
+        at: '2026-09-09T19:54:47Z'
+        claim: >-
+          the spec-writer skill, its template and authoring guide, the corpus-bootstrap
+          fixture, the schemas, the operating page and the changelog say the anatomy
+          and phasing.yaml
+        evidence: >-
+          skills/spec-writer/references/spec-template.md:15 - the typed keys
+        action: decided

@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: burn as liveness
+    intent: >-
+      The broker emits one `seat.consumed` event per metered provider response — the
+      seat, the provider's own token counts, and its reported cost where there is
+      one — as it meters, instead of only aggregating for the run's close. The actor
+      is the worker, because the broker is the run's own host-side machinery and no
+      agent is involved; the aggregate reported at close must equal the sum of the
+      events, so the two views of one run's spending cannot disagree. This phase alone
+      answers whether an attempt is alive and working, for every run, with no sandbox
+      change and no agent cooperation.
+    scope:
+      - src/torve/adapters/broker/local.py
+      - src/torve/application/ports.py
+      - tests/test_broker.py
+    acceptance:
+      - uv run pytest tests/test_broker.py
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: the intake route
+    intent: >-
+      The broker serves an authenticated route the sandbox posts records to, stamping
+      actor kind, partition and subject from the run-scoped token so a caller cannot
+      state — and therefore cannot forge — any of them, and refusing a kind the authority
+      table does not give an agent before anything is appended. `torve log divergence`
+      posts through the route when the run has a broker and writes the worktree file
+      when it does not, checking the entry before either, so the landed log is the
+      same projection in both cases and a run without a broker is unchanged.
+    scope:
+      - src/torve/adapters/broker/local.py
+      - src/torve/application/divergence.py
+      - src/torve/cli/log.py
+      - tests/test_broker_sealed.py
+      - tests/test_divergence.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_divergence.py tests/test_broker_sealed.py
+      - uv run torve gates check
+      - uv run torve rfc check
+    depends_on:
+      - 1

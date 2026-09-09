@@ -9,11 +9,14 @@ informed_by: [S-0002, S-0003, S-0014]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  The package layout of src/torve — layers, permitted import directions, module naming,
-  adapter organisation, and the layering gate that enforces the enforceable half.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  The package layout of src/torve — layers, permitted import directions, module naming, adapter organisation, and the layering gate that enforces the enforceable half.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: what-is-wrong-now
     md: |
       Eighteen modules sit flat at the package root beside two subpackages. Three specific problems follow, and the third is the one with teeth.
@@ -263,6 +266,11 @@ sections:
       Step 6 before step 7 deliberately: run the check first and learn how far the current code is from the rule, rather than assuming and fixing blind.
 
       ---
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: exit-criteria
     md: |
       - Tree matches §3; no module remains at the package root except `__init__.py` and `py.typed`.

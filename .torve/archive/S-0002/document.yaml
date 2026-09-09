@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  The gate contract, the starting gate set, sabotage verification, and packaging gates
-  as a pip-installed CI dependency — the first shippable increment.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  The gate contract, the starting gate set, sabotage verification, and packaging gates as a pip-installed CI dependency — the first shippable increment.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: why-this-ships-first
     md: |
       Gates already exist in these repositories — as ad-hoc scripts inside CI configuration, copied between projects, drifting apart. Nothing about them requires an engine.
@@ -233,6 +236,11 @@ sections:
       - `schema_version`
       - `config_hash` — a digest of `gates.yaml`, the skill set, and the tier mapping in force. Without it, "did this gate pay for itself" is unanswerable, because there is no way to tell which runs were under which regime.
       - decisions **denormalised into the record**, not referenced — a cross-store join is exactly what will not work at this stage.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: decisions
     md: |
       *Provenance note 2026-08-22:* the log-format conventions (the `drift_count` claim S-0002/D-10, the `bypasses:` list S-0002/D-7), the skills placement markers (S-0002/A-1, S-0009/A-1) and the corpus-wide Paths column were settled during the T-0005 execution — see .torve/tasks/T-0005.

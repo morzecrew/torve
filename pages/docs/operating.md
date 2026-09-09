@@ -69,11 +69,13 @@ enough.
 
 ## The corpus and its archive
 
-A specification is a directory, `.torve/specs/S-NNNN/`, of four YAML
+A specification is a directory, `.torve/specs/S-NNNN/`, of five YAML
 files split by who writes each: `document.yaml` (the author: the header
-facts, the prose as a list of sections whose bodies are markdown strings
-nothing parses, then alternatives, questions, phasing and the contract
-example), `decisions.yaml` (the author, stamped by the tool: the rows,
+facts, the prose as typed keys — summary, motivation, current state,
+goals, non-goals, a keyed design list, tests, docs, out of scope, risks —
+plus at most eight extra sections, then alternatives and questions),
+`phasing.yaml` (the author, read by the planner: the phasing and the
+contract example), `decisions.yaml` (the author, stamped by the tool: the rows,
 the invariants, the retired identifiers), `amendments.yaml` (written by
 `torve spec amend` and `spec fix`, never by hand) and `execution.yaml`
 (written at landing: what each task found). A file that is absent is an

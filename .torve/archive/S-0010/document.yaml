@@ -9,11 +9,14 @@ informed_by: [S-0005, S-0006]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  How agent work becomes commits and pull requests, provenance trailers, signing at
-  the runner boundary, and revert as a task role.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  How agent work becomes commits and pull requests, provenance trailers, signing at the runner boundary, and revert as a task role.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: the-rule-everything-here-follows
     md: |
       **The agent produces code. The runner produces every forge artefact.**
@@ -103,6 +106,11 @@ sections:
       **Every revert emits a `resolved` execution-log entry against the decisions the original task inherited.** This is the loop paying off: the reason the work was undone reaches the next planning session as a candidate decision-table row rather than as folklore.
 
       *Execution note 2026-08-23 (T-0044):* reverts are not review-triggering in v1 — the diff is a mechanical inverse of already-reviewed work, and the engine may not resolve anything by hand; if reverts ever carry hand-resolved content, that calculus changes, but that content is exactly what S-0001/D-16 forbids the engine to produce.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: phasing
     md: |
       *(Added 2026-08-23 while draft, with the path relocation to S-0015's tree.
@@ -122,64 +130,3 @@ sections:
       - A task's full history reconstructible from `git log` trailers alone, with the store offline.
       - A signed commit produced with no key ever present inside a sandbox.
       - One revert executed as a task, passing gates and emitting its execution-log entry.
-phasing:
-  - phase: 1
-    title: Provenance and revert, local
-    intent: |
-      The runner's commit becomes the full provenance record: author is the
-      agent identity from the attempt's agent block, committer is Torve,
-      trailers complete — Torve-Task, Torve-Attempt, Torve-Agent,
-      Torve-Config, Torve-Decisions with grades — one commit per attempt,
-      reconstructible from git log with the store offline. Signing happens
-      at the runner boundary when a key path is configured: the sandbox
-      produces the tree, the runner signs outside it, and the signature
-      attests provenance, never approval. Revert becomes a role: targets
-      are legal for role revert, the runner executes git revert of the
-      target's landed shas in the worktree — preferring revert over
-      reconstruction — the same gates judge it, the same lane lands it,
-      and every revert emits a resolved execution-log entry against the
-      decisions the reverted task inherited.
-    scope:
-      - src/torve/adapters/vcs/**
-      - src/torve/application/**
-      - src/torve/domain/**
-      - src/torve/config/**
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: The forge leg
-    intent: |
-      The Scm surface grows from the 0003 skeleton into the credentialed
-      leg, against the remote named in configuration: push targets only the
-      task's own branch, with the token injected at the runner boundary
-      from a configured environment-variable name — the sandbox holds
-      nothing, the config holds the name, only the runner's process holds
-      the value. The pull request is composed from data: contract summary,
-      acceptance commands and results, gate outcomes with durations,
-      inherited decisions with grades, execution-log divergences, cost and
-      trace_ref — never the agent's prose. Force-push is allowed before
-      review starts and forbidden after, enforced from run state, not
-      convention. Exit is live: one task pushed and opened as a pull
-      request against the configured remote, its history reconstructible
-      from trailers alone.
-    scope:
-      - src/torve/adapters/**
-      - src/torve/application/**
-      - src/torve/cli/**
-      - src/torve/config/**
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-    depends_on:
-      - 1

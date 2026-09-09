@@ -9,11 +9,14 @@ informed_by: [S-0002, S-0003]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed
-  by CI, telemetry and scripts — plus where UX effort actually pays.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Output contract, exit codes and non-TTY behaviour — the three CLI surfaces consumed by CI, telemetry and scripts — plus where UX effort actually pays.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: two-decisions-very-different-urgency
     md: |
       **The library is settled: Typer plus Rich.** Typer sits on Click, the dependency is light, and migrating off `argparse` later costs more than adopting it now. Nothing here is worth deliberating.
@@ -154,3 +157,7 @@ sections:
       progress bars · spinners · colour themes · `status` with live refresh · a TUI · shell completion · pager integration · interactive prompts of any kind
 
       **Interactive prompts deserve a specific caution.** A command that asks a question hangs forever in CI and inside a sandbox. If a prompt is ever added, it must fail with code 3 when stdin is not a TTY rather than wait — and given how many callers here are machines, the better answer is usually a flag instead.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''

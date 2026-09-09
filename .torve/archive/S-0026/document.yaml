@@ -9,99 +9,88 @@ informed_by: [S-0001, S-0005, S-0006, S-0022]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  What happens when a task is too big for one agent: the size verdict routes to a
-  decomposition drafting run whose sub-contracts a human adopts, the parent becomes
-  the integration task, and budget-exhausted attempts may continue from their own
-  candidate instead of restarting.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      Today the size estimate is advisory: `torve plan` computes a verdict per
-      minted task and the verdict changes nothing. This document makes `too_large`
-      a route. An oversized contract goes to a decomposition run — S-0020's
-      drafting machinery pointed at a contract instead of a request — whose drafter
-      proposes sub-contracts, whose lint checks the split deterministically (children
-      inside the parent's scope, pairwise disjoint or dependency-ordered, the
-      acceptance battery owned), and whose adoption is the human signature that
-      mints the children. The parent survives as the integration task: it depends on
-      every child and runs the full battery last, so "the big thing is done" is an
-      ordinary landing rather than a synthetic state. Separately, an attempt that
-      dies of budget rather than conviction may continue from its own candidate
-      instead of starting over — the narrow lift that stops long-horizon work from
-      discarding real progress at every ceiling.
-  - key: motivation
-    md: |
-      - **The verdict already fires and nothing listens.** `sizing.estimate` runs
-        on every minted task (`src/torve/application/planner.py`, the `PlannedTask`
-        assembly) and has flagged real work — the S-0018 mint flagged both its
-        phases, and the S-0021 phases were re-minted under S-0021/A-2 because the
-        authored scopes underestimated the measured touch surface. Authoring-time
-        scope guesses run wrong in one direction.
-      - **Oversized work fails expensively.** A task whose horizon exceeds an
-        attempt burns the full ceiling before escalating — three attempts of real
-        spend producing a `poison_ceiling` whose triage answer is "this was three
-        tasks". The lab's T-0113 arc showed the adjacent shape: the contract, not
-        the code, was the defect, and the attempts fee was paid before a human
-        looked.
-      - **Attempts discard progress by design.** The attempt loop restarts from
-        base with only the revision record carried (`feedback.md`). That is correct
-        when the previous path was convicted — continuing a wrong turn doubles down
-        on it — and wasteful when the previous attempt was simply not finished: the
-        work was sound and the clock ran out.
-      - **Finer phasing is not the answer.** The author can always write smaller
-        phases, and S-0021/A-2 is the evidence that authoring-time decomposition guesses
-        wrong even when attempted seriously. The information needed for a good
-        split — what the tree actually looks like under the scope — exists at
-        drafting time, in a worktree, which is exactly where S-0020 already puts
-        a drafter.
-  - key: current-state
-    md: |
-      Verified against the tree, not from memory:
+schema_version: 4
+summary: |
+  Today the size estimate is advisory: `torve plan` computes a verdict per
+  minted task and the verdict changes nothing. This document makes `too_large`
+  a route. An oversized contract goes to a decomposition run — S-0020's
+  drafting machinery pointed at a contract instead of a request — whose drafter
+  proposes sub-contracts, whose lint checks the split deterministically (children
+  inside the parent's scope, pairwise disjoint or dependency-ordered, the
+  acceptance battery owned), and whose adoption is the human signature that
+  mints the children. The parent survives as the integration task: it depends on
+  every child and runs the full battery last, so "the big thing is done" is an
+  ordinary landing rather than a synthetic state. Separately, an attempt that
+  dies of budget rather than conviction may continue from its own candidate
+  instead of starting over — the narrow lift that stops long-horizon work from
+  discarding real progress at every ceiling.
+motivation: |
+  - **The verdict already fires and nothing listens.** `sizing.estimate` runs
+    on every minted task (`src/torve/application/planner.py`, the `PlannedTask`
+    assembly) and has flagged real work — the S-0018 mint flagged both its
+    phases, and the S-0021 phases were re-minted under S-0021/A-2 because the
+    authored scopes underestimated the measured touch surface. Authoring-time
+    scope guesses run wrong in one direction.
+  - **Oversized work fails expensively.** A task whose horizon exceeds an
+    attempt burns the full ceiling before escalating — three attempts of real
+    spend producing a `poison_ceiling` whose triage answer is "this was three
+    tasks". The lab's T-0113 arc showed the adjacent shape: the contract, not
+    the code, was the defect, and the attempts fee was paid before a human
+    looked.
+  - **Attempts discard progress by design.** The attempt loop restarts from
+    base with only the revision record carried (`feedback.md`). That is correct
+    when the previous path was convicted — continuing a wrong turn doubles down
+    on it — and wasteful when the previous attempt was simply not finished: the
+    work was sound and the clock ran out.
+  - **Finer phasing is not the answer.** The author can always write smaller
+    phases, and S-0021/A-2 is the evidence that authoring-time decomposition guesses
+    wrong even when attempted seriously. The information needed for a good
+    split — what the tree actually looks like under the scope — exists at
+    drafting time, in a worktree, which is exactly where S-0020 already puts
+    a drafter.
+current_state: |
+  Verified against the tree, not from memory:
 
-      - `src/torve/application/sizing.py` grades on three rules of thumb — allow
-        globs, acceptance count, top-level modules — and its own docstring records
-        (S-0002/A-3) that the `HistoricalPercentile` arm waits on retrospective
-        calibration. S-0022's reader now exists and is that calibration's data
-        source.
-      - `src/torve/application/intake.py` carries the whole drafting kit this
-        document reuses: `lint_drafts` with tree-aware glob checks, `lint_contract`,
-        `mint_intake_task`, `run_intake`, `adopt` with lock borrowing, decision
-        inheritance via the corpus parser.
-      - The planner's `globs_intersect` is the pairwise-disjointness primitive
-        (S-0007/D-23's same-phase rule) and is conservative by construction.
-      - Task contracts carry `depends_on`, `budget` (iterations, wallclock, tokens
-        — null on every live contract to date), and no parent field.
-      - The revision loop (S-0005/the-revision-loop-added-by-a-32-2026-08-24, S-0005/D-12) carries feedback across attempts;
-        the branch survives across attempts (one pull request per task); the
-        worktree is cut from base each attempt.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `src/torve/application/sizing.py` grades on three rules of thumb — allow
+    globs, acceptance count, top-level modules — and its own docstring records
+    (S-0002/A-3) that the `HistoricalPercentile` arm waits on retrospective
+    calibration. S-0022's reader now exists and is that calibration's data
+    source.
+  - `src/torve/application/intake.py` carries the whole drafting kit this
+    document reuses: `lint_drafts` with tree-aware glob checks, `lint_contract`,
+    `mint_intake_task`, `run_intake`, `adopt` with lock borrowing, decision
+    inheritance via the corpus parser.
+  - The planner's `globs_intersect` is the pairwise-disjointness primitive
+    (S-0007/D-23's same-phase rule) and is conservative by construction.
+  - Task contracts carry `depends_on`, `budget` (iterations, wallclock, tokens
+    — null on every live contract to date), and no parent field.
+  - The revision loop (S-0005/the-revision-loop-added-by-a-32-2026-08-24, S-0005/D-12) carries feedback across attempts;
+    the branch survives across attempts (one pull request per task); the
+    worktree is cut from base each attempt.
+goals: |
+  **Goals**
 
-      - Turn an oversized contract into several right-sized ones without the
-        engine deciding what work exists.
-      - Make "the whole thing landed" an ordinary landing with the parent's own
-        battery behind it.
-      - Stop budget-exhausted attempts from discarding sound partial work.
-      - Give the size thresholds a calibration source instead of a hunch.
-
-      **Non-goals**
-
-      - **Automatic splitting.** The planner stays deterministic (S-0007/D-1) and the
-        machine never mints work uninvited (S-0020/D-3). Splitting needs judgement,
-        judgement means a model, and a model's output enters the queue only through
-        adoption.
-      - **A task tree.** Identifiers stay flat, the state machine is untouched, and
-        hierarchy is one optional field plus dependency edges. A nested task store
-        would buy projection grouping — which one field buys — at the price of a
-        second lifecycle.
-      - **Continuation as a retry policy.** Continuation is not "try harder"; a
-        convicted attempt never continues. The revision loop already owns the
-        convicted case.
-      - **Cross-task shared branches.** Children are ordinary tasks with ordinary
-        candidates; nothing lands except through the lane.
+  - Turn an oversized contract into several right-sized ones without the
+    engine deciding what work exists.
+  - Make "the whole thing landed" an ordinary landing with the parent's own
+    battery behind it.
+  - Stop budget-exhausted attempts from discarding sound partial work.
+  - Give the size thresholds a calibration source instead of a hunch.
+non_goals: |
+  - **Automatic splitting.** The planner stays deterministic (S-0007/D-1) and the
+    machine never mints work uninvited (S-0020/D-3). Splitting needs judgement,
+    judgement means a model, and a model's output enters the queue only through
+    adoption.
+  - **A task tree.** Identifiers stay flat, the state machine is untouched, and
+    hierarchy is one optional field plus dependency edges. A nested task store
+    would buy projection grouping — which one field buys — at the price of a
+    second lifecycle.
+  - **Continuation as a retry policy.** Continuation is not "try harder"; a
+    convicted attempt never continues. The revision loop already owns the
+    convicted case.
+  - **Cross-task shared branches.** Children are ordinary tasks with ordinary
+    candidates; nothing lands except through the lane.
+design:
   - key: the-route
     md: |
       `too_large` stops being a note. At mint (`torve plan`) and at adoption
@@ -201,61 +190,58 @@ sections:
         convicted path is how an agent digs in. The conviction/exhaustion split is
         the load-bearing line, and it is cheap to enforce because the escalation
         reason already encodes it.
-  - key: tests
-    md: |
-      Decomposition lint: each of §5.2's four rules with a red twin (child escapes
-      scope; overlapping children without an edge; dropped acceptance command;
-      oversized child). Adoption: children minted with `parent` set, parent's
-      `depends_on` grown, ids under the lock, double-adoption refused — the
-      existing intake adoption cases extended, not duplicated. Route: a `too_large`
-      contract skipped by dispatch, dispatched under the explicit override with the
-      override recorded. Continuation: budget-exhausted attempt resumes from the
-      candidate tip and the diff still measures against original base; a convicted
-      attempt restarts from base; ceilings count continuations. Depth: third-level
-      decomposition refused.
-  - key: docs
-    md: |
-      The `rfc-writer` skill's phasing guidance gains one paragraph: phases may be
-      authored coarse where the split is genuinely unknowable at authoring time,
-      because the decomposition run exists — with the caveat that every
-      decomposition costs an adoption round, so known splits still belong in the
-      document. `flag-dont-flip` needs nothing: a child task's divergence log works
-      exactly as any task's.
-  - key: out-of-scope
-    md: |
-      - **Re-decomposing on escalation.** A child that escalates is triaged like
-        any task. Automatically re-splitting troubled work would be the engine
-        reshaping the plan mid-flight; the human owns that move.
-      - **Parallel dispatch changes.** Children are eligible for the existing
-        disjoint-scope parallel dispatch exactly as any tasks are; nothing here
-        widens it.
-      - **Cross-document decomposition.** A parent decomposes within its own scope
-        and its own source document. Work spanning documents is two phases in two
-        documents, as it is today.
-      - **Budget authoring guidance.** What wallclock or token budget a contract
-        should carry is operator knowledge accruing in the field; this document
-        only makes the fields consequential.
-  - key: risks
-    md: |
-      - **Decomposition becomes the default answer.** If every substantial phase
-        routes through a drafter, adoption rounds multiply and the human becomes a
-        click-through. Mitigations: the route fires only on the verdict, the
-        verdict is calibrated (§5.6), and the depth bound caps the recursion.
-      - **The integration task is a rubber stamp.** If children are truly disjoint
-        the parent may have nothing to do, and a reviewer may read an empty diff as
-        evasion. Accepted: the battery run over the composed tree is the point, and
-        the prompt names the task's nature. If integration tasks prove pure
-        ceremony in practice, the verdict is evidence for removing them by
-        amendment — recorded here so the future argument has its hook.
-      - **Continuation inherits a mess.** A budget-exhausted attempt may leave a
-        half-refactored tree that a fresh agent continues badly. The continuation
-        prompt carries the previous attempt's own trail (its commits and record),
-        and the ceiling bounds the total spend either way. If continued attempts
-        measurably underperform restarts, the data will say so — both shapes record
-        the same telemetry.
-      - **`parent` drifts into semantics.** One field invites dispatch or lane
-        logic to read it someday. S-0026/D-5 grades the projection-only rule; a future
-        consumer amends or is refused.
+tests: |
+  Decomposition lint: each of §5.2's four rules with a red twin (child escapes
+  scope; overlapping children without an edge; dropped acceptance command;
+  oversized child). Adoption: children minted with `parent` set, parent's
+  `depends_on` grown, ids under the lock, double-adoption refused — the
+  existing intake adoption cases extended, not duplicated. Route: a `too_large`
+  contract skipped by dispatch, dispatched under the explicit override with the
+  override recorded. Continuation: budget-exhausted attempt resumes from the
+  candidate tip and the diff still measures against original base; a convicted
+  attempt restarts from base; ceilings count continuations. Depth: third-level
+  decomposition refused.
+docs: |
+  The `rfc-writer` skill's phasing guidance gains one paragraph: phases may be
+  authored coarse where the split is genuinely unknowable at authoring time,
+  because the decomposition run exists — with the caveat that every
+  decomposition costs an adoption round, so known splits still belong in the
+  document. `flag-dont-flip` needs nothing: a child task's divergence log works
+  exactly as any task's.
+out_of_scope: |
+  - **Re-decomposing on escalation.** A child that escalates is triaged like
+    any task. Automatically re-splitting troubled work would be the engine
+    reshaping the plan mid-flight; the human owns that move.
+  - **Parallel dispatch changes.** Children are eligible for the existing
+    disjoint-scope parallel dispatch exactly as any tasks are; nothing here
+    widens it.
+  - **Cross-document decomposition.** A parent decomposes within its own scope
+    and its own source document. Work spanning documents is two phases in two
+    documents, as it is today.
+  - **Budget authoring guidance.** What wallclock or token budget a contract
+    should carry is operator knowledge accruing in the field; this document
+    only makes the fields consequential.
+risks: |
+  - **Decomposition becomes the default answer.** If every substantial phase
+    routes through a drafter, adoption rounds multiply and the human becomes a
+    click-through. Mitigations: the route fires only on the verdict, the
+    verdict is calibrated (§5.6), and the depth bound caps the recursion.
+  - **The integration task is a rubber stamp.** If children are truly disjoint
+    the parent may have nothing to do, and a reviewer may read an empty diff as
+    evasion. Accepted: the battery run over the composed tree is the point, and
+    the prompt names the task's nature. If integration tasks prove pure
+    ceremony in practice, the verdict is evidence for removing them by
+    amendment — recorded here so the future argument has its hook.
+  - **Continuation inherits a mess.** A budget-exhausted attempt may leave a
+    half-refactored tree that a fresh agent continues badly. The continuation
+    prompt carries the previous attempt's own trail (its commits and record),
+    and the ceiling bounds the total spend either way. If continued attempts
+    measurably underperform restarts, the data will say so — both shapes record
+    the same telemetry.
+  - **`parent` drifts into semantics.** One field invites dispatch or lane
+    logic to read it someday. S-0026/D-5 grades the projection-only rule; a future
+    consumer amends or is refused.
+sections:
   - key: unresolved-questions
     md: |
       - What the decomposition drafter's prompt includes beyond contract and tree —
@@ -278,41 +264,3 @@ sections:
         was configured — the conviction line holding under test and in the field.
       - At least one sizing threshold regraded by amendment citing a
         `torve rfc health` population rather than a remembered incident.
-phasing:
-  - phase: 1
-    title: decomposition-run-and-adoption
-    intent: |
-      The too_large route and the decomposition drafting run: an oversized
-      contract awaits decomposition and dispatch skips it; a draft-role run
-      over a read-only worktree proposes sub-contracts; lint adds the four
-      decomposition rules to the existing battery; human adoption mints
-      children carrying parent, grows the parent's depends_on, and the
-      parent becomes the integration task. Projections group children under
-      their parent. Explicit recorded operator override for dispatching
-      oversized contracts directly. Depth bounded at two.
-    scope: [src/torve/application/**, src/torve/domain/**, src/torve/cli/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: continuation-attempts
-    intent: |
-      Budget-exhausted attempts resume from their own candidate: the next
-      worktree cuts from the previous attempt's tip, the prompt states the
-      continuation, and diffs, gates and ceilings stay measured against the
-      original base exactly as for any attempt. Convicted attempts restart
-      from base through the revision loop unchanged. The budget fields on
-      contracts become consequential.
-    scope: [src/torve/application/**, src/torve/adapters/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-    depends_on:
-      - 1

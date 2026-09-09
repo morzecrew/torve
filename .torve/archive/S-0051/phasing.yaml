@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the port, the queue and the inert destination
+    intent: >-
+      `notification.sent` joins the event vocabulary with its payload model and its
+      authority row; `application/notify.py` gains the queue fold (escalations with
+      no recorded delivery) and the relay that walks it; `Notifier` joins the application's
+      ports with the `none` adapter behind it, wired by the composition root and configured
+      off by default. Nothing is delivered anywhere in this phase and that is the
+      point: the queue, the recording and the authority are provable without a destination
+      existing, and a repository that upgrades sees no behaviour change at all.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/application/notify.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/notify/**
+      - src/torve/config/runconfig.py
+      - tests/test_notify.py
+      - tests/test_events.py
+      - tests/test_runconfig.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_notify.py tests/test_manager.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+  - phase: 2
+    title: the webhook adapter and the relay leg
+    intent: >-
+      The webhook adapter posts a composed notification with the escalation's event
+      id as its idempotency key, mapping 5xx and timeouts to a retry and 4xx to a
+      terminal failure; the relay becomes a leg of `residency.once`, after reclaim
+      and before the mint, wired by the composition root from configuration. The retry
+      count is derived from the record rather than held between passes, and a delivery
+      that exhausts it parks with its reason. Verified against a local HTTP server,
+      and once end to end against a real destination the operator holds.
+    scope:
+      - src/torve/adapters/notify/webhook.py
+      - src/torve/application/residency.py
+      - src/torve/cli/manager.py
+      - tests/test_notify.py
+      - tests/test_residency.py
+      - tests/test_manager.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_notify.py tests/test_residency.py
+      - uv run torve rfc check
+    depends_on:
+      - 1

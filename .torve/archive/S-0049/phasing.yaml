@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the contract in the record
+    intent: >-
+      `task.minted` gains the contract it minted, by amendment to S-0044's closed
+      vocabulary, and the writer fills it from the same `Task` the scan parsed — with
+      the flat `phase` and `depends_on` still written and pinned equal to the contract's,
+      so the fold can prefer one and fall back to the other. The board's view carries
+      the contract, validated on read and left absent when a payload cannot be one,
+      which is what keeps the mints already in the log readable. Minting re-mints
+      a task whose recorded contract differs from the repository's, never one in flight,
+      and a re-mint transitions nothing — so an existing log completes itself on the
+      first pass without changing any task's state. No reader moves in this phase.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/application/manager.py
+      - src/torve/application/residency.py
+      - tests/test_task_records.py
+      - tests/test_events.py
+      - tests/test_manager.py
+      - tests/test_residency.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_task_records.py tests/test_manager.py tests/test_residency.py
+        tests/test_events.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+  - phase: 2
+    title: dispatch reads the board
+    intent: >-
+      `dispatchable`, `blocked_by`, `overlaps` and the worker's claim take the board
+      instead of a dictionary somebody read off disk, so what a partition can start
+      is answered from the record alone. `residency.once` still scans, because that
+      is how a newly adopted contract enters the record, and the scan's only consumer
+      becomes the mint — the definition of an importer. The rules do not move: a parity
+      test asserts the board-read answer equals the scan-read one over the same repository,
+      which is what says the reader changed and the rule did not.
+    scope:
+      - src/torve/application/manager.py
+      - src/torve/application/worker.py
+      - src/torve/application/residency.py
+      - pages/docs/architecture/state.md
+      - tests/test_task_records.py
+      - tests/test_manager.py
+      - tests/test_worker.py
+      - tests/test_residency.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_task_records.py tests/test_worker.py tests/test_manager.py
+      - uv run torve rfc check
+    depends_on:
+      - 1

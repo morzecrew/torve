@@ -93,7 +93,7 @@ def test_every_live_document_is_its_own_canonical_form(number: str, directory: P
 def test_the_serializer_writes_blocks_flow_lists_and_folded_lines(tmp_path: Path) -> None:
     texts = dump_document(widget(tmp_path))
 
-    assert "    md: |-\n      A first line.\n" in texts["document.yaml"]  # prose keeps newlines
+    assert "summary: |" in texts["document.yaml"]  # prose keeps newlines, typed (S-0058/D-4)
     assert "paths: [src/torve/cli/**]" in texts["decisions.yaml"]  # short list, one line
     assert "rationale: >-\n" in texts["decisions.yaml"]  # a long single line is folded
     assert max(len(line) for text in texts.values() for line in text.splitlines()) <= 88

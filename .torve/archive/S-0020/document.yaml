@@ -9,103 +9,93 @@ informed_by: [S-0005, S-0019]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  A commander's free-form request becomes lint-checked draft task contracts through
-  a sandboxed drafting run; a human adopts or refuses, and ids are minted only at
-  adoption.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      A new role, `draft`, turns a commander's free-form request into draft task
-      contracts. The drafting run executes under the runner exactly as a review
-      does — sandboxed, budgeted, telemetered, its output parsed as data — and its
-      gate is a deterministic contract lint: schema validity, scope hygiene,
-      within-batch disjointness. Drafts carry no task ids; ids are minted at
-      adoption, atomically with the commit that makes the contracts real. Adoption
-      is a human act — `torve adopt` in phase 1, `/torve adopt` on the intake
-      issue's thread in phase 2, with `/torve revise` re-running the drafter
-      against captured thread feedback. The planner module stays exactly as
-      S-0007 locked it: no model call inside it, ever.
-  - key: motivation
-    md: |
-      The charter names specification, not execution, as the bottleneck: "a human
-      writes every issue, and nothing learned during execution flows back into the
-      next one" (S-0001/what-torve-is). RFCs 0002–0019 built the downstream half; every
-      contract in the system is still authored by hand. Three weeks of dogfood
-      put numbers on what that costs:
+schema_version: 4
+summary: |
+  A new role, `draft`, turns a commander's free-form request into draft task
+  contracts. The drafting run executes under the runner exactly as a review
+  does — sandboxed, budgeted, telemetered, its output parsed as data — and its
+  gate is a deterministic contract lint: schema validity, scope hygiene,
+  within-batch disjointness. Drafts carry no task ids; ids are minted at
+  adoption, atomically with the commit that makes the contracts real. Adoption
+  is a human act — `torve adopt` in phase 1, `/torve adopt` on the intake
+  issue's thread in phase 2, with `/torve revise` re-running the drafter
+  against captured thread feedback. The planner module stays exactly as
+  S-0007 locked it: no model call inside it, ever.
+motivation: |
+  The charter names specification, not execution, as the bottleneck: "a human
+  writes every issue, and nothing learned during execution flows back into the
+  next one" (S-0001/what-torve-is). RFCs 0002–0019 built the downstream half; every
+  contract in the system is still authored by hand. Three weeks of dogfood
+  put numbers on what that costs:
 
-      - **A contract defect burns the full escalation machinery.** T-0113's
-        hand-written contract mandated a new test file for functions added to an
-        existing module; the executor's correct instinct fought the contract three
-        straight attempts, burned the poison ceiling, and paused a nine-task batch
-        behind the escalation. The defect was mechanical — checkable before any
-        sandbox ever started — but nothing checks a hand-minted contract.
-      - **Id assignment races the runner.** Hand-minting reads the next free id and
-        writes a file; the runner mints review contracts off the same counter
-        within the same minute. Two collisions in one day (T-0101, T-0103 stolen
-        mid-mint) forced an operator rule — "mint fast" — that is a race window
-        wearing a procedure.
-      - **The operator's session is a single point of specification.** Every
-        request, however small, waits for one human to transcribe intent into YAML
-        with correct globs and acceptance commands. The transcription is the least
-        interesting and most error-prone step in the whole loop.
+  - **A contract defect burns the full escalation machinery.** T-0113's
+    hand-written contract mandated a new test file for functions added to an
+    existing module; the executor's correct instinct fought the contract three
+    straight attempts, burned the poison ceiling, and paused a nine-task batch
+    behind the escalation. The defect was mechanical — checkable before any
+    sandbox ever started — but nothing checks a hand-minted contract.
+  - **Id assignment races the runner.** Hand-minting reads the next free id and
+    writes a file; the runner mints review contracts off the same counter
+    within the same minute. Two collisions in one day (T-0101, T-0103 stolen
+    mid-mint) forced an operator rule — "mint fast" — that is a race window
+    wearing a procedure.
+  - **The operator's session is a single point of specification.** Every
+    request, however small, waits for one human to transcribe intent into YAML
+    with correct globs and acceptance commands. The transcription is the least
+    interesting and most error-prone step in the whole loop.
 
-      S-0007/the-loop-closed draws the loop as `torve context → [human + expensive model] →
-      committed spec`. This RFC mechanizes the bracket for the small case — a
-      standalone request that needs no RFC amendment — while keeping the property
-      that section declares non-negotiable: no decision passes machine to machine
-      without a human signature.
-  - key: current-state
-    md: |
-      Verified against the code, not memory:
+  S-0007/the-loop-closed draws the loop as `torve context → [human + expensive model] →
+  committed spec`. This RFC mechanizes the bracket for the small case — a
+  standalone request that needs no RFC amendment — while keeping the property
+  that section declares non-negotiable: no decision passes machine to machine
+  without a human signature.
+current_state: |
+  Verified against the code, not memory:
 
-      - `Task.role` is `Literal["implement", "review", "revert"]`
-        (`src/torve/domain/task.py`); review-role shape constraints live beside it.
-      - Review-as-a-run (`src/torve/application/review.py`) is the working
-        precedent for model judgment entering the engine without deciding anything:
-        runner-minted task, sandboxed attempt, output parsed as data
-        (`parse_findings` — the last JSON document wins, unparseable recorded and
-        never invented as clean), consequence applied by configuration.
-      - `torve plan` (`src/torve/application/planner.py`) is deterministic: it
-        refuses non-accepted documents, parses Phasing into contracts, checks
-        dependency acyclicity and within-phase scope disjointness
-        (`globs_intersect`). `next_task_number` is the racing counter from §2.
-      - The board verb vocabulary is `COMMANDS = ("retry", "abandon", "unblock",
-        "approve", "revise")` (`src/torve/application/tracker.py`), commander-gated
-        by S-0008/D-9; S-0008/A-4's `revise` and S-0005/A-3's feedback capture
-        (`src/torve/application/feedback.py`) already carry reviewer threads into a
-        re-run — the exact machinery an intake revision needs.
-      - Hand-minted standalone contracts ship `decisions: []` (explicit-empty,
-        S-0007/D-5); decision inheritance exists only through `torve plan`'s
-        deterministic copy from an accepted document.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `Task.role` is `Literal["implement", "review", "revert"]`
+    (`src/torve/domain/task.py`); review-role shape constraints live beside it.
+  - Review-as-a-run (`src/torve/application/review.py`) is the working
+    precedent for model judgment entering the engine without deciding anything:
+    runner-minted task, sandboxed attempt, output parsed as data
+    (`parse_findings` — the last JSON document wins, unparseable recorded and
+    never invented as clean), consequence applied by configuration.
+  - `torve plan` (`src/torve/application/planner.py`) is deterministic: it
+    refuses non-accepted documents, parses Phasing into contracts, checks
+    dependency acyclicity and within-phase scope disjointness
+    (`globs_intersect`). `next_task_number` is the racing counter from §2.
+  - The board verb vocabulary is `COMMANDS = ("retry", "abandon", "unblock",
+    "approve", "revise")` (`src/torve/application/tracker.py`), commander-gated
+    by S-0008/D-9; S-0008/A-4's `revise` and S-0005/A-3's feedback capture
+    (`src/torve/application/feedback.py`) already carry reviewer threads into a
+    re-run — the exact machinery an intake revision needs.
+  - Hand-minted standalone contracts ship `decisions: []` (explicit-empty,
+    S-0007/D-5); decision inheritance exists only through `torve plan`'s
+    deterministic copy from an accepted document.
+goals: |
+  **Goals**
 
-      - A commander states intent in prose; the system produces contracts that
-        would have passed the operator's own review, and a human adopts them with
-        one act.
-      - Contract defects of the T-0113 class are caught by a lint before a sandbox
-        ever starts.
-      - The id-assignment race is closed structurally, not procedurally.
-      - The intake thread supports the same conversational loop code review got:
-        feedback in, revised drafts out, on the same thread.
-
-      **Non-goals**
-
-      - **Autonomous backlog generation.** The system never invents its own work;
-        intake is always a human request. This is the planner-authority boundary of
-        S-0007/asymmetry-by-write-authority, kept by construction.
-      - **RFC authoring or amendment by the engine.** A request that needs new
-        decisions or touches an existing RFC's territory is refused back to the
-        human loop of S-0007/the-loop-closed; the drafter writes contracts, never specifications.
-      - **Replacing `torve plan`.** Phased RFC work keeps its deterministic minter;
-        intake serves the standalone-request case S-0007/torve-plan already acknowledged as
-        "written by hand".
-      - **Customer or anonymous intake.** Requests come from configured commanders
-        (S-0008/D-9's list); widening the population is a policy decision for a later
-        amendment, not a default.
+  - A commander states intent in prose; the system produces contracts that
+    would have passed the operator's own review, and a human adopts them with
+    one act.
+  - Contract defects of the T-0113 class are caught by a lint before a sandbox
+    ever starts.
+  - The id-assignment race is closed structurally, not procedurally.
+  - The intake thread supports the same conversational loop code review got:
+    feedback in, revised drafts out, on the same thread.
+non_goals: |
+  - **Autonomous backlog generation.** The system never invents its own work;
+    intake is always a human request. This is the planner-authority boundary of
+    S-0007/asymmetry-by-write-authority, kept by construction.
+  - **RFC authoring or amendment by the engine.** A request that needs new
+    decisions or touches an existing RFC's territory is refused back to the
+    human loop of S-0007/the-loop-closed; the drafter writes contracts, never specifications.
+  - **Replacing `torve plan`.** Phased RFC work keeps its deterministic minter;
+    intake serves the standalone-request case S-0007/torve-plan already acknowledged as
+    "written by hand".
+  - **Customer or anonymous intake.** Requests come from configured commanders
+    (S-0008/D-9's list); widening the population is a policy decision for a later
+    amendment, not a default.
+design:
   - key: the-drafting-run
     md: |
       A new role `draft` joins the vocabulary. The drafting task is minted by the
@@ -219,45 +209,44 @@ sections:
         reserves ids for drafts a human may refuse leaks ids on every refusal and
         adds a cleanup obligation; minting at adoption costs one rewrite of
         `DRAFT-n` refs and closes the race outright.
-  - key: tests
-    md: |
-      - Lint unit family: each check red and green, the T-0113 rule against a real
-        tree fixture, batch disjointness including the empty-allow-contends rule.
-      - Parse family: drafts document extraction mirroring `parse_findings` tests —
-        chatter, ANSI, unparseable recorded.
-      - Adoption: id minting under contention (two adoptions racing the counter
-        under the lock), `DRAFT-n` dependency rewrite, decisions copy from an
-        accepted fixture RFC, refusal on a draft naming a non-accepted document.
-      - Tracker: `adopt` authorization, role refusal on non-draft tasks, the
-        revise capture path against a fake tracker.
-      - A fake-agent drafting run end to end: request in, lint-green drafts out,
-        adoption commits, loop dispatches — the conformance shape S-0003's
-        suites established.
-  - key: out-of-scope
-    md: |
-      - **Execution-facts context in the drafter's input** (recent escalations,
-        contended paths, cost data). The projection exists (`torve context`) and
-        wiring it in is a later phase's enrichment once drafting quality data says
-        what the drafter actually lacks; premature context is prompt surface for
-        no measured gain.
-      - **Multi-repository intake.** One root per request until the portfolio
-        question (a future RFC) is answered for the loop as a whole.
-      - **Drafting RFC amendments.** Named in §4; the escape hatch is the human
-        session loop of S-0007/the-loop-closed, which this RFC feeds but does not replace.
-  - key: risks
-    md: |
-      - **The drafter writes plausible-but-wrong acceptance commands** — commands
-        that pass trivially or test nothing. The lint checks shape, not meaning;
-        the mitigation is the adoption read (a human sees the full contract, not a
-        summary) and the same gates that judge every implement attempt. Accepted:
-        a bad contract adopted by a human is today's failure mode with fewer
-        keystrokes, not a new one.
-      - **Verb-surface growth.** `adopt` is the sixth verb; each addition costs
-        board-grammar teaching. Mitigated by strict symmetry with existing verbs
-        (authorization, reply-on-thread, role refusal) — no new interaction shape.
-      - **The lint's learned rules drift into policy.** A rule set that grows
-        unreviewed becomes a shadow specification. Mitigated: each rule cites its
-        escalation, and rules land as ordinary reviewed commits.
+tests: |
+  - Lint unit family: each check red and green, the T-0113 rule against a real
+    tree fixture, batch disjointness including the empty-allow-contends rule.
+  - Parse family: drafts document extraction mirroring `parse_findings` tests —
+    chatter, ANSI, unparseable recorded.
+  - Adoption: id minting under contention (two adoptions racing the counter
+    under the lock), `DRAFT-n` dependency rewrite, decisions copy from an
+    accepted fixture RFC, refusal on a draft naming a non-accepted document.
+  - Tracker: `adopt` authorization, role refusal on non-draft tasks, the
+    revise capture path against a fake tracker.
+  - A fake-agent drafting run end to end: request in, lint-green drafts out,
+    adoption commits, loop dispatches — the conformance shape S-0003's
+    suites established.
+docs: ''
+out_of_scope: |
+  - **Execution-facts context in the drafter's input** (recent escalations,
+    contended paths, cost data). The projection exists (`torve context`) and
+    wiring it in is a later phase's enrichment once drafting quality data says
+    what the drafter actually lacks; premature context is prompt surface for
+    no measured gain.
+  - **Multi-repository intake.** One root per request until the portfolio
+    question (a future RFC) is answered for the loop as a whole.
+  - **Drafting RFC amendments.** Named in §4; the escape hatch is the human
+    session loop of S-0007/the-loop-closed, which this RFC feeds but does not replace.
+risks: |
+  - **The drafter writes plausible-but-wrong acceptance commands** — commands
+    that pass trivially or test nothing. The lint checks shape, not meaning;
+    the mitigation is the adoption read (a human sees the full contract, not a
+    summary) and the same gates that judge every implement attempt. Accepted:
+    a bad contract adopted by a human is today's failure mode with fewer
+    keystrokes, not a new one.
+  - **Verb-surface growth.** `adopt` is the sixth verb; each addition costs
+    board-grammar teaching. Mitigated by strict symmetry with existing verbs
+    (authorization, reply-on-thread, role refusal) — no new interaction shape.
+  - **The lint's learned rules drift into policy.** A rule set that grows
+    unreviewed becomes a shadow specification. Mitigated: each rule cites its
+    escalation, and rules land as ordinary reviewed commits.
+sections:
   - key: unresolved-questions
     md: |
       - The decomposition ceiling (how many drafts one request may yield) — config
@@ -266,55 +255,3 @@ sections:
       - Disposal of an adopted or abandoned drafting task's state — likely
         identical to a review task's reap path; implementation confirms against
         the reaper's actual rules (S-0020/D-10).
-phasing:
-  - phase: 1
-    title: the-drafting-run-and-the-lint
-    intent: >-
-      The role, the run, the lint, and CLI adoption: role vocabulary gains "draft";
-      a drafting run executes a request from the command line into lint-gated draft
-      documents persisted under the task's directory; the contract lint ships with
-      the schema, scope-hygiene, batch-disjointness and T-0113 checks and is invocable
-      standalone; torve adopt mints ids under the lock, rewrites DRAFT-n refs, copies
-      decisions from a named accepted document, and commits the contracts as engine
-      records.
-    scope:
-      - src/torve/application/intake.py
-      - src/torve/domain/task.py
-      - src/torve/config/runconfig.py
-      - src/torve/cli/**
-      - tests/**
-    acceptance:
-      - uv run pytest -q
-      - uv run torve rfc check
-  - phase: 2
-    title: board-intake
-    intent: >-
-      The board becomes the intake surface: torve.intake-labeled issues mint drafting
-      tasks; lint-green drafts project onto the thread with rationale and the authority
-      footer; adopt joins the verb vocabulary with standard authorization and role
-      refusal; revise re-runs the drafter against captured thread feedback; abandon
-      refuses the request.
-    scope:
-      - src/torve/application/tracker.py
-      - src/torve/application/intake.py
-      - src/torve/cli/tick.py
-      - tests/**
-    acceptance:
-      - uv run pytest -q
-    depends_on:
-      - 1
-  - phase: 3
-    title: context-enrichment
-    intent: >-
-      Demand-gated: the drafter's input gains selected torve context projections (contended
-      paths, recent escalations by reason) once drafting telemetry shows what the
-      drafter lacks; the lint's learned-rule set gains its documented growth path,
-      each rule citing the escalation that produced it.
-    scope:
-      - src/torve/application/intake.py
-      - src/torve/application/projections.py
-      - tests/**
-    acceptance:
-      - uv run pytest -q
-    depends_on:
-      - 2

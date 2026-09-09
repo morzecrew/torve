@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the composition root
+    intent: >-
+      src/torve/cli/assembly.py: builders producing RunDeps, TickDeps and the intake/review
+      legs from (root, config); run_cmd, tick_cmd and the fleet loop consume them;
+      fleet._build_deps is deleted (S-0042/D-1). Behaviour-preserving and layering-preserving
+      (S-0042/D-2): front-door checks stay in the verbs, bundles and ports unchanged.
+      Assembly builder tests land with the extraction; verb scenario tests pin behaviour
+      unchanged.
+    scope:
+      - src/torve/cli/assembly.py
+      - src/torve/cli/run.py
+      - src/torve/cli/tick.py
+      - src/torve/cli/fleet.py
+      - tests/test_cli.py
+      - tests/test_fleet_cli.py
+      - tests/test_run_loop.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_cli.py tests/test_fleet_cli.py tests/test_run_loop.py
+      - uv run lint-imports
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: quiesce and recovery as substrate steps
+    intent: >-
+      Tick shutdown drains through forze's quiesce plane; the recovery invocation
+      moves from the reaper's ad hoc call to the substrate's recovery step at tick
+      start with identical semantics (S-0042/D-3, S-0042/D-4). Per-invocation only
+      — nothing resident (S-0042/D-6 stands). Tick tests pin drain-on-shutdown and
+      recovery equivalence against the current reaper-driven baseline.
+    scope:
+      - src/torve/application/loop.py
+      - src/torve/application/taskstore.py
+      - src/torve/application/reaper.py
+      - tests/test_tick.py
+      - tests/test_reaper.py
+      - tests/test_taskstore.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_tick.py tests/test_reaper.py tests/test_taskstore.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1
+    tier_variant: heavy
+  - phase: 3
+    title: the tracker outbox investigation
+    intent: >-
+      The timeboxed S-0042/D-5 investigation: map S-0008/D-2's staged-effect semantics
+      onto forze_kits.integrations.outbox and record the verdict in the task log.
+      On fit, the follow-up migration replaces the hand-rolled staging under the same
+      Tracker port with the tracker suite passing unchanged as the acceptance bar;
+      on no-fit, the hand-rolled outbox stays and the decision row gains the finding.
+      This phase is the investigation; the migration mints only from its verdict.
+    scope:
+      - src/torve/application/tracker.py
+      - tests/test_tracker.py
+      - tests/test_outbox.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_tracker.py tests/test_outbox.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

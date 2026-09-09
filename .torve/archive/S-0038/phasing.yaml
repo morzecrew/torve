@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the attempt verdict
+    intent: >-
+      The agent block stamps its attempt number (S-0038/D-4); every path out of the
+      attempt hook appends exactly one row (S-0038/D-1) carrying an engine-derived
+      verdict from the closed vocabulary (S-0038/D-2, S-0038/D-3), subsuming the inline
+      red-agent append; RunState.escalate appends the durable escalation engine event
+      best-effort from its single call site (S-0038/D-5). All keys additive (S-0038/D-6).
+      Tests: one per verdict value, the one-attempt-one-row invariant, the broker-refused
+      row that today does not exist, the escalate append and its best-effort failure
+      mode, and the replay test deriving each verdict from the row's other fields.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/runstate.py
+      - src/torve/application/telemetry.py
+      - tests/test_runner.py
+      - tests/test_run_loop.py
+      - tests/test_reaper.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_run_loop.py tests/test_reaper.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .

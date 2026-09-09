@@ -8,16 +8,17 @@ writing a new one; `SKILL.md` carries the decisions that outlive it.
 Read `references/spec-template.md` before writing and start from `torve
 spec new`. A document is a directory of YAML files: `document.yaml` carries
 the header facts (`status`, `implementation`, `depends_on`, `owner`,
-`description`), `sections` — the prose in order, each keyed and headed by
-its key — and the author's typed lists; `decisions.yaml` carries the rows
-the machine reads. The
+the typed prose — `summary`, `motivation`, `current_state`, `goals`,
+`non_goals`, `tests`, `docs`, `out_of_scope`, `risks` — the `design` list and
+the extras, each keyed and headed by its key, and the author's typed lists;
+`decisions.yaml` carries the rows the machine reads and `phasing.yaml` the
+planner's list. The
 first section is the scope paragraph — what this document covers *and what
 it deliberately does not*, with the code and documents it relates to and
 where it was debated — the paragraph a reader uses to decide whether to
 read the rest.
 
-**Sections.** The full set, for a substantial document, each a `sections`
-entry keyed by its slug:
+**The anatomy.** The keys, in reading order:
 
 1. **Summary** — what ships, in a few sentences
 2. **Motivation** — the problem, with evidence from the actual codebase
@@ -40,5 +41,5 @@ The rows are the `decisions` list, each carrying a **grade** (see `SKILL.md`); t
 - **Record decisions with their why — and their cost.** The rows are the contract; `rationale` and the body carry the reasoning. Rejected alternatives get their trade-off in `alternatives` (an alternative recorded with its trade-off stays rejected; one recorded as merely "rejected" gets re-proposed). A decision that closes a door later says so in its `consequence`.
 - **Timely beats polished.** A rough document that exists beats a perfect one that doesn't (Oxide's RFD rule: "timely rather than polished"). Draft prose may be rough; the scope paragraph and the rows may not.
 - **Be honest about limits.** If a mechanism is deferred, gated, or known-incomplete, say so in the document rather than letting the reader discover it. Fail-closed wording ("refused", "raises", "deliberately unscheduled") beats optimistic vagueness.
-- **Dense beats long.** Prefer one load-bearing paragraph over three thin ones. This applies inside the document; the `description` is governed by the opposite instinct — one routing sentence.
+- **Dense beats long.** Prefer one load-bearing paragraph over three thin ones. This applies inside the document; the summary's first sentence is governed by the opposite instinct — one routing sentence.
 - **Prose is prose.** Markdown inside a section body is welcome — fences, links, emphasis — and nothing parses it. Type what was already a list; never fragment an argument into fields, and never carry a typed list's content as prose: `check` refuses a section that does.

@@ -9,11 +9,14 @@ informed_by: [S-0002, S-0011]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config
-  split, resolution rules, and what belongs in neither file.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Where Torve's files live in a consuming repository: the .torve/ directory, the gates/config split, resolution rules, and what belongs in neither file.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: layout
     md: |
       ```
@@ -67,3 +70,7 @@ sections:
       - **Task contracts** — `.torve/tasks/`, one file each. If scope globs or acceptance commands start appearing in `gates.yaml`, that is contract data leaking into the manifest.
       - **Secrets** — never. Credentials reach the runtime through vault injection (S-0001/D-13); a token in `config.yaml` is a token in git.
       - **Anything the engine generates.** Attempts, gate results, findings and telemetry go to the store (S-0001/A-2). The only generated artefact in `.torve/` is the divergence log, which is there because it arrives in a pull request as evidence.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''

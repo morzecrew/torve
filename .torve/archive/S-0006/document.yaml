@@ -9,11 +9,14 @@ informed_by: [S-0005]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Serialized landing of candidates, promotion criteria, escalation routing, and how
-  human attention is budgeted.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Serialized landing of candidates, promotion criteria, escalation routing, and how human attention is budgeted.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: the-correction-this-document-exists-for
     md: |
       "The engine does not merge" is right about responsibility and silent about sequencing. Three independently green pull requests merged back to back can each invalidate the next one's CI, so green at review time does not imply green after landing.
@@ -112,6 +115,11 @@ sections:
       Plus `torve doctor` as a preflight: credentials present, sandbox reachable, store migrated, gates resolvable.
 
       **The signal that matters most is not in the table: escalation queue age.** A queue nobody triages looks identical to success from the runner's side, and is the failure mode most likely to actually happen here.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: decisions
     md: |
       S-0006/D-11 was retired 2026-09-09; path rot. The identifier is never reused.
@@ -130,45 +138,3 @@ sections:
     md: |
       - Ten tasks landed through the serialized lane with no post-merge CI break attributable to ordering.
       - Escalation resolution time recorded for two weeks.
-phasing:
-  - phase: 1
-    title: Prevention, kill, and engine sight
-    intent: >-
-      What must exist before a lane is safe to run: dispatch refuses a task whose
-      scope intersects an active run's, logged with its cause and counted per path
-      through a new EngineEvent record on the existing telemetry path; torve kill
-      force-terminates one run — sandbox destroyed, state escalated as killed; and
-      the escalation queue's age becomes visible in the context projection, because
-      a queue nobody triages looks identical to success from inside the runner.
-    scope: [src/torve/application/**, src/torve/cli/**, src/torve/config/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: The serialized lane
-    intent: >-
-      Ready is a lane, not a set: torve merge processes candidates one at a time —
-      a task branch whose base has not moved lands as it was measured; one whose base
-      moved is rebased and its gate battery re-run over the rebased tree before landing;
-      a conflict escalates as merge_conflict and the lane moves on. The engine never
-      resolves a conflict, and the operator's invocation is the recorded approval.
-      Auto-merge stays off by default in configuration.
-    scope:
-      - src/torve/application/lane.py
-      - src/torve/adapters/**
-      - src/torve/cli/**
-      - src/torve/config/**
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-    depends_on:
-      - 1

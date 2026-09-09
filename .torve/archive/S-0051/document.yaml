@@ -9,77 +9,69 @@ informed_by: [S-0008, S-0032, S-0045]
 supersedes: []
 superseded_by: S-0055
 owner: misery7100
-description: >-
-  How a recorded escalation reaches a person who is not looking at the dashboard:
-  the log is the queue, delivery is a recorded fact, and the destination is a port
-  with adapters.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      A run escalates, the record says so, and nobody finds out until somebody
-      looks. This document closes that: an interrupt-class escalation becomes a
-      **notification** with a destination, delivered by a relay leg of the manager's
-      own pass, through a `Notifier` port whose first adapter is a webhook.
+schema_version: 4
+summary: |
+  A run escalates, the record says so, and nobody finds out until somebody
+  looks. This document closes that: an interrupt-class escalation becomes a
+  **notification** with a destination, delivered by a relay leg of the manager's
+  own pass, through a `Notifier` port whose first adapter is a webhook.
 
-      The queue of undelivered notifications is **the event log itself** — an
-      escalation with no matching delivery is undelivered, and delivery is recorded
-      like every other fact. No second store, no dual write, and the same replay
-      that rebuilds the board rebuilds the queue.
-  - key: motivation
-    md: |
-      S-0006/D-11 has been unimplemented since September 2026. Its delivery rode
-      `tracker.notify` through the tracker's outbox, and the whole tracker
-      projection was deleted (S-0008 S-0008/A-5) after being inert in every repository
-      torve runs. S-0006/A-4 recorded the consequence and stopped there.
+  The queue of undelivered notifications is **the event log itself** — an
+  escalation with no matching delivery is undelivered, and delivery is recorded
+  like every other fact. No second store, no dual write, and the same replay
+  that rebuilds the board rebuilds the queue.
+motivation: |
+  S-0006/D-11 has been unimplemented since September 2026. Its delivery rode
+  `tracker.notify` through the tracker's outbox, and the whole tracker
+  projection was deleted (S-0008 S-0008/A-5) after being inert in every repository
+  torve runs. S-0006/A-4 recorded the consequence and stopped there.
 
-      The gap is measurable in this repository. `T-0096` escalated on 2026-08-30
-      with reason `killed`. It sat un-triaged for **seven days**, and because
-      `loop.pause_escalations` defaults to 1 it silently suppressed dispatch and
-      standing evaluation for every one of them (S-0019 S-0019/A-8). Nothing told
-      anybody. It was found by reading the board a week later, and the run-state
-      file it left behind — 8.8 MB — was still on disk until 2026-09-05.
+  The gap is measurable in this repository. `T-0096` escalated on 2026-08-30
+  with reason `killed`. It sat un-triaged for **seven days**, and because
+  `loop.pause_escalations` defaults to 1 it silently suppressed dispatch and
+  standing evaluation for every one of them (S-0019 S-0019/A-8). Nothing told
+  anybody. It was found by reading the board a week later, and the run-state
+  file it left behind — 8.8 MB — was still on disk until 2026-09-05.
 
-      The reading is not what is missing. `context_report` groups escalations by
-      reason with age and route, `torve status` shows them, the fleet's survey
-      counts them across roots (S-0048/A-1), and the dashboard polls all of it every ten
-      seconds. **Every one of those requires somebody to be looking.** S-0006/D-8 already
-      makes queue age the primary alert; an alert nobody is sent is a reading.
-  - key: current-state
-    md: |
-      Verified against the tree at `f0151a0`:
+  The reading is not what is missing. `context_report` groups escalations by
+  reason with age and route, `torve status` shows them, the fleet's survey
+  counts them across roots (S-0048/A-1), and the dashboard polls all of it every ten
+  seconds. **Every one of those requires somebody to be looking.** S-0006/D-8 already
+  makes queue age the primary alert; an alert nobody is sent is a reading.
+current_state: |
+  Verified against the tree at `f0151a0`:
 
-      - **The fact is recorded.** `Worker.release` writes `ESCALATION_RAISED` with
-        `reason` and `detail` (`src/torve/application/worker.py`), and the board
-        folds it to `TaskState.ESCALATED`. Nothing consumes it beyond projections.
-      - **Nothing delivers.** There is no `Notifier` port. The `Tracker` port,
-        `tracker.notify`, and the outbox that carried it are deleted. Searching the
-        tree for a delivery path finds the reading surfaces and nothing else.
-      - **The served surface is read-only by construction.** `torve serve` binds
-        `127.0.0.1` with no host flag (S-0032/D-2), has no auth, and exposes three GET
-        endpoints. It gained `--partition` on 2026-09-06 (S-0032/A-3) and now answers
-        from the record.
-      - **forze ships the outbox machinery.** `forze.application.contracts.outbox`
-        carries `OutboxCommandPort.stage/flush`, `OutboxQueryPort.claim_pending /
-        mark_published / mark_failed / mark_retry / reclaim_stale_processing`, depth
-        probes, and a Postgres adapter in `forze_postgres.adapters.outbox`. Its
-        documented guarantee is **at-least-once with dedup on `event_id`** — not
-        exactly-once — and `OutboxSpec.require_transaction` exists precisely because
-        staging outside the business transaction is the classic dual write.
-      - **torve opens no transaction around `log.record`.** The event log's writer
-        is a single document create per fact (`src/torve/application/eventlog.py`).
-        There is no boundary a second store could be enrolled in today.
-  - key: goals-non-goals
-    md: |
-      **Goals.** An escalation reaches a person without anyone looking. The
-      destination is pluggable without touching the domain. Delivery survives a
-      process death without duplicating a page. What has and has not been delivered
-      is answerable from the record alone.
-
-      **Non-goals.** Inbound anything — this is one direction only, and the
-      commander-approval path the tracker also carried stays absent (S-0020/A-1). No
-      writable dashboard. No per-operator identity or routing rules: one destination
-      per repository until a second operator exists to need a second. No new store.
+  - **The fact is recorded.** `Worker.release` writes `ESCALATION_RAISED` with
+    `reason` and `detail` (`src/torve/application/worker.py`), and the board
+    folds it to `TaskState.ESCALATED`. Nothing consumes it beyond projections.
+  - **Nothing delivers.** There is no `Notifier` port. The `Tracker` port,
+    `tracker.notify`, and the outbox that carried it are deleted. Searching the
+    tree for a delivery path finds the reading surfaces and nothing else.
+  - **The served surface is read-only by construction.** `torve serve` binds
+    `127.0.0.1` with no host flag (S-0032/D-2), has no auth, and exposes three GET
+    endpoints. It gained `--partition` on 2026-09-06 (S-0032/A-3) and now answers
+    from the record.
+  - **forze ships the outbox machinery.** `forze.application.contracts.outbox`
+    carries `OutboxCommandPort.stage/flush`, `OutboxQueryPort.claim_pending /
+    mark_published / mark_failed / mark_retry / reclaim_stale_processing`, depth
+    probes, and a Postgres adapter in `forze_postgres.adapters.outbox`. Its
+    documented guarantee is **at-least-once with dedup on `event_id`** — not
+    exactly-once — and `OutboxSpec.require_transaction` exists precisely because
+    staging outside the business transaction is the classic dual write.
+  - **torve opens no transaction around `log.record`.** The event log's writer
+    is a single document create per fact (`src/torve/application/eventlog.py`).
+    There is no boundary a second store could be enrolled in today.
+goals: |
+  **Goals.** An escalation reaches a person without anyone looking. The
+  destination is pluggable without touching the domain. Delivery survives a
+  process death without duplicating a page. What has and has not been delivered
+  is answerable from the record alone.
+non_goals: |
+  ** Inbound anything — this is one direction only, and the
+  commander-approval path the tracker also carried stays absent (S-0020/A-1). No
+  writable dashboard. No per-operator identity or routing rules: one destination
+  per repository until a second operator exists to need a second. No new store.
+design:
   - key: a-notification-is-a-delivery-not-a-subject
     md: |
       The escalation is the fact and it is already recorded. A notification is not a
@@ -208,56 +200,53 @@ sections:
       an unauthenticated local process can do to the record. That is a decision
       worth taking deliberately, in its own document, rather than smuggling in
       behind a notification feature.
-  - key: tests
-    md: |
-      - The queue is a fold: escalations with and without a matching
-        `notification.sent`, asserted over a built event list — including a
-        redelivery after a recorded failure, and an escalation whose delivery is
-        recorded being absent from the queue forever after.
-      - The relay records after the adapter returns, never before: a `Notifier` that
-        raises leaves the queue unchanged, and the next pass retries.
-      - A transient failure retries and a terminal one parks with its reason, with
-        the attempt count derived from the record rather than held in memory.
-      - The `none` adapter delivers nothing and records nothing, and a pass with it
-        wired is a no-op.
-      - Authority: only the relay's actor may write `notification.sent`
-        (`AUTHORITY`), asserted the way every other kind is.
-      - The webhook adapter against a local HTTP server: the idempotency key on the
-        wire, a 5xx as transient, a 4xx as terminal.
-  - key: docs
-    md: |
-      `pages/docs/operating.md` gains the configuration and what happens when the
-      destination is down. `pages/docs/architecture/record.md` gains
-      `notification.sent` in the vocabulary table and the queue in the projections
-      table. No new page: this is one leg and one port, and a page per feature is
-      how a docs site stops being read.
-  - key: out-of-scope
-    md: |
-      - **Inbound commands and approvals.** They left with the tracker (S-0020/A-1) and
-        their return is a different design with a different security posture.
-      - **Per-operator routing.** One destination per repository until a second
-        operator exists; a routing table with one entry is a table nobody maintains.
-      - **Batch-class escalations.** S-0006/human-attention-is-the-scarce-resource keeps them board-visible by design;
-        paging on everything is how a pager stops being read.
-      - **Notifying on anything but escalations.** Landings, gate failures and cost
-        anomalies are all recorded and all readable; each would need its own
-        argument for interrupting a person, and none has one yet.
-  - key: risks
-    md: |
-      - **A duplicate page during a redelivery window.** Accepted and stated: the
-        alternative is exactly-once, which no transport offers, and the destination
-        holds the key to collapse it.
-      - **The relay makes the manager's pass do network I/O.** A hanging webhook
-        would stall a pass that otherwise touches only the log and the filesystem.
-        Mitigated by a timeout on the adapter, and named here because the failure
-        would present as "the manager stopped working" rather than "the webhook is
-        down".
-      - **A misread of §5.2.** "The log is the queue" invites someone to add a
-        `pending` flag to an event and mutate it. Events are immutable (S-0044/D-2); the
-        queue is the *absence* of a second event, and there is nothing to update.
-      - **Notification fatigue.** Every escalation pages. On a busy fleet that is a
-        lot of pages, and the honest answer is §10's first question rather than a
-        filter nobody has evidence to shape yet.
+tests: |
+  - The queue is a fold: escalations with and without a matching
+    `notification.sent`, asserted over a built event list — including a
+    redelivery after a recorded failure, and an escalation whose delivery is
+    recorded being absent from the queue forever after.
+  - The relay records after the adapter returns, never before: a `Notifier` that
+    raises leaves the queue unchanged, and the next pass retries.
+  - A transient failure retries and a terminal one parks with its reason, with
+    the attempt count derived from the record rather than held in memory.
+  - The `none` adapter delivers nothing and records nothing, and a pass with it
+    wired is a no-op.
+  - Authority: only the relay's actor may write `notification.sent`
+    (`AUTHORITY`), asserted the way every other kind is.
+  - The webhook adapter against a local HTTP server: the idempotency key on the
+    wire, a 5xx as transient, a 4xx as terminal.
+docs: |
+  `pages/docs/operating.md` gains the configuration and what happens when the
+  destination is down. `pages/docs/architecture/record.md` gains
+  `notification.sent` in the vocabulary table and the queue in the projections
+  table. No new page: this is one leg and one port, and a page per feature is
+  how a docs site stops being read.
+out_of_scope: |
+  - **Inbound commands and approvals.** They left with the tracker (S-0020/A-1) and
+    their return is a different design with a different security posture.
+  - **Per-operator routing.** One destination per repository until a second
+    operator exists; a routing table with one entry is a table nobody maintains.
+  - **Batch-class escalations.** S-0006/human-attention-is-the-scarce-resource keeps them board-visible by design;
+    paging on everything is how a pager stops being read.
+  - **Notifying on anything but escalations.** Landings, gate failures and cost
+    anomalies are all recorded and all readable; each would need its own
+    argument for interrupting a person, and none has one yet.
+risks: |
+  - **A duplicate page during a redelivery window.** Accepted and stated: the
+    alternative is exactly-once, which no transport offers, and the destination
+    holds the key to collapse it.
+  - **The relay makes the manager's pass do network I/O.** A hanging webhook
+    would stall a pass that otherwise touches only the log and the filesystem.
+    Mitigated by a timeout on the adapter, and named here because the failure
+    would present as "the manager stopped working" rather than "the webhook is
+    down".
+  - **A misread of §5.2.** "The log is the queue" invites someone to add a
+    `pending` flag to an event and mutate it. Events are immutable (S-0044/D-2); the
+    queue is the *absence* of a second event, and there is nothing to update.
+  - **Notification fatigue.** Every escalation pages. On a busy fleet that is a
+    lot of pages, and the honest answer is §10's first question rather than a
+    filter nobody has evidence to shape yet.
+sections:
   - key: unresolved-questions
     md: |
       - **Whether one destination is enough** once a fleet has more than one
@@ -271,51 +260,3 @@ sections:
       - **What a delivery receipt is worth.** Recording it costs nothing; whether
         anybody ever reads one back is unknown, and if the answer is nobody, the
         field goes.
-phasing:
-  - phase: 1
-    title: the port, the queue and the inert destination
-    intent: >-
-      `notification.sent` joins the event vocabulary with its payload model and its
-      authority row; `application/notify.py` gains the queue fold (escalations with
-      no recorded delivery) and the relay that walks it; `Notifier` joins the application's
-      ports with the `none` adapter behind it, wired by the composition root and configured
-      off by default. Nothing is delivered anywhere in this phase and that is the
-      point: the queue, the recording and the authority are provable without a destination
-      existing, and a repository that upgrades sees no behaviour change at all.
-    scope:
-      - src/torve/domain/events.py
-      - src/torve/application/notify.py
-      - src/torve/application/ports.py
-      - src/torve/adapters/notify/**
-      - src/torve/config/runconfig.py
-      - tests/test_notify.py
-      - tests/test_events.py
-      - tests/test_runconfig.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_notify.py tests/test_manager.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-  - phase: 2
-    title: the webhook adapter and the relay leg
-    intent: >-
-      The webhook adapter posts a composed notification with the escalation's event
-      id as its idempotency key, mapping 5xx and timeouts to a retry and 4xx to a
-      terminal failure; the relay becomes a leg of `residency.once`, after reclaim
-      and before the mint, wired by the composition root from configuration. The retry
-      count is derived from the record rather than held between passes, and a delivery
-      that exhausts it parks with its reason. Verified against a local HTTP server,
-      and once end to end against a real destination the operator holds.
-    scope:
-      - src/torve/adapters/notify/webhook.py
-      - src/torve/application/residency.py
-      - src/torve/cli/manager.py
-      - tests/test_notify.py
-      - tests/test_residency.py
-      - tests/test_manager.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_notify.py tests/test_residency.py
-      - uv run torve rfc check
-    depends_on:
-      - 1

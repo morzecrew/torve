@@ -9,91 +9,81 @@ informed_by: [S-0001, S-0007, S-0022, S-0047]
 supersedes: []
 superseded_by: S-0055
 owner: misery7100
-description: >-
-  The contract a task runs under travels in the record: minting carries the contract
-  itself, re-minting records a changed one as a new version, and the repository's
-  task directory becomes an importer rather than the thing every reader consults.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      The record holds what happened to a task and not what the task *is*. The
-      board knows T-0279 was claimed, ran three attempts and landed; it does not
-      know its scope, its acceptance commands, the decisions it inherited or what
-      it was asked to do. Every reader that needs those re-reads
-      `.torve/tasks/<id>/contract.yaml`.
+schema_version: 4
+summary: |
+  The record holds what happened to a task and not what the task *is*. The
+  board knows T-0279 was claimed, ran three attempts and landed; it does not
+  know its scope, its acceptance commands, the decisions it inherited or what
+  it was asked to do. Every reader that needs those re-reads
+  `.torve/tasks/<id>/contract.yaml`.
 
-      This puts the contract in the mint. `task.minted` carries the contract as
-      minted; the board carries it; dispatch reads it there. The repository's task
-      directory becomes an importer of the record — the same shape S-0047 gave
-      the corpus — rather than the thing every reader must be standing next to.
-  - key: motivation
-    md: |
-      **Everything else about a task is already recorded.** Its state, its
-      attempts, its convictions, its divergences, its landing, its spend. The
-      contract is the one field a projection cannot get from the log, which is why
-      `specquality.read_tasks` is a four-way filesystem join — contract file, log
-      file, run-state file, git trailers — of which three legs already have
-      recorded equivalents.
+  This puts the contract in the mint. `task.minted` carries the contract as
+  minted; the board carries it; dispatch reads it there. The repository's task
+  directory becomes an importer of the record — the same shape S-0047 gave
+  the corpus — rather than the thing every reader must be standing next to.
+motivation: |
+  **Everything else about a task is already recorded.** Its state, its
+  attempts, its convictions, its divergences, its landing, its spend. The
+  contract is the one field a projection cannot get from the log, which is why
+  `specquality.read_tasks` is a four-way filesystem join — contract file, log
+  file, run-state file, git trailers — of which three legs already have
+  recorded equivalents.
 
-      **A worker needs the repository to know what it is running.**
-      `worker.once(tasks, partition)` takes a dictionary the caller read off disk.
-      A worker on another machine would need the task directory before it could
-      claim anything, which makes "a worker holds nothing but a lease" true of
-      state and false of intent.
+  **A worker needs the repository to know what it is running.**
+  `worker.once(tasks, partition)` takes a dictionary the caller read off disk.
+  A worker on another machine would need the task directory before it could
+  claim anything, which makes "a worker holds nothing but a lease" true of
+  state and false of intent.
 
-      **A contract edited after minting silently changes what runs.** The scan
-      re-reads every contract on every pass, so an edit between the mint and the
-      dispatch takes effect with nothing recorded — the board says one thing and
-      the run is judged by another. That is the derive-don't-record hazard in the
-      one place it matters most, since scope and acceptance are what the gates
-      enforce.
+  **A contract edited after minting silently changes what runs.** The scan
+  re-reads every contract on every pass, so an edit between the mint and the
+  dispatch takes effect with nothing recorded — the board says one thing and
+  the run is judged by another. That is the derive-don't-record hazard in the
+  one place it matters most, since scope and acceptance are what the gates
+  enforce.
 
-      **Two pieces of work are blocked on exactly this.** S-0044/phasing's remaining
-      tail — the projection set that replaces `torve context`, and the tracker as
-      an ordinary projection consumer — are both joins against tasks. S-0044/A-7
-      recorded that they wait on one prerequisite rather than three; this is it.
-  - key: current-state
-    md: |
-      Verified against the tree at `c7edd18`:
+  **Two pieces of work are blocked on exactly this.** S-0044/phasing's remaining
+  tail — the projection set that replaces `torve context`, and the tracker as
+  an ordinary projection consumer — are both joins against tasks. S-0044/A-7
+  recorded that they wait on one prerequisite rather than three; this is it.
+current_state: |
+  Verified against the tree at `c7edd18`:
 
-      - `TaskMinted` carries `title`, `source_id`, `phase` and `depends_on`. The
-        contract itself is not recorded anywhere.
-      - `residency.contracts(root)` globs `T-*/contract.yaml`, parses each through
-        `load_task`, skips unreadable ones and filters to `DISPATCHABLE_ROLES`.
-        `residency.once` calls it every pass and threads the result into
-        `worker.once`.
-      - `manager.dispatchable(tasks, board, partition)` needs the `Task` for
-        `scope.allow` and `depends_on`; `blocked_by` and `overlaps` need it too.
-      - `_TRANSITIONS` maps `TASK_MINTED` to `QUEUED` unconditionally.
-      - `mint` skips a task the board already carries, so no second mint is
-        written today under any circumstance.
-      - The live lab partition holds **192 `task.minted` events over 184 tasks**,
-        none carrying a contract — so whatever this does must be true of a log
-        that predates it.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `TaskMinted` carries `title`, `source_id`, `phase` and `depends_on`. The
+    contract itself is not recorded anywhere.
+  - `residency.contracts(root)` globs `T-*/contract.yaml`, parses each through
+    `load_task`, skips unreadable ones and filters to `DISPATCHABLE_ROLES`.
+    `residency.once` calls it every pass and threads the result into
+    `worker.once`.
+  - `manager.dispatchable(tasks, board, partition)` needs the `Task` for
+    `scope.allow` and `depends_on`; `blocked_by` and `overlaps` need it too.
+  - `_TRANSITIONS` maps `TASK_MINTED` to `QUEUED` unconditionally.
+  - `mint` skips a task the board already carries, so no second mint is
+    written today under any circumstance.
+  - The live lab partition holds **192 `task.minted` events over 184 tasks**,
+    none carrying a contract — so whatever this does must be true of a log
+    that predates it.
+goals: |
+  **Goals**
 
-      - The contract a task runs under recorded where the task was placed on a
-        partition.
-      - Dispatch answered from the board alone.
-      - A changed contract recorded as a change rather than taking effect quietly.
-      - Self-migrating: an existing log becomes complete by being read and
-        re-minted, with nothing to run by hand.
-
-      **Non-goals**
-
-      - **Not a change to authoring.** `torve plan` and adoption write
-        `contract.yaml` from a reviewed document exactly as they do; the grades a
-        contract inherits still come from the file a human committed (S-0047/D-3).
-      - **Not the projection set.** This unblocks `torve context`, the served
-        tables and the tracker. Building them is their own document.
-      - **Not the worktree.** A worker still needs the repository's code to run
-        an attempt; the work surface is item 1 on the distribution list and is
-        untouched here.
-      - **Not a task the record invents.** Contracts enter the record from the
-        repository and nowhere else.
+  - The contract a task runs under recorded where the task was placed on a
+    partition.
+  - Dispatch answered from the board alone.
+  - A changed contract recorded as a change rather than taking effect quietly.
+  - Self-migrating: an existing log becomes complete by being read and
+    re-minted, with nothing to run by hand.
+non_goals: |
+  - **Not a change to authoring.** `torve plan` and adoption write
+    `contract.yaml` from a reviewed document exactly as they do; the grades a
+    contract inherits still come from the file a human committed (S-0047/D-3).
+  - **Not the projection set.** This unblocks `torve context`, the served
+    tables and the tracker. Building them is their own document.
+  - **Not the worktree.** A worker still needs the repository's code to run
+    an attempt; the work surface is item 1 on the distribution list and is
+    untouched here.
+  - **Not a task the record invents.** Contracts enter the record from the
+    repository and nowhere else.
+design:
   - key: the-contract-travels-in-the-mint
     md: |
       Minting is the act that places a contract on a partition (S-0044/D-7), so the
@@ -194,66 +184,63 @@ sections:
         projections.** Two readers of the same fact, one of which is authoritative
         and the other convenient — the arrangement every consolidation in S-0044
         has been removing.
-  - key: tests
-    md: |
-      - **Round trip**: a minted contract read back off the board equals the
-        contract on disk, field for field, including decisions and scope.
-      - **Idempotence**: minting twice over an unchanged repository writes one
-        event; a changed contract writes a second.
-      - **A re-mint does not transition**: an escalated task whose contract
-        changed is re-minted and is still escalated; a released one is still
-        queued; the first mint still queues.
-      - **A task in flight is never re-minted**, asserted for each in-flight
-        state, because "in flight" is a set and a rule that holds for one member
-        is not a rule.
-      - **The flat fields agree with the contract** at write time — `phase` and
-        `depends_on` equal to the contract's, which is what lets the fold prefer
-        one and fall back to the other.
-      - **Pre-amendment mints stay readable**: a fold over an event with no
-        contract yields a view with none, and dispatch skips it rather than
-        raising.
-      - **Parity**: `dispatchable` from the board alone equals what it returned
-        from the scan's dictionary, over the same repository — the test that says
-        the reader moved without the rule moving.
-      - Explicitly not tested: that a contract survives arbitrary YAML. `Task` is
-        a pydantic model and its validation is not this document's to re-prove.
-  - key: docs
-    md: |
-      `pages/docs/architecture/state.md` says the repository holds what should be
-      and the record holds what happened. That stays true and gets more precise:
-      the contract is still authored in the repository, and the record holds which
-      contract was placed on which board, when, and what changed since.
-      `distribution.md` item 4 loses its task half.
-  - key: out-of-scope
-    md: |
-      - **The projection set.** `torve context`, the why report and the served
-        tables become record reads once this lands. Their own document.
-      - **The tracker as a projection consumer.** Same.
-      - **`specquality.read_tasks`.** Three of its four legs already have recorded
-        equivalents and the fourth arrives here; rewriting the join is the
-        projection set's work, not this one's.
-      - **Contracts authored into the record directly.** A task minted by an
-        operator with no file is expressible once tasks are records, and is not
-        built: nothing asks for it, and the review discipline that makes a
-        contract trustworthy is the commit it arrives in.
-  - key: risks
-    md: |
-      - **Payload size.** A contract with a long intent and twenty inherited
-        decisions is a few kilobytes of JSON per mint, and a re-mint writes
-        another. Accepted: mints are rare compared to attempts and burn, and the
-        history is the point.
-      - **A contract that stops validating.** A `Task` model change that rejects
-        an old contract makes a recorded mint unreadable. The fold treats a
-        payload it cannot validate as a view with no contract — undispatchable and
-        visible — rather than raising and taking the board down with it.
-      - **The re-mint comparison being wrong in the safe direction.** A comparison
-        that finds a difference where there is none re-mints on every pass and
-        fills the log. Mitigated by comparing the validated round trip rather than
-        raw dictionaries, and by the idempotence test.
-      - **Two dispatch answers during the change.** Phase 1 records the contract
-        and changes no reader; phase 2 moves them. Between the two the scan is
-        still authoritative, which is the same order every consolidation in
-        S-0044 has used.
+tests: |
+  - **Round trip**: a minted contract read back off the board equals the
+    contract on disk, field for field, including decisions and scope.
+  - **Idempotence**: minting twice over an unchanged repository writes one
+    event; a changed contract writes a second.
+  - **A re-mint does not transition**: an escalated task whose contract
+    changed is re-minted and is still escalated; a released one is still
+    queued; the first mint still queues.
+  - **A task in flight is never re-minted**, asserted for each in-flight
+    state, because "in flight" is a set and a rule that holds for one member
+    is not a rule.
+  - **The flat fields agree with the contract** at write time — `phase` and
+    `depends_on` equal to the contract's, which is what lets the fold prefer
+    one and fall back to the other.
+  - **Pre-amendment mints stay readable**: a fold over an event with no
+    contract yields a view with none, and dispatch skips it rather than
+    raising.
+  - **Parity**: `dispatchable` from the board alone equals what it returned
+    from the scan's dictionary, over the same repository — the test that says
+    the reader moved without the rule moving.
+  - Explicitly not tested: that a contract survives arbitrary YAML. `Task` is
+    a pydantic model and its validation is not this document's to re-prove.
+docs: |
+  `pages/docs/architecture/state.md` says the repository holds what should be
+  and the record holds what happened. That stays true and gets more precise:
+  the contract is still authored in the repository, and the record holds which
+  contract was placed on which board, when, and what changed since.
+  `distribution.md` item 4 loses its task half.
+out_of_scope: |
+  - **The projection set.** `torve context`, the why report and the served
+    tables become record reads once this lands. Their own document.
+  - **The tracker as a projection consumer.** Same.
+  - **`specquality.read_tasks`.** Three of its four legs already have recorded
+    equivalents and the fourth arrives here; rewriting the join is the
+    projection set's work, not this one's.
+  - **Contracts authored into the record directly.** A task minted by an
+    operator with no file is expressible once tasks are records, and is not
+    built: nothing asks for it, and the review discipline that makes a
+    contract trustworthy is the commit it arrives in.
+risks: |
+  - **Payload size.** A contract with a long intent and twenty inherited
+    decisions is a few kilobytes of JSON per mint, and a re-mint writes
+    another. Accepted: mints are rare compared to attempts and burn, and the
+    history is the point.
+  - **A contract that stops validating.** A `Task` model change that rejects
+    an old contract makes a recorded mint unreadable. The fold treats a
+    payload it cannot validate as a view with no contract — undispatchable and
+    visible — rather than raising and taking the board down with it.
+  - **The re-mint comparison being wrong in the safe direction.** A comparison
+    that finds a difference where there is none re-mints on every pass and
+    fills the log. Mitigated by comparing the validated round trip rather than
+    raw dictionaries, and by the idempotence test.
+  - **Two dispatch answers during the change.** Phase 1 records the contract
+    and changes no reader; phase 2 moves them. Between the two the scan is
+    still authoritative, which is the same order every consolidation in
+    S-0044 has used.
+sections:
   - key: unresolved-questions
     md: |
       - Whether a re-mint should carry what changed, rather than the whole
@@ -263,55 +250,3 @@ sections:
         reader. It currently drops non-dispatchable roles before minting, so a
         review or draft contract never reaches a board at all — correct today,
         and worth revisiting when a projection wants to see them.
-phasing:
-  - phase: 1
-    title: the contract in the record
-    intent: >-
-      `task.minted` gains the contract it minted, by amendment to S-0044's closed
-      vocabulary, and the writer fills it from the same `Task` the scan parsed — with
-      the flat `phase` and `depends_on` still written and pinned equal to the contract's,
-      so the fold can prefer one and fall back to the other. The board's view carries
-      the contract, validated on read and left absent when a payload cannot be one,
-      which is what keeps the mints already in the log readable. Minting re-mints
-      a task whose recorded contract differs from the repository's, never one in flight,
-      and a re-mint transitions nothing — so an existing log completes itself on the
-      first pass without changing any task's state. No reader moves in this phase.
-    scope:
-      - src/torve/domain/events.py
-      - src/torve/application/manager.py
-      - src/torve/application/residency.py
-      - tests/test_task_records.py
-      - tests/test_events.py
-      - tests/test_manager.py
-      - tests/test_residency.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_task_records.py tests/test_manager.py tests/test_residency.py
-        tests/test_events.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-  - phase: 2
-    title: dispatch reads the board
-    intent: >-
-      `dispatchable`, `blocked_by`, `overlaps` and the worker's claim take the board
-      instead of a dictionary somebody read off disk, so what a partition can start
-      is answered from the record alone. `residency.once` still scans, because that
-      is how a newly adopted contract enters the record, and the scan's only consumer
-      becomes the mint — the definition of an importer. The rules do not move: a parity
-      test asserts the board-read answer equals the scan-read one over the same repository,
-      which is what says the reader changed and the rule did not.
-    scope:
-      - src/torve/application/manager.py
-      - src/torve/application/worker.py
-      - src/torve/application/residency.py
-      - pages/docs/architecture/state.md
-      - tests/test_task_records.py
-      - tests/test_manager.py
-      - tests/test_worker.py
-      - tests/test_residency.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_task_records.py tests/test_worker.py tests/test_manager.py
-      - uv run torve rfc check
-    depends_on:
-      - 1

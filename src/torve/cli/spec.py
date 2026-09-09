@@ -914,7 +914,7 @@ def list_cmd(
             "implementation": doc.implementation,
             "depends_on": list(doc.depends_on),
             "amended_by": doc.amended_by(),
-            "description": doc.description.strip(),
+            "description": doc.routing(),
             "file": Path(doc.path).name,
         }
         for doc in corpus.documents

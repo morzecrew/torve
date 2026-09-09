@@ -1,0 +1,188 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the document is the model
+    intent: >-
+      `DecisionDetail` folds into `Decision`, `DesignSection` loses `level` and `order`,
+      the fingerprint moves onto the row and `schema_version` becomes 2. The loader
+      becomes the model's validator plus the corpus checks; `load_fences` is deleted
+      and `inherit_decisions` reads the row. Every writer mutates the model and dumps
+      it through one serializer with the model's key order, block scalars for multi-line
+      strings and flow lists for identifiers; comments outside the header line are
+      refused by `check`; `fmt` survives as `--check`. Every live and archived document
+      is converted through the markdown loader and the dump in one commit that deletes
+      the markdown files, the parser, the table renderer and `INDEX.md`; a parity
+      test over every item gates that commit and is deleted with the loader. The record
+      importer, `torve spec`, colocation and the pack are untouched and prove it by
+      their existing tests.
+    scope:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/config/rfc_emit.py
+      - src/torve/cli/rfc.py
+      - src/torve/application/planner.py
+      - src/torve/application/decisions.py
+      - src/torve/application/specquality.py
+      - rfcs/**
+      - archive/**
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+      - tests/test_rfc_emit.py
+      - tests/test_rfc_check.py
+      - tests/test_rfc_archive.py
+      - tests/test_decisions.py
+      - tests/test_cli_decisions.py
+      - tests/test_specquality.py
+      - tests/test_plan.py
+      - tests/test_colocation.py
+      - tests/test_cli_spec.py
+      - tests/test_contextpack.py
+      - src/torve/application/intake.py
+      - src/torve/application/standing.py
+      - src/torve/application/colocation.py
+      - src/torve/application/contextpack.py
+      - src/torve/cli/mcp.py
+      - src/torve/cli/spec.py
+      - src/torve/cli/decisions.py
+      - tests/test_rfc_fmt.py
+      - tests/test_rfc_show.py
+      - tests/test_rfc_verbs.py
+      - tests/test_intake.py
+      - tests/test_standing.py
+      - tests/test_decisions_record.py
+      - tests/test_skills.py
+      - tests/test_cli.py
+      - tests/test_mcp.py
+      - src/torve/application/projections.py
+      - skills/corpus-bootstrap/**
+      - tests/test_context.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py
+        tests/test_rfc_check.py tests/test_rfc_archive.py tests/test_decisions.py
+        tests/test_cli_decisions.py tests/test_specquality.py tests/test_plan.py tests/test_colocation.py
+        tests/test_cli_spec.py tests/test_contextpack.py tests/test_rfc_fmt.py tests/test_rfc_show.py
+        tests/test_rfc_verbs.py tests/test_intake.py tests/test_standing.py tests/test_decisions_record.py
+        tests/test_skills.py tests/test_cli.py tests/test_context.py
+      - uv run torve rfc check
+      - uv run lint-imports --config pyproject.toml
+  - phase: 2
+    title: the schema is the authoring contract
+    intent: >-
+      `torve rfc schema` writes `rfcs/schema/document.json` from the model and `rfc
+      check` reddens when it lags; `rfc new` emits a document in 0055's shape with
+      the header line; `rfc list` replaces the index and `rfc render NNNN` writes
+      the human page; the rfc-writer skill is rewritten as a YAML authoring guide
+      with the schema as its reference; the operating page describes the document,
+      the schema line and the verbs.
+    scope:
+      - src/torve/cli/rfc.py
+      - src/torve/config/rfc_emit.py
+      - rfcs/schema/**
+      - skills/rfc-writer/**
+      - .claude/skills/rfc-writer/**
+      - pages/docs/operating.md
+      - tests/test_rfc_emit.py
+      - tests/test_rfc_check.py
+      - tests/test_cli.py
+      - src/torve/config/spec.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_cli.py
+      - uv run torve rfc check
+    depends_on:
+      - 1
+  - phase: 3
+    title: the task directory is a projection
+    intent: >-
+      Every task directory whose contract names an archived document is deleted in
+      one commit, `.torve/tasks/` leaves the tracked exceptions and the retention
+      leg over task directories goes with them. With a store configured, `plan` mints
+      into the record and writes no file, dispatch projects the contract into the
+      worktree's gitignored `.torve/tasks/<id>/` beside the pack, and the log written
+      there is imported after the attempt; without a store every existing path and
+      test is unchanged.
+    scope:
+      - src/torve/application/planner.py
+      - src/torve/application/session.py
+      - src/torve/application/dispatch.py
+      - src/torve/application/reaper.py
+      - src/torve/config/layout.py
+      - src/torve/cli/plan.py
+      - .torve/tasks/**
+      - .gitignore
+      - tests/test_plan.py
+      - tests/test_session.py
+      - tests/test_dispatch.py
+      - tests/test_reaper.py
+      - tests/test_task_records.py
+      - tests/test_layout.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_session.py tests/test_dispatch.py
+        tests/test_reaper.py tests/test_task_records.py tests/test_layout.py
+      - uv run torve rfc check
+    depends_on:
+      - 1
+  - phase: 4
+    title: the telemetry file is a carrier
+    intent: >-
+      `torve migrate telemetry` reads the file once into the record; one function
+      answers every reader that opened `.torve/telemetry.jsonl` — the pack's attempts,
+      touched and contended files, the drafter's execution facts, `rfc health`'s conviction
+      counts — from the record when a store is configured and from the file when not,
+      and the two agree byte for byte after the import. `.torve/review-corpus/` moves
+      to `tests/fixtures/review-corpus/`. The retention question for traces and regimes
+      is decided and logged.
+    scope:
+      - src/torve/application/telemetry.py
+      - src/torve/application/contextpack.py
+      - src/torve/application/intake.py
+      - src/torve/application/specquality.py
+      - src/torve/application/review.py
+      - src/torve/application/reaper.py
+      - src/torve/cli/migrate.py
+      - .torve/review-corpus/**
+      - tests/fixtures/**
+      - tests/test_attempt_record.py
+      - tests/test_migrate.py
+      - tests/test_contextpack.py
+      - tests/test_intake.py
+      - tests/test_specquality.py
+      - tests/test_review_run.py
+      - tests/test_reaper.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_attempt_record.py tests/test_migrate.py tests/test_contextpack.py
+        tests/test_intake.py tests/test_specquality.py tests/test_review_run.py tests/test_reaper.py
+      - uv run torve rfc check
+    depends_on:
+      - 3
+contract_example:
+  schema_version: 1
+  id: T-0300
+  rfc: rfcs/0056-structure-for-everything.yaml
+  phase: 1
+  role: implement
+  title: the document is the model
+  intent: >-
+    The loader becomes the model's validator; every writer dumps the model; every
+    document converts once.
+  depends_on: []
+  targets: []
+  scope:
+    allow: [src/torve/domain/spec.py, src/torve/config/spec.py, rfcs/**, archive/**]
+    deny: []
+  acceptance:
+    - uv run torve rfc check
+  decisions:
+    - id: D-1
+      grade: LOCKED
+      text: >-
+        A document is one YAML file in the Document model's own shape and key order
+      paths: [src/torve/config/spec.py, src/torve/domain/spec.py]
+      consequence: >-
+        The markdown parser is deleted; every reader of the corpus is unchanged
+      check_state: shadow
+  budget: {}
+  tier: executor

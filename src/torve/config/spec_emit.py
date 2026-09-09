@@ -103,7 +103,6 @@ HEADER_FIELDS = (
     "supersedes",
     "superseded_by",
     "owner",
-    "description",
     "schema_version",
 )
 
@@ -436,9 +435,8 @@ def new_document(number: str, title: str, owner: str, kind: str = "design") -> D
             "kind": kind,
             "status": "draft",
             "owner": owner,
-            "description": f"{title}.",
             "schema_version": SCHEMA_VERSION,
-            "sections": [{"key": "summary", "md": "What this document decides.\n"}],
+            "summary": "What this document decides.\n",
         }
     )
 
@@ -534,9 +532,9 @@ def render_markdown(doc: Document) -> str:
             ("superseded by", doc.superseded_by or "—"),
         )
     ]
-    lines += [" · ".join(facts), "", doc.description.strip(), ""]
+    lines += [" · ".join(facts), ""]
 
-    for number, section in enumerate(doc.sections, start=1):
+    for number, section in enumerate(doc.prose(), start=1):
         lines += [f"## {number}. {heading_of(section.key)}", "", section.md.rstrip(), ""]
 
     if doc.decisions:

@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Prevention, kill, and engine sight
+    intent: >-
+      What must exist before a lane is safe to run: dispatch refuses a task whose
+      scope intersects an active run's, logged with its cause and counted per path
+      through a new EngineEvent record on the existing telemetry path; torve kill
+      force-terminates one run — sandbox destroyed, state escalated as killed; and
+      the escalation queue's age becomes visible in the context projection, because
+      a queue nobody triages looks identical to success from inside the runner.
+    scope: [src/torve/application/**, src/torve/cli/**, src/torve/config/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: The serialized lane
+    intent: >-
+      Ready is a lane, not a set: torve merge processes candidates one at a time —
+      a task branch whose base has not moved lands as it was measured; one whose base
+      moved is rebased and its gate battery re-run over the rebased tree before landing;
+      a conflict escalates as merge_conflict and the lane moves on. The engine never
+      resolves a conflict, and the operator's invocation is the recorded approval.
+      Auto-merge stays off by default in configuration.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/adapters/**
+      - src/torve/cli/**
+      - src/torve/config/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 1

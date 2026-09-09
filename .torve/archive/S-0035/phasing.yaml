@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the tier clock
+    intent: >-
+      Optional agent_timeout and sandbox_timeout on TierConfig (S-0035/D-6), absent
+      falling through to the RuntimeConfig globals; the runner's attempt hook and
+      the review lane read the resolved tier's values, so the heavy rung and the reviewer
+      seat carry their own clocks. Resolution tests pin override-wins and absent-falls-through,
+      and a runner test pins the resolved value reaching the agent context.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/application/runner.py
+      - src/torve/application/review.py
+      - tests/test_runconfig.py
+      - tests/test_runner.py
+      - tests/test_review_run.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runconfig.py tests/test_runner.py tests/test_review_run.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 1
+    title: the baked dependency layer
+    intent: >-
+      The battery image bakes the lockfile-keyed dependency layer (S-0035/D-2): pyproject
+      and uv.lock copied, uv sync --all-extras --no-install-project at build, UV_PROJECT_ENVIRONMENT
+      fixed so an attempt's uv run reconciles the delta instead of rebuilding. The
+      layer is a convenience, never a requirement — a stock image still works. A conformance
+      case proves an unchanged lockfile performs no package downloads inside an attempt.
+    scope: [.torve/sandbox/battery/Dockerfile, tests/test_sandbox_images.py]
+    acceptance:
+      - uv run pytest tests/test_sandbox_images.py
+      - uv run torve rfc check
+  - phase: 2
+    title: the derived-cache volume
+    intent: >-
+      cache_volume on TierConfig (S-0035/D-4): slot-suffixed naming like the auth
+      volume, fixed mount outside the workspace, toolchain cache homes (uv, mypy,
+      and the roster implementation settles per §10) pointed at it by the runtime
+      adapter. Shadow replays and evals never mount it (S-0035/D-3) — a shadow test
+      pins the exclusion even when the tier names a volume. The opensandbox adapter
+      refuses the field loudly (S-0035/D-5). Deleting the volume changes nothing but
+      wall clock (S-0035/D-1) — asserted by a conformance case running the same battery
+      cold and warm.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/application/runner.py
+      - src/torve/application/shadow.py
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/adapters/runtime/opensandbox.py
+      - tests/test_runconfig.py
+      - tests/test_runner.py
+      - tests/test_shadow.py
+      - tests/test_sandbox_images.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runconfig.py tests/test_runner.py tests/test_shadow.py
+        tests/test_sandbox_images.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: why, over the record
+    intent: >-
+      `why_report` gains a record-backed source: one read of the task's own history
+      folded into the same envelope it returns today — the minted contract for `rfc`,
+      the attempt and gate payloads for `attempts`, the escalation and divergence
+      records for `events`, the review records for `reviews`, and the board's own
+      view for `state`. Selection is a parameter the caller passes, and a record that
+      does not hold the task falls back to the files; the reverse never happens. The
+      CLI grows the flags that make the choice explicit, and the MCP tool and the
+      served endpoint are untouched because the envelope is not. Parity against the
+      file reader is asserted on a real manager-dispatched run, key by key.
+    scope:
+      - src/torve/application/projections.py
+      - src/torve/cli/why.py
+      - tests/test_why_record.py
+      - tests/test_manager_e2e.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_why_record.py tests/test_context.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+  - phase: 2
+    title: status, over the board
+    intent: >-
+      `status_report` gains a record-backed source over the board that already holds
+      every fact it reports — state, attempts, holder, landing, escalation. The work
+      is reconciling two vocabularies rather than writing a fold: the run-state file's
+      states and the board's are the same enum reached by different paths, and where
+      they disagree the disagreement is the finding. Same selection rule and same
+      parity discipline as phase 1.
+    scope:
+      - src/torve/application/projections.py
+      - src/torve/cli/status.py
+      - tests/test_why_record.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_why_record.py tests/test_reaper.py
+      - uv run torve rfc check
+    depends_on:
+      - 1
+  - phase: 3
+    title: context, over the record and the corpus
+    intent: >-
+      The planning view moves last and reads two records rather than one: the decision
+      graph S-0047 imported for its corpus half, and the event log for its execution
+      half. Its blocks land one at a time behind the same selection rule — tasks and
+      programme first, since S-0049 made those a fold; costs and harness populations
+      next, since the attempt payload already carries what they count; the specification-quality
+      readings last, because their landed-window semantics are their own reading rather
+      than a source swap.
+    scope:
+      - src/torve/application/projections.py
+      - src/torve/application/specquality.py
+      - src/torve/cli/context.py
+      - tests/test_context.py
+      - tests/test_specquality.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_context.py tests/test_specquality.py
+      - uv run torve rfc check
+    depends_on:
+      - 2

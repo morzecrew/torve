@@ -9,125 +9,115 @@ informed_by: [S-0005, S-0028, S-0034, S-0035]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  An agent-authored working-state snapshot (state.yaml) carried by the worktree across
-  continuations: what a dying attempt knew, for the next attempt and for triage —
-  never for routing.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      An executor maintains `.torve/tasks/<id>/state.yaml` — a small, mutable,
-      write-ahead snapshot of what it knows: plan progress, discovered facts,
-      dead ends, blockers, working handles. The file is ordinary worktree
-      content, so the lanes already decide its fate: a checkpoint commits it,
-      a continuation successor inherits it (pointed at it by the prompt, with
-      `feedback.md`'s untrusted framing), and every restart-from-base lane
-      discards it with the rest of the convicted tree. The engine never reads
-      its content for decisions — a shadow gate validates shape and pin only,
-      telemetry stamps presence, and triage surfaces `blockers`/`next` for
-      escalated runs as display. Deleting the file may cost tokens and clock,
-      never correctness.
-  - key: motivation
-    md: |
-      - **The continuation handoff is one sentence.** A successor attempt is
-        cut from the previous attempt's candidate tip
-        (`src/torve/adapters/workspace/git.py` `create(resume=True)`) and told
-        only: "the commits already in this worktree are yours, keep building"
-        (`src/torve/adapters/agent/harness.py`, the `continuation` branch of
-        `build_prompt`). Plan state, rejected approaches, and the reason the
-        clock ran out all die with the previous session; the successor
-        re-derives them from the tree, paying tokens and wall clock for
-        knowledge the department already bought once.
-      - **The engine's own record does not survive either.** `run_task`
-        constructs a fresh `RunState` on every dispatch
-        (`src/torve/application/runner.py`, the state construction before the
-        attempt loop) and the first `save()` overwrites the prior run's state
-        file — the previous dispatch's `history[]` is destroyed. After a
-        continuation, an agent-authored snapshot in the worktree is the *only*
-        continuity artifact that can exist.
-      - **The loss is already on the record.** S-0028/motivation complains twice
-        that hard-won knowledge "lived in a session scratchpad and was
-        destroyed" — the motivating gap, stated before this design existed.
-      - **Timeouts kill mid-thought.** `agent_timeout` is a hard cap: the
-        docker adapter returns `[hard timeout after Ns]` with no grace signal
-        (`src/torve/adapters/runtime/docker.py`), and the 0035 chain recorded
-        green-adjacent attempts killed at the cap with real work in the tree
-        (T-0213). A killed attempt's tree is orientation-free unless the agent
-        wrote its orientation down *before* dying.
-      - **External evidence.** SKILL.state (arXiv 2608.26263) measures the
-        same mechanism at step grain: structured current state in, reasoning
-        discarded, 16–50× token reduction at equal-or-better accuracy against
-        history- and summary-carrying baselines. The transferable claim is not
-        the multiplier — torve attempts are bounded one-shots, not 200-step
-        marathons — but the sufficiency claim: a small typed snapshot is
-        enough to continue long-horizon work.
-  - key: current-state
-    md: |
-      Verified at drafting time:
+schema_version: 4
+summary: |
+  An executor maintains `.torve/tasks/<id>/state.yaml` — a small, mutable,
+  write-ahead snapshot of what it knows: plan progress, discovered facts,
+  dead ends, blockers, working handles. The file is ordinary worktree
+  content, so the lanes already decide its fate: a checkpoint commits it,
+  a continuation successor inherits it (pointed at it by the prompt, with
+  `feedback.md`'s untrusted framing), and every restart-from-base lane
+  discards it with the rest of the convicted tree. The engine never reads
+  its content for decisions — a shadow gate validates shape and pin only,
+  telemetry stamps presence, and triage surfaces `blockers`/`next` for
+  escalated runs as display. Deleting the file may cost tokens and clock,
+  never correctness.
+motivation: |
+  - **The continuation handoff is one sentence.** A successor attempt is
+    cut from the previous attempt's candidate tip
+    (`src/torve/adapters/workspace/git.py` `create(resume=True)`) and told
+    only: "the commits already in this worktree are yours, keep building"
+    (`src/torve/adapters/agent/harness.py`, the `continuation` branch of
+    `build_prompt`). Plan state, rejected approaches, and the reason the
+    clock ran out all die with the previous session; the successor
+    re-derives them from the tree, paying tokens and wall clock for
+    knowledge the department already bought once.
+  - **The engine's own record does not survive either.** `run_task`
+    constructs a fresh `RunState` on every dispatch
+    (`src/torve/application/runner.py`, the state construction before the
+    attempt loop) and the first `save()` overwrites the prior run's state
+    file — the previous dispatch's `history[]` is destroyed. After a
+    continuation, an agent-authored snapshot in the worktree is the *only*
+    continuity artifact that can exist.
+  - **The loss is already on the record.** S-0028/motivation complains twice
+    that hard-won knowledge "lived in a session scratchpad and was
+    destroyed" — the motivating gap, stated before this design existed.
+  - **Timeouts kill mid-thought.** `agent_timeout` is a hard cap: the
+    docker adapter returns `[hard timeout after Ns]` with no grace signal
+    (`src/torve/adapters/runtime/docker.py`), and the 0035 chain recorded
+    green-adjacent attempts killed at the cap with real work in the tree
+    (T-0213). A killed attempt's tree is orientation-free unless the agent
+    wrote its orientation down *before* dying.
+  - **External evidence.** SKILL.state (arXiv 2608.26263) measures the
+    same mechanism at step grain: structured current state in, reasoning
+    discarded, 16–50× token reduction at equal-or-better accuracy against
+    history- and summary-carrying baselines. The transferable claim is not
+    the multiplier — torve attempts are bounded one-shots, not 200-step
+    marathons — but the sufficiency claim: a small typed snapshot is
+    enough to continue long-horizon work.
+current_state: |
+  Verified at drafting time:
 
-      - `build_prompt` injects one continuation sentence and nothing else; the
-        successor receives no attempt number, no budget, no escalation detail
-        (`src/torve/adapters/agent/harness.py`). `AgentContext.resume` is a
-        bare bool.
-      - The checkpoint hook commits whatever the worktree holds under a
-        `Torve-Checkpoint` trailer (`src/torve/application/runner.py`), so a
-        tracked file under `.torve/tasks/<id>/` crosses to the successor with
-        zero new machinery.
-      - After a timed-out exec the runner still calls `sync_out` before
-        destroying the sandbox (`src/torve/application/runner.py`), so files
-        written before the kill survive it. Nothing written *at* the kill can
-        exist — there is no grace window.
-      - The two existing per-task artifacts have committed shapes this file
-        must not collide with: `log.yaml` is an append-only decision journal
-        with a gate-enforced vocabulary
-        (`src/torve/gates/decisions_reported.py`), and `feedback.md` is a
-        replace-per-round prose carry with a 24 000-byte cap and an
-        untrusted-data preamble (`src/torve/application/feedback.py`).
-      - The telemetry attempt row has no per-attempt outcome or state field of
-        any kind (`src/torve/application/telemetry.py` `build_record`); the
-        nearest prose lives in run-state transition facts, which the next
-        dispatch overwrites.
-      - Retry routing is deterministic over recorded gate outcomes alone —
-        S-0034/D-5 (`LOCKED`) forbids the trace and model output as router inputs,
-        and S-0034/D-11 keeps scribe agents out. Any state design that feeds the
-        router is dead on arrival; this one does not.
-      - Found while drafting, not fixed here: S-0026/continuation-attempts says ceiling and
-        budgets apply *cumulatively* across continuations; the code re-anchors
-        attempts, wallclock, and the broker's token budget on every dispatch.
-        Named in §8 as its own track.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `build_prompt` injects one continuation sentence and nothing else; the
+    successor receives no attempt number, no budget, no escalation detail
+    (`src/torve/adapters/agent/harness.py`). `AgentContext.resume` is a
+    bare bool.
+  - The checkpoint hook commits whatever the worktree holds under a
+    `Torve-Checkpoint` trailer (`src/torve/application/runner.py`), so a
+    tracked file under `.torve/tasks/<id>/` crosses to the successor with
+    zero new machinery.
+  - After a timed-out exec the runner still calls `sync_out` before
+    destroying the sandbox (`src/torve/application/runner.py`), so files
+    written before the kill survive it. Nothing written *at* the kill can
+    exist — there is no grace window.
+  - The two existing per-task artifacts have committed shapes this file
+    must not collide with: `log.yaml` is an append-only decision journal
+    with a gate-enforced vocabulary
+    (`src/torve/gates/decisions_reported.py`), and `feedback.md` is a
+    replace-per-round prose carry with a 24 000-byte cap and an
+    untrusted-data preamble (`src/torve/application/feedback.py`).
+  - The telemetry attempt row has no per-attempt outcome or state field of
+    any kind (`src/torve/application/telemetry.py` `build_record`); the
+    nearest prose lives in run-state transition facts, which the next
+    dispatch overwrites.
+  - Retry routing is deterministic over recorded gate outcomes alone —
+    S-0034/D-5 (`LOCKED`) forbids the trace and model output as router inputs,
+    and S-0034/D-11 keeps scribe agents out. Any state design that feeds the
+    router is dead on arrival; this one does not.
+  - Found while drafting, not fixed here: S-0026/continuation-attempts says ceiling and
+    budgets apply *cumulatively* across continuations; the code re-anchors
+    attempts, wallclock, and the broker's token budget on every dispatch.
+    Named in §8 as its own track.
+goals: |
+  **Goals**
 
-      - A continuation successor starts oriented: plan remainder, known facts,
-        and dead ends cost one small file read instead of a tree
-        re-investigation.
-      - A human triaging an escalated run sees the agent's last known state —
-        what it was doing, what blocked it — beside the engine's transition
-        history.
-      - The snapshot survives a hard timeout kill: the discipline is
-        write-ahead, so the file is always last-known-good.
-      - Adoption and payoff are measurable from day one through the existing
-        per-attempt token counts (T-0186) — the paper's claim gets a
-        torve-native number.
-
-      **Non-goals**
-
-      - A router input — S-0034/D-5 stands: rung selection reads recorded gate
-        outcomes alone. The engine validates this file's shape and displays
-        its content; it never branches on it.
-      - Agent memory across tasks or attempts outside the worktree — S-0017/D-7
-        stands. The file has no life of its own: it crosses exactly where the
-        worktree crosses, and a restart-from-base discards it unread.
-      - A scribe or summarizer seat — S-0034/D-11's collision with the
-        self-report doctrine (S-0004/D-6) applies to any post-pass author; the one
-        writer is the executor itself, in-session.
-      - Changing `log.yaml` or `feedback.md` — the journal and the review
-        carry keep their shapes; this is the third artifact, not a merge of
-        the two.
-      - Fixing the cumulative-budget divergence (§3) — a spec-vs-code
-        question for S-0026's author, not this design.
+  - A continuation successor starts oriented: plan remainder, known facts,
+    and dead ends cost one small file read instead of a tree
+    re-investigation.
+  - A human triaging an escalated run sees the agent's last known state —
+    what it was doing, what blocked it — beside the engine's transition
+    history.
+  - The snapshot survives a hard timeout kill: the discipline is
+    write-ahead, so the file is always last-known-good.
+  - Adoption and payoff are measurable from day one through the existing
+    per-attempt token counts (T-0186) — the paper's claim gets a
+    torve-native number.
+non_goals: |
+  - A router input — S-0034/D-5 stands: rung selection reads recorded gate
+    outcomes alone. The engine validates this file's shape and displays
+    its content; it never branches on it.
+  - Agent memory across tasks or attempts outside the worktree — S-0017/D-7
+    stands. The file has no life of its own: it crosses exactly where the
+    worktree crosses, and a restart-from-base discards it unread.
+  - A scribe or summarizer seat — S-0034/D-11's collision with the
+    self-report doctrine (S-0004/D-6) applies to any post-pass author; the one
+    writer is the executor itself, in-session.
+  - Changing `log.yaml` or `feedback.md` — the journal and the review
+    carry keep their shapes; this is the third artifact, not a merge of
+    the two.
+  - Fixing the cumulative-budget divergence (§3) — a spec-vs-code
+    question for S-0026's author, not this design.
+design:
   - key: the-artifact
     md: |
       `.torve/tasks/<id>/state.yaml` — tracked worktree content beside
@@ -267,66 +257,63 @@ sections:
         harness-specific where torve is harness-agnostic (S-0004/D-1), and a
         transcript is memory in S-0017/D-7's sense where a typed snapshot in the
         tree is work product.
-  - key: tests
-    md: |
-      Gate: unit cases in the gate suite for each red condition (malformed,
-      unknown key, pin mismatch, oversize) and the missing-file green; a
-      sabotage case in the shipped set proving red is reachable. Prompt: the
-      tiering suite pins the working rule's presence on executor attempts and
-      the continuation pointer's presence-with-untrusted-framing when
-      resuming. Telemetry: a runner test pins the `state` sub-block for a
-      worktree carrying the file and its absence otherwise. Triage: a
-      projection test pins that an escalated run with state shows `blockers`
-      and that one without shows exactly what it shows today. Not tested:
-      whether agents write *useful* state — that is what the token telemetry
-      measures in production, not what a fixture can assert.
-  - key: docs
-    md: |
-      The agent-facing schema and discipline live in
-      `skills/attempt-state/SKILL.md` — the skill *is* the documentation, as
-      with `flag-dont-flip`. The corpus conventions page gains a three-row
-      table naming the artifacts and their shapes: `log.yaml` append-only
-      journal, `feedback.md` replace-per-round review carry, `state.yaml`
-      mutable snapshot. Wording that must be careful: the snapshot is
-      *worktree content*, never "memory" — the doc says the delete test out
-      loud so nobody builds on the file as a durable store.
-  - key: out-of-scope
-    md: |
-      - **Engine-authored prompt facts** (attempt number, remaining wallclock,
-        escalation detail injected into the continuation prompt) — adjacent
-        and cheap, but engine-authored where this document is
-        agent-authored; named as the natural companion change, not built here.
-      - **The cumulative-budget divergence** — S-0026/continuation-attempts promises
-        cumulative ceilings; the code refills per dispatch and overwrites the
-        prior run's history (§3). A spec-vs-code reconciliation for 0026, not
-        a rider on this design.
-      - **Per-role schemas for review and draft seats** — the executor schema
-        ships first; a reviewer's or drafter's state earns its own sections
-        when those seats demonstrate the need (the schema_version field is
-        the escape hatch).
-      - **Cross-task or cross-department state** — anything outliving the
-        task's worktree is memory, S-0017/D-7's territory, and would need its own
-        document with its own trust story.
-  - key: risks
-    md: |
-      - **Bookkeeping tax** — maintaining the file costs the executor tokens
-        on every attempt, including the majority that never continue.
-        Bounded: the file is small, the sections optional, and §5.5 measures
-        the net; if the tax exceeds the continuation savings, the working
-        rule is withdrawn by amendment and the telemetry shows why. Accepted.
-      - **Junk state misleads a successor** — a wrong `facts` entry steers
-        the next attempt into a wall. Mitigated the way `feedback.md` already
-        is: untrusted framing, contract governs, tree outranks notes; and by
-        the origin paper's own finding that stale-state recovery beats
-        stale-history recovery — a snapshot contradicted by observation is
-        droppable in one step.
-      - **The file read as engine memory** — someone builds a feature that
-        branches on state content, quietly breaking D-34.5/D-4.6. Mitigated
-        by S-0037/D-1's grade and the delete test stated in three places (skill,
-        docs, this table). The gate's shape-only rule is the tripwire.
-      - **Shadow-gate noise** — early malformed states redden a shadow gate
-        and erode trust in the artifact. Accepted: shadow is exactly the
-        regime for finding the malformation rate before the gate ever blocks.
+tests: |
+  Gate: unit cases in the gate suite for each red condition (malformed,
+  unknown key, pin mismatch, oversize) and the missing-file green; a
+  sabotage case in the shipped set proving red is reachable. Prompt: the
+  tiering suite pins the working rule's presence on executor attempts and
+  the continuation pointer's presence-with-untrusted-framing when
+  resuming. Telemetry: a runner test pins the `state` sub-block for a
+  worktree carrying the file and its absence otherwise. Triage: a
+  projection test pins that an escalated run with state shows `blockers`
+  and that one without shows exactly what it shows today. Not tested:
+  whether agents write *useful* state — that is what the token telemetry
+  measures in production, not what a fixture can assert.
+docs: |
+  The agent-facing schema and discipline live in
+  `skills/attempt-state/SKILL.md` — the skill *is* the documentation, as
+  with `flag-dont-flip`. The corpus conventions page gains a three-row
+  table naming the artifacts and their shapes: `log.yaml` append-only
+  journal, `feedback.md` replace-per-round review carry, `state.yaml`
+  mutable snapshot. Wording that must be careful: the snapshot is
+  *worktree content*, never "memory" — the doc says the delete test out
+  loud so nobody builds on the file as a durable store.
+out_of_scope: |
+  - **Engine-authored prompt facts** (attempt number, remaining wallclock,
+    escalation detail injected into the continuation prompt) — adjacent
+    and cheap, but engine-authored where this document is
+    agent-authored; named as the natural companion change, not built here.
+  - **The cumulative-budget divergence** — S-0026/continuation-attempts promises
+    cumulative ceilings; the code refills per dispatch and overwrites the
+    prior run's history (§3). A spec-vs-code reconciliation for 0026, not
+    a rider on this design.
+  - **Per-role schemas for review and draft seats** — the executor schema
+    ships first; a reviewer's or drafter's state earns its own sections
+    when those seats demonstrate the need (the schema_version field is
+    the escape hatch).
+  - **Cross-task or cross-department state** — anything outliving the
+    task's worktree is memory, S-0017/D-7's territory, and would need its own
+    document with its own trust story.
+risks: |
+  - **Bookkeeping tax** — maintaining the file costs the executor tokens
+    on every attempt, including the majority that never continue.
+    Bounded: the file is small, the sections optional, and §5.5 measures
+    the net; if the tax exceeds the continuation savings, the working
+    rule is withdrawn by amendment and the telemetry shows why. Accepted.
+  - **Junk state misleads a successor** — a wrong `facts` entry steers
+    the next attempt into a wall. Mitigated the way `feedback.md` already
+    is: untrusted framing, contract governs, tree outranks notes; and by
+    the origin paper's own finding that stale-state recovery beats
+    stale-history recovery — a snapshot contradicted by observation is
+    droppable in one step.
+  - **The file read as engine memory** — someone builds a feature that
+    branches on state content, quietly breaking D-34.5/D-4.6. Mitigated
+    by S-0037/D-1's grade and the delete test stated in three places (skill,
+    docs, this table). The gate's shape-only rule is the tripwire.
+  - **Shadow-gate noise** — early malformed states redden a shadow gate
+    and erode trust in the artifact. Accepted: shadow is exactly the
+    regime for finding the malformation rate before the gate ever blocks.
+sections:
   - key: unresolved-questions
     md: |
       - Whether the continuation prompt should quote the state's `next` list
@@ -347,80 +334,3 @@ sections:
       stamps and displays what phase 1 defines.
 
       *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
-phasing:
-  - phase: 1
-    title: the artifact and the prompt
-    intent: >-
-      The attempt-state skill (S-0037/D-4, S-0037/D-5): schema document and write-ahead
-      discipline as a sibling of flag-dont-flip, materialized for the executor role.
-      The harness prompt gains the maintain-state working rule on every executor attempt
-      and the continuation branch's pointer at the inherited file with feedback.md's
-      untrusted framing (S-0037/D-7); the revision lane gets no pointer. The state
-      path joins the layout module beside the log path (S-0037/D-3). Tiering tests
-      pin the rule's presence and the continuation pointer's framing.
-    scope:
-      - skills/attempt-state/**
-      - src/torve/adapters/agent/harness.py
-      - src/torve/config/layout.py
-      - tests/test_tiering.py
-      - tests/test_layout.py
-      - tests/test_skills.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_tiering.py tests/test_layout.py tests/test_skills.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-  - phase: 1
-    title: the state-audit gate
-    intent: >-
-      The shape-only shadow builtin (S-0037/D-6), following decisions-reported's pattern:
-      input "state" pre-read into GateContext, registration in BUILTINS/BUILTIN_INPUTS/
-      BUILTIN_TIMEOUTS, survey seeding as shadow with structural origin, and a sabotage
-      case proving red is reachable. Red on malformed YAML, unknown top-level keys,
-      pin mismatch against the engine's base_sha, or oversize past 24000 bytes; green
-      with a note when the file is absent. Content is never judged.
-    scope:
-      - src/torve/gates/state_audit.py
-      - src/torve/gates/__init__.py
-      - src/torve/gates/context.py
-      - src/torve/gates/sabotage.py
-      - src/torve/config/manifest.py
-      - src/torve/application/survey.py
-      - tests/test_gates.py
-      - tests/test_sabotage.py
-      - tests/test_manifest.py
-      - tests/test_survey.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_gates.py tests/test_sabotage.py tests/test_manifest.py
-        tests/test_survey.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-  - phase: 2
-    title: telemetry and triage
-    intent: >-
-      Observability for the artifact both phases 1 defined: the attempt row's agent
-      block gains the state presence sub-block populated by the runner (S-0037/D-8),
-      and escalation triage — torve status and the context projection's escalation
-      bucket — displays blockers and leading next entries from an escalated run's
-      state.yaml when present, display-only under S-0037/D-1 (S-0037/D-9). Runner
-      and projection tests pin the stamp and the display, including the without-state
-      baseline staying exactly as today.
-    scope:
-      - src/torve/application/runner.py
-      - src/torve/application/telemetry.py
-      - src/torve/application/projections.py
-      - src/torve/cli/status.py
-      - tests/test_runner.py
-      - tests/test_context.py
-      - tests/test_tracker.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_runner.py tests/test_context.py tests/test_tracker.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-    depends_on:
-      - 1

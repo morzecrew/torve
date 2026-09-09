@@ -9,84 +9,73 @@ informed_by: [S-0001, S-0004, S-0006, S-0017, S-0021, S-0022]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Running the standing loop over several repositories from one operator's attention:
-  an operator-side manifest, a fleet-wide escalation pause, trust classes that bind
-  per-repository capability, and aggregation that keeps every root authoritative for
-  itself.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      The tick is per-root and so is everything under it: the lock, the run states,
-      the telemetry, and — the part that matters — the attention budget. An operator
-      with four repositories has four independent pause thresholds and one
-      attention, so four unhandled escalations pause four roots and look like four
-      healthy systems. `torve fleet tick` is one pass over a manifest the operator
-      keeps: survey every root's escalation queue, decide the pause once for the
-      fleet, then tick each root in its own regime with that decision passed down.
-      The manifest also carries a trust class per repository, which is the first
-      mechanism that makes S-0017's "never combined with repositories the operator
-      does not trust as their own shell" a check rather than a sentence.
-  - key: motivation
-    md: |
-      Two repositories are already in dogfood — this one and the lab — ticked by
-      hand or by separate schedules. The design does not scale past that, and it
-      fails in a specific way rather than a vague one.
+schema_version: 4
+summary: |
+  The tick is per-root and so is everything under it: the lock, the run states,
+  the telemetry, and — the part that matters — the attention budget. An operator
+  with four repositories has four independent pause thresholds and one
+  attention, so four unhandled escalations pause four roots and look like four
+  healthy systems. `torve fleet tick` is one pass over a manifest the operator
+  keeps: survey every root's escalation queue, decide the pause once for the
+  fleet, then tick each root in its own regime with that decision passed down.
+  The manifest also carries a trust class per repository, which is the first
+  mechanism that makes S-0017's "never combined with repositories the operator
+  does not trust as their own shell" a check rather than a sentence.
+motivation: |
+  Two repositories are already in dogfood — this one and the lab — ticked by
+  hand or by separate schedules. The design does not scale past that, and it
+  fails in a specific way rather than a vague one.
 
-      - **The attention budget is per-root.** S-0019/D-5 pauses intake while a root's
-        escalation queue holds `loop.pause_escalations` runs, because a queue nobody
-        triages must stop the machine rather than the person. With N roots the rule
-        is enforced N times against a person who exists once. Four roots each holding
-        one escalation is four paused-but-otherwise-fine systems and one operator
-        with four things to triage and no view that says so.
-      - **S-0006's primary alert is queue age (S-0006/D-8), and it has no fleet form.**
-        The alert fires per root, so the oldest item across the fleet is exactly the
-        thing nothing reports.
-      - **The corpus already assumes a population of repositories trusted
-        differently.** S-0004/provider-routing-and-data-boundaries keys provider routing by repository name;
-        S-0017 S-0017/D-10 says socket mode is "never combined with repositories the
-        operator does not trust as they trust their own shell". Neither has anywhere
-        to write down which repository is which, so both are enforced by the
-        operator remembering.
-      - **S-0008/multiple-repositories-one-board already settled "multiple repositories, one board".** The
-        projection side is done. Nothing on the loop side matches it.
-  - key: current-state
-    md: |
-      - `acquire_lock` in `src/torve/application/loop.py` takes `.torve/tick.lock`
-        under a root; one tick at a time per root, and nothing above that.
-      - Run state files are JSON beside the worktree; telemetry is
-        `.torve/telemetry.jsonl` per root, host-local and gitignored. There is no
-        artefact anywhere that names more than one root.
-      - `route_provider` takes a repository name and a provider and refuses at
-        dispatch. The repository name is a string in the config of the repository
-        itself, which means the repository under work supplies its own routing key.
-      - S-0013's layout is deliberately per-repository, and S-0013/D-3 states the rule
-        this document needs in the other direction: the repository under work
-        configures nothing about the engine that works on it.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - **The attention budget is per-root.** S-0019/D-5 pauses intake while a root's
+    escalation queue holds `loop.pause_escalations` runs, because a queue nobody
+    triages must stop the machine rather than the person. With N roots the rule
+    is enforced N times against a person who exists once. Four roots each holding
+    one escalation is four paused-but-otherwise-fine systems and one operator
+    with four things to triage and no view that says so.
+  - **S-0006's primary alert is queue age (S-0006/D-8), and it has no fleet form.**
+    The alert fires per root, so the oldest item across the fleet is exactly the
+    thing nothing reports.
+  - **The corpus already assumes a population of repositories trusted
+    differently.** S-0004/provider-routing-and-data-boundaries keys provider routing by repository name;
+    S-0017 S-0017/D-10 says socket mode is "never combined with repositories the
+    operator does not trust as they trust their own shell". Neither has anywhere
+    to write down which repository is which, so both are enforced by the
+    operator remembering.
+  - **S-0008/multiple-repositories-one-board already settled "multiple repositories, one board".** The
+    projection side is done. Nothing on the loop side matches it.
+current_state: |
+  - `acquire_lock` in `src/torve/application/loop.py` takes `.torve/tick.lock`
+    under a root; one tick at a time per root, and nothing above that.
+  - Run state files are JSON beside the worktree; telemetry is
+    `.torve/telemetry.jsonl` per root, host-local and gitignored. There is no
+    artefact anywhere that names more than one root.
+  - `route_provider` takes a repository name and a provider and refuses at
+    dispatch. The repository name is a string in the config of the repository
+    itself, which means the repository under work supplies its own routing key.
+  - S-0013's layout is deliberately per-repository, and S-0013/D-3 states the rule
+    this document needs in the other direction: the repository under work
+    configures nothing about the engine that works on it.
+goals: |
+  **Goals**
 
-      - One attention budget across every repository the operator runs.
-      - One command and one schedule entry where there were N.
-      - A written, operator-side statement of which repositories are trusted how,
-        binding the capabilities that already vary by repository.
-      - One place to read the fleet's escalation queue, oldest first.
-
-      **Non-goals**
-
-      - **Multi-tenancy.** Charter §9, permanently. This is one operator with
-        several repositories, not several operators.
-      - **Parallel roots.** The fleet ticks serially. Concurrency across roots is
-        S-0006/human-attention-is-the-scarce-resource's parallelism raise — one dimension at a time, after a measured
-        escalation rate — and raising two dimensions at once would make the
-        measurement meaningless.
-      - **Cross-repository tasks.** A task belongs to exactly one root. A change
-        spanning two repositories is two tasks and a human, which is what it is when
-        two people do it.
-      - **A fleet store.** No database, no aggregated authoritative state. Roots
-        stay authoritative for themselves (§5.5).
+  - One attention budget across every repository the operator runs.
+  - One command and one schedule entry where there were N.
+  - A written, operator-side statement of which repositories are trusted how,
+    binding the capabilities that already vary by repository.
+  - One place to read the fleet's escalation queue, oldest first.
+non_goals: |
+  - **Multi-tenancy.** Charter §9, permanently. This is one operator with
+    several repositories, not several operators.
+  - **Parallel roots.** The fleet ticks serially. Concurrency across roots is
+    S-0006/human-attention-is-the-scarce-resource's parallelism raise — one dimension at a time, after a measured
+    escalation rate — and raising two dimensions at once would make the
+    measurement meaningless.
+  - **Cross-repository tasks.** A task belongs to exactly one root. A change
+    spanning two repositories is two tasks and a human, which is what it is when
+    two people do it.
+  - **A fleet store.** No database, no aggregated authoritative state. Roots
+    stay authoritative for themselves (§5.5).
+design:
   - key: the-manifest-lives-with-the-operator
     md: |
       ```yaml
@@ -190,55 +179,52 @@ sections:
       - **Trust declared in each repository's own config.** Its trade is that the
         file sits next to the settings it governs, at the price of S-0013/D-3 — a
         repository that can declare itself trusted has declared itself trusted.
-  - key: tests
-    md: |
-      Fixture roots under a temporary directory, each with seeded run records, are
-      enough for everything except the trust refusals, which need a config per class.
-      The cases that matter: a fleet whose combined queue crosses the threshold
-      suppresses dispatch in every root while lanes still land; a root with its lock
-      held is a recorded no-op and the pass continues; a root that raises does not
-      stop the pass; a `reviewed` root configured for socket mode is refused before
-      its tick with the class named; `torve fleet status` orders by escalation age
-      across roots.
-  - key: docs
-    md: |
-      An operations page for the manifest — where it lives, what each trust class
-      permits, and the one-entry crontab that replaces N. The migration note matters
-      more than usual and must be honest: moving from per-root schedules to a fleet
-      tick changes when dispatch is suppressed, and an operator who does not notice
-      will read the first fleet-wide pause as a bug.
-  - key: out-of-scope
-    md: |
-      - **Concurrent roots.** Named as the obvious extension and gated on S-0006
-        §4's measured escalation rate, exactly as in-root parallelism was.
-      - **A fleet planner or a fleet corpus.** There is no such thing: the planner
-        is per corpus and each repository has its own. S-0022's report is
-        per-corpus for the same reason, and a fleet-level quality view would compare
-        populations that share nothing.
-      - **Remote roots.** Every root is a directory on the operator's machine.
-        Repositories on another host are an ssh-and-a-schedule problem, and pulling
-        them in would make the fleet a control plane.
-      - **Per-root cadence.** One pass ticks every root. A root that wants a
-        different cadence is a second fleet entry with its own manifest, which costs
-        one file and no code.
-  - key: risks
-    md: |
-      - **The fleet becomes a control plane.** The named failure mode: manifests
-        grow hosts, credentials, deploy targets. Mitigation is §8 and the absence of
-        any write path across roots.
-      - **One slow root starves the rest.** Serial ticking means the last root waits
-        for every root before it. Accepted at this size and visible in the fleet
-        event's per-root timings; the answer if it bites is per-root cadence (§8),
-        not concurrency.
-      - **The shared pause reads as over-caution.** One escalation in a small root
-        can suppress dispatch everywhere, which will feel wrong the first time.
-        It is the intended behaviour — the budget being shared is the whole point —
-        and `attention.pause_escalations` is the knob that expresses how much
-        simultaneous triage debt the operator will carry.
-      - **Trust classes read as security boundaries.** They are capability
-        refusals in the operator's own tooling, not isolation. A repository in the
-        `untrusted` class is still executing agents on the operator's machine; what
-        the class buys is that the capability grant is enumerable and reviewed.
+tests: |
+  Fixture roots under a temporary directory, each with seeded run records, are
+  enough for everything except the trust refusals, which need a config per class.
+  The cases that matter: a fleet whose combined queue crosses the threshold
+  suppresses dispatch in every root while lanes still land; a root with its lock
+  held is a recorded no-op and the pass continues; a root that raises does not
+  stop the pass; a `reviewed` root configured for socket mode is refused before
+  its tick with the class named; `torve fleet status` orders by escalation age
+  across roots.
+docs: |
+  An operations page for the manifest — where it lives, what each trust class
+  permits, and the one-entry crontab that replaces N. The migration note matters
+  more than usual and must be honest: moving from per-root schedules to a fleet
+  tick changes when dispatch is suppressed, and an operator who does not notice
+  will read the first fleet-wide pause as a bug.
+out_of_scope: |
+  - **Concurrent roots.** Named as the obvious extension and gated on S-0006
+    §4's measured escalation rate, exactly as in-root parallelism was.
+  - **A fleet planner or a fleet corpus.** There is no such thing: the planner
+    is per corpus and each repository has its own. S-0022's report is
+    per-corpus for the same reason, and a fleet-level quality view would compare
+    populations that share nothing.
+  - **Remote roots.** Every root is a directory on the operator's machine.
+    Repositories on another host are an ssh-and-a-schedule problem, and pulling
+    them in would make the fleet a control plane.
+  - **Per-root cadence.** One pass ticks every root. A root that wants a
+    different cadence is a second fleet entry with its own manifest, which costs
+    one file and no code.
+risks: |
+  - **The fleet becomes a control plane.** The named failure mode: manifests
+    grow hosts, credentials, deploy targets. Mitigation is §8 and the absence of
+    any write path across roots.
+  - **One slow root starves the rest.** Serial ticking means the last root waits
+    for every root before it. Accepted at this size and visible in the fleet
+    event's per-root timings; the answer if it bites is per-root cadence (§8),
+    not concurrency.
+  - **The shared pause reads as over-caution.** One escalation in a small root
+    can suppress dispatch everywhere, which will feel wrong the first time.
+    It is the intended behaviour — the budget being shared is the whole point —
+    and `attention.pause_escalations` is the knob that expresses how much
+    simultaneous triage debt the operator will carry.
+  - **Trust classes read as security boundaries.** They are capability
+    refusals in the operator's own tooling, not isolation. A repository in the
+    `untrusted` class is still executing agents on the operator's machine; what
+    the class buys is that the capability grant is enumerable and reviewed.
+sections:
   - key: unresolved-questions
     md: |
       - Whether the fleet event belongs in every ticked root's telemetry (as §5.2
@@ -265,45 +251,3 @@ sections:
         its tick, the message naming the class and the setting.
       - `torve fleet status` showing the oldest escalation across the fleet, which
         no per-root command reports.
-phasing:
-  - phase: 1
-    title: fleet-tick-and-the-shared-pause
-    intent: >-
-      The operator-side manifest and torve fleet tick: survey every root's escalation
-      queue, decide the pause once for the fleet, tick each root in deterministic
-      order under its own lock with the decision passed down, and record one fleet
-      event. A locked-out or failing root is recorded and the pass continues. torve
-      fleet status reads every root into one table ordered by escalation age. No writes
-      across roots and no fleet store of any kind.
-    scope:
-      - src/torve/application/fleet.py
-      - src/torve/config/fleet.py
-      - src/torve/cli/fleet.py
-      - src/torve/cli/main.py
-      - src/torve/application/loop.py
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: trust-classes-bind-capability
-    intent: >-
-      Trust classes enforced against each root's own configuration before the root
-      is ticked, so that the capabilities the corpus already grants unevenly — socket
-      mode, host networking, provider routing breadth, and S-0021's broker mode where
-      it exists — are refused when a repository asks for more than its class allows,
-      naming the class and the setting. This is what turns S-0017/D-10 from a sentence
-      an operator remembers into a refusal an operator reads.
-    scope: [src/torve/config/fleet.py, src/torve/application/fleet.py, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-    depends_on:
-      - 1

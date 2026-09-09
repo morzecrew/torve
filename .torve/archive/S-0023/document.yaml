@@ -9,95 +9,85 @@ informed_by: [S-0001, S-0002, S-0006, S-0012]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Work that recurs on a condition rather than on a plan: a committed contract template
-  plus a deterministic trigger the tick evaluates and instantiates — the machine recognising
-  a condition a human already decided to answer, never inventing a backlog.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      A standing contract is a file in git: an intent paragraph, a scope, an
-      acceptance battery, and a deterministic predicate that says when the work is
-      due. A human writes it once, in a diff someone can refuse. Thereafter the tick
-      evaluates the predicate — in a sandbox, with no agent, exit code as the answer
-      — and when it holds, mints one ordinary task contract through the same path
-      adoption already uses. The machine never decides that work exists; it
-      recognises a condition a human already decided to answer, which is the same
-      move `torve plan` makes over a reviewed document, with a predicate where the
-      phase list was.
-  - key: motivation
-    md: |
-      S-0019/D-8 is `LOCKED` and correct: the tick never creates work, because the
-      standing failure mode of agent systems is the machine inventing its own
-      backlog. It is also the reason the engine cannot do an IT department's daily
-      bread — lockfile drift, an advisory against a pinned package, a test that has
-      started flaking, a pin that expires — none of which arrives as a phase of an
-      RFC and all of which recurs.
+schema_version: 4
+summary: |
+  A standing contract is a file in git: an intent paragraph, a scope, an
+  acceptance battery, and a deterministic predicate that says when the work is
+  due. A human writes it once, in a diff someone can refuse. Thereafter the tick
+  evaluates the predicate — in a sandbox, with no agent, exit code as the answer
+  — and when it holds, mints one ordinary task contract through the same path
+  adoption already uses. The machine never decides that work exists; it
+  recognises a condition a human already decided to answer, which is the same
+  move `torve plan` makes over a reviewed document, with a predicate where the
+  phase list was.
+motivation: |
+  S-0019/D-8 is `LOCKED` and correct: the tick never creates work, because the
+  standing failure mode of agent systems is the machine inventing its own
+  backlog. It is also the reason the engine cannot do an IT department's daily
+  bread — lockfile drift, an advisory against a pinned package, a test that has
+  started flaking, a pin that expires — none of which arrives as a phase of an
+  RFC and all of which recurs.
 
-      Today those enter one way: a human notices and runs `torve intake`. That has
-      two costs and one defect.
+  Today those enter one way: a human notices and runs `torve intake`. That has
+  two costs and one defect.
 
-      - **The human is the trigger.** A forgotten check is an unpatched dependency,
-        and forgetting is silent. Every other failure mode in this corpus is loud by
-        design; this one is not.
-      - **Intake pays a drafting run for a known answer.** S-0020's drafter reads
-        the tree and writes contracts with a model. For "refresh the lockfile", the
-        contract is the same every time and the model is being paid to rediscover
-        it.
-      - **The instances are incomparable.** A drafted contract differs slightly on
-        every firing — different globs, different acceptance wording — so a
-        population of "the lockfile task" can never be compared across months. RFC
-        0022's readings need the opposite.
+  - **The human is the trigger.** A forgotten check is an unpatched dependency,
+    and forgetting is silent. Every other failure mode in this corpus is loud by
+    design; this one is not.
+  - **Intake pays a drafting run for a known answer.** S-0020's drafter reads
+    the tree and writes contracts with a model. For "refresh the lockfile", the
+    contract is the same every time and the model is being paid to rediscover
+    it.
+  - **The instances are incomparable.** A drafted contract differs slightly on
+    every firing — different globs, different acceptance wording — so a
+    population of "the lockfile task" can never be compared across months. RFC
+    0022's readings need the opposite.
 
-      The shape that resolves it is already in the corpus. `torve plan` mints tasks
-      mechanically from a document a human reviewed and committed; S-0007/D-2's human
-      signature lives upstream, in the document, not in the minting. A standing
-      contract is that arrangement with a predicate in place of the phasing block.
-  - key: current-state
-    md: |
-      - `src/torve/application/loop.py` selects queued tasks by reading the file
-        system: a contract exists, no run record names it, dependencies have landed.
-        There is no leg that produces a contract.
-      - `src/torve/application/intake.py` mints drafting tasks and, on adoption,
-        allocates ids under the tick lock and commits contract files as engine
-        records. That is the whole instantiation mechanism this document needs; it
-        is reached today only from a human request.
-      - S-0007's `inherit_decisions` (post-A-47) is the single reader that copies
-        a document's decision rows with grades onto a contract, used by both
-        `torve plan` and adoption. A standing contract naming a document inherits
-        through it and nowhere else.
-      - The escalation pause (S-0019/D-5) already suppresses the dispatch leg while the
-        queue holds unhandled failures. Nothing else in a tick is bounded by triage.
-      - S-0002/health already derives per-gate flake rate from attempt telemetry, so
-        the second standing contract in §5.6 has its input already computed.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  The shape that resolves it is already in the corpus. `torve plan` mints tasks
+  mechanically from a document a human reviewed and committed; S-0007/D-2's human
+  signature lives upstream, in the document, not in the minting. A standing
+  contract is that arrangement with a predicate in place of the phasing block.
+current_state: |
+  - `src/torve/application/loop.py` selects queued tasks by reading the file
+    system: a contract exists, no run record names it, dependencies have landed.
+    There is no leg that produces a contract.
+  - `src/torve/application/intake.py` mints drafting tasks and, on adoption,
+    allocates ids under the tick lock and commits contract files as engine
+    records. That is the whole instantiation mechanism this document needs; it
+    is reached today only from a human request.
+  - S-0007's `inherit_decisions` (post-A-47) is the single reader that copies
+    a document's decision rows with grades onto a contract, used by both
+    `torve plan` and adoption. A standing contract naming a document inherits
+    through it and nowhere else.
+  - The escalation pause (S-0019/D-5) already suppresses the dispatch leg while the
+    queue holds unhandled failures. Nothing else in a tick is bounded by triage.
+  - S-0002/health already derives per-gate flake rate from attempt telemetry, so
+    the second standing contract in §5.6 has its input already computed.
+goals: |
+  **Goals**
 
-      - Recurring maintenance runs without a human remembering.
-      - Every instance of a recurring job is byte-comparable with the last, so it
-        forms a population.
-      - The condition that fires the work is reviewable in a diff, versioned, and
-        refusable — the same standard the corpus holds every other input to.
-      - The one leg that can grow the backlog is bounded by the same attention
-        budget that bounds everything else.
-
-      **Non-goals**
-
-      - **Autonomous backlog generation.** S-0020 already refused it and this
-        document does not reopen it. A predicate that requires a fresh intent per
-        firing is a planner in disguise; §5.5 makes that falsifiable rather than
-        merely asserted.
-      - **Prioritisation.** Selection stays ascending task id (S-0019/D-4). A standing
-        instance is an ordinary task and waits its turn; a priority field here would
-        be the second planner S-0019 refused.
-      - **Scheduling.** A predicate answers "is this due", never "is it Tuesday".
-        Cadence belongs to the scheduler that fires the tick, exactly as S-0019/D-1
-        settled.
-      - **Replacing intake.** A novel request is still a human's prose through
-        S-0020. Standing contracts cover only work whose answer was already
-        written down.
+  - Recurring maintenance runs without a human remembering.
+  - Every instance of a recurring job is byte-comparable with the last, so it
+    forms a population.
+  - The condition that fires the work is reviewable in a diff, versioned, and
+    refusable — the same standard the corpus holds every other input to.
+  - The one leg that can grow the backlog is bounded by the same attention
+    budget that bounds everything else.
+non_goals: |
+  - **Autonomous backlog generation.** S-0020 already refused it and this
+    document does not reopen it. A predicate that requires a fresh intent per
+    firing is a planner in disguise; §5.5 makes that falsifiable rather than
+    merely asserted.
+  - **Prioritisation.** Selection stays ascending task id (S-0019/D-4). A standing
+    instance is an ordinary task and waits its turn; a priority field here would
+    be the second planner S-0019 refused.
+  - **Scheduling.** A predicate answers "is this due", never "is it Tuesday".
+    Cadence belongs to the scheduler that fires the tick, exactly as S-0019/D-1
+    settled.
+  - **Replacing intake.** A novel request is still a human's prose through
+    S-0020. Standing contracts cover only work whose answer was already
+    written down.
+design:
   - key: the-standing-contract
     md: |
       One file per recurring job, under `.torve/standing/<name>.yaml`, committed and
@@ -233,60 +223,57 @@ sections:
         needs a human every time is the human-as-trigger arrangement this document
         exists to remove. The signature moved upstream, into the committed file,
         which is where S-0007 already puts it.
-  - key: tests
-    md: |
-      The simulation harness S-0003 built for the state machine covers the leg
-      without a live repository: a fixture root with standing files, a stubbed
-      predicate outcome per tick, and assertions on what was minted. The cases that
-      matter are the refusals — a predicate that errors mints nothing; a paused tick
-      evaluates nothing; a job at `max_open` mints nothing; a job inside its
-      cooldown mints nothing; a job at the strike limit disables itself and says
-      which. One end-to-end case on the lab repository proves the whole path: a real
-      drift, one instance, landed by the loop, no second firing inside the cooldown.
+tests: |
+  The simulation harness S-0003 built for the state machine covers the leg
+  without a live repository: a fixture root with standing files, a stubbed
+  predicate outcome per tick, and assertions on what was minted. The cases that
+  matter are the refusals — a predicate that errors mints nothing; a paused tick
+  evaluates nothing; a job at `max_open` mints nothing; a job inside its
+  cooldown mints nothing; a job at the strike limit disables itself and says
+  which. One end-to-end case on the lab repository proves the whole path: a real
+  drift, one instance, landed by the loop, no second firing inside the cooldown.
 
-      Sabotage discipline applies to the predicate runner as it does to gates: a
-      predicate that cannot fail red is a predicate that is not being evaluated, so
-      each kind gets a red-on-demand case.
-  - key: docs
-    md: |
-      `.torve/standing/` joins the S-0013 layout diagram with a one-line
-      description. The reader's guide says plainly what a standing contract is for
-      and what it is not: a job whose intent needs to change per firing does not
-      belong here, and that sentence needs to arrive before someone's first
-      template variable, not after.
-  - key: out-of-scope
-    md: |
-      - **Inbound feeds.** Advisories, release watchers, anything that polls a
-        network service. Named as the fourth customer; gated on S-0021 settling
-        what a run may talk to and on who holds the credential for the feed.
-      - **Cross-repository standing jobs.** One root, one set of standing contracts.
-        A fleet-level job is S-0024's question and would need an answer for which
-        root the instance lands in.
-      - **Dependency-graph-aware bumping.** Choosing *which* dependency to bump is a
-        decision; the standing contract answers "the lock has drifted" and the
-        executor does the work under an ordinary contract with ordinary gates.
-      - **Templating the intent.** Named here as the thing not built, because §5.5
-        makes it the signal that the mechanism was wrong rather than a feature
-        request.
-  - key: risks
-    md: |
-      - **The backlog grows faster than triage.** The reason for four independent
-        bounds and for placing the leg inside the escalation pause rather than
-        beside it. The residual risk is a badly chosen predicate that fires
-        correctly and often; the strike limit does not catch that, because the
-        instances land. Mitigation is review of the file, which is why it is in git.
-      - **Read as permission to automate planning.** The nearest thing in this
-        corpus to the failure S-0019/D-8 exists to prevent, and the document will be
-        cited by whoever next wants a machine-generated backlog. §5.5's falsifiable
-        test is the answer, and it is deliberately a test the mechanism can fail.
-      - **Predicate cost.** Every standing file is a sandboxed command per tick, so
-        ten jobs at a five-minute cadence is a real load. Mitigated by cooldown
-        short-circuiting evaluation entirely and by the per-tick bound; if it stops
-        being enough, predicates get their own cadence, which is a knob this
-        document deliberately does not ship first.
-      - **A green predicate on a broken tool.** `uv lock --check` exiting non-zero
-        because `uv` is missing would fire forever. The strike limit is the backstop;
-        fail-closed on error is the front line.
+  Sabotage discipline applies to the predicate runner as it does to gates: a
+  predicate that cannot fail red is a predicate that is not being evaluated, so
+  each kind gets a red-on-demand case.
+docs: |
+  `.torve/standing/` joins the S-0013 layout diagram with a one-line
+  description. The reader's guide says plainly what a standing contract is for
+  and what it is not: a job whose intent needs to change per firing does not
+  belong here, and that sentence needs to arrive before someone's first
+  template variable, not after.
+out_of_scope: |
+  - **Inbound feeds.** Advisories, release watchers, anything that polls a
+    network service. Named as the fourth customer; gated on S-0021 settling
+    what a run may talk to and on who holds the credential for the feed.
+  - **Cross-repository standing jobs.** One root, one set of standing contracts.
+    A fleet-level job is S-0024's question and would need an answer for which
+    root the instance lands in.
+  - **Dependency-graph-aware bumping.** Choosing *which* dependency to bump is a
+    decision; the standing contract answers "the lock has drifted" and the
+    executor does the work under an ordinary contract with ordinary gates.
+  - **Templating the intent.** Named here as the thing not built, because §5.5
+    makes it the signal that the mechanism was wrong rather than a feature
+    request.
+risks: |
+  - **The backlog grows faster than triage.** The reason for four independent
+    bounds and for placing the leg inside the escalation pause rather than
+    beside it. The residual risk is a badly chosen predicate that fires
+    correctly and often; the strike limit does not catch that, because the
+    instances land. Mitigation is review of the file, which is why it is in git.
+  - **Read as permission to automate planning.** The nearest thing in this
+    corpus to the failure S-0019/D-8 exists to prevent, and the document will be
+    cited by whoever next wants a machine-generated backlog. §5.5's falsifiable
+    test is the answer, and it is deliberately a test the mechanism can fail.
+  - **Predicate cost.** Every standing file is a sandboxed command per tick, so
+    ten jobs at a five-minute cadence is a real load. Mitigated by cooldown
+    short-circuiting evaluation entirely and by the per-tick bound; if it stops
+    being enough, predicates get their own cadence, which is a knob this
+    document deliberately does not ship first.
+  - **A green predicate on a broken tool.** `uv lock --check` exiting non-zero
+    because `uv` is missing would fire forever. The strike limit is the backstop;
+    fail-closed on error is the front line.
+sections:
   - key: unresolved-questions
     md: |
       - Whether the ledger of firings belongs in the telemetry stream or in its own
@@ -311,44 +298,3 @@ sections:
         naming the job.
       - Two firings of the same job, months apart, whose contracts differ only in
         id — the comparability S-0023/D-5 exists for, demonstrated rather than asserted.
-phasing:
-  - phase: 1
-    title: standing-contracts-and-the-command-predicate
-    intent: >-
-      The standing contract format under .torve/standing/, validated by the existing
-      contract lint; the command predicate evaluated in a sandbox with no agent, exit
-      code as the answer, any error minting nothing; the tick's standing leg placed
-      inside the escalation pause and bounded by cooldown, max_open and loop.standing_max_per_tick;
-      instantiation through the adoption path with decisions inherited only through
-      inherit_decisions, each instance recording its originating job.
-    scope:
-      - src/torve/application/standing.py
-      - src/torve/application/loop.py
-      - src/torve/config/**
-      - tests/**
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: path-digest-predicate-and-self-disable
-    intent: >-
-      The second predicate kind and the last bound: path-digest compares a digest
-      of declared paths against the digest recorded at the last firing, covering moved
-      references without requiring a tool to exist; self-disable stops a job after
-      strike_limit consecutive non-landings with an engine event naming it. The first
-      two standing contracts land in this repository under the mechanism — lockfile
-      drift and flake quarantine — which is what turns the exit criteria from a demo
-      into use.
-    scope: [src/torve/application/standing.py, .torve/standing/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-    depends_on:
-      - 1

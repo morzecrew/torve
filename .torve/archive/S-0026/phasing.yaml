@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: decomposition-run-and-adoption
+    intent: |
+      The too_large route and the decomposition drafting run: an oversized
+      contract awaits decomposition and dispatch skips it; a draft-role run
+      over a read-only worktree proposes sub-contracts; lint adds the four
+      decomposition rules to the existing battery; human adoption mints
+      children carrying parent, grows the parent's depends_on, and the
+      parent becomes the integration task. Projections group children under
+      their parent. Explicit recorded operator override for dispatching
+      oversized contracts directly. Depth bounded at two.
+    scope: [src/torve/application/**, src/torve/domain/**, src/torve/cli/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: continuation-attempts
+    intent: |
+      Budget-exhausted attempts resume from their own candidate: the next
+      worktree cuts from the previous attempt's tip, the prompt states the
+      continuation, and diffs, gates and ceilings stay measured against the
+      original base exactly as for any attempt. Convicted attempts restart
+      from base through the revision loop unchanged. The budget fields on
+      contracts become consequential.
+    scope: [src/torve/application/**, src/torve/adapters/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 1

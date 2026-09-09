@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and
-  the telemetry that makes harness choice measurable.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Real agent adapters behind the `Agent` port, tiering economics, shadow runs, and the telemetry that makes harness choice measurable.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: adapters
     md: |
       The adapters differ only in how authentication and the harness reach the process.
@@ -101,6 +104,11 @@ sections:
       ```
 
       Enforced at dispatch, before a sandbox exists — a task whose repository has no permitted provider for its tier escalates as a configuration error rather than quietly falling back. Combined with the secret-scan gate, this covers both directions: what must not land, and what must not leave.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+sections:
   - key: exit-criteria
     md: |
       - Fifteen shadow runs completed with cost and iterations recorded.

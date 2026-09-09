@@ -1,6 +1,6 @@
 ---
 name: spec-writer
-description: Writing a specification document as an executable input to torve plan — a directory of four YAML files split by who writes each, graded rows with paths on every one, mintable phasing with non-overlapping scope, and identifiers the divergence logs and the code cite forever.
+description: Writing a specification document as an executable input to torve plan — a directory of five YAML files split by who writes each, a typed anatomy, graded rows with paths on every one, mintable phasing with non-overlapping scope, and identifiers the divergence logs and the code cite forever.
 roles: [author]
 gate: spec-valid
 ---
@@ -24,7 +24,8 @@ files split by who writes each (S-0057, S-0057/D-1):
 
 | File | Writer | Holds |
 |---|---|---|
-| `document.yaml` | you | the header facts, the prose `sections`, `alternatives`, `questions`, `phasing`, `contract_example` |
+| `document.yaml` | you | the header facts, the typed prose (`summary` … `risks`), the `design` list, the extras, `alternatives`, `questions` |
+| `phasing.yaml` | you; the planner reads it | `phasing`, `contract_example` |
 | `decisions.yaml` | you; the tool stamps it | `decisions`, `invariants`, `retired` |
 | `amendments.yaml` | `torve spec amend` and `spec fix` | `amendments`, `editorial` |
 | `execution.yaml` | the landing | what each task found, entry by entry |
@@ -33,8 +34,10 @@ A file that is absent is an empty list; `spec new` writes the first two. Each
 file's first line names its schema under `.torve/schemas/`, written by
 `torve init`, so an editor with a YAML language server validates every key
 as it is typed; `torve spec check` is the gate and reads the same model.
-Prose lives in `sections[].md`, a markdown string nothing parses; a
-section's heading is its key. Everything else is a typed list, and an
+Prose lives in typed keys — `summary`, `motivation`, `current_state`,
+`goals`, `non_goals`, `tests`, `docs`, `out_of_scope`, `risks` — in the
+`design` list and in at most eight extra `sections`; every body is a
+markdown string nothing parses, and a section's heading is its key. Everything else is a typed list, and an
 unknown key — or a key in the wrong file — is refused by name, never
 ignored. The mechanical half — numbering, the directory, the serializer,
 the checks — belongs to the package (S-0007/format-validation, S-0007/D-12); `torve spec`
@@ -114,9 +117,10 @@ arrives first, invisibly.
 | `retired` | decisions | identifiers | what this document once defined; never reused |
 | `alternatives` | document | `option`, `rejected_because`, `cites` | the negative space every executor re-proposes when nobody wrote the option was closed |
 | `questions` | document | `id` (`Q-n`), `text`, `status` open/settled, `settled_by` | what the design leaves for someone to settle |
-| `phasing` | document | `phase`, `title`, `intent`, `scope`, `acceptance`, `depends_on`, `tier_variant`, `character` | the mintable units |
-| `contract_example` | document | a task contract | optional: a runnable demonstration of what the rows and a phase mint into, validated against the live task schema |
-| `sections` | document | `key`, `md` | the prose, in order; the heading is the key; markdown inside `md` is welcome and invisible to every check |
+| `contract_example` | phasing | a task contract | optional: a runnable demonstration of what the rows and a phase mint into, validated against the live task schema |
+| `design` | document | `key`, `md` | the design, one entry per workstream, in order; the heading is the key |
+| `sections` | document | `key`, `md` | the extras the anatomy has no key for, at most eight |
+| `phasing` | phasing | `phase`, `title`, `intent`, `scope`, `acceptance`, `depends_on`, `tier_variant`, `character` | the mintable units |
 | `amendments` | amendments | `id`, `at`, `title`, `changes`, `md` | written by `torve spec amend`; the words are yours |
 
 `cites` resolves over the corpus and the archive in the one grammar
@@ -176,9 +180,9 @@ that retired it. Without the link a row reads as something the author
 thought of, losing the one fact that makes it credible: it was forced by
 contact with the code.
 
-The `description` **routes** (which document to open — one sentence, ~200
-chars, 300 ceiling); it never summarises and never records history. `torve
-spec list` renders it; nobody maintains an index.
+The summary's **first sentence routes** (which document to open — one
+sentence, 300 characters at most, and `check` warns past it); `torve spec
+list` renders it, and nobody maintains an index.
 
 ## References
 

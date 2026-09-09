@@ -9,108 +9,97 @@ informed_by: [S-0007, S-0016, S-0020, S-0022, S-0030]
 supersedes: []
 superseded_by: S-0055
 owner: misery7100
-description: >-
-  The corpus becomes an importer rather than the only reader: a source is any provenance
-  carrying zero or more decisions, a decision is a versioned subject in the record,
-  and the decision graph is answered by query instead of by re-parsing every accepted
-  document.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      Three event kinds — `source.imported`, `decision.recorded`,
-      `decision.accepted` — have existed since S-0044 phase 1 and nothing writes
-      them. Meanwhile every question about a decision is answered by re-reading the
-      corpus off disk and re-parsing it, and every question about a decision's
-      *history* is answered by `git log`.
+schema_version: 4
+summary: |
+  Three event kinds — `source.imported`, `decision.recorded`,
+  `decision.accepted` — have existed since S-0044 phase 1 and nothing writes
+  them. Meanwhile every question about a decision is answered by re-reading the
+  corpus off disk and re-parsing it, and every question about a decision's
+  *history* is answered by `git log`.
 
-      This RFC writes those kinds. A source is any provenance carrying zero or more
-      decisions; a decision is a subject in the record, versioned by successive
-      records on that subject and superseded across subjects by reference. The
-      corpus becomes one importer of that record rather than the only place the
-      answer lives. Grades, identifiers and the discipline around them are
-      untouched: the document a human signed off is still where a decision is
-      authored, and contract minting still reads it.
-  - key: motivation
-    md: |
-      **A decision's history is not in the engine.** "When did S-0027/D-7 become
-      LOCKED, and what was it before?" is answerable today only by `git log -p` over
-      `rfcs/`, by a human, reading diffs. The engine that enforces the grade cannot
-      say when the grade arrived. Every amendment in the corpus — 88 of them —
-      changed a decision that the record has no memory of.
+  This RFC writes those kinds. A source is any provenance carrying zero or more
+  decisions; a decision is a subject in the record, versioned by successive
+  records on that subject and superseded across subjects by reference. The
+  corpus becomes one importer of that record rather than the only place the
+  answer lives. Grades, identifiers and the discipline around them are
+  untouched: the document a human signed off is still where a decision is
+  authored, and contract minting still reads it.
+motivation: |
+  **A decision's history is not in the engine.** "When did S-0027/D-7 become
+  LOCKED, and what was it before?" is answerable today only by `git log -p` over
+  `rfcs/`, by a human, reading diffs. The engine that enforces the grade cannot
+  say when the grade arrived. Every amendment in the corpus — 88 of them —
+  changed a decision that the record has no memory of.
 
-      **Every reader re-parses everything.** `standing_decisions` walks
-      `rfcs/`, reads each file, parses frontmatter and re-parses the decision table
-      through a 1353-line parser, on every adoption and every contract lint. The
-      result is thrown away. The parse is correct and the repetition is invisible
-      today because the corpus is 46 documents on a local disk; it is the wrong
-      shape for a manager holding several partitions, which is the direction
-      S-0044 committed to.
+  **Every reader re-parses everything.** `standing_decisions` walks
+  `rfcs/`, reads each file, parses frontmatter and re-parses the decision table
+  through a 1353-line parser, on every adoption and every contract lint. The
+  result is thrown away. The parse is correct and the repetition is invisible
+  today because the corpus is 46 documents on a local disk; it is the wrong
+  shape for a manager holding several partitions, which is the direction
+  S-0044 committed to.
 
-      **Provenance other than a document cannot carry a decision.** An incident, an
-      audit, a review finding and an operator ask all produce decisions in practice,
-      and all of them have to become an RFC first or else be lost. S-0044/D-8 says the
-      task cites its source for provenance, never for parsing — but `Task.rfc` is
-      a *path into the repository*, and `residency.mint` writes
-      `source_id = task.rfc or "operator"`, which is a filename or a literal
-      string. There is no source to join to.
+  **Provenance other than a document cannot carry a decision.** An incident, an
+  audit, a review finding and an operator ask all produce decisions in practice,
+  and all of them have to become an RFC first or else be lost. S-0044/D-8 says the
+  task cites its source for provenance, never for parsing — but `Task.rfc` is
+  a *path into the repository*, and `residency.mint` writes
+  `source_id = task.rfc or "operator"`, which is a filename or a literal
+  string. There is no source to join to.
 
-      **Nothing else can be built on it.** S-0022's decision populations, the why
-      projection's decision leg, and the multi-partition operation S-0044/phasing
-      names all want a decision they can join to. Each is currently a filesystem
-      scan that a second node cannot run.
-  - key: current-state
-    md: |
-      Verified against the tree at `5a14ed7`:
+  **Nothing else can be built on it.** S-0022's decision populations, the why
+  projection's decision leg, and the multi-partition operation S-0044/phasing
+  names all want a decision they can join to. Each is currently a filesystem
+  scan that a second node cannot run.
+current_state: |
+  Verified against the tree at `5a14ed7`:
 
-      - `src/torve/domain/events.py` already defines `SubjectType.SOURCE` and
-        `SubjectType.DECISION`, the three kinds, their payload models
-        (`SourceImported`, `DecisionRecorded`, `DecisionAccepted`) and their
-        authority rows. `DecisionRecorded` carries `grade`, `text`, `paths`,
-        `source_id` and `supersedes`. Nothing writes any of them.
-      - There is no `src/torve/domain/source.py` and no
-        `src/torve/application/decisions.py` — both paths are named by S-0044/D-8 and
-        S-0044/D-9 and neither exists.
-      - `EventLog` (`src/torve/application/eventlog.py`) has exactly two reads:
-        `history(subject_id)` and `since(after, partition)`. Both cap at 1000 rows.
-        `manager.project` folds `since(partition=...)`, so a partition folds its
-        whole execution history to answer any question.
-      - `migrations/torve/postgres/0001_events.sql` indexes `(subject_id, …)` and
-        `(partition, …)`. Nothing indexes `subject_type`.
-      - `planner.standing_decisions` is the paths rule in force: a row is inherited
-        when any declared path intersects the task's `scope.allow`, via
-        `globs_intersect`; rows with no declared paths never stand; draft and
-        superseded documents are never read.
-      - `rfc_parse.decision_section` is the one parser of the table (S-0007/A-3), and
-        `rfc_parse.retired_identifiers` already reads the `retired:` frontmatter
-        `torve rfc retire` writes.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `src/torve/domain/events.py` already defines `SubjectType.SOURCE` and
+    `SubjectType.DECISION`, the three kinds, their payload models
+    (`SourceImported`, `DecisionRecorded`, `DecisionAccepted`) and their
+    authority rows. `DecisionRecorded` carries `grade`, `text`, `paths`,
+    `source_id` and `supersedes`. Nothing writes any of them.
+  - There is no `src/torve/domain/source.py` and no
+    `src/torve/application/decisions.py` — both paths are named by S-0044/D-8 and
+    S-0044/D-9 and neither exists.
+  - `EventLog` (`src/torve/application/eventlog.py`) has exactly two reads:
+    `history(subject_id)` and `since(after, partition)`. Both cap at 1000 rows.
+    `manager.project` folds `since(partition=...)`, so a partition folds its
+    whole execution history to answer any question.
+  - `migrations/torve/postgres/0001_events.sql` indexes `(subject_id, …)` and
+    `(partition, …)`. Nothing indexes `subject_type`.
+  - `planner.standing_decisions` is the paths rule in force: a row is inherited
+    when any declared path intersects the task's `scope.allow`, via
+    `globs_intersect`; rows with no declared paths never stand; draft and
+    superseded documents are never read.
+  - `rfc_parse.decision_section` is the one parser of the table (S-0007/A-3), and
+    `rfc_parse.retired_identifiers` already reads the `retired:` frontmatter
+    `torve rfc retire` writes.
+goals: |
+  **Goals**
 
-      - A `Source` that any provenance can be, with a stable namespaced id a
-        record can join to.
-      - A decision projection: current state, version history, the paths query, and
-        the supersession edges — folded from the record, not scanned from disk.
-      - A corpus importer that is idempotent: a second run over an unchanged corpus
-        appends nothing, and that is a test rather than an intention.
-      - Retirement recorded rather than inferred from absence.
-      - The corpus-sized slice of the log readable without folding an
-        execution-sized one.
-
-      **Non-goals**
-
-      - **Not moving contract minting onto the record.** A contract copies grades
-        at write time from a document a human committed. Inserting an import
-        between the commit and the mint creates a way for the two to disagree and
-        buys the mint nothing. §8 says what would change that.
-      - **Not building the other importers.** The `Source` model admits an
-        incident, an audit, a review finding and an operator ask; one importer
-        ships. Three importers for one corpus is speculative work.
-      - **Not a second generated view.** S-0044/D-9 permits one; `INDEX.md` already is
-        one, and nothing yet reads a second.
-      - **Not a store dependency.** Every reader that works without a store today
-        still works without one after this.
+  - A `Source` that any provenance can be, with a stable namespaced id a
+    record can join to.
+  - A decision projection: current state, version history, the paths query, and
+    the supersession edges — folded from the record, not scanned from disk.
+  - A corpus importer that is idempotent: a second run over an unchanged corpus
+    appends nothing, and that is a test rather than an intention.
+  - Retirement recorded rather than inferred from absence.
+  - The corpus-sized slice of the log readable without folding an
+    execution-sized one.
+non_goals: |
+  - **Not moving contract minting onto the record.** A contract copies grades
+    at write time from a document a human committed. Inserting an import
+    between the commit and the mint creates a way for the two to disagree and
+    buys the mint nothing. §8 says what would change that.
+  - **Not building the other importers.** The `Source` model admits an
+    incident, an audit, a review finding and an operator ask; one importer
+    ships. Three importers for one corpus is speculative work.
+  - **Not a second generated view.** S-0044/D-9 permits one; `INDEX.md` already is
+    one, and nothing yet reads a second.
+  - **Not a store dependency.** Every reader that works without a store today
+    still works without one after this.
+design:
   - key: a-source-is-provenance-not-a-document
     md: |
       ```python
@@ -266,75 +255,72 @@ sections:
       - **A `decision` table rather than events.** Straightforward, and it throws
         away the history that is most of the motivation. A current-state table is a
         projection of these events, buildable later without changing the record.
-  - key: tests
-    md: |
-      - **Idempotence**: importing an unchanged corpus twice appends nothing the
-        second time. Asserted on the returned events, so it holds for the dry run
-        and the real one alike.
-      - **A regrade is a version**: changing a row's grade appends one
-        `decision.recorded`; `history` has two entries, `current` has one, and the
-        version count is 2.
-      - **Supersession is not a version**: a row naming `supersedes` records an
-        edge and leaves the superseded decision's own version count alone.
-      - **Retirement is recorded**: a row removed from an accepted table appends
-        `decision.retired`, and the decision leaves `current` while staying in
-        `history`.
-      - **Drafts import nothing**, and the same document accepted imports its rows
-        at version 1.
-      - **Parity**: `Graph.for_paths(allow)` over a freshly imported corpus equals
-        `planner.standing_decisions(rfc_dir, allow)`, identifier for identifier and
-        grade for grade, over this repository's own 46 documents. This is the test
-        that says the importer read the corpus correctly; the shared
-        `globs_intersect` is what makes it a test of the import rather than of the
-        rule.
-      - **Authority**: an `agent` writing `decision.recorded` or `decision.retired`
-        is refused before any store sees it — the existing table test gains the new
-        row.
-      - Explicitly not tested: that the record is fresh. Staleness is a property of
-        when someone last imported, not of this code, and `torve decisions import
-        --check` is how it is observed.
-  - key: docs
-    md: |
-      `pages/docs/architecture/record.md` gains the intent half: what a source is,
-      what a decision's version means, and the one distinction in §5.2. The
-      authority table on that page is generated from `domain.events.AUTHORITY` and
-      pinned by `tests/test_docs.py`, so the new row appears there by the test
-      rather than by an edit.
-  - key: out-of-scope
-    md: |
-      - **Minting from the record.** What would change the answer: tasks becoming
-        records (S-0044/phasing), which makes the mint a record-to-record operation
-        with no file in the middle — at which point the import is no longer an
-        extra step between a signature and a contract, it is the only step.
-      - **`torve rfc health` reading the record.** Its populations join decisions
-        to *tasks*, and tasks are still files for that purpose. It becomes a query
-        when both sides are records, and not before.
-      - **The board's own 1000-row cap.** Found while reading for this design and
-        named here so it is not lost: `manager.project` folds `since(partition=…)`
-        at the default limit and truncates silently past it. It is a defect in the
-        board, not in this design, and it deserves its own fix.
-      - **Cross-partition decisions.** A decision governing several repositories is
-        what multi-partition operation will need and has no expression here: every
-        record written by this importer belongs to the partition it was imported
-        into.
-  - key: risks
-    md: |
-      - **A stale record answering as if it were fresh.** The mitigation is that
-        nothing load-bearing reads it yet: minting stays on the file, and the
-        queries this adds are read-only surfaces where a stale answer is visible
-        and harmless. `--check` reports drift without writing.
-      - **Two answers to "what governs this path".** Real, and accepted for now
-        with the parity test as the guard. It stops being two answers when the
-        file reader is deleted, which §8 gates on tasks becoming records.
-      - **The vocabulary growing by habit.** One kind is added here with an
-        argument for it. The closed vocabulary is a feature (S-0044/the-event-log) and the
-        amendment cost is what keeps it closed; this document should be read as
-        evidence that the cost was paid, not that it is small.
-      - **Import ordering.** Two importers running concurrently could both decide a
-        row is new. The corpus importer is an operator-invoked verb over a local
-        directory, so this is not a race anyone can hit today; a second importer
-        makes it one, and the fix is the same idempotence the comparison already
-        has plus a uniqueness the store does not currently enforce.
+tests: |
+  - **Idempotence**: importing an unchanged corpus twice appends nothing the
+    second time. Asserted on the returned events, so it holds for the dry run
+    and the real one alike.
+  - **A regrade is a version**: changing a row's grade appends one
+    `decision.recorded`; `history` has two entries, `current` has one, and the
+    version count is 2.
+  - **Supersession is not a version**: a row naming `supersedes` records an
+    edge and leaves the superseded decision's own version count alone.
+  - **Retirement is recorded**: a row removed from an accepted table appends
+    `decision.retired`, and the decision leaves `current` while staying in
+    `history`.
+  - **Drafts import nothing**, and the same document accepted imports its rows
+    at version 1.
+  - **Parity**: `Graph.for_paths(allow)` over a freshly imported corpus equals
+    `planner.standing_decisions(rfc_dir, allow)`, identifier for identifier and
+    grade for grade, over this repository's own 46 documents. This is the test
+    that says the importer read the corpus correctly; the shared
+    `globs_intersect` is what makes it a test of the import rather than of the
+    rule.
+  - **Authority**: an `agent` writing `decision.recorded` or `decision.retired`
+    is refused before any store sees it — the existing table test gains the new
+    row.
+  - Explicitly not tested: that the record is fresh. Staleness is a property of
+    when someone last imported, not of this code, and `torve decisions import
+    --check` is how it is observed.
+docs: |
+  `pages/docs/architecture/record.md` gains the intent half: what a source is,
+  what a decision's version means, and the one distinction in §5.2. The
+  authority table on that page is generated from `domain.events.AUTHORITY` and
+  pinned by `tests/test_docs.py`, so the new row appears there by the test
+  rather than by an edit.
+out_of_scope: |
+  - **Minting from the record.** What would change the answer: tasks becoming
+    records (S-0044/phasing), which makes the mint a record-to-record operation
+    with no file in the middle — at which point the import is no longer an
+    extra step between a signature and a contract, it is the only step.
+  - **`torve rfc health` reading the record.** Its populations join decisions
+    to *tasks*, and tasks are still files for that purpose. It becomes a query
+    when both sides are records, and not before.
+  - **The board's own 1000-row cap.** Found while reading for this design and
+    named here so it is not lost: `manager.project` folds `since(partition=…)`
+    at the default limit and truncates silently past it. It is a defect in the
+    board, not in this design, and it deserves its own fix.
+  - **Cross-partition decisions.** A decision governing several repositories is
+    what multi-partition operation will need and has no expression here: every
+    record written by this importer belongs to the partition it was imported
+    into.
+risks: |
+  - **A stale record answering as if it were fresh.** The mitigation is that
+    nothing load-bearing reads it yet: minting stays on the file, and the
+    queries this adds are read-only surfaces where a stale answer is visible
+    and harmless. `--check` reports drift without writing.
+  - **Two answers to "what governs this path".** Real, and accepted for now
+    with the parity test as the guard. It stops being two answers when the
+    file reader is deleted, which §8 gates on tasks becoming records.
+  - **The vocabulary growing by habit.** One kind is added here with an
+    argument for it. The closed vocabulary is a feature (S-0044/the-event-log) and the
+    amendment cost is what keeps it closed; this document should be read as
+    evidence that the cost was paid, not that it is small.
+  - **Import ordering.** Two importers running concurrently could both decide a
+    row is new. The corpus importer is an operator-invoked verb over a local
+    directory, so this is not a race anyone can hit today; a second importer
+    makes it one, and the fix is the same idempotence the comparison already
+    has plus a uniqueness the store does not currently enforce.
+sections:
   - key: unresolved-questions
     md: |
       - Whether `decision.accepted` — already in the vocabulary, still unwritten —
@@ -345,56 +331,3 @@ sections:
       - Whether a source should carry a content digest. It would let the importer
         skip parsing an unchanged document, which is an optimisation the current
         corpus size does not justify measuring.
-phasing:
-  - phase: 1
-    title: the record and the importer
-    intent: >-
-      A `Source` domain model with namespaced stable ids, `decision.retired` added
-      to S-0044's vocabulary and authority table by amendment, and a decisions module
-      holding both halves of the record: the fold that turns `source.imported` / `decision.recorded`
-      / `decision.retired` events into current state, version history and supersession
-      edges, and the corpus importer that compares an accepted document's table to
-      that state and returns the events the difference calls for. The importer returns
-      rather than writes, so a dry run is the same comparison. `EventLog` gains a
-      read by subject type with a matching index, because folding an execution-sized
-      log to answer a corpus-sized question is both wasteful and, past the row cap,
-      wrong. Idempotence is the headline property: a second import over an unchanged
-      corpus returns nothing.
-    scope:
-      - src/torve/domain/source.py
-      - src/torve/domain/events.py
-      - src/torve/application/decisions.py
-      - src/torve/application/eventlog.py
-      - migrations/torve/postgres/0002_decisions.sql
-      - tests/test_decisions_record.py
-      - tests/test_events.py
-      - tests/test_eventlog.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_decisions_record.py tests/test_events.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-  - phase: 2
-    title: the query and its verbs
-    intent: >-
-      The graph's read surface — current state, one decision's history, the decisions
-      a set of path globs crosses, and a source's rows — behind `torve decisions import|list|show|paths`,
-      with `--check` reporting what an import would append without writing it. The
-      paths query calls the same `globs_intersect` standing inheritance calls, so
-      the record's answer and the corpus's answer differ only by staleness, and a
-      parity test over this repository's own corpus is what says the import read it
-      correctly. The docs page on the record gains the intent half; its authority
-      table regenerates from the code by the test that already pins it.
-    scope:
-      - src/torve/application/decisions.py
-      - src/torve/cli/decisions.py
-      - src/torve/cli/main.py
-      - pages/docs/architecture/record.md
-      - tests/test_decisions_record.py
-      - tests/test_docs.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_decisions_record.py tests/test_docs.py
-      - uv run torve rfc check
-    depends_on:
-      - 1

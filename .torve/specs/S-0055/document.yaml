@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/document.json
 id: S-0055
 title: Standing decisions
-kind: design
+kind: convention
 status: accepted
 implementation: complete
 depends_on: []
@@ -9,39 +9,38 @@ informed_by: [S-0053]
 supersedes: []
 superseded_by: null
 owner: misery7100
-description: >-
-  The standing baseline for this repository after S-0053's archive: the rows that
-  govern the tree as it is, drafted through the brownfield lane from the survey, the
-  gate record and the archive, for the owner to grade and accept.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      S-0053 archived a corpus of 597 rows in fifty-two documents, half of
-      them never cited and a third never inherited. This document is what stands
-      in their place: roughly sixty rows, grouped by the boundary each one
-      guards, each naming the paths it governs today and citing the archived row
-      or document it descends from.
+schema_version: 4
+summary: |
+  S-0053 archived a corpus of 597 rows in fifty-two documents, half of
+  them never cited and a third never inherited. This document is what stands
+  in their place: roughly sixty rows, grouped by the boundary each one
+  guards, each naming the paths it governs today and citing the archived row
+  or document it descends from.
 
-      The grading follows the skill's doctrine and departs from it in one
-      declared way. `LOCKED` is given only where the repository's own history
-      shows the boundary being defended: a gate that convicted attempts and saw
-      the corrections land (scope 32 times, decisions-reported 61,
-      user-facing-text 28, layering 2, source-layout 4), or a boundary the tree
-      holds as structure with a check that has never let it slip (the five
-      import-linter contracts, the sabotage battery in CI, the authority table on
-      the record). Everything else is `ASSUMED`, including rows the archive held
-      as `LOCKED` for a month: the archived grade is provenance, not evidence,
-      and the acceptance edit is where the owner's judgement re-enters. No row is
-      `OPEN`; the four questions the extraction could not settle are in §3, named.
+  The grading follows the skill's doctrine and departs from it in one
+  declared way. `LOCKED` is given only where the repository's own history
+  shows the boundary being defended: a gate that convicted attempts and saw
+  the corrections land (scope 32 times, decisions-reported 61,
+  user-facing-text 28, layering 2, source-layout 4), or a boundary the tree
+  holds as structure with a check that has never let it slip (the five
+  import-linter contracts, the sabotage battery in CI, the authority table on
+  the record). Everything else is `ASSUMED`, including rows the archive held
+  as `LOCKED` for a month: the archived grade is provenance, not evidence,
+  and the acceptance edit is where the owner's judgement re-enters. No row is
+  `OPEN`; the four questions the extraction could not settle are in §3, named.
 
-      The departure: the skill extracts rows from fired gates and corpus gaps
-      alone, and would produce five rows here. This repository is not a
-      stranger's — it has an engine, a record and a graded corpus behind it — so
-      the rows below also draw on the code's own structure and the archive, and
-      §2 says which source each group rests on. S-0031/D-6 leaves the baseline's
-      shape to the first adoption; this is the first adoption, and the shape it
-      chose is one document with provenance in the fence.
+  The departure: the skill extracts rows from fired gates and corpus gaps
+  alone, and would produce five rows here. This repository is not a
+  stranger's — it has an engine, a record and a graded corpus behind it — so
+  the rows below also draw on the code's own structure and the archive, and
+  §2 says which source each group rests on. S-0031/D-6 leaves the baseline's
+  shape to the first adoption; this is the first adoption, and the shape it
+  chose is one document with provenance in the fence.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: the-evidence
     md: |
       **The gate record.** Over 745 attempt rows, the battery convicted:
@@ -89,3 +88,7 @@ sections:
       - **Whether the baseline is one document or several.** One, per the
         skill's recorded shape; the rows below are grouped so a later split by
         area is a cut, not a rewrite.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''

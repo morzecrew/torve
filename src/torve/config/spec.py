@@ -29,8 +29,11 @@ from torve.domain.spec import (
     DECISIONS_FILE,
     DOCUMENT_FILE,
     EXECUTION_FILE,
+    EXTRAS_CAP,
     FILE_FIELDS,
     FILES,
+    PROSE_FIELDS,
+    REQUIRED_PROSE,
     SCHEMA_VERSION,
     SECTION_KEY,
     Corpus,
@@ -39,6 +42,7 @@ from torve.domain.spec import (
     file_of,
     is_citation,
     number_of,
+    prose_key,
     qualify,
 )
 
@@ -335,7 +339,7 @@ def load_document(directory: Path, *, archived: bool = False) -> Document:
             [
                 (
                     f"{where}/{DOCUMENT_FILE}: schema_version {version!r} — this loader reads "
-                    f"{SCHEMA_VERSION}; a one-file document converts once through S-0057 phase 1"
+                    f"{SCHEMA_VERSION}; a flat section list converts once through S-0058 phase 2"
                 )
             ]
         )
@@ -426,7 +430,7 @@ def _prose(doc: Document) -> str:
     """Every string a person wrote, fences stripped: what a citation, a
     link or a line number is looked for in."""
 
-    parts = [s.md for s in doc.sections] + [a.md for a in doc.amendments]
+    parts = [s.md for s in doc.prose()] + [a.md for a in doc.amendments]
     parts += [f"{r.text} {r.consequence} {r.rationale}" for r in doc.decisions]
     parts += [f"{a.option} {a.rejected_because}" for a in doc.alternatives]
     parts += [q.text for q in doc.questions] + [i.statement for i in doc.invariants]
@@ -593,8 +597,8 @@ def _document_payload(doc: Document) -> dict[str, Any]:
         "depends_on": list(doc.depends_on),
         "superseded_by": doc.superseded_by,
         "amended_by": doc.amended_by(),
-        "description": doc.description.strip(),
-        "sections": [s.key for s in doc.sections],
+        "description": doc.routing(),
+        "sections": [s.key for s in doc.prose()],
         "phases": [
             {"phase": p.phase, "title": p.title, "depends_on": list(p.depends_on)}
             for p in doc.phasing
@@ -737,7 +741,7 @@ def check_sections(doc: Document) -> list[str]:
     where = f"{_name(doc)}/{DOCUMENT_FILE}"
     problems: list[str] = []
 
-    for section in doc.sections:
+    for section in doc.prose():
         key = section.key
 
         if not SECTION_KEY.match(key):
@@ -810,6 +814,53 @@ def prose_citations(doc: Document, resolvable: set[str], mapping: dict[str, str]
     return problems
 
 
+def check_anatomy(doc: Document) -> tuple[list[str], list[str]]:
+    """S-0058/D-4: an accepted document says its summary, motivation,
+    current state, goals, non-goals, tests and risks and designs at least
+    one thing; a key is unique document-wide and never a typed name; the
+    extras stop at the cap; the routing line is one sentence a list can
+    show."""
+
+    where = f"{_name(doc)}/{DOCUMENT_FILE}"
+    problems: list[str] = []
+    warnings: list[str] = []
+    typed = {prose_key(name) for name in PROSE_FIELDS}
+
+    # A convention (the standing baseline) is its rows: it says its summary
+    # and nothing else is owed; a design says the anatomy whole.
+    required = REQUIRED_PROSE if doc.kind == "design" else ("summary",)
+
+    if doc.status == "accepted" and not doc.archived:
+        for name in required:
+            if not str(getattr(doc, name)).strip():
+                problems.append(f"{where}: {name} is empty — an accepted {doc.kind} says it")
+
+        if doc.kind == "design" and not doc.design:
+            problems.append(f"{where}: design is empty — an accepted design designs something")
+
+    if len(doc.sections) > EXTRAS_CAP:
+        problems.append(
+            f"{where}: {len(doc.sections)} extra sections — the anatomy stops at {EXTRAS_CAP}; "
+            "a document that needs more has a design list and a second document"
+        )
+
+    keys = [s.key for s in doc.design] + [s.key for s in doc.sections]
+
+    for key in sorted({k for k in keys if keys.count(k) > 1}):
+        problems.append(f"{where}: two sections keyed {key!r} — one of them is misnamed")
+
+    for key in sorted(set(keys) & typed):
+        problems.append(f"{where}: section {key!r} is a typed key — write it as the field")
+
+    if len(doc.routing()) > 300:
+        warnings.append(
+            f"{where}: the summary's first sentence runs past 300 characters — it is the "
+            "line `spec list` shows"
+        )
+
+    return problems, warnings
+
+
 def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str], list[str]]:
     """One document's own problems and warnings, given it loaded."""
 
@@ -822,10 +873,9 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
     if doc.status == "superseded" and not doc.superseded_by:
         problems.append(f"{where}: superseded, but superseded_by names nothing")
 
-    keys = [s.key for s in doc.sections]
-
-    for key in sorted({k for k in keys if keys.count(k) > 1}):
-        problems.append(f"{where}: two sections keyed {key!r} — one of them is misnamed")
+    anatomy_problems, anatomy_warnings = check_anatomy(doc)
+    problems += anatomy_problems
+    warnings += anatomy_warnings
 
     # S-0016/D-15: a local written twice by hand is two rows under one name.
     own = [row.id for row in doc.decisions] + [i.id for i in doc.invariants]

@@ -33,7 +33,7 @@ def _doc(number: str, status: str = "accepted", **extra: object) -> Document:
         title=f"Document {number}",
         status=status,  # type: ignore[arg-type]
         owner="Test Owner",
-        description="A scratch document.",
+        summary="A scratch document.",
         **extra,  # type: ignore[arg-type]
     )
 
@@ -137,6 +137,7 @@ def test_a_document_defines_its_number_rows_invariants_questions_amendments_and_
 
     assert doc.defined_identifiers() == {
         "S-0001",
+        "S-0001/summary",  # a prose key is an item too (S-0058/D-1)
         "S-0001/D-1",
         "S-0001/I-1",
         "S-0001/Q-1",
@@ -213,7 +214,7 @@ def test_the_loaders_fields_are_never_part_of_the_dump() -> None:
     dumped = doc.model_dump()
 
     assert "path" not in dumped and "archived" not in dumped
-    assert doc.schema_version == 3
+    assert doc.schema_version == 4
 
 
 # ----------------------- #

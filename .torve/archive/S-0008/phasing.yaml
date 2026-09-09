@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The outbox the projection rides
+    intent: >-
+      The transactional outbox from S-0003/lease-and-cancellation, built for its first
+      consumer: effects are staged in the same transaction as the state change they
+      announce, relayed at-least-once by an explicit relay step, and every effect
+      carries an idempotency key so a replay is a no-op rather than a duplicate. The
+      engine's existing events keep flowing unchanged; the outbox is a new, durable
+      leg beside them — staged rows survive a runner crash and relay later, which
+      is the property the projection cannot live without.
+    scope:
+      - src/torve/application/**
+      - src/torve/adapters/**
+      - src/torve/config/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: The GitHub Issues projection
+    intent: >-
+      The Tracker port and its first adapter: reflect maps engine states to issue
+      state and labels and returns applied, refused or unsupported — a refusal is
+      a logged divergence, never an exception; comments are one per attempt, keyed
+      on task, state and attempt through the idempotency rule; findings annotate;
+      escalations label from the enumerated vocabulary and assign. Inbound is the
+      fixed command vocabulary — retry, abandon, unblock — parsed allow-listed from
+      comments, validated against the real store, refusals posted back. Tracker text
+      is untrusted input everywhere. Proven against the lab repository: all states
+      projected, idempotency verified by deliberately replaying the relay, one refusal
+      path exercised.
+    scope:
+      - src/torve/application/**
+      - src/torve/adapters/**
+      - src/torve/cli/**
+      - src/torve/config/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 1

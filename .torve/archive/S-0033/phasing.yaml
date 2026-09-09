@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: toolkit-and-args
+    intent: >-
+      The three publishable definitions converge on the conventions: harness installs
+      behind pinned-default ARGs (S-0033/D-3), the existing utilities moved under
+      /opt/torve with symlinks at their old paths for one transition revision (S-0033/D-4),
+      and the definition-level tests — the ARG-pin check and the toolkit existence
+      checks — joining the sandbox battery. Profile command templates in the README
+      examples shorten to the toolkit paths.
+    scope:
+      - .torve/sandbox/claude/**
+      - .torve/sandbox/dsh/**
+      - .torve/sandbox/mimo/**
+      - tests/test_sandbox_images.py
+      - README.md
+    acceptance:
+      - uv run pytest tests/test_sandbox_images.py
+      - uv run ruff check .
+  - phase: 2
+    title: publish-workflow
+    intent: >-
+      The ghcr publish job: buildx over the three definitions on manual or tag-shaped
+      triggers, the immutable tag scheme with re-push refusal (S-0033/D-2), conformance
+      battery as the gate (S-0033/D-5), linux/amd64 only. README gains the ghcr quickstart
+      with a full version tag.
+    scope: [.github/workflows/**, README.md]
+    acceptance:
+      - uv run ruff check .
+    depends_on:
+      - 1
+  - phase: 3
+    title: doctor-remote-digest
+    intent: >-
+      Doctor's image line covers remote references: a tier naming a registry reference
+      prints the resolved digest beside it, the same line local images already get,
+      so "what exactly will run" has one answer for both kinds of reference. No new
+      check — resolution failure already fails dispatch loudly.
+    scope: [src/torve/cli/doctor.py, tests/test_cli.py]
+    acceptance:
+      - uv run pytest tests/test_cli.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

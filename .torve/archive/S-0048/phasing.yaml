@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the manifest names a partition
+    intent: >-
+      `FleetRepository` gains an optional `partition`, and the resident loop refuses
+      an entry without one before that repository is served — naming the manifest
+      and the root, and continuing with the rest, because a fleet does not stop for
+      one missing field. `Board` gains an escalation set beside its landed and in-flight
+      ones, and the fleet's survey becomes the union by task id of what the board
+      holds and what the run-state files hold, so a repository mid-migration is counted
+      once rather than twice. `residency.once` gains a paused flag that skips minting
+      and nothing else. Nothing loops yet: this phase is the vocabulary and the counting,
+      with a single-partition manager behaving exactly as it does today.
+    scope:
+      - src/torve/config/fleet.py
+      - src/torve/application/manager.py
+      - src/torve/application/residency.py
+      - tests/test_fleet_serve.py
+      - tests/test_fleet.py
+      - tests/test_manager.py
+      - tests/test_residency.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_fleet_serve.py tests/test_fleet.py tests/test_residency.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+  - phase: 2
+    title: the resident loop over the fleet
+    intent: >-
+      `serve_fleet` runs rounds over the manifest: survey every repository's queue,
+      decide the fleet's pause once, then per repository in the manifest's order enforce
+      its trust class against its own runner configuration and run one pass with that
+      decision passed down, recording a refusal or a failure and carrying on. A round
+      in which nobody took a task sleeps; a round that produced one goes straight
+      round again. `torve fleet serve` wires it — one log for the fleet, one worker
+      per repository, since an executor is bound to a root and a partition — and reports
+      each repository's outcome the way `fleet tick` already does.
+    scope:
+      - src/torve/application/fleet.py
+      - src/torve/cli/fleet.py
+      - pages/docs/architecture/distribution.md
+      - tests/test_fleet_serve.py
+      - tests/test_fleet.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_fleet_serve.py tests/test_fleet.py
+      - uv run torve rfc check
+    depends_on:
+      - 1

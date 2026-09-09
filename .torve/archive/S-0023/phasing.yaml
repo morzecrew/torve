@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: standing-contracts-and-the-command-predicate
+    intent: >-
+      The standing contract format under .torve/standing/, validated by the existing
+      contract lint; the command predicate evaluated in a sandbox with no agent, exit
+      code as the answer, any error minting nothing; the tick's standing leg placed
+      inside the escalation pause and bounded by cooldown, max_open and loop.standing_max_per_tick;
+      instantiation through the adoption path with decisions inherited only through
+      inherit_decisions, each instance recording its originating job.
+    scope:
+      - src/torve/application/standing.py
+      - src/torve/application/loop.py
+      - src/torve/config/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: path-digest-predicate-and-self-disable
+    intent: >-
+      The second predicate kind and the last bound: path-digest compares a digest
+      of declared paths against the digest recorded at the last firing, covering moved
+      references without requiring a tool to exist; self-disable stops a job after
+      strike_limit consecutive non-landings with an engine event naming it. The first
+      two standing contracts land in this repository under the mechanism — lockfile
+      drift and flake quarantine — which is what turns the exit criteria from a demo
+      into use.
+    scope: [src/torve/application/standing.py, .torve/standing/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 1

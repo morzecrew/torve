@@ -9,85 +9,74 @@ informed_by: [S-0022, S-0032, S-0040, S-0047]
 supersedes: []
 superseded_by: S-0055
 owner: misery7100
-description: >-
-  The reports the engine answers planning questions with move onto the record, one
-  at a time, each landing beside its file reader with a parity test rather than replacing
-  it — because a reader moved today would read an empty log for every run the manager
-  did not dispatch.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      S-0049 put the last missing join in the record. Every fact `why`,
-      `status` and `context` read from files now also exists as an event — the
-      contract, the attempts, the gate outcomes, the landings, the escalations,
-      the divergences, and since S-0047 the decisions.
+schema_version: 4
+summary: |
+  S-0049 put the last missing join in the record. Every fact `why`,
+  `status` and `context` read from files now also exists as an event — the
+  contract, the attempts, the gate outcomes, the landings, the escalations,
+  the divergences, and since S-0047 the decisions.
 
-      This moves the readers, carefully. Each report gains a record-backed
-      implementation that answers when the log holds the run and defers to the
-      file reader when it does not, plus a test asserting the two produce the same
-      envelope where both can answer. No file reader is deleted: a v1 run leaves
-      no log, and most runs are still v1.
-  - key: motivation
-    md: |
-      **The reports are the last thing that cannot leave the repository.** A
-      manager serving four partitions can dispatch, judge, land and escalate
-      without touching three of those repositories' filesystems, and then cannot
-      answer "why did T-0281 escalate" for any of them without one.
+  This moves the readers, carefully. Each report gains a record-backed
+  implementation that answers when the log holds the run and defers to the
+  file reader when it does not, plus a test asserting the two produce the same
+  envelope where both can answer. No file reader is deleted: a v1 run leaves
+  no log, and most runs are still v1.
+motivation: |
+  **The reports are the last thing that cannot leave the repository.** A
+  manager serving four partitions can dispatch, judge, land and escalate
+  without touching three of those repositories' filesystems, and then cannot
+  answer "why did T-0281 escalate" for any of them without one.
 
-      **Three surfaces re-expose one envelope.** `torve why`, the MCP tool and
-      `torve serve` all return `why_report` verbatim, which is exactly right and
-      means moving the reader moves all three at once.
+  **Three surfaces re-expose one envelope.** `torve why`, the MCP tool and
+  `torve serve` all return `why_report` verbatim, which is exactly right and
+  means moving the reader moves all three at once.
 
-      **The joins are already written.** `_group_attempts`, `_why_events`,
-      `_why_reviews`, `_why_totals` and `_why_regime` are the shape of the answer;
-      what changes is where the rows come from. This is a source swap under a
-      stable envelope, not a redesign — which is what makes a parity test possible
-      and what makes the report's shape a non-goal.
+  **The joins are already written.** `_group_attempts`, `_why_events`,
+  `_why_reviews`, `_why_totals` and `_why_regime` are the shape of the answer;
+  what changes is where the rows come from. This is a source swap under a
+  stable envelope, not a redesign — which is what makes a parity test possible
+  and what makes the report's shape a non-goal.
 
-      **S-0044/A-5's wall has not moved.** A reader pointed at the record today would
-      report `found: false` for every task a v1 `torve run` executed, which is the
-      worst available answer: not an error, not empty — *wrong*, and confidently.
-      That is why this lands beside rather than instead.
-  - key: current-state
-    md: |
-      Verified against the tree at `09c5e96`:
+  **S-0044/A-5's wall has not moved.** A reader pointed at the record today would
+  report `found: false` for every task a v1 `torve run` executed, which is the
+  worst available answer: not an error, not empty — *wrong*, and confidently.
+  That is why this lands beside rather than instead.
+current_state: |
+  Verified against the tree at `09c5e96`:
 
-      - `why_report(root, task_id)` reads `_stream_rows(root)` (the telemetry
-        JSONL), `feedback_records(root)` and the task's contract head. It already
-        refuses to read run-state files, and it already returns a `found: false`
-        envelope for an unknown id — both of which this preserves.
-      - `status_report(root)` reads run-state files under `.wt`.
-      - `context_report(root, rfc_dir)` is the corpus-wide planning view: tasks,
-        proposals, findings, gate health, costs, harness populations, character
-        calibration, document signals, the programme and the specification-quality
-        block. It reads files for every one of them.
-      - `specquality.read_tasks` is a four-way filesystem join whose four legs all
-        have recorded equivalents as of S-0049.
-      - `EventLog.history(subject_id)` returns one subject's events oldest-first
-        in a single read, which is exactly the shape `why` needs.
-      - The board (`manager.project`) already *is* `status`, folded per partition.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `why_report(root, task_id)` reads `_stream_rows(root)` (the telemetry
+    JSONL), `feedback_records(root)` and the task's contract head. It already
+    refuses to read run-state files, and it already returns a `found: false`
+    envelope for an unknown id — both of which this preserves.
+  - `status_report(root)` reads run-state files under `.wt`.
+  - `context_report(root, rfc_dir)` is the corpus-wide planning view: tasks,
+    proposals, findings, gate health, costs, harness populations, character
+    calibration, document signals, the programme and the specification-quality
+    block. It reads files for every one of them.
+  - `specquality.read_tasks` is a four-way filesystem join whose four legs all
+    have recorded equivalents as of S-0049.
+  - `EventLog.history(subject_id)` returns one subject's events oldest-first
+    in a single read, which is exactly the shape `why` needs.
+  - The board (`manager.project`) already *is* `status`, folded per partition.
+goals: |
+  **Goals**
 
-      - One report at a time, each with a record-backed reader and a parity test.
-      - No change to any envelope: the same keys, the same values, so the CLI, the
-        MCP tool and the served endpoint are untouched.
-      - Selection that cannot silently answer from the wrong source.
-      - A file reader deleted only when the record demonstrably holds the run —
-        which is the migration, not this document.
-
-      **Non-goals**
-
-      - **Not deleting a file reader.** §9 says what would change that.
-      - **Not a new report.** Anything the record makes newly answerable is
-        someone else's document; this one moves what exists.
-      - **Not `context` in the first pass.** It is the largest and it joins the
-        corpus; it goes last, on the pattern the first two establish.
-      - **Not the specification-quality readings.** S-0022's populations join
-        landed-window semantics that deserve their own reading, and they are the
-        least urgent.
+  - One report at a time, each with a record-backed reader and a parity test.
+  - No change to any envelope: the same keys, the same values, so the CLI, the
+    MCP tool and the served endpoint are untouched.
+  - Selection that cannot silently answer from the wrong source.
+  - A file reader deleted only when the record demonstrably holds the run —
+    which is the migration, not this document.
+non_goals: |
+  - **Not deleting a file reader.** §9 says what would change that.
+  - **Not a new report.** Anything the record makes newly answerable is
+    someone else's document; this one moves what exists.
+  - **Not `context` in the first pass.** It is the largest and it joins the
+    corpus; it goes last, on the pattern the first two establish.
+  - **Not the specification-quality readings.** S-0022's populations join
+    landed-window semantics that deserve their own reading, and they are the
+    least urgent.
+design:
   - key: selection-is-explicit-never-guessed
     md: |
       ```python
@@ -160,48 +149,45 @@ sections:
       - **A projection cursor and a stored view.** Faster reads, and it makes the
         report a thing that can be stale. These are on-demand folds and the whole
         point is that rebuilding is reading again.
-  - key: tests
-    md: |
-      - **Parity, on a real run**: the manager dispatches a task end to end, and
-        both `why` readers produce the same envelope. Asserted key by key rather
-        than as one dictionary comparison, so a failure names the key.
-      - **Fallback**: a task the log has never heard of reads from the files and
-        answers as it does today.
-      - **The unknown task stays `found: false`** on both paths — a typo must not
-        fake a taskless history.
-      - **The attempt block round-trips**: an `attempt.finished` payload folded
-        into a why entry equals the entry built from the telemetry row rendered
-        from the same payload, which is S-0044/A-4 asserted from the reading end.
-      - Explicitly not tested: that the record is complete. It is not, that is the
-        migration, and the fallback is what makes an incomplete record safe.
-  - key: docs
-    md: |
-      `pages/docs/architecture/distribution.md` item 4 loses its projections half
-      as each report moves; the item stays until run state and telemetry do. No
-      new page: the reports' own documentation is their envelope, which does not
-      change.
-  - key: out-of-scope
-    md: |
-      - **`context_report` and the specification-quality readings.** Phased here,
-        built after the first two land — the pattern is what phase 1 and 2 exist
-        to establish.
-      - **Deleting the telemetry stream.** It is a rendered carrier with readers
-        outside this engine, and it survives the readers moving.
-      - **A projection cursor.** Named in S-0044/ports-and-what-binds-first and not needed while these
-        are on-demand folds over one subject or one partition.
-  - key: risks
-    md: |
-      - **Two implementations of one report.** Real, and the reason for the parity
-        test rather than an argument. It ends when the file reader is deleted,
-        which is gated on the migration and named in §4.
-      - **Divergence by omission.** A key added to the envelope in one reader and
-        not the other passes every existing test. Mitigated by the parity test
-        comparing key sets, not only values.
-      - **The parity test needs Postgres and docker.** It is skipped without them,
-        like `test_manager_e2e` already is — so a contributor without either gets
-        a green suite that did not check the thing this document is about. Named
-        rather than solved; the mock adapter covers the fold, and only the
-        end-to-end run covers both carriers being written by one run.
+tests: |
+  - **Parity, on a real run**: the manager dispatches a task end to end, and
+    both `why` readers produce the same envelope. Asserted key by key rather
+    than as one dictionary comparison, so a failure names the key.
+  - **Fallback**: a task the log has never heard of reads from the files and
+    answers as it does today.
+  - **The unknown task stays `found: false`** on both paths — a typo must not
+    fake a taskless history.
+  - **The attempt block round-trips**: an `attempt.finished` payload folded
+    into a why entry equals the entry built from the telemetry row rendered
+    from the same payload, which is S-0044/A-4 asserted from the reading end.
+  - Explicitly not tested: that the record is complete. It is not, that is the
+    migration, and the fallback is what makes an incomplete record safe.
+docs: |
+  `pages/docs/architecture/distribution.md` item 4 loses its projections half
+  as each report moves; the item stays until run state and telemetry do. No
+  new page: the reports' own documentation is their envelope, which does not
+  change.
+out_of_scope: |
+  - **`context_report` and the specification-quality readings.** Phased here,
+    built after the first two land — the pattern is what phase 1 and 2 exist
+    to establish.
+  - **Deleting the telemetry stream.** It is a rendered carrier with readers
+    outside this engine, and it survives the readers moving.
+  - **A projection cursor.** Named in S-0044/ports-and-what-binds-first and not needed while these
+    are on-demand folds over one subject or one partition.
+risks: |
+  - **Two implementations of one report.** Real, and the reason for the parity
+    test rather than an argument. It ends when the file reader is deleted,
+    which is gated on the migration and named in §4.
+  - **Divergence by omission.** A key added to the envelope in one reader and
+    not the other passes every existing test. Mitigated by the parity test
+    comparing key sets, not only values.
+  - **The parity test needs Postgres and docker.** It is skipped without them,
+    like `test_manager_e2e` already is — so a contributor without either gets
+    a green suite that did not check the thing this document is about. Named
+    rather than solved; the mock adapter covers the fold, and only the
+    end-to-end run covers both carriers being written by one run.
+sections:
   - key: unresolved-questions
     md: |
       - Whether `status` should keep its own report at all once the board exists,
@@ -211,67 +197,3 @@ sections:
         a run that started under v1 and continued under the manager. Today it
         falls back wholesale; merging the two carriers is a third behaviour nobody
         has asked for.
-phasing:
-  - phase: 1
-    title: why, over the record
-    intent: >-
-      `why_report` gains a record-backed source: one read of the task's own history
-      folded into the same envelope it returns today — the minted contract for `rfc`,
-      the attempt and gate payloads for `attempts`, the escalation and divergence
-      records for `events`, the review records for `reviews`, and the board's own
-      view for `state`. Selection is a parameter the caller passes, and a record that
-      does not hold the task falls back to the files; the reverse never happens. The
-      CLI grows the flags that make the choice explicit, and the MCP tool and the
-      served endpoint are untouched because the envelope is not. Parity against the
-      file reader is asserted on a real manager-dispatched run, key by key.
-    scope:
-      - src/torve/application/projections.py
-      - src/torve/cli/why.py
-      - tests/test_why_record.py
-      - tests/test_manager_e2e.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_why_record.py tests/test_context.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-  - phase: 2
-    title: status, over the board
-    intent: >-
-      `status_report` gains a record-backed source over the board that already holds
-      every fact it reports — state, attempts, holder, landing, escalation. The work
-      is reconciling two vocabularies rather than writing a fold: the run-state file's
-      states and the board's are the same enum reached by different paths, and where
-      they disagree the disagreement is the finding. Same selection rule and same
-      parity discipline as phase 1.
-    scope:
-      - src/torve/application/projections.py
-      - src/torve/cli/status.py
-      - tests/test_why_record.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_why_record.py tests/test_reaper.py
-      - uv run torve rfc check
-    depends_on:
-      - 1
-  - phase: 3
-    title: context, over the record and the corpus
-    intent: >-
-      The planning view moves last and reads two records rather than one: the decision
-      graph S-0047 imported for its corpus half, and the event log for its execution
-      half. Its blocks land one at a time behind the same selection rule — tasks and
-      programme first, since S-0049 made those a fold; costs and harness populations
-      next, since the attempt payload already carries what they count; the specification-quality
-      readings last, because their landed-window semantics are their own reading rather
-      than a source swap.
-    scope:
-      - src/torve/application/projections.py
-      - src/torve/application/specquality.py
-      - src/torve/cli/context.py
-      - tests/test_context.py
-      - tests/test_specquality.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_context.py tests/test_specquality.py
-      - uv run torve rfc check
-    depends_on:
-      - 2

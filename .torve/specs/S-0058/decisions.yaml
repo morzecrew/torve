@@ -43,11 +43,11 @@ decisions:
     grade: LOCKED
     text: >-
       `document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`,
-      `goals`, `non_goals`, `tests`, `risks` required of an accepted document, `docs`
+      `goals`, `non_goals`, `tests`, `risks` required of an accepted design, `docs`
       and `out_of_scope` optional, `design` a keyed list with at least one entry once
-      accepted, `sections` the extras capped at eight — with keys unique document-wide
-      and never a family shape; `description` is dropped and the summary's first sentence
-      routes
+      a design is accepted, `sections` the extras capped at eight — with keys unique
+      document-wide and never a family shape; an accepted convention owes its summary
+      alone; `description` is dropped and the summary's first sentence routes
     paths:
       - src/torve/domain/spec.py
       - src/torve/config/spec.py
@@ -58,6 +58,7 @@ decisions:
     rationale: >-
       the anatomy already stood in four of five live documents and nothing enforced
       it
+    fingerprint: a629f4333b936324/30165c090ea60c7d
   - id: D-5
     grade: LOCKED
     text: >-

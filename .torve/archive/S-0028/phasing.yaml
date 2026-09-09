@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: profile-resolution
+    intent: >-
+      TierConfig gains the profile field and load_runner_config resolves it: raw-mapping
+      merge from the operator's agents directory before validation, local keys winning,
+      every failure a refusal naming the file (S-0028/D-1–S-0028/D-5). The hash property
+      arrives for free because config_hash already digests resolved tiers; the test
+      family pins the merge semantics, the refusals, the S-0021/D-1 interaction and
+      the hash property.
+    scope: [src/torve/config/runconfig.py, tests/test_runconfig.py]
+    acceptance:
+      - uv run pytest tests/test_runconfig.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: doctor-provenance
+    intent: >-
+      torve doctor prints one provenance line per tier that resolved through a profile
+      (S-0028/D-7), no check attached, and the README configuration section gains
+      the profile paragraph with one example.
+    scope: [src/torve/cli/doctor.py, tests/test_doctor.py, README.md]
+    acceptance:
+      - uv run pytest tests/test_doctor.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

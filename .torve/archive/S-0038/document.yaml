@@ -9,101 +9,91 @@ informed_by: [S-0021, S-0026, S-0034, S-0037]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Every attempt ends in exactly one durable telemetry row stamped with its attempt
-  number and an engine-derived verdict, and every escalation lands an engine event
-  — how a run ended stops dying with the state file.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      The stream records what an attempt produced; it barely records how an
-      attempt *ended*. This document makes the ending a first-class recorded
-      fact: every attempt appends exactly one row, that row carries its attempt
-      number and a one-word engine-derived verdict from a closed vocabulary, and
-      every escalation — today a field in a state file that the next dispatch
-      overwrites and the reaper eventually deletes — lands one durable engine
-      event with its reason and detail. Nothing new is measured; facts the
-      runner already holds in local variables stop evaporating.
-  - key: motivation
-    md: |
-      Four verified facts from this repository's ledger:
+schema_version: 4
+summary: |
+  The stream records what an attempt produced; it barely records how an
+  attempt *ended*. This document makes the ending a first-class recorded
+  fact: every attempt appends exactly one row, that row carries its attempt
+  number and a one-word engine-derived verdict from a closed vocabulary, and
+  every escalation — today a field in a state file that the next dispatch
+  overwrites and the reaper eventually deletes — lands one durable engine
+  event with its reason and detail. Nothing new is measured; facts the
+  runner already holds in local variables stop evaporating.
+motivation: |
+  Four verified facts from this repository's ledger:
 
-      - **A timed-out attempt's row is nearly mute.** T-0213's attempt of
-        2026-09-01T19:23:40Z carries `exit_code: null`, `results: []`,
-        `config_hash: null`, `timed_out: true` — the flag exists (added when
-        four ~$4 first attempts were found missing from cost-and-iterations,
-        see the comment at the red-path append in
-        `src/torve/application/runner.py`), but it exists only on the
-        red-agent record shape, and "how did this attempt end" has no single
-        field on any row. Of 352 gate-run rows in the current stream, 12
-        carry `timed_out`; the other 340 answer the question only by joint
-        inference over `exit_code`, `results` and absence.
-      - **No row knows its attempt number.** The agent block stamps tier,
-        model, image digest and trace_ref — but not which attempt it was.
-        Joining a row to its trace file (`<task>.aN.trace.log`) or to RFC
-        0026's continuation chain is timestamp archaeology.
-      - **Escalations are not durable.** All 22 `state.escalate` call sites
-        (runner, reaper, planner, intake, lane, `cli/run`) write only the
-        state file. The current stream holds 85 engine events and not one
-        escalation record, while the 0034 audit counts three poison ceilings
-        across two models. `run_task` constructs a fresh `RunState` per
-        dispatch and its first save overwrites the prior history (S-0037
-        §3), and the reaper deletes the file at terminal sweep — the reason a
-        task needed a human is unrecoverable precisely after the human is
-        done with it.
-      - **An attempt can end with no row at all.** A broker budget refusal
-        escalates mid-attempt (S-0021/D-6) and stops the loop before the gates
-        run; the red-agent record fires only on `timed_out or exit_code != 0`,
-        so an agent that exits 0 into a refused escalation leaves spend with
-        no record — the same class of hole the red-path record was added to
-        close.
-  - key: current-state
-    md: |
-      Verified against the tree at drafting time:
+  - **A timed-out attempt's row is nearly mute.** T-0213's attempt of
+    2026-09-01T19:23:40Z carries `exit_code: null`, `results: []`,
+    `config_hash: null`, `timed_out: true` — the flag exists (added when
+    four ~$4 first attempts were found missing from cost-and-iterations,
+    see the comment at the red-path append in
+    `src/torve/application/runner.py`), but it exists only on the
+    red-agent record shape, and "how did this attempt end" has no single
+    field on any row. Of 352 gate-run rows in the current stream, 12
+    carry `timed_out`; the other 340 answer the question only by joint
+    inference over `exit_code`, `results` and absence.
+  - **No row knows its attempt number.** The agent block stamps tier,
+    model, image digest and trace_ref — but not which attempt it was.
+    Joining a row to its trace file (`<task>.aN.trace.log`) or to RFC
+    0026's continuation chain is timestamp archaeology.
+  - **Escalations are not durable.** All 22 `state.escalate` call sites
+    (runner, reaper, planner, intake, lane, `cli/run`) write only the
+    state file. The current stream holds 85 engine events and not one
+    escalation record, while the 0034 audit counts three poison ceilings
+    across two models. `run_task` constructs a fresh `RunState` per
+    dispatch and its first save overwrites the prior history (S-0037
+    §3), and the reaper deletes the file at terminal sweep — the reason a
+    task needed a human is unrecoverable precisely after the human is
+    done with it.
+  - **An attempt can end with no row at all.** A broker budget refusal
+    escalates mid-attempt (S-0021/D-6) and stops the loop before the gates
+    run; the red-agent record fires only on `timed_out or exit_code != 0`,
+    so an agent that exits 0 into a refused escalation leaves spend with
+    no record — the same class of hole the red-path record was added to
+    close.
+current_state: |
+  Verified against the tree at drafting time:
 
-      - `build_record` (`src/torve/application/telemetry.py`) shapes the
-        gate-run row; the agent block (`agent_meta` in
-        `run_routing`/`_run_task_async`, `src/torve/application/runner.py`)
-        is restamped per attempt and carries no attempt number and no
-        verdict.
-      - The red-agent record is a second, inline shape in the attempt hook
-        (`src/torve/application/runner.py`, the `timed_out or exit_code != 0`
-        branch) carrying `gates_run: false` and `timed_out` — the only rows
-        that name their ending.
-      - `RunState.escalate` (`src/torve/application/runstate.py`) sets a
-        field and nothing else; `engine_event`
-        (`src/torve/application/telemetry.py`) already exists as the durable
-        path for exactly this kind of fact (S-0006/D-7) and already resolves the
-        stream location manifest-or-default.
-      - The escalation vocabulary is closed and projected onto exit codes
-        (`src/torve/domain/states.py`, S-0011/D-4) — the reason taxonomy this
-        document reuses rather than invents.
-      - Retry-rung selection reads the attempt's recorded gate outcomes
-        (S-0034/D-5); the verdict adds a summary of facts already recorded, never
-        a new routing input.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `build_record` (`src/torve/application/telemetry.py`) shapes the
+    gate-run row; the agent block (`agent_meta` in
+    `run_routing`/`_run_task_async`, `src/torve/application/runner.py`)
+    is restamped per attempt and carries no attempt number and no
+    verdict.
+  - The red-agent record is a second, inline shape in the attempt hook
+    (`src/torve/application/runner.py`, the `timed_out or exit_code != 0`
+    branch) carrying `gates_run: false` and `timed_out` — the only rows
+    that name their ending.
+  - `RunState.escalate` (`src/torve/application/runstate.py`) sets a
+    field and nothing else; `engine_event`
+    (`src/torve/application/telemetry.py`) already exists as the durable
+    path for exactly this kind of fact (S-0006/D-7) and already resolves the
+    stream location manifest-or-default.
+  - The escalation vocabulary is closed and projected onto exit codes
+    (`src/torve/domain/states.py`, S-0011/D-4) — the reason taxonomy this
+    document reuses rather than invents.
+  - Retry-rung selection reads the attempt's recorded gate outcomes
+    (S-0034/D-5); the verdict adds a summary of facts already recorded, never
+    a new routing input.
+goals: |
+  **Goals**
 
-      - "How did attempt N of T-XXXX end" is one jq expression over one
-        stream, for every ending: green, gates red, timeout, agent error,
-        broker refusal, halt, infrastructure failure.
-      - Every attempt's row joins deterministically to its trace file and its
-        continuation chain by attempt number.
-      - Escalation reasons and details survive re-dispatch and reap.
-      - S-0040's per-task timeline can be built from the stream alone.
-
-      **Non-goals**
-
-      - No change to routing — S-0034/D-5 stands; the verdict is derived from the
-        same recorded facts, and no selector reads it.
-      - No mirroring of the full `history[]` transition list into the stream —
-        the verdict and the escalation event carry the triage-bearing facts;
-        wholesale mirroring is noise until a reader demonstrates the need
-        (named in §8).
-      - No new stream or store — S-0002/D-4 stands: JSONL until a query demands
-        otherwise, and this document's queries do not.
+  - "How did attempt N of T-XXXX end" is one jq expression over one
+    stream, for every ending: green, gates red, timeout, agent error,
+    broker refusal, halt, infrastructure failure.
+  - Every attempt's row joins deterministically to its trace file and its
+    continuation chain by attempt number.
+  - Escalation reasons and details survive re-dispatch and reap.
+  - S-0040's per-task timeline can be built from the stream alone.
+non_goals: |
+  - No change to routing — S-0034/D-5 stands; the verdict is derived from the
+    same recorded facts, and no selector reads it.
+  - No mirroring of the full `history[]` transition list into the stream —
+    the verdict and the escalation event carry the triage-bearing facts;
+    wholesale mirroring is noise until a reader demonstrates the need
+    (named in §8).
+  - No new stream or store — S-0002/D-4 stands: JSONL until a query demands
+    otherwise, and this document's queries do not.
+design:
   - key: the-attempt-number
     md: |
       The agent block gains `attempt: <int>` — stamped where the block is
@@ -169,46 +159,43 @@ sections:
       - **A schema_version bump** — rejected: every key is additive, readers
         already treat absence as unreported, and a bump would force every
         reader to branch for no informational gain.
-  - key: tests
-    md: |
-      Runner: one test per verdict value asserting the row's verdict and the
-      one-attempt-one-row invariant (a fake agent driven to each ending), the
-      attempt number on every appended record, and the broker-refused ending
-      now producing a row where today it produces none. Runstate: `escalate`
-      appends the event with reason/detail/run_id, is best-effort on an
-      unwritable stream, and still sets the field first. Replay: a test
-      asserting the verdict is derivable from the row's other recorded fields
-      — the vocabulary adds convenience, never information the row does not
-      already imply (keeps S-0034/D-5's determinism argument honest).
-  - key: docs
-    md: |
-      S-0004/telemetry-staged's record documentation gains the `attempt` and `verdict`
-      keys and the escalation event shape. No migration notes: old rows simply
-      lack the keys, and every reader named in this document treats absence as
-      pre-0038.
-  - key: out-of-scope
-    md: |
-      - Mirroring `history[]` transitions into the stream — the escalation
-        event carries the triage-bearing endpoint; full mirroring returns if
-        S-0040's timeline demonstrably starves without it.
-      - The per-task join and rendering of these facts — S-0040.
-      - Trace retention — S-0039; this document only makes the join key
-        durable.
-      - A `COST_ANOMALY` detector — the reason exists unraised in
-        `src/torve/domain/states.py`; wiring a detector is actuation, its own
-        future document, and it will want 0040's rollup first.
-  - key: risks
-    md: |
-      - **Vocabulary too coarse.** An ending not in the table lands as the
-        nearest value plus the row's existing fields; the vocabulary grows by
-        amendment when a reader needs a distinction, and the replay test keeps
-        each value derivable — accepted.
-      - **Double rows from the subsumed inline append.** The red-agent path
-        moves rather than duplicates; the one-attempt-one-row test is the
-        tripwire.
-      - **Escalation events from non-run states** (planner minting, reaper
-        sweeps of orphans) may lack a run_id — the key is optional, the event
-        still lands; accepted.
+tests: |
+  Runner: one test per verdict value asserting the row's verdict and the
+  one-attempt-one-row invariant (a fake agent driven to each ending), the
+  attempt number on every appended record, and the broker-refused ending
+  now producing a row where today it produces none. Runstate: `escalate`
+  appends the event with reason/detail/run_id, is best-effort on an
+  unwritable stream, and still sets the field first. Replay: a test
+  asserting the verdict is derivable from the row's other recorded fields
+  — the vocabulary adds convenience, never information the row does not
+  already imply (keeps S-0034/D-5's determinism argument honest).
+docs: |
+  S-0004/telemetry-staged's record documentation gains the `attempt` and `verdict`
+  keys and the escalation event shape. No migration notes: old rows simply
+  lack the keys, and every reader named in this document treats absence as
+  pre-0038.
+out_of_scope: |
+  - Mirroring `history[]` transitions into the stream — the escalation
+    event carries the triage-bearing endpoint; full mirroring returns if
+    S-0040's timeline demonstrably starves without it.
+  - The per-task join and rendering of these facts — S-0040.
+  - Trace retention — S-0039; this document only makes the join key
+    durable.
+  - A `COST_ANOMALY` detector — the reason exists unraised in
+    `src/torve/domain/states.py`; wiring a detector is actuation, its own
+    future document, and it will want 0040's rollup first.
+risks: |
+  - **Vocabulary too coarse.** An ending not in the table lands as the
+    nearest value plus the row's existing fields; the vocabulary grows by
+    amendment when a reader needs a distinction, and the replay test keeps
+    each value derivable — accepted.
+  - **Double rows from the subsumed inline append.** The red-agent path
+    moves rather than duplicates; the one-attempt-one-row test is the
+    tripwire.
+  - **Escalation events from non-run states** (planner minting, reaper
+    sweeps of orphans) may lack a run_id — the key is optional, the event
+    still lands; accepted.
+sections:
   - key: unresolved-questions
     md: |
       - Whether the reaper's `lease_expired` sweep of a run it did not own
@@ -221,28 +208,3 @@ sections:
       and separating them would manufacture a dependency.
 
       *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
-phasing:
-  - phase: 1
-    title: the attempt verdict
-    intent: >-
-      The agent block stamps its attempt number (S-0038/D-4); every path out of the
-      attempt hook appends exactly one row (S-0038/D-1) carrying an engine-derived
-      verdict from the closed vocabulary (S-0038/D-2, S-0038/D-3), subsuming the inline
-      red-agent append; RunState.escalate appends the durable escalation engine event
-      best-effort from its single call site (S-0038/D-5). All keys additive (S-0038/D-6).
-      Tests: one per verdict value, the one-attempt-one-row invariant, the broker-refused
-      row that today does not exist, the escalate append and its best-effort failure
-      mode, and the replay test deriving each verdict from the row's other fields.
-    scope:
-      - src/torve/application/runner.py
-      - src/torve/application/runstate.py
-      - src/torve/application/telemetry.py
-      - tests/test_runner.py
-      - tests/test_run_loop.py
-      - tests/test_reaper.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_runner.py tests/test_run_loop.py tests/test_reaper.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .

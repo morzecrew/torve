@@ -30,7 +30,7 @@ from torve.domain.task import Task
 
 # ----------------------- #
 
-SCHEMA_VERSION = 3  # S-0057/D-1: the directory of four files; 2 was the one YAML file
+SCHEMA_VERSION = 4  # S-0058/D-4: the typed anatomy and phasing.yaml; 3 was the flat section list
 
 Coverage = Literal["governed", "ungoverned", "retired"]
 CheckState = Literal["shadow", "blocking"]
@@ -238,13 +238,53 @@ class DesignSection(Item):
     md: str = ""
 
 
+HEADINGS = {"non-goals": "Non-goals", "out-of-scope": "Out of scope"}
+
+
 def heading_of(key: str) -> str:
     """The heading a renderer shows for a section key: dashes to spaces,
     the first letter raised (S-0057/D-2)."""
 
+    if key in HEADINGS:
+        return HEADINGS[key]
+
     words = key.replace("-", " ").strip()
 
     return words[:1].upper() + words[1:]
+
+
+# The anatomy (S-0058/D-4): the prose every document has, as keys; a
+# design is a keyed list; anything else is an extra, capped.
+PROSE_FIELDS = (
+    "summary",
+    "motivation",
+    "current_state",
+    "goals",
+    "non_goals",
+    "tests",
+    "docs",
+    "out_of_scope",
+    "risks",
+)
+REQUIRED_PROSE = ("summary", "motivation", "current_state", "goals", "non_goals", "tests", "risks")
+EXTRAS_CAP = 8
+
+
+def prose_key(field_name: str) -> str:
+    """The section key of a typed prose field: `current_state` is cited
+    as `S-NNNN/current-state`."""
+
+    return field_name.replace("_", "-")
+
+
+def routing_line(summary: str) -> str:
+    """The summary's first sentence: what `spec list` shows and the pack
+    routes by (S-0058/D-4)."""
+
+    text = " ".join(summary.split())
+    match = re.search(r"^(.+?[.!?])(?:\s|$)", text)
+
+    return (match.group(1) if match else text).strip()
 
 
 # ....................... #
@@ -345,11 +385,23 @@ class Document(Item):
     superseded_by: str | None = None
     retired: list[str] = Field(default_factory=list)
     owner: str
-    description: str
     schema_version: int = SCHEMA_VERSION
     path: str = Field(default="", exclude=True)
     archived: bool = Field(default=False, exclude=True)
 
+    # The prose, typed (S-0058/D-4): required of an accepted document but
+    # `docs` and `out_of_scope`; `design` a keyed list with at least one
+    # entry once accepted; `sections` the extras, at most EXTRAS_CAP.
+    summary: str = ""
+    motivation: str = ""
+    current_state: str = ""
+    goals: str = ""
+    non_goals: str = ""
+    design: list[DesignSection] = Field(default_factory=list)
+    tests: str = ""
+    docs: str = ""
+    out_of_scope: str = ""
+    risks: str = ""
     sections: list[DesignSection] = Field(default_factory=list)
     decisions: list[Decision] = Field(default_factory=list)
     invariants: list[Invariant] = Field(default_factory=list)
@@ -412,6 +464,29 @@ class Document(Item):
 
         return [a.id for a in self.amendments]
 
+    def routing(self) -> str:
+        """The one line that routes a reader to this document."""
+
+        return routing_line(self.summary)
+
+    def prose(self) -> list[DesignSection]:
+        """Every prose section in reading order: the typed keys that have
+        content, the design, the extras — each as a keyed section."""
+
+        typed = [
+            DesignSection(key=prose_key(name), md=getattr(self, name))
+            for name in PROSE_FIELDS
+            if str(getattr(self, name)).strip()
+        ]
+        head = [
+            s
+            for s in typed
+            if s.key in ("summary", "motivation", "current-state", "goals", "non-goals")
+        ]
+        tail = [s for s in typed if s not in head]
+
+        return [*head, *self.design, *tail, *self.sections]
+
     def decision(self, identifier: str) -> Decision | None:
         wanted = qualify(self.id, identifier)
 
@@ -433,7 +508,7 @@ class Document(Item):
         ids.update(q.id for q in self.questions)
         ids.update(a.id for a in self.amendments)
         ids.update(f"{self.id}/P-{p.phase}" for p in self.phasing)
-        ids.update(f"{self.id}/{s.key}" for s in self.sections)
+        ids.update(f"{self.id}/{s.key}" for s in self.prose())
         ids.update(self.retired)
 
         return ids
@@ -447,9 +522,10 @@ class Document(Item):
 # and the writer splits it back.
 DOCUMENT_FILE = "document.yaml"
 DECISIONS_FILE = "decisions.yaml"
+PHASING_FILE = "phasing.yaml"
 AMENDMENTS_FILE = "amendments.yaml"
 EXECUTION_FILE = "execution.yaml"
-FILES = (DOCUMENT_FILE, DECISIONS_FILE, AMENDMENTS_FILE, EXECUTION_FILE)
+FILES = (DOCUMENT_FILE, DECISIONS_FILE, PHASING_FILE, AMENDMENTS_FILE, EXECUTION_FILE)
 FILE_FIELDS: dict[str, tuple[str, ...]] = {
     DOCUMENT_FILE: (
         "id",
@@ -462,15 +538,16 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
         "supersedes",
         "superseded_by",
         "owner",
-        "description",
         "schema_version",
+        *PROSE_FIELDS[:5],
+        "design",
+        *PROSE_FIELDS[5:],
         "sections",
         "alternatives",
         "questions",
-        "phasing",
-        "contract_example",
     ),
     DECISIONS_FILE: ("decisions", "invariants", "retired"),
+    PHASING_FILE: ("phasing", "contract_example"),
     AMENDMENTS_FILE: ("amendments", "editorial"),
     EXECUTION_FILE: ("landings",),
 }

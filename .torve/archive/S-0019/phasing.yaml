@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The tick
+    intent: >-
+      torve tick as one bounded pass over existing machinery: reap, poll, dispatch
+      of at most one queued task selected by the file-system rule, the lane under
+      promotion.auto_merge, tracker sync last. The tick lock with loud stale-break,
+      the pause threshold on the escalation queue, the loop configuration block, and
+      the per-tick engine event with honest noops. No new run semantics anywhere —
+      every leg is a call into what already exists.
+    scope: [src/torve/application/**, src/torve/cli/**, src/torve/config/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check

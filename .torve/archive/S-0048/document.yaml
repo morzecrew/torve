@@ -9,95 +9,85 @@ informed_by: [S-0013, S-0019, S-0035]
 supersedes: []
 superseded_by: S-0055
 owner: misery7100
-description: >-
-  The resident manager runs the operator's whole fleet rather than one repository:
-  the manifest that already names every root gains the partition each one's contracts
-  are minted onto, and one process round-robins them under one shared attention budget.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      A resident manager serves one partition. Running two repositories means two
-      processes, two hand-typed partition names and two places to notice that one
-      of them died.
+schema_version: 4
+summary: |
+  A resident manager serves one partition. Running two repositories means two
+  processes, two hand-typed partition names and two places to notice that one
+  of them died.
 
-      The engine already has the artefact this needs. S-0024's fleet manifest
-      lists every repository the operator works, in a deterministic order, with a
-      trust class per root and one attention budget across all of them — and
-      `torve fleet tick` already loops it, isolating failures. What the manifest
-      does not carry is the partition a repository's contracts belong to.
+  The engine already has the artefact this needs. S-0024's fleet manifest
+  lists every repository the operator works, in a deterministic order, with a
+  trust class per root and one attention budget across all of them — and
+  `torve fleet tick` already loops it, isolating failures. What the manifest
+  does not carry is the partition a repository's contracts belong to.
 
-      This adds that field and the resident loop over it. One process, one
-      manifest, one log, one attention budget; `residency.once` unchanged, called
-      per repository in the manifest's order.
-  - key: motivation
-    md: |
-      **Multi-repo is designed and not operable.** S-0044 built the partition
-      column, the per-partition board and a manager that reads one. Everything
-      above that is a shell loop the operator writes themselves.
+  This adds that field and the resident loop over it. One process, one
+  manifest, one log, one attention budget; `residency.once` unchanged, called
+  per repository in the manifest's order.
+motivation: |
+  **Multi-repo is designed and not operable.** S-0044 built the partition
+  column, the per-partition board and a manager that reads one. Everything
+  above that is a shell loop the operator writes themselves.
 
-      **The root and the partition are two independent arguments.** `torve manager
-      serve <partition> --root <root>` takes them separately and checks nothing.
-      Getting them crossed mints one repository's contracts onto another's board —
-      a wrong board, wrong dependencies, wrong scope-disjointness, and no error at
-      any point. Nothing about the current interface makes that hard to do.
+  **The root and the partition are two independent arguments.** `torve manager
+  serve <partition> --root <root>` takes them separately and checks nothing.
+  Getting them crossed mints one repository's contracts onto another's board —
+  a wrong board, wrong dependencies, wrong scope-disjointness, and no error at
+  any point. Nothing about the current interface makes that hard to do.
 
-      **The attention budget is fleet-wide and the resident manager cannot see
-      it.** S-0024/D-2 decided that triage debt is measured once across every
-      repository, because the operator triaging it exists once. `torve fleet tick`
-      honours that. A resident manager per repository cannot: each one knows only
-      its own queue, so the fleet pauses when no single root is over budget and
-      five together are.
+  **The attention budget is fleet-wide and the resident manager cannot see
+  it.** S-0024/D-2 decided that triage debt is measured once across every
+  repository, because the operator triaging it exists once. `torve fleet tick`
+  honours that. A resident manager per repository cannot: each one knows only
+  its own queue, so the fleet pauses when no single root is over budget and
+  five together are.
 
-      **The trust classes do not reach v2 either.** S-0024/D-6 refuses a root whose
-      own configuration asks for more than its manifest class allows, checked from
-      the operator's file where the repository cannot argue with it. A manager
-      started by hand against a root skips that check entirely.
-  - key: current-state
-    md: |
-      Verified against the tree at `592be1e`:
+  **The trust classes do not reach v2 either.** S-0024/D-6 refuses a root whose
+  own configuration asks for more than its manifest class allows, checked from
+  the operator's file where the repository cannot argue with it. A manager
+  started by hand against a root skips that check entirely.
+current_state: |
+  Verified against the tree at `592be1e`:
 
-      - `FleetRepository` is `{root, trust}` — no partition. `FleetManifest` adds
-        `attention.pause_escalations` and `order`, whose values are `manifest` and
-        `alphabetical` and deliberately not a priority field (S-0024/D-4).
-      - `fleet_tick(manifest, tick)` is the loop this mirrors: survey every root's
-        queue, decide the pause once, then per root enforce trust, run, and record
-        the outcome — a `TrustRefused` or any other exception is recorded and the
-        pass continues (S-0024/D-5).
-      - `residency.once(log, worker, root, partition, …)` is one pass over one
-        partition: reclaim, mint, then let the worker take at most one task. It
-        has no way to skip minting.
-      - `runner_execute(root, config, prepare, log=, partition=, seat=)` binds a
-        worker's `execute` to one root and one partition, so a fleet needs one
-        `Worker` per repository rather than one worker over many.
-      - `escalated_count(root)` reads run-state files. For a partition the manager
-        serves, the escalations are in the log; during the migration a repository
-        can have both.
-      - `Board` has `landed()` and `in_flight()`; it has no escalation set.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `FleetRepository` is `{root, trust}` — no partition. `FleetManifest` adds
+    `attention.pause_escalations` and `order`, whose values are `manifest` and
+    `alphabetical` and deliberately not a priority field (S-0024/D-4).
+  - `fleet_tick(manifest, tick)` is the loop this mirrors: survey every root's
+    queue, decide the pause once, then per root enforce trust, run, and record
+    the outcome — a `TrustRefused` or any other exception is recorded and the
+    pass continues (S-0024/D-5).
+  - `residency.once(log, worker, root, partition, …)` is one pass over one
+    partition: reclaim, mint, then let the worker take at most one task. It
+    has no way to skip minting.
+  - `runner_execute(root, config, prepare, log=, partition=, seat=)` binds a
+    worker's `execute` to one root and one partition, so a fleet needs one
+    `Worker` per repository rather than one worker over many.
+  - `escalated_count(root)` reads run-state files. For a partition the manager
+    serves, the escalations are in the log; during the migration a repository
+    can have both.
+  - `Board` has `landed()` and `in_flight()`; it has no escalation set.
+goals: |
+  **Goals**
 
-      - One resident process over every repository in the manifest.
-      - The root-to-partition binding declared once, in a reviewed file, outside
-        every repository — so a crossed pair is a diff somebody reads rather than
-        a typo nobody sees.
-      - S-0024's rules applied to v2 unchanged: deterministic order, trust
-        enforced before a root is touched, one failing repository never stopping
-        the pass, one attention budget for the fleet.
-      - A partition with nothing to do costs one board read.
-
-      **Non-goals**
-
-      - **Not concurrency.** Serving N partitions in sequence is what makes
-        multi-repo operable; running them at once is what makes it fast, and it
-        needs worker slots, per-slot volumes and a broker story. §8 names it.
-      - **Not a second configuration.** The manifest exists, is reviewed, and is
-        already the artefact that is about repositories rather than in one.
-      - **Not a change to one partition's behaviour.** `residency.once` gains one
-        parameter and is otherwise untouched, so a single-partition manager keeps
-        running exactly as it does.
-      - **Not deriving the partition.** §5.1.
+  - One resident process over every repository in the manifest.
+  - The root-to-partition binding declared once, in a reviewed file, outside
+    every repository — so a crossed pair is a diff somebody reads rather than
+    a typo nobody sees.
+  - S-0024's rules applied to v2 unchanged: deterministic order, trust
+    enforced before a root is touched, one failing repository never stopping
+    the pass, one attention budget for the fleet.
+  - A partition with nothing to do costs one board read.
+non_goals: |
+  - **Not concurrency.** Serving N partitions in sequence is what makes
+    multi-repo operable; running them at once is what makes it fast, and it
+    needs worker slots, per-slot volumes and a broker story. §8 names it.
+  - **Not a second configuration.** The manifest exists, is reviewed, and is
+    already the artefact that is about repositories rather than in one.
+  - **Not a change to one partition's behaviour.** `residency.once` gains one
+    parameter and is otherwise untouched, so a single-partition manager keeps
+    running exactly as it does.
+  - **Not deriving the partition.** §5.1.
+design:
   - key: the-manifest-carries-the-partition
     md: |
       ```yaml
@@ -201,66 +191,63 @@ sections:
         partitions at once is real but smaller than it looks, and it costs a seat
         allocator, per-slot volumes and a broker per worker. Serial first, measured
         after.
-  - key: tests
-    md: |
-      - **A missing partition is refused, and the round continues.** The other
-        repositories in the manifest are still served, and the refusal names the
-        root.
-      - **Order is the manifest's**, under both `order` values, and no repository
-        is served twice in a round.
-      - **The pause is fleet-wide**: two repositories under their own thresholds
-        and over the fleet's pause both; the round mints nothing and claims
-        nothing new, and work already on a board still runs.
-      - **Trust is enforced before the pass**, not after: a `reviewed` root with
-        `runtime.docker: socket` never reaches `run_pass`.
-      - **A repository that raises is recorded and skipped**, and the round's
-        remaining repositories run — asserted by making the first entry raise.
-      - **An idle round sleeps and a productive one does not**, asserted on the
-        pass count rather than on a clock.
-      - **The escalation union**: one task escalated in both carriers counts once.
-      - Explicitly not tested: that two partitions cannot interfere. They share a
-        log and are separated by its partition column, which S-0044 phase 1
-        already tests; a second test here would be testing the store.
-  - key: docs
-    md: |
-      `pages/docs/architecture/distribution.md` is where this belongs: item 2 —
-      landings serialize through one `main` — stays exactly as it is and is now
-      the *only* wall that does not dissolve by moving a reader. The page gains
-      the fleet loop as the answer to "how does a second repository get served",
-      and the concurrency question is named as open rather than implied.
-  - key: out-of-scope
-    md: |
-      - **Concurrency across partitions.** What it needs: a seat allocator that
-        will not run two workers under one slot's cache volume (S-0035 S-0035/D-4's
-        suffixing is already the mechanism), a broker per worker or a broker that
-        can hold several runs, and a decision about how many attempts an operator
-        wants running unattended. Named, measurable, and deliberately after this.
-      - **Per-partition attention budgets.** S-0024/D-2 decided the budget is shared
-        and this document does not reopen it.
-      - **A fleet-wide board.** `torve manager board` reads one partition. A view
-        across all of them is a projection, and worth building once there is more
-        than one partition to look at.
-      - **Retiring `torve manager serve`.** The single-partition verb stays: it is
-        what a repository with no fleet uses, and it is what this calls per
-        repository.
-  - key: risks
-    md: |
-      - **A crossed root and partition still possible on the first write.** The
-        manifest makes it reviewable, not impossible. Mitigated only by it being a
-        diff: nothing in the engine can tell that `~/work/atlas` should not mint
-        onto `morzecrew/torve`, because both are legitimate strings.
-      - **One log for the whole fleet.** Every partition shares a store, so losing
-        it loses every board at once. That is already true of a single-partition
-        manager and is the trade the partition column exists to make; the
-        alternative is a store per repository and no fleet-wide question ever
-        being answerable.
-      - **A slow repository starves the round.** Serving is serial, so one long
-        attempt delays every other partition's next pass by its whole duration.
-        Accepted for now and the strongest argument for the concurrency in §8 —
-        named here so the first person to feel it finds it written down.
-      - **The trust check reads config on every round.** Deliberate: the file can
-        change under a resident process, and a class enforced once at startup is a
-        class that stops being enforced.
+tests: |
+  - **A missing partition is refused, and the round continues.** The other
+    repositories in the manifest are still served, and the refusal names the
+    root.
+  - **Order is the manifest's**, under both `order` values, and no repository
+    is served twice in a round.
+  - **The pause is fleet-wide**: two repositories under their own thresholds
+    and over the fleet's pause both; the round mints nothing and claims
+    nothing new, and work already on a board still runs.
+  - **Trust is enforced before the pass**, not after: a `reviewed` root with
+    `runtime.docker: socket` never reaches `run_pass`.
+  - **A repository that raises is recorded and skipped**, and the round's
+    remaining repositories run — asserted by making the first entry raise.
+  - **An idle round sleeps and a productive one does not**, asserted on the
+    pass count rather than on a clock.
+  - **The escalation union**: one task escalated in both carriers counts once.
+  - Explicitly not tested: that two partitions cannot interfere. They share a
+    log and are separated by its partition column, which S-0044 phase 1
+    already tests; a second test here would be testing the store.
+docs: |
+  `pages/docs/architecture/distribution.md` is where this belongs: item 2 —
+  landings serialize through one `main` — stays exactly as it is and is now
+  the *only* wall that does not dissolve by moving a reader. The page gains
+  the fleet loop as the answer to "how does a second repository get served",
+  and the concurrency question is named as open rather than implied.
+out_of_scope: |
+  - **Concurrency across partitions.** What it needs: a seat allocator that
+    will not run two workers under one slot's cache volume (S-0035 S-0035/D-4's
+    suffixing is already the mechanism), a broker per worker or a broker that
+    can hold several runs, and a decision about how many attempts an operator
+    wants running unattended. Named, measurable, and deliberately after this.
+  - **Per-partition attention budgets.** S-0024/D-2 decided the budget is shared
+    and this document does not reopen it.
+  - **A fleet-wide board.** `torve manager board` reads one partition. A view
+    across all of them is a projection, and worth building once there is more
+    than one partition to look at.
+  - **Retiring `torve manager serve`.** The single-partition verb stays: it is
+    what a repository with no fleet uses, and it is what this calls per
+    repository.
+risks: |
+  - **A crossed root and partition still possible on the first write.** The
+    manifest makes it reviewable, not impossible. Mitigated only by it being a
+    diff: nothing in the engine can tell that `~/work/atlas` should not mint
+    onto `morzecrew/torve`, because both are legitimate strings.
+  - **One log for the whole fleet.** Every partition shares a store, so losing
+    it loses every board at once. That is already true of a single-partition
+    manager and is the trade the partition column exists to make; the
+    alternative is a store per repository and no fleet-wide question ever
+    being answerable.
+  - **A slow repository starves the round.** Serving is serial, so one long
+    attempt delays every other partition's next pass by its whole duration.
+    Accepted for now and the strongest argument for the concurrency in §8 —
+    named here so the first person to feel it finds it written down.
+  - **The trust check reads config on every round.** Deliberate: the file can
+    change under a resident process, and a class enforced once at startup is a
+    class that stops being enforced.
+sections:
   - key: unresolved-questions
     md: |
       - Whether the resident loop should take the whole manifest or a filter
@@ -271,52 +258,3 @@ sections:
         the convention is `owner/name` from the remote, and a local-only
         repository has no such name. Any stable string works; nothing in the
         engine parses it.
-phasing:
-  - phase: 1
-    title: the manifest names a partition
-    intent: >-
-      `FleetRepository` gains an optional `partition`, and the resident loop refuses
-      an entry without one before that repository is served — naming the manifest
-      and the root, and continuing with the rest, because a fleet does not stop for
-      one missing field. `Board` gains an escalation set beside its landed and in-flight
-      ones, and the fleet's survey becomes the union by task id of what the board
-      holds and what the run-state files hold, so a repository mid-migration is counted
-      once rather than twice. `residency.once` gains a paused flag that skips minting
-      and nothing else. Nothing loops yet: this phase is the vocabulary and the counting,
-      with a single-partition manager behaving exactly as it does today.
-    scope:
-      - src/torve/config/fleet.py
-      - src/torve/application/manager.py
-      - src/torve/application/residency.py
-      - tests/test_fleet_serve.py
-      - tests/test_fleet.py
-      - tests/test_manager.py
-      - tests/test_residency.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_fleet_serve.py tests/test_fleet.py tests/test_residency.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-  - phase: 2
-    title: the resident loop over the fleet
-    intent: >-
-      `serve_fleet` runs rounds over the manifest: survey every repository's queue,
-      decide the fleet's pause once, then per repository in the manifest's order enforce
-      its trust class against its own runner configuration and run one pass with that
-      decision passed down, recording a refusal or a failure and carrying on. A round
-      in which nobody took a task sleeps; a round that produced one goes straight
-      round again. `torve fleet serve` wires it — one log for the fleet, one worker
-      per repository, since an executor is bound to a root and a partition — and reports
-      each repository's outcome the way `fleet tick` already does.
-    scope:
-      - src/torve/application/fleet.py
-      - src/torve/cli/fleet.py
-      - pages/docs/architecture/distribution.md
-      - tests/test_fleet_serve.py
-      - tests/test_fleet.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_fleet_serve.py tests/test_fleet.py
-      - uv run torve rfc check
-    depends_on:
-      - 1

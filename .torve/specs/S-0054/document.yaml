@@ -19,172 +19,161 @@ informed_by:
 supersedes: []
 superseded_by: null
 owner: misery7100
-description: >-
-  The backends over S-0053's model: a decision with a check runs as a gate and owes
-  no attestation; the rows governing a directory are rendered beside it; a sandbox
-  reads the specification through a verb; and a deterministic context pack carries
-  the facts the corpus cannot.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      S-0053 gives the specification a model. This document renders it to the
-      five places an agent actually looks, none of which see it today.
+schema_version: 4
+summary: |
+  S-0053 gives the specification a model. This document renders it to the
+  five places an agent actually looks, none of which see it today.
 
-      A decision row that carries a `check` becomes a gate: its command runs in
-      the battery under the compliance axis, the row is copied onto the contract
-      with its check, and the executor owes no attestation for it, because the
-      battery proves compliance and the log is for judgement. The rows and
-      invariants governing a directory are rendered into a managed section of
-      that directory's `AGENTS.md`, drift-checked like the index, so every
-      harness that reads the nearest file — and every human session — sees the
-      rules where the code is. `torve spec` joins `torve log` as the sandbox's
-      second verb, reading the corpus that is already in the worktree. A context
-      pack, computed host-side from the record with no model in the loop, is
-      dropped into `.torve/context/` with the facts the corpus cannot carry:
-      this task's prior attempts and what convicted them, the tests that cover
-      its scope, the paths other work is contending for, the battery and its
-      axes. The red gate report of one attempt reaches the next. The reviewer and
-      the drafter read the same pack and validate their output against the same
-      schemas the engine parses with, which is where two of the three
-      `unparseable` rows on record came from.
-  - key: motivation
-    md: |
-      Measured at `1bb0615`, 2026-09-09, on `.torve/telemetry.jsonl` (738 rows)
-      and `.torve/tasks/*/log.yaml` (156 logs).
+  A decision row that carries a `check` becomes a gate: its command runs in
+  the battery under the compliance axis, the row is copied onto the contract
+  with its check, and the executor owes no attestation for it, because the
+  battery proves compliance and the log is for judgement. The rows and
+  invariants governing a directory are rendered into a managed section of
+  that directory's `AGENTS.md`, drift-checked like the index, so every
+  harness that reads the nearest file — and every human session — sees the
+  rules where the code is. `torve spec` joins `torve log` as the sandbox's
+  second verb, reading the corpus that is already in the worktree. A context
+  pack, computed host-side from the record with no model in the loop, is
+  dropped into `.torve/context/` with the facts the corpus cannot carry:
+  this task's prior attempts and what convicted them, the tests that cover
+  its scope, the paths other work is contending for, the battery and its
+  axes. The red gate report of one attempt reaches the next. The reviewer and
+  the drafter read the same pack and validate their output against the same
+  schemas the engine parses with, which is where two of the three
+  `unparseable` rows on record came from.
+motivation: |
+  Measured at `1bb0615`, 2026-09-09, on `.torve/telemetry.jsonl` (738 rows)
+  and `.torve/tasks/*/log.yaml` (156 logs).
 
-      - **Reds are house rules, not tests.** `decisions-reported` 61,
-        `coverage-delta` 56, `scope` 32, `rfc-valid` 29, `user-facing-text` 27,
-        `acceptance` 18, `self-audit` 8, `source-layout` 4, `layering` 2. Roughly
-        92 % of convictions are compliance, form or boundary. The rules behind
-        them live in `gates.yaml`, in the corpus and in five import-linter
-        contracts, none of which is in the worktree the agent works in (S-0013/D-3)
-        or in the prompt it reads.
-      - **The log is 95 % ceremony.** 670 of 705 entries are `kind: resolved`,
-        `action: decided`: the executor attesting that it complied with a `LOCKED`
-        row it touched. 18 departed, 9 spec-gap, 8 contradicted. The silence
-        check that produces the attestations is the strongest anti-drift
-        guarantee the engine has and also its most expensive habit, because a
-        row whose compliance a command could prove is proven by prose instead.
-      - **Three decisions are already gates, by hand.** `layering` is S-0015
-        §6, `user-facing-text` is S-0011/D-11, `source-layout` is S-0014/D-11; `rfc-valid`
-        is S-0007/D-14, `coverage-delta` is S-0036/D-1. Five manifest entries carry
-        `origin: rfc/NNNN` as a comment-grade string and no reader joins them to
-        the row. Five of 253 `LOCKED` rows have a check; the other 248 are
-        enforced by attestation.
-      - **The next attempt learns nothing from the last.** A red pass appends
-        `gates red: name=outcome, …` to the history and continues
-        (`runner.py:261-272`); `GateResult.output` is stored in telemetry and
-        never handed forward. The retry rung reads only outcome and axis
-        (`session.py:95-136`), so a heavier tier is dispatched with no word of
-        what the lighter one hit. Only review blockers feed back (S-0043,
-        `feedback.md`). T-0213 burned nine attempts and $7.59 on a contract the
-        engine had flagged oversize seven times to a stream nobody reads mid-run.
-      - **The reviewer gets the least.** Its prompt is the target intent,
-        acceptance names, rows without paths, gate names, an 80-line diff head;
-        its default skill set is empty (`runconfig.py:880-891`) although two
-        shipped skills declare the role; it does not see which rows the diff
-        touches, which `owed()` already computes for the gate.
-      - **The drafter guesses at a listing.** Its whole view of the tree is a
-        flat listing truncated to 400 paths (`intake.py:1063`). T-0117: three
-        attempts, zero parseable drafts. Two of the three `unparseable: true`
-        rows on record are output-shape failures against a schema the engine has
-        as a pydantic model and never showed the agent.
-      - **`AGENTS.md` is twelve lines of Repowise.** The harness docstring relies
-        on it for "everything else the harness learns from the workspace"
-        (`harness.py:9-11`). It contains nothing about torve.
-      - **Nothing here is derivable by grep.** The one controlled study of
-        context files (ETH SRI, 2026: human-written +4 %, generated −2 %, all
-        files +20 % cost, instructions followed, overviews ignored) says the
-        content that helps is exactly the content an agent cannot infer from the
-        tree. Convictions, governing rows, covering tests and contended paths are
-        that content.
-  - key: current-state
-    md: |
-      Verified at `1bb0615`:
+  - **Reds are house rules, not tests.** `decisions-reported` 61,
+    `coverage-delta` 56, `scope` 32, `rfc-valid` 29, `user-facing-text` 27,
+    `acceptance` 18, `self-audit` 8, `source-layout` 4, `layering` 2. Roughly
+    92 % of convictions are compliance, form or boundary. The rules behind
+    them live in `gates.yaml`, in the corpus and in five import-linter
+    contracts, none of which is in the worktree the agent works in (S-0013/D-3)
+    or in the prompt it reads.
+  - **The log is 95 % ceremony.** 670 of 705 entries are `kind: resolved`,
+    `action: decided`: the executor attesting that it complied with a `LOCKED`
+    row it touched. 18 departed, 9 spec-gap, 8 contradicted. The silence
+    check that produces the attestations is the strongest anti-drift
+    guarantee the engine has and also its most expensive habit, because a
+    row whose compliance a command could prove is proven by prose instead.
+  - **Three decisions are already gates, by hand.** `layering` is S-0015
+    §6, `user-facing-text` is S-0011/D-11, `source-layout` is S-0014/D-11; `rfc-valid`
+    is S-0007/D-14, `coverage-delta` is S-0036/D-1. Five manifest entries carry
+    `origin: rfc/NNNN` as a comment-grade string and no reader joins them to
+    the row. Five of 253 `LOCKED` rows have a check; the other 248 are
+    enforced by attestation.
+  - **The next attempt learns nothing from the last.** A red pass appends
+    `gates red: name=outcome, …` to the history and continues
+    (`runner.py:261-272`); `GateResult.output` is stored in telemetry and
+    never handed forward. The retry rung reads only outcome and axis
+    (`session.py:95-136`), so a heavier tier is dispatched with no word of
+    what the lighter one hit. Only review blockers feed back (S-0043,
+    `feedback.md`). T-0213 burned nine attempts and $7.59 on a contract the
+    engine had flagged oversize seven times to a stream nobody reads mid-run.
+  - **The reviewer gets the least.** Its prompt is the target intent,
+    acceptance names, rows without paths, gate names, an 80-line diff head;
+    its default skill set is empty (`runconfig.py:880-891`) although two
+    shipped skills declare the role; it does not see which rows the diff
+    touches, which `owed()` already computes for the gate.
+  - **The drafter guesses at a listing.** Its whole view of the tree is a
+    flat listing truncated to 400 paths (`intake.py:1063`). T-0117: three
+    attempts, zero parseable drafts. Two of the three `unparseable: true`
+    rows on record are output-shape failures against a schema the engine has
+    as a pydantic model and never showed the agent.
+  - **`AGENTS.md` is twelve lines of Repowise.** The harness docstring relies
+    on it for "everything else the harness learns from the workspace"
+    (`harness.py:9-11`). It contains nothing about torve.
+  - **Nothing here is derivable by grep.** The one controlled study of
+    context files (ETH SRI, 2026: human-written +4 %, generated −2 %, all
+    files +20 % cost, instructions followed, overviews ignored) says the
+    content that helps is exactly the content an agent cannot infer from the
+    tree. Convictions, governing rows, covering tests and contended paths are
+    that content.
+current_state: |
+  Verified at `1bb0615`:
 
-      - **Contract.** `InheritedDecision` is `{id, grade, text, paths}`
-        (`domain/task.py:37-44`, `extra="forbid"`). `inherit_decisions`
-        (`planner.py:294-317`) copies those four from `DecisionRow`; the
-        `consequence` the parser captures is dropped there.
-      - **Gates.** `run_gates` (`gates/runner.py:161-238`) runs every manifest
-        entry, cheapest first, never short-circuits; `GateResult` carries `name,
-        outcome, state, exit_code, duration_s, sha, output, log_ref, bypass,
-        flaky_commands, quarantined_failures`. A manifest entry is
-        `{name, run, state, origin, axis, added, sabotage, input, timeout,
-        commands}` (`config/manifest.py`); the load refuses a twinless entry in a
-        manifest that names any twin (S-0036/D-3). `gates` may import `domain`,
-        `base` and `config` and may not import the RFC format (0015 S-0015/A-1).
-      - **The silence check.** `owed()` (`decisions_reported.py:323-359`) is the
-        set of inherited rows whose declared paths intersect the diff and which
-        no entry cites; `torve log owed <id> --touched …` exposes it in the
-        sandbox (`cli/log.py:206-281`) and the prompt tells the agent to run it
-        (`harness.py:136-176`).
-      - **What the executor reads.** `build_prompt` (`harness.py:71-181`): intent,
-        the rows as `id (grade): text — paths`, scope, acceptance, six working
-        rules, `prompt_extras`; `.torve/skills/<name>/` materialised per tier
-        (`skills.py:46-91`, defaults `runconfig.py:880-891`); `.torve/feedback.md`
-        on a review revision (`session.py:337-348`); the seeded log and the
-        channel handle. Nothing else.
-      - **What the reviewer reads.** `build_review_prompt` (`review.py:99-206`);
-        findings parsed by `parse_findings` (`review.py:339`) as one JSON
-        document; unlocatable evidence discarded (`gates/evidence.py:29-75`).
-      - **What the drafter reads.** `build_intake_prompt` (`intake.py:1032-1145`):
-        request, parent contract, feedback, `execution_facts` (escalations ≤ 6,
-        contended paths top 4, last 8 landings, harness populations —
-        `intake.py:974-1024`), the 400-path listing, lint refusals, the output
-        schema as prose. Drafts parsed by `parse_drafts` (`intake.py:98-141`).
-      - **Channels.** S-0017/D-4: task context travels in the workspace; S-0017/D-6
-        stdio MCP is image content, remote MCP is egress; S-0017/D-7 memory off for
-        executors, per slot, never in a shadow run. S-0007/mcp-as-the-read-surface: no read surface
-        in an execution sandbox. S-0001/D-29: agents do not communicate.
-      - **Derived state.** S-0035 warms venv and type-checker caches per slot:
-        derived from committed inputs, always safe to delete, never in an image.
-      - **Coverage of changed lines** already exists as an artefact:
-        `coverage-delta` runs `pytest --cov=src --cov-report=xml` and
-        `coverage.xml` is committed at the repository root, which is the
-        test-to-line map nothing reads back.
-      - **`why_report`** (`projections.py:1843-1895`) already answers per attempt:
-        verdict, convictions, tier, model, cost, tokens, wall, escalation. It is
-        served to the planner and never to a retry.
-      - **The parser does not see fences.** Found while drafting: a `## ` line
-        inside a fenced code block is sliced as a section heading, so the
-        rendered-section example in §5.4 shadowed this document's own Decisions
-        section until its heading was reworded. S-0053's loader owns fences
-        (its five typed kinds are fences) and must not repeat this.
-      - **`AGENTS.md`** at the root: a Repowise-managed distill block, 12 lines.
-        No nested files. Codex applies the nearest `AGENTS.md`; Claude Code loads
-        a nested `CLAUDE.md` when it opens a file in that subtree and imports
-        `@AGENTS.md` from a first line.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - **Contract.** `InheritedDecision` is `{id, grade, text, paths}`
+    (`domain/task.py:37-44`, `extra="forbid"`). `inherit_decisions`
+    (`planner.py:294-317`) copies those four from `DecisionRow`; the
+    `consequence` the parser captures is dropped there.
+  - **Gates.** `run_gates` (`gates/runner.py:161-238`) runs every manifest
+    entry, cheapest first, never short-circuits; `GateResult` carries `name,
+    outcome, state, exit_code, duration_s, sha, output, log_ref, bypass,
+    flaky_commands, quarantined_failures`. A manifest entry is
+    `{name, run, state, origin, axis, added, sabotage, input, timeout,
+    commands}` (`config/manifest.py`); the load refuses a twinless entry in a
+    manifest that names any twin (S-0036/D-3). `gates` may import `domain`,
+    `base` and `config` and may not import the RFC format (0015 S-0015/A-1).
+  - **The silence check.** `owed()` (`decisions_reported.py:323-359`) is the
+    set of inherited rows whose declared paths intersect the diff and which
+    no entry cites; `torve log owed <id> --touched …` exposes it in the
+    sandbox (`cli/log.py:206-281`) and the prompt tells the agent to run it
+    (`harness.py:136-176`).
+  - **What the executor reads.** `build_prompt` (`harness.py:71-181`): intent,
+    the rows as `id (grade): text — paths`, scope, acceptance, six working
+    rules, `prompt_extras`; `.torve/skills/<name>/` materialised per tier
+    (`skills.py:46-91`, defaults `runconfig.py:880-891`); `.torve/feedback.md`
+    on a review revision (`session.py:337-348`); the seeded log and the
+    channel handle. Nothing else.
+  - **What the reviewer reads.** `build_review_prompt` (`review.py:99-206`);
+    findings parsed by `parse_findings` (`review.py:339`) as one JSON
+    document; unlocatable evidence discarded (`gates/evidence.py:29-75`).
+  - **What the drafter reads.** `build_intake_prompt` (`intake.py:1032-1145`):
+    request, parent contract, feedback, `execution_facts` (escalations ≤ 6,
+    contended paths top 4, last 8 landings, harness populations —
+    `intake.py:974-1024`), the 400-path listing, lint refusals, the output
+    schema as prose. Drafts parsed by `parse_drafts` (`intake.py:98-141`).
+  - **Channels.** S-0017/D-4: task context travels in the workspace; S-0017/D-6
+    stdio MCP is image content, remote MCP is egress; S-0017/D-7 memory off for
+    executors, per slot, never in a shadow run. S-0007/mcp-as-the-read-surface: no read surface
+    in an execution sandbox. S-0001/D-29: agents do not communicate.
+  - **Derived state.** S-0035 warms venv and type-checker caches per slot:
+    derived from committed inputs, always safe to delete, never in an image.
+  - **Coverage of changed lines** already exists as an artefact:
+    `coverage-delta` runs `pytest --cov=src --cov-report=xml` and
+    `coverage.xml` is committed at the repository root, which is the
+    test-to-line map nothing reads back.
+  - **`why_report`** (`projections.py:1843-1895`) already answers per attempt:
+    verdict, convictions, tier, model, cost, tokens, wall, escalation. It is
+    served to the planner and never to a retry.
+  - **The parser does not see fences.** Found while drafting: a `## ` line
+    inside a fenced code block is sliced as a section heading, so the
+    rendered-section example in §5.4 shadowed this document's own Decisions
+    section until its heading was reworded. S-0053's loader owns fences
+    (its five typed kinds are fences) and must not repeat this.
+  - **`AGENTS.md`** at the root: a Repowise-managed distill block, 12 lines.
+    No nested files. Codex applies the nearest `AGENTS.md`; Claude Code loads
+    a nested `CLAUDE.md` when it opens a file in that subtree and imports
+    `@AGENTS.md` from a first line.
+goals: |
+  **Goals**
 
-      - A row that can be proven by a command is proven by a command, and the
-        log is reserved for judgement.
-      - The rules that govern a directory are readable in that directory, by any
-        harness and any person, with no engine in the loop.
-      - Every role reads the facts the corpus cannot carry, from files the engine
-        wrote, computed with no model.
-      - The next attempt knows what convicted the last one.
-      - The reviewer and the drafter emit what the engine parses, against the
-        schema the engine parses with.
-      - Every piece ships behind the config-eval harness and is kept only if the
-        number pays for it.
-
-      **Non-goals**
-
-      - **A read surface in the sandbox.** No MCP, no store, no record. Files in
-        the worktree and a verb over them (S-0007/mcp-as-the-read-surface stands).
-      - **Memory.** The pack is derived state, rebuilt per attempt, identical for
-        a shadow run (S-0017/D-7 stands).
-      - **The author's trace to the reviewer.** Engine-derived facts about a
-        diff, yes; anything the author wrote or reasoned, no (S-0005/D-3 stands).
-      - **Editing `gates.yaml` from a document.** The manifest stays the
-        operator's file in the consuming repository (S-0002/D-5); decision gates are
-        contract-borne and never written into it.
-      - **Prose in `AGENTS.md`.** Rows, invariants, checks, tests, warnings.
-        Never an overview.
+  - A row that can be proven by a command is proven by a command, and the
+    log is reserved for judgement.
+  - The rules that govern a directory are readable in that directory, by any
+    harness and any person, with no engine in the loop.
+  - Every role reads the facts the corpus cannot carry, from files the engine
+    wrote, computed with no model.
+  - The next attempt knows what convicted the last one.
+  - The reviewer and the drafter emit what the engine parses, against the
+    schema the engine parses with.
+  - Every piece ships behind the config-eval harness and is kept only if the
+    number pays for it.
+non_goals: |
+  - **A read surface in the sandbox.** No MCP, no store, no record. Files in
+    the worktree and a verb over them (S-0007/mcp-as-the-read-surface stands).
+  - **Memory.** The pack is derived state, rebuilt per attempt, identical for
+    a shadow run (S-0017/D-7 stands).
+  - **The author's trace to the reviewer.** Engine-derived facts about a
+    diff, yes; anything the author wrote or reasoned, no (S-0005/D-3 stands).
+  - **Editing `gates.yaml` from a document.** The manifest stays the
+    operator's file in the consuming repository (S-0002/D-5); decision gates are
+    contract-borne and never written into it.
+  - **Prose in `AGENTS.md`.** Rows, invariants, checks, tests, warnings.
+    Never an overview.
+design:
   - key: the-row-travels-whole
     md: |
       `InheritedDecision` gains two optional fields and the contract schema
@@ -405,76 +394,73 @@ sections:
       rendered `AGENTS.md` section is measured by the same evals as the pack
       once both exist. What must not ship without a number is anything that
       adds tokens to every attempt.
-  - key: tests
-    md: |
-      - **Contract.** `InheritedDecision` round-trips `consequence` and `check`;
-        a contract without them loads; `inherit_decisions` copies both from the
-        model; `decision.recorded` carries both; parity with today's contracts on
-        every document with phasing except the two new fields.
-      - **Decision gates.** A contract with one checkable row produces one extra
-        `GateResult` named `decision:<id>` at shadow; it never affects the pass
-        outcome at shadow; promoted, its red is a compliance conviction; a
-        blocking row without a twin is refused at mint; `torve gates check` runs
-        a decision twin and reports red when the check cannot fail.
-      - **The obligation.** `owed()` skips a row whose check ran green in the
-        same pass, skips one whose check ran red, and keeps one with no check;
-        `torve log owed` prints the three states.
-      - **Projections.** A governed directory gets a section; an ungoverned one
-        gets none; a section is rewritten in place with the operator's text
-        outside the markers byte-identical; a hand edit inside the markers fails
-        `--check` naming the file; the root index lists every directory with a
-        section; removing the last governing row removes the section and an
-        otherwise-empty file.
-      - **`torve spec`.** Each verb over a fixture corpus with an archive;
-        nothing opens the record; an archived identifier answers and says so.
-      - **The pack.** Each file's builder is a pure function of (record
-        snapshot, tree, contract) with a golden fixture; a shadow run receives a
-        byte-identical pack; no file names another task; `attempts.json` for a
-        first attempt is an empty list, not an absent file.
-      - **The red reaches the retry.** Two-attempt fixture: attempt 2's pack
-        carries attempt 1's gate report with output tail, byte-loss marker,
-        governing ids and failed test ids.
-      - **Reviewer and drafter.** Findings and drafts validated against the
-        shipped schema; a schema failure is a lint refusal naming the field, not
-        an `unparseable` row; the reviewer's pack has no model-authored entry
-        from the author.
-  - key: docs
-    md: |
-      `pages/docs/operating.md` gains the projections gate, `torve spec`, and the
-      pack directory; `pages/docs/architecture/execution.md` gains what an
-      attempt reads before it starts. The rfc-writer skill gains the
-      `decision-details` fields `check`, `check_state`, `check_twin`. No new
-      page.
-  - key: out-of-scope
-    md: |
-      - **Parsing the trace, re-executing evidence, typed motivation, causal ids
-        on events, the observation floor.** The evidence document; none of them
-        is a rendering of the model.
-      - **Removing the three hand-wired manifest gates.** Their rows must carry
-        checks and twins first; the operator deletes the entries (§5.3).
-      - **The pack for `torve review pr`** on a forge pull request with no
-        contract: degraded mode has no rows to render and no task to recall.
-      - **Rendering `CLAUDE.md`.** Repowise manages it; the `@AGENTS.md` import
-        line is the operator's.
-  - key: risks
-    md: |
-      - **A wrong check convicts good code.** At shadow it convicts nothing;
-        promotion cites a sabotage that made it fail and attempts it ran green
-        on. The same ladder every gate climbed.
-      - **The projections churn the tree.** Every regrade touches an
-        `AGENTS.md`. Accepted: that is what a lockfile does, and the diff is the
-        review surface for the rule reaching the code.
-      - **The pack costs more than it saves.** Measured per file; a file that
-        does not pay is deleted (§5.10). The prior says +20 % tokens; the
-        convictions say 185 of 237 reds are rules the pack states.
-      - **`attempts.json` teaches the retry to game the gate.** It carries what
-        convicted, not how to pass; the check and the sabotage twin are the
-        defence, and a held-out rung is the evidence document's.
-      - **A reviewer reads the pack as the author's voice.** Every file is
-        engine-written and says so in its first line; no model output but the
-        divergence entries enters, and those are withheld from the reviewer.
-      - **Two verbs in the sandbox become ten.** `torve spec` has four forms and
-        reads files; a form that needs the record is refused by design.
+tests: |
+  - **Contract.** `InheritedDecision` round-trips `consequence` and `check`;
+    a contract without them loads; `inherit_decisions` copies both from the
+    model; `decision.recorded` carries both; parity with today's contracts on
+    every document with phasing except the two new fields.
+  - **Decision gates.** A contract with one checkable row produces one extra
+    `GateResult` named `decision:<id>` at shadow; it never affects the pass
+    outcome at shadow; promoted, its red is a compliance conviction; a
+    blocking row without a twin is refused at mint; `torve gates check` runs
+    a decision twin and reports red when the check cannot fail.
+  - **The obligation.** `owed()` skips a row whose check ran green in the
+    same pass, skips one whose check ran red, and keeps one with no check;
+    `torve log owed` prints the three states.
+  - **Projections.** A governed directory gets a section; an ungoverned one
+    gets none; a section is rewritten in place with the operator's text
+    outside the markers byte-identical; a hand edit inside the markers fails
+    `--check` naming the file; the root index lists every directory with a
+    section; removing the last governing row removes the section and an
+    otherwise-empty file.
+  - **`torve spec`.** Each verb over a fixture corpus with an archive;
+    nothing opens the record; an archived identifier answers and says so.
+  - **The pack.** Each file's builder is a pure function of (record
+    snapshot, tree, contract) with a golden fixture; a shadow run receives a
+    byte-identical pack; no file names another task; `attempts.json` for a
+    first attempt is an empty list, not an absent file.
+  - **The red reaches the retry.** Two-attempt fixture: attempt 2's pack
+    carries attempt 1's gate report with output tail, byte-loss marker,
+    governing ids and failed test ids.
+  - **Reviewer and drafter.** Findings and drafts validated against the
+    shipped schema; a schema failure is a lint refusal naming the field, not
+    an `unparseable` row; the reviewer's pack has no model-authored entry
+    from the author.
+docs: |
+  `pages/docs/operating.md` gains the projections gate, `torve spec`, and the
+  pack directory; `pages/docs/architecture/execution.md` gains what an
+  attempt reads before it starts. The rfc-writer skill gains the
+  `decision-details` fields `check`, `check_state`, `check_twin`. No new
+  page.
+out_of_scope: |
+  - **Parsing the trace, re-executing evidence, typed motivation, causal ids
+    on events, the observation floor.** The evidence document; none of them
+    is a rendering of the model.
+  - **Removing the three hand-wired manifest gates.** Their rows must carry
+    checks and twins first; the operator deletes the entries (§5.3).
+  - **The pack for `torve review pr`** on a forge pull request with no
+    contract: degraded mode has no rows to render and no task to recall.
+  - **Rendering `CLAUDE.md`.** Repowise manages it; the `@AGENTS.md` import
+    line is the operator's.
+risks: |
+  - **A wrong check convicts good code.** At shadow it convicts nothing;
+    promotion cites a sabotage that made it fail and attempts it ran green
+    on. The same ladder every gate climbed.
+  - **The projections churn the tree.** Every regrade touches an
+    `AGENTS.md`. Accepted: that is what a lockfile does, and the diff is the
+    review surface for the rule reaching the code.
+  - **The pack costs more than it saves.** Measured per file; a file that
+    does not pay is deleted (§5.10). The prior says +20 % tokens; the
+    convictions say 185 of 237 reds are rules the pack states.
+  - **`attempts.json` teaches the retry to game the gate.** It carries what
+    convicted, not how to pass; the check and the sabotage twin are the
+    defence, and a held-out rung is the evidence document's.
+  - **A reviewer reads the pack as the author's voice.** Every file is
+    engine-written and says so in its first line; no model output but the
+    divergence entries enters, and those are withheld from the reviewer.
+  - **Two verbs in the sandbox become ten.** `torve spec` has four forms and
+    reads files; a form that needs the record is refused by design.
+sections:
   - key: phasing
     md: |
       Every phase waits on S-0053 phase 2 landing: the model is what these
@@ -540,176 +526,3 @@ questions:
       Whether the root AGENTS.md index is enough for Claude Code's lazy nested load,
       or whether the pack's decisions.json must duplicate the sections for the attempt's
       own scope. Settled by the first eval on the compliance-red population.
-phasing:
-  - phase: 1
-    title: the row travels whole and a check is a gate
-    intent: >-
-      `InheritedDecision` gains `consequence` and `check`; the model's `Decision`
-      and its `decision-details` entry gain `check_state` and `check_twin`; `inherit_decisions`
-      copies consequence and check from the model, `decision.recorded` carries both,
-      and `build_prompt` renders the consequence after each row. The gate runner appends
-      a `decision:<id>` gate at shadow for every checkable inherited row, under the
-      compliance axis, never touching the manifest; `owed()` skips a row whose check
-      ran in the same pass and `torve log owed` reports the three states; `torve gates
-      check` runs a row's `check_twin`, and a blocking row without one is refused
-      at mint. The three hand-wired manifest gates are left exactly as they are.
-    scope:
-      - src/torve/domain/task.py
-      - src/torve/domain/spec.py
-      - src/torve/config/spec.py
-      - src/torve/application/planner.py
-      - src/torve/application/decisions.py
-      - src/torve/domain/events.py
-      - src/torve/gates/runner.py
-      - src/torve/gates/decisions_reported.py
-      - src/torve/gates/sabotage.py
-      - src/torve/adapters/agent/harness.py
-      - src/torve/cli/log.py
-      - tests/test_domain.py
-      - tests/test_spec.py
-      - tests/test_spec_load.py
-      - tests/test_plan.py
-      - tests/test_decisions.py
-      - tests/test_events.py
-      - tests/test_intake.py
-      - tests/test_standing.py
-      - tests/test_gates.py
-      - tests/test_runner.py
-      - tests/test_sabotage.py
-      - tests/test_cli.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py
-        tests/test_plan.py tests/test_decisions.py tests/test_events.py tests/test_intake.py
-        tests/test_standing.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py
-        tests/test_cli.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-    character: structural
-  - phase: 2
-    title: >-
-      the projections beside the code and the spec verb
-    intent: >-
-      `torve spec project` renders managed sections into nested `AGENTS.md` files
-      and the root index from the model, byte-identical outside the markers, and `--check`
-      reports drift naming the file; the manifest gains the `spec-projection` shell
-      gate with its sabotage twin. `torve spec show | paths | tests | why-not` read
-      the worktree's corpus and archive and refuse anything that would need the record.
-      The working rules gain the one line naming the verb and the pack index; nothing
-      else in the prompt changes. The rendered sections for this repository land with
-      the phase.
-    scope:
-      - src/torve/application/colocation.py
-      - src/torve/cli/spec.py
-      - src/torve/cli/main.py
-      - src/torve/adapters/agent/harness.py
-      - .torve/gates.yaml
-      - '**/AGENTS.md'
-      - tests/test_colocation.py
-      - tests/test_cli_spec.py
-      - tests/test_manifest.py
-      - tests/test_tiering.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_colocation.py tests/test_cli_spec.py tests/test_manifest.py
-        tests/test_tiering.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-    depends_on:
-      - 1
-    character: structural
-  - phase: 3
-    title: the pack, and the red that reaches the retry
-    intent: >-
-      `contextpack.py` builds `.torve/context/` from the record and the tree as pure
-      functions with golden fixtures — `index.md`, `decisions.json`, `gates.json`,
-      `tests.json` from `coverage.xml`, `attempts.json`, `contended.json`, `schema/`
-      — and the session materialises it before the prompt is written, byte-identical
-      for a shadow run, gitignored. The runner's red path writes the gate report into
-      the next attempt's `attempts.json` with output tails, byte-loss markers, governing
-      decision ids and JUnit failed-test ids; `--junitxml` joins the acceptance fallback.
-      Every file lands behind its own config-eval per S-0054/D-11; this phase ships
-      the builders and the wiring, and the evals that decide which files stay are
-      the operator's runs after it.
-    scope:
-      - src/torve/application/contextpack.py
-      - src/torve/application/session.py
-      - src/torve/application/runner.py
-      - src/torve/application/projections.py
-      - src/torve/adapters/agent/harness.py
-      - .gitignore
-      - tests/test_contextpack.py
-      - tests/test_session.py
-      - tests/test_runner.py
-      - tests/test_context.py
-      - tests/test_tiering.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_contextpack.py tests/test_session.py tests/test_runner.py
-        tests/test_context.py tests/test_tiering.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-    depends_on:
-      - 1
-    character: structural
-  - phase: 4
-    title: the reviewer and the drafter
-    intent: >-
-      The reviewer reads the pack minus model-authored entries plus `touched.json`,
-      its default skill set becomes `[reading-isnt-proof, ratchet-what-you-build]`,
-      and its findings are validated against the shipped schema with a validation
-      failure refused by name rather than recorded as unparseable. The drafter's 400-path
-      listing is replaced by the pack index and `torve spec paths` over the candidate
-      scope, and drafts are validated the same way. Nothing the author wrote reaches
-      the reviewer.
-    scope:
-      - src/torve/application/review.py
-      - src/torve/application/intake.py
-      - src/torve/config/runconfig.py
-      - tests/test_review_run.py
-      - tests/test_review_role.py
-      - tests/test_intake.py
-      - tests/test_runconfig.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_review_run.py tests/test_review_role.py tests/test_intake.py
-        tests/test_runconfig.py
-      - uv run lint-imports --config pyproject.toml
-      - uv run torve rfc check
-    depends_on:
-      - 2
-      - 3
-    character: structural
-contract_example:
-  schema_version: 1
-  id: T-0300
-  rfc: rfcs/0054-decisions-as-gates-and-the-projections-beside-the-code.md
-  phase: 0
-  role: implement
-  title: ''
-  intent: >-
-    `InheritedDecision` gains `consequence` and `check`; the gate runner appends a
-    shadow `decision:<id>` gate for every checkable inherited row; `owed()` skips
-    a row whose check ran in the same pass.
-  depends_on: []
-  targets: []
-  scope:
-    allow:
-      - src/torve/domain/task.py
-      - src/torve/gates/runner.py
-      - src/torve/gates/decisions_reported.py
-      - tests/test_gates.py
-    deny: []
-  acceptance:
-    - uv run pytest tests/test_gates.py
-  decisions:
-    - id: D-3
-      grade: LOCKED
-      text: >-
-        A row whose check ran in the same pass, green or red, is not owed a divergence
-        entry; a row with no check keeps the silence check
-      paths: [src/torve/gates/decisions_reported.py]
-      consequence: ''
-      check_state: shadow
-  budget: {}
-  tier: executor

@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the artifact and the prompt
+    intent: >-
+      The attempt-state skill (S-0037/D-4, S-0037/D-5): schema document and write-ahead
+      discipline as a sibling of flag-dont-flip, materialized for the executor role.
+      The harness prompt gains the maintain-state working rule on every executor attempt
+      and the continuation branch's pointer at the inherited file with feedback.md's
+      untrusted framing (S-0037/D-7); the revision lane gets no pointer. The state
+      path joins the layout module beside the log path (S-0037/D-3). Tiering tests
+      pin the rule's presence and the continuation pointer's framing.
+    scope:
+      - skills/attempt-state/**
+      - src/torve/adapters/agent/harness.py
+      - src/torve/config/layout.py
+      - tests/test_tiering.py
+      - tests/test_layout.py
+      - tests/test_skills.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_tiering.py tests/test_layout.py tests/test_skills.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 1
+    title: the state-audit gate
+    intent: >-
+      The shape-only shadow builtin (S-0037/D-6), following decisions-reported's pattern:
+      input "state" pre-read into GateContext, registration in BUILTINS/BUILTIN_INPUTS/
+      BUILTIN_TIMEOUTS, survey seeding as shadow with structural origin, and a sabotage
+      case proving red is reachable. Red on malformed YAML, unknown top-level keys,
+      pin mismatch against the engine's base_sha, or oversize past 24000 bytes; green
+      with a note when the file is absent. Content is never judged.
+    scope:
+      - src/torve/gates/state_audit.py
+      - src/torve/gates/__init__.py
+      - src/torve/gates/context.py
+      - src/torve/gates/sabotage.py
+      - src/torve/config/manifest.py
+      - src/torve/application/survey.py
+      - tests/test_gates.py
+      - tests/test_sabotage.py
+      - tests/test_manifest.py
+      - tests/test_survey.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_gates.py tests/test_sabotage.py tests/test_manifest.py
+        tests/test_survey.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: telemetry and triage
+    intent: >-
+      Observability for the artifact both phases 1 defined: the attempt row's agent
+      block gains the state presence sub-block populated by the runner (S-0037/D-8),
+      and escalation triage — torve status and the context projection's escalation
+      bucket — displays blockers and leading next entries from an escalated run's
+      state.yaml when present, display-only under S-0037/D-1 (S-0037/D-9). Runner
+      and projection tests pin the stamp and the display, including the without-state
+      baseline staying exactly as today.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/telemetry.py
+      - src/torve/application/projections.py
+      - src/torve/cli/status.py
+      - tests/test_runner.py
+      - tests/test_context.py
+      - tests/test_tracker.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_context.py tests/test_tracker.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

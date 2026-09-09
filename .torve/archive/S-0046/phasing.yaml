@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the dispatch object
+    intent: >-
+      `RunDeps`, `run_routing` and a new typed `Dispatch` move into `src/torve/application/dispatch.py`,
+      together with `open_dispatch` — which performs the brokered-tier credential
+      refusal for the task's tier and every retry rung, the unmeasured-image check
+      with its `allow` escape hatch, the initial regime, the shape of the denormalised
+      record block, and last of all the broker open — and `close_dispatch` and `attempt_row`.
+      `runner.py` re-exports `RunDeps` and `run_routing` so no caller changes, and
+      `real_hooks` builds a `Dispatch` and reads its fields where it read closure
+      cells, with the four dictionaries gone. Behaviour is unchanged and the suite
+      is the proof.
+    scope:
+      - src/torve/application/dispatch.py
+      - src/torve/application/runner.py
+      - src/torve/application/review.py
+      - tests/test_dispatch.py
+      - tests/test_runner.py
+    acceptance:
+      - uv run pytest
+      - uv run lint-imports --config pyproject.toml
+      - uv run mypy src/torve/application
+  - phase: 2
+    title: the steps
+    intent: >-
+      Each hook body becomes a module-level function over the dispatch: the agent
+      leg, the mechanical revert leg, the halted check and conviction-routed tier
+      advancement move to `src/torve/application/session.py`; the review step moves
+      to `review.py` beside the reviewer machinery it calls; the gate pass, the landing
+      and the checkpoint stay in `runner.py` beside the loop that sequences them,
+      and the gate pass takes the dispatch instead of thirteen positional parameters.
+      `real_hooks` becomes a binder under eighty lines returning the same `AttemptHooks`
+      it returns today. Bodies move verbatim — a behaviour change found necessary
+      is a separate commit.
+    scope:
+      - src/torve/application/session.py
+      - src/torve/application/runner.py
+      - src/torve/application/review.py
+      - tests/test_runner.py
+      - tests/test_session.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src/torve/application
+    depends_on:
+      - 1

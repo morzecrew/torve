@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the lane leg and its switch
+    intent: >-
+      `promotion.auto_merge` returns with its original default of false, and `residency.once`
+      gains a `lane` leg injected the way `standing` and `relay` are — after the relay,
+      before the mint, stopped by a pause. The composition root wires it from configuration
+      to the same `process_lane` the manual verb calls, with the same CI, approvals,
+      review and quiet-window arguments, so no refusal changes. A pass with the switch
+      off behaves exactly as it does today, which is what makes this safe to land
+      before anybody turns it on.
+    scope:
+      - src/torve/application/residency.py
+      - src/torve/config/runconfig.py
+      - src/torve/cli/manager.py
+      - tests/test_residency.py
+      - pages/docs/operating.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_residency.py tests/test_lane.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+  - phase: 2
+    title: the conflict disposes of itself
+    intent: >-
+      The leg passes an `on_conflict` that captures the superseded candidate's diff
+      into the task's feedback record before the branch is replaced, so the next attempt
+      sees what it collided with, and re-queues only when the base tip has moved since
+      the last attempt. The forge-thread half is deliberately absent and stays owed
+      by S-0005. What must not change is the manual lane: `torve merge` passes no
+      disposal and escalates as it always has.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/application/feedback.py
+      - tests/test_lane.py
+      - tests/test_feedback.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_feedback.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    depends_on:
+      - 1

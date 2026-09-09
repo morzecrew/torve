@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: live conformance and transfer telemetry
+    intent: >-
+      The env-gated live-server leg (S-0041/D-3): the existing contract battery against
+      TORVE_OPENSANDBOX_TEST_DOMAIN plus the two live-only assertions — platform timeout
+      collects a sandbox, and label-scoped enumeration with destroy-by-id works across
+      connections. Seed and sync-out bytes/seconds recorded per attempt for the OpenSandbox
+      runtime, absent for Docker (S-0041/D-5). Stub corrected wherever the live leg
+      catches it lying.
+    scope:
+      - src/torve/adapters/runtime/opensandbox.py
+      - src/torve/application/telemetry.py
+      - tests/opensandbox_stub.py
+      - tests/test_sandbox_images.py
+    acceptance:
+      - uv run pytest tests/test_sandbox_images.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 1
+    title: the image push path
+    intent: >-
+      torve sandbox build --push (S-0041/D-4): build via the Docker runtime as today,
+      push to the named registry reference, print the digest-pinned reference for
+      the run config. The docs stop calling digest-only resolution a stopgap: on a
+      pull platform the pinned reference is the resolution.
+    scope: [src/torve/cli/sandbox.py, tests/test_cli.py]
+    acceptance:
+      - uv run pytest tests/test_cli.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: the reachable broker
+    intent: >-
+      Remote endpoint mode (S-0041/D-6): broker.bind and broker.advertise in configuration,
+      the runtime composing the sandbox proxy env from the advertised address instead
+      of the Docker gateway derivation, provider routes keeping the run token unchanged
+      (S-0041/D-2), and the pass-through leg refused loudly in remote endpoint mode
+      with the destination named. The deployment page documents bind/advertise and
+      the transport paragraph.
+    scope:
+      - src/torve/adapters/broker/local.py
+      - src/torve/config/runconfig.py
+      - src/torve/adapters/runtime/opensandbox.py
+      - tests/test_broker.py
+      - tests/test_broker_sealed.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_broker.py tests/test_broker_sealed.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

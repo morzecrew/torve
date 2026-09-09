@@ -66,7 +66,7 @@ def test_a_schema_version_1_document_is_refused_naming_the_conversion(tmp_path: 
 
     (problem,) = caught.value.problems
 
-    assert "converts once through S-0057 phase 1" in problem
+    assert "converts once through S-0058 phase 2" in problem
 
 
 def test_an_unknown_key_is_refused_by_list_index_and_field(tmp_path: Path) -> None:

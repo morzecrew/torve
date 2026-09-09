@@ -30,6 +30,7 @@ from torve.application.decisions import (
 from torve.config.spec import archive_dir, load_document, schema_header
 from torve.config.spec_emit import amend_row, dump_document, fix_row_text, stamp
 from torve.domain.events import EventKind
+from torve.domain.spec import PROSE_FIELDS
 
 # ----------------------- #
 
@@ -82,6 +83,8 @@ def document(
     retired: list[str] | None = None,
     details: dict[str, dict[str, Any]] | None = None,
     sections: list[dict[str, Any]] | None = None,
+    design: list[dict[str, Any]] | None = None,
+    prose: dict[str, str] | None = None,
     invariants: list[dict[str, Any]] | None = None,
     alternatives: list[dict[str, Any]] | None = None,
     questions: list[dict[str, Any]] | None = None,
@@ -89,14 +92,19 @@ def document(
     editorial: list[dict[str, Any]] | None = None,
     landings: list[dict[str, Any]] | None = None,
     contract_example: dict[str, Any] | None = None,
-    schema_version: int = 3,
+    schema_version: int = 4,
     extra: dict[str, Any] | None = None,
 ) -> Doc:
     """One document as its files: `rows` as (id, grade, text, paths[,
     consequence]), `details` merged onto the row by id, `extra` merged
-    into `document.yaml`. The rows go to `decisions.yaml`, the amendments
-    and editorial to `amendments.yaml`; a file with nothing to say is not
-    written."""
+    into `document.yaml`. The rows go to `decisions.yaml`, the phasing and
+    the contract example to `phasing.yaml`, the amendments and editorial
+    to `amendments.yaml`; a file with nothing to say is not written.
+
+    The anatomy (S-0058/D-4) is filled with placeholders so an accepted
+    fixture checks; `prose` overrides a typed key (`{"summary": …}`),
+    `design` is the design list, and a `sections` entry keyed like a typed
+    field lands in that field — the rest are extras."""
 
     decisions: list[dict[str, Any]] = []
 
@@ -125,23 +133,44 @@ def document(
         "supersedes": [],
         "superseded_by": sid(superseded_by) if superseded_by else None,
         "owner": owner,
-        "description": "A document.",
         "schema_version": schema_version,
     }
+    typed: dict[str, str] = {
+        "summary": "A document.\n",
+        "motivation": "Because.\n",
+        "current_state": "As it is.\n",
+        "goals": "Goals.\n",
+        "non_goals": "None.\n",
+        "tests": "Tested.\n",
+        "risks": "None.\n",
+    }
+    extras: list[dict[str, Any]] = []
 
-    if sections:
-        head["sections"] = sections
+    for one in sections or []:
+        field_name = str(one["key"]).replace("-", "_")
 
-    for name, value in (
-        ("alternatives", alternatives),
-        ("questions", questions),
-        ("phasing", phasing),
-        ("contract_example", contract_example),
-    ):
+        if field_name in PROSE_FIELDS:
+            typed[field_name] = str(one.get("md", ""))
+        else:
+            extras.append(one)
+
+    typed.update(prose or {})
+    head.update({k: v for k, v in typed.items() if v})
+    head["design"] = design or [{"key": "the-design", "md": "Built so.\n"}]
+
+    if extras:
+        head["sections"] = extras
+
+    for name, value in (("alternatives", alternatives), ("questions", questions)):
         if value:
             head[name] = value
 
     head.update(extra or {})
+    plan: dict[str, Any] = {}
+
+    for name, value in (("phasing", phasing), ("contract_example", contract_example)):
+        if value:
+            plan[name] = value
 
     rows_file: dict[str, Any] = {"decisions": decisions}
 
@@ -151,6 +180,9 @@ def document(
 
     files: Doc = {"document.yaml": as_text("document.yaml", head)}
     files["decisions.yaml"] = as_text("decisions.yaml", rows_file)
+
+    if plan:
+        files["phasing.yaml"] = as_text("phasing.yaml", plan)
 
     tool_file: dict[str, Any] = {}
 

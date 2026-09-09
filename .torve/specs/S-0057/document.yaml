@@ -9,138 +9,130 @@ informed_by: [S-0053, S-0054, S-0055]
 supersedes: []
 superseded_by: null
 owner: misery7100
-description: >-
-  A specification is a directory of four YAML files split by who writes them, under
-  `.torve/specs/`, with a schema for every YAML torve reads, execution results kept
-  beside the rows they cite, and citations from code checked both ways.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      A specification is a directory, `.torve/specs/S-NNNN/`, holding four
-      YAML files split by who writes them: `document.yaml` (the author: the
-      header, the prose, alternatives, questions, phasing, the contract
-      example), `decisions.yaml` (the author, stamped by the tool: the rows,
-      the invariants, the retired identifiers), `amendments.yaml` (written by
-      `spec amend` and `spec fix`, never by hand) and `execution.yaml` (written
-      at landing: what each task found, entry by entry, cited by row). A prose
-      section is `key` and `md`; its heading is its key. The archive is
-      `.torve/archive/S-NNNN/`, the same shape. `.torve/schemas/` holds the
-      JSON Schema of every model torve reads from YAML — the four files, the
-      task contract, the task log, the run configuration, the gate manifest —
-      written by `torve init` and named by the first line of every such file; `torve init` also writes `.torve/.gitignore`, so what torve alone writes is ignored by default and the root ignore file carries no torve block.
-      The corpus is called what the code already calls it: `torve spec`
-      absorbs `torve rfc`, the gate is `spec-valid`, the configuration key is
-      `specs.path`, the skill is `spec-writer`. The links close both ways:
-      every row, invariant, question or amendment identifier a source or docs
-      file mentions must resolve over the corpus and the archive, and `torve
-      spec cites D-x.y` answers who cites a row — code lines, landings,
-      amendments, documents. The conversion is one-shot: duplicated sections
-      dropped, headings dropped, the file split and moved, parity over every
-      item that survives; the sixteen surviving task logs fold into their
-      documents' execution files when the model exists.
-  - key: motivation
-    md: |
-      S-0056 made the document YAML and kept parity with the markdown it
-      replaced. Parity is why the corpus reads raw: every typed list the
-      conversion lifted is still there as the fence or table it was lifted
-      from. Of the 86 sections in the four live documents, 23 are a typed list
-      restated — the decisions table, an `alternatives` or `questions` fence,
-      the phasing fence, the contract example, an amendment's heading (0053:
-      6, 0054: 11, 0055: 2, 0056: 4) — and all 52 archived documents carry the
-      same. A reader sees YAML inside markdown inside YAML, twice.
+schema_version: 4
+summary: |
+  A specification is a directory, `.torve/specs/S-NNNN/`, holding four
+  YAML files split by who writes them: `document.yaml` (the author: the
+  header, the prose, alternatives, questions, phasing, the contract
+  example), `decisions.yaml` (the author, stamped by the tool: the rows,
+  the invariants, the retired identifiers), `amendments.yaml` (written by
+  `spec amend` and `spec fix`, never by hand) and `execution.yaml` (written
+  at landing: what each task found, entry by entry, cited by row). A prose
+  section is `key` and `md`; its heading is its key. The archive is
+  `.torve/archive/S-NNNN/`, the same shape. `.torve/schemas/` holds the
+  JSON Schema of every model torve reads from YAML — the four files, the
+  task contract, the task log, the run configuration, the gate manifest —
+  written by `torve init` and named by the first line of every such file; `torve init` also writes `.torve/.gitignore`, so what torve alone writes is ignored by default and the root ignore file carries no torve block.
+  The corpus is called what the code already calls it: `torve spec`
+  absorbs `torve rfc`, the gate is `spec-valid`, the configuration key is
+  `specs.path`, the skill is `spec-writer`. The links close both ways:
+  every row, invariant, question or amendment identifier a source or docs
+  file mentions must resolve over the corpus and the archive, and `torve
+  spec cites D-x.y` answers who cites a row — code lines, landings,
+  amendments, documents. The conversion is one-shot: duplicated sections
+  dropped, headings dropped, the file split and moved, parity over every
+  item that survives; the sixteen surviving task logs fold into their
+  documents' execution files when the model exists.
+motivation: |
+  S-0056 made the document YAML and kept parity with the markdown it
+  replaced. Parity is why the corpus reads raw: every typed list the
+  conversion lifted is still there as the fence or table it was lifted
+  from. Of the 86 sections in the four live documents, 23 are a typed list
+  restated — the decisions table, an `alternatives` or `questions` fence,
+  the phasing fence, the contract example, an amendment's heading (0053:
+  6, 0054: 11, 0055: 2, 0056: 4) — and all 52 archived documents carry the
+  same. A reader sees YAML inside markdown inside YAML, twice.
 
-      Every one of the 86 sections carries a `heading` that restates its
-      `key` (`the-document-is-the-model` under `5.1 The document is the
-      model`); the number is the position. The field is a second spelling of
-      a fact the list already holds.
+  Every one of the 86 sections carries a `heading` that restates its
+  `key` (`the-document-is-the-model` under `5.1 The document is the
+  model`); the number is the position. The field is a second spelling of
+  a fact the list already holds.
 
-      A document grows in two places nobody authors. Amendments: 0053 to 0056
-      took S-0053/A-1 to S-0056/A-4 in one day, every one appended to the author's file.
-      What execution found has no home at all: `0b46b82` deleted 296 task
-      directories (S-0056/D-10) and the sixteen that remain, T-0288 to T-0303,
-      sit untracked on one machine. Their log entries — a claim, evidence,
-      an action and notes per row, and the `proposal` an executor makes — are
-      the only output of an attempt that cannot be derived from the document
-      and the tree: 612 KB of log beside 680 KB of contract that `plan`
-      regenerates. The record holds them for the one machine with a store.
+  A document grows in two places nobody authors. Amendments: 0053 to 0056
+  took S-0053/A-1 to S-0056/A-4 in one day, every one appended to the author's file.
+  What execution found has no home at all: `0b46b82` deleted 296 task
+  directories (S-0056/D-10) and the sixteen that remain, T-0288 to T-0303,
+  sit untracked on one machine. Their log entries — a claim, evidence,
+  an action and notes per row, and the `proposal` an executor makes — are
+  the only output of an attempt that cannot be derived from the document
+  and the tree: 612 KB of log beside 680 KB of contract that `plan`
+  regenerates. The record holds them for the one machine with a store.
 
-      A row's identifier is permanent so that logs can cite it forever. Code
-      cites it too: 1,620 mentions of a `D-`, `I-`, `Q-` or `A-` identifier
-      across 135 source and docs files, in comments, docstrings and pages.
-      Nothing resolves them — `check_cites` reads the `cites` lists of rows
-      and alternatives and nothing else. A link that is checked in one
-      direction is a link in one direction.
+  A row's identifier is permanent so that logs can cite it forever. Code
+  cites it too: 1,620 mentions of a `D-`, `I-`, `Q-` or `A-` identifier
+  across 135 source and docs files, in comments, docstrings and pages.
+  Nothing resolves them — `check_cites` reads the `cites` lists of rows
+  and alternatives and nothing else. A link that is checked in one
+  direction is a link in one direction.
 
-      `rfcs/` is the last input torve reads from outside `.torve/`;
-      `rfcs/schema/document.json` is the only schema, for one of the five YAML
-      shapes torve reads (configuration, gate manifest, contract, log,
-      document). And the name is wrong: there is no request and no comment
-      period; the documents are specifications a planner mints from, and the
-      code has said so since S-0053 — `config/spec.py`, `domain/spec.py`,
-      `SpecError`, `torve spec` — while the verbs that write them sit under
-      `torve rfc`.
-  - key: current-state
-    md: |
-      Verified against the tree at `0b46b82`.
+  `rfcs/` is the last input torve reads from outside `.torve/`;
+  `rfcs/schema/document.json` is the only schema, for one of the five YAML
+  shapes torve reads (configuration, gate manifest, contract, log,
+  document). And the name is wrong: there is no request and no comment
+  period; the documents are specifications a planner mints from, and the
+  code has said so since S-0053 — `config/spec.py`, `domain/spec.py`,
+  `SpecError`, `torve spec` — while the verbs that write them sit under
+  `torve rfc`.
+current_state: |
+  Verified against the tree at `0b46b82`.
 
-      - **One model, one file.** `Document` (`src/torve/domain/spec.py`) is
-        the shape of `rfcs/NNNN-slug.yaml`; `load_document(path)` reads one
-        file, `dump_document(doc)` returns one text. `DesignSection` is `key`,
-        `heading`, `md`. `Document.path` is a file; `archived` marks a load
-        from `archive/rfcs/` (`ARCHIVE_RELATIVE`). The header line is relative
-        to the file: `schema/document.json` live, `../../rfcs/schema/document.json`
-        archived. `rfc_files` matches `^\d{4}-[a-z0-9-]+\.yaml$` and
-        `check_directory` refuses anything else but `schema/`.
-      - **Citations.** `check_cites` resolves `cites` lists over
-        `Corpus.defined_identifiers()` (documents, rows, invariants,
-        questions, amendments, retired ids). `DECISION_CITE` serves the line
-        cites in prose; `_prose` strips fences before the link, line-cite and
-        citation checks; `lookup_in` finds where an identifier is cited
-        inside the corpus (`_cites`). Nothing reads the tree.
-      - **The log.** A task log is a dict document `{schema_version, task,
-        repo, base_sha, drift_count, entries}` (`divergence.open_log`);
-        `append` adds an entry, `ingest` records it as `divergence.recorded`,
-        `project` rewrites the file from the record and `journal_sync` runs
-        both between an attempt and its gates. `runner.land` writes the
-        `Torve-Decisions` trailer. There is no model for the log and no
-        schema; `LandingRecorded` exists as an event.
-      - **The importer.** `decisions.import_corpus` records rows and sources;
-        it reads no log. `torve decisions import P` is how a corpus reaches a
-        record.
-      - **The directory.** `.torve/` holds `config.yaml` (`RunnerConfig`,
-        with `rfcs: RfcsConfig(path)`), `gates.yaml` (`Manifest`),
-        `standing/`, `skills-vendor/`, `telemetry.jsonl`, `review-corpus/`,
-        `traces/`, `regimes/`, and the ignored `tasks/` and `context/`. There
-        is no `init` verb; `torve doctor` checks a configured repository. The
-        root `.gitignore` carries a torve block of nine patterns (`tasks/`,
-        `context/`, `telemetry.jsonl`, `feedback.jsonl`, `regimes/`, `skills/`,
-        `tmp/`, a trace-log glob) that every adopting repository copies by hand.
-      - **The verbs.** `torve rfc` carries fifteen verbs in `src/torve/cli/rfc.py`
-        (the index's worst-health file, untested hotspot); `torve spec`
-        carries five (`project`, `show`, `paths`, `tests`, `why-not`). The
-        gate `rfc-valid` is a manifest entry in `.torve/gates.yaml` and a name
-        the pack knows; `rfc-writer` is the authoring skill, symlinked from
-        `.claude/skills/`.
-      - **Task contracts.** A contract's `rfc` field names the document by
-        path (`Task.rfc`); the three document-less fixes of 0053's own
-        machinery (T-0293 to T-0295) carry `rfc: null`.
-  - key: goals-non-goals
-    md: |
-      Goals: a corpus a person reads without meeting the same list twice; the
-      author's file changed by the author only; execution results kept with
-      the rows they inform, in git, on every clone; a schema for every YAML
-      torve reads, named from its first line; the identifier link checked
-      from the code side and answerable from the row side; one name and one
-      namespace for the corpus; every torve input under `.torve/`.
-
-      Non-goals: changing what a row means (grade semantics, paths-as-scope,
-      check-as-gate, the fingerprint rule, the silence check: S-0053 and
-      0054, untouched); changing the in-memory `Document` a planner, the
-      colocation, the pack or the importer read (it loses `heading` and
-      `amended_by`, nothing else); changing the contract's shape or its `rfc`
-      key; the record's event vocabulary; `torve init` writing a configuration or a manifest (§8); the
-      library extraction (S-0056/out-of-scope); renaming test files.
+  - **One model, one file.** `Document` (`src/torve/domain/spec.py`) is
+    the shape of `rfcs/NNNN-slug.yaml`; `load_document(path)` reads one
+    file, `dump_document(doc)` returns one text. `DesignSection` is `key`,
+    `heading`, `md`. `Document.path` is a file; `archived` marks a load
+    from `archive/rfcs/` (`ARCHIVE_RELATIVE`). The header line is relative
+    to the file: `schema/document.json` live, `../../rfcs/schema/document.json`
+    archived. `rfc_files` matches `^\d{4}-[a-z0-9-]+\.yaml$` and
+    `check_directory` refuses anything else but `schema/`.
+  - **Citations.** `check_cites` resolves `cites` lists over
+    `Corpus.defined_identifiers()` (documents, rows, invariants,
+    questions, amendments, retired ids). `DECISION_CITE` serves the line
+    cites in prose; `_prose` strips fences before the link, line-cite and
+    citation checks; `lookup_in` finds where an identifier is cited
+    inside the corpus (`_cites`). Nothing reads the tree.
+  - **The log.** A task log is a dict document `{schema_version, task,
+    repo, base_sha, drift_count, entries}` (`divergence.open_log`);
+    `append` adds an entry, `ingest` records it as `divergence.recorded`,
+    `project` rewrites the file from the record and `journal_sync` runs
+    both between an attempt and its gates. `runner.land` writes the
+    `Torve-Decisions` trailer. There is no model for the log and no
+    schema; `LandingRecorded` exists as an event.
+  - **The importer.** `decisions.import_corpus` records rows and sources;
+    it reads no log. `torve decisions import P` is how a corpus reaches a
+    record.
+  - **The directory.** `.torve/` holds `config.yaml` (`RunnerConfig`,
+    with `rfcs: RfcsConfig(path)`), `gates.yaml` (`Manifest`),
+    `standing/`, `skills-vendor/`, `telemetry.jsonl`, `review-corpus/`,
+    `traces/`, `regimes/`, and the ignored `tasks/` and `context/`. There
+    is no `init` verb; `torve doctor` checks a configured repository. The
+    root `.gitignore` carries a torve block of nine patterns (`tasks/`,
+    `context/`, `telemetry.jsonl`, `feedback.jsonl`, `regimes/`, `skills/`,
+    `tmp/`, a trace-log glob) that every adopting repository copies by hand.
+  - **The verbs.** `torve rfc` carries fifteen verbs in `src/torve/cli/rfc.py`
+    (the index's worst-health file, untested hotspot); `torve spec`
+    carries five (`project`, `show`, `paths`, `tests`, `why-not`). The
+    gate `rfc-valid` is a manifest entry in `.torve/gates.yaml` and a name
+    the pack knows; `rfc-writer` is the authoring skill, symlinked from
+    `.claude/skills/`.
+  - **Task contracts.** A contract's `rfc` field names the document by
+    path (`Task.rfc`); the three document-less fixes of 0053's own
+    machinery (T-0293 to T-0295) carry `rfc: null`.
+goals: |
+  Goals: a corpus a person reads without meeting the same list twice; the
+  author's file changed by the author only; execution results kept with
+  the rows they inform, in git, on every clone; a schema for every YAML
+  torve reads, named from its first line; the identifier link checked
+  from the code side and answerable from the row side; one name and one
+  namespace for the corpus; every torve input under `.torve/`.
+non_goals: |
+  changing what a row means (grade semantics, paths-as-scope,
+  check-as-gate, the fingerprint rule, the silence check: S-0053 and
+  0054, untouched); changing the in-memory `Document` a planner, the
+  colocation, the pack or the importer read (it loses `heading` and
+  `amended_by`, nothing else); changing the contract's shape or its `rfc`
+  key; the record's event vocabulary; `torve init` writing a configuration or a manifest (§8); the
+  library extraction (S-0056/out-of-scope); renaming test files.
+design:
   - key: the-specification-is-a-directory
     md: |
       One directory per document, `.torve/specs/S-NNNN/` — the identifier and
@@ -303,58 +295,55 @@ sections:
       `Landing` exists: each by the document its contract names (T-0288 to
       T-0292 and T-0296 to T-0303 name 0053, 0054 and 0056); the three with
       `rfc: null` stay in git history and nowhere else.
-  - key: tests
-    md: |
-      - **Load and dump.** Four files join into one model and dump to the same
-        four texts; an absent file is an empty list; a file with nothing is
-        not written; `schema_version: 2` is refused naming 0057; a section
-        with an empty body, a typed fence or the table header is refused with
-        its key; a directory with a fifth name is refused.
-      - **Conversion parity.** Every live and archived document converts with
-        every surviving item identical; deleted with the converter.
-      - **Verbs.** Every former `rfc` verb answers under `spec` and the `rfc`
-        namespace is gone; `specs.path` is read and `rfcs.path` refused
-        naming it; `spec-valid` runs where `rfc-valid` ran.
-      - **Initialisation.** `torve init` writes eight schemas and the ignore
-        file, twice without a diff; a removed pattern comes back below the
-        operator's lines; `doctor` and `spec check` redden on lag; a projected contract, a seeded log and a new
-        document carry the header line; the line is added once to the
-        configuration and manifest.
-      - **Execution.** `log land` appends a landing from the worktree log and
-        from the record; the runner's landing commit carries it; a contract
-        with no document is refused with the reason; `decisions import`
-        records the events an execution file holds once; the two
-        `implementation` warnings fire.
-      - **Links.** An unknown identifier in `src/` reddens `spec check` with
-        `file:line`; one in `tests/` does not; a retired one warns; `spec
-        cites` lists code, landings, amendments and documents for a row.
-  - key: docs
-    md: |
-      `pages/docs/operating.md` describes the directory, the four files, the
-      schemas directory, `torve spec` and `torve init`. The `spec-writer`
-      skill and its template are rewritten for the four files. `CHANGELOG.md`
-      carries the breaking entries: the namespace, the gate, the key, the
-      place.
-  - key: out-of-scope
-    md: |
-      `torve init` writing a configuration or a manifest: both are authored,
-      and what it writes is only what the code derives.
-      A section tree. Renaming test files. The MCP `show` tool answering
-      `cited_by` (it can, after `spec cites` exists). The library extraction.
-  - key: risks
-    md: |
-      - **A dot directory hides the corpus** from a browser and a newcomer.
-        Mitigation: `spec render` and `spec list` are the human surface; a
-        README line names the place.
-      - **Four files invite editing the wrong one.** Mitigation: the schema
-        line per file, and `check` reading a hand-changed row against its
-        stamp as it does.
-      - **The tree scan reddens on a stray token.** Mitigation: the shapes
-        are the citation shapes and the scan starts green; a false match is a
-        problem naming its line, fixed by wording.
-      - **Folding the sixteen logs by hand misattributes one.** Mitigation:
-        the contract's `rfc` field decides, and the fold is a verb with a
-        test, not a script.
+tests: |
+  - **Load and dump.** Four files join into one model and dump to the same
+    four texts; an absent file is an empty list; a file with nothing is
+    not written; `schema_version: 2` is refused naming 0057; a section
+    with an empty body, a typed fence or the table header is refused with
+    its key; a directory with a fifth name is refused.
+  - **Conversion parity.** Every live and archived document converts with
+    every surviving item identical; deleted with the converter.
+  - **Verbs.** Every former `rfc` verb answers under `spec` and the `rfc`
+    namespace is gone; `specs.path` is read and `rfcs.path` refused
+    naming it; `spec-valid` runs where `rfc-valid` ran.
+  - **Initialisation.** `torve init` writes eight schemas and the ignore
+    file, twice without a diff; a removed pattern comes back below the
+    operator's lines; `doctor` and `spec check` redden on lag; a projected contract, a seeded log and a new
+    document carry the header line; the line is added once to the
+    configuration and manifest.
+  - **Execution.** `log land` appends a landing from the worktree log and
+    from the record; the runner's landing commit carries it; a contract
+    with no document is refused with the reason; `decisions import`
+    records the events an execution file holds once; the two
+    `implementation` warnings fire.
+  - **Links.** An unknown identifier in `src/` reddens `spec check` with
+    `file:line`; one in `tests/` does not; a retired one warns; `spec
+    cites` lists code, landings, amendments and documents for a row.
+docs: |
+  `pages/docs/operating.md` describes the directory, the four files, the
+  schemas directory, `torve spec` and `torve init`. The `spec-writer`
+  skill and its template are rewritten for the four files. `CHANGELOG.md`
+  carries the breaking entries: the namespace, the gate, the key, the
+  place.
+out_of_scope: |
+  `torve init` writing a configuration or a manifest: both are authored,
+  and what it writes is only what the code derives.
+  A section tree. Renaming test files. The MCP `show` tool answering
+  `cited_by` (it can, after `spec cites` exists). The library extraction.
+risks: |
+  - **A dot directory hides the corpus** from a browser and a newcomer.
+    Mitigation: `spec render` and `spec list` are the human surface; a
+    README line names the place.
+  - **Four files invite editing the wrong one.** Mitigation: the schema
+    line per file, and `check` reading a hand-changed row against its
+    stamp as it does.
+  - **The tree scan reddens on a stray token.** Mitigation: the shapes
+    are the citation shapes and the scan starts green; a false match is a
+    problem naming its line, fixed by wording.
+  - **Folding the sixteen logs by hand misattributes one.** Mitigation:
+    the contract's `rfc` field decides, and the fold is a verb with a
+    test, not a script.
+sections:
   - key: unresolved-questions
     md: |
       Whether `spec cites` reads commit trailers is the phase's (S-0057/Q-1,
@@ -411,234 +400,3 @@ questions:
   - id: Q-2
     text: >-
       Whether the MCP `show` tool answers `cited_by` once `spec cites` exists
-phasing:
-  - phase: 1
-    title: the specification is a directory
-    intent: >-
-      `DesignSection` loses `heading`, `Document` loses `amended_by`, `schema_version`
-      becomes 3 and 2 is refused. The loader joins `document.yaml`, `decisions.yaml`,
-      `amendments.yaml` and `execution.yaml` (the last read as opaque until phase
-      3) into the one model and the serializer dumps the four; `check` refuses a section
-      with an empty body, a typed-kind fence, the table header or an amendment key,
-      and a directory with any other name. The corpus moves to `.torve/specs/` and
-      the archive to `.torve/archive/` under `specs.path`; `torve init` writes the
-      four document schemas into `.torve/schemas/` and each file's first line names
-      its own. `torve spec` absorbs every `torve rfc` verb, `cli/rfc.py` is deleted,
-      `rfc_emit` becomes `spec_emit`, the gate is `spec-valid`, the skill `spec-writer`;
-      every reader that opened `config.rfcs.path` opens `config.specs.path`. Every
-      live and archived document converts in the commit that deletes `rfcs/` and `archive/rfcs/`;
-      a parity test over every surviving item gates it and is deleted with the converter.
-      The colocated sections are re-projected; the operating page, the skill and the
-      changelog say the new names.
-    scope:
-      - src/torve/domain/spec.py
-      - src/torve/config/spec.py
-      - src/torve/config/rfc_emit.py
-      - src/torve/config/spec_emit.py
-      - src/torve/config/runconfig.py
-      - src/torve/config/layout.py
-      - src/torve/cli/rfc.py
-      - src/torve/cli/spec.py
-      - src/torve/cli/init.py
-      - src/torve/cli/main.py
-      - src/torve/cli/mcp.py
-      - src/torve/application/planner.py
-      - src/torve/application/standing.py
-      - src/torve/application/intake.py
-      - src/torve/application/projections.py
-      - src/torve/application/decisions.py
-      - src/torve/application/session.py
-      - src/torve/application/review.py
-      - src/torve/application/contextpack.py
-      - src/torve/application/colocation.py
-      - src/torve/application/specquality.py
-      - rfcs/**
-      - archive/**
-      - .torve/specs/**
-      - .torve/archive/**
-      - .torve/schemas/**
-      - .torve/config.yaml
-      - .torve/gates.yaml
-      - skills/**
-      - .claude/skills/**
-      - pages/docs/**
-      - '**/AGENTS.md'
-      - CHANGELOG.md
-      - pyproject.toml
-      - tests/test_spec.py
-      - tests/test_spec_load.py
-      - tests/test_rfc_emit.py
-      - tests/test_rfc_check.py
-      - tests/test_rfc_fmt.py
-      - tests/test_rfc_verbs.py
-      - tests/test_rfc_show.py
-      - tests/test_rfc_archive.py
-      - tests/test_decisions.py
-      - tests/test_cli_decisions.py
-      - tests/test_cli_spec.py
-      - tests/test_specquality.py
-      - tests/test_plan.py
-      - tests/test_colocation.py
-      - tests/test_contextpack.py
-      - tests/test_context.py
-      - tests/test_intake.py
-      - tests/test_standing.py
-      - tests/test_decisions_record.py
-      - tests/test_skills.py
-      - tests/test_mcp.py
-      - tests/test_layout.py
-      - tests/test_runconfig.py
-      - tests/test_cli.py
-      - tests/test_session.py
-      - tests/test_review_run.py
-      - tests/test_gates.py
-      - src/torve/cli/context.py
-      - src/torve/cli/decisions.py
-      - src/torve/cli/intake.py
-      - src/torve/cli/plan.py
-      - src/torve/cli/serve.py
-      - src/torve/gates/runner.py
-      - README.md
-    acceptance:
-      - >-
-        uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py
-        tests/test_rfc_check.py tests/test_rfc_fmt.py tests/test_rfc_verbs.py tests/test_rfc_show.py
-        tests/test_rfc_archive.py tests/test_decisions.py tests/test_cli_decisions.py
-        tests/test_cli_spec.py tests/test_specquality.py tests/test_plan.py tests/test_colocation.py
-        tests/test_contextpack.py tests/test_context.py tests/test_intake.py tests/test_standing.py
-        tests/test_decisions_record.py tests/test_skills.py tests/test_mcp.py tests/test_layout.py
-        tests/test_runconfig.py tests/test_cli.py tests/test_session.py tests/test_review_run.py
-        tests/test_gates.py
-      - uv run torve spec check
-      - uv run torve spec project --check
-      - uv run lint-imports --config pyproject.toml
-    character: structural
-  - phase: 2
-    title: torve init writes what the code derives
-    intent: >-
-      `torve init` grows from the four document schemas to every model torve reads
-      from YAML: the contract (`Task`), the log (the entry as `payload_of` shapes
-      it until phase 3 types it), the run configuration (`RunnerConfig`) and the gate
-      manifest (`Manifest`); and it writes `.torve/.gitignore` with the patterns for
-      what torve alone writes, appending a missing one below the operator's lines,
-      while the root `.gitignore` loses its torve block. `torve doctor` reddens when
-      a schema lags its model or the ignore file lacks a minted pattern. A projected
-      contract carries the header line; `init` adds the line once to `config.yaml`
-      and `gates.yaml`, where other comments stay legal. The operating page names
-      the verb.
-    scope:
-      - src/torve/cli/init.py
-      - src/torve/cli/doctor.py
-      - src/torve/application/planner.py
-      - .torve/schemas/**
-      - .torve/config.yaml
-      - .torve/gates.yaml
-      - pages/docs/operating.md
-      - tests/test_doctor.py
-      - tests/test_cli.py
-      - tests/test_plan.py
-      - .gitignore
-      - .torve/.gitignore
-      - tests/test_rfc_check.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_doctor.py tests/test_cli.py tests/test_plan.py
-      - uv run torve doctor
-      - uv run torve spec check
-    depends_on:
-      - 1
-  - phase: 3
-    title: execution is the document's
-    intent: >-
-      `Landing` and `LogEntry` join the model and `execution.yaml` is read as typed;
-      a seeded log carries the header line naming `schemas/log.json`. One function
-      in `divergence` appends a landing — from the worktree log, or from the record
-      when a partition is given — to the execution file of the document the contract
-      names, refusing a contract that names none; `runner.land` calls it before the
-      merge commit and `torve log land T-NNNN --commit SHA [--partition P]` exposes
-      it. `torve decisions import` records the divergence and landing events every
-      execution file holds and the record lacks, idempotent. The sixteen surviving
-      logs fold into 0053, 0054 and 0056 through the verb; the three with no document
-      are left to git history.
-    scope:
-      - src/torve/domain/spec.py
-      - src/torve/application/divergence.py
-      - src/torve/application/runner.py
-      - src/torve/application/decisions.py
-      - src/torve/cli/log.py
-      - src/torve/cli/decisions.py
-      - .torve/specs/**
-      - .torve/schemas/**
-      - tests/test_divergence.py
-      - tests/test_runner.py
-      - tests/test_decisions_record.py
-      - tests/test_cli_decisions.py
-      - tests/test_spec_load.py
-      - tests/test_decisions.py
-      - tests/test_spec.py
-      - src/torve/cli/init.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_divergence.py tests/test_runner.py tests/test_decisions_record.py
-        tests/test_cli_decisions.py tests/test_spec_load.py
-      - uv run torve spec check
-    depends_on:
-      - 1
-  - phase: 4
-    title: the links close
-    intent: >-
-      `spec check` scans the tracked files under `src/**`, `pages/**` and every `AGENTS.md`,
-      `CLAUDE.md` and `README.md` for citation-shaped identifiers and resolves each
-      over the corpus and the archive: unknown is a problem naming `file:line`, retired
-      a warning, archived clean. `torve spec cites IDENT` lists the code lines, landings,
-      amendments and documents that cite an identifier, and S-0057/D-13 is decided
-      and logged. `spec check` warns when `implementation` and the landings disagree.
-    scope:
-      - src/torve/config/spec.py
-      - src/torve/cli/spec.py
-      - tests/test_rfc_check.py
-      - tests/test_cli_spec.py
-      - tests/test_spec.py
-      - src/torve/gates/scope.py
-      - tests/test_gates.py
-      - .torve/specs/**
-    acceptance:
-      - >-
-        uv run pytest tests/test_rfc_check.py tests/test_cli_spec.py
-      - uv run torve spec check
-    depends_on:
-      - 3
-contract_example:
-  schema_version: 1
-  id: T-0307
-  rfc: .torve/specs/0057-the-specification-is-a-directory
-  phase: 4
-  role: implement
-  title: the links close
-  intent: >-
-    Every citation-shaped identifier in source and docs resolves over the corpus and
-    the archive; `spec cites` answers the row's side.
-  depends_on: [T-0306]
-  targets: []
-  scope:
-    allow:
-      - src/torve/config/spec.py
-      - src/torve/cli/spec.py
-      - tests/test_rfc_check.py
-      - tests/test_cli_spec.py
-    deny: []
-  acceptance:
-    - >-
-      uv run pytest tests/test_rfc_check.py tests/test_cli_spec.py
-    - uv run torve spec check
-  decisions:
-    - id: D-9
-      grade: LOCKED
-      text: >-
-        `spec check` resolves every citation-shaped identifier in tracked source and
-        docs files over the corpus and the archive
-      paths: [src/torve/config/spec.py]
-      consequence: An identifier can never be invented in the code
-      check_state: shadow
-  budget: {}
-  tier: executor

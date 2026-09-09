@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the durable store
+    intent: >-
+      Traces move home to .torve/traces/ with a root-relative trace_ref (S-0039/D-1):
+      naming.trace_file returns the new path, the harness adapter records the relative
+      reference, the reaper's terminal sweep stops unlinking traces, and the retention
+      pass enforces traces.keep_days / traces.max_mb oldest-first (S-0039/D-3) from
+      the new configuration block. Tests pin the path, the relative ref, the sweep's
+      new restraint, and both retention bounds.
+    scope:
+      - src/torve/base/naming.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/reaper.py
+      - src/torve/config/runconfig.py
+      - tests/test_reaper.py
+      - tests/test_tiering.py
+      - tests/test_layout.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reaper.py tests/test_tiering.py tests/test_layout.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: the burn profile
+    intent: >-
+      A sibling of parse_metadata scans every JSON line of the harness output and
+      derives the burn block — turns, tool calls, top turns by output tokens — when
+      per-turn facts are present, absent otherwise, never zeroed (S-0039/D-4, S-0039/D-5);
+      the runner carries it into the agent block beside the token totals. Fixture
+      streams cover a per-turn stream, an envelope-only output, and garbage lines.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/runner.py
+      - src/torve/application/telemetry.py
+      - tests/test_tiering.py
+      - tests/test_runner.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_tiering.py tests/test_runner.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

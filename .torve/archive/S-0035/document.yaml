@@ -9,76 +9,66 @@ informed_by: [S-0004, S-0033, S-0034]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  The cold-start tax priced and removed where it is safe: a lockfile-keyed baked venv
-  layer, per-slot derived-cache volumes that never enter replays, and the attempt
-  clock scaled per tier.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      An attempt's first minutes are spent recreating the same derived state
-      every time: the project venv from an unchanged lockfile, type-checker
-      caches over a tree that is 99% identical to the last attempt's. This
-      document removes that tax where removal is provably safe — state that is
-      *derived from committed inputs and always safe to delete* — and leaves
-      every other warmth rule intact: images stay thin of harness state,
-      executors stay memoryless, and replays stay cold. Beside it, the attempt
-      clock stops being one global number: a tier may carry its own, because
-      the heavy rung exists precisely for work that needs more of everything.
-  - key: motivation
-    md: |
-      Measured on this repository, 2026-09-01 (per-attempt wall clocks, RFC
-      0004 telemetry):
+schema_version: 4
+summary: |
+  An attempt's first minutes are spent recreating the same derived state
+  every time: the project venv from an unchanged lockfile, type-checker
+  caches over a tree that is 99% identical to the last attempt's. This
+  document removes that tax where removal is provably safe — state that is
+  *derived from committed inputs and always safe to delete* — and leaves
+  every other warmth rule intact: images stay thin of harness state,
+  executors stay memoryless, and replays stay cold. Beside it, the attempt
+  clock stops being one global number: a tier may carry its own, because
+  the heavy rung exists precisely for work that needs more of everything.
+motivation: |
+  Measured on this repository, 2026-09-01 (per-attempt wall clocks, RFC
+  0004 telemetry):
 
-      - T-0213's six flash attempts ran 897–1115s wall; the post-review retry
-        hit the 1200s cap with `cost: null` — spend invisible, work lost.
-        The sonnet retry under the same cap was killed at 19 minutes into an
-        attempt whose worktree showed live test runs.
-      - Every one of those attempts began with `uv` building the venv from
-        scratch and mypy/basedpyright walking 100 source files with empty
-        caches — a 3–5 minute tax that produces byte-identical results from
-        identical committed inputs, seven times over for one task.
-      - The department has recorded 266 live attempts; at three minutes of
-        redundant toolchain work per attempt the tax is roughly 13 hours of
-        wall clock and sandbox time to date, before the campaign's replays.
-  - key: current-state
-    md: |
-      Verified at drafting time:
+  - T-0213's six flash attempts ran 897–1115s wall; the post-review retry
+    hit the 1200s cap with `cost: null` — spend invisible, work lost.
+    The sonnet retry under the same cap was killed at 19 minutes into an
+    attempt whose worktree showed live test runs.
+  - Every one of those attempts began with `uv` building the venv from
+    scratch and mypy/basedpyright walking 100 source files with empty
+    caches — a 3–5 minute tax that produces byte-identical results from
+    identical committed inputs, seven times over for one task.
+  - The department has recorded 266 live attempts; at three minutes of
+    redundant toolchain work per attempt the tax is roughly 13 hours of
+    wall clock and sandbox time to date, before the campaign's replays.
+current_state: |
+  Verified at drafting time:
 
-      - `.torve/sandbox/battery/Dockerfile` is thin per S-0017/D-8: python, git,
-        uv, the docker CLI — no dependency layer; `uv run pytest` inside an
-        attempt resolves and builds the venv first.
-      - `RuntimeConfig.sandbox_timeout: float = 1800` and
-        `agent_timeout: float = 1200` (`src/torve/config/runconfig.py`)
-        are global; no tier-level override exists. The 0034 chain needed the
-        operator to raise both globally in the run configuration.
-      - Per-slot volumes exist for auth (`auth_volume`/`auth_mount` on
-        TierConfig, `{auth_volume}-{worker_slot}` naming, S-0004/D-2) — the
-        mount-per-slot mechanism this document reuses is already proven.
-      - `run_shadow` drives attempts through the same hooks as a live run;
-        nothing currently distinguishes what a replay may mount — the
-        distinction lands here.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `.torve/sandbox/battery/Dockerfile` is thin per S-0017/D-8: python, git,
+    uv, the docker CLI — no dependency layer; `uv run pytest` inside an
+    attempt resolves and builds the venv first.
+  - `RuntimeConfig.sandbox_timeout: float = 1800` and
+    `agent_timeout: float = 1200` (`src/torve/config/runconfig.py`)
+    are global; no tier-level override exists. The 0034 chain needed the
+    operator to raise both globally in the run configuration.
+  - Per-slot volumes exist for auth (`auth_volume`/`auth_mount` on
+    TierConfig, `{auth_volume}-{worker_slot}` naming, S-0004/D-2) — the
+    mount-per-slot mechanism this document reuses is already proven.
+  - `run_shadow` drives attempts through the same hooks as a live run;
+    nothing currently distinguishes what a replay may mount — the
+    distinction lands here.
+goals: |
+  **Goals**
 
-      - An attempt's toolchain state is warm when its committed inputs are
-        unchanged, cold the moment they change, and never a correctness
-        input: deleting all warm state must only ever cost time.
-      - Shadow replays and evals keep measuring the cold truth.
-      - The heavy rung gets a bigger clock without the operator editing
-        global configuration mid-incident.
-
-      **Non-goals**
-
-      - Agent memory or session state across attempts — S-0017/D-7 stands; a
-        cache the agent can read as *history* is memory, so only toolchain
-        caches qualify.
-      - Harness state in images — S-0017/D-8 stands; a dependency layer is
-        project state, not harness state, and the distinction is written
-        into S-0035/D-1.
-      - Provider-side prompt caching — already live, S-0021's territory.
+  - An attempt's toolchain state is warm when its committed inputs are
+    unchanged, cold the moment they change, and never a correctness
+    input: deleting all warm state must only ever cost time.
+  - Shadow replays and evals keep measuring the cold truth.
+  - The heavy rung gets a bigger clock without the operator editing
+    global configuration mid-incident.
+non_goals: |
+  - Agent memory or session state across attempts — S-0017/D-7 stands; a
+    cache the agent can read as *history* is memory, so only toolchain
+    caches qualify.
+  - Harness state in images — S-0017/D-8 stands; a dependency layer is
+    project state, not harness state, and the distinction is written
+    into S-0035/D-1.
+  - Provider-side prompt caching — already live, S-0021's territory.
+design:
   - key: the-baked-dependency-layer
     md: |
       The battery image gains one layer:
@@ -147,48 +137,45 @@ sections:
         for now: the tier is already the routing unit and 0034's characters
         route *to* tiers; a second timeout source would give one attempt two
         masters.
-  - key: tests
-    md: |
-      Image: a build-time assertion that the layer's venv resolves
-      (`uv sync --check` style) and a conformance case proving an attempt with
-      an unchanged lockfile performs no package downloads. Volume: runtime
-      adapter tests for slot-suffixed naming and the fixed mount; a shadow
-      test pinning that replays receive no cache mount even when the tier
-      names one. Clock: runconfig resolution tests (tier override wins, absent
-      falls to global) and a runner test that the resolved value reaches the
-      agent context. The wall-clock telemetry needs no new tests — it is the
-      measurement, already landed.
-  - key: docs
-    md: |
-      The sandbox provisioning page gains the warm/cold table: what is warm
-      (dependency layer, derived caches), what is never warm (agent state,
-      replay runs), and the delete-is-always-safe rule. 0017's S-0017/D-8 gains a
-      dated note pointing here rather than a rewording — thin-of-harness-state
-      was always the rule, and the dependency layer does not touch it.
-  - key: out-of-scope
-    md: |
-      - Warm state for opensandbox runtimes — the volume mechanism is
-        Docker-shaped; the opensandbox adapter refuses `cache_volume` loudly
-        until a server-side analog exists (named as the escape hatch).
-      - Cache eviction policy — a derived cache is safe to delete, so the
-        operator's `docker volume rm` is the eviction policy until size is a
-        measured problem.
-      - Baking the repowise index or any per-repo intelligence into images —
-        the campaign's candidate images stay experiment-local (S-0027/D-7 governs
-        their promotion).
-  - key: risks
-    md: |
-      - **A poisoned cache misleads a run** — bounded by S-0035/D-2's rule:
-        toolchain caches are validated by content hashes upstream (uv) or
-        invalidated by mtime/config (mypy); the failure mode is a slow
-        attempt, and the remedy is deletion. Accepted.
-      - **The dependency layer drifts from the lockfile** — impossible by
-        construction: the layer is rebuilt whenever the copied lockfile
-        changes, and the digest change is a recorded regime change.
-      - **Warm live runs vs cold replays skews comparisons** — deliberate
-        and documented: replays measure the candidate, not the cache, and
-        the wall-clock telemetry stamps both so the difference is visible,
-        never hidden.
+tests: |
+  Image: a build-time assertion that the layer's venv resolves
+  (`uv sync --check` style) and a conformance case proving an attempt with
+  an unchanged lockfile performs no package downloads. Volume: runtime
+  adapter tests for slot-suffixed naming and the fixed mount; a shadow
+  test pinning that replays receive no cache mount even when the tier
+  names one. Clock: runconfig resolution tests (tier override wins, absent
+  falls to global) and a runner test that the resolved value reaches the
+  agent context. The wall-clock telemetry needs no new tests — it is the
+  measurement, already landed.
+docs: |
+  The sandbox provisioning page gains the warm/cold table: what is warm
+  (dependency layer, derived caches), what is never warm (agent state,
+  replay runs), and the delete-is-always-safe rule. 0017's S-0017/D-8 gains a
+  dated note pointing here rather than a rewording — thin-of-harness-state
+  was always the rule, and the dependency layer does not touch it.
+out_of_scope: |
+  - Warm state for opensandbox runtimes — the volume mechanism is
+    Docker-shaped; the opensandbox adapter refuses `cache_volume` loudly
+    until a server-side analog exists (named as the escape hatch).
+  - Cache eviction policy — a derived cache is safe to delete, so the
+    operator's `docker volume rm` is the eviction policy until size is a
+    measured problem.
+  - Baking the repowise index or any per-repo intelligence into images —
+    the campaign's candidate images stay experiment-local (S-0027/D-7 governs
+    their promotion).
+risks: |
+  - **A poisoned cache misleads a run** — bounded by S-0035/D-2's rule:
+    toolchain caches are validated by content hashes upstream (uv) or
+    invalidated by mtime/config (mypy); the failure mode is a slow
+    attempt, and the remedy is deletion. Accepted.
+  - **The dependency layer drifts from the lockfile** — impossible by
+    construction: the layer is rebuilt whenever the copied lockfile
+    changes, and the digest change is a recorded regime change.
+  - **Warm live runs vs cold replays skews comparisons** — deliberate
+    and documented: replays measure the candidate, not the cache, and
+    the wall-clock telemetry stamps both so the difference is visible,
+    never hidden.
+sections:
   - key: unresolved-questions
     md: |
       - Which cache homes beyond uv/mypy earn a place at the mount
@@ -205,67 +192,3 @@ sections:
       semantics.
 
       *Archived 2026-09-09: superseded by 0055 (S-0053 S-0053/D-8).*
-phasing:
-  - phase: 1
-    title: the tier clock
-    intent: >-
-      Optional agent_timeout and sandbox_timeout on TierConfig (S-0035/D-6), absent
-      falling through to the RuntimeConfig globals; the runner's attempt hook and
-      the review lane read the resolved tier's values, so the heavy rung and the reviewer
-      seat carry their own clocks. Resolution tests pin override-wins and absent-falls-through,
-      and a runner test pins the resolved value reaching the agent context.
-    scope:
-      - src/torve/config/runconfig.py
-      - src/torve/application/runner.py
-      - src/torve/application/review.py
-      - tests/test_runconfig.py
-      - tests/test_runner.py
-      - tests/test_review_run.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_runconfig.py tests/test_runner.py tests/test_review_run.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-  - phase: 1
-    title: the baked dependency layer
-    intent: >-
-      The battery image bakes the lockfile-keyed dependency layer (S-0035/D-2): pyproject
-      and uv.lock copied, uv sync --all-extras --no-install-project at build, UV_PROJECT_ENVIRONMENT
-      fixed so an attempt's uv run reconciles the delta instead of rebuilding. The
-      layer is a convenience, never a requirement — a stock image still works. A conformance
-      case proves an unchanged lockfile performs no package downloads inside an attempt.
-    scope: [.torve/sandbox/battery/Dockerfile, tests/test_sandbox_images.py]
-    acceptance:
-      - uv run pytest tests/test_sandbox_images.py
-      - uv run torve rfc check
-  - phase: 2
-    title: the derived-cache volume
-    intent: >-
-      cache_volume on TierConfig (S-0035/D-4): slot-suffixed naming like the auth
-      volume, fixed mount outside the workspace, toolchain cache homes (uv, mypy,
-      and the roster implementation settles per §10) pointed at it by the runtime
-      adapter. Shadow replays and evals never mount it (S-0035/D-3) — a shadow test
-      pins the exclusion even when the tier names a volume. The opensandbox adapter
-      refuses the field loudly (S-0035/D-5). Deleting the volume changes nothing but
-      wall clock (S-0035/D-1) — asserted by a conformance case running the same battery
-      cold and warm.
-    scope:
-      - src/torve/config/runconfig.py
-      - src/torve/application/runner.py
-      - src/torve/application/shadow.py
-      - src/torve/adapters/runtime/docker.py
-      - src/torve/adapters/runtime/opensandbox.py
-      - tests/test_runconfig.py
-      - tests/test_runner.py
-      - tests/test_shadow.py
-      - tests/test_sandbox_images.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_runconfig.py tests/test_runner.py tests/test_shadow.py
-        tests/test_sandbox_images.py
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run ruff check .
-    depends_on:
-      - 1

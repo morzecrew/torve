@@ -1,0 +1,174 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the row travels whole and a check is a gate
+    intent: >-
+      `InheritedDecision` gains `consequence` and `check`; the model's `Decision`
+      and its `decision-details` entry gain `check_state` and `check_twin`; `inherit_decisions`
+      copies consequence and check from the model, `decision.recorded` carries both,
+      and `build_prompt` renders the consequence after each row. The gate runner appends
+      a `decision:<id>` gate at shadow for every checkable inherited row, under the
+      compliance axis, never touching the manifest; `owed()` skips a row whose check
+      ran in the same pass and `torve log owed` reports the three states; `torve gates
+      check` runs a row's `check_twin`, and a blocking row without one is refused
+      at mint. The three hand-wired manifest gates are left exactly as they are.
+    scope:
+      - src/torve/domain/task.py
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/application/planner.py
+      - src/torve/application/decisions.py
+      - src/torve/domain/events.py
+      - src/torve/gates/runner.py
+      - src/torve/gates/decisions_reported.py
+      - src/torve/gates/sabotage.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/cli/log.py
+      - tests/test_domain.py
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+      - tests/test_plan.py
+      - tests/test_decisions.py
+      - tests/test_events.py
+      - tests/test_intake.py
+      - tests/test_standing.py
+      - tests/test_gates.py
+      - tests/test_runner.py
+      - tests/test_sabotage.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py
+        tests/test_plan.py tests/test_decisions.py tests/test_events.py tests/test_intake.py
+        tests/test_standing.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py
+        tests/test_cli.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    character: structural
+  - phase: 2
+    title: >-
+      the projections beside the code and the spec verb
+    intent: >-
+      `torve spec project` renders managed sections into nested `AGENTS.md` files
+      and the root index from the model, byte-identical outside the markers, and `--check`
+      reports drift naming the file; the manifest gains the `spec-projection` shell
+      gate with its sabotage twin. `torve spec show | paths | tests | why-not` read
+      the worktree's corpus and archive and refuse anything that would need the record.
+      The working rules gain the one line naming the verb and the pack index; nothing
+      else in the prompt changes. The rendered sections for this repository land with
+      the phase.
+    scope:
+      - src/torve/application/colocation.py
+      - src/torve/cli/spec.py
+      - src/torve/cli/main.py
+      - src/torve/adapters/agent/harness.py
+      - .torve/gates.yaml
+      - '**/AGENTS.md'
+      - tests/test_colocation.py
+      - tests/test_cli_spec.py
+      - tests/test_manifest.py
+      - tests/test_tiering.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_colocation.py tests/test_cli_spec.py tests/test_manifest.py
+        tests/test_tiering.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: the pack, and the red that reaches the retry
+    intent: >-
+      `contextpack.py` builds `.torve/context/` from the record and the tree as pure
+      functions with golden fixtures — `index.md`, `decisions.json`, `gates.json`,
+      `tests.json` from `coverage.xml`, `attempts.json`, `contended.json`, `schema/`
+      — and the session materialises it before the prompt is written, byte-identical
+      for a shadow run, gitignored. The runner's red path writes the gate report into
+      the next attempt's `attempts.json` with output tails, byte-loss markers, governing
+      decision ids and JUnit failed-test ids; `--junitxml` joins the acceptance fallback.
+      Every file lands behind its own config-eval per S-0054/D-11; this phase ships
+      the builders and the wiring, and the evals that decide which files stay are
+      the operator's runs after it.
+    scope:
+      - src/torve/application/contextpack.py
+      - src/torve/application/session.py
+      - src/torve/application/runner.py
+      - src/torve/application/projections.py
+      - src/torve/adapters/agent/harness.py
+      - .gitignore
+      - tests/test_contextpack.py
+      - tests/test_session.py
+      - tests/test_runner.py
+      - tests/test_context.py
+      - tests/test_tiering.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_contextpack.py tests/test_session.py tests/test_runner.py
+        tests/test_context.py tests/test_tiering.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    depends_on:
+      - 1
+    character: structural
+  - phase: 4
+    title: the reviewer and the drafter
+    intent: >-
+      The reviewer reads the pack minus model-authored entries plus `touched.json`,
+      its default skill set becomes `[reading-isnt-proof, ratchet-what-you-build]`,
+      and its findings are validated against the shipped schema with a validation
+      failure refused by name rather than recorded as unparseable. The drafter's 400-path
+      listing is replaced by the pack index and `torve spec paths` over the candidate
+      scope, and drafts are validated the same way. Nothing the author wrote reaches
+      the reviewer.
+    scope:
+      - src/torve/application/review.py
+      - src/torve/application/intake.py
+      - src/torve/config/runconfig.py
+      - tests/test_review_run.py
+      - tests/test_review_role.py
+      - tests/test_intake.py
+      - tests/test_runconfig.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_review_run.py tests/test_review_role.py tests/test_intake.py
+        tests/test_runconfig.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+    depends_on:
+      - 2
+      - 3
+    character: structural
+contract_example:
+  schema_version: 1
+  id: T-0300
+  rfc: rfcs/0054-decisions-as-gates-and-the-projections-beside-the-code.md
+  phase: 0
+  role: implement
+  title: ''
+  intent: >-
+    `InheritedDecision` gains `consequence` and `check`; the gate runner appends a
+    shadow `decision:<id>` gate for every checkable inherited row; `owed()` skips
+    a row whose check ran in the same pass.
+  depends_on: []
+  targets: []
+  scope:
+    allow:
+      - src/torve/domain/task.py
+      - src/torve/gates/runner.py
+      - src/torve/gates/decisions_reported.py
+      - tests/test_gates.py
+    deny: []
+  acceptance:
+    - uv run pytest tests/test_gates.py
+  decisions:
+    - id: D-3
+      grade: LOCKED
+      text: >-
+        A row whose check ran in the same pass, green or red, is not owed a divergence
+        entry; a row with no check keeps the silence check
+      paths: [src/torve/gates/decisions_reported.py]
+      consequence: ''
+      check_state: shadow
+  budget: {}
+  tier: executor

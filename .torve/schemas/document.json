@@ -802,16 +802,10 @@
       "title": "Alternatives",
       "type": "array"
     },
-    "contract_example": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Task"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
+    "current_state": {
+      "default": "",
+      "title": "Current State",
+      "type": "string"
     },
     "depends_on": {
       "items": {
@@ -820,8 +814,21 @@
       "title": "Depends On",
       "type": "array"
     },
-    "description": {
-      "title": "Description",
+    "design": {
+      "items": {
+        "$ref": "#/$defs/DesignSection"
+      },
+      "title": "Design",
+      "type": "array"
+    },
+    "docs": {
+      "default": "",
+      "title": "Docs",
+      "type": "string"
+    },
+    "goals": {
+      "default": "",
+      "title": "Goals",
       "type": "string"
     },
     "id": {
@@ -856,16 +863,24 @@
       "title": "Kind",
       "type": "string"
     },
+    "motivation": {
+      "default": "",
+      "title": "Motivation",
+      "type": "string"
+    },
+    "non_goals": {
+      "default": "",
+      "title": "Non Goals",
+      "type": "string"
+    },
+    "out_of_scope": {
+      "default": "",
+      "title": "Out Of Scope",
+      "type": "string"
+    },
     "owner": {
       "title": "Owner",
       "type": "string"
-    },
-    "phasing": {
-      "items": {
-        "$ref": "#/$defs/Phase"
-      },
-      "title": "Phasing",
-      "type": "array"
     },
     "questions": {
       "items": {
@@ -874,8 +889,13 @@
       "title": "Questions",
       "type": "array"
     },
+    "risks": {
+      "default": "",
+      "title": "Risks",
+      "type": "string"
+    },
     "schema_version": {
-      "default": 3,
+      "default": 4,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -893,6 +913,11 @@
         "superseded"
       ],
       "title": "Status",
+      "type": "string"
+    },
+    "summary": {
+      "default": "",
+      "title": "Summary",
       "type": "string"
     },
     "superseded_by": {
@@ -914,6 +939,11 @@
       "title": "Supersedes",
       "type": "array"
     },
+    "tests": {
+      "default": "",
+      "title": "Tests",
+      "type": "string"
+    },
     "title": {
       "title": "Title",
       "type": "string"
@@ -923,8 +953,7 @@
     "id",
     "title",
     "status",
-    "owner",
-    "description"
+    "owner"
   ],
   "title": "document",
   "type": "object"

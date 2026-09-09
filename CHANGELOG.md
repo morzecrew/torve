@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (RFC 0058):** the anatomy is typed. `document.yaml` carries
+  `summary`, `motivation`, `current_state`, `goals`, `non_goals`, `tests`,
+  `docs`, `out_of_scope` and `risks` as keys, the design as a keyed list
+  and at most eight extra sections; an accepted design must say the seven,
+  an accepted convention its summary. `description` is gone — the
+  summary's first sentence routes. `phasing.yaml` holds the phasing and
+  the contract example. `schema_version` is 4.
 - **Breaking (RFC 0058):** one identifier grammar. A document is `S-NNNN`
   and every item of it is `S-NNNN/<local>` — `D-n`, `I-n`, `Q-n`, `A-n`,
   `P-n`, or a prose section's key — written by the local half alone inside

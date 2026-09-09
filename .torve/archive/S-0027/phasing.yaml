@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: tier-variants
+    intent: >-
+      Variant entries under dotted names in the tiers mapping, an optional contract
+      field selecting one, loud refusal on an unknown variant, seat semantics untouched,
+      and the variant riding the existing tiers digest into config_hash — two variants
+      provably two regimes. The refusal rows land here too: configuration resolves
+      from the root at dispatch, never from the worktree, pinned by test. retry_variant,
+      one rung: the attempt after a gate-red resolves the named variant, each attempt's
+      telemetry stamping the tier it actually ran under.
+    scope:
+      - src/torve/config/**
+      - src/torve/domain/**
+      - src/torve/application/**
+      - src/torve/cli/**
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: configuration-drafting-run
+    intent: >-
+      The drafting run over the configuration surfaces: execution_facts widened with
+      per-tier populations (broker-measured spend preferred, self-reported labelled,
+      caveat printed), configuration-change lint — surface-confined diff, schema parse,
+      images build, doctor green — and the proposal flowing through intake and adoption
+      as an ordinary task with no configuration-specific path.
+    scope: [src/torve/application/**, src/torve/cli/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 1
+  - phase: 3
+    title: displacement-and-the-paired-replay
+    intent: >-
+      The measurement obligation: paired replays of the same tasks under incumbent
+      and candidate digests through the shadow machinery, verdicts in the eval ledger
+      citing both digests, and displacement of the default refused without one — while
+      landing and running a candidate as a named variant stays free. Doctor learns
+      to name the default's verdict where recorded.
+    scope: [src/torve/application/**, src/torve/cli/**, .torve/sandbox/**, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 2

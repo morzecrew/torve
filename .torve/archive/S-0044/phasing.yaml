@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the event log
+    intent: >-
+      The event vocabulary and its store: a closed kind vocabulary with one typed
+      payload model per kind, the envelope (time-ordered id, partition, subject, actor,
+      correlation and causation), `schema_version` on every event, and the write-authority
+      table enforced by the store rather than by its callers. An EventStore port with
+      an in-memory adapter for tests and a Postgres adapter with torve-owned migrations;
+      append, read-by-subject, read-since and projection cursors are the whole surface.
+      Nothing in the running engine consumes it yet — this phase ships the record
+      and its guarantees, with replay equality and one refusal case per authority
+      row as the evidence.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/eventstore/**
+      - migrations/torve/postgres/**
+      - tests/test_events.py
+      - tests/test_eventstore.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_events.py tests/test_eventstore.py
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: the divergence intake
+    intent: >-
+      Divergence stops being hand-authored YAML. A `torve log divergence` verb validates
+      an entry at write time against the task's inherited decisions and the shared
+      evidence validators, refuses with the exact message the gate would have produced,
+      and on acceptance records a `divergence.recorded` event. The decisions-reported
+      gate reads the recorded entries, falling back to the file while both carriers
+      exist, and the landed log file becomes a projection the engine writes at landing
+      time. The parity between a write-time refusal and a gate conviction is pinned
+      by a test that shares the validator, not the string.
+    scope:
+      - src/torve/application/divergence.py
+      - src/torve/cli/log.py
+      - src/torve/gates/decisions_reported.py
+      - src/torve/gates/evidence.py
+      - tests/test_divergence.py
+      - tests/test_decisions_reported.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_divergence.py tests/test_decisions_reported.py
+      - uv run torve gates check
+      - uv run torve rfc check
+    depends_on:
+      - 1
+  - phase: 3
+    title: the manager and the worker
+    intent: >-
+      The resident manager and the stateless worker over the event log: the manager
+      owns per-partition queues, dispatch under scope-disjointness, dependency-by-landing
+      and serialized landings, routing and seat allocation as S-0034 and S-0021 already
+      define them, and escalation to humans; the worker claims, materializes, executes,
+      emits and releases, holding no assignment state so that a kill costs only a
+      lease. Durability comes from the durable-execution port with forze bound; the
+      manager's restart transparency and the worker's kill safety are both tested
+      properties, not claims.
+    scope:
+      - src/torve/application/manager.py
+      - src/torve/application/worker.py
+      - src/torve/cli/manager.py
+      - tests/test_manager.py
+      - tests/test_worker.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_worker.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 2
+    tier_variant: heavy
+  - phase: 4
+    title: one record per attempt
+    intent: >-
+      An attempt is recorded once. Today the same facts are produced twice by two
+      writers — the telemetry row the projections read, and the typed events the board
+      folds — and nothing makes them agree. This phase makes the attempt record one
+      object built once at the moment the attempt ends: the event payload carries
+      everything the row carries, the row is rendered from that payload, and both
+      carriers are written from it. A test pins the rendered row byte-equal to what
+      the current builders produce, so no reader of the stream changes and no projection
+      is rewritten. A run with no store still writes its row, because the record exists
+      before either carrier does.
+    scope:
+      - src/torve/application/telemetry.py
+      - src/torve/application/runner.py
+      - src/torve/domain/events.py
+      - tests/test_runner.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_events.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 3
+  - phase: 5
+    title: one state per run
+    intent: >-
+      A run's state stops being a file the loop maintains and becomes what the log
+      says. `RunState` survives as the in-memory aggregate the attempt loop drives,
+      rebuilt by replay rather than loaded; the state file becomes a cache nothing
+      reads for a decision, and the reaper, the lane and `torve status` read the record.
+      The property to prove is the one the manager already claims: rebuilding a run's
+      state from its events equals the state the loop was holding, including after
+      a kill mid attempt — which is also what finally answers who releases a lease
+      when the worker holding it dies.
+    scope:
+      - src/torve/application/runstate.py
+      - src/torve/application/reaper.py
+      - src/torve/application/manager.py
+      - src/torve/cli/status.py
+      - tests/test_reaper.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reaper.py tests/test_manager.py tests/test_worker.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 4
+    tier_variant: heavy
+  - phase: 6
+    title: one dispatch rule
+    intent: >-
+      The dependency rule, the scope-disjointness rule and the landing serialization
+      exist twice — once as a filesystem scan over contracts and run-state files,
+      once as a fold over the log — and the two are already written to agree by hand.
+      This phase deletes the scan: `torve tick` becomes a bounded call into the manager's
+      own dispatch over the record, or retires as S-0044/D-5 says it should. What
+      must not change is any of the three rules, and the existing dispatch tests are
+      what says so.
+    scope:
+      - src/torve/application/loop.py
+      - src/torve/application/manager.py
+      - src/torve/cli/tick.py
+      - tests/test_tick.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_tick.py tests/test_standing.py tests/test_manager.py
+      - uv run lint-imports
+      - uv run torve rfc check
+    depends_on:
+      - 5

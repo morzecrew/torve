@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: serve-backend
+    intent: >-
+      The torve serve verb behind the torve[serve] extra: starlette app with /api/context
+      and /api/status re-exposing the existing projections verbatim (S-0032/D-1),
+      loopback-only with no host flag (S-0032/D-2), lazy-imported with an instructive
+      refusal (S-0032/D-3), instructive 404 when no bundle is shipped. Endpoint tests
+      via TestClient, import-guard test mirrored from the opensandbox pattern.
+    scope:
+      - src/torve/cli/serve.py
+      - src/torve/cli/main.py
+      - pyproject.toml
+      - tests/test_serve.py
+    acceptance:
+      - uv run pytest tests/test_serve.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: serve-frontend
+    intent: >-
+      The web/ source tree: React + shadcn single page rendering board, escalations,
+      findings ledger, proposals, gate health, cost and token shape, and programme
+      sections from the two endpoints, polling with a visible projected-at stamp (S-0032/D-6).
+      A local build script produces the bundle into src/torve/_web; committing the
+      bundle is phase 3's CI question, not this phase's.
+    scope: [web/**, src/torve/_web/**]
+    acceptance:
+      - uv run pytest tests/test_serve.py
+      - uv run ruff check .
+    depends_on:
+      - 1
+  - phase: 3
+    title: serve-bundle-ci
+    intent: >-
+      The npm-builder CI job building web/ into the torve/_web package data on the
+      release path (S-0032/D-4), and the S-0032/D-5 call made from the first real
+      build: vendored-and-hash-checked or CI-attached. The job runs the frontend build
+      and asserts the backend suite stays green against the produced bundle.
+    scope: [.github/**]
+    acceptance:
+      - uv run ruff check .
+    depends_on:
+      - 2

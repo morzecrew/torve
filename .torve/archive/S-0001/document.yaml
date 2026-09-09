@@ -9,11 +9,14 @@ informed_by: []
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Domain model, state machine, ports, and the graded-decision contract every child
-  RFC inherits; deliberately excludes anything shippable.
-schema_version: 3
-sections:
+schema_version: 4
+summary: |
+  Domain model, state machine, ports, and the graded-decision contract every child RFC inherits; deliberately excludes anything shippable.
+motivation: ''
+current_state: ''
+goals: ''
+non_goals: ''
+design:
   - key: what-torve-is
     md: |
       A layer that turns a reviewed specification into machine-checkable work, runs agents against it under deterministic gates, and refuses to let anything land that cannot prove it did what it was told.
@@ -220,6 +223,16 @@ sections:
       Two rules that make the log worth keeping: **grade is copied at write time, never resolved at read time** — a log that rewrites its own past is not an audit trail; and **silence is a finding** — the gate fires on the absence of an entry in an area a locked decision declares, because a quiet workaround is not detectable while a missing report trivially is.
 
       *Amendment 2026-08-21 (S-0001/D-26):* the legality table governs contradictions. An entry carries `kind` as above, or the `flag-dont-flip` skill's `class` (`discovery | spec-gap | drift | irreducible`), or both — the axes are orthogonal: `kind` records what happened to the decision, `class` diagnoses whether the design process failed. A `kind: resolved` close-out with `action: decided` attests compliance in an area a `LOCKED` decision declares, which is how the silence check is satisfiable without a conflict.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: |
+  - **The engine becomes a second product.** The realistic failure mode for a small team. Mitigation: a named owner and an explicit weekly time budget, decided before 0003 starts.
+  - **Human review becomes the bottleneck.** Parallel workers outpace one reader; the system quietly produces review debt. Addressed in 0006.
+  - **Gate theatre.** Checks that cost minutes and catch nothing. Addressed in 0002 via the sabotage suite and per-gate hit counts.
+  - **This document read as licence to automate planning.** The planner is where model calls will try to creep in. S-0001/D-10 is `LOCKED` and its violation shows up in review as a new dependency.
+  - **A second infrastructure dependency** (OpenSandbox). Health indicators are strong but neutrality is younger than the code; re-run `dependency-diligence` before 0003, and keep `Runtime` thin enough that raw Docker remains a fallback.
+sections:
   - key: decisions
     md: |
       The nineteen corpus-convention decisions that lived here (S-0016/D-9 – S-0016/D-22, S-0016/D-23 – S-0016/D-27) moved to S-0016 with their identifiers preserved (S-0001/A-6). S-0001/D-36 and S-0001/D-37 – S-0001/D-39 stay: they concern task directories, logs and retention, which are engine artefacts.
@@ -235,13 +248,6 @@ sections:
       | Charter owner | the only person who merges amendments to this document |
 
       One person may hold several. What matters is that each is a name in a file, reviewed like anything else.
-  - key: risks
-    md: |
-      - **The engine becomes a second product.** The realistic failure mode for a small team. Mitigation: a named owner and an explicit weekly time budget, decided before 0003 starts.
-      - **Human review becomes the bottleneck.** Parallel workers outpace one reader; the system quietly produces review debt. Addressed in 0006.
-      - **Gate theatre.** Checks that cost minutes and catch nothing. Addressed in 0002 via the sabotage suite and per-gate hit counts.
-      - **This document read as licence to automate planning.** The planner is where model calls will try to creep in. S-0001/D-10 is `LOCKED` and its violation shows up in review as a new dependency.
-      - **A second infrastructure dependency** (OpenSandbox). Health indicators are strong but neutrality is younger than the code; re-run `dependency-diligence` before 0003, and keep `Runtime` thin enough that raw Docker remains a fallback.
   - key: stopping
     md: |
       This is a tool built for one team's own use, not a product. It therefore gets no success threshold and no kill metric — measuring an internal tool against a target invents a standard nobody asked for. What it gets instead is a bound on the input and a guarantee that stopping is always cheap.

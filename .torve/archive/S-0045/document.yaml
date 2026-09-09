@@ -9,90 +9,80 @@ informed_by: [S-0021, S-0039, S-0041]
 supersedes: []
 superseded_by: S-0055
 owner: misery7100
-description: >-
-  A run becomes observable while it runs: the broker meters liveness from the burn
-  it already sees, carries the sandbox's records to the store without ever handing
-  it a credential, and gives the manager a way to speak back.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      A v1 run is opaque from dispatch to exit. The engine learns what happened
-      only when the sandbox is gone, which makes every question about a running
-      attempt — is it alive, is it working, is it wedged, is it worth its
-      tokens — unanswerable, and every intervention blind.
+schema_version: 4
+summary: |
+  A v1 run is opaque from dispatch to exit. The engine learns what happened
+  only when the sandbox is gone, which makes every question about a running
+  attempt — is it alive, is it working, is it wedged, is it worth its
+  tokens — unanswerable, and every intervention blind.
 
-      This RFC makes a run observable while it runs, using the structure that is
-      already between the sandbox and the outside world. The broker holds the
-      credentials, sees every provider call, and authenticates the sandbox by a
-      run-scoped token. Metering it already performs becomes the liveness signal;
-      an intake route lets the sandbox contribute records without ever holding a
-      store credential, with its identity stamped by the broker rather than
-      claimed by the caller; and a notes route lets the manager say something to
-      a run in flight. Nothing here reads or rewrites a prompt.
-  - key: motivation
-    md: |
-      The blindness is not theoretical. In one week of operation:
+  This RFC makes a run observable while it runs, using the structure that is
+  already between the sandbox and the outside world. The broker holds the
+  credentials, sees every provider call, and authenticates the sandbox by a
+  run-scoped token. Metering it already performs becomes the liveness signal;
+  an intake route lets the sandbox contribute records without ever holding a
+  store credential, with its identity stamped by the broker rather than
+  claimed by the caller; and a notes route lets the manager say something to
+  a run in flight. Nothing here reads or rewrites a prompt.
+motivation: |
+  The blindness is not theoretical. In one week of operation:
 
-      - An attempt ran 1h40m with no way to tell whether the agent was working or
-        wedged; the answer required opening the sandbox by hand.
-      - A model's stream stalled while technically connected, three times. The
-        wall-clock timeout eventually fired — that is, the engine's only
-        instrument was a clock that had to run out.
-      - Token burn was known per run, after the run. Whether an attempt was
-        spending usefully at minute 20 was not a question the engine could ask.
-      - Every escalation arrived complete: the first moment the engine could act
-        was after the work was already lost.
+  - An attempt ran 1h40m with no way to tell whether the agent was working or
+    wedged; the answer required opening the sandbox by hand.
+  - A model's stream stalled while technically connected, three times. The
+    wall-clock timeout eventually fired — that is, the engine's only
+    instrument was a clock that had to run out.
+  - Token burn was known per run, after the run. Whether an attempt was
+    spending usefully at minute 20 was not a question the engine could ask.
+  - Every escalation arrived complete: the first moment the engine could act
+    was after the work was already lost.
 
-      S-0044 phase 2 made an agent's divergence entry engine-written, which
-      removed a class of malformed records — but it kept the record inside the
-      worktree until sync_out, because there was no mediated channel to anywhere
-      else. That was the right floor and the wrong ceiling: the entry exists at
-      minute five and the engine sees it at minute ninety.
-  - key: current-state
-    md: |
-      Verified against the tree at `fbf2b47`:
+  S-0044 phase 2 made an agent's divergence entry engine-written, which
+  removed a class of malformed records — but it kept the record inside the
+  worktree until sync_out, because there was no mediated channel to anywhere
+  else. That was the right floor and the wrong ceiling: the entry exists at
+  minute five and the engine sees it at minute ninety.
+current_state: |
+  Verified against the tree at `fbf2b47`:
 
-      - `src/torve/adapters/broker/local.py` runs as a thread of the runner for
-        the life of the run (S-0021/D-10). It holds provider keys in its own
-        environment and injects them at the wire; the sandbox never sees one.
-      - It authenticates with a run-scoped token, and already knows which run it
-        is serving — so the run's task, partition and attempt are facts the
-        broker holds and a caller does not state.
-      - It meters every provider response (`BrokerUsage`: requests, tokens per
-        provider, wall time, refusals, cost where reported) — counts and metadata
-        only, never bodies (S-0021/D-7). Usage is aggregated per run and read at
-        close.
-      - It already serves three topologies: loopback, an internal Docker network
-        addressed by its gateway (sealed mode, S-0021/D-3), and a remote
-        bind/advertise pair (S-0041/D-6). A route added here inherits all three.
-      - The event log and its authority table exist (S-0044): agents may write
-        `divergence.recorded` and `message.sent`; workers may write
-        `seat.consumed`.
-      - What does not exist: any route from a sandbox to the store, any per-call
-        record, and any way for the engine to address a run in flight.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `src/torve/adapters/broker/local.py` runs as a thread of the runner for
+    the life of the run (S-0021/D-10). It holds provider keys in its own
+    environment and injects them at the wire; the sandbox never sees one.
+  - It authenticates with a run-scoped token, and already knows which run it
+    is serving — so the run's task, partition and attempt are facts the
+    broker holds and a caller does not state.
+  - It meters every provider response (`BrokerUsage`: requests, tokens per
+    provider, wall time, refusals, cost where reported) — counts and metadata
+    only, never bodies (S-0021/D-7). Usage is aggregated per run and read at
+    close.
+  - It already serves three topologies: loopback, an internal Docker network
+    addressed by its gateway (sealed mode, S-0021/D-3), and a remote
+    bind/advertise pair (S-0041/D-6). A route added here inherits all three.
+  - The event log and its authority table exist (S-0044): agents may write
+    `divergence.recorded` and `message.sent`; workers may write
+    `seat.consumed`.
+  - What does not exist: any route from a sandbox to the store, any per-call
+    record, and any way for the engine to address a run in flight.
+goals: |
+  **Goals**
 
-      - Answer "is this attempt alive and working?" from recorded facts, without
-        the agent's cooperation and without opening the sandbox.
-      - Let a sandbox contribute records to the system of record while it runs,
-        with its identity stamped rather than claimed.
-      - Give the manager a way to say something to a run, and a basis for
-        stopping one on evidence rather than on a clock.
-      - Keep every credential exactly where it is today.
-
-      **Non-goals**
-
-      - Reading, rewriting or injecting prompts. The broker sees provider traffic
-        because it must route it; that is not a licence to author it.
-      - Replacing durable traces (S-0039). A trace is the full stream after the
-        fact; this is a small number of typed facts during.
-      - Streaming agent internals, tool calls or file diffs out of the sandbox.
-      - Any change to what an agent may write. The authority table already
-        answers that, and this RFC routes it rather than widening it — with one
-        exception, named in §5.4.
+  - Answer "is this attempt alive and working?" from recorded facts, without
+    the agent's cooperation and without opening the sandbox.
+  - Let a sandbox contribute records to the system of record while it runs,
+    with its identity stamped rather than claimed.
+  - Give the manager a way to say something to a run, and a basis for
+    stopping one on evidence rather than on a clock.
+  - Keep every credential exactly where it is today.
+non_goals: |
+  - Reading, rewriting or injecting prompts. The broker sees provider traffic
+    because it must route it; that is not a licence to author it.
+  - Replacing durable traces (S-0039). A trace is the full stream after the
+    fact; this is a small number of typed facts during.
+  - Streaming agent internals, tool calls or file diffs out of the sandbox.
+  - Any change to what an agent may write. The authority table already
+    answers that, and this RFC routes it rather than widening it — with one
+    exception, named in §5.4.
+design:
   - key: liveness-is-the-burn-stream
     md: |
       The broker emits one `seat.consumed` event per metered provider response —
@@ -173,54 +163,51 @@ sections:
         the agent chose to print, and re-interprets it through whatever the
         parser believes this week.
       - **An agent-emitted heartbeat.** Fails in the case that motivates it.
-  - key: tests
-    md: |
-      - Burn: a metered response emits one event carrying the provider's own
-        numbers; a run with no provider calls emits none; the aggregate at close
-        still equals what the events sum to, so the two views cannot disagree.
-      - Liveness: a stalled stream produces no burn events, and the gap is
-        visible in the log — asserted as a property of recorded facts, not of a
-        timer.
-      - Identity: a request stating its own actor, partition or subject is
-        ignored on every field, and the stamped record names the run's own —
-        one case per field, because a forgery that works on one field is a
-        forgery.
-      - Authority: a sandbox posting a kind an agent may not write is refused,
-        and nothing is appended.
-      - Fallback: with no broker, `torve log divergence` behaves exactly as it
-        does today, byte for byte in the landed log.
-      - Notes: a note written by the manager is readable by the run it addresses
-        and by no other run.
-  - key: docs
-    md: |
-      `pages/` gains a page on what the engine can see during a run and what it
-      deliberately cannot. The S-0044 amendment in §5.4 ships with acceptance.
-  - key: out-of-scope
-    md: |
-      - Prompt authorship or mutation of any kind, including "helpful" injection
-        of notes into the next request. A note is read by an agent that asks.
-      - Streaming the trace live (S-0039 covers the durable stream after the
-        fact); this channel carries typed facts, not output.
-      - Cross-run visibility for agents. A sandbox sees its own run and nothing
-        else, which the stamped subject enforces rather than documents.
-      - Operator UI over the live stream. The projections make one possible and
-        nothing here requires it.
-  - key: risks
-    md: |
-      - **A write surface reachable from inside a sandbox.** Real. Bounded by
-        three things that hold together: the two kinds an agent may write, the
-        subject pinned to its own run, and a rate limit — so the worst a
-        compromised agent achieves is noise on its own task's history.
-      - **Event volume.** One event per provider call is a lot of rows on a long
-        run. Accepted deliberately: they are small, they are the liveness signal,
-        and a burn rate cannot be reconstructed from a total.
-      - **Notes read as instructions.** A note is untrusted review data under the
-        same framing the feedback record already carries (S-0005/D-13); an agent that
-        treats one as authority over its contract is the failure the framing
-        exists to prevent.
-      - **The broker becomes load-bearing for more than routing.** It already is:
-        a run without it has no provider access. This RFC adds records to a
-        component whose failure already stops the run.
+tests: |
+  - Burn: a metered response emits one event carrying the provider's own
+    numbers; a run with no provider calls emits none; the aggregate at close
+    still equals what the events sum to, so the two views cannot disagree.
+  - Liveness: a stalled stream produces no burn events, and the gap is
+    visible in the log — asserted as a property of recorded facts, not of a
+    timer.
+  - Identity: a request stating its own actor, partition or subject is
+    ignored on every field, and the stamped record names the run's own —
+    one case per field, because a forgery that works on one field is a
+    forgery.
+  - Authority: a sandbox posting a kind an agent may not write is refused,
+    and nothing is appended.
+  - Fallback: with no broker, `torve log divergence` behaves exactly as it
+    does today, byte for byte in the landed log.
+  - Notes: a note written by the manager is readable by the run it addresses
+    and by no other run.
+docs: |
+  `pages/` gains a page on what the engine can see during a run and what it
+  deliberately cannot. The S-0044 amendment in §5.4 ships with acceptance.
+out_of_scope: |
+  - Prompt authorship or mutation of any kind, including "helpful" injection
+    of notes into the next request. A note is read by an agent that asks.
+  - Streaming the trace live (S-0039 covers the durable stream after the
+    fact); this channel carries typed facts, not output.
+  - Cross-run visibility for agents. A sandbox sees its own run and nothing
+    else, which the stamped subject enforces rather than documents.
+  - Operator UI over the live stream. The projections make one possible and
+    nothing here requires it.
+risks: |
+  - **A write surface reachable from inside a sandbox.** Real. Bounded by
+    three things that hold together: the two kinds an agent may write, the
+    subject pinned to its own run, and a rate limit — so the worst a
+    compromised agent achieves is noise on its own task's history.
+  - **Event volume.** One event per provider call is a lot of rows on a long
+    run. Accepted deliberately: they are small, they are the liveness signal,
+    and a burn rate cannot be reconstructed from a total.
+  - **Notes read as instructions.** A note is untrusted review data under the
+    same framing the feedback record already carries (S-0005/D-13); an agent that
+    treats one as authority over its contract is the failure the framing
+    exists to prevent.
+  - **The broker becomes load-bearing for more than routing.** It already is:
+    a run without it has no provider access. This RFC adds records to a
+    component whose failure already stops the run.
+sections:
   - key: unresolved-questions
     md: |
       - Whether the manager should be able to stop an attempt automatically on a
@@ -233,46 +220,3 @@ sections:
       S-0044 declares, because there is no actor to write a note or weigh a
       stalled stream until it exists. Its decisions (S-0045/D-4, S-0045/D-7) name
       `src/torve/application/manager.py` for that reason.
-phasing:
-  - phase: 1
-    title: burn as liveness
-    intent: >-
-      The broker emits one `seat.consumed` event per metered provider response — the
-      seat, the provider's own token counts, and its reported cost where there is
-      one — as it meters, instead of only aggregating for the run's close. The actor
-      is the worker, because the broker is the run's own host-side machinery and no
-      agent is involved; the aggregate reported at close must equal the sum of the
-      events, so the two views of one run's spending cannot disagree. This phase alone
-      answers whether an attempt is alive and working, for every run, with no sandbox
-      change and no agent cooperation.
-    scope:
-      - src/torve/adapters/broker/local.py
-      - src/torve/application/ports.py
-      - tests/test_broker.py
-    acceptance:
-      - uv run pytest tests/test_broker.py
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: the intake route
-    intent: >-
-      The broker serves an authenticated route the sandbox posts records to, stamping
-      actor kind, partition and subject from the run-scoped token so a caller cannot
-      state — and therefore cannot forge — any of them, and refusing a kind the authority
-      table does not give an agent before anything is appended. `torve log divergence`
-      posts through the route when the run has a broker and writes the worktree file
-      when it does not, checking the entry before either, so the landed log is the
-      same projection in both cases and a run without a broker is unchanged.
-    scope:
-      - src/torve/adapters/broker/local.py
-      - src/torve/application/divergence.py
-      - src/torve/cli/log.py
-      - tests/test_broker_sealed.py
-      - tests/test_divergence.py
-    acceptance:
-      - >-
-        uv run pytest tests/test_divergence.py tests/test_broker_sealed.py
-      - uv run torve gates check
-      - uv run torve rfc check
-    depends_on:
-      - 1

@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the-drafting-run-and-the-lint
+    intent: >-
+      The role, the run, the lint, and CLI adoption: role vocabulary gains "draft";
+      a drafting run executes a request from the command line into lint-gated draft
+      documents persisted under the task's directory; the contract lint ships with
+      the schema, scope-hygiene, batch-disjointness and T-0113 checks and is invocable
+      standalone; torve adopt mints ids under the lock, rewrites DRAFT-n refs, copies
+      decisions from a named accepted document, and commits the contracts as engine
+      records.
+    scope:
+      - src/torve/application/intake.py
+      - src/torve/domain/task.py
+      - src/torve/config/runconfig.py
+      - src/torve/cli/**
+      - tests/**
+    acceptance:
+      - uv run pytest -q
+      - uv run torve rfc check
+  - phase: 2
+    title: board-intake
+    intent: >-
+      The board becomes the intake surface: torve.intake-labeled issues mint drafting
+      tasks; lint-green drafts project onto the thread with rationale and the authority
+      footer; adopt joins the verb vocabulary with standard authorization and role
+      refusal; revise re-runs the drafter against captured thread feedback; abandon
+      refuses the request.
+    scope:
+      - src/torve/application/tracker.py
+      - src/torve/application/intake.py
+      - src/torve/cli/tick.py
+      - tests/**
+    acceptance:
+      - uv run pytest -q
+    depends_on:
+      - 1
+  - phase: 3
+    title: context-enrichment
+    intent: >-
+      Demand-gated: the drafter's input gains selected torve context projections (contended
+      paths, recent escalations by reason) once drafting telemetry shows what the
+      drafter lacks; the lint's learned-rule set gains its documented growth path,
+      each rule citing the escalation that produced it.
+    scope:
+      - src/torve/application/intake.py
+      - src/torve/application/projections.py
+      - tests/**
+    acceptance:
+      - uv run pytest -q
+    depends_on:
+      - 2

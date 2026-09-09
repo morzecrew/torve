@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: equipment-on-the-tier
+    intent: >-
+      TierConfig gains skills (None inherits the role set, a list overrides it wholesale)
+      and prompt_extras (appended after the charter's base working rules, which stay
+      unaddressable); the runner threads the override into materialize and build_prompt
+      appends the extras (S-0029/D-1–S-0029/D-3). Tests pin inheritance, override,
+      the fail-closed unknown-name refusal, the profile-merge replace property, extras-after-
+      base ordering, and the config_hash separation of equipped regimes.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/application/runner.py
+      - src/torve/adapters/agent/harness.py
+      - tests/test_runconfig.py
+      - tests/test_tiering.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runconfig.py tests/test_tiering.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+  - phase: 2
+    title: variant-in-the-phasing
+    intent: >-
+      PhasingEntry gains tier_variant, defaulted empty, copied verbatim by torve plan
+      onto the minted contract (S-0029/D-4); the doctor prints resolved equipment
+      for tiers that differ from their role default (S-0029/D-5). Tests pin parse,
+      mint copy-through, and the doctor line.
+    scope:
+      - src/torve/config/rfc_parse.py
+      - src/torve/application/planner.py
+      - src/torve/cli/doctor.py
+      - tests/test_plan.py
+      - tests/test_doctor.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_doctor.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: attribution-and-decision-report
+    intent: >-
+      The reader and the join: telemetry, feedback and task logs indexed by task id,
+      joined to contracts for the grade as minted and to the corpus parser for the
+      row as it stands. Per-decision populations — inherited, touched, cited, action
+      counts, escalation outcomes — with denominators printed and readings suppressed
+      below the floor. torve rfc health as a subcommand beside check and index, text
+      and JSON. No corpus score, no proposed text, no model.
+    scope: [src/torve/application/specquality.py, src/torve/cli/rfc.py, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve rfc check
+  - phase: 2
+    title: document-signals-and-context-section
+    intent: >-
+      The document-level half and the planning-session consumer: per-document attempts,
+      escalation reasons with underspecified and stale_inheritance on their own line,
+      spec-drift findings, drift_count, human_minutes and rework rate, each carrying
+      S-0004/measurement-defects-to-fix-before-trusting-a-number's caveat printed
+      with it. The same data joins the torve context projection as one section, which
+      the existing MCP surface then exposes to a planning session without a new tool.
+    scope: [src/torve/application/projections.py, src/torve/cli/context.py, tests/**]
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 1
+  - phase: 3
+    title: dispatch-envelope
+    intent: >-
+      The envelope at dispatch (S-0022/D-11, S-0022/A-3): torve run and the tick's
+      dispatch leg print expected attempts, cost and wall minutes for the task's size
+      class beside the size verdict, computed from the same join this document already
+      reads, denominator printed, reading suppressed below the floor, the quasi-experiment
+      caveat printed with it. Nothing in the engine acts on the envelope; the operator
+      does.
+    scope:
+      - src/torve/application/specquality.py
+      - src/torve/cli/run.py
+      - src/torve/cli/tick.py
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 2
+  - phase: 4
+    title: operator-attention-line
+    intent: >-
+      The operator-attention line (S-0022/D-12, S-0022/A-5): landed changes per window
+      and the operator interventions behind them — feedback human_minutes, command
+      and approval events, escalations triaged — joined from the records the engine
+      already writes, printed in the corpus summary of torve rfc health and the context
+      section, denominators printed, suppressed below the floor, the quasi-experiment
+      caveat attached. No new recorded fields.
+    scope:
+      - src/torve/application/specquality.py
+      - src/torve/application/projections.py
+      - src/torve/cli/rfc.py
+      - tests/**
+    acceptance:
+      - uv run ruff check src tests
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run pytest
+      - uv run lint-imports
+    depends_on:
+      - 2

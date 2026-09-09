@@ -2,10 +2,12 @@
 
 `torve spec new "Title"` writes the smallest document that checks — the
 directory `S-NNNN/` under the next number, `document.yaml` with the header
-keys and one summary section, `decisions.yaml` with an empty list. What
-follows is the filled shape to grow it into, scaled to the design's
-weight: a small design-lock document keeps the header, a scope section, a
-design section, a non-goals section and the rows. Replace `<placeholders>`;
+keys and a summary, `decisions.yaml` with an empty list. What follows is
+the filled shape to grow it into. The anatomy is typed (S-0058/D-4): an
+accepted design says its `summary`, `motivation`, `current_state`,
+`goals`, `non_goals`, `tests` and `risks` and designs at least one thing;
+an accepted convention says its summary; `docs` and `out_of_scope` are
+optional; extras stop at eight. Replace `<placeholders>`;
 delete what the document does not need. Every key is validated against the
 schema its file's first line names under `.torve/schemas/`, written by
 `torve init`.
@@ -28,50 +30,42 @@ description: >-
   <One sentence, ~200 chars: which design this is, not what it decided.
   `torve spec list` shows it; it is how a reader picks the document to open.>
 schema_version: 3
-sections:
-  - key: scope
-    md: |
-      <One dense paragraph: what this document covers and what it deliberately
-      does not — modules touched, contract changes or "no contract changes",
-      the boundary of the blast radius. The paragraph a reader uses to decide
-      whether to read the rest. Related code and documents by relative path
-      and number; where the design was debated, if anywhere.>
-  - key: summary
-    md: |
-      <What ships, in a few sentences. Write it last.>
-  - key: motivation
-    md: |
-      <The problem, with evidence: measured numbers, real failure cases, the
-      code paths that hurt. A motivation that cites nothing concrete is a
-      reason to question the document.>
-  - key: current-state
-    md: |
-      <What exists today, verified against the code — not from memory. Name
-      the files, ports and schemas involved; verified surprises belong here.>
-  - key: goals-non-goals
-    md: |
-      Goals: <...>
-
-      Non-goals: <explicit exclusions with a reason each — "not X, that is
-      Y's job">.
+summary: |
+  <What ships, in a few sentences; the first sentence routes — it is what
+  `torve spec list` shows, so it says which design this is. Write it last.>
+motivation: |
+  <The problem, with evidence: measured numbers, real failure cases, the
+  code paths that hurt. A motivation that cites nothing concrete is a
+  reason to question the document.>
+current_state: |
+  <What exists today, verified against the code — not from memory. Name
+  the files, ports and schemas involved; verified surprises belong here.>
+goals: |
+  <What this document achieves, explicitly.>
+non_goals: |
+  <Explicit exclusions with a reason each — "not X, that is Y's job".>
+design:
   - key: the-first-workstream
     md: |
-      <The design, one section per workstream, in order — the heading is the
-      key and the number is the position, so there is no container section
-      and no level. Pin each with real artifacts — signatures, schemas,
-      config shapes — in fenced blocks; prose alone drifts. State failure
-      semantics: what raises, what is refused, what fails closed. A rejected
-      alternative goes in `alternatives` below, with the trade-off that lost;
-      never restate a typed list here as a fence or a table.>
-  - key: tests
+      <The design, one entry per workstream, in order — the heading is the
+      key and the number is the position. Pin each with real artifacts —
+      signatures, schemas, config shapes — in fenced blocks; prose alone
+      drifts. State failure semantics: what raises, what is refused, what
+      fails closed. A rejected alternative goes in `alternatives` below,
+      with the trade-off that lost; never restate a typed list here as a
+      fence or a table.>
+tests: |
+  <How the design is verified; what is explicitly not tested and why.>
+docs: |
+  <Optional: what documentation ships with it.>
+out_of_scope: |
+  <Optional, named and reasoned: why each item is excluded and what would change that.>
+risks: |
+  <Honest failure modes, including the document being misread.>
+sections:                     # extras, at most 8, keys unique document-wide, never a typed name
+  - key: exit-criteria
     md: |
-      <How the design is verified; what is explicitly not tested and why.>
-  - key: out-of-scope
-    md: |
-      <Named and reasoned: why each item is excluded and what would change that.>
-  - key: risks
-    md: |
-      <Honest failure modes, including the document being misread.>
+      <Anything the anatomy has no key for.>
 alternatives:
   - option: <what else could have been built>
     rejected_because: <the trade-off that lost, so it stays rejected>
@@ -79,6 +73,10 @@ questions:
   - id: Q-1
     text: <what must be settled, and by whom>
     status: open
+## `phasing.yaml` — yours, read by the planner
+
+```yaml
+# yaml-language-server: $schema=../../schemas/phasing.json
 phasing:
   - phase: 1
     title: <a short unit name>
@@ -109,6 +107,7 @@ contract_example:             # optional; validated against the live task schema
       text: <the rule>
       paths: [src/example/**]
   tier: executor
+```
 ```
 
 ## `decisions.yaml` — yours, stamped by the tool

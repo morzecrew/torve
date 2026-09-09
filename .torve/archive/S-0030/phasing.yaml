@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: standing-inheritance
+    intent: >-
+      standing_decisions beside inherit_decisions in the planner — accepted documents
+      only, paths-intersection via globs_intersect, grade copied at write time, pathless
+      rows excluded (S-0030/D-1); adoption always merges its result with RFC_LINE
+      inheritance deduplicated by identifier, and lint-contract warns on standing
+      rows a contract does not carry. Tests pin intersection, copy-at-write, the dedup
+      preference and the adoption-without-rfc-line case.
+    scope:
+      - src/torve/application/planner.py
+      - src/torve/application/intake.py
+      - tests/test_plan.py
+      - tests/test_intake.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_intake.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+      - uv run lint-imports
+  - phase: 2
+    title: threshold-verdict
+    intent: >-
+      document_threshold over the standing result and the size verdict, with the S-0030/D-3
+      rule in configuration; intake lint gains the document_required error naming
+      the crossings, adoption refuses it with exit 3, and the refusal text routes
+      to authoring without corpus coordinates in user-facing strings. Tests pin each
+      clause, the ride-through case and both enforcement surfaces.
+    scope:
+      - src/torve/application/intake.py
+      - src/torve/config/runconfig.py
+      - src/torve/cli/intake.py
+      - tests/test_intake.py
+    acceptance:
+      - uv run pytest tests/test_intake.py
+      - uv run mypy src
+      - uv run basedpyright src
+      - uv run ruff check .
+    depends_on:
+      - 1

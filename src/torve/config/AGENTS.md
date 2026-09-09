@@ -202,7 +202,7 @@ Every item the corpus defines has one global identifier, `S-NNNN/<local>` — `D
 
 ### S-0058/D-4 — `LOCKED` (One grammar and the anatomy)
 
-`document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`, `goals`, `non_goals`, `tests`, `risks` required of an accepted document, `docs` and `out_of_scope` optional, `design` a keyed list with at least one entry once accepted, `sections` the extras capped at eight — with keys unique document-wide and never a family shape; `description` is dropped and the summary's first sentence routes
+`document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`, `goals`, `non_goals`, `tests`, `risks` required of an accepted design, `docs` and `out_of_scope` optional, `design` a keyed list with at least one entry once a design is accepted, `sections` the extras capped at eight — with keys unique document-wide and never a family shape; an accepted convention owes its summary alone; `description` is dropped and the summary's first sentence routes
 
 - Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py`
 - Consequence: `yq .motivation` answers; a document without a motivation cannot be accepted; the routing line is written once

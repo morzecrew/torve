@@ -146,7 +146,7 @@ def test_schema_version_one_is_refused_naming_the_conversion(tmp_path: Path) -> 
     result = invoke(tmp_path, "check")
 
     assert result.exit_code == EXIT_CONFIG
-    assert "S-0057 phase 1" in result.output
+    assert "S-0058 phase 2" in result.output
 
 
 def test_inheriting_from_a_draft_reddens(tmp_path: Path) -> None:
@@ -457,7 +457,7 @@ def test_a_section_that_carries_what_a_typed_list_holds_reddens(tmp_path: Path) 
         "0001",
         "Widget",
         sections=[
-            {"key": "summary", "md": "  \n"},
+            {"key": "notes", "md": "  \n"},
             {"key": "a-161-the-words", "md": "words\n"},
             {"key": "options", "md": "```yaml alternatives\n- option: x\n```\n"},
             {"key": "rows", "md": "| # | Grade | Decision |\n"},
@@ -467,7 +467,7 @@ def test_a_section_that_carries_what_a_typed_list_holds_reddens(tmp_path: Path) 
     result = invoke(tmp_path, "check")
 
     assert result.exit_code == EXIT_CONFIG
-    assert "section 'summary' has no body" in result.output
+    assert "section 'notes' has no body" in result.output
     assert "section 'a-161-the-words' is an amendment" in result.output
     assert "carries a `alternatives` fence" in result.output
     assert "carries the decisions table" in result.output
@@ -832,6 +832,7 @@ def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -
         "execution.json",
         "gates.json",
         "log.json",
+        "phasing.json",
     ]
     assert (
         json.loads((schemas / "document.json").read_text(encoding="utf-8"))["title"] == "document"

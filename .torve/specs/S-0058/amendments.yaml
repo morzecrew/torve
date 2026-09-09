@@ -6,3 +6,36 @@ amendments:
       phase 1 reaches every tracked file the grammar touches
     md: |
       The mapping rewrites every citation git tracks, and the phase named the roots it expected — `src/`, `pages/`, `skills/`, the tests, the README — while the manifest's comments, the standing contracts, `pyproject.toml`, the migrations' READMEs and the web README cite rows too. They join phase 1's scope. Scope only; no row changes.
+  - id: A-2
+    at: '2026-09-09'
+    title: >-
+      a convention owes its summary; a design owes the anatomy
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          `document.yaml` carries the prose as typed keys — `summary`, `motivation`,
+          `current_state`, `goals`, `non_goals`, `tests`, `risks` required of an accepted
+          document, `docs` and `out_of_scope` optional, `design` a keyed list with
+          at least one entry once accepted, `sections` the extras capped at eight
+          — with keys unique document-wide and never a family shape; `description`
+          is dropped and the summary's first sentence routes
+        after: >-
+          `document.yaml` carries the prose as typed keys — `summary`, `motivation`,
+          `current_state`, `goals`, `non_goals`, `tests`, `risks` required of an accepted
+          design, `docs` and `out_of_scope` optional, `design` a keyed list with at
+          least one entry once a design is accepted, `sections` the extras capped
+          at eight — with keys unique document-wide and never a family shape; an accepted
+          convention owes its summary alone; `description` is dropped and the summary's
+          first sentence routes
+      - subject: D-4
+        field: fingerprint
+        after: a629f4333b936324/30165c090ea60c7d
+    md: |
+      Phase 2 met the baseline: S-0055 has sixty rows, a summary and no design, because a convention is its rows. Asking it for a motivation and a design would make it write prose about prose. The row now distinguishes the kinds: a design owes the anatomy, a convention its summary; S-0055 says `kind: convention`, as it is.
+  - id: A-3
+    at: '2026-09-09'
+    title: >-
+      phase 2 re-renders the projections its row change touches
+    md: |
+      Amending a row's text re-renders the colocated sections that carry it, and phase 2 amends D-4 (A-2); the projections join its scope, as every phase that changes a row must expect. Scope only; no row changes.

@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the record and the importer
+    intent: >-
+      A `Source` domain model with namespaced stable ids, `decision.retired` added
+      to S-0044's vocabulary and authority table by amendment, and a decisions module
+      holding both halves of the record: the fold that turns `source.imported` / `decision.recorded`
+      / `decision.retired` events into current state, version history and supersession
+      edges, and the corpus importer that compares an accepted document's table to
+      that state and returns the events the difference calls for. The importer returns
+      rather than writes, so a dry run is the same comparison. `EventLog` gains a
+      read by subject type with a matching index, because folding an execution-sized
+      log to answer a corpus-sized question is both wasteful and, past the row cap,
+      wrong. Idempotence is the headline property: a second import over an unchanged
+      corpus returns nothing.
+    scope:
+      - src/torve/domain/source.py
+      - src/torve/domain/events.py
+      - src/torve/application/decisions.py
+      - src/torve/application/eventlog.py
+      - migrations/torve/postgres/0002_decisions.sql
+      - tests/test_decisions_record.py
+      - tests/test_events.py
+      - tests/test_eventlog.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_decisions_record.py tests/test_events.py
+      - uv run lint-imports --config pyproject.toml
+      - uv run torve rfc check
+  - phase: 2
+    title: the query and its verbs
+    intent: >-
+      The graph's read surface — current state, one decision's history, the decisions
+      a set of path globs crosses, and a source's rows — behind `torve decisions import|list|show|paths`,
+      with `--check` reporting what an import would append without writing it. The
+      paths query calls the same `globs_intersect` standing inheritance calls, so
+      the record's answer and the corpus's answer differ only by staleness, and a
+      parity test over this repository's own corpus is what says the import read it
+      correctly. The docs page on the record gains the intent half; its authority
+      table regenerates from the code by the test that already pins it.
+    scope:
+      - src/torve/application/decisions.py
+      - src/torve/cli/decisions.py
+      - src/torve/cli/main.py
+      - pages/docs/architecture/record.md
+      - tests/test_decisions_record.py
+      - tests/test_docs.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_decisions_record.py tests/test_docs.py
+      - uv run torve rfc check
+    depends_on:
+      - 1

@@ -1,0 +1,155 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: one grammar
+    intent: >-
+      `CITATION` becomes the one grammar, document-rooted, with the local half written
+      alone inside a document and expanded by the loader; `next_decision` and `next_amendment`
+      count per document; `check_cites`, `check_tree`, `cites` and `show` read the
+      grammar and answer a legacy identifier through the mapping. Every existing identifier
+      converts once by the mapping the conversion writes to `.torve/archive/identifiers.yaml`
+      — the corpus, the archive, every citation in `src/`, `pages/`, `skills/` and
+      the README with "RFC NNNN §n" mapped to the section key at that position, the
+      local task files, the schemas and the projections; a parity script over every
+      item of the schema-3 dump gates the commit and is not committed. The gate names,
+      the pack, the log entry's `decision` and the record's subjects carry the global
+      form and the record re-imports. Every test's fixtures write the grammar; the
+      skill's template and the operating page say it.
+    scope:
+      - src/**
+      - pages/**
+      - skills/**
+      - .claude/skills/**
+      - README.md
+      - CHANGELOG.md
+      - .torve/specs/**
+      - .torve/archive/**
+      - .torve/schemas/**
+      - '**/AGENTS.md'
+      - tests/**
+      - .torve/gates.yaml
+      - .torve/standing/**
+      - pyproject.toml
+      - migrations/**
+      - web/README.md
+    acceptance:
+      - uv run pytest
+      - uv run torve spec check
+      - uv run torve spec project --check
+      - uv run lint-imports --config pyproject.toml
+    character: structural
+  - phase: 2
+    title: the anatomy
+    intent: >-
+      `document.yaml` carries the prose as typed keys with the design a keyed list
+      and the extras capped at eight; `description` is dropped and the summary's first
+      sentence routes; `phasing.yaml` holds the phasing and the contract example;
+      `schema_version` becomes 4 and 3 is refused naming this document. Every document
+      converts once by key, the conversion's notes naming any document whose extras
+      were folded; the loader, the writers, the planner, the pack, the render, `list`,
+      the skill's template, the schemas and the operating page follow; the parity
+      script is not committed.
+    scope:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/config/spec_emit.py
+      - src/torve/cli/spec.py
+      - src/torve/cli/init.py
+      - src/torve/cli/console.py
+      - src/torve/application/planner.py
+      - src/torve/application/intake.py
+      - src/torve/application/contextpack.py
+      - src/torve/application/colocation.py
+      - src/torve/application/projections.py
+      - .torve/specs/**
+      - .torve/archive/**
+      - .torve/schemas/**
+      - skills/spec-writer/**
+      - skills/corpus-bootstrap/**
+      - pages/docs/operating.md
+      - CHANGELOG.md
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+      - tests/test_rfc_emit.py
+      - tests/test_rfc_check.py
+      - tests/test_rfc_fmt.py
+      - tests/test_rfc_verbs.py
+      - tests/test_rfc_show.py
+      - tests/test_rfc_archive.py
+      - tests/test_decisions.py
+      - tests/test_cli_spec.py
+      - tests/test_cli_decisions.py
+      - tests/test_plan.py
+      - tests/test_intake.py
+      - tests/test_contextpack.py
+      - tests/test_colocation.py
+      - tests/test_context.py
+      - tests/test_skills.py
+      - tests/test_cli.py
+      - tests/test_console.py
+      - '**/AGENTS.md'
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py
+        tests/test_rfc_check.py tests/test_rfc_fmt.py tests/test_rfc_verbs.py tests/test_rfc_show.py
+        tests/test_rfc_archive.py tests/test_decisions.py tests/test_cli_spec.py tests/test_cli_decisions.py
+        tests/test_plan.py tests/test_intake.py tests/test_contextpack.py tests/test_colocation.py
+        tests/test_context.py tests/test_skills.py tests/test_cli.py
+      - uv run torve spec check
+      - uv run torve spec project --check
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: execution and the instant
+    intent: >-
+      `execution/` replaces the file: one landing per `<task>-<attempt>-<instant>.yaml`,
+      written once, read sorted by instant, an identical replay a no-op, the scope
+      gate exempting the directory; `torve.base.clock.stamp()` is the one instant
+      and every writer — amendments, landings, entries, telemetry, run state, the
+      display in `spec` and `decisions` — calls it, the existing dates converting
+      once to midnight UTC with the loss stated; `check` warns for a LOCKED row whose
+      governed files carry no citation of it. The schemas and the operating page follow.
+    scope:
+      - src/torve/base/clock.py
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - src/torve/config/spec_emit.py
+      - src/torve/application/decisions.py
+      - src/torve/application/divergence.py
+      - src/torve/application/telemetry.py
+      - src/torve/application/runstate.py
+      - src/torve/application/projections.py
+      - src/torve/cli/spec.py
+      - src/torve/cli/decisions.py
+      - src/torve/cli/log.py
+      - src/torve/cli/init.py
+      - src/torve/gates/scope.py
+      - .torve/specs/**
+      - .torve/archive/**
+      - .torve/schemas/**
+      - pages/docs/operating.md
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+      - tests/test_rfc_emit.py
+      - tests/test_rfc_check.py
+      - tests/test_decisions.py
+      - tests/test_decisions_record.py
+      - tests/test_divergence.py
+      - tests/test_runner.py
+      - tests/test_gates.py
+      - tests/test_cli_spec.py
+      - tests/test_cli_decisions.py
+      - tests/test_telemetry.py
+      - tests/test_runstate.py
+      - tests/test_context.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py
+        tests/test_rfc_check.py tests/test_decisions.py tests/test_decisions_record.py
+        tests/test_divergence.py tests/test_runner.py tests/test_gates.py tests/test_cli_spec.py
+        tests/test_cli_decisions.py tests/test_telemetry.py tests/test_runstate.py
+        tests/test_context.py
+      - uv run torve spec check
+    depends_on:
+      - 1

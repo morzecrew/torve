@@ -9,94 +9,84 @@ informed_by: [S-0011, S-0020, S-0022]
 supersedes: []
 superseded_by: S-0055
 owner: Lev Litvinov
-description: >-
-  Mechanical writers over the corpus parser — a canonical emitter, torve rfc fmt,
-  and transactional verbs for amendments, decisions, retirement and path relocation
-  — so the structure-bearing edits stop being hand-typed.
-schema_version: 3
-sections:
-  - key: summary
-    md: |
-      The corpus format is validated to the byte and written by hand, and the gap
-      between those two facts is where every recurring authoring defect lives. This
-      document adds the other half of S-0007/D-12's "the package owns the format": a
-      canonical emitter beside the parser, `torve rfc fmt` to normalise a document's
-      structural surfaces without touching its prose, and one verb per mechanical
-      edit that history shows going wrong — appending an amendment, adding a
-      decision row, retiring an identifier, relocating Paths cells. Each verb
-      derives its identifiers the way `rfc new` already derives numbers, applies the
-      edit through the model, and refuses to leave a document the check would
-      redden. Storage does not change; a folder-per-document layout was considered
-      and rejected.
-  - key: motivation
-    md: |
-      The check catches structural mistakes; nothing prevents them. The evidence is
-      the repository's own history, and it is not subtle:
+schema_version: 4
+summary: |
+  The corpus format is validated to the byte and written by hand, and the gap
+  between those two facts is where every recurring authoring defect lives. This
+  document adds the other half of S-0007/D-12's "the package owns the format": a
+  canonical emitter beside the parser, `torve rfc fmt` to normalise a document's
+  structural surfaces without touching its prose, and one verb per mechanical
+  edit that history shows going wrong — appending an amendment, adding a
+  decision row, retiring an identifier, relocating Paths cells. Each verb
+  derives its identifiers the way `rfc new` already derives numbers, applies the
+  edit through the model, and refuses to leave a document the check would
+  redden. Storage does not change; a folder-per-document layout was considered
+  and rejected.
+motivation: |
+  The check catches structural mistakes; nothing prevents them. The evidence is
+  the repository's own history, and it is not subtle:
 
-      - **Amendment numbers collided three times** — the entries drafted as `S-0002/A-2`,
-        `S-0003/A-2` and `S-0013/A-1` each landed renumbered (`S-0001/A-4`, `S-0016/A-5`, `S-0001/A-6`) because a
-        number already taken elsewhere was chosen by hand. RFC numbers stopped
-        colliding the day `torve rfc new` started deriving them (S-0016/D-24); amendment
-        numbers still rely on the author grepping.
-      - **Appending an amendment entry by anchored text edit** stranded a previous
-        entry's `Also edits` line below the new entry — a defect class the corpus
-        now checks for after the fact rather than making impossible.
-      - **The trap scalars keep biting**: a bare `on:` key parsing as boolean, a
-        backticked `key: value` inside a plain scalar, a ` # ` sequence silently
-        truncating a value. Each is a quoting decision an emitter makes correctly
-        every time and a hand makes correctly most times.
-      - **Paths relocations are mechanical and hand-executed.** S-0016/D-4 says Paths
-        cells follow the code; every layout change since S-0015 has meant a hand
-        sweep over decision tables, and the checker catching a missed cell is the
-        backstop working, not the process.
+  - **Amendment numbers collided three times** — the entries drafted as `S-0002/A-2`,
+    `S-0003/A-2` and `S-0013/A-1` each landed renumbered (`S-0001/A-4`, `S-0016/A-5`, `S-0001/A-6`) because a
+    number already taken elsewhere was chosen by hand. RFC numbers stopped
+    colliding the day `torve rfc new` started deriving them (S-0016/D-24); amendment
+    numbers still rely on the author grepping.
+  - **Appending an amendment entry by anchored text edit** stranded a previous
+    entry's `Also edits` line below the new entry — a defect class the corpus
+    now checks for after the fact rather than making impossible.
+  - **The trap scalars keep biting**: a bare `on:` key parsing as boolean, a
+    backticked `key: value` inside a plain scalar, a ` # ` sequence silently
+    truncating a value. Each is a quoting decision an emitter makes correctly
+    every time and a hand makes correctly most times.
+  - **Paths relocations are mechanical and hand-executed.** S-0016/D-4 says Paths
+    cells follow the code; every layout change since S-0015 has meant a hand
+    sweep over decision tables, and the checker catching a missed cell is the
+    backstop working, not the process.
 
-      None of these argues for a stricter format. The format is already exactly as
-      strict as validation can make it; the defects are all in the writing, which is
-      the half no tool owns.
-  - key: current-state
-    md: |
-      Verified against the tree, not from memory:
+  None of these argues for a stricter format. The format is already exactly as
+  strict as validation can make it; the defects are all in the writing, which is
+  the half no tool owns.
+current_state: |
+  Verified against the tree, not from memory:
 
-      - `src/torve/config/rfc_parse.py` parses everything this document needs:
-        frontmatter, decision sections into `DecisionRow` values, phasing fences
-        into `PhasingEntry` models, amendment headings, retired identifiers — and
-        already computes `next_amendment` over the corpus (built for `rfc show`'s
-        lookup surface). The model exists; only the emitter is missing.
-      - `src/torve/cli/rfc.py` carries `check`, `show`, `index`, `new`, `graph` and
-        `health`. `new` is the only writer, and it derives its number as maximum
-        plus one (S-0016/D-24). `INDEX.md` is the only generated artefact (S-0016/D-17).
-      - The corpus is uniform by habit: every accepted document carries the same
-        section family, the exact five-column decision header (S-0016/D-2), and an
-        `## Amendments` container. The uniformity is enforced nowhere except where
-        a specific check happens to overlap it.
-      - `torve rfc health` (S-0022) is a second reader over the same parser,
-        which settles that the parse model is load-bearing enough to hang an
-        emitter on.
-  - key: goals-non-goals
-    md: |
-      **Goals**
+  - `src/torve/config/rfc_parse.py` parses everything this document needs:
+    frontmatter, decision sections into `DecisionRow` values, phasing fences
+    into `PhasingEntry` models, amendment headings, retired identifiers — and
+    already computes `next_amendment` over the corpus (built for `rfc show`'s
+    lookup surface). The model exists; only the emitter is missing.
+  - `src/torve/cli/rfc.py` carries `check`, `show`, `index`, `new`, `graph` and
+    `health`. `new` is the only writer, and it derives its number as maximum
+    plus one (S-0016/D-24). `INDEX.md` is the only generated artefact (S-0016/D-17).
+  - The corpus is uniform by habit: every accepted document carries the same
+    section family, the exact five-column decision header (S-0016/D-2), and an
+    `## Amendments` container. The uniformity is enforced nowhere except where
+    a specific check happens to overlap it.
+  - `torve rfc health` (S-0022) is a second reader over the same parser,
+    which settles that the parse model is load-bearing enough to hang an
+    emitter on.
+goals: |
+  **Goals**
 
-      - Make the recurring mechanical edits impossible to get wrong rather than
-        merely detectable when wrong.
-      - Derive amendment and decision identifiers the way document numbers are
-        already derived.
-      - Normalise the structural surfaces — frontmatter, tables, fences, amendment
-        headings — to one canonical rendering, idempotently.
-      - Leave prose exactly alone.
-
-      **Non-goals**
-
-      - **Changing storage.** One `NNNN-slug.md` per document, no subdirectories
-        (S-0016/D-25). The folder-per-document alternative is examined and rejected in
-        §5.5; this document is the answer to the fragility that motivated it.
-      - **Changing validation.** `torve rfc check` keeps its meaning; the verbs
-        call it, they do not replace it.
-      - **Writing judgement.** No verb chooses a grade, drafts decision text,
-        flips `status` or `implementation`, or composes amendment prose. The tool
-        writes skeletons and identifiers; the author writes the words.
-      - **A markdown formatter.** `fmt` normalises the structures the parser owns
-        and nothing else — it is not prettier, and body paragraphs pass through
-        byte-for-byte.
+  - Make the recurring mechanical edits impossible to get wrong rather than
+    merely detectable when wrong.
+  - Derive amendment and decision identifiers the way document numbers are
+    already derived.
+  - Normalise the structural surfaces — frontmatter, tables, fences, amendment
+    headings — to one canonical rendering, idempotently.
+  - Leave prose exactly alone.
+non_goals: |
+  - **Changing storage.** One `NNNN-slug.md` per document, no subdirectories
+    (S-0016/D-25). The folder-per-document alternative is examined and rejected in
+    §5.5; this document is the answer to the fragility that motivated it.
+  - **Changing validation.** `torve rfc check` keeps its meaning; the verbs
+    call it, they do not replace it.
+  - **Writing judgement.** No verb chooses a grade, drafts decision text,
+    flips `status` or `implementation`, or composes amendment prose. The tool
+    writes skeletons and identifiers; the author writes the words.
+  - **A markdown formatter.** `fmt` normalises the structures the parser owns
+    and nothing else — it is not prettier, and body paragraphs pass through
+    byte-for-byte.
+design:
   - key: the-canonical-emitter
     md: |
       A companion to the parser — `src/torve/config/rfc_emit.py` — that renders the
@@ -171,53 +161,50 @@ sections:
         frontmatter). Refused by S-0016/D-14's standing reasoning: the rows carry prose
         people argue about in review, and splitting rows from rationale makes two
         sources of truth. The format is not the defect; the typing is.
-  - key: tests
-    md: |
-      Idempotence over the live corpus (§5.1's double-round-trip equality, run
-      against every committed document); a byte-equality case proving `fmt` on an
-      already-canonical document writes nothing; one case per verb proving the
-      transaction aborts whole on an injected check failure; a collision case
-      proving `rfc amend` under a corpus already carrying `A-nn` derives `A-nn+1`;
-      a retire case proving refusal while a citation still resolves through the
-      row. The trap scalars get a table-driven case each: `on:`, backticked
-      `key: value`, embedded ` # `.
-  - key: docs
-    md: |
-      The `rfc-writer` skill sheds its hand-instructions for the mechanical edits
-      and points at the verbs instead — the skill teaches judgement (grading,
-      phasing, prose) and the tool owns structure. One line in the skill's workflow
-      reference per verb; no new page.
-  - key: out-of-scope
-    md: |
-      - **A drafting run for corpus documents.** S-0020's pattern applied to RFC
-        authoring — an agent iterating `new`/`fmt`/`check` in a sandbox, a human
-        adopting — is the natural next consumer of this surface and is deliberately
-        not designed here. It needs this document's verbs to exist first, and it
-        raises adoption questions (what is the human signing when the artefact is a
-        specification?) that deserve their own document.
-      - **Editing accepted decision text.** There is no verb for it because there
-        is no legal edit: accepted rows change by amendment (S-0016/D-16) or retirement
-        (S-0016/D-1), both of which have verbs.
-      - **INDEX changes.** The index stays generated and checked exactly as it is;
-        the verbs regenerate it as part of their transaction, which is a call site,
-        not a redesign.
-  - key: risks
-    md: |
-      - **The emitter fights the author's hand.** A `fmt` that rewrites more than
-        the structural surfaces turns every corpus diff into noise and teaches
-        people to skip it. Mitigation is S-0025/D-1: prose passes through
-        byte-for-byte, and the idempotence test doubles as a scope fence — any
-        normalisation beyond the modelled structures shows up as a corpus-wide diff
-        in review.
-      - **Verbs invite scripting judgement.** A verb that writes a skeleton makes
-        it tempting to fill the skeleton by machine too. The non-goal is written
-        now and S-0025/D-3 grades it `LOCKED`, because the corpus's value is that a
-        human meant every graded row.
-      - **`src/torve/cli/rfc.py` is already the repository's least-tested
-        hotspot.** Adding four verbs there without moving logic down would deepen
-        that. Mitigation: the verbs are thin — parse, mutate, emit and check all
-        live in `config/`, and the CLI layer stays argument handling, matching the
-        house layering.
+tests: |
+  Idempotence over the live corpus (§5.1's double-round-trip equality, run
+  against every committed document); a byte-equality case proving `fmt` on an
+  already-canonical document writes nothing; one case per verb proving the
+  transaction aborts whole on an injected check failure; a collision case
+  proving `rfc amend` under a corpus already carrying `A-nn` derives `A-nn+1`;
+  a retire case proving refusal while a citation still resolves through the
+  row. The trap scalars get a table-driven case each: `on:`, backticked
+  `key: value`, embedded ` # `.
+docs: |
+  The `rfc-writer` skill sheds its hand-instructions for the mechanical edits
+  and points at the verbs instead — the skill teaches judgement (grading,
+  phasing, prose) and the tool owns structure. One line in the skill's workflow
+  reference per verb; no new page.
+out_of_scope: |
+  - **A drafting run for corpus documents.** S-0020's pattern applied to RFC
+    authoring — an agent iterating `new`/`fmt`/`check` in a sandbox, a human
+    adopting — is the natural next consumer of this surface and is deliberately
+    not designed here. It needs this document's verbs to exist first, and it
+    raises adoption questions (what is the human signing when the artefact is a
+    specification?) that deserve their own document.
+  - **Editing accepted decision text.** There is no verb for it because there
+    is no legal edit: accepted rows change by amendment (S-0016/D-16) or retirement
+    (S-0016/D-1), both of which have verbs.
+  - **INDEX changes.** The index stays generated and checked exactly as it is;
+    the verbs regenerate it as part of their transaction, which is a call site,
+    not a redesign.
+risks: |
+  - **The emitter fights the author's hand.** A `fmt` that rewrites more than
+    the structural surfaces turns every corpus diff into noise and teaches
+    people to skip it. Mitigation is S-0025/D-1: prose passes through
+    byte-for-byte, and the idempotence test doubles as a scope fence — any
+    normalisation beyond the modelled structures shows up as a corpus-wide diff
+    in review.
+  - **Verbs invite scripting judgement.** A verb that writes a skeleton makes
+    it tempting to fill the skeleton by machine too. The non-goal is written
+    now and S-0025/D-3 grades it `LOCKED`, because the corpus's value is that a
+    human meant every graded row.
+  - **`src/torve/cli/rfc.py` is already the repository's least-tested
+    hotspot.** Adding four verbs there without moving logic down would deepen
+    that. Mitigation: the verbs are thin — parse, mutate, emit and check all
+    live in `config/`, and the CLI layer stays argument handling, matching the
+    house layering.
+sections:
   - key: unresolved-questions
     md: |
       - Whether `fmt` should also normalise section numbering (renumbering
@@ -239,57 +226,3 @@ sections:
         same transaction.
       - A layout change's Paths sweep executed by `rfc relocate-paths` with zero
         hand-edited cells.
-phasing:
-  - phase: 1
-    title: emitter-and-fmt
-    intent: |
-      The canonical emitter beside the parser and torve rfc fmt as its
-      surface: frontmatter in fixed key order with trap scalars quoted,
-      decision tables at the validated header, phasing fences re-serialised,
-      amendment headings in dated form — prose byte-for-byte. Idempotence
-      pinned over the live corpus; fmt refuses documents whose parse already
-      reports problems; --check reports without writing.
-    scope: [src/torve/config/**, src/torve/cli/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-  - phase: 2
-    title: transactional-verbs
-    intent: |
-      rfc amend, rfc add-decision, rfc retire and rfc relocate-paths as
-      parse-mutate-emit-check transactions that abort whole on a red check:
-      derived amendment and decision identifiers, S-0016/D-1 retirement executed
-      in one motion, mechanical Paths sweeps. Verbs write structure and
-      identifiers only; grades, prose and status stay hand-written.
-    scope: [src/torve/config/**, src/torve/cli/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-    depends_on:
-      - 1
-  - phase: 3
-    title: typed-example-fences
-    intent: |
-      The contract-example fence validated against the task contract schema
-      as part of torve rfc check, following the phasing-fence pattern, so a
-      corpus document can carry a runnable contract example that reddens
-      when the schema moves. The rfc-writer skill's template gains the fence;
-      no other tags ship.
-    scope: [src/torve/config/**, skills/rfc-writer/**, tests/**]
-    acceptance:
-      - uv run ruff check src tests
-      - uv run mypy src
-      - uv run basedpyright src
-      - uv run pytest
-      - uv run lint-imports
-      - uv run torve rfc check
-    depends_on:
-      - 1

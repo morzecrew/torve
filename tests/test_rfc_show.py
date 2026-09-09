@@ -136,7 +136,7 @@ def test_document_answers_its_header_fields_and_phases(tmp_path):
     assert found is not None
     assert found["status"] == "accepted"
     assert found["implementation"] == "partial"
-    assert found["sections"] == ["design"]
+    assert found["sections"][:2] == ["summary", "motivation"] and "design" in found["sections"]
     assert found["phases"] == [{"phase": 1, "title": "the-core", "depends_on": []}]
     assert found["file"] == "S-0090"
 
