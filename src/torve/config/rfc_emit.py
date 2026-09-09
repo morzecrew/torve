@@ -1,4 +1,4 @@
-"""The canonical emitter beside `torve.config.rfc_parse` (RFC 0025 §5.1,
+"""The canonical emitter beside `torve.config.spec` (RFC 0025 §5.1,
 D-25.1): renders a parsed document's model back to text. Frontmatter,
 the decision table, the phasing fence and dated amendment headings are the
 structures the parser models, so those are the only ones this module
@@ -34,7 +34,7 @@ from typing import Any, cast
 
 import yaml
 
-from torve.config.rfc_parse import (
+from torve.config.spec import (
     AMENDMENTS_SECTION,
     FRONTMATTER,
     PHASING_HEADING,
@@ -582,7 +582,7 @@ def _append_editorial(rest: str, changes: list[dict[str, Any]]) -> str:
 def append_decision(text: str, identifier: str) -> str:
     """`rfc add-decision` (D-25.4): appends a row skeleton under *identifier*
     — the next free id in the document's own family, derived by
-    `rfc_parse.next_decision` before this is called. The grade is written as
+    `spec.next_decision` before this is called. The grade is written as
     `OPEN`, the vocabulary's own "not yet decided" value (D-25.3 LOCKED: no
     verb chooses a grade) — Paths and the decision text are left blank for
     the author."""

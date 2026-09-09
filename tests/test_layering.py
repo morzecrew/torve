@@ -71,7 +71,7 @@ PYPROJECT = textwrap.dedent("""\
     name = "The RFC format stays at the planner"
     type = "forbidden"
     source_modules = ["pkg.gates", "pkg.adapters.runtime"]
-    forbidden_modules = ["pkg.config.rfc_parse"]
+    forbidden_modules = ["pkg.config.spec"]
     """)
 
 CLEAN = {
@@ -88,7 +88,7 @@ CLEAN = {
     "pkg/gates/__init__.py": "",
     "pkg/gates/check.py": "from pkg.domain import thing  # noqa: F401\n",
     "pkg/config/__init__.py": "",
-    "pkg/config/rfc_parse.py": "FORMAT = 1\n",
+    "pkg/config/spec.py": "FORMAT = 1\n",
     "pkg/cli/__init__.py": "",
     # The CLI reading the format is the planner's side of the line (A-19).
     "pkg/cli/main.py": (

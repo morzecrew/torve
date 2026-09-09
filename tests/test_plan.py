@@ -19,7 +19,7 @@ from torve.application.planner import (
     write_contracts,
 )
 from torve.cli import app
-from torve.config.rfc_parse import parse_phasing
+from torve.config.spec import parse_phasing
 from torve.domain.task import InheritedDecision
 from torve.gates.context import load_task
 

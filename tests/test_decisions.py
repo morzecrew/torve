@@ -20,8 +20,7 @@ from torve.application.decisions import (
     path_rot,
 )
 from torve.config.rfc_emit import amend_row, fix_row_text, stamp
-from torve.config.rfc_parse import decision_table
-from torve.config.spec import archive_dir
+from torve.config.spec import archive_dir, decision_table
 from torve.domain.events import EventKind
 
 # ----------------------- #

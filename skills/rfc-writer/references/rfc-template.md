@@ -79,6 +79,13 @@ trade-off, not just its rejection — that is what stops re-litigation.>
 
 <...>
 
+### Alternatives considered
+
+```yaml alternatives
+- option: <what else could have been built>
+  rejected_because: <the trade-off that lost, so it stays rejected>
+```
+
 ## 6. Tests
 
 <How the design is verified: new suites, conformance families, what parity is
@@ -115,6 +122,20 @@ worded carefully (e.g. migration honesty, threat-model caveats).>
 | 2 | `ASSUMED` | <Believed correct but not load-bearing. Execution may depart from it if building proves it wrong, and logs the departure in its task log.> |
 | 3 | `OPEN` | <Deliberately delegated to implementation. Say what the question is and what would settle it; the executor decides and logs the decision. An absent row is not `OPEN` — it is silence, and silence gets filled by whoever arrives first.> |
 | 4 | `ASSUMED` | <A row execution proposed and the author accepted. Ends with its provenance: Added by execution 2026-08-14 — see logs/T-0142.md (D-3, attempt 2).> |
+
+```yaml decision-details
+- id: D-NNNN.1
+  rationale: <why the row exists, in one or two sentences — never repeated from prose>
+  cites: [D-x.y, A-n, "0007"]      # what it descends from; resolves over the archive
+  check: <a command whose exit code judges the row, or omit>
+```
+
+```yaml invariants
+- id: I-NNNN.1
+  statement: <a rule that holds over these paths>
+  paths: ["src/thing/**"]
+  check: "pytest tests/test_thing.py -k invariant"
+```
 
 ## 12. Phasing
 

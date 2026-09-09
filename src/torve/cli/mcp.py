@@ -81,7 +81,7 @@ def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "
         amendment (A-47) or a document (0021) — to its standing definition:
         the same lookup `torve rfc show` serves (D-7.29)."""
 
-        from torve.config.rfc_parse import lookup
+        from torve.config.spec import lookup
 
         found = lookup(rfc_dir, identifier)
 

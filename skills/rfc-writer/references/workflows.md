@@ -23,10 +23,10 @@ If the directory exists but has a `README.md` in this role, treat it as the inde
 ## Numbering and filenames
 
 - Numbers are 4-digit, zero-padded, monotonically increasing: `0001`, `0002`, …
-- To allocate: `torve rfc new "Title"`. The next number is **derived** — the maximum that exists, plus one (D-A.17). There is no counter file, and no way to pick a number by hand.
+- To allocate: `torve rfc new "Title"`. The next number is **derived** — the maximum that exists in the corpus path and the archive beside it, plus one (D-A.17, D-53.10). There is no counter file, and no way to pick a number by hand.
 - Filename: `NNNN-kebab-case-title.md`. Keep the number in the filename and the `# RFC NNNN — Title` H1 in sync — they drift otherwise, and links break both ways.
 - Never renumber existing RFCs. Numbers are identifiers, not an ordering to be tidied.
-- **Never delete a document, never reuse a number** (D-A.19). A document leaves service through `superseded` or `implementation: abandoned`; gaps in the numbering are fine, filling one is refused.
+- **Never delete a document, never reuse a number** (D-A.19). A document leaves the corpus path through `torve rfc archive NUMBER --superseded-by NNNN` into `archive/rfcs/`, keeping its filename and identifiers; gaps in the numbering are fine, filling one is refused.
 
 ## Statuses
 
@@ -45,6 +45,10 @@ torve rfc index                    # regenerate INDEX.md; --check compares witho
 torve rfc new "Title"              # derive the next number, instantiate the template, regenerate
 torve rfc new "Title" --kind convention
 torve rfc graph                    # depends_on edges with statuses, plus inheritance hazards
+torve rfc amend NNNN --title T --row D-x.y --grade G   # the only way a row's grade or paths change
+torve rfc fix D-x.y "…"            # editorial: re-stamp a text-only edit, no amendment number
+torve rfc archive NNNN --superseded-by MMMM            # into archive/rfcs/, under one transaction
+torve rfc check --fix-rot          # retire rows whose paths match nothing in the tree
 ```
 
 (Read-only except `new` and `index`; add `--root DIR` if the repository isn't the cwd.) The thinking — what the design says, what the one-liner claims, when a status changes — is yours.
@@ -59,7 +63,7 @@ torve rfc graph                    # depends_on edges with statuses, plus inheri
 ### B — Update an existing RFC
 
 1. When work ships partially or fully, update the `**Status:**` line — and annotate it with what shipped and when ("Shipped 2026-06-29: …; only P5 remains").
-2. If execution diverged from the design, the divergence is already in that task's log; what lands here is the decision row it proposed, appended and citing its entry. Don't silently rewrite history, and don't restate the log's narrative in the RFC — the row is the contract, the entry is the evidence, and duplicating one into the other means they will disagree later.
+2. If execution diverged from the design, the divergence is already in that task's log; what lands here is the decision row it proposed, appended with `torve rfc add-decision` and graded with `torve rfc amend --row`, citing its entry in `decision-details`. Don't silently rewrite history, and don't hand-edit a row — the check reads a hand-edited grade or paths as a row with no history.
 3. Mirror the status in the index table. Leave the one-liner alone unless the RFC's *subject* changed — shipping, phasing and amendments are the RFC's history, not the index's.
 4. Rejected designs get ❌ and stay in the directory.
 

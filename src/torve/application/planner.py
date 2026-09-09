@@ -37,7 +37,7 @@ import yaml
 from pathspec import GitIgnoreSpec
 
 from torve.application import sizing
-from torve.config import layout, rfc_parse
+from torve.config import layout, spec
 from torve.domain.attempt import SizeVerdict
 from torve.domain.rfc import GRADES
 from torve.domain.task import InheritedDecision, Scope, Task
@@ -97,7 +97,7 @@ def _admit(files: dict[str, Path], number: str) -> None:
     frontmatter: dict[str, dict[str, object]] = {}
 
     for num, path in files.items():
-        fm = rfc_parse.parse_frontmatter(path.read_text(encoding="utf-8"))
+        fm = spec.parse_frontmatter(path.read_text(encoding="utf-8"))
 
         if fm is not None:
             frontmatter[num] = fm
@@ -300,7 +300,7 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
 
     decisions: list[InheritedDecision] = []
 
-    for row in rfc_parse.decision_table(text):
+    for row in spec.decision_table(text):
         if row.grade not in GRADES:
             raise PlanError(
                 f"{name}: decision {row.identifier} has grade {row.grade!r} — "
@@ -336,9 +336,9 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
 
     standing: list[InheritedDecision] = []
 
-    for path in rfc_parse.rfc_files(rfc_dir).values():
+    for path in spec.rfc_files(rfc_dir).values():
         text = path.read_text(encoding="utf-8")
-        frontmatter = rfc_parse.parse_frontmatter(text)
+        frontmatter = spec.parse_frontmatter(text)
 
         if frontmatter is None:
             continue
@@ -363,7 +363,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
     any refusal (§3.1) — each names the offending document or entry."""
 
-    files = rfc_parse.rfc_files(rfc_dir)
+    files = spec.rfc_files(rfc_dir)
     number = identifier.strip().removesuffix(".md")
 
     if number not in files:
@@ -382,7 +382,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     text = doc_path.read_text(encoding="utf-8")
 
     try:
-        entries = rfc_parse.parse_phasing(text)
+        entries = spec.parse_phasing(text)
 
     except ValueError as exc:
         raise PlanError(f"{doc_path.name}: Phasing section does not mint — {exc}") from exc
@@ -395,7 +395,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
 
     # Same-phase scopes must not intersect (§3): overlapping tasks cannot run
     # in parallel and the plan silently serialises.
-    by_phase: dict[int, list[rfc_parse.PhasingEntry]] = {}
+    by_phase: dict[int, list[spec.PhasingEntry]] = {}
 
     for entry in entries:
         by_phase.setdefault(entry.phase, []).append(entry)
@@ -535,8 +535,8 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
 
     superseded: dict[str, str | None] = {}
 
-    for _number, path in rfc_parse.rfc_files(rfc_dir).items():
-        fm = rfc_parse.parse_frontmatter(path.read_text(encoding="utf-8"))
+    for _number, path in spec.rfc_files(rfc_dir).items():
+        fm = spec.parse_frontmatter(path.read_text(encoding="utf-8"))
 
         if fm is None:
             continue

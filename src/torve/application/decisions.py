@@ -37,7 +37,7 @@ from pathspec import GitIgnoreSpec
 from pydantic import ValidationError
 
 from torve.application.planner import PlanError, globs_intersect
-from torve.config import rfc_parse, spec
+from torve.config import spec
 from torve.config.rfc_emit import FINGERPRINTS_KEY, rule_fingerprint
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.source import Source, corpus_source_id
@@ -254,9 +254,9 @@ def corpus_sources(rfc_dir: Path) -> dict[str, tuple[Source, str]]:
 
     found: dict[str, tuple[Source, str]] = {}
 
-    for number, path in rfc_parse.rfc_files(rfc_dir).items():
+    for number, path in spec.rfc_files(rfc_dir).items():
         text = path.read_text(encoding="utf-8")
-        frontmatter = rfc_parse.parse_frontmatter(text)
+        frontmatter = spec.parse_frontmatter(text)
 
         if frontmatter is None:
             continue
@@ -582,7 +582,7 @@ def fingerprint_drift(corpus: Corpus) -> tuple[list[str], list[str]]:
         if doc.archived or not doc.path:
             continue
 
-        fm = rfc_parse.parse_frontmatter(Path(doc.path).read_text(encoding="utf-8")) or {}
+        fm = spec.parse_frontmatter(Path(doc.path).read_text(encoding="utf-8")) or {}
         stamped = fm.get(FINGERPRINTS_KEY)
 
         if not isinstance(stamped, dict):

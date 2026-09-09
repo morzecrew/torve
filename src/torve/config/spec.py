@@ -1,40 +1,38 @@
-"""The loader of the specification model (RFC 0053 §5.1–§5.2, D-53.1,
-D-53.2): the markdown corpus as it stands — frontmatter, the decision
-table, the phasing fence, the contract example, amendment headings — plus
-the five fenced kinds of §5.2, read into `torve.domain.spec.Document`.
+"""The specification format and its model, owned by the package (RFC 0007
+§3a, D-7.12 as amended by A-151; RFC 0053 D-53.1): parsing, corpus
+validation, the generated index, and the loader that reads the markdown
+corpus — frontmatter, the decision table, the phasing fence, the contract
+example, amendment headings and the five fenced kinds of RFC 0053 §5.2 —
+into `torve.domain.spec.Document`, the one object every reader consumes.
 
-Phase 1 of RFC 0053 (D-53.13): this module lands *beside* `rfc_parse`, and
-the shared halves of the format are still read through it so the parity
-test has one thing to assert against. Nothing else switches to the model
-in this phase; every reader stays on the parser until phase 2, and the
-parser is deleted in phase 5 once the archive has landed.
+`check_corpus` is the whole check behind `torve rfc check` and the `rfc-valid`
+gate. It needs no store and no network (D-7.16): every input is the working
+tree. Problems are failures; warnings surface without reddening. The loader
+adds what the parser never had: the fenced kinds validated with unknown keys
+refused (D-53.3), prose sections keyed by heading with fences respected,
+typed amendment diffs, the archive beside the corpus path (D-53.8) whose
+documents load as `archived=True` and still define every identifier they
+ever did, number derivation over both (D-53.10), and citation resolution
+over both, refused by name when a `cites` entry names nothing.
 
-What this module owns that the parser never did:
-
-- the fenced kinds, validated against their models with unknown keys
-  refused (D-53.3);
-- prose sections keyed by heading slug, sliced with fences respected — a
-  `## ` line inside a code block is illustration, never a heading (the
-  defect RFC 0054 §3 recorded against the parser);
-- the amendment entries with their typed `changes` fence;
-- the archive beside the corpus path (D-53.8), whose documents load as
-  `archived=True` and still define every identifier they ever did;
-- number derivation over corpus *and* archive (D-53.10);
-- citation resolution over both, refused by name when a `cites` entry
-  names nothing (RFC 0053 §6).
+What lives in the corpus directory is bounded (charter D-A.18): only
+`NNNN-slug.md` and `INDEX.md`, no subdirectories, and every refusal routes the
+offending file somewhere rather than merely rejecting it. What leaves it goes
+to the archive, through `torve rfc archive` alone.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any, TypeVar, cast
+from typing import Any, Literal, TypeVar, cast
 
 import yaml
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from torve.config import rfc_parse
+from torve.domain.rfc import GRADES, IMPLEMENTATIONS, KINDS, STATUSES
 from torve.domain.spec import (
     FENCE_KINDS,
     Alternative,
@@ -50,16 +48,1392 @@ from torve.domain.spec import (
     Question,
     is_citation,
 )
+from torve.domain.task import Task
 
 # ----------------------- #
 
+TABLE_HEADER = "| # | Grade | Decision | Paths | Consequence |"
+REQUIRED_FIELDS = (
+    "id",
+    "title",
+    "status",
+    "depends_on",
+    "informed_by",
+    "supersedes",
+    "amended_by",
+    "owner",
+    "description",
+    "schema_version",
+)
+LIST_FIELDS = ("depends_on", "informed_by", "supersedes", "amended_by", "retired")
+
+RFC_FILENAME = re.compile(r"^(\d{4})-([a-z0-9-]+)\.md$")
+NUMBER_ONLY = re.compile(r"^\d{4}(\.md)?$")
+FRONTMATTER = re.compile(r"\A---\n(.*?\n)---\n", re.S)
+H1 = re.compile(r"^# RFC (\d{4}) — (.+)$", re.M)
+PROSE_STATUS = re.compile(r"^- \*\*Status:\*\*", re.M)
+DECISIONS_HEADING = re.compile(r"^#{2,3}\s*(?:\d+\.\s*)?Decisions\b.*$", re.M | re.I)
+AMENDMENT_HEADING = re.compile(r"^### (A-\d+)\b", re.M)
+AMENDMENTS_SECTION = re.compile(r"^## Amendments\s*$", re.M)
+URI_OR_PROTOCOL_RELATIVE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|//)")
+LOCAL_LINK = re.compile(r"\[[^\]]*\]\((?!#)([^)\s]+)")
+# A cited source location with a line number (0007 §3a "rot"): only paths that
+# actually exist in the repository count — an illustrative `file.py:42` in
+# prose names nothing and rots nothing.
+LINE_CITE = re.compile(r"(?<![\w/])((?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9_]+):(\d+)")
+FENCED_BLOCK = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
+HEADING = re.compile(r"^(#{2,3})\s+(.+?)\s*$", re.M)
+HEADING_NUMBER = re.compile(r"^\d+[a-z]?(\.\d+)*\.?\s+")
+# A citation of a dotted decision identifier (charter-decomposition patch §6):
+# with one family split across two documents, every citation must resolve to
+# exactly one definition somewhere in the corpus. The undotted legacy ids
+# (D-27, D-21a) are too short to scan for without false positives.
+DECISION_CITE = re.compile(r"\bD-[A-Za-z0-9]+\.\d+[a-z]?\b")
+
+GENERATED_NOTE = (
+    "<!-- Generated by `torve rfc index` (charter D-A.6).\n"
+    "     Never edit by hand: `torve rfc index` rewrites this file and\n"
+    "     `torve rfc check` fails CI when it drifts. -->"
+)
+
+# ....................... #
+
+
+@dataclass
+class CheckReport:
+    """Everything `check` found: problems redden, warnings surface."""
+
+    count: int = 0
+    problems: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    # ....................... #
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems
+
+
+# ....................... #
+
+
+# The archive beside the corpus path (RFC 0053 D-53.8): retired documents
+# keep their filenames and identifiers there, and the check resolves what
+# they define (A-140) without ever reading them as standing.
 ARCHIVE_RELATIVE = Path("archive") / "rfcs"
+
+
+def archive_dir(rfc_dir: Path) -> Path:
+    return rfc_dir.parent / ARCHIVE_RELATIVE
+
+
+def archive_files(rfc_dir: Path) -> dict[str, Path]:
+    """Zero-padded id -> file, over the archive; empty when there is none."""
+
+    archive = archive_dir(rfc_dir)
+
+    return rfc_files(archive) if archive.is_dir() else {}
+
+
+# ....................... #
+
+
+def rfc_files(rfc_dir: Path) -> dict[str, Path]:
+    """Zero-padded id -> file. Duplicate numbers are reported by check."""
+
+    found: dict[str, Path] = {}
+
+    for path in sorted(rfc_dir.glob("*.md")):
+        match = RFC_FILENAME.match(path.name)
+
+        if match:
+            found.setdefault(match.group(1), path)
+
+    return found
+
+
+# ....................... #
+
+
+def parse_frontmatter(text: str) -> dict[str, Any] | None:
+    match = FRONTMATTER.match(text)
+
+    if not match:
+        return None
+
+    try:
+        loaded = yaml.safe_load(match.group(1))
+
+    except yaml.YAMLError:
+        return None
+
+    if not isinstance(loaded, dict):
+        return None
+
+    return {str(k): v for k, v in cast("dict[str, Any]", loaded).items()}
+
+
+# ....................... #
+
+
+def fm_list(fm: dict[str, Any], fname: str) -> list[str]:
+    """A frontmatter list field as strings; anything malformed reads as empty
+    (check_frontmatter reports the malformation itself)."""
+
+    value = fm.get(fname)
+
+    if not isinstance(value, list):
+        return []
+
+    return [str(item) for item in cast("list[object]", value)]
+
+
+# ....................... #
+
+
+def slugify(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
+# ....................... #
+
+
+def check_directory(rfc_dir: Path) -> list[str]:
+    """Only `NNNN-slug.md` and `INDEX.md`, no subdirectories (D-A.18). The
+    message routes rather than merely refuses — without routing, the file
+    lands in the repository root and the mess has moved, not gone."""
+
+    problems: list[str] = []
+
+    for entry in sorted(rfc_dir.iterdir()):
+        name = entry.name
+
+        if name.startswith("."):
+            continue  # editor and OS droppings are .gitignore's problem
+
+        if entry.is_dir():
+            problems.append(
+                f"{name}/: no subdirectories in the corpus — a draft is "
+                "`status: draft`, not a folder (D-A.18)"
+            )
+        elif name == "INDEX.md" or RFC_FILENAME.match(name):
+            continue
+        elif NUMBER_ONLY.match(name):
+            problems.append(f"{name}: filename must be NNNN-slug.md (D-A.18)")
+        elif name.endswith((".bak", ".orig", ".old", "~")):
+            problems.append(f"{name}: delete it — git is the archive (D-A.18)")
+        else:
+            problems.append(
+                f"{name}: not part of the corpus — pages/ if it documents Torve, "
+                "ops/ if it is a one-off procedure (D-A.18)"
+            )
+
+    return problems
+
+
+# ....................... #
+
+
+def check_frontmatter(path: Path, fm: dict[str, Any] | None, number: str) -> list[str]:
+    if fm is None:
+        return [f"{path.name}: no parseable YAML frontmatter (D-A.2)"]
+
+    problems: list[str] = []
+
+    for fname in REQUIRED_FIELDS:
+        if fname not in fm:
+            problems.append(f"{path.name}: frontmatter missing {fname!r}")
+
+    if str(fm.get("id", "")) != number:
+        problems.append(f"{path.name}: frontmatter id {fm.get('id')!r} != filename {number}")
+
+    status = fm.get("status")
+
+    if status not in STATUSES:
+        problems.append(f"{path.name}: status {status!r} is not one of {', '.join(STATUSES)}")
+
+    if status == "superseded" and not fm.get("superseded_by"):
+        problems.append(f"{path.name}: superseded without superseded_by")
+
+    kind = fm.get("kind")
+
+    if kind is not None and kind not in KINDS:
+        problems.append(f"{path.name}: kind {kind!r} is not one of {', '.join(KINDS)}")
+
+    implementation = fm.get("implementation")
+
+    if implementation is not None and implementation not in IMPLEMENTATIONS:
+        problems.append(
+            f"{path.name}: implementation {implementation!r} is not one of "
+            f"{', '.join(IMPLEMENTATIONS)} (D-A.11)"
+        )
+
+    for fname in LIST_FIELDS:
+        value = fm.get(fname)
+
+        if fname in fm and not isinstance(value, list):
+            problems.append(f"{path.name}: frontmatter {fname} must be a list")
+
+    if not str(fm.get("owner", "")).strip():
+        problems.append(f"{path.name}: owner is empty — no one can approve its amendments")
+
+    return problems
+
+
+# ....................... #
+
+
+def check_slug(path: Path, fm: dict[str, Any]) -> list[str]:
+    """Loose filename-vs-title correspondence (A-15): catches a file whose
+    slug belongs to a different document without demanding one exact
+    slugification anyone would have to guess. A warning, not a problem."""
+
+    match = RFC_FILENAME.match(path.name)
+    title = str(fm.get("title", ""))
+
+    if not match or not title:
+        return []
+
+    slug_words = {w for w in match.group(2).split("-") if len(w) >= 4}
+    title_words = {w for w in slugify(title).split("-") if len(w) >= 4}
+
+    if slug_words and title_words and not slug_words & title_words:
+        return [
+            (
+                f"{path.name}: filename slug shares no word with title {title!r} — "
+                "a materially different title is usually a new document (D-A.20)"
+            )
+        ]
+
+    return []
+
+
+# ....................... #
+
+
+def paths_globs(cell: str) -> list[str]:
+    cleaned = cell.replace("`", " ").strip()
+
+    if not cleaned or set(cleaned) <= set("—- "):
+        return []
+
+    # A cell written `a`, `b` leaves the comma standing alone once the
+    # backticks become spaces. Punctuation between paths is separator, never
+    # path: reading it as one gives the decoration check a glob that matches
+    # nothing and the emitter a token to write back.
+    return [token for token in (one.strip(",;") for one in cleaned.split()) if token]
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class DecisionRow:
+    identifier: str
+    grade: str
+    text: str
+    paths: list[str]
+    consequence: str = ""
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class DecisionSection:
+    """The Decisions section as the validator sees it. `rows is None` means
+    the document has no such section at all — distinct from a section with a
+    header and nothing under it, which is a different complaint."""
+
+    rows: list[DecisionRow] | None
+    header_ok: bool
+
+
+# ....................... #
+
+
+def decision_section(text: str) -> DecisionSection:
+    """The one parser of the decision table (A-47). `decision_table` is the
+    minting face of it; the validator wants the two absences told apart and
+    the header verdict, which the rows cannot carry."""
+
+    heading = DECISIONS_HEADING.search(text)
+
+    if not heading:
+        return DecisionSection(rows=None, header_ok=False)
+
+    section = text[heading.end() :]
+    following = re.search(r"^#{2,3}\s", section, re.M)
+
+    if following:
+        section = section[: following.start()]
+
+    rows: list[DecisionRow] = []
+    inside = False
+    header_ok = False
+
+    for line in section.splitlines():
+        stripped = line.strip()
+
+        if not stripped.startswith("|"):
+            if inside and stripped:
+                break
+
+            continue
+
+        if not inside:
+            if stripped.lower().startswith("| #"):
+                inside = True
+                header_ok = stripped == TABLE_HEADER
+
+            continue
+
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+
+        if cells and cells[0] and set(cells[0]) <= set("- :"):
+            continue  # the |---| separator
+
+        if len(cells) < 4:
+            continue
+
+        consequence = cells[4] if len(cells) > 4 else ""
+
+        rows.append(
+            DecisionRow(
+                identifier=cells[0].strip("`* "),
+                grade=cells[1].strip("`* "),
+                text=cells[2],
+                paths=paths_globs(cells[3]),
+                consequence="" if set(consequence) <= set("— -") else consequence,
+            )
+        )
+
+    if not inside:
+        return DecisionSection(rows=None, header_ok=False)
+
+    return DecisionSection(rows=rows, header_ok=header_ok)
+
+
+# ....................... #
+
+
+def decision_table(text: str) -> list[DecisionRow]:
+    """Every row of the document's decision table — what a minted contract
+    inherits (grade and paths copied at write time)."""
+
+    return decision_section(text).rows or []
+
+
+# ....................... #
+
+
+def check_phasing(path: Path, text: str) -> list[str]:
+    """A Phasing section carrying a YAML fence must mint (RFC 0007 §3): the
+    planner and the validator reading the same section differently is the
+    drift D-7.12 exists to prevent. Prose-only Phasing stays legal."""
+
+    try:
+        parse_phasing(text)
+
+    except ValueError as exc:
+        first = str(exc).splitlines()[0]
+        return [f"{path.name}: Phasing section does not mint — {first}"]
+
+    return []
+
+
+# ....................... #
+
+PHASING_HEADING = re.compile(r"^#{2,3}\s*(?:\d+[a-z]?\.\s*)?Phasing\b.*$", re.M | re.I)
+YAML_FENCE = re.compile(r"^```ya?ml[ \t]*\n(.*?)^```[ \t]*$", re.M | re.S)
+
+
+# ....................... #
+
+
+class PhasingEntry(BaseModel):
+    """One mintable unit of a Phasing section (RFC 0007 §3; rfc-writer rule 2:
+    a phase is a list of units, not prose about sequence). Several entries may
+    share a phase number — they run in parallel, so their scopes must not
+    intersect."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    phase: int = Field(ge=1)
+    title: str = Field(min_length=1)
+    # One paragraph: what changes and why — never steps (D-1.7). Required at
+    # the source: a phase entry without an intent is not mintable.
+    intent: str = Field(min_length=1)
+    scope: list[str] = Field(min_length=1)
+    acceptance: list[str] = Field(default_factory=list)
+    depends_on: list[int] = Field(default_factory=list)  # phase numbers
+
+    # RFC 0029 §5.2, D-29.4: the persona this phase runs under, copied
+    # verbatim onto the minted contract's `tier_variant`. Empty means the
+    # seat's default persona — the same "absent" `torve plan` already writes.
+    tier_variant: str = ""
+
+    # RFC 0034 §5.1, D-34.1/D-34.2: the closed structural|routine vocabulary
+    # a phase may declare, copied verbatim onto the minted contract's
+    # `character`. Empty means no character — dispatch falls through to the
+    # seat default, same absent-means-default shape as tier_variant above.
+    character: Literal["", "structural", "routine"] = ""
+
+
+# ....................... #
+
+
+def parse_phasing(text: str) -> list[PhasingEntry] | None:
+    """The Phasing section's fenced YAML block as validated entries; None when
+    the document has no Phasing section or the section carries no YAML fence
+    (prose-only phasing is legal for documents nobody plans to mint). Raises
+    ValueError when a fence exists but does not validate — a half-mintable
+    section is a defect, not a style."""
+
+    heading = PHASING_HEADING.search(text)
+
+    if not heading:
+        return None
+
+    section = text[heading.end() :]
+    following = re.search(r"^##\s", section, re.M)
+
+    if following:
+        section = section[: following.start()]
+
+    fence = YAML_FENCE.search(section)
+
+    if not fence:
+        return None
+
+    raw: Any = yaml.safe_load(fence.group(1))
+
+    if not isinstance(raw, list):
+        raise ValueError("the Phasing YAML block must be a list of phase entries")
+
+    entries = [PhasingEntry.model_validate(item) for item in cast("list[object]", raw)]
+    known = {entry.phase for entry in entries}
+
+    for entry in entries:
+        unknown = [p for p in entry.depends_on if p not in known]
+
+        if unknown:
+            raise ValueError(
+                f"phase {entry.phase} ({entry.title}) depends on undefined phase(s) "
+                f"{', '.join(map(str, unknown))}"
+            )
+
+        if entry.phase in entry.depends_on:
+            raise ValueError(f"phase {entry.phase} ({entry.title}) depends on itself")
+
+    return entries
+
+
+# ....................... #
+
+CONTRACT_EXAMPLE_HEADING = re.compile(
+    r"^#{2,3}\s*(?:\d+[a-z]?\.\s*)?Contract example\b.*$", re.M | re.I
+)
+CONTRACT_EXAMPLE_FENCE = re.compile(
+    r"^```ya?ml[ \t]+contract-example[ \t]*\n(.*?)^```[ \t]*$", re.M | re.S
+)
+
+
+# ....................... #
+
+
+def parse_contract_example(text: str) -> Task | None:
+    """The Contract example section's fenced `yaml contract-example` block,
+    validated against the live task contract (RFC 0025 §5.4, D-25.10); None
+    when the document has no such section or the section carries no such
+    fence (prose-only demonstration stays legal). Raises ValueError when a
+    fence exists but does not validate — a stale example is a defect, not a
+    style."""
+
+    heading = CONTRACT_EXAMPLE_HEADING.search(text)
+
+    if not heading:
+        return None
+
+    section = text[heading.end() :]
+    following = re.search(r"^##\s", section, re.M)
+
+    if following:
+        section = section[: following.start()]
+
+    fence = CONTRACT_EXAMPLE_FENCE.search(section)
+
+    if not fence:
+        return None
+
+    raw: Any = yaml.safe_load(fence.group(1))
+
+    if not isinstance(raw, dict):
+        raise ValueError("the Contract example YAML block must be a task contract mapping")
+
+    return Task.model_validate(raw)
+
+
+# ....................... #
+
+
+def check_contract_example(path: Path, text: str) -> list[str]:
+    """A Contract example fence must validate against the live task contract
+    schema (D-25.10): the one thing that makes the example redden the moment
+    the schema moves rather than rotting silently. Prose-only Contract
+    example sections stay legal."""
+
+    try:
+        parse_contract_example(text)
+
+    except ValueError as exc:
+        first = str(exc).splitlines()[0]
+        return [f"{path.name}: Contract example does not validate — {first}"]
+
+    return []
+
+
+# ....................... #
+
+
+def _glob_matches(root: Path, pattern: str) -> bool:
+    try:
+        return next(root.glob(pattern), None) is not None
+
+    except (ValueError, NotImplementedError):
+        return False
+
+
+# ....................... #
+
+
+def _check_locked_pattern(
+    path: Path, ident: str, pattern: str, root: Path, implementation: str
+) -> tuple[str | None, str | None]:
+    """One glob of a LOCKED row: a problem when an implemented RFC's glob
+    matches nothing (rot, D-32), an unbuilt note when it is merely not built
+    yet, or neither once it matches."""
+
+    if _glob_matches(root, pattern):
+        return None, None
+
+    if implementation == "complete":
+        return (
+            f"{path.name}: LOCKED row {ident!r} paths glob {pattern!r} "
+            "matches nothing in the repository (an implemented "
+            "RFC cites real areas, D-32)"
+        ), None
+
+    return None, f"{ident} -> {pattern}"
+
+
+# ....................... #
+
+
+def _check_locked_row(
+    path: Path, row: DecisionRow, root: Path, implementation: str, check_globs: bool
+) -> tuple[list[str], list[str]]:
+    """A LOCKED row: no Paths is always a problem; declared globs are only
+    walked when `check_globs` licenses it (D-32)."""
+
+    if not row.paths:
+        return [
+            (
+                f"{path.name}: LOCKED row {row.identifier!r} declares no Paths — "
+                "the silence check skips it and the lock protects nothing"
+            )
+        ], []
+
+    if not check_globs:
+        return [], []
+
+    problems: list[str] = []
+    unbuilt: list[str] = []
+
+    for pattern in row.paths:
+        problem, note = _check_locked_pattern(path, row.identifier, pattern, root, implementation)
+
+        if problem is not None:
+            problems.append(problem)
+
+        if note is not None:
+            unbuilt.append(note)
+
+    return problems, unbuilt
+
+
+# ....................... #
+
+
+def _check_row_identifier(path: Path, ident: str, seen: dict[str, str]) -> list[str]:
+    """Corpus-unique identifiers (D-A.4); records the defining document as a
+    side effect for every row seen after this one."""
+
+    if ident in seen:
+        return [
+            (
+                f"{path.name}: decision identifier {ident!r} already used in {seen[ident]} — "
+                "identifiers are permanent and corpus-unique (D-A.4)"
+            )
+        ]
+
+    seen[ident] = path.name
+    return []
+
+
+# ....................... #
+
+
+def _check_row_grade(path: Path, ident: str, grade: str) -> list[str]:
+    if grade in GRADES:
+        return []
+
+    return [f"{path.name}: row {ident!r} has grade {grade!r}, not one of {', '.join(GRADES)}"]
+
+
+# ....................... #
+
+
+def _check_row(
+    path: Path,
+    row: DecisionRow,
+    root: Path,
+    implementation: str,
+    check_globs: bool,
+    seen: dict[str, str],
+) -> tuple[list[str], list[str]]:
+    """One decision-table row: identifier uniqueness, grade validity, and —
+    for LOCKED rows only — its Paths globs."""
+
+    problems = _check_row_identifier(path, row.identifier, seen)
+    problems += _check_row_grade(path, row.identifier, row.grade)
+
+    if row.grade != "LOCKED":
+        return problems, []
+
+    locked_problems, unbuilt = _check_locked_row(path, row, root, implementation, check_globs)
+    problems += locked_problems
+    return problems, unbuilt
+
+
+# ....................... #
+
+
+def check_decisions(
+    path: Path, text: str, fm: dict[str, Any], root: Path, seen: dict[str, str]
+) -> tuple[list[str], list[str]]:
+    # D-32: for RFCs not yet built the globs name the intended module and are
+    # refined when it exists. Severity follows the `implementation` judgement:
+    # `none` skips (everything is intended), `complete` makes an unmatched
+    # glob a problem (rot), and `partial` — a document mixing built and
+    # intended areas the metadata cannot tell apart — gets one aggregate
+    # warning per document, which clears itself as the areas land.
+    implementation = str(fm.get("implementation") or "none")
+    check_globs = fm.get("status") == "accepted" and implementation != "none"
+    section = decision_section(text)
+
+    if section.rows is None:
+        return [
+            (
+                f"{path.name}: no Decisions section with a table "
+                "(D-A.1: the table is what makes it an RFC)"
+            )
+        ], []
+
+    if not section.rows:
+        return [f"{path.name}: Decisions section has a header but no rows"], []
+
+    problems: list[str] = []
+
+    if not section.header_ok:
+        problems.append(f"{path.name}: decision table header is not exactly {TABLE_HEADER!r}")
+
+    unbuilt: list[str] = []
+
+    for row in section.rows:
+        row_problems, row_unbuilt = _check_row(path, row, root, implementation, check_globs, seen)
+        problems += row_problems
+        unbuilt += row_unbuilt
+
+    warnings: list[str] = []
+
+    if unbuilt:
+        warnings.append(
+            f"{path.name}: {len(unbuilt)} LOCKED glob(s) name unbuilt areas — "
+            "intended modules awaiting implementation (D-32): " + "; ".join(unbuilt)
+        )
+
+    return problems, warnings
+
+
+# ....................... #
+
+
+def check_amendments(path: Path, text: str, fm: dict[str, Any]) -> list[str]:
+    declared = fm_list(fm, "amended_by")
+    section = AMENDMENTS_SECTION.search(text)
+    present = AMENDMENT_HEADING.findall(text[section.end() :]) if section else []
+    problems: list[str] = []
+
+    for a in declared:
+        if a not in present:
+            problems.append(f"{path.name}: amended_by lists {a} but no '### {a}' heading exists")
+
+    for a in present:
+        if a not in declared:
+            problems.append(f"{path.name}: amendment section {a} is not listed in amended_by")
+
+    return problems
+
+
+# ....................... #
+
+
+def check_links(path: Path, text: str, rfc_dir: Path, root: Path) -> list[str]:
+    base = root.resolve()
+    missing: list[str] = []
+
+    for match in LOCAL_LINK.finditer(text):
+        target = match.group(1).split("#", 1)[0]
+
+        if not target or URI_OR_PROTOCOL_RELATIVE.match(target):
+            continue
+
+        for start in (rfc_dir, root):
+            try:
+                resolved = (start / target).resolve()
+
+            except OSError:
+                continue
+
+            if resolved.is_relative_to(base) and resolved.exists():
+                break
+        else:
+            missing.append(
+                f"{path.name}: link target {target!r} does not resolve inside the repository"
+            )
+
+    return missing
+
+
+# ....................... #
+
+
+def check_line_cites(path: Path, text: str, root: Path) -> list[str]:
+    """0007 §3a rot: a source path cited with a line number is stale at the
+    first refactor above it. Only paths that exist in the repository count —
+    an illustrative location in prose names nothing real."""
+
+    body = FRONTMATTER.sub("", text, count=1)
+    problems: list[str] = []
+
+    for match in LINE_CITE.finditer(body):
+        cited = match.group(1)
+
+        if (root / cited).is_file():
+            problems.append(
+                f"{path.name}: cites {cited}:{match.group(2)} — line numbers rot "
+                "at the first refactor above them (0007 §3a); cite the path alone"
+            )
+
+    return problems
+
+
+# ....................... #
+
+
+def strip_fences(text: str) -> str:
+    """Fenced code blocks host examples, not structure: a `#` line or a
+    decision id inside one is illustration, never a heading or a citation."""
+
+    return FENCED_BLOCK.sub("", text)
+
+
+# ....................... #
+
+
+def check_headings(path: Path, text: str) -> list[str]:
+    """Two identically-named sections in one document (charter-decomposition
+    patch §3): section numbers are stripped before comparing, so a numbered
+    prose section duplicating an unnumbered container is caught too."""
+
+    seen: dict[tuple[str, str], str] = {}
+    problems: list[str] = []
+
+    for match in HEADING.finditer(strip_fences(text)):
+        level, raw = match.group(1), match.group(2)
+        normalized = HEADING_NUMBER.sub("", raw).strip().lower()
+
+        if not normalized:
+            continue
+
+        key = (level, normalized)
+
+        if key in seen:
+            problems.append(
+                f"{path.name}: headings {seen[key]!r} and {raw!r} name the same "
+                "section twice — one of them is in the wrong document or the wrong form"
+            )
+        else:
+            seen[key] = raw
+
+    return problems
+
+
+# ....................... #
+
+
+def check_citations(path: Path, text: str, resolvable: set[str]) -> list[str]:
+    """Every dotted `D-*` citation resolves to a definition somewhere in the
+    corpus — what keeps a decision family split across documents (A-17) a
+    cosmetic wart rather than a real problem. Uniqueness of definitions is
+    D-A.4's check; this is the other direction. Retired identifiers resolve
+    too (D-16.1): a tombstone's citation is history, not a typo."""
+
+    problems: list[str] = []
+    reported: set[str] = set()
+
+    for match in DECISION_CITE.finditer(strip_fences(text)):
+        cited = match.group(0)
+
+        if cited not in resolvable and cited not in reported:
+            reported.add(cited)
+
+            problems.append(
+                f"{path.name}: cites {cited}, which no decision table in the "
+                "corpus defines and no `retired:` list records"
+            )
+
+    return problems
+
+
+# ....................... #
+
+
+def defined_identifiers(files: dict[str, Path]) -> set[str]:
+    """Every decision identifier defined anywhere in the corpus."""
+
+    defined: set[str] = set()
+
+    for path in files.values():
+        for row in decision_table(path.read_text(encoding="utf-8")):
+            defined.add(row.identifier)
+
+    return defined
+
+
+# ....................... #
+
+
+def retired_identifiers(files: dict[str, Path]) -> dict[str, str]:
+    """Identifier -> filename for every id in a `retired:` frontmatter list
+    (D-16.1): once defined, since removed, never reusable."""
+
+    retired: dict[str, str] = {}
+
+    for path in files.values():
+        fm = parse_frontmatter(path.read_text(encoding="utf-8")) or {}
+
+        for ident in fm_list(fm, "retired"):
+            retired.setdefault(ident, path.name)
+
+    return retired
+
+
+# ....................... #
+
+
+# One corpus identifier, as a word: not inside a longer identifier, not a
+# dotted child (D-2 must not match inside D-2.10), not a digit-extended
+# sibling (A-4 must not match inside A-44).
+def _cites(ident: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![\w.]){re.escape(ident)}(?![\w.])")
+
+
+# ....................... #
+
+
+def next_amendment(files: dict[str, Path], archived: dict[str, Path] | None = None) -> str:
+    """The next free global amendment number (D-A.5), derived from the `###
+    A-n` headings exactly as document numbers derive from filenames (D-A.17)
+    — allocation by grep is three recorded collisions (A-11, A-12, A-17),
+    and derivation over the corpus path alone was a fourth (A-152): the
+    archive's headings count too."""
+
+    taken = [
+        int(number[2:])
+        for path in (*files.values(), *(archived or {}).values())
+        for number in AMENDMENT_HEADING.findall(path.read_text(encoding="utf-8"))
+    ]
+
+    return f"A-{max(taken, default=0) + 1}"
+
+
+# ....................... #
+
+
+def next_decision(files: dict[str, Path], number: str) -> str:
+    """The next free identifier in one document's own dotted family (D-25.4's
+    doctrine applied to decisions rather than amendments): scanned
+    corpus-wide, since identifiers are permanent and corpus-unique (D-A.4)
+    even though only *number*'s own document is expected to define them.
+    Retired identifiers count as taken too (D-16.1: never reused) — otherwise
+    retiring a family's highest-numbered row would make the next add-decision
+    regenerate it, a guaranteed collision the write transaction's check would
+    have to reject."""
+
+    family = str(int(number))
+    pattern = re.compile(rf"^D-{re.escape(family)}\.(\d+)[a-z]?$")
+    taken: list[int] = []
+
+    for path in files.values():
+        for row in decision_table(path.read_text(encoding="utf-8")):
+            match = pattern.match(row.identifier)
+
+            if match:
+                taken.append(int(match.group(1)))
+
+    for ident in retired_identifiers(files):
+        match = pattern.match(ident)
+
+        if match:
+            taken.append(int(match.group(1)))
+
+    return f"D-{family}.{max(taken, default=0) + 1}"
+
+
+# ....................... #
+
+
+def lookup(rfc_dir: Path, identifier: str) -> dict[str, Any] | None:
+    """One corpus identifier resolved from the same parse `check` runs
+    (D-7.28): a decision's row as it stands, an amendment's document and
+    touched rows, a document's frontmatter and phases. None when nothing
+    defines it — the caller names the nearest family."""
+
+    files = rfc_files(rfc_dir)
+    found = _lookup_in(files, identifier)
+
+    if found is not None:
+        return found
+
+    # An archived identifier still resolves (A-140, D-53.9), marked so a
+    # reader knows nothing inherits from it.
+    archived = archive_files(rfc_dir)
+    found = _lookup_in(archived, identifier) if archived else None
+
+    return {**found, "archived": True} if found is not None else None
+
+
+# ....................... #
+
+
+def _lookup_in(files: dict[str, Path], identifier: str) -> dict[str, Any] | None:
+    if re.fullmatch(r"\d{4}", identifier):
+        return _lookup_document(files, identifier)
+
+    if re.fullmatch(r"A-\d+", identifier):
+        return _lookup_amendment(files, identifier)
+
+    return _lookup_decision(files, identifier)
+
+
+# ....................... #
+
+
+def _lookup_decision(files: dict[str, Path], identifier: str) -> dict[str, Any] | None:
+    defined_in, found = "", None
+    cited_by: list[str] = []
+    cites = _cites(identifier)
+
+    for path in files.values():
+        text = path.read_text(encoding="utf-8")
+
+        for row in decision_table(text):
+            if row.identifier == identifier:
+                defined_in, found = path.name, row
+
+        if cites.search(strip_fences(text)):
+            cited_by.append(path.name)
+
+    retired = retired_identifiers(files).get(identifier)
+
+    if found is None and retired is None:
+        return None
+
+    result: dict[str, Any] = {
+        "kind": "decision",
+        "identifier": identifier,
+        "defined_in": defined_in or None,
+        "cited_by": [name for name in cited_by if name != defined_in],
+        "retired_in": retired,
+    }
+
+    if found is not None:
+        result |= {
+            "grade": found.grade,
+            "text": found.text,
+            "paths": found.paths,
+            "consequence": found.consequence,
+        }
+
+    return result
+
+
+# ....................... #
+
+
+def _lookup_amendment(files: dict[str, Path], identifier: str) -> dict[str, Any] | None:
+    heading_re = re.compile(rf"^### {re.escape(identifier)}(?!\d)\b.*$", re.M)
+    cites = _cites(identifier)
+
+    for path in files.values():
+        text = path.read_text(encoding="utf-8")
+        heading = heading_re.search(text)
+
+        if heading is None:
+            continue
+
+        rows = [
+            row.identifier
+            for other in files.values()
+            for row in decision_table(other.read_text(encoding="utf-8"))
+            if cites.search(row.text)
+        ]
+
+        return {
+            "kind": "amendment",
+            "identifier": identifier,
+            "defined_in": path.name,
+            "heading": heading.group(0).removeprefix("### "),
+            "rows": rows,
+            "next_free": next_amendment(files),
+        }
+
+    return None
+
+
+# ....................... #
+
+
+def _lookup_document(files: dict[str, Path], number: str) -> dict[str, Any] | None:
+    path = files.get(number)
+
+    if path is None:
+        return None
+
+    text = path.read_text(encoding="utf-8")
+    fm = parse_frontmatter(text) or {}
+    state = re.search(r"^- \*\*Implementation state:\*\* (.+?)(?=^- \*\*)", text, re.M | re.S)
+
+    try:
+        phases = parse_phasing(text) or []
+
+    except ValueError:
+        phases = []
+
+    return {
+        "kind": "document",
+        "identifier": number,
+        "file": path.name,
+        "title": str(fm.get("title", "")),
+        "status": str(fm.get("status", "")),
+        "implementation": str(fm.get("implementation") or "none"),
+        "depends_on": fm_list(fm, "depends_on"),
+        "superseded_by": fm.get("superseded_by"),
+        "amended_by": fm_list(fm, "amended_by"),
+        "description": str(fm.get("description", "")).strip(),
+        "implementation_state": " ".join(state.group(1).split()) if state else "",
+        "phases": [
+            {"phase": entry.phase, "title": entry.title, "depends_on": entry.depends_on}
+            for entry in phases
+        ],
+    }
+
+
+# ....................... #
+
+
+def check_graph(
+    files: dict[str, Path], frontmatter: dict[str, dict[str, Any]]
+) -> tuple[list[str], list[str]]:
+    """Cycles in `depends_on` are problems, and so is an accepted document
+    depending on one that is not accepted (D-A.10) — hardened from a warning
+    once the known 0009 -> 0004 violation was resolved at 0004's acceptance,
+    per the T-0016 proposal's own condition."""
+
+    edges = {
+        number: [d for d in fm_list(fm, "depends_on") if d in files]
+        for number, fm in frontmatter.items()
+    }
+
+    problems: list[str] = []
+    warnings: list[str] = []
+
+    seen_cycles: set[frozenset[str]] = set()
+    state: dict[str, int] = {}  # 1 = on the current path, 2 = done
+
+    def visit(number: str, trail: list[str]) -> None:
+        state[number] = 1
+
+        for target in edges.get(number, []):
+            if state.get(target) == 1:
+                cycle = [*trail[trail.index(target) :], target]
+                key = frozenset(cycle)
+
+                if key not in seen_cycles:
+                    seen_cycles.add(key)
+
+                    problems.append(
+                        "depends_on cycle: "
+                        + " -> ".join(cycle)
+                        + " — the graph must be acyclic (0007 §3a)"
+                    )
+            elif state.get(target) != 2:
+                visit(target, [*trail, target])
+
+        state[number] = 2
+
+    for number in sorted(edges):
+        if state.get(number) != 2:
+            visit(number, [number])
+
+    for number, fm in sorted(frontmatter.items()):
+        if fm.get("status") != "accepted":
+            continue
+
+        for target in edges.get(number, []):
+            target_status = str(frontmatter.get(target, {}).get("status", "?"))
+
+            if target_status != "accepted":
+                problems.append(
+                    f"{files[number].name}: accepted but depends_on {target} which is "
+                    f"{target_status} — no inheritance from a non-accepted document (D-A.10)"
+                )
+
+    return problems, warnings
+
+
+# ....................... #
+
+INDEX_TABLE_HEADER = (
+    "| # | Title | Status | Impl | Depends on | Amends | One-line routing description |"
+)
+INDEX_TABLE_SEPARATOR = "| --- | --- | --- | --- | --- | --- | --- |"
+
+
+# ....................... #
+
+
+def index_row(number: str, path: Path, fm: dict[str, Any]) -> str:
+    deps = ", ".join(fm_list(fm, "depends_on")) or "—"
+    # A list of identifiers, never a summary (A-14): the moment the index
+    # describes what an amendment changed, it becomes the stale account.
+    amends = ", ".join(fm_list(fm, "amended_by")) or "—"
+    # An absent value renders as the defined default, never as blank.
+    implementation = str(fm.get("implementation") or "none")
+    description = " ".join(str(fm.get("description", "")).split())
+
+    return (
+        f"| [{number}]({path.name}) | {fm.get('title', '?')} | {fm.get('status', '?')} "
+        f"| {implementation} | {deps} | {amends} | {description} |"
+    )
+
+
+# ....................... #
+
+
+def build_index(files: dict[str, Path]) -> str:
+    """Everything from the frontmatter, nothing from outside it (D-A.12 as
+    reworded by A-14): grouped by kind, with accepted-but-abandoned documents
+    separated because that pairing — decisions still inherited, no
+    implementation ever coming — is easy to miss as two adjacent cells."""
+
+    design: list[str] = []
+    conventions: list[str] = []
+    abandoned: list[str] = []
+
+    for number in sorted(files):
+        path = files[number]
+        fm = parse_frontmatter(path.read_text(encoding="utf-8")) or {}
+        row = index_row(number, path, fm)
+
+        if fm.get("status") == "accepted" and fm.get("implementation") == "abandoned":
+            abandoned.append(row)
+        elif str(fm.get("kind", "")) == "convention":
+            conventions.append(row)
+        else:
+            design.append(row)
+
+    next_free = f"{max((int(n) for n in files), default=0) + 1:04d}"
+
+    lines = [
+        "# RFCs",
+        "",
+        GENERATED_NOTE,
+        "",
+        "Design corpus for Torve, sorted by the rule in D-A.1: a document with a",
+        "table of graded decisions is an RFC and gets a number. The next free",
+        f"number is **{next_free}**.",
+        "",
+    ]
+
+    for heading, rows in (("## Design", design), ("## Conventions", conventions)):
+        if rows:
+            lines += [heading, "", INDEX_TABLE_HEADER, INDEX_TABLE_SEPARATOR, *rows, ""]
+
+    if abandoned:
+        lines += [
+            "## Accepted but not implemented",
+            "",
+            "Decisions from these documents are still inherited. There is no",
+            "implementation.",
+            "",
+            INDEX_TABLE_HEADER,
+            INDEX_TABLE_SEPARATOR,
+            *abandoned,
+            "",
+        ]
+
+    lines += [
+        "Statuses: draft · accepted · superseded. Impl is the D-A.11 judgement:",
+        "none · partial · complete · abandoned.",
+        "",
+    ]
+
+    return "\n".join(lines)
+
+
+# ....................... #
+
+
+def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
+    """The whole of `torve rfc check` over one corpus directory."""
+
+    report = CheckReport()
+    report.problems += check_directory(rfc_dir)
+
+    seen_numbers: dict[str, list[Path]] = {}
+
+    for path in sorted(rfc_dir.glob("*.md")):
+        match = RFC_FILENAME.match(path.name)
+
+        if match:
+            seen_numbers.setdefault(match.group(1), []).append(path)
+
+    for number, paths in sorted(seen_numbers.items()):
+        if len(paths) > 1:
+            report.problems.append(
+                f"RFC {number} is claimed by {len(paths)} files: {', '.join(p.name for p in paths)}"
+            )
+
+    files = rfc_files(rfc_dir)
+    archived = archive_files(rfc_dir)
+    report.count = len(files)
+    defined = defined_identifiers(files)
+    retired = retired_identifiers(files)
+    # What the archive defines resolves too (A-140): a citation into a
+    # retired document is history, not a typo, and the archive is where
+    # that history lives once a document leaves the corpus path.
+    resolvable = (
+        defined
+        | set(retired)
+        | defined_identifiers(archived)
+        | set(retired_identifiers(archived))
+        | {f"D-{n}" for n in archived}
+    )
+    frontmatter: dict[str, dict[str, Any]] = {}
+    seen_ids: dict[str, str] = {}
+
+    for number, path in sorted(files.items()):
+        text = path.read_text(encoding="utf-8")
+        fm = parse_frontmatter(text)
+        report.problems += check_frontmatter(path, fm, number)
+
+        if fm is None:
+            continue
+
+        frontmatter[number] = fm
+
+        h1 = H1.search(text)
+
+        if not h1:
+            report.problems.append(f"{path.name}: no '# RFC NNNN — Title' heading")
+        else:
+            if h1.group(1) != number:
+                report.problems.append(
+                    f"{path.name}: H1 says RFC {h1.group(1)}, filename says {number}"
+                )
+
+            if h1.group(2).strip() != str(fm.get("title", "")).strip():
+                report.problems.append(
+                    f"{path.name}: H1 title {h1.group(2).strip()!r} != frontmatter "
+                    f"title {fm.get('title')!r}"
+                )
+
+        if PROSE_STATUS.search(text):
+            report.problems.append(
+                f"{path.name}: leftover '- **Status:**' prose line — "
+                "status lives in frontmatter (D-A.2)"
+            )
+
+        for fname in ("depends_on", "informed_by", "supersedes"):
+            for ref in fm_list(fm, fname):
+                if ref in files:
+                    continue
+
+                if ref in archived:
+                    report.warnings.append(
+                        f"{path.name}: {fname} names {ref}, which is archived "
+                        f"({archived[ref].name}) — nothing inherits from it (D-53.8)"
+                    )
+                else:
+                    report.problems.append(f"{path.name}: {fname} names {ref!r}, no such RFC")
+
+        decision_problems, decision_warnings = check_decisions(path, text, fm, root, seen_ids)
+        report.problems += decision_problems
+        report.warnings += decision_warnings
+        report.problems += check_amendments(path, text, fm)
+        report.problems += check_phasing(path, text)
+        report.problems += check_contract_example(path, text)
+        report.problems += check_line_cites(path, text, root)
+        report.problems += check_headings(path, text)
+        report.problems += check_citations(path, text, resolvable)
+        report.warnings += check_slug(path, fm)
+        report.warnings += check_links(path, text, rfc_dir, root)
+
+    for ident, definer in sorted(seen_ids.items()):
+        if ident in retired:
+            report.problems.append(
+                f"{definer}: defines {ident}, which {retired[ident]} retired — "
+                "identifiers are never reused (D-A.19, D-16.1)"
+            )
+
+    graph_problems, graph_warnings = check_graph(files, frontmatter)
+    report.problems += graph_problems
+    report.warnings += graph_warnings
+
+    index_path = rfc_dir / "INDEX.md"
+
+    if not index_path.is_file():
+        report.problems.append("INDEX.md is missing — run `torve rfc index`")
+    elif index_path.read_text(encoding="utf-8") != build_index(files):
+        report.problems.append(
+            "INDEX.md differs from what `torve rfc index` writes — it is generated "
+            "output (D-A.6); regenerate it instead of editing it"
+        )
+
+    return report
+
+
+# ======================= #
+# The loader (RFC 0053 §5.1–§5.2)
+
+# ----------------------- #
 
 FENCE = re.compile(r"^```ya?ml[ \t]+([a-z-]+)[ \t]*\n(.*?)^```[ \t]*$", re.M | re.S)
 FENCE_SPAN = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
-HEADING = re.compile(r"^(#{2,3})\s+(.+?)\s*$", re.M)
-HEADING_NUMBER = re.compile(r"^\d+[a-z]?(\.\d+)*\.?\s+")
-AMENDMENT_HEADING = re.compile(r"^### (A-\d+)\b(.*)$", re.M)
+AMENDMENT_MARK = re.compile(r"^### (A-\d+)\b(.*)$", re.M)
 AMENDMENT_TITLE = re.compile(r"^\s*—\s*(\d{4}-\d{2}-\d{2})?\s*—?\s*(.*)$")
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -88,7 +1462,7 @@ class SpecError(ValueError):
 # ----------------------- #
 
 
-def slugify(heading: str) -> str:
+def section_key(heading: str) -> str:
     """The stable key of a prose section: the heading with its number
     stripped, lowercased, punctuation folded — what a log cites instead of
     a section number that moves when a paragraph is added."""
@@ -215,7 +1589,7 @@ def load_sections(text: str) -> list[DesignSection]:
         body_start = text.find("\n", pos)
         body = text[body_start + 1 : end].strip("\n") if body_start != -1 else ""
         sections.append(
-            DesignSection(key=slugify(raw), heading=raw, level=level, order=order, md=body)
+            DesignSection(key=section_key(raw), heading=raw, level=level, order=order, md=body)
         )
 
     return sections
@@ -228,14 +1602,14 @@ def load_amendments(text: str, where: str) -> tuple[list[Amendment], list[str]]:
     """The `### A-n — date — title` entries under `## Amendments`, each with
     the typed diff its `yaml changes` fence carries (D-53.4) and its words."""
 
-    section = rfc_parse.AMENDMENTS_SECTION.search(text)
+    section = AMENDMENTS_SECTION.search(text)
 
     if not section:
         return [], []
 
     tail = text[section.end() :]
     spans = fence_spans(tail)
-    marks = [m for m in AMENDMENT_HEADING.finditer(tail) if not _inside(m.start(), spans)]
+    marks = [m for m in AMENDMENT_MARK.finditer(tail) if not _inside(m.start(), spans)]
     entries: list[Amendment] = []
     problems: list[str] = []
 
@@ -271,7 +1645,7 @@ def load_amendments(text: str, where: str) -> tuple[list[Amendment], list[str]]:
 
 
 def _join_details(
-    rows: list[rfc_parse.DecisionRow], details: list[DecisionDetail], where: str
+    rows: list[DecisionRow], details: list[DecisionDetail], where: str
 ) -> tuple[list[Decision], list[str]]:
     by_id: dict[str, DecisionDetail] = {}
     problems: list[str] = []
@@ -320,12 +1694,12 @@ def load_document(path: Path, *, archived: bool = False) -> Document:
     text = path.read_text(encoding="utf-8")
     where = path.name
     problems: list[str] = []
-    fm = rfc_parse.parse_frontmatter(text)
+    fm = parse_frontmatter(text)
 
     if fm is None:
         raise SpecError([f"{where}: no YAML frontmatter"])
 
-    rows = rfc_parse.decision_table(text)
+    rows = decision_table(text)
     found, fence_problems = load_fences(text, where)
     problems.extend(fence_problems)
     decisions, join_problems = _join_details(rows, found["decision-details"], where)
@@ -336,7 +1710,7 @@ def load_document(path: Path, *, archived: bool = False) -> Document:
     phasing: list[Phase] = []
 
     try:
-        entries = rfc_parse.parse_phasing(text) or []
+        entries = parse_phasing(text) or []
         phasing = [Phase.model_validate(entry.model_dump()) for entry in entries]
     except (ValueError, ValidationError) as exc:
         problems.append(f"{where}: Phasing — {exc}")
@@ -344,7 +1718,7 @@ def load_document(path: Path, *, archived: bool = False) -> Document:
     contract_example = None
 
     try:
-        contract_example = rfc_parse.parse_contract_example(text)
+        contract_example = parse_contract_example(text)
     except (ValueError, ValidationError) as exc:
         problems.append(f"{where}: Contract example — {exc}")
 
@@ -408,25 +1782,15 @@ def load_document(path: Path, *, archived: bool = False) -> Document:
 # ....................... #
 
 
-def archive_dir(rfc_dir: Path) -> Path:
-    """The archive beside the corpus path (D-53.8): `archive/rfcs/` under
-    the corpus path's parent. May not exist; that is not a problem."""
-
-    return rfc_dir.parent / ARCHIVE_RELATIVE
-
-
-# ....................... #
-
-
 def next_number(rfc_dir: Path) -> int:
     """The maximum over corpus and archive, plus one (D-53.10): a number
     retired into the archive is still a number that was cited."""
 
-    taken = [int(n) for n in rfc_parse.rfc_files(rfc_dir)]
+    taken = [int(n) for n in rfc_files(rfc_dir)]
     archive = archive_dir(rfc_dir)
 
     if archive.is_dir():
-        taken += [int(n) for n in rfc_parse.rfc_files(archive)]
+        taken += [int(n) for n in rfc_files(archive)]
 
     return max(taken, default=0) + 1
 
@@ -434,7 +1798,7 @@ def next_number(rfc_dir: Path) -> int:
 # ....................... #
 
 
-def check_citations(corpus: Corpus) -> list[str]:
+def check_cites(corpus: Corpus) -> list[str]:
     """Every `cites` entry of every row and alternative resolves to an
     identifier the corpus or the archive defines; anything else is a typo,
     refused by name (RFC 0053 §6)."""
@@ -483,14 +1847,14 @@ def load_corpus(rfc_dir: Path) -> Corpus:
         if not source.is_dir():
             continue
 
-        for _, path in sorted(rfc_parse.rfc_files(source).items()):
+        for _, path in sorted(rfc_files(source).items()):
             try:
                 documents.append(load_document(path, archived=archived))
             except SpecError as exc:
                 problems.extend(exc.problems)
 
     corpus = Corpus(documents=documents)
-    problems.extend(check_citations(corpus))
+    problems.extend(check_cites(corpus))
 
     if problems:
         raise SpecError(problems)

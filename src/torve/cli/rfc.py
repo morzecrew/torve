@@ -51,7 +51,7 @@ from torve.domain.rfc import KINDS
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
-    from torve.config.rfc_parse import CheckReport
+    from torve.config.spec import CheckReport
 
 # ----------------------- #
 
@@ -109,7 +109,7 @@ def corpus_dir(root: Path, config_path: Path | None) -> Path:
 def _selected(lines: list[str], names: set[str]) -> list[str]:
     """Document-scoped findings filtered to *names*; corpus-scoped ones kept."""
 
-    from torve.config.rfc_parse import RFC_FILENAME
+    from torve.config.spec import RFC_FILENAME
 
     kept: list[str] = []
 
@@ -159,7 +159,7 @@ def check(
     stamped it, and rows whose declared paths match nothing in the tree.
     A malformed corpus is a configuration error — exit 3."""
 
-    from torve.config.rfc_parse import check_corpus
+    from torve.config.spec import check_corpus
 
     rfc_dir = corpus_dir(root, config)
     report = check_corpus(rfc_dir, root)
@@ -245,7 +245,7 @@ def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
     is reported, never silently skipped."""
 
     from torve.config.rfc_emit import append_amendment, retire_decision, write_transaction
-    from torve.config.rfc_parse import next_amendment, rfc_files
+    from torve.config.spec import archive_files, next_amendment, rfc_files
 
     lines: list[str] = []
     by_document: dict[str, list[Any]] = {}
@@ -273,7 +273,7 @@ def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
 
             text = append_amendment(
                 text,
-                next_amendment(files),
+                next_amendment(files, archive_files(rfc_dir)),
                 f"{len(rows)} path-rotted row(s) retired by `torve rfc check --fix-rot`",
                 today,
                 changes,
@@ -316,7 +316,7 @@ def fmt(
     # being laundered into a diff that looks deliberate (D-25.2).
 
     from torve.config.rfc_emit import emit
-    from torve.config.rfc_parse import build_index, check_corpus, rfc_files
+    from torve.config.spec import build_index, check_corpus, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -453,7 +453,7 @@ def amend(
         retire_decision,
         write_transaction,
     )
-    from torve.config.rfc_parse import decision_table, next_amendment, rfc_files
+    from torve.config.spec import archive_files, decision_table, next_amendment, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -468,7 +468,7 @@ def amend(
         )
 
     path = files[key]
-    amendment = next_amendment(files)
+    amendment = next_amendment(files, archive_files(rfc_dir))
     today = date.today().isoformat()
     source = path.read_text(encoding="utf-8")
     changes: list[dict[str, Any]] = []
@@ -515,7 +515,7 @@ def fix(
     # D-53.4's editorial lane.
 
     from torve.config.rfc_emit import fix_row_text, write_transaction
-    from torve.config.rfc_parse import decision_table, rfc_files
+    from torve.config.spec import decision_table, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     defining = next(
@@ -564,7 +564,7 @@ def archive(
     # that no other verb may.
 
     from torve.config.rfc_emit import archive_document, write_transaction
-    from torve.config.rfc_parse import archive_dir, rfc_files
+    from torve.config.spec import archive_dir, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -611,7 +611,7 @@ def add_decision(
     # "not yet decided" value — never a chosen judgement.
 
     from torve.config.rfc_emit import append_decision, write_transaction
-    from torve.config.rfc_parse import next_decision, rfc_files
+    from torve.config.spec import next_decision, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -651,7 +651,7 @@ def retire(
     # resolves is the transaction's own check, not a separate pre-check.
 
     from torve.config.rfc_emit import retire_decision, write_transaction
-    from torve.config.rfc_parse import decision_table, rfc_files
+    from torve.config.spec import decision_table, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -703,7 +703,7 @@ def relocate_paths(
     # superseded location stays hand-written where the text itself names it.
 
     from torve.config.rfc_emit import relocate_paths_text, write_transaction
-    from torve.config.rfc_parse import rfc_files
+    from torve.config.spec import rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -908,7 +908,7 @@ def show(
     # The one-parse rule is D-7.28; the docstring is `show`'s help text
     # and stays free of corpus coordinates.
 
-    from torve.config.rfc_parse import lookup, next_amendment, rfc_files
+    from torve.config.spec import archive_files, lookup, next_amendment, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     found = lookup(rfc_dir, identifier)
@@ -917,7 +917,7 @@ def show(
     if found is None:
         files = rfc_files(rfc_dir)
         family = (
-            f"the next free amendment number is {next_amendment(files)}"
+            f"the next free amendment number is {next_amendment(files, archive_files(rfc_dir))}"
             if identifier.startswith("A-")
             else f"the next free document number is {int(max(files, default='0000')) + 1:04d}"
             if identifier.isdigit()
@@ -956,7 +956,7 @@ def index(
     like a lockfile — with `--check`, drift is reported and nothing is
     written."""
 
-    from torve.config.rfc_parse import build_index, rfc_files
+    from torve.config.spec import build_index, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -994,8 +994,7 @@ def new(
     index is regenerated."""
 
     from torve.application.skills import skills_root
-    from torve.config.rfc_parse import build_index, rfc_files, slugify
-    from torve.config.spec import next_number
+    from torve.config.spec import build_index, next_number, rfc_files, slugify
 
     if kind not in KINDS:
         raise fail(
@@ -1064,7 +1063,7 @@ def graph(
 
     from rich.tree import Tree
 
-    from torve.config.rfc_parse import check_graph, fm_list, parse_frontmatter, rfc_files
+    from torve.config.spec import check_graph, fm_list, parse_frontmatter, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)

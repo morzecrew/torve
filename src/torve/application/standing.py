@@ -318,9 +318,9 @@ def _resolve_rfc_path(root: Path, config: RunnerConfig, identifier: str) -> str:
     the same way `torve plan` resolves one — `inherit_decisions` (reached
     through adoption) reads a path, not a bare number."""
 
-    from torve.config import rfc_parse
+    from torve.config import spec
 
-    files = rfc_parse.rfc_files(root / config.rfcs.path)
+    files = spec.rfc_files(root / config.rfcs.path)
     number = identifier.strip().removesuffix(".md")
     found = files.get(number)
 

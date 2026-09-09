@@ -658,13 +658,13 @@ def _document_owners(rfc_dir: Path) -> dict[str, str]:
     resolution exists to rule out."""
 
     from torve.application.planner import inherit_decisions
-    from torve.config import rfc_parse
+    from torve.config import spec
 
     owners: dict[str, str] = {}
 
-    for path in rfc_parse.rfc_files(rfc_dir).values():
+    for path in spec.rfc_files(rfc_dir).values():
         text = path.read_text(encoding="utf-8")
-        frontmatter = rfc_parse.parse_frontmatter(text)
+        frontmatter = spec.parse_frontmatter(text)
 
         if frontmatter is None:
             continue
@@ -1613,7 +1613,7 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
     the same admission torve plan enforces (D-7.7)."""
 
     from torve.application.planner import PlanError, inherit_decisions
-    from torve.config import rfc_parse
+    from torve.config import spec
 
     doc_path = (root / rfc).resolve()
 
@@ -1621,7 +1621,7 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
         raise ValueError(f"no document at {rfc}")
 
     text = doc_path.read_text(encoding="utf-8")
-    frontmatter = rfc_parse.parse_frontmatter(text)
+    frontmatter = spec.parse_frontmatter(text)
 
     if not frontmatter or frontmatter.get("status") != "accepted":
         raise ValueError(

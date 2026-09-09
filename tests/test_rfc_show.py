@@ -13,7 +13,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from torve.cli import app
-from torve.config.rfc_parse import lookup, next_amendment, rfc_files
+from torve.config.spec import lookup, next_amendment, rfc_files
 
 runner = CliRunner()
 

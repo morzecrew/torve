@@ -3,7 +3,7 @@
 vocabulary eventually gains a member in one copy only.
 
 The format itself — frontmatter fields, the decision-table shape — is parsed
-and validated in `torve.config.rfc_parse` (D-7.12); this module owns only the
+and validated in `torve.config.spec` (D-7.12, A-151); this module owns only the
 words.
 """
 

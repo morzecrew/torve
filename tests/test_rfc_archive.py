@@ -11,8 +11,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from torve.cli import app
-from torve.config import spec
-from torve.config.rfc_parse import archive_dir, check_corpus, lookup, next_number
+from torve.config.spec import archive_dir, check_corpus, lookup, next_number
 
 runner = CliRunner()
 
@@ -115,8 +114,7 @@ def test_the_next_number_derives_over_corpus_and_archive(tmp_path: Path) -> None
         {"0007-doc-0007.md": document("0007", "D-7.1", status="superseded")},
     )
 
-    assert spec.next_number(rfcs) == 8  # what `torve rfc new` uses (D-53.10)
-    assert next_number(rfcs) == 3  # the parser's own stays corpus-only until phase 5
+    assert next_number(rfcs) == 8  # one derivation, over corpus and archive (D-53.10)
 
 
 def test_lookup_answers_an_archived_identifier_marked_archived(tmp_path: Path) -> None:

@@ -14,7 +14,8 @@ from pathlib import Path
 import pytest
 
 from torve.application.skills import available, materialize, skills_root
-from torve.config.rfc_parse import (
+from torve.config.runconfig import RunnerConfig
+from torve.config.spec import (
     PHASING_HEADING,
     REQUIRED_FIELDS,
     RFC_FILENAME,
@@ -23,7 +24,6 @@ from torve.config.rfc_parse import (
     parse_contract_example,
     parse_frontmatter,
 )
-from torve.config.runconfig import RunnerConfig
 from torve.domain.rfc import GRADES, STATUSES
 
 

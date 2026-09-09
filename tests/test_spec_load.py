@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from torve.config import rfc_parse
+from torve.config import spec
 from torve.config.spec import (
     SpecError,
     archive_dir,
@@ -21,7 +21,7 @@ from torve.config.spec import (
     load_document,
     load_sections,
     next_number,
-    slugify,
+    section_key,
 )
 
 REPO = Path(__file__).resolve().parent.parent
@@ -80,9 +80,7 @@ def _corpus(tmp_path: Path, **docs: str) -> Path:
 # Parity holds over the archive too: an archived document is the same
 # format, read by the same loader, marked archived (D-53.8).
 REAL_DOCUMENTS = (
-    sorted({**rfc_parse.rfc_files(RFCS), **rfc_parse.archive_files(RFCS)}.items())
-    if RFCS.is_dir()
-    else []
+    sorted({**spec.rfc_files(RFCS), **spec.archive_files(RFCS)}.items()) if RFCS.is_dir() else []
 )
 
 
@@ -90,7 +88,7 @@ REAL_DOCUMENTS = (
 def test_parity_with_the_parser_over_the_real_corpus(number: str, path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     doc = load_document(path, archived=path.parent != RFCS)
-    fm = rfc_parse.parse_frontmatter(text) or {}
+    fm = spec.parse_frontmatter(text) or {}
 
     assert doc.archived == (path.parent != RFCS)
 
@@ -98,23 +96,23 @@ def test_parity_with_the_parser_over_the_real_corpus(number: str, path: Path) ->
     assert doc.title == fm["title"]
     assert doc.status == fm["status"]
     assert doc.implementation == fm.get("implementation", "none")
-    assert doc.depends_on == rfc_parse.fm_list(fm, "depends_on")
-    assert doc.amended_by == rfc_parse.fm_list(fm, "amended_by")
-    assert doc.retired == rfc_parse.fm_list(fm, "retired")
+    assert doc.depends_on == spec.fm_list(fm, "depends_on")
+    assert doc.amended_by == spec.fm_list(fm, "amended_by")
+    assert doc.retired == spec.fm_list(fm, "retired")
 
-    rows = rfc_parse.decision_table(text)
+    rows = spec.decision_table(text)
 
     assert [(d.id, d.grade, d.text, d.paths, d.consequence) for d in doc.decisions] == [
         (r.identifier, r.grade, r.text, r.paths, r.consequence) for r in rows
     ]
 
-    entries = rfc_parse.parse_phasing(text) or []
+    entries = spec.parse_phasing(text) or []
 
     assert [p.model_dump() for p in doc.phasing] == [e.model_dump() for e in entries]
-    assert (doc.contract_example is None) == (rfc_parse.parse_contract_example(text) is None)
+    assert (doc.contract_example is None) == (spec.parse_contract_example(text) is None)
 
-    section = rfc_parse.AMENDMENTS_SECTION.search(text)
-    headings = rfc_parse.AMENDMENT_HEADING.findall(text[section.end() :]) if section else []
+    section = spec.AMENDMENTS_SECTION.search(text)
+    headings = spec.AMENDMENT_HEADING.findall(text[section.end() :]) if section else []
 
     assert [a.id for a in doc.amendments] == headings
 
@@ -128,7 +126,7 @@ def test_the_real_corpus_loads_as_one_and_resolves_every_citation() -> None:
     assert len(corpus.documents) == len(REAL_DOCUMENTS)
     assert corpus.decision("D-53.1") is not None
     assert all(d.archived for d in corpus.documents if Path(d.path).parent != RFCS)
-    assert {d.id for d in corpus.standing()} <= set(rfc_parse.rfc_files(RFCS))
+    assert {d.id for d in corpus.standing()} <= set(spec.rfc_files(RFCS))
 
 
 def test_the_fenced_kinds_of_rfc_0053_load_non_empty() -> None:
@@ -161,9 +159,9 @@ def test_a_heading_inside_a_fence_is_not_a_section() -> None:
 
 
 def test_section_keys_drop_the_number_and_fold_punctuation() -> None:
-    assert slugify("5.4 The projections beside the code") == "the-projections-beside-the-code"
-    assert slugify("Alternatives considered") == "alternatives-considered"
-    assert slugify("10. Unresolved questions") == "unresolved-questions"
+    assert section_key("5.4 The projections beside the code") == "the-projections-beside-the-code"
+    assert section_key("Alternatives considered") == "alternatives-considered"
+    assert section_key("10. Unresolved questions") == "unresolved-questions"
 
 
 # ....................... #
@@ -274,7 +272,6 @@ def test_the_next_number_derives_over_corpus_and_archive(tmp_path: Path) -> None
     shutil.copy(rfc_dir / "0002-scratch-0002.md", archive / "0011-scratch-0011.md")
 
     assert next_number(rfc_dir) == 12
-    assert rfc_parse.next_number(rfc_dir) == 3  # the parser never sees the archive
 
 
 def test_a_document_without_frontmatter_says_so(tmp_path: Path) -> None:

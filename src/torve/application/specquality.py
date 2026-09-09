@@ -66,7 +66,7 @@ from torve.application.planner import globs_intersect
 from torve.application.runstate import RunState
 from torve.application.sizing import estimate_scope
 from torve.base import naming
-from torve.config import layout, rfc_parse
+from torve.config import layout, spec
 from torve.domain.spec import Corpus
 from torve.domain.states import TaskState
 from torve.domain.task import Scope
@@ -376,7 +376,7 @@ def _amendment_cited_ids(rfc_dir: Path) -> set[str]:
 
     for doc in _corpus(rfc_dir).documents:
         for amendment in doc.amendments:
-            cited.update(rfc_parse.DECISION_CITE.findall(rfc_parse.strip_fences(amendment.body_md)))
+            cited.update(spec.DECISION_CITE.findall(spec.strip_fences(amendment.body_md)))
             cited.update(change.subject for change in amendment.changes)
 
     return cited

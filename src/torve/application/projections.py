@@ -34,7 +34,7 @@ from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.application.telemetry import TOKEN_FIELDS, record_row
 from torve.base import naming
-from torve.config import layout, rfc_parse
+from torve.config import layout, spec
 from torve.config.manifest import GATE_AXES, UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.domain.events import EventKind
@@ -985,12 +985,12 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
             by_document.setdefault(str(task["rfc"]), []).append(task)
 
     view: list[dict[str, Any]] = []
-    files = rfc_parse.rfc_files(rfc_dir)
+    files = spec.rfc_files(rfc_dir)
     statuses: dict[str, str] = {}
     frontmatter: dict[str, dict[str, Any]] = {}
 
     for number, path in sorted(files.items()):
-        fm = rfc_parse.parse_frontmatter(path.read_text(encoding="utf-8"))
+        fm = spec.parse_frontmatter(path.read_text(encoding="utf-8"))
 
         if fm is not None:
             frontmatter[number] = fm
@@ -1005,7 +1005,7 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
         text = path.read_text(encoding="utf-8")
 
         try:
-            phasing = rfc_parse.parse_phasing(text)
+            phasing = spec.parse_phasing(text)
 
         except ValueError:
             phasing = None

@@ -14,7 +14,14 @@ from pathlib import Path
 import pytest
 
 from torve.config.rfc_emit import emit, render_frontmatter
-from torve.config.rfc_parse import parse_frontmatter, parse_phasing, paths_globs, rfc_files
+from torve.config.spec import (
+    decision_table,
+    load_document,
+    parse_frontmatter,
+    parse_phasing,
+    paths_globs,
+    rfc_files,
+)
 
 DOC = """---
 id: "0001"
@@ -271,8 +278,6 @@ from torve.config.rfc_emit import (  # noqa: E402
     stamp,
     write_transaction,
 )
-from torve.config.rfc_parse import decision_table  # noqa: E402
-from torve.config.spec import load_document  # noqa: E402
 
 
 def test_amend_row_replaces_the_field_stamps_the_row_and_returns_the_diff() -> None:
@@ -386,7 +391,7 @@ def test_a_deletion_rides_the_transaction_and_a_red_check_keeps_the_file(tmp_pat
     )
     (rfcs / "0002-gadget.md").write_text(dependent, encoding="utf-8")
 
-    from torve.config.rfc_parse import build_index, rfc_files
+    from torve.config.spec import build_index, rfc_files
 
     (rfcs / "INDEX.md").write_text(build_index(rfc_files(rfcs)), encoding="utf-8")
 
@@ -429,7 +434,7 @@ def test_the_transaction_checks_with_the_archive_in_view(tmp_path: Path) -> None
     (rfcs / "0001-widget.md").write_text(DOC, encoding="utf-8")
     (rfcs / "0002-gadget.md").write_text(citing, encoding="utf-8")
 
-    from torve.config.rfc_parse import build_index, rfc_files
+    from torve.config.spec import build_index, rfc_files
 
     (rfcs / "INDEX.md").write_text(build_index(rfc_files(rfcs)), encoding="utf-8")
 
