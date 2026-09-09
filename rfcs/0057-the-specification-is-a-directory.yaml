@@ -8,7 +8,7 @@ depends_on: ['0056']
 informed_by: ['0053', '0054', '0055']
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: [A-165]
 retired: []
 owner: misery7100
 description: >-
@@ -751,6 +751,8 @@ phasing:
       - tests/test_decisions_record.py
       - tests/test_cli_decisions.py
       - tests/test_spec_load.py
+      - tests/test_decisions.py
+      - tests/test_spec.py
     acceptance:
       - >-
         uv run pytest tests/test_divergence.py tests/test_runner.py tests/test_decisions_record.py
@@ -772,6 +774,7 @@ phasing:
       - src/torve/cli/spec.py
       - tests/test_rfc_check.py
       - tests/test_cli_spec.py
+      - tests/test_spec.py
     acceptance:
       - >-
         uv run pytest tests/test_rfc_check.py tests/test_cli_spec.py
@@ -812,3 +815,10 @@ contract_example:
       check_state: shadow
   budget: {}
   tier: executor
+amendments:
+  - id: A-165
+    at: '2026-09-09'
+    title: >-
+      phases 3 and 4 carry the test files of their modules
+    md: |
+      `torve plan` refused the document: a phase that allows a module must allow its existing test file (the T-0113 rule), and phases 3 and 4 named the modules without them. `tests/test_decisions.py` and `tests/test_spec.py` join phase 3's scope, `tests/test_spec.py` phase 4's. Scope only; no row changes.
