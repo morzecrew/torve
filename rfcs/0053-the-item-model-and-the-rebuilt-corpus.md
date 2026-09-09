@@ -8,7 +8,7 @@ depends_on: ["0016", "0031", "0047"]
 informed_by: ["0007", "0022", "0025", "0030", "0049"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-140"]
 owner: misery7100
 description: >-
   The specification becomes a typed item model the engine reads instead of a document it parses; the tool writes every amendment as a diff; coverage becomes a fact; and the corpus is archived and rebuilt through the brownfield lane on this repository.
@@ -638,6 +638,19 @@ refuses. Phase 4 is reserved for it in prose and absent from the fence.
     - "uv run torve rfc check"
   depends_on: [1]
   character: structural
+- phase: 2
+  title: the check learns the archive
+  intent: >-
+    The parser's corpus check resolves what the archive defines (A-140): a `D-x.y` citation into an archived document resolves, a `depends_on`, `informed_by` or `supersedes` reference to an archived number is a warning naming the archive rather than "no such RFC", the parser's own `next_number` derives over corpus and archive exactly as the loader's does, and `lookup` answers an archived identifier marked archived so the MCP `show` face keeps resolving what the CLI already does. Nothing about the format changes and no reader moves; this is the one piece of archive awareness the parser must have before phase 3 can move a document that others cite.
+  scope:
+    - "src/torve/config/rfc_parse.py"
+    - "tests/test_rfc_archive.py"
+  acceptance:
+    - "uv run pytest tests/test_rfc_archive.py tests/test_rfc_check.py"
+    - "uv run lint-imports --config pyproject.toml"
+    - "uv run torve rfc check"
+  depends_on: [1]
+  character: structural
 - phase: 3
   title: the archive lands
   intent: >-
@@ -688,4 +701,31 @@ decisions:
     text: The specification the engine reads is one pydantic model in domain/spec.py; every reader consumes the model and never a parser's rows
     paths: ["src/torve/domain/spec.py", "src/torve/config/spec.py"]
 tier: executor
+```
+
+## Amendments
+
+### A-140 — 2026-09-09 — the archive needs the check to know it
+**Found while planning phase 3.** `check_corpus` resolves a dotted
+citation only against the corpus path's own tables and `retired:` lists,
+and refuses a `depends_on`, `informed_by` or `supersedes` reference to a
+number it cannot find. This document cites D-A.3, D-7.12 and D-31.2 and
+depends on 0016, 0031 and 0047 — all of which phase 3 moves to the
+archive. Under the phasing as written, the first `torve rfc archive`
+would leave a corpus the parser refuses, and the transaction that
+protects the move would refuse the move. The loader of phase 1 already
+resolves over the archive (D-53.10); the parser, which phase 5 deletes,
+never learned to, and until phase 5 it is still the check the gate runs.
+
+**Changed:** phase 2 gains a second unit, disjoint in scope from the
+first, giving the parser the one piece of archive awareness the move
+needs — citations, references, numbering, `lookup`. Phase 3 waits on
+phase 2 as before, which now means both units. D-53.13 is unchanged:
+readers still switch beside the parser, and phase 5 still deletes it.
+
+```yaml changes
+- subject: phase 2
+  field: units
+  before: 1
+  after: 2
 ```
