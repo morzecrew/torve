@@ -8,7 +8,7 @@ depends_on: ["0053", "0054"]
 informed_by: ["0049", "0050", "0055"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-161"]
+amended_by: ["A-161", "A-162"]
 owner: misery7100
 description: >-
   A document is one YAML file in the item model's own shape and markdown is only ever rendered from it; the task directory and the telemetry file stop being sources when a store is configured; the task history of archived documents is deleted.
@@ -389,8 +389,24 @@ what makes it safe to land whole.
     - "tests/test_colocation.py"
     - "tests/test_cli_spec.py"
     - "tests/test_contextpack.py"
+    - "src/torve/application/intake.py"
+    - "src/torve/application/standing.py"
+    - "src/torve/application/colocation.py"
+    - "src/torve/application/contextpack.py"
+    - "src/torve/cli/mcp.py"
+    - "src/torve/cli/spec.py"
+    - "src/torve/cli/decisions.py"
+    - "tests/test_rfc_fmt.py"
+    - "tests/test_rfc_show.py"
+    - "tests/test_rfc_verbs.py"
+    - "tests/test_intake.py"
+    - "tests/test_standing.py"
+    - "tests/test_decisions_record.py"
+    - "tests/test_skills.py"
+    - "tests/test_cli.py"
+    - "tests/test_mcp.py"
   acceptance:
-    - "uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_rfc_archive.py tests/test_decisions.py tests/test_cli_decisions.py tests/test_specquality.py tests/test_plan.py tests/test_colocation.py tests/test_cli_spec.py tests/test_contextpack.py"
+    - "uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_rfc_archive.py tests/test_decisions.py tests/test_cli_decisions.py tests/test_specquality.py tests/test_plan.py tests/test_colocation.py tests/test_cli_spec.py tests/test_contextpack.py tests/test_rfc_fmt.py tests/test_rfc_show.py tests/test_rfc_verbs.py tests/test_intake.py tests/test_standing.py tests/test_decisions_record.py tests/test_skills.py tests/test_cli.py"
     - "uv run torve rfc check"
     - "uv run lint-imports --config pyproject.toml"
   depends_on: []
@@ -491,3 +507,4 @@ decisions:
 _None yet._
 
 ### A-161 — 2026-09-09 — phase 3 brings the layout test
+### A-162 — 2026-09-09 — phase 1 reaches every reader and every markdown-shaped test
