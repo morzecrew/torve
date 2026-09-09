@@ -3,7 +3,7 @@ id: S-0058
 title: One grammar and the anatomy
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0057]
 informed_by: [S-0053, S-0056]
 supersedes: []
