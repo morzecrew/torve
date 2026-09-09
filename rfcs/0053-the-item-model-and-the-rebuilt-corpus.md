@@ -3,7 +3,7 @@ id: "0053"
 title: The item model and the rebuilt corpus
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0016", "0031", "0047"]
 informed_by: ["0007", "0022", "0025", "0030", "0049"]
 supersedes: []
