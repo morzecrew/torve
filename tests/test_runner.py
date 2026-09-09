@@ -2069,3 +2069,90 @@ def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
 
     assert "What the engine knows about T-9030" in seen["index"]
     assert json.loads(seen["decisions"])["inherited"][0]["consequence"] == "why"
+
+
+# ----------------------- #
+# RFC 0057 D-57.7: the runner lands what the attempt found before it commits
+
+
+def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
+    import asyncio
+
+    from test_decisions import corpus, document
+
+    from torve.application.dispatch import Dispatch, RunDeps
+    from torve.application.runner import land
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RunnerConfig, TierConfig
+    from torve.config.spec import load_document
+    from torve.domain.task import Task
+
+    worktree = tmp_path / "wt"
+    spec_dir = corpus(
+        worktree, **{"0001": document("0001", [("D-1.1", "LOCKED", "x", "`src/**`")])}
+    )
+    task = Task(id="T-0001", rfc=".torve/specs/S-0001", phase=1, decisions=[])
+    log_path = worktree / ".torve" / "tasks" / task.id / "log.yaml"
+    log_path.parent.mkdir(parents=True)
+    log_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "task": task.id,
+                "entries": [
+                    {
+                        "decision": "D-1.1",
+                        "grade": "LOCKED",
+                        "claim": "held",
+                        "evidence": "src/a.py:1 - x",
+                        "action": "decided",
+                        "attempt": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    committed: list[tuple[str, str]] = []
+
+    class _Vcs:
+        def commit_all(self, where, message, author, key):
+            # the execution file is on disk before the candidate is cut
+            assert (spec_dir / "S-0001" / "execution.yaml").is_file()
+            committed.append((message.splitlines()[0], author))
+            return "a" * 40
+
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]
+        runtime=_NoSandboxRuntime(),  # type: ignore[arg-type]
+        agent=object(),  # type: ignore[arg-type]
+        vcs=_Vcs(),  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+    )
+    run = Dispatch(
+        root=tmp_path,
+        task=task,
+        config=RunnerConfig(),
+        deps=deps,
+        worktree=worktree,
+        shadow=False,
+        gates_base=None,
+        resume=False,
+        tier_name="executor",
+        tier=TierConfig(),
+        image="",
+        image_digest=None,
+        meta={"adapter": "fake", "model": None},
+    )
+    state = RunState(task_id=task.id, path=tmp_path / "state.json", run_id="run-1")
+    state.attempts = 1
+
+    fact = asyncio.run(land(run, state, "digest"))
+
+    assert "execution .torve/specs/S-0001/execution.yaml" in fact
+    assert len(committed) == 1
+    landing = load_document(spec_dir / "S-0001").landings[0]
+    assert (landing.task, landing.attempt, landing.commit) == ("T-0001", 1, "")
+    assert landing.agent == committed[0][1].split(" <")[0]
+    assert landing.entries[0].claim == "held"

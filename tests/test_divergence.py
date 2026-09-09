@@ -589,3 +589,140 @@ def test_owed_refuses_a_task_with_no_contract(tmp_path):
     )
 
     assert result.exit_code == EXIT_CONFIG
+
+
+# ----------------------- #
+# RFC 0057 D-57.7: the landing goes beside the rows it cites
+
+
+def _landing_repo(tmp_path):
+    """A root with a corpus of one document and a contract naming it."""
+
+    from test_decisions import corpus, document
+
+    from torve.domain.task import Task
+
+    spec_dir = corpus(
+        tmp_path, **{"0001": document("0001", [("D-1.1", "LOCKED", "x", "`src/**`")])}
+    )
+    task = Task(id="T-0001", rfc=".torve/specs/S-0001", phase=1, decisions=[])
+    (tmp_path / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
+
+    return spec_dir, task
+
+
+ENTRY = {
+    "decision": "D-1.1",
+    "grade": "LOCKED",
+    "kind": "resolved",
+    "at": "2026-09-09T10:00:00Z",
+    "attempt": 1,
+    "claim": "the rule held",
+    "evidence": "src/a.py:1 - the line",
+    "action": "decided",
+}
+
+
+def test_land_appends_the_worktree_log_to_the_documents_execution_file(tmp_path):
+    from torve.application.decisions import land
+    from torve.config.spec import load_document
+
+    spec_dir, task = _landing_repo(tmp_path)
+    log_path = layout.log_file(tmp_path, task.id)
+    log_path.parent.mkdir(parents=True)
+    log_path.write_text(
+        yaml.safe_dump({"schema_version": 1, "task": task.id, "entries": [ENTRY]}), encoding="utf-8"
+    )
+
+    path = land(tmp_path, spec_dir, task, attempt=1, agent="session/x", at="2026-09-09")
+
+    assert path == spec_dir / "S-0001" / "execution.yaml"
+    assert path.read_text(encoding="utf-8").startswith(
+        "# yaml-language-server: $schema=../../schemas/execution.json\n"
+    )
+    landings = load_document(spec_dir / "S-0001").landings
+    assert [(one.task, one.phase, one.attempt, one.commit, one.agent) for one in landings] == [
+        ("T-0001", 1, 1, "", "session/x")
+    ]
+    assert landings[0].entries[0].claim == "the rule held"
+
+    # the record's entries, when given, stand in for the file's
+    land(tmp_path, spec_dir, task, attempt=2, commit="abc", entries=[{**ENTRY, "claim": "again"}])
+    landings = load_document(spec_dir / "S-0001").landings
+    assert [(one.attempt, one.commit, one.entries[0].claim) for one in landings] == [
+        (1, "", "the rule held"),
+        (2, "abc", "again"),
+    ]
+
+
+def test_land_refuses_no_document_an_unknown_one_and_a_repeat(tmp_path):
+    from torve.application.decisions import land
+    from torve.domain.task import Task
+
+    spec_dir, task = _landing_repo(tmp_path)
+
+    with pytest.raises(ValueError, match="names no document"):
+        land(tmp_path, spec_dir, Task(id="T-0002", decisions=[]), attempt=1, entries=[])
+
+    stranger = Task(id="T-0003", rfc=".torve/specs/S-0009", decisions=[])
+
+    with pytest.raises(ValueError, match="does not hold"):
+        land(tmp_path, spec_dir, stranger, attempt=1, entries=[])
+
+    land(tmp_path, spec_dir, task, attempt=1, entries=[ENTRY])
+
+    with pytest.raises(ValueError, match="already landed"):
+        land(tmp_path, spec_dir, task, attempt=1, entries=[ENTRY])
+
+
+def test_the_log_land_verb_lands_the_contracts_task_with_the_commit_named(tmp_path):
+    from torve.application.planner import write_contract
+    from torve.config.spec import load_document
+
+    spec_dir, task = _landing_repo(tmp_path)
+    write_contract(tmp_path, task, "one")
+    log_path = layout.log_file(tmp_path, task.id)
+    log_path.write_text(
+        yaml.safe_dump({"schema_version": 1, "task": task.id, "entries": [ENTRY]}), encoding="utf-8"
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "log",
+            "land",
+            task.id,
+            "--commit",
+            "abc123",
+            "--agent",
+            "session/x",
+            "--root",
+            str(tmp_path),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == EXIT_OK, result.output
+    assert json.loads(result.output)["entries"] == 1
+    landing = load_document(spec_dir / "S-0001").landings[0]
+    assert (landing.commit, landing.agent, landing.entries[0].decision) == (
+        "abc123",
+        "session/x",
+        "D-1.1",
+    )
+
+    refused = CliRunner().invoke(
+        app, ["log", "land", "T-0009", "--commit", "abc", "--root", str(tmp_path)]
+    )
+
+    assert refused.exit_code == EXIT_CONFIG and "no contract" in refused.output
+
+
+def test_a_rendered_log_opens_with_its_schema_line_and_still_reads_back(tmp_path):
+    from torve.application.divergence import render
+
+    text = render({"schema_version": 1, "task": "T-0001", "entries": [ENTRY]})
+
+    assert text.startswith("# yaml-language-server: $schema=../../schemas/log.json\n")
+    assert yaml.safe_load(text)["entries"][0]["claim"] == "the rule held"

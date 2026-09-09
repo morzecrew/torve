@@ -128,12 +128,25 @@ async def _graph(dsn: str | None, partition: str) -> Graph:
 async def _import(
     dsn: str | None, partition: str, rfc_dir: Path, *, actor: str, write: bool
 ) -> list[PendingEvent]:
-    from torve.application.decisions import import_corpus, load, record_all
+    from torve.application.decisions import (
+        import_corpus,
+        landing_events,
+        load,
+        load_corpus,
+        record_all,
+    )
     from torve.application.eventlog import event_log
 
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
         pending = import_corpus(await load(log, partition=partition), rfc_dir)
+        # RFC 0057 D-57.8: what every execution file holds and the record
+        # lacks — an agent's entries and the manager's landing, replayed
+        # under the actor each kind names.
+        corpus = load_corpus(rfc_dir)
+        landed = sorted({one.task for doc in corpus.documents for one in doc.landings})
+        recorded = {task: await log.history(task, partition=partition) for task in landed}
+        pending += landing_events(corpus, recorded)
 
         if write:
             await record_all(log, pending, partition=partition, actor_id=actor)

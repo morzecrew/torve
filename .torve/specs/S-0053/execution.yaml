@@ -1,0 +1,393 @@
+# yaml-language-server: $schema=../../schemas/execution.json
+landings:
+  - task: T-0288
+    phase: 1
+    commit: 14deffbec50b99c384ec71f8bbe966ba24716d91
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-53.1
+        grade: LOCKED
+        at: '2026-09-09T09:29:24Z'
+        claim: >-
+          the model lives in domain/spec.py as pydantic Documents with extra=forbid
+          and the loader in config/spec.py produces it from the markdown corpus; no
+          reader switches in this phase, so the parser stays the owner of every consumer
+          until phase 2, and the parity test over all 53 documents is what licenses
+          the switch
+        evidence: >-
+          src/torve/domain/spec.py:201 - the Document model with its typed lists;
+          src/torve/config/spec.py:316 - load_document builds it from parse_frontmatter,
+          decision_table, parse_phasing and the fences; tests/test_spec_load.py asserts
+          parity per document
+        action: decided
+        notes: >-
+          D-7.17 stands: config/spec.py is the format's second reader beside rfc_parse
+          for one bounded window (D-53.13); gates and adapters import neither
+      - decision: D-53.2
+        grade: LOCKED
+        at: '2026-09-09T09:29:24Z'
+        claim: >-
+          markdown stays the authoring surface and the table is read exactly as today
+          through rfc_parse.decision_table; the five fenced kinds are the only additions,
+          each validated against its model with unknown keys refused by fence, entry
+          and field name; a fenced kind the model does not know is refused too
+        evidence: >-
+          src/torve/config/spec.py:173 - load_fences refuses an unknown kind and validates
+          each known one; src/torve/config/spec.py:65 - the fence-to-model table
+        action: decided
+      - decision: D-53.4
+        grade: LOCKED
+        at: '2026-09-09T09:29:25Z'
+        claim: >-
+          this phase lands the read side of the amendment diff only: the changes fence
+          under an A-n heading loads into typed Change entries with before and after,
+          and the fingerprint over text, grade and paths is a computed field on every
+          row; the amend forms that write the diff and the check that compares fingerprints
+          are phase 2's, as the phasing says
+        evidence: >-
+          src/torve/config/spec.py:227 - load_amendments reads the heading, date,
+          title, changes fence and body; src/torve/domain/spec.py:41 - fingerprint
+          over text, grade and sorted paths
+        action: decided
+        notes: >-
+          rfc_emit.py is in this row's paths and is untouched by design in phase 1
+      - decision: D-53.10
+        grade: LOCKED
+        at: '2026-09-09T09:29:25Z'
+        claim: >-
+          next_number derives the maximum plus one over the corpus path and archive/rfcs
+          beside it; the parser's own derivation is left as it is and the test pins
+          that the two disagree exactly when the archive holds a higher number
+        evidence: >-
+          src/torve/config/spec.py:421 - next_number over rfc_files of both directories;
+          tests/test_spec_load.py pins 12 versus the parser's 3
+        action: decided
+  - task: T-0289
+    phase: 2
+    commit: e54fe13dfcf85132f40504b0111fe46415d12fe9
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-53.4
+        grade: LOCKED
+        at: '2026-09-09T09:47:18Z'
+        claim: >-
+          a row's grade, paths or text change through torve rfc amend --row, which
+          replaces the row, re-stamps it in a fingerprints frontmatter map (full fingerprint
+          beside a grade-and-paths fingerprint) and writes the typed diff with the
+          prior value as a changes fence under the new heading; torve rfc fix re-stamps
+          a text-only edit and records the pair under the table with no amendment
+          number; rfc check reads a grade-or-paths mismatch as a problem and a text
+          mismatch as a warning naming fix. The stamp lives in frontmatter rather
+          than a model field because the model's file is outside this phase's scope
+          and D-A.2 already puts structured facts there; the standalone retire verb
+          stays beside amend --retire until phase 5 deletes it
+        evidence: >-
+          src/torve/config/rfc_emit.py:426 - amend_row replaces the field, stamps
+          and returns the diff; src/torve/config/rfc_emit.py:490 - fix_row_text re-stamps
+          and records under the table; src/torve/application/decisions.py:571 - fingerprint_drift
+          tells the two mismatches apart; tests/test_rfc_check.py pins problem versus
+          warning versus fix
+        action: decided
+        notes: >-
+          the settle form for questions named in §5.4 is not built: questions live
+          in a prose fence and nothing reads a settlement yet; recorded as its own
+          entry
+      - decision: D-53.6
+        grade: LOCKED
+        at: '2026-09-09T09:47:18Z'
+        claim: >-
+          coverage(corpus, path) answers governed, ungoverned or retired over standing
+          rows' paths and accepted documents' phase scopes, with a glob reaching a
+          directory when it names something under it; ungoverned is a value, never
+          a problem; torve decisions paths prints it per glob and rfc health carries
+          a frontier by top-level source directory
+        evidence: >-
+          src/torve/application/decisions.py:480 - coverage over rows then phases
+          then the archive; tests/test_decisions.py pins a phase-only governed path
+          and a retired one
+        action: decided
+      - decision: D-53.9
+        grade: LOCKED
+        at: '2026-09-09T09:47:18Z'
+        claim: >-
+          the importer reads the corpus through the model and records every archived
+          document as a source and every row it carries as decision.retired with 'archived
+          in <file>, superseded by <n>' as the reason, recording the row first when
+          the record never held it so the retirement has a subject; torve rfc show
+          falls back to the model for an archived identifier and says archived
+        evidence: >-
+          src/torve/application/decisions.py:316 - import_corpus over standing and
+          archived documents; src/torve/cli/rfc.py:807 - _from_model answers archived
+          rows, invariants, questions and archived documents; tests/test_rfc_check.py
+          archives a document and shows its row
+        action: decided
+      - decision: D-53.7
+        grade: ASSUMED
+        at: '2026-09-09T09:47:19Z'
+        claim: >-
+          path rot is reported by rfc check as a warning naming the retiring command,
+          and check --fix-rot retires every rotted row through one amendment per document
+          with the reason recorded; never automatic on load, never a red
+        evidence: >-
+          src/torve/application/decisions.py:537 - path_rot over accepted implemented
+          documents; src/torve/cli/rfc.py:214 - _model_findings adds it to check;
+          the live corpus reports 25 such rows today
+        action: decided
+      - decision: D-53.13
+        grade: ASSUMED
+        at: '2026-09-09T09:47:19Z'
+        claim: >-
+          check, show, health, the importer and decisions paths read the model beside
+          the parser: check runs both and merges findings, show enriches the parser's
+          answer and falls back to the model, health and the importer read the model
+          only, decisions paths adds coverage from it; index stays on the parser because
+          its output is a byte-exact lockfile and the parity test in phase 1 already
+          proves the frontmatter equal
+        evidence: >-
+          src/torve/application/decisions.py:281 - load_corpus wraps the loader's
+          refusals as PlanError; src/torve/cli/rfc.py:214 - the check merges model
+          findings with the parser's report
+        action: decided
+        notes: >-
+          index is a departure from the phase intent, not from a row: switching a
+          lockfile renderer buys nothing until the parser is deleted in phase 5, when
+          the renderer moves whole
+      - decision: unlisted
+        grade: UNLISTED
+        kind: contradicted
+        class: spec-gap
+        at: '2026-09-09T09:47:19Z'
+        claim: >-
+          the loader raises pydantic's ValidationError rather than SpecError when
+          a row's grade is outside the vocabulary, because the row is built from the
+          parser's table without a guard; every reader in this phase catches both,
+          and the importer wraps it as the same 'not mintable' PlanError the parser
+          path raised, but the loader's own promise of one collected refusal is not
+          kept for this case
+        evidence: >-
+          src/torve/application/decisions.py:281 - the ValidationError branch; tests/test_decisions.py
+          pins the not-mintable wording
+        action: decided
+        proposal: >-
+          phase 5 (or a maintenance task on src/torve/config/spec.py) converts row
+          validation errors into SpecError problems naming the row, which phase 1's
+          scope did not reach after the fact and this phase's scope excludes
+      - decision: unlisted
+        grade: UNLISTED
+        kind: contradicted
+        class: spec-gap
+        at: '2026-09-09T09:47:20Z'
+        claim: >-
+          the settle form of amend (settling a question by a task or amendment) named
+          in RFC 0053 §5.4 is not built: questions live in a prose-side yaml fence
+          the emitter does not model, and no reader consumes a settlement yet; the
+          fence can be hand-edited and the loader validates it
+        evidence: >-
+          src/torve/config/rfc_emit.py:426 - the forms built are grade, paths, text
+          and retire
+        action: decided
+        proposal: >-
+          add a questions fence rewriter to the emitter when a reader of settlements
+          exists (rfc health or the pack of RFC 0054); until then the fence is authored
+          like any other typed section
+  - task: T-0290
+    phase: 3
+    commit: a1d00967bd31af61e57ee3f26e65882b6bec5168
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-53.8
+        grade: LOCKED
+        at: '2026-09-09T10:13:53Z'
+        claim: >-
+          fifty-two documents moved to archive/rfcs through torve rfc archive, each
+          keeping its filename and identifiers with status superseded and superseded_by
+          naming 0055, the number the baseline takes next; the corpus path holds 0053
+          and 0054, the check is green with warnings naming the archived references,
+          and nothing but the importer and show reads the archive
+        evidence: >-
+          rfcs/INDEX.md:1 - the index lists two documents; archive/rfcs/0001-torve-charter.md:1
+          - the charter's frontmatter reads superseded
+        action: decided
+        notes: >-
+          0055 does not exist yet: superseded_by is not among the references the check
+          resolves, and the baseline is the next number over corpus and archive by
+          D-53.10; the first document created after this landing takes it
+      - decision: D-53.2
+        grade: LOCKED
+        at: '2026-09-09T10:13:53Z'
+        claim: >-
+          the three amendments to 0016 and the one to 0007 were written as row changes
+          through torve rfc amend, so the changed rows are stamped and their diffs
+          recorded; the twenty-five path-rotted rows were retired through check --fix-rot
+          before the move, so the record reads them retired for rot and not for the
+          archive
+        evidence: >-
+          archive/rfcs/0016-corpus-conventions.md:1 - A-148 to A-150 with their changes
+          fences; archive/rfcs/0007-planner-context.md:1 - A-151
+        action: decided
+        notes: >-
+          two emitter defects found on the way and fixed on the document-less lane
+          first: T-0293 (a long value folded into invalid YAML) and T-0294 (the archive
+          transaction could not see the archive)
+      - decision: D-53.11
+        grade: LOCKED
+        at: '2026-09-09T10:13:53Z'
+        claim: >-
+          the baseline is not written by this phase: D-31.2 keeps corpus-bootstrap
+          a supervised act, and this landing leaves the corpus path with 0053 and
+          0054 so that act has an empty standing set to draft into; the record has
+          been brought level with the archive first so the survey's own reads are
+          honest
+        evidence: >-
+          rfcs/INDEX.md:1 - two documents and no baseline; the record import wrote
+          the archived sources and retirements
+        action: decided
+      - decision: D-53.12
+        grade: ASSUMED
+        at: '2026-09-09T10:13:54Z'
+        claim: >-
+          only rfcs and the two pages named in the phase moved or changed; the engine,
+          the record's schema, the task directory, the skills and gates.yaml are untouched
+        evidence: >-
+          pages/docs/operating.md:41 - the corpus and archive section; pages/docs/architecture/record.md:1
+          - the archive as a source
+        action: decided
+  - task: T-0291
+    phase: 5
+    commit: 91d56d5a0223e0b83b640988423ce7ff2103739f
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-53.1
+        grade: LOCKED
+        at: '2026-09-09T13:26:01Z'
+        claim: >-
+          one module owns the format: the parser's functions moved whole into config/spec.py
+          beside the loader, rfc_parse.py is deleted, every importer in src and tests
+          names spec, and the import-linter contract that keeps the format out of
+          gates and adapters names spec now; no reader's behaviour changed
+        evidence: >-
+          src/torve/config/spec.py:1 - the merged module's docstring; src/torve/config/spec.py:1310
+          - check_corpus, unchanged in what it checks; pyproject.toml:115 - the contract
+          names the new owner
+        action: decided
+      - decision: D-53.2
+        grade: LOCKED
+        at: '2026-09-09T13:26:01Z'
+        claim: >-
+          markdown and the table are read exactly as before by the same functions
+          under their new home; the five fenced kinds load as they did in phase 1
+        evidence: >-
+          src/torve/config/spec.py:1690 - load_document over the parser's readers
+          in the same module
+        action: decided
+      - decision: D-53.4
+        grade: LOCKED
+        at: '2026-09-09T13:26:01Z'
+        claim: >-
+          the amend forms are untouched; the emitter imports the format from spec
+          now, and the amendment number the verb derives counts the archive's headings,
+          which the corpus-only derivation did not — A-152 was numbered by hand because
+          of it
+        evidence: >-
+          src/torve/config/spec.py:956 - next_amendment over corpus and archive; tests/test_rfc_show.py
+          pins the derivation
+        action: decided
+      - decision: D-53.9
+        grade: LOCKED
+        at: '2026-09-09T13:26:02Z'
+        claim: >-
+          the importer and show read the same module they did in phase 2 under its
+          new name; archived identifiers resolve as before
+        evidence: >-
+          src/torve/application/decisions.py:41 - the import from spec; tests/test_rfc_archive.py
+          pins lookup over the archive
+        action: decided
+      - decision: D-53.10
+        grade: LOCKED
+        at: '2026-09-09T13:26:02Z'
+        claim: >-
+          there is one next_number and it derives over corpus and archive; the parser's
+          corpus-only derivation is gone with the parser, and the tests that pinned
+          the difference now pin the one derivation
+        evidence: >-
+          src/torve/config/spec.py:1785 - next_number; tests/test_rfc_archive.py asserts
+          8 over a corpus of one and an archive of one
+        action: decided
+      - decision: D-53.13
+        grade: ASSUMED
+        at: '2026-09-09T13:26:03Z'
+        claim: >-
+          the bounded window with two owners of the format closes: the parser is deleted
+          after the archive landed, as the row says, and the parity test that licensed
+          the switch now pins the merged module against the loader it contains
+        evidence: >-
+          tests/test_spec_load.py:83 - parity over corpus and archive through one
+          module
+        action: decided
+      - decision: unlisted
+        grade: UNLISTED
+        at: '2026-09-09T13:26:03Z'
+        claim: >-
+          colliding names between the parser and the loader were resolved by renaming
+          the loader's: section_key (was slugify, which the parser keeps for filenames),
+          AMENDMENT_MARK (was AMENDMENT_HEADING, whose two groups would have broken
+          the parser's findall callers), check_cites (was check_citations); the merged
+          module keeps the parser's names for everything the corpus verbs call
+        evidence: >-
+          src/torve/config/spec.py:956 - the parser's names stand; tests/test_spec_load.py:163
+          - section_key
+        action: decided
+        proposal: >-
+          no row: a naming choice inside one module; the skill's references name none
+          of these functions
+      - decision: D-53.6
+        grade: LOCKED
+        at: '2026-09-09T13:31:57Z'
+        claim: >-
+          coverage is unchanged in what it answers; the module's import of the format
+          moved from the parser to spec and nothing else in the file changed
+        evidence: >-
+          src/torve/application/decisions.py:480 - coverage over standing rows, phase
+          scopes and the archive, as landed in phase 2
+        action: decided
+  - task: T-0292
+    phase: 2
+    commit: 260d1d94aeffd0600dc8d682344d6620a1d1a2a6
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-53.10
+        grade: LOCKED
+        at: '2026-09-09T09:58:58Z'
+        claim: >-
+          the row is satisfied by the loader's derivation, which torve rfc new already
+          calls; the parser's own next_number stays corpus-only because phase 1's
+          parity test pins that difference and phase 5 deletes the parser — A-140's
+          wording named the parser's derivation, and this entry records that the loader's
+          is the one in force
+        evidence: >-
+          src/torve/config/rfc_parse.py:168 - the docstring names the loader's derivation
+          as the verb's; tests/test_rfc_archive.py pins 8 from the loader and 3 from
+          the parser over the same tree
+        action: decided
+      - decision: unlisted
+        grade: UNLISTED
+        at: '2026-09-09T09:58:58Z'
+        claim: >-
+          check_corpus resolves citations against what the archive defines and its
+          retired lists, and a depends_on, informed_by or supersedes reference to
+          an archived number is a warning naming the archive rather than a refusal;
+          lookup falls back to the archive and marks the answer archived, so the MCP
+          show face resolves what the CLI does
+        evidence: >-
+          src/torve/config/rfc_parse.py:1322 - the resolvable set gains the archive;
+          src/torve/config/rfc_parse.py:1018 - _lookup_in over corpus then archive
+        action: decided
+        proposal: >-
+          no row needed: this is A-140's unit executed as written; phase 5 carries
+          the archive-aware resolution into the loader's check when the parser is
+          deleted

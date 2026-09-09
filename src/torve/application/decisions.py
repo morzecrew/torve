@@ -29,7 +29,9 @@ about when someone last imported, and is what the parity test measures.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -42,12 +44,12 @@ from torve.domain.source import Source, corpus_source_id
 from torve.domain.spec import rule_fingerprint
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-    from datetime import datetime
+    from collections.abc import Iterable, Mapping, Sequence
 
     from torve.application.eventlog import EventLog
     from torve.domain.rfc import Grade
     from torve.domain.spec import Corpus, Coverage, Decision, Document
+    from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -237,6 +239,11 @@ class PendingEvent:
     subject_type: SubjectType
     subject_id: str
     payload: dict[str, Any]
+    # Who the record names (D-57.8): a landing's entries were an agent's
+    # and its landing the manager's; the importer replays a carrier, it
+    # does not become either.
+    actor_kind: ActorKind | None = None
+    actor_id: str = ""
 
     # ....................... #
 
@@ -631,13 +638,144 @@ async def record_all(
             partition=partition,
             subject_type=event.subject_type,
             subject_id=event.subject_id,
-            actor_kind=actor_kind,
-            actor_id=actor_id,
+            actor_kind=event.actor_kind or actor_kind,
+            actor_id=event.actor_id or actor_id,
             payload=event.payload,
         )
         count += 1
 
     return count
+
+
+# ....................... #
+
+
+def land(
+    root: Path,
+    spec_dir: Path,
+    task: Task,
+    *,
+    attempt: int,
+    at: str | None = None,
+    agent: str = "",
+    commit: str = "",
+    entries: list[dict[str, Any]] | None = None,
+) -> Path:
+    """The landing appended to the execution file of the document the
+    contract names (RFC 0057 D-57.7) — here rather than in `divergence`,
+    which the agent harness imports and which therefore may not reach the
+    corpus (the planner-boundary contract, 0015 A-19): the task, its phase and attempt,
+    when and by whom, the commit when the lander knows it, and the log's
+    entries — the worktree's log by default, or the entries given (the
+    record's, read by `torve log land --partition`). Staged, so the commit
+    that lands the task carries it. Refuses, with the reason, a contract
+    that names no document or a document the corpus does not hold, and a
+    landing already written for this task and attempt."""
+
+    from torve.application.divergence import open_log, stage
+    from torve.config.spec_emit import write_document
+    from torve.domain.spec import EXECUTION_FILE, Landing
+
+    if not task.rfc:
+        raise ValueError(f"{task.id} names no document — its log stays in git history")
+
+    named = re.search(r"\d{4}", Path(task.rfc).name)
+    directory = spec.document_dirs(spec_dir).get(named.group(0)) if named else None
+
+    if directory is None:
+        raise ValueError(
+            f"{task.id} names {task.rfc}, which the corpus at {spec_dir} does not hold"
+        )
+
+    doc = spec.load_document(directory)
+
+    if any(one.task == task.id and one.attempt == attempt for one in doc.landings):
+        raise ValueError(f"{task.id} attempt {attempt} already landed in {directory.name}")
+
+    carried = open_log(root, task.id)["entries"] if entries is None else entries
+    landing = Landing.model_validate(
+        {
+            "task": task.id,
+            "phase": task.phase,
+            "attempt": attempt,
+            "commit": commit,
+            "at": at or datetime.now(UTC).date().isoformat(),
+            "agent": agent,
+            "entries": carried,
+        }
+    )
+    write_document(directory, doc.model_copy(update={"landings": [*doc.landings, landing]}))
+    path = directory / EXECUTION_FILE
+    stage(root, path)
+
+    return path
+
+
+# ....................... #
+
+
+def landing_events(
+    corpus: Corpus, recorded: Mapping[str, Sequence[EventRecord]]
+) -> list[PendingEvent]:
+    """RFC 0057 D-57.8: the divergence and landing events every execution
+    file holds — live and archived alike — and the record lacks, so a clone
+    without a store rebuilds the same record from the tree. *recorded* is
+    each landed task's history; an entry is known by its attempt, row and
+    claim, a landing by its commit. Idempotent: an unchanged tree returns
+    nothing the second time."""
+
+    from torve.application.divergence import payload_of
+
+    pending: list[PendingEvent] = []
+
+    for doc in corpus.documents:
+        for landing in doc.landings:
+            history = recorded.get(landing.task, [])
+            known = {
+                (
+                    int(e.payload.get("attempt") or 0),
+                    str(e.payload.get("decision_id") or ""),
+                    str(e.payload.get("claim") or ""),
+                )
+                for e in history
+                if e.kind is EventKind.DIVERGENCE_RECORDED
+            }
+            landed = {
+                str(e.payload.get("sha") or "")
+                for e in history
+                if e.kind is EventKind.LANDING_RECORDED
+            }
+
+            for entry in landing.entries:
+                payload = payload_of(entry.model_dump(mode="json"))
+
+                if (payload["attempt"], payload["decision_id"], payload["claim"]) in known:
+                    continue
+
+                pending.append(
+                    PendingEvent(
+                        EventKind.DIVERGENCE_RECORDED,
+                        SubjectType.TASK,
+                        landing.task,
+                        payload,
+                        actor_kind=ActorKind.AGENT,
+                        actor_id=landing.agent or "execution",
+                    )
+                )
+
+            if landing.commit and landing.commit not in landed:
+                pending.append(
+                    PendingEvent(
+                        EventKind.LANDING_RECORDED,
+                        SubjectType.TASK,
+                        landing.task,
+                        {"sha": landing.commit, "attempt": landing.attempt},
+                        actor_kind=ActorKind.MANAGER,
+                        actor_id="execution",
+                    )
+                )
+
+    return pending
 
 
 # ....................... #
@@ -653,6 +791,8 @@ __all__ = [
     "coverage",
     "fingerprint_drift",
     "import_corpus",
+    "land",
+    "landing_events",
     "load",
     "load_corpus",
     "path_rot",

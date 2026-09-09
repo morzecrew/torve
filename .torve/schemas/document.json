@@ -374,6 +374,151 @@
       "title": "Invariant",
       "type": "object"
     },
+    "Landing": {
+      "additionalProperties": false,
+      "description": "What one task found, kept beside the rows it informs (D-57.7): the\ntask, its phase and attempt, the commit when the lander knew it (the\nrunner's rides in the candidate commit whose trailers name the task,\nso it leaves the field empty), when, by whom, and the log's entries.",
+      "properties": {
+        "agent": {
+          "default": "",
+          "title": "Agent",
+          "type": "string"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "attempt": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "commit": {
+          "default": "",
+          "title": "Commit",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/LogEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "phase": {
+          "default": 0,
+          "title": "Phase",
+          "type": "integer"
+        },
+        "task": {
+          "title": "Task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "title": "Landing",
+      "type": "object"
+    },
+    "LogEntry": {
+      "additionalProperties": false,
+      "description": "One divergence entry as the task log carries it and a landing keeps\nit (D-57.7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
+      "properties": {
+        "action": {
+          "enum": [
+            "halted",
+            "departed",
+            "decided"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "at": {
+          "default": "",
+          "title": "At",
+          "type": "string"
+        },
+        "attempt": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "class": {
+          "default": "discovery",
+          "enum": [
+            "discovery",
+            "spec-gap",
+            "drift",
+            "irreducible"
+          ],
+          "title": "Class",
+          "type": "string"
+        },
+        "decision": {
+          "title": "Decision",
+          "type": "string"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "grade": {
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN",
+            "UNLISTED"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "kind": {
+          "default": "resolved",
+          "enum": [
+            "contradicted",
+            "departed",
+            "resolved",
+            "blocked"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "proposal": {
+          "default": "",
+          "title": "Proposal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "grade",
+        "claim",
+        "evidence",
+        "action"
+      ],
+      "title": "LogEntry",
+      "type": "object"
+    },
     "Phase": {
       "additionalProperties": false,
       "description": "One mintable unit of the phasing: what `torve plan` derives a\ncontract from.",

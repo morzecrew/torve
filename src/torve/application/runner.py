@@ -37,6 +37,7 @@ from forze.application.contracts.durable.function import (
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 
+from torve.application import decisions
 from torve.application.dispatch import (
     Dispatch,
     GatePass,
@@ -613,6 +614,22 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
 
     deps, config, task, worktree = run.deps, run.config, run.task, run.worktree
 
+    # D-57.7: what this attempt found goes beside the rows it cites, in the
+    # candidate commit; the commit field stays empty — the candidate's own
+    # trailers name the task — and a contract naming no document lands
+    # nowhere, which is a fact, not a failure.
+    try:
+        execution = decisions.land(
+            worktree,
+            worktree / config.specs.path,
+            task,
+            attempt=state.attempts,
+            agent=_agent_identity(run.meta),
+        )
+        landed = f"execution {execution.relative_to(worktree)}"
+    except ValueError as exc:
+        landed = f"no execution file — {exc}"
+
     message = _provenance_message(task, state.attempts, digest, run.meta)
     author = f"{_agent_identity(run.meta)} <agents@torve.local>"
 
@@ -664,6 +681,7 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
     state.landed_sha = sha or None
     fact = f"committed {sha[:10]}" if sha else "nothing to commit"
     fact += f"; pushed={pushed}" + (f"; pr={pr_url}" if pr_url else "; pr deferred")
+    fact += f"; {landed}"
 
     return fact
 

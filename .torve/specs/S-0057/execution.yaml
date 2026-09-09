@@ -1,0 +1,248 @@
+# yaml-language-server: $schema=../../schemas/execution.json
+landings:
+  - task: T-0304
+    phase: 1
+    commit: 16655e5fbeb10a7434a117d9fb3c3b67f9c33244
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-57.2
+        grade: LOCKED
+        at: '2026-09-09T17:06:28Z'
+        claim: >-
+          A section is key and md; heading_of renders the heading from the key and
+          render numbers by position; check_sections refuses an empty body, a typed-kind
+          fence, the decisions table header and an amendment identifier as a key,
+          naming the section; a plain yaml fence that illustrates a shape stays prose
+        evidence: >-
+          src/torve/config/spec.py:520 - check_sections; src/torve/domain/spec.py:182
+          - heading_of
+        action: decided
+      - decision: D-57.3
+        grade: LOCKED
+        at: '2026-09-09T17:06:28Z'
+        claim: >-
+          The corpus is .torve/specs and the archive and schemas are its siblings,
+          derived from the corpus path so a relocated corpus carries them; the configuration
+          key is specs.path with layout.SPECS_DIR as its default and a before-validator
+          refuses the rfcs key naming specs; every reader that opened config.rfcs.path
+          opens config.specs.path
+        evidence: >-
+          src/torve/config/runconfig.py:908 - SpecsConfig and the refusal of rfcs;
+          src/torve/config/spec.py:99 - archive_dir and schemas_dir as siblings
+        action: decided
+      - decision: D-57.9
+        grade: LOCKED
+        at: '2026-09-09T17:06:30Z'
+        claim: >-
+          config/spec.py changed for the directory shape only; the tree scan of citations
+          is phase 4's and nothing of it was written here
+        evidence: >-
+          src/torve/config/spec.py:1 - no scan of tracked files
+        action: decided
+      - decision: D-57.5
+        grade: LOCKED
+        at: '2026-09-09T17:07:00Z'
+        claim: >-
+          torve init writes the four document schemas into .torve/schemas from the
+          model, each cut to the fields its file carries with the shared definitions
+          kept whole; every file's first line names its own schema two levels up,
+          the same from the corpus and the archive; spec check warns when a schema
+          is not written yet and reddens when one lags the model
+        evidence: >-
+          src/torve/cli/init.py:20 - init_cmd; src/torve/config/spec.py:153 - schema_text
+          per file
+        action: decided
+        notes: >-
+          phase 2 grows init to the contract, the log, the configuration, the manifest
+          and the ignore file; phase 1 writes only what the document needs
+      - decision: D-57.1
+        grade: LOCKED
+        at: '2026-09-09T17:07:20Z'
+        claim: >-
+          A specification is the directory S-NNNN of document.yaml, decisions.yaml,
+          amendments.yaml and execution.yaml; FILE_FIELDS in the model says which
+          key each file carries and the loader refuses a key in the wrong file by
+          name; an absent file is an empty list; the loader joins the four into the
+          one Document and every reader — planner, colocation, pack, importer, show
+          — reads what it read; schema_version 3, and 2 is refused naming the phase-1
+          conversion
+        evidence: >-
+          src/torve/config/spec.py:240 - load_document joins the files a directory
+          holds; src/torve/domain/spec.py:270 - FILE_FIELDS
+        action: decided
+        notes: >-
+          the directory carries the identifier and nothing else (A-166): the slug
+          said what document.yaml and spec list already say; document.yaml and decisions.yaml
+          are always written so a new document shows where the rows go, the tool's
+          and the landing's files appear with their first entry and never shrink to
+          nothing
+      - decision: D-57.4
+        grade: LOCKED
+        at: '2026-09-09T17:07:20Z'
+        claim: >-
+          torve spec absorbs every torve rfc verb in one module and cli/rfc.py is
+          deleted; the two show verbs merged into the lookup one, whose payload is
+          a superset; rfc schema became torve init; the gate is spec-valid in the
+          manifest and the pack; rfc_emit.py is spec_emit.py; the skill is spec-writer
+          with the symlink following; new prose says specification or document and
+          old prose keeps its word
+        evidence: >-
+          src/torve/cli/spec.py:1 - the merged module; .torve/gates.yaml:68 - spec-valid
+        action: decided
+        notes: >-
+          domain/rfc.py keeps its module name: it owns the vocabularies, is imported
+          from eleven modules, and D-57.4 names the emitter and the CLI only — renaming
+          it is a follow-up if anyone wants it; test file names keep rfc per §4
+      - decision: D-57.6
+        grade: LOCKED
+        at: '2026-09-09T17:07:21Z'
+        claim: >-
+          Every live and archived document converted once from a schema-2 dump taken
+          at the branch point: 312 refused or empty sections dropped, 56 typed fences
+          and 56 decisions tables removed, headings and amended_by dropped, the model
+          written as four files into .torve/specs and .torve/archive as S-NNNN directories;
+          rfcs/, archive/rfcs/ and rfcs/schema/ deleted in the same commit; a parity
+          script compared 2,649 surviving items with 0 mismatches and is not committed,
+          as 0056's was not; rotted globs in the live rows (rfcs/**, archive/**, rfcs/schema/**,
+          rfc_emit.py, cli/rfc.py) relocated to their new homes through relocate_paths
+        evidence: >-
+          `uv run python scratchpad/parity57.py` — documents 57 items 2649 mismatches
+          0
+        action: decided
+        notes: >-
+          the sixteen task logs fold in phase 3 when the Landing model exists; the
+          corpus-bootstrap fixture converted with the corpus into fixtures/S-0001
+  - task: T-0305
+    phase: 2
+    commit: d4a4d90f33ec1e92b4aef67d2f9e9ef999f15169
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-57.5
+        grade: LOCKED
+        at: '2026-09-09T17:36:52Z'
+        claim: >-
+          torve init writes eight schemas into .torve/schemas — the four document
+          files from the loader, the contract from Task, the run configuration from
+          RunnerConfig, the gate manifest from Manifest, and the log from a schema
+          written by hand in init.py from the entry shape payload_of produces, which
+          phase 3 replaces with the typed entry — and .torve/.gitignore with the eight
+          patterns for what torve alone writes, appending a missing one below the
+          operator's own lines and never removing one; the schema line is added once
+          to config.yaml and gates.yaml where other comments stay legal, and a projected
+          contract opens with its own; the root .gitignore lost its torve block; doctor
+          reddens when a present schema lags its model or the ignore file lacks a
+          minted pattern, and only hints when neither was written yet, as spec check
+          only warns
+        evidence: >-
+          src/torve/cli/init.py:96 - expected_schemas; src/torve/cli/doctor.py:551
+          - _init_checks
+        action: decided
+        notes: >-
+          the contract's schema line assumes the default layout (../../schemas from
+          the task directory): the planner reads no configuration, so a relocated
+          specs.path leaves the editor's pointer dangling and nothing else; the review-corpus
+          trace-log glob rides .torve/.gitignore as an operator line until RFC 0056
+          phase 4 moves the corpus
+      - decision: D-57.4
+        grade: LOCKED
+        at: '2026-09-09T17:40:38Z'
+        claim: >-
+          the manifest changed by its first line only — the schema line torve init
+          adds once — and every gate keeps its name; spec-valid and the spec namespace
+          are as phase 1 left them
+        evidence: >-
+          .torve/gates.yaml:1 - the schema line, the rest byte-identical
+        action: decided
+  - task: T-0306
+    phase: 3
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-57.7
+        grade: LOCKED
+        at: '2026-09-09T17:54:51Z'
+        claim: >-
+          execution.yaml holds landings — task, phase, attempt, time, agent, the commit
+          when the lander knows it, the log's entries typed as LogEntry with the log's
+          own class key — appended by decisions.land, which the runner calls before
+          the candidate commit with the commit field empty and torve log land --commit
+          exposes for a landing made by hand, reading the worktree log or the record's
+          entries under --partition; a contract naming no document, a document the
+          corpus does not hold and a repeated task-attempt are refused with the reason;
+          the fourteen surviving logs folded through the verb into S-0053, S-0054,
+          S-0056 and S-0057, and T-0293 and T-0294 stayed in git history as the verb
+          said
+        evidence: >-
+          src/torve/application/decisions.py:660 - land, beside the importer because
+          the agent harness imports divergence and may not reach the corpus; src/torve/application/runner.py:620
+          - the runner's call before commit_all
+        action: decided
+        notes: >-
+          the runner's landing rides in the candidate commit, so its commit field
+          is empty and the candidate's trailers are the join (A-169); the entry's
+          defaults — kind resolved, class discovery, attempt 1 — are not written,
+          as every other list's defaults are not
+      - decision: D-57.8
+        grade: ASSUMED
+        at: '2026-09-09T17:54:52Z'
+        claim: >-
+          decisions import reads every execution file, live and archived, and appends
+          the divergence and landing events the task's history lacks — an entry known
+          by attempt, row and claim, a landing by its commit — under the actor each
+          kind's authority names: an agent for the entries, named by the landing's
+          agent, the manager for the landing; the attempt-time ingest is unchanged
+        evidence: >-
+          src/torve/application/decisions.py:648 - landing_events; src/torve/cli/decisions.py:136
+          - the import's replay
+        action: decided
+        notes: >-
+          the authority table admits no operator for these kinds and events.py is
+          outside this phase; the import replays the carrier under the actors the
+          kinds name and says so in actor_id
+      - decision: D-57.1
+        grade: LOCKED
+        at: '2026-09-09T17:54:52Z'
+        claim: >-
+          the model grew Landing, LogEntry and TaskLog and execution.yaml carries
+          landings; the loader, the files and every reader are as phase 1 left them
+        evidence: src/torve/domain/spec.py:222 - LogEntry
+        action: decided
+      - decision: D-57.2
+        grade: LOCKED
+        at: '2026-09-09T17:54:52Z'
+        claim: >-
+          sections and their checks are untouched by this phase; domain/spec.py changed
+          for the landing models only
+        evidence: >-
+          src/torve/domain/spec.py:180 - DesignSection as phase 1 left it
+        action: decided
+      - decision: D-57.5
+        grade: LOCKED
+        at: '2026-09-09T17:54:53Z'
+        claim: >-
+          torve init derives the log's schema from TaskLog instead of the hand-written
+          shape phase 2 carried, and the eight schemas were rewritten because the
+          shared definitions now include the landing models
+        evidence: >-
+          src/torve/cli/init.py:60 - TaskLog.model_json_schema
+        action: decided
+      - decision: D-57.6
+        grade: LOCKED
+        at: '2026-09-09T17:54:53Z'
+        claim: >-
+          the corpus changed by four execution files only, written through the verb;
+          no document was converted or edited by hand
+        evidence: >-
+          .torve/specs/S-0057/execution.yaml:1 - the folded landings
+        action: decided
+      - decision: D-57.3
+        grade: LOCKED
+        at: '2026-09-09T17:58:48Z'
+        claim: >-
+          the corpus path and its siblings are unchanged; the corpus changed by four
+          execution files written through the verb under the same .torve/specs
+        evidence: >-
+          .torve/specs/S-0057/execution.yaml:1 - the file the verb wrote
+        action: decided

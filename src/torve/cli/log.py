@@ -10,7 +10,7 @@ the notes verb reads the other direction of that channel (RFC 0045 §5.2,
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.text import Text
@@ -24,7 +24,7 @@ from torve.application.divergence import (
     payload_of,
 )
 from torve.cli.console import STYLE_DIM, Format, closing, emit_json, err, fail, make_table, out
-from torve.cli.options import FormatOption, RootOption
+from torve.cli.options import ConfigOption, DsnOption, FormatOption, PartitionOption, RootOption
 from torve.config import layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
@@ -283,3 +283,111 @@ def owed_cmd(
 
     closing(console, "record one entry per decision with `torve log divergence`")
     raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+@log_app.command("land")
+def land_cmd(
+    task_id: Annotated[str, typer.Argument(help="The task that landed.")],
+    commit: Annotated[
+        str, typer.Option("--commit", help="The commit the landing rides in, when known.")
+    ] = "",
+    attempt: Annotated[int, typer.Option("--attempt", min=1, help="Which attempt landed.")] = 1,
+    at: Annotated[
+        str, typer.Option("--at", help="The landing's date (YYYY-MM-DD); today by default.")
+    ] = "",
+    agent: Annotated[
+        str, typer.Option("--agent", help="Who landed it, as the trailers name them.")
+    ] = "",
+    partition: PartitionOption = "",
+    dsn: DsnOption = "",
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Append this task's landing to the execution file of the document its
+    contract names: the task, its phase and attempt, when, by whom, the
+    commit when known, and the log's entries — the worktree's log, or the
+    record's when a partition is given. Staged, so the commit that lands
+    the task carries it. A contract naming no document lands nowhere, and
+    this says so."""
+    # RFC 0057 D-57.7: the by-hand lander; the runner calls the same function.
+
+    from torve.application import decisions, divergence
+    from torve.cli.options import dsn_for, load_config, read_log
+    from torve.gates.context import load_task
+
+    task_path = layout.task_file(root, task_id)
+
+    if not task_path.is_file():
+        raise fail(f"configuration error: no contract at {task_path}", EXIT_CONFIG)
+
+    task = load_task(task_path)
+    entries: list[dict[str, Any]] | None = None
+
+    if partition:
+
+        async def _recorded(log: Any) -> list[dict[str, Any]]:
+            return [
+                divergence.entry_of(event)
+                for event in await divergence.recorded_entries(log, task_id, partition=partition)
+            ]
+
+        entries = read_log(dsn_for(root, dsn), _recorded)
+
+    spec_dir = root / load_config(root, config).specs.path
+
+    try:
+        path = decisions.land(
+            root,
+            spec_dir,
+            task,
+            attempt=attempt,
+            at=at or None,
+            agent=agent or _git_user(root),
+            commit=commit,
+            entries=entries,
+        )
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
+
+    count = (
+        len(entries) if entries is not None else len(divergence.open_log(root, task_id)["entries"])
+    )
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "task": task_id,
+                "attempt": attempt,
+                "commit": commit,
+                "entries": count,
+                "path": str(path.relative_to(root)),
+            }
+        )
+        raise typer.Exit(EXIT_OK)
+
+    out(fmt).print(
+        f"landed {task_id} attempt {attempt} into {path.relative_to(root)} — {count} entr"
+        f"{'y' if count == 1 else 'ies'}"
+    )
+    raise typer.Exit(EXIT_OK)
+
+
+def _git_user(root: Path) -> str:
+    import subprocess
+
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(root), "config", "user.name"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return ""
+
+    return done.stdout.strip() if done.returncode == 0 else ""

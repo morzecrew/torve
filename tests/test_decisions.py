@@ -81,6 +81,7 @@ def document(
     questions: list[dict[str, Any]] | None = None,
     amendments: list[dict[str, Any]] | None = None,
     editorial: list[dict[str, Any]] | None = None,
+    landings: list[dict[str, Any]] | None = None,
     contract_example: dict[str, Any] | None = None,
     schema_version: int = 3,
     extra: dict[str, Any] | None = None,
@@ -153,6 +154,9 @@ def document(
 
     if tool_file:
         files["amendments.yaml"] = as_text("amendments.yaml", tool_file)
+
+    if landings:
+        files["execution.yaml"] = as_text("execution.yaml", {"landings": landings})
 
     return files
 

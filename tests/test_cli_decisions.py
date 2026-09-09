@@ -82,3 +82,55 @@ def test_a_corpus_that_does_not_load_answers_no_coverage(tmp_path: Path) -> None
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["coverage"] == {}
+
+
+# ----------------------- #
+# RFC 0057 D-57.8: `decisions import --check` sees every execution file
+
+
+def test_import_check_lists_the_landings_the_record_lacks(tmp_path: Path) -> None:
+    landing = {
+        "task": "T-0001",
+        "commit": "abc",
+        "at": "2026-09-09",
+        "entries": [
+            {
+                "decision": "D-1.1",
+                "grade": "LOCKED",
+                "claim": "held",
+                "evidence": "src/a.py:1 - x",
+                "action": "decided",
+            }
+        ],
+    }
+    corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+                implementation="none",
+                landings=[landing],
+            )
+        },
+    )
+    (tmp_path / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "decisions",
+            "import",
+            "morzecrew/x",
+            "--check",
+            "--root",
+            str(tmp_path),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    kinds = [(e["kind"], e["subject"]) for e in json.loads(result.output)["events"]]
+    assert ("divergence.recorded", "T-0001") in kinds
+    assert ("landing.recorded", "T-0001") in kinds

@@ -1,96 +1,133 @@
 {
+  "$defs": {
+    "LogEntry": {
+      "additionalProperties": false,
+      "description": "One divergence entry as the task log carries it and a landing keeps\nit (D-57.7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
+      "properties": {
+        "action": {
+          "enum": [
+            "halted",
+            "departed",
+            "decided"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "at": {
+          "default": "",
+          "title": "At",
+          "type": "string"
+        },
+        "attempt": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "class": {
+          "default": "discovery",
+          "enum": [
+            "discovery",
+            "spec-gap",
+            "drift",
+            "irreducible"
+          ],
+          "title": "Class",
+          "type": "string"
+        },
+        "decision": {
+          "title": "Decision",
+          "type": "string"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "grade": {
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN",
+            "UNLISTED"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "kind": {
+          "default": "resolved",
+          "enum": [
+            "contradicted",
+            "departed",
+            "resolved",
+            "blocked"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "proposal": {
+          "default": "",
+          "title": "Proposal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "grade",
+        "claim",
+        "evidence",
+        "action"
+      ],
+      "title": "LogEntry",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
-  "description": "A task's divergence log, .torve/tasks/T-NNNN/log.yaml.",
+  "description": "The task log's own shape, `.torve/tasks/T-NNNN/log.yaml` (RFC 0001\n\u00a76): the pin, the derived drift count and the entries \u2014 what `torve\ninit` writes the log's schema from (D-57.5).",
   "properties": {
     "base_sha": {
+      "default": "",
+      "title": "Base Sha",
       "type": "string"
     },
     "drift_count": {
+      "default": 0,
+      "title": "Drift Count",
       "type": "integer"
     },
     "entries": {
       "items": {
-        "properties": {
-          "action": {
-            "enum": [
-              "halted",
-              "departed",
-              "decided"
-            ]
-          },
-          "at": {
-            "type": "string"
-          },
-          "attempt": {
-            "minimum": 1,
-            "type": "integer"
-          },
-          "claim": {
-            "type": "string"
-          },
-          "class": {
-            "enum": [
-              "discovery",
-              "spec-gap",
-              "drift",
-              "irreducible"
-            ]
-          },
-          "decision": {
-            "type": "string"
-          },
-          "evidence": {
-            "type": "string"
-          },
-          "grade": {
-            "enum": [
-              "LOCKED",
-              "ASSUMED",
-              "OPEN",
-              "UNLISTED"
-            ]
-          },
-          "kind": {
-            "enum": [
-              "contradicted",
-              "departed",
-              "resolved",
-              "blocked"
-            ]
-          },
-          "notes": {
-            "type": "string"
-          },
-          "proposal": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "decision",
-          "grade",
-          "claim",
-          "evidence",
-          "action"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/LogEntry"
       },
+      "title": "Entries",
       "type": "array"
     },
     "repo": {
+      "default": "",
+      "title": "Repo",
       "type": "string"
     },
     "schema_version": {
+      "title": "Schema Version",
       "type": "integer"
     },
     "task": {
+      "title": "Task",
       "type": "string"
     }
   },
   "required": [
     "schema_version",
-    "task",
-    "entries"
+    "task"
   ],
-  "title": "log",
+  "title": "TaskLog",
   "type": "object"
 }

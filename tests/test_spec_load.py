@@ -236,3 +236,48 @@ def test_an_amendment_carries_its_typed_diff_and_its_words(tmp_path: Path) -> No
     assert first.md == "Words a person wrote."
     assert second.id == "A-10" and second.at is None and second.changes == []
     assert loaded.amended_by() == ["A-9", "A-10"]  # derived, never a field (D-57.1)
+
+
+# ----------------------- #
+# RFC 0057 D-57.7: execution.yaml is the landing's file
+
+
+def test_the_execution_file_loads_as_landings_and_belongs_to_no_other_file(tmp_path: Path) -> None:
+    from test_decisions import as_text, corpus, document, place
+
+    landing = {
+        "task": "T-0001",
+        "phase": 1,
+        "commit": "abc",
+        "at": "2026-09-09",
+        "agent": "session/x",
+        "entries": [
+            {
+                "decision": "D-1.1",
+                "grade": "LOCKED",
+                "class": "drift",
+                "claim": "c",
+                "evidence": "src/a.py:1 - e",
+                "action": "decided",
+            }
+        ],
+    }
+    rfc_dir = corpus(
+        tmp_path,
+        **{"0001": document("0001", [("D-1.1", "LOCKED", "x", "`src/**`")], landings=[landing])},
+    )
+
+    doc = load_document(rfc_dir / "S-0001")
+
+    assert [one.task for one in doc.landings] == ["T-0001"]
+    assert doc.landings[0].entries[0].entry_class == "drift"
+    assert doc.landings[0].at is not None and doc.landings[0].at.isoformat() == "2026-09-09"
+
+    misplaced = document("0001", [("D-1.1", "LOCKED", "x", "`src/**`")])
+    misplaced["document.yaml"] += as_text("execution.yaml", {"landings": [landing]}).split("\n", 1)[
+        1
+    ]
+    place(rfc_dir, "0001", misplaced)
+
+    with pytest.raises(SpecError, match=r"landings belongs in execution\.yaml"):
+        load_document(rfc_dir / "S-0001")

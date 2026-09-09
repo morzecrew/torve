@@ -198,3 +198,35 @@ def test_the_loaders_fields_are_never_part_of_the_dump() -> None:
 
     assert "path" not in dumped and "archived" not in dumped
     assert doc.schema_version == 3
+
+
+# ----------------------- #
+# RFC 0057 D-57.7: the landing and its entries are models
+
+
+def test_a_log_entry_reads_and_writes_the_logs_class_key():
+    from torve.domain.spec import Landing, LogEntry, TaskLog
+
+    entry = LogEntry.model_validate(
+        {
+            "decision": "D-1.1",
+            "grade": "LOCKED",
+            "kind": "departed",
+            "class": "drift",
+            "claim": "c",
+            "evidence": "src/a.py:1 - e",
+            "action": "departed",
+        }
+    )
+
+    assert entry.entry_class == "drift"
+    assert entry.model_dump(mode="json", exclude_defaults=True)["class"] == "drift"
+    assert "entry_class" not in entry.model_dump(mode="json")
+
+    landing = Landing.model_validate(
+        {"task": "T-0001", "commit": "abc", "at": "2026-09-09", "entries": [entry.model_dump()]}
+    )
+
+    assert landing.at.isoformat() == "2026-09-09" and landing.attempt == 1 and landing.phase == 0
+    assert landing.entries[0].entry_class == "drift"
+    assert "class" in TaskLog.model_json_schema()["$defs"]["LogEntry"]["properties"]

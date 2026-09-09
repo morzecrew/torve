@@ -190,6 +190,65 @@ def heading_of(key: str) -> str:
 
 # ....................... #
 
+# The divergence vocabulary as the log spells it (RFC 0001 §7); the same
+# words `domain/events.py` validates a recorded entry against.
+EntryGrade = Literal["LOCKED", "ASSUMED", "OPEN", "UNLISTED"]
+EntryKind = Literal["contradicted", "departed", "resolved", "blocked"]
+EntryClass = Literal["discovery", "spec-gap", "drift", "irreducible"]
+EntryAction = Literal["halted", "departed", "decided"]
+
+
+class LogEntry(Item):
+    """One divergence entry as the task log carries it and a landing keeps
+    it (D-57.7): the row it cites, what reality said, the evidence, what
+    the executor did. `class` is the log's key; the field is `entry_class`
+    because the word is Python's."""
+
+    model_config = ConfigDict(extra="forbid", validate_by_name=True, serialize_by_alias=True)
+
+    decision: str
+    grade: EntryGrade
+    kind: EntryKind = "resolved"
+    entry_class: EntryClass = Field(default="discovery", alias="class")
+    at: str = ""
+    attempt: int = Field(default=1, ge=1)
+    claim: str
+    evidence: str
+    action: EntryAction
+    proposal: str = ""
+    notes: str = ""
+
+
+class Landing(Item):
+    """What one task found, kept beside the rows it informs (D-57.7): the
+    task, its phase and attempt, the commit when the lander knew it (the
+    runner's rides in the candidate commit whose trailers name the task,
+    so it leaves the field empty), when, by whom, and the log's entries."""
+
+    task: str
+    phase: int = 0
+    attempt: int = Field(default=1, ge=1)
+    commit: str = ""
+    at: date | None = None
+    agent: str = ""
+    entries: list[LogEntry] = Field(default_factory=list)
+
+
+class TaskLog(Item):
+    """The task log's own shape, `.torve/tasks/T-NNNN/log.yaml` (RFC 0001
+    §6): the pin, the derived drift count and the entries — what `torve
+    init` writes the log's schema from (D-57.5)."""
+
+    schema_version: int
+    task: str
+    repo: str = ""
+    base_sha: str = ""
+    drift_count: int = 0
+    entries: list[LogEntry] = Field(default_factory=list)
+
+
+# ....................... #
+
 
 class Phase(Item):
     """One mintable unit of the phasing: what `torve plan` derives a
@@ -243,6 +302,8 @@ class Document(Item):
     # The editorial lane's record (D-53.4): `torve spec fix` appends the
     # before and after here, never an amendment number.
     editorial: list[Change] = Field(default_factory=list)
+    # What execution found (D-57.7): appended at landing, never by hand.
+    landings: list[Landing] = Field(default_factory=list)
 
     def amended_by(self) -> list[str]:
         """The amendment identifiers, derived — never a field (D-57.1)."""
@@ -271,8 +332,7 @@ class Document(Item):
 # The directory's files by the hand that writes each (D-57.1): the author's
 # document and rows, the tool's amendments, the landing's execution. A key
 # belongs to exactly one file; the loader joins them into one `Document`
-# and the writer splits it back. `execution.yaml` is typed by phase 3 of
-# RFC 0057; until then it carries nothing.
+# and the writer splits it back.
 DOCUMENT_FILE = "document.yaml"
 DECISIONS_FILE = "decisions.yaml"
 AMENDMENTS_FILE = "amendments.yaml"
@@ -300,7 +360,7 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
     ),
     DECISIONS_FILE: ("decisions", "invariants", "retired"),
     AMENDMENTS_FILE: ("amendments", "editorial"),
-    EXECUTION_FILE: (),
+    EXECUTION_FILE: ("landings",),
 }
 
 

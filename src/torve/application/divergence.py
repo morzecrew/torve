@@ -65,6 +65,7 @@ DOCUMENT_ORDER = ("schema_version", "task", "repo", "base_sha", "drift_count", "
 # Engine scratch, generated and never committed (RFC 0013 §5).
 PIN_FILE = "pin.json"
 SCHEMA_VERSION = 1
+LOG_SCHEMA_LINE = "# yaml-language-server: $schema=../../schemas/log.json"
 
 
 # ....................... #
@@ -170,7 +171,11 @@ def render(document: dict[str, Any]) -> str:
         for entry in document["entries"]
     ]
 
-    return yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True, width=88)
+    # D-57.5: the first line names the schema `torve init` writes, two
+    # levels up from the task directory in the default layout.
+    return f"{LOG_SCHEMA_LINE}\n" + yaml.safe_dump(
+        ordered, sort_keys=False, allow_unicode=True, width=88
+    )
 
 
 # ....................... #
@@ -414,6 +419,9 @@ async def ingest(
         )
 
     return recorded
+
+
+# ....................... #
 
 
 # ....................... #

@@ -470,3 +470,55 @@ def test_the_check_verb_reports_without_writing(tmp_path):
         "source.imported",
         "decision.recorded",
     ]
+
+
+# ----------------------- #
+# RFC 0057 D-57.8: the execution file is a carrier the import replays once
+
+
+def test_a_landing_is_recorded_once_under_the_actors_its_kinds_name(tmp_path):
+    entry = {
+        "decision": "D-1.1",
+        "grade": "LOCKED",
+        "claim": "held",
+        "evidence": "src/a.py:1 - x",
+        "action": "decided",
+        "attempt": 1,
+    }
+    landing = {
+        "task": "T-0001",
+        "phase": 1,
+        "commit": "abc",
+        "at": "2026-09-09",
+        "agent": "session/x",
+        "entries": [entry],
+    }
+    rfc_dir = spec_corpus(
+        tmp_path,
+        **{
+            "0001": spec_document(
+                "0001",
+                [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+                implementation="none",
+                landings=[landing],
+            )
+        },
+    )
+
+    async def scenario(log: EventLog) -> None:
+        corpus = decisions.load_corpus(rfc_dir)
+        pending = decisions.landing_events(corpus, {})
+
+        assert [(p.kind, p.subject_id, p.actor_kind, p.actor_id) for p in pending] == [
+            (EventKind.DIVERGENCE_RECORDED, "T-0001", ActorKind.AGENT, "session/x"),
+            (EventKind.LANDING_RECORDED, "T-0001", ActorKind.MANAGER, "execution"),
+        ]
+        assert pending[0].payload["claim"] == "held" and pending[1].payload["sha"] == "abc"
+
+        await decisions.record_all(log, pending, partition=PARTITION, actor_id="tester")
+        history = await log.history("T-0001", partition=PARTITION)
+
+        assert [e.actor_kind for e in history] == [ActorKind.AGENT, ActorKind.MANAGER]
+        assert decisions.landing_events(corpus, {"T-0001": history}) == []
+
+    run(scenario)

@@ -42,45 +42,6 @@ MINTED_PATTERNS = (
     "tmp/",
 )
 
-# The task log's shape as `divergence` writes it and the gate reads it:
-# the pin, the drift count and the entries as `payload_of` shapes them.
-# Phase 3 of RFC 0057 types the entry as a model; until then the entry's
-# keys are named here and nothing else is refused.
-LOG_SCHEMA: dict[str, Any] = {
-    "title": "log",
-    "description": "A task's divergence log, .torve/tasks/T-NNNN/log.yaml.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["schema_version", "task", "entries"],
-    "properties": {
-        "schema_version": {"type": "integer"},
-        "task": {"type": "string"},
-        "repo": {"type": "string"},
-        "base_sha": {"type": "string"},
-        "drift_count": {"type": "integer"},
-        "entries": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["decision", "grade", "claim", "evidence", "action"],
-                "properties": {
-                    "decision": {"type": "string"},
-                    "grade": {"enum": ["LOCKED", "ASSUMED", "OPEN", "UNLISTED"]},
-                    "kind": {"enum": ["contradicted", "departed", "resolved", "blocked"]},
-                    "class": {"enum": ["discovery", "spec-gap", "drift", "irreducible"]},
-                    "at": {"type": "string"},
-                    "attempt": {"type": "integer", "minimum": 1},
-                    "claim": {"type": "string"},
-                    "evidence": {"type": "string"},
-                    "action": {"enum": ["halted", "departed", "decided"]},
-                    "proposal": {"type": "string"},
-                    "notes": {"type": "string"},
-                },
-            },
-        },
-    },
-}
-
 
 def _json(schema: dict[str, Any]) -> str:
     return json.dumps(schema, indent=2, sort_keys=True) + "\n"
@@ -92,12 +53,13 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
 
     from torve.config.manifest import Manifest
     from torve.config.runconfig import RunnerConfig
+    from torve.domain.spec import TaskLog
     from torve.domain.task import Task
 
     texts = {schema_file(corpus, file_name): schema_text(file_name) for file_name in FILES}
     where = schemas_dir(corpus)
     texts[where / "contract.json"] = _json(Task.model_json_schema())
-    texts[where / "log.json"] = _json(LOG_SCHEMA)
+    texts[where / "log.json"] = _json(TaskLog.model_json_schema())
     texts[where / "config.json"] = _json(RunnerConfig.model_json_schema())
     texts[where / "gates.json"] = _json(Manifest.model_json_schema())
 
