@@ -2,7 +2,7 @@
 id: "0054"
 title: Decisions as gates and the projections beside the code
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
@@ -642,22 +642,28 @@ that (D-A.9); the fence orders only this document's own units.
 - phase: 1
   title: the row travels whole and a check is a gate
   intent: >-
-    `InheritedDecision` gains `consequence` and `check` under a contract schema bump; `inherit_decisions` copies both from the model and `build_prompt` renders the consequence after each row. The gate runner appends a `decision:<id>` gate at shadow for every checkable inherited row, under the compliance axis, never touching the manifest; `owed()` skips a row whose check ran in the same pass and `torve log owed` reports the three states; `torve gates check` runs a row's `check_twin`, and a blocking row without one is refused at mint. The three hand-wired manifest gates are left exactly as they are.
+    `InheritedDecision` gains `consequence` and `check`; the model's `Decision` and its `decision-details` entry gain `check_state` and `check_twin`; `inherit_decisions` copies consequence and check from the model, `decision.recorded` carries both, and `build_prompt` renders the consequence after each row. The gate runner appends a `decision:<id>` gate at shadow for every checkable inherited row, under the compliance axis, never touching the manifest; `owed()` skips a row whose check ran in the same pass and `torve log owed` reports the three states; `torve gates check` runs a row's `check_twin`, and a blocking row without one is refused at mint. The three hand-wired manifest gates are left exactly as they are.
   scope:
     - "src/torve/domain/task.py"
+    - "src/torve/domain/spec.py"
+    - "src/torve/config/spec.py"
     - "src/torve/application/planner.py"
+    - "src/torve/application/decisions.py"
     - "src/torve/gates/runner.py"
     - "src/torve/gates/decisions_reported.py"
     - "src/torve/gates/sabotage.py"
     - "src/torve/adapters/agent/harness.py"
     - "src/torve/cli/log.py"
     - "tests/test_domain.py"
+    - "tests/test_spec.py"
+    - "tests/test_spec_load.py"
     - "tests/test_plan.py"
+    - "tests/test_decisions.py"
     - "tests/test_gates.py"
     - "tests/test_sabotage.py"
     - "tests/test_cli.py"
   acceptance:
-    - "uv run pytest tests/test_domain.py tests/test_plan.py tests/test_gates.py tests/test_sabotage.py tests/test_cli.py"
+    - "uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py tests/test_gates.py tests/test_sabotage.py tests/test_cli.py"
     - "uv run lint-imports --config pyproject.toml"
     - "uv run torve rfc check"
   depends_on: []
