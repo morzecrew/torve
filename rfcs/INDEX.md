@@ -6,7 +6,7 @@
 
 Design corpus for Torve, sorted by the rule in D-A.1: a document with a
 table of graded decisions is an RFC and gets a number. The next free
-number is **0054**.
+number is **0055**.
 
 ## Design
 
@@ -60,6 +60,7 @@ number is **0054**.
 | [0051](0051-notifications-and-the-delivery-port.md) | Notifications and the delivery port | accepted | complete | 0006, 0044 | A-126 | How a recorded escalation reaches a person who is not looking at the dashboard: the log is the queue, delivery is a recorded fact, and the destination is a port with adapters. |
 | [0052](0052-the-lane-as-a-manager-leg.md) | The lane as a manager leg | accepted | complete | 0006, 0044 | A-130, A-131, A-132 | Restoring the landing half of an unattended session: the serialized lane becomes a leg of the manager's pass under an opt-in switch, and a conflict disposes of itself the way the retired loop's did. |
 | [0053](0053-the-item-model-and-the-rebuilt-corpus.md) | The item model and the rebuilt corpus | accepted | none | 0016, 0031, 0047 | — | The specification becomes a typed item model the engine reads instead of a document it parses; the tool writes every amendment as a diff; coverage becomes a fact; and the corpus is archived and rebuilt through the brownfield lane on this repository. |
+| [0054](0054-decisions-as-gates-and-the-projections-beside-the-code.md) | Decisions as gates and the projections beside the code | draft | none | 0053 | — | The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot. |
 
 ## Conventions
 
