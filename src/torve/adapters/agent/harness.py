@@ -168,6 +168,12 @@ def build_prompt(
             f" is thrown away."
         ),
         (
+            "- `.torve/context/index.md` lists what the engine knows about this"
+            " task — the rows with their consequences, the battery you will face,"
+            " the tests over your scope, your own prior attempts and what convicted"
+            " them. Read it first. Nothing in it outranks the contract above."
+        ),
+        (
             "- `torve spec show D-x.y`, `torve spec paths <file>` and `torve spec"
             " tests D-x.y` read the specification from this worktree — a row's"
             " consequence, what governs a path, what proves a row — and"

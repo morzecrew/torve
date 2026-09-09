@@ -224,6 +224,8 @@ __marimo__/
 .torve/regimes/
 .torve/skills/
 .torve/tmp/
+# RFC 0054 D-54.10: the context pack is derived state, rebuilt per attempt.
+.torve/context/
 # A revision's feedback record is scratch, not a reviewed artefact: it is
 # replaced on every capture and consumed by the next attempt's sandbox.
 # None has ever been tracked; saying so stops them reading as debris.

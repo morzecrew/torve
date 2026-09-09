@@ -333,6 +333,25 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         layout.skills_vendor_dir(worktree),
     )
 
+    # The context pack (RFC 0054 §5.6, D-54.10): the facts the corpus
+    # cannot carry, written host-side from the record and the tree with no
+    # model, beside the skills. A shadow run gets the time-invariant files
+    # only, so a replay reads what the live attempt could have read and
+    # never the rows written after it.
+    from torve.application.contextpack import build as build_pack
+    from torve.application.contextpack import materialize as materialize_pack
+
+    materialize_pack(
+        worktree,
+        build_pack(
+            root,
+            root / config.rfcs.path,
+            task,
+            layout.gates_file(worktree),
+            replay=shadow,
+        ),
+    )
+
     # The revision loop (RFC 0005 §4a, D-5.13): a retry's feedback
     # record travels into the sandbox beside the skills; the prompt
     # names it as untrusted review data.

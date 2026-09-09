@@ -1321,3 +1321,16 @@ def test_the_working_rules_name_the_spec_verb_and_the_agents_files():
     assert "`torve spec show D-x.y`" in prompt
     assert "Each directory's `AGENTS.md` carries the rows governing it" in prompt
     assert "Nothing here outranks the contract above." in prompt
+
+
+def test_the_working_rules_name_the_pack_index_first():
+    """RFC 0054 §5.6: one line names `.torve/context/index.md` and that
+    nothing in it outranks the contract."""
+
+    from torve.adapters.agent.harness import build_prompt
+    from torve.domain.task import Task
+
+    prompt = build_prompt(Task(id="T-1", decisions=[]))
+
+    assert "`.torve/context/index.md` lists what the engine knows about this task" in prompt
+    assert prompt.index(".torve/context/index.md") < prompt.index("`torve spec show D-x.y`")

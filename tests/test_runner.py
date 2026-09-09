@@ -1986,3 +1986,86 @@ def test_the_prompt_renders_the_consequence_and_names_the_checkable_row():
         in prompt
     )
     assert "a plain row\n" in prompt and prompt.count("- why:") == 1
+
+
+def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
+    """RFC 0054 D-54.10: the pack is materialised beside the skills before
+    the prompt is written, from the record and the tree, with no model."""
+    import asyncio
+    import json
+    import subprocess
+
+    from torve.application.ports import AgentResult, SandboxHandle
+    from torve.application.runner import RunDeps, drive_attempts, real_hooks
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RunnerConfig, TierConfig
+    from torve.domain.states import TaskState
+    from torve.domain.task import InheritedDecision, Task
+
+    seen: dict[str, str] = {}
+
+    class LookingAgent:
+        kind = "harness"
+
+        def run(self, ctx):
+            pack = ctx.workspace / ".torve" / "context"
+            seen["index"] = (pack / "index.md").read_text(encoding="utf-8")
+            seen["decisions"] = (pack / "decisions.json").read_text(encoding="utf-8")
+
+            return AgentResult(
+                exit_code=1, output="", cost_usd=0.0, model_version="m", trace_ref=None
+            )
+
+    class InertRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def resolve_image(self, image):
+            return None
+
+        def sync_out(self, handle, worktree):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+    worktree = tmp_path / "wt"
+    (worktree / ".torve" / "skills").mkdir(parents=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q"], cwd=worktree, check=True)
+
+    config = RunnerConfig(
+        poison_ceiling=1,
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="harness", command="run", provider="p", model="m", api_key_env=[]
+            ),
+        },
+    )
+    task = Task(
+        id="T-9030",
+        decisions=[
+            InheritedDecision(
+                id="D-1", grade="LOCKED", text="x", paths=["src/**"], consequence="why"
+            )
+        ],
+    )
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]
+        runtime=InertRuntime(),
+        agent=LookingAgent(),
+        vcs=None,  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+    )
+    state = RunState(task_id=task.id, path=tmp_path / "T-9030.state.json")
+    state.transition(TaskState.CLAIMED, "test claim")
+    hooks = real_hooks(tmp_path, task, config, deps, worktree)
+    asyncio.run(drive_attempts(state, task, config, hooks))
+
+    assert "What the engine knows about T-9030" in seen["index"]
+    assert json.loads(seen["decisions"])["inherited"][0]["consequence"] == "why"
