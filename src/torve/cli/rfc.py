@@ -564,8 +564,7 @@ def archive(
     # that no other verb may.
 
     from torve.config.rfc_emit import archive_document, write_transaction
-    from torve.config.rfc_parse import rfc_files
-    from torve.config.spec import archive_dir
+    from torve.config.rfc_parse import archive_dir, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -575,8 +574,7 @@ def archive(
         raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
 
     path = files[key]
-    target_dir = archive_dir(rfc_dir)
-    target = target_dir / path.name
+    target = archive_dir(rfc_dir) / path.name
 
     if target.exists():
         raise fail(f"configuration error: {target} already exists", EXIT_CONFIG)
@@ -588,12 +586,11 @@ def archive(
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
-    report = write_transaction(rfc_dir, root, {}, deletions=(path.name,))
-
-    if report.ok:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target.write_text(archived, encoding="utf-8")
-
+    # The check that guards the move sees the document in the archive and
+    # the archive itself, so a document others cite can leave (A-140).
+    report = write_transaction(
+        rfc_dir, root, {}, deletions=(path.name,), archived={path.name: archived}
+    )
     _finish_transaction(report, f"archived {path.name} → {target} (superseded by {superseded_by})")
 
 

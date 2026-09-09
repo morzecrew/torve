@@ -680,7 +680,9 @@ def test_archive_refuses_when_the_corpus_without_it_does_not_check(tmp_path: Pat
         ("0001-widget.md", _accepted("0001", "D-T.1", "`src/x/**`")),
         (
             "0002-gadget.md",
-            rfc_text("0002", "Gadget", "D-G.1", status="accepted", depends='["0001"]'),
+            _accepted("0002", "D-G.1", "`src/y/**`").replace(
+                "## Decisions", "Built on D-Z.9, which nothing defines.\n\n## Decisions"
+            ),
         ),
     )
 
@@ -720,3 +722,37 @@ def test_show_enriches_a_row_with_its_details(tmp_path: Path) -> None:
     assert payload["rationale"] == "because"
     assert payload["check"] == "pytest tests/test_x.py"
     assert len(payload["fingerprint"]) == 16
+
+
+def test_archive_moves_a_document_that_others_cite_and_depend_on(tmp_path: Path) -> None:
+    citing = (
+        _accepted("0002", "D-G.1", "`src/y/**`")
+        .replace("depends_on: []", 'depends_on: ["0001"]')
+        .replace("## Decisions", "Built on D-T.1.\n\n## Decisions")
+    )
+    seed(
+        tmp_path,
+        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/x/**`")),
+        ("0002-gadget.md", citing),
+    )
+
+    result = invoke(tmp_path, "archive", "0001", "--superseded-by", "0002")
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "archive" / "rfcs" / "0001-widget.md").exists()
+
+    checked = invoke(tmp_path, "check")
+
+    assert checked.exit_code == 0, checked.output
+    assert "depends_on names 0001, which is archived" in checked.output
+
+    # a second document may leave while the first is already archived
+    (tmp_path / "rfcs" / "0003-thing.md").write_text(
+        _accepted("0003", "D-H.1", "`src/z/**`"), encoding="utf-8"
+    )
+    assert invoke(tmp_path, "index").exit_code == 0
+
+    second = invoke(tmp_path, "archive", "0003", "--superseded-by", "0002")
+
+    assert second.exit_code == 0, second.output
+    assert invoke(tmp_path, "check").exit_code == 0

@@ -43,6 +43,7 @@ from torve.config.rfc_parse import (
     CheckReport,
     DecisionRow,
     PhasingEntry,
+    archive_dir,
     build_index,
     check_corpus,
     decision_table,
@@ -679,17 +680,32 @@ def write_transaction(
     root: Path,
     mutations: dict[str, str],
     deletions: tuple[str, ...] = (),
+    archived: dict[str, str] | None = None,
 ) -> CheckReport:
     """One parse-mutate-emit-check cycle (D-25.2): *mutations* (filename ->
     new text) is applied and *deletions* removed in a scratch copy of the
-    corpus, the index is regenerated there, and the scratch corpus is
-    checked whole. Only a clean check is copied back to *rfc_dir* — a red
-    check leaves the real tree untouched. A deletion is what `rfc archive`
-    does to the corpus path once the document's copy exists in the archive
-    (D-53.8); nothing else deletes."""
+    corpus, *archived* (filename -> text) is placed in a scratch copy of
+    the archive beside it, the index is regenerated there, and the scratch
+    corpus is checked whole with the archive in view — what `check` sees
+    is what the transaction sees (A-140). Only a clean check is copied
+    back to *rfc_dir* and the real archive; a red check leaves both
+    untouched. A deletion paired with an archived copy is what `rfc
+    archive` does (D-53.8); nothing else deletes."""
+
+    real_archive = archive_dir(rfc_dir)
 
     with tempfile.TemporaryDirectory() as scratch_name:
-        scratch = Path(scratch_name)
+        scratch_root = Path(scratch_name)
+        scratch = scratch_root / rfc_dir.name
+        scratch.mkdir()
+        scratch_archive = archive_dir(scratch)
+
+        if real_archive.is_dir():
+            shutil.copytree(real_archive, scratch_archive)
+
+        for name, text in (archived or {}).items():
+            scratch_archive.mkdir(parents=True, exist_ok=True)
+            (scratch_archive / name).write_text(text, encoding="utf-8")
 
         for path in rfc_dir.glob("*.md"):
             if path.name not in deletions:
@@ -708,6 +724,10 @@ def write_transaction(
             (rfc_dir / name).write_text(
                 (scratch / name).read_text(encoding="utf-8"), encoding="utf-8"
             )
+
+        for name, text in (archived or {}).items():
+            real_archive.mkdir(parents=True, exist_ok=True)
+            (real_archive / name).write_text(text, encoding="utf-8")
 
         for name in deletions:
             (rfc_dir / name).unlink(missing_ok=True)

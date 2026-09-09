@@ -414,3 +414,33 @@ def test_a_changes_fence_with_a_long_value_is_still_yaml() -> None:
 
     assert entry.changes[0].after == long_text
     assert emit(amended) == amended
+
+
+def test_the_transaction_checks_with_the_archive_in_view(tmp_path: Path) -> None:
+    rfcs = tmp_path / "rfcs"
+    rfcs.mkdir()
+    citing = (
+        DOC.replace('id: "0001"', 'id: "0002"')
+        .replace("Widget", "Gadget")
+        .replace("D-T.1", "D-G.1")
+        .replace("# RFC 0001", "# RFC 0002")
+        .replace("## Decisions", "Built on D-T.1.\n\n## Decisions")
+    )
+    (rfcs / "0001-widget.md").write_text(DOC, encoding="utf-8")
+    (rfcs / "0002-gadget.md").write_text(citing, encoding="utf-8")
+
+    from torve.config.rfc_parse import build_index, rfc_files
+
+    (rfcs / "INDEX.md").write_text(build_index(rfc_files(rfcs)), encoding="utf-8")
+
+    without = write_transaction(rfcs, tmp_path, {}, deletions=("0001-widget.md",))
+
+    assert not without.ok  # 0002 cites D-T.1 and nothing would define it
+
+    moved = write_transaction(
+        rfcs, tmp_path, {}, deletions=("0001-widget.md",), archived={"0001-widget.md": DOC}
+    )
+
+    assert moved.ok, moved.problems
+    assert (tmp_path / "archive" / "rfcs" / "0001-widget.md").read_text(encoding="utf-8") == DOC
+    assert not (rfcs / "0001-widget.md").exists()

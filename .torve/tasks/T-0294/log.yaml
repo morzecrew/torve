@@ -1,0 +1,29 @@
+schema_version: 1
+task: T-0294
+repo: morzecrew/torve
+base_sha: f89d8f5554e57b3c013ceda9a249c64ea111dc8b
+drift_count: 0
+entries:
+- decision: D-53.4
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T10:09:38Z'
+  attempt: 1
+  claim: the amend and fix forms are untouched; write_transaction, which every mutating verb
+    runs, now mirrors the real archive beside its scratch corpus and places a pending archived
+    copy there before the check, so the check the transaction runs is the check the gate runs
+  evidence: src/torve/config/rfc_emit.py:678 - write_transaction with the archived mapping
+    and the mirrored archive; tests/test_rfc_emit.py pins that a cited document moves only
+    with its archived copy in view
+  action: decided
+- decision: D-53.9
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T10:09:39Z'
+  attempt: 1
+  claim: the archive verb hands its archived copy to the transaction rather than writing it
+    after; the copy lands in the real archive only on a green check, and show and the record
+    resolve it as before
+  evidence: src/torve/cli/rfc.py:589 - the verb passes archived to write_transaction; tests/test_rfc_check.py
+    archives a cited, depended-on document and a second beside it
+  action: decided
