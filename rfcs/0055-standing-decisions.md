@@ -8,7 +8,7 @@ depends_on: []
 informed_by: ["0053"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-157"]
 owner: misery7100
 description: >-
   The standing baseline for this repository after RFC 0053's archive: the rows that govern the tree as it is, drafted through the brownfield lane from the survey, the gate record and the archive, for the owner to grade and accept.
@@ -316,4 +316,29 @@ record does not already show.
   statement: The suite is green
   paths: [src/torve/**, tests/**]
   check: uv run pytest
+```
+
+## Amendments
+
+### A-157 — 2026-09-09 — the survey landed, and confirms the reading
+
+**`torve survey --last 40` over `main`, window `fbf5e0d`..`ab832c3`.**
+Forty landings replayed through the battery. `scope`, `secrets`,
+`rfc-valid`, `source-layout`, `user-facing-text` and `layering` measured
+clean on all forty. `coverage-delta` fired on eight (it is `shadow`) and
+was flaky on one. `acceptance` fired on two: `80096f8` and `a1d0096` — the
+second is RFC 0053 phase 3's own landing, whose tree carried the parity
+test T-0295 corrected two commits later, which is the doctrine's
+defended-boundary evidence for D-55.54 exactly as the record already
+showed it. `no-test-tampering`, `decisions-reported` and `self-audit`
+skipped all forty with the no-task skip, and the report's `corpus_adds`
+names exactly those three: the rows D-55.10, D-55.11 and D-55.19 give
+them what to measure once work is minted, as §1 expected. Nothing in the
+survey adds or regrades a row.
+
+```yaml changes
+- subject: the-evidence
+  field: survey
+  before: running
+  after: "40 landings; 6 gates clean 40/40; coverage-delta fired 8 (shadow); acceptance fired 2 (both corrected); 3 no-task skips = corpus_adds"
 ```

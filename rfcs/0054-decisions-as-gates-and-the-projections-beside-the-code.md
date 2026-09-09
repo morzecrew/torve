@@ -8,7 +8,7 @@ depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-153", "A-154", "A-155", "A-156"]
+amended_by: ["A-153", "A-154", "A-155", "A-156", "A-158"]
 owner: misery7100
 description: >-
   The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot.
@@ -681,14 +681,16 @@ that (D-A.9); the fence orders only this document's own units.
     - "src/torve/application/colocation.py"
     - "src/torve/cli/spec.py"
     - "src/torve/cli/main.py"
+    - "src/torve/adapters/agent/harness.py"
     - ".torve/gates.yaml"
     - "AGENTS.md"
     - "src/torve/**/AGENTS.md"
     - "tests/test_colocation.py"
     - "tests/test_cli_spec.py"
     - "tests/test_manifest.py"
+    - "tests/test_tiering.py"
   acceptance:
-    - "uv run pytest tests/test_colocation.py tests/test_cli_spec.py tests/test_manifest.py"
+    - "uv run pytest tests/test_colocation.py tests/test_cli_spec.py tests/test_manifest.py tests/test_tiering.py"
     - "uv run lint-imports --config pyproject.toml"
     - "uv run torve rfc check"
   depends_on: [1]
@@ -811,4 +813,19 @@ compares the minted row whole.
   field: scope
   before: "… tests/test_intake.py tests/test_gates.py …"
   after: "… tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
+```
+
+### A-158 — 2026-09-09 — phase 2 reaches the working rules
+**Found while planning phase 2.** Its intent says the working rules gain
+one line naming `torve spec` and the pack index; the working rules live in
+`src/torve/adapters/agent/harness.py`, which phase 1 named and phase 2 did
+not, and the prompt's tests live in `tests/test_tiering.py`.
+
+**Changed:** phase 2's scope and acceptance gain both.
+
+```yaml changes
+- subject: phase 2
+  field: scope
+  before: "… src/torve/cli/main.py .torve/gates.yaml …; tests … tests/test_manifest.py"
+  after: "… src/torve/cli/main.py src/torve/adapters/agent/harness.py .torve/gates.yaml …; tests … tests/test_manifest.py tests/test_tiering.py"
 ```
