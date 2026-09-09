@@ -28,6 +28,7 @@ from torve.domain.spec import (
     AMENDMENTS_FILE,
     DECISIONS_FILE,
     DOCUMENT_FILE,
+    EXECUTION_FILE,
     FILE_FIELDS,
     FILES,
     SCHEMA_VERSION,
@@ -54,6 +55,17 @@ LOCAL_LINK = re.compile(r"\[[^\]]*\]\((?!#)([^)\s]+)")
 LINE_CITE = re.compile(r"(?<![\w/])((?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9_]+):(\d+)")
 FENCED_BLOCK = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
 DECISION_CITE = re.compile(r"\bD-[A-Za-z0-9]+\.\d+[a-z]?\b")
+
+# A citation as code and docs spell it (D-57.9): a dotted row (or the
+# charter's D-A.n), an invariant, a question, an amendment — never the bare
+# `D-n`, which prose uses for other things. Scanned over what git tracks
+# under these roots and names; never tests or skills, whose fixtures
+# invent identifiers by design.
+TREE_CITE = re.compile(
+    r"(?<![\w.])(D-[A-Za-z0-9]+\.\d+[a-z]?|I-\d+\.\d+|Q-\d+\.\d+|A-\d+)(?![\w.])"
+)
+SCAN_ROOTS = ("src/", "pages/")
+SCAN_NAMES = ("AGENTS.md", "CLAUDE.md", "README.md")
 
 # What a section may not carry (D-57.2): a typed list restated as the fence
 # or table it was lifted from, or an amendment's words under a section key.
@@ -399,6 +411,25 @@ def lookup(spec_dir: Path, identifier: str) -> dict[str, Any] | None:
     return lookup_in(corpus, identifier)
 
 
+def cited_in(corpus: Corpus, identifier: str) -> list[str]:
+    """The documents whose rows cite an identifier or whose prose mentions
+    it, by directory name, the defining document excluded."""
+
+    cites = _cites(identifier)
+    defining = {_name(doc) for doc in corpus.documents if identifier in doc.defined_identifiers()}
+
+    return [
+        _name(doc)
+        for doc in corpus.documents
+        if _name(doc) not in defining
+        and (
+            any(identifier in row.cites for row in doc.decisions)
+            or any(identifier in a.cites for a in doc.alternatives)
+            or cites.search(_prose(doc))
+        )
+    ]
+
+
 def lookup_in(corpus: Corpus, identifier: str) -> dict[str, Any] | None:
     number = identifier.strip().removeprefix("S-").removesuffix(".yaml").removesuffix(".md")
 
@@ -690,6 +721,7 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
         problems.append(f"{where}: two sections keyed {key!r} — one of them is misnamed")
 
     problems += check_sections(doc)
+    warnings += check_landings(doc)
 
     # D-32: for a document not yet built the globs name intended areas;
     # once implemented an unmatched LOCKED glob is rot.
@@ -765,6 +797,113 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
             )
 
     return problems, warnings
+
+
+def tracked_files(root: Path) -> list[str]:
+    """What git tracks under the scanned roots and names, relative to
+    *root*; nothing when the root is no repository."""
+
+    import subprocess
+
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return []
+
+    if done.returncode != 0:
+        return []
+
+    return [
+        name
+        for name in done.stdout.split("\0")
+        if name and (name.startswith(SCAN_ROOTS) or Path(name).name in SCAN_NAMES)
+    ]
+
+
+def tree_citations(root: Path) -> list[tuple[str, int, str]]:
+    """Every citation-shaped identifier in the scanned files, as
+    (file, line, identifier), in file order."""
+
+    found: list[tuple[str, int, str]] = []
+
+    for name in tracked_files(root):
+        try:
+            text = (root / name).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        for number, line in enumerate(text.splitlines(), start=1):
+            found += [(name, number, match.group(1)) for match in TREE_CITE.finditer(line)]
+
+    return found
+
+
+def check_tree(root: Path, corpus: Corpus) -> tuple[list[str], list[str]]:
+    """RFC 0057 D-57.9: every identifier the code and the docs cite resolves
+    over the corpus and the archive — an identifier nothing defines is a
+    problem naming its line, a retired one a warning, an archived one
+    clean, history being what a comment may cite. One finding per file and
+    identifier, at its first line."""
+
+    defined = corpus.defined_identifiers()
+    retired = {ident for doc in corpus.documents for ident in doc.retired}
+    problems: list[str] = []
+    warnings: list[str] = []
+    seen: set[tuple[str, str]] = set()
+
+    for name, line, ident in tree_citations(root):
+        if (name, ident) in seen or (ident in defined and ident not in retired):
+            continue
+
+        seen.add((name, ident))
+
+        if ident in retired:
+            warnings.append(f"{name}:{line}: cites {ident}, which is retired (D-57.9)")
+        else:
+            problems.append(
+                f"{name}:{line}: cites {ident}, which no document in the corpus or the "
+                "archive defines (D-57.9)"
+            )
+
+    return problems, warnings
+
+
+def check_landings(doc: Document) -> list[str]:
+    """RFC 0057 D-57.11: the status field and the execution file agree —
+    complete with a phase no landing covers, or every phase landed and not
+    complete, is a warning."""
+
+    phases = {phase.phase for phase in doc.phasing}
+    landed = {one.phase for one in doc.landings}
+    where = _name(doc)
+
+    if not phases:
+        return []
+
+    if doc.implementation == "complete" and phases - landed:
+        missing = ", ".join(str(p) for p in sorted(phases - landed))
+
+        return [
+            (
+                f"{where}: implementation complete, but phase(s) {missing} have no landing in "
+                f"{EXECUTION_FILE} (D-57.11)"
+            )
+        ]
+
+    if phases <= landed and doc.implementation != "complete":
+        return [
+            (
+                f"{where}: every phase has landed and implementation is {doc.implementation!r} — "
+                "mark it complete, or say in a section why not (D-57.11)"
+            )
+        ]
+
+    return []
 
 
 def check_graph(documents: dict[str, Document]) -> tuple[list[str], list[str]]:
@@ -904,6 +1043,9 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
     graph_problems, graph_warnings = check_graph(documents)
     report.problems += graph_problems
     report.warnings += graph_warnings
+    tree_problems, tree_warnings = check_tree(root, corpus)
+    report.problems += tree_problems
+    report.warnings += tree_warnings
     schema_problems, schema_warnings = check_schema(spec_dir)
     report.problems += schema_problems
     report.warnings += schema_warnings

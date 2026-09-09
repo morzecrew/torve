@@ -1287,6 +1287,136 @@ def health(
     raise typer.Exit(EXIT_OK)
 
 
+# ....................... #
+
+
+def _commits_citing(root: Path, identifier: str) -> list[dict[str, str]]:
+    """The commits whose `Torve-Decisions` trailer grades this row — the
+    identifier followed by `=`, so a longer number never matches a shorter
+    one's prefix."""
+
+    import subprocess
+
+    try:
+        done = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "log",
+                "--fixed-strings",
+                f"--grep={identifier}=",
+                "--format=%h%x09%ad%x09%s",
+                "--date=short",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return []
+
+    if done.returncode != 0:
+        return []
+
+    return [
+        {"sha": sha, "at": at, "subject": subject}
+        for sha, at, subject in (
+            line.split("\t", 2) for line in done.stdout.splitlines() if line.count("\t") == 2
+        )
+    ]
+
+
+@spec_app.command("cites")
+def cites_cmd(
+    identifier: Annotated[
+        str, typer.Argument(help="A decision, invariant, question or amendment id.")
+    ],
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Who cites an identifier — the row's side of the link: the code and
+    docs lines that mention it, the landings whose entries cite it, the
+    amendments that changed it, the documents whose rows or prose cite
+    it, and the commits whose trailers grade it."""
+    # RFC 0057 D-57.10; the trailers are D-57.13, decided in phase 4.
+
+    from torve.config.spec import cited_in, tree_citations
+
+    corpus = _load(root, config)
+    code = [
+        {"file": name, "line": line}
+        for name, line, ident in tree_citations(root)
+        if ident == identifier
+    ]
+    landings = [
+        {
+            "task": landing.task,
+            "attempt": landing.attempt,
+            "commit": landing.commit,
+            "document": Path(doc.path).name,
+        }
+        for doc in corpus.documents
+        for landing in doc.landings
+        if any(entry.decision == identifier for entry in landing.entries)
+    ]
+    amendments = [
+        {"id": amendment.id, "document": Path(doc.path).name}
+        for doc in corpus.documents
+        for amendment in doc.amendments
+        if any(change.subject == identifier for change in amendment.changes)
+    ]
+    documents = cited_in(corpus, identifier)
+    commits = _commits_citing(root, identifier)
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "identifier": identifier,
+                "code": code,
+                "landings": landings,
+                "amendments": amendments,
+                "documents": documents,
+                "commits": commits,
+            }
+        )
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    total = len(code) + len(landings) + len(amendments) + len(documents) + len(commits)
+    header(console, "spec cites", f"{identifier} · {total} citation(s)")
+
+    for one in code:
+        console.print(Text(f"  code       {one['file']}:{one['line']}", ""))
+
+    for one in landings:
+        commit = f" @ {str(one['commit'])[:10]}" if one["commit"] else ""
+        console.print(
+            Text(
+                f"  landing    {one['task']} attempt {one['attempt']}{commit} ({one['document']})",
+                "",
+            )
+        )
+
+    for one in amendments:
+        console.print(Text(f"  amendment  {one['id']} ({one['document']})", ""))
+
+    for name in documents:
+        console.print(Text(f"  document   {name}", ""))
+
+    for named in commits:
+        console.print(
+            Text(f"  commit     {named['sha']} {named['at']} {named['subject']}", STYLE_DIM)
+        )
+
+    if not total:
+        closing(console, "nothing cites it yet", STYLE_DIM)
+
+    raise typer.Exit(EXIT_OK)
+
+
 # ----------------------- #
 # The read verbs beside the code (RFC 0054)
 

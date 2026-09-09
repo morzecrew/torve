@@ -435,3 +435,28 @@ def test_a_row_with_a_check_is_covered_and_owes_no_entry():
     ]
     assert "D-9.2" in problems[0] and "D-9.1" not in problems[0]
     assert skipped == ["D-9.1: covered by its check, which runs as a gate"]
+
+
+# ----------------------- #
+# RFC 0057 D-57.7: the landing file is the task's own, like its log
+
+
+def test_scope_implicitly_allows_the_named_documents_execution_file(repo):
+    from dataclasses import replace
+
+    from torve.gates.context import load_task
+
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+    contract = repo.root / ".torve" / "tasks" / TASK_ID / "contract.yaml"
+    task = load_task(contract).model_copy(update={"rfc": ".torve/specs/S-0001"})
+    repo.write(".torve/specs/S-0001/execution.yaml", "landings: []\n")
+    repo.write(".torve/specs/S-0001/document.yaml", "id: '0001'\n")
+    repo.write("src/app.py", "print('changed')\n")
+    repo.commit("the work and its landing")
+
+    outcome = check_scope(GATE, replace(context_for(repo), task=task))
+
+    assert "execution.yaml" not in outcome.output
+    # the author's file is not the task's, and stays outside allow
+    assert ".torve/specs/S-0001/document.yaml" in outcome.output

@@ -26,6 +26,12 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/contract.yaml")
         implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/log.yaml")
 
+        # RFC 0057 D-57.7: the landing goes beside the rows it cites, in
+        # the execution file of the document the contract names — written
+        # by the engine at landing, so it is the task's own like its log.
+        if ctx.task.rfc:
+            implicit.add(f"{ctx.task.rfc.rstrip('/')}/execution.yaml")
+
         for prefix in (f"{layout.TORVE_DIR}/", ""):
             implicit.add(f"{prefix}logs/{ctx.task.id}.yaml")
             implicit.add(f"{prefix}tasks/{ctx.task.id}.yaml")

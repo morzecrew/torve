@@ -850,3 +850,125 @@ def test_the_repository_schema_matches_the_model() -> None:
         path = schema_file(specs, file_name)
         assert path.is_file(), f"{path} — `torve init` writes it"
         assert path.read_text(encoding="utf-8") == schema_text(file_name), path
+
+
+# ....................... #
+# RFC 0057 D-57.9: the code's citations resolve, or the check names the line
+
+
+def _git_tree(root: Path, files: dict[str, str]) -> None:
+    import subprocess
+
+    for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text, encoding="utf-8")
+
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+
+
+def test_a_source_citation_nothing_defines_reddens_and_a_test_file_is_never_scanned(
+    tmp_path: Path,
+) -> None:
+    seed(
+        tmp_path,
+        ("0001", document("0001", [("D-1.1", "OPEN", "x", "—")], retired=["D-1.9"])),
+    )
+    _git_tree(
+        tmp_path,
+        {
+            "src/a.py": "# the rule is D-1.1\n",
+            "src/b.py": "x = 1\n# see D-9.9 and A-7\n",
+            "tests/t.py": "# fixtures invent D-9.9\n",
+            "skills/s/SKILL.md": "D-9.9 again\n",
+            "README.md": "cites D-1.1\n",
+        },
+    )
+
+    red = invoke(tmp_path, "check")
+
+    assert red.exit_code == EXIT_CONFIG, red.output
+    assert "src/b.py:2: cites D-9.9, which no document" in red.output
+    assert "src/b.py:2: cites A-7, which no document" in red.output
+    assert "tests/t.py" not in red.output and "skills/s" not in red.output
+
+    (tmp_path / "src" / "b.py").write_text("# D-1.9 once stood here\n", encoding="utf-8")
+
+    amber = invoke(tmp_path, "check")
+
+    assert amber.exit_code == 0, amber.output
+    assert "src/b.py:1: cites D-1.9, which is retired" in amber.output
+
+
+def test_an_archived_identifier_cited_from_code_checks_clean(tmp_path: Path) -> None:
+    from test_decisions import archived
+
+    specs = seed(tmp_path, ("0002", document("0002", [("D-2.1", "OPEN", "x", "—")])))
+    archived(
+        specs,
+        "0001",
+        document(
+            "0001",
+            [("D-1.1", "LOCKED", "was", "`src/**`")],
+            status="superseded",
+            superseded_by="0002",
+        ),
+    )
+    _git_tree(tmp_path, {"src/a.py": "# history: D-1.1\n"})
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == 0, result.output
+    assert "D-1.1" not in result.output
+
+
+# ....................... #
+# RFC 0057 D-57.11: the status field and the execution file agree
+
+
+def test_implementation_and_the_landings_disagreeing_is_a_warning(tmp_path: Path) -> None:
+    from test_decisions import PHASE
+
+    landing = {
+        "task": "T-0001",
+        "phase": 1,
+        "commit": "abc",
+        "at": "2026-09-09",
+        "entries": [],
+    }
+    seed(
+        tmp_path,
+        (
+            "0001",
+            document(
+                "0001", [("D-1.1", "OPEN", "x", "—")], phasing=[PHASE], implementation="complete"
+            ),
+        ),
+        (
+            "0002",
+            document(
+                "0002",
+                [("D-2.1", "OPEN", "x", "—")],
+                phasing=[PHASE],
+                implementation="partial",
+                landings=[landing],
+            ),
+        ),
+        (
+            "0003",
+            document(
+                "0003",
+                [("D-3.1", "OPEN", "x", "—")],
+                phasing=[PHASE],
+                implementation="complete",
+                landings=[{**landing, "task": "T-0002"}],
+            ),
+        ),
+    )
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == 0, result.output
+    assert "S-0001: implementation complete, but phase(s) 1 have no landing" in result.output
+    assert "S-0002: every phase has landed and implementation is 'partial'" in result.output
+    assert "S-0003" not in result.output

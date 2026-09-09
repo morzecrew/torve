@@ -157,3 +157,71 @@ def test_a_corpus_that_does_not_load_is_a_configuration_error(tmp_path: Path) ->
     code, _ = _spec(tmp_path, "show", "D-1.1")
 
     assert code == 3
+
+
+# ----------------------- #
+# RFC 0057 D-57.10: the row's side of the link
+
+
+def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> None:
+    import subprocess
+
+    landing = {
+        "task": "T-0007",
+        "phase": 1,
+        "commit": "abc",
+        "at": "2026-09-09",
+        "entries": [
+            {
+                "decision": "D-1.1",
+                "grade": "LOCKED",
+                "claim": "held",
+                "evidence": "src/x.py:1 - x",
+                "action": "decided",
+            }
+        ],
+    }
+    amendment = {
+        "id": "A-1",
+        "at": "2026-09-09",
+        "title": "regraded",
+        "changes": [{"subject": "D-1.1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
+    }
+    corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [("D-1.1", "LOCKED", "Verbs parse and render only", "`src/**`")],
+                landings=[landing],
+                amendments=[amendment],
+            ),
+            "0002": document(
+                "0002",
+                [("D-2.1", "ASSUMED", "Built on it", "—")],
+                details={"D-2.1": {"cites": ["D-1.1"]}},
+            ),
+        },
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "x.py").write_text("# because of D-1.1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+
+    result = runner.invoke(
+        app, ["spec", "cites", "D-1.1", "--root", str(tmp_path), "--format", "json"]
+    )
+
+    assert result.exit_code == 0, result.output
+    found = json.loads(result.output)
+    assert found["code"] == [{"file": "src/x.py", "line": 1}]
+    assert found["landings"] == [
+        {"task": "T-0007", "attempt": 1, "commit": "abc", "document": "S-0001"}
+    ]
+    assert found["amendments"] == [{"id": "A-1", "document": "S-0001"}]
+    assert found["documents"] == ["S-0002"]
+    assert found["commits"] == []  # nothing committed with a trailer yet
+
+    empty = runner.invoke(app, ["spec", "cites", "D-2.1", "--root", str(tmp_path)])
+
+    assert empty.exit_code == 0 and "nothing cites it yet" in empty.output

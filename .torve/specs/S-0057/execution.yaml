@@ -246,3 +246,101 @@ landings:
         evidence: >-
           .torve/specs/S-0057/execution.yaml:1 - the file the verb wrote
         action: decided
+  - task: T-0307
+    phase: 4
+    at: '2026-09-09'
+    agent: session/claude-fable-5.1
+    entries:
+      - decision: D-57.9
+        grade: LOCKED
+        at: '2026-09-09T18:08:11Z'
+        claim: >-
+          spec check resolves every citation-shaped identifier — a dotted row or D-A.n,
+          an invariant, a question, an amendment; never the bare D-n prose uses for
+          other things — in the files git tracks under src/ and pages/ and every AGENTS.md,
+          CLAUDE.md and README.md, over the corpus and the archive: unknown is a problem
+          naming file:line, retired a warning, archived clean, one finding per file
+          and identifier; tests and skills are never scanned; a root that is no repository
+          scans nothing
+        evidence: >-
+          src/torve/config/spec.py:820 - tree_citations and check_tree
+        action: decided
+        notes: >-
+          the first run on this repository found one unknown identifier: an invented
+          example in the verb's own docstring, which reads as intended — the check
+          starts green with five retired-row warnings
+      - decision: D-57.10
+        grade: ASSUMED
+        at: '2026-09-09T18:08:11Z'
+        claim: >-
+          torve spec cites IDENT lists the code and docs lines that mention it, the
+          landings whose entries cite it with task, attempt and commit, the amendments
+          whose typed changes name it, the documents whose rows or prose cite it,
+          and the commits whose Torve-Decisions trailer grades it
+        evidence: src/torve/cli/spec.py:1250 - cites_cmd
+        action: decided
+      - decision: D-57.11
+        grade: ASSUMED
+        at: '2026-09-09T18:08:12Z'
+        claim: >-
+          spec check warns when implementation is complete and a phase has no landing
+          in execution.yaml, and when every phase has landed and implementation is
+          not complete; a document without phasing is silent
+        evidence: src/torve/config/spec.py:878 - check_landings
+        action: decided
+      - decision: D-57.13
+        grade: OPEN
+        at: '2026-09-09T18:08:12Z'
+        claim: >-
+          decided: spec cites reads the commit history too — git log --fixed-strings
+          --grep on the identifier followed by = matches the trailer and nothing longer,
+          one subprocess, no store
+        evidence: src/torve/cli/spec.py:1213 - _commits_citing
+        action: decided
+        notes: >-
+          the trailers are the join for a runner's landing whose commit field is empty
+          (A-169), so reading them is what makes the landing's side of the link whole
+      - decision: D-57.4
+        grade: LOCKED
+        at: '2026-09-09T18:08:13Z'
+        claim: >-
+          cli/spec.py grew the cites verb and changed in nothing else; the namespace,
+          the gate and the skill are as phase 1 left them
+        evidence: src/torve/cli/spec.py:1250 - the one new verb
+        action: decided
+      - decision: D-57.1
+        grade: LOCKED
+        at: '2026-09-09T18:08:13Z'
+        claim: >-
+          config/spec.py changed for the tree scan, the landing warnings and cited_in
+          only; the directory, its files and the loader are as phase 1 left them
+        evidence: >-
+          src/torve/config/spec.py:240 - load_document unchanged
+        action: decided
+      - decision: D-57.2
+        grade: LOCKED
+        at: '2026-09-09T18:08:13Z'
+        claim: >-
+          sections and their checks are untouched; the new checks read the tree and
+          the landings, not the prose
+        evidence: >-
+          src/torve/config/spec.py:520 - check_sections as phase 1 left it
+        action: decided
+      - decision: D-57.3
+        grade: LOCKED
+        at: '2026-09-09T18:14:10Z'
+        claim: >-
+          the corpus path and its siblings are unchanged; the corpus changed by this
+          task's own landing in S-0057/execution.yaml, written through the verb
+        evidence: >-
+          .torve/specs/S-0057/execution.yaml:1 - the landing the verb wrote
+        action: decided
+      - decision: D-57.6
+        grade: LOCKED
+        at: '2026-09-09T18:14:10Z'
+        claim: >-
+          no document was converted or edited by hand; the one corpus change is this
+          task's landing
+        evidence: >-
+          .torve/specs/S-0057/execution.yaml:1 - the landing the verb wrote
+        action: decided
