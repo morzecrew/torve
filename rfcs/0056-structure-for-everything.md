@@ -2,7 +2,7 @@
 id: "0056"
 title: Structure for everything
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: ["0053", "0054"]
 informed_by: ["0049", "0050", "0055"]
