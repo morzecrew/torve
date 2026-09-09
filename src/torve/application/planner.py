@@ -39,9 +39,9 @@ from pathspec import GitIgnoreSpec
 from torve.application import sizing
 from torve.config import layout, spec
 from torve.domain.attempt import SizeVerdict
-from torve.domain.rfc import GRADES
 from torve.domain.spec import Corpus, Document, Phase, document_id, number_of
 from torve.domain.task import InheritedDecision, Scope, Task
+from torve.domain.vocabulary import GRADES
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

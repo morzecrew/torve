@@ -46,9 +46,9 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
     from torve.application.eventlog import EventLog
-    from torve.domain.rfc import Grade
-    from torve.domain.spec import Corpus, Coverage, Decision, Document
+    from torve.domain.spec import Corpus, Decision, Document
     from torve.domain.task import Task
+    from torve.domain.vocabulary import Coverage, Grade
 
 # ----------------------- #
 
@@ -712,7 +712,7 @@ def land(
             "task": task.id,
             "phase": task.phase,
             "attempt": attempt,
-            "base": str(log_document.get("base_sha") or ""),  # S-0058/D-12
+            "base": str(log_document.get("base") or ""),  # S-0058/D-12
             "commit": commit,
             "at": at or stamp(),
             "agent": agent,

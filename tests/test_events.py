@@ -10,8 +10,6 @@ from quietly disagreeing with the other.
 
 from __future__ import annotations
 
-from typing import get_args
-
 import pytest
 from pydantic import ValidationError
 
@@ -19,16 +17,11 @@ from torve.domain.events import (
     AUTHORITY,
     PAYLOADS,
     ActorKind,
-    DivergenceAction,
-    DivergenceClass,
-    DivergenceGrade,
-    DivergenceKind,
     EventKind,
     UnauthorizedWrite,
     check_authority,
     validate_payload,
 )
-from torve.gates.decisions_reported import ACTIONS, CLASSES, GRADES, KINDS
 
 
 def test_every_kind_has_an_authority_row_and_a_payload_model():
@@ -62,13 +55,6 @@ def test_an_agent_may_never_sign_for_a_human():
 
         with pytest.raises(UnauthorizedWrite):
             check_authority(ActorKind.AGENT, kind)
-
-
-def test_divergence_vocabulary_matches_the_gate():
-    assert set(get_args(DivergenceGrade)) == GRADES
-    assert set(get_args(DivergenceKind)) == KINDS
-    assert set(get_args(DivergenceClass)) == CLASSES
-    assert set(get_args(DivergenceAction)) == ACTIONS
 
 
 def test_a_payload_is_validated_against_its_kind():

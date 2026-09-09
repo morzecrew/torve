@@ -142,7 +142,7 @@ def test_the_pin_is_derived_from_the_worktree(worktree):
     _, document, _ = one_entry(worktree)
 
     assert document["repo"] == "morzecrew/torve"
-    assert len(document["base_sha"]) == 40
+    assert len(document["base"]) == 40
 
 
 def test_a_pin_that_cannot_be_derived_is_refused_at_write_time(repo):
@@ -157,12 +157,12 @@ def test_a_pin_that_cannot_be_derived_is_refused_at_write_time(repo):
 
 def test_an_existing_log_keeps_its_own_pin(worktree):
     one_entry(worktree)
-    first = open_log(worktree.root, TASK_ID)["base_sha"]
+    first = open_log(worktree.root, TASK_ID)["base"]
     worktree.write("src/app.py", "print('again')\n")
     worktree.commit("more work")
     one_entry(worktree, claim="a second entry")
 
-    assert open_log(worktree.root, TASK_ID)["base_sha"] == first
+    assert open_log(worktree.root, TASK_ID)["base"] == first
 
 
 def test_ingest_records_one_event_per_entry(worktree):
@@ -271,13 +271,13 @@ def test_the_pin_is_dropped_before_the_agent_runs_and_leaves_no_log(worktree):
     host-side, at dispatch, so the intake reads it back instead of the agent
     copying it — and an untouched run still leaves no log behind."""
 
-    seed(worktree.root, TASK_ID, base_sha="0" * 40)
+    seed(worktree.root, TASK_ID, base="0" * 40)
 
     assert not layout.log_file(worktree.root, TASK_ID).exists()
 
     _, document, _ = one_entry(worktree)
 
-    assert document["base_sha"] == "0" * 40
+    assert document["base"] == "0" * 40
     assert document["repo"] == "morzecrew/torve"
 
 
@@ -288,8 +288,8 @@ def test_the_dropped_pin_serves_a_worktree_git_cannot_read(tmp_path):
     (tmp_path / ".torve" / "tasks" / TASK_ID).mkdir(parents=True)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "app.py").write_text("print('hello')\n")
-    seeded = seed(tmp_path, TASK_ID, base_sha="a" * 40)
-    seeded.write_text(json.dumps({"repo": "morzecrew/torve", "base_sha": "a" * 40}))
+    seeded = seed(tmp_path, TASK_ID, base="a" * 40)
+    seeded.write_text(json.dumps({"repo": "morzecrew/torve", "base": "a" * 40}))
     _, document, staged = record(
         tmp_path,
         TASK_ID,
@@ -304,7 +304,7 @@ def test_the_dropped_pin_serves_a_worktree_git_cannot_read(tmp_path):
     )
 
     assert document["repo"] == "morzecrew/torve"
-    assert document["base_sha"] == "a" * 40
+    assert document["base"] == "a" * 40
     assert staged is False
 
 
@@ -368,7 +368,7 @@ def test_the_projection_rewrites_the_log_from_the_record(worktree):
             assert document["entries"][0]["evidence"] == HOSTILE
             assert document["entries"][0]["decision"] == "S-0001/D-1"
             # The pin survives, and the count stays derived.
-            assert document["base_sha"]
+            assert document["base"]
             assert document["drift_count"] == 0
             # And it is staged, because a log outside the diff is a log the
             # gate cannot see.
@@ -743,7 +743,7 @@ def test_land_names_the_base_the_log_pinned(tmp_path):
     log_path.parent.mkdir(parents=True)
     log_path.write_text(
         yaml.safe_dump(
-            {"schema_version": 1, "task": task.id, "base_sha": "b" * 40, "entries": [ENTRY]}
+            {"schema_version": 2, "task": task.id, "base": "b" * 40, "entries": [ENTRY]}
         ),
         encoding="utf-8",
     )

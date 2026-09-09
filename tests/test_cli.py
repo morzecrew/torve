@@ -1067,6 +1067,7 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "landing.json",
         "log.json",
         "phasing.json",
+        "standing.json",
     ]
     assert json.loads((schemas / "contract.json").read_text(encoding="utf-8"))["title"] == "Task"
     assert (root / ".torve" / "specs").is_dir()  # an empty corpus checks clean

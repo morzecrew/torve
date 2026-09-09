@@ -52,7 +52,7 @@ from torve.application.telemetry import (
 )
 from torve.base import naming
 from torve.config import layout
-from torve.config.manifest import UNLABELED_AXIS, GateAxis, load_manifest
+from torve.config.manifest import UNLABELED_AXIS, load_manifest
 from torve.config.runconfig import (
     TierConfig,
     agent_timeout_for,
@@ -65,6 +65,7 @@ from torve.config.runconfig import (
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason
 from torve.domain.task import Task
+from torve.domain.vocabulary import GateAxis
 
 # ----------------------- #
 

@@ -604,6 +604,30 @@ def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, 
     else:
         checks.append(("ignore", True, ".torve/.gitignore: every minted pattern present"))
 
+    # S-0059/D-7: a standing contract without its schema line is an editor
+    # validating nothing; `init` adds the line, and a file added later lags.
+    from torve.cli.init import schema_line
+    from torve.config import layout
+    from torve.config.spec import schemas_dir
+
+    standing_schema = schemas_dir(corpus) / "standing.json"
+    unlined = [
+        path.name
+        for path in sorted(layout.standing_dir(root).glob("*.yaml"))
+        if not path.read_text(encoding="utf-8").startswith(schema_line(path, standing_schema))
+    ]
+
+    if unlined:
+        checks.append(
+            (
+                "standing",
+                False,
+                f"standing: {', '.join(unlined)} carry no schema line — `torve init` adds it",
+            )
+        )
+    else:
+        checks.append(("standing", True, "standing: every contract names its schema"))
+
     return checks
 
 

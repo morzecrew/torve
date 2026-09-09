@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
+from torve.base.model import STRICT
 from torve.config.runconfig import RunnerConfig
 
 # ----------------------- #
@@ -25,7 +26,7 @@ class FleetRepository(BaseModel):
     is granted (§5.3) — never defaulted, since a class nobody wrote down is
     a grant nobody reviewed."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
     root: str
     trust: Literal["own", "reviewed", "untrusted"]
 
@@ -55,7 +56,7 @@ class FleetAttention(BaseModel):
     """The shared budget (§5.1, S-0024/D-2): triage debt measured once, across
     every repository, because the operator triaging it exists once."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
     pause_escalations: int = 1
 
 
@@ -63,7 +64,7 @@ class FleetAttention(BaseModel):
 
 
 class FleetManifest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
     repositories: list[FleetRepository] = Field(default_factory=list)
     attention: FleetAttention = Field(default_factory=FleetAttention)
     # Deterministic, never a priority field (S-0024/D-4): a fleet that ticks

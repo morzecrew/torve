@@ -252,3 +252,30 @@ def test_a_log_entry_reads_and_writes_the_logs_class_key():
     assert landing.at == "2026-09-09T00:00:00Z" and landing.attempt == 1 and landing.phase == 0
     assert landing.entries[0].entry_class == "drift"
     assert "class" in TaskLog.model_json_schema()["$defs"]["LogEntry"]["properties"]
+
+
+# ....................... #
+
+
+def test_schema_descriptions_cover_every_property(tmp_path) -> None:
+    """S-0059/D-6, I-3: every property of every schema `torve init` writes
+    carries a description — the field's own docstring, carried by
+    `use_attribute_docstrings` — so a field added without its words fails
+    here rather than reaching an editor as a bare type."""
+
+    import json
+
+    from torve.cli.init import expected_schemas
+
+    missing: list[str] = []
+
+    for path, text in expected_schemas(tmp_path / ".torve" / "specs").items():
+        schema = json.loads(text)
+        models = [(path.name, schema), *schema.get("$defs", {}).items()]
+
+        for model_name, model in models:
+            for prop, shape in model.get("properties", {}).items():
+                if not shape.get("description"):
+                    missing.append(f"{path.name}: {model_name}.{prop}")
+
+    assert missing == []

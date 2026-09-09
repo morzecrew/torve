@@ -125,7 +125,7 @@ def log_document(*entries: dict[str, Any], drift_count: int | None = 0) -> str:
         # own base commit is unknowable here, so a well-formed placeholder
         # stands in — the gate checks shape, evidence checks resolution.
         "repo": "sabotage/repo",
-        "base_sha": "0" * 40,
+        "base": "0" * 40,
     }
 
     if drift_count is not None:

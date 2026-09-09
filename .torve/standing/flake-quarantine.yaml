@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schemas/standing.json
 # S-0023 §5.6.2 — the second standing contract. S-0002/health already
 # derives per-command flake counts into telemetry's
 # `flaky_count_by_command`; the predicate is the engine-native

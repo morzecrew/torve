@@ -19,7 +19,8 @@ from typing import Any, cast
 
 from torve.base.shell import run_command
 from torve.config.manifest import SHELL_GATE_TIMEOUT, Gate
-from torve.domain.attempt import BypassRecord, GateOutcome, GateResult
+from torve.domain.attempt import BypassRecord, GateResult
+from torve.domain.vocabulary import GateOutcome
 from torve.gates import BUILTINS
 from torve.gates.context import GateContext
 from torve.gates.contract import BuiltinOutcome

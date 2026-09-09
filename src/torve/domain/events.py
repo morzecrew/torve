@@ -28,10 +28,18 @@ from enum import StrEnum
 from typing import Any, Literal
 
 from forze.domain.models import CreateDocumentCmd, Document, ReadDocument
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
-from torve.domain.rfc import Grade
+from torve.base.model import STRICT
 from torve.domain.states import EscalationReason
+from torve.domain.vocabulary import (
+    EntryAction,
+    EntryClass,
+    EntryGrade,
+    EntryKind,
+    Grade,
+    SourceKind,
+)
 
 # ----------------------- #
 
@@ -138,9 +146,9 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
 
 
 class SourceImported(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
-    source_kind: Literal["specification", "incident", "audit", "review", "operator"]
+    source_kind: SourceKind
     ref: str
     title: str = ""
 
@@ -149,7 +157,7 @@ class SourceImported(BaseModel):
 
 
 class DecisionRecorded(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     grade: Grade
     text: str
@@ -166,7 +174,7 @@ class DecisionRecorded(BaseModel):
 
 
 class DecisionAccepted(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     note: str = ""
 
@@ -180,7 +188,7 @@ class DecisionRetired(BaseModel):
     a table someone broke, and it means nothing at all for a source that is
     an incident rather than a file."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     reason: str = ""
     superseded_by: str | None = None
@@ -200,7 +208,7 @@ class TaskMinted(BaseModel):
     the contract's: the fold prefers the contract and falls back to them.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     title: str
     source_id: str
@@ -215,7 +223,7 @@ class TaskMinted(BaseModel):
 
 
 class TaskAdopted(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     note: str = ""
 
@@ -224,7 +232,7 @@ class TaskAdopted(BaseModel):
 
 
 class TaskClaimed(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     worker: str
     lease_seconds: int
@@ -234,7 +242,7 @@ class TaskClaimed(BaseModel):
 
 
 class TaskReleased(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     reason: str
 
@@ -248,7 +256,7 @@ class TaskReturned(BaseModel):
     that was done, judged and refused, and the two must stay tellable
     apart. `note` is what the next attempt is briefed with."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     reason: str
     note: str = ""
@@ -258,7 +266,7 @@ class TaskReturned(BaseModel):
 
 
 class AttemptStarted(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     attempt: int
     tier: str
@@ -286,7 +294,7 @@ class AttemptFinished(BaseModel):
     exists to remove.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     attempt: int
     exit_code: int | None = None
@@ -319,7 +327,7 @@ class GatesEvaluated(BaseModel):
     `results` is the battery's own output, not a summary of it.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     attempt: int
     exit_code: int
@@ -355,28 +363,21 @@ def gate_outcomes(payload: Mapping[str, Any]) -> dict[str, str]:
 # ....................... #
 
 # The v1 divergence entry, transcribed (S-0001/decisions, the flag-dont-flip
-# vocabulary the decisions-reported gate enforces). The intake validates an
-# entry against these same words at write time, and a parity test pins this
-# vocabulary against the gate's own sets so the two cannot drift apart.
-# The log grades a divergence against the corpus, so it carries one word the
-# corpus itself does not: an entry may be about a decision no document lists.
-DivergenceGrade = Literal["LOCKED", "ASSUMED", "OPEN", "UNLISTED"]
-DivergenceKind = Literal["contradicted", "departed", "resolved", "blocked"]
-DivergenceClass = Literal["discovery", "spec-gap", "drift", "irreducible"]
-DivergenceAction = Literal["halted", "departed", "decided"]
+# vocabulary the decisions-reported gate enforces) — the log's own words, from
+# the one vocabulary (S-0059/D-5), so the record and the gate cannot drift.
 
 
 class DivergenceRecorded(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     attempt: int
     decision_id: str
-    grade: DivergenceGrade
-    entry_kind: DivergenceKind
-    entry_class: DivergenceClass
+    grade: EntryGrade
+    entry_kind: EntryKind
+    entry_class: EntryClass
     claim: str
     evidence: str
-    action: DivergenceAction
+    action: EntryAction
     proposal: str = ""
     notes: str = ""
 
@@ -385,7 +386,7 @@ class DivergenceRecorded(BaseModel):
 
 
 class ReviewRecorded(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     review_id: str
     findings: int = 0
@@ -396,7 +397,7 @@ class ReviewRecorded(BaseModel):
 
 
 class BlockerRaised(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     review_id: str
     claim: str
@@ -406,7 +407,7 @@ class BlockerRaised(BaseModel):
 
 
 class LandingRecorded(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     sha: str
     attempt: int
@@ -416,7 +417,7 @@ class LandingRecorded(BaseModel):
 
 
 class EscalationRaised(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     reason: EscalationReason
     detail: str = ""
@@ -426,7 +427,7 @@ class EscalationRaised(BaseModel):
 
 
 class EscalationResolved(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     resolution: Literal["requeued", "abandoned", "landed"]
     note: str = ""
@@ -439,7 +440,7 @@ class MessageSent(BaseModel):
     """S-0044 S-0044/D-4: an agent influences another agent only as a record a
     human can read. There is no channel that bypasses this model."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     to_role: str
     topic: str
@@ -450,7 +451,7 @@ class MessageSent(BaseModel):
 
 
 class SeatConsumed(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     seat: str
     tokens: int | None = None
@@ -479,7 +480,7 @@ class NotificationSent(BaseModel):
     nobody could page about is still on the board where it always was.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     subject: str
     destination: str

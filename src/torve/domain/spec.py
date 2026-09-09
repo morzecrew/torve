@@ -20,21 +20,30 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from torve.base.clock import INSTANT_PATTERN
-from torve.domain.rfc import Grade, Implementation, Kind, Status
+from torve.base.model import STRICT
 from torve.domain.task import SPEC_PATTERN, Task
+from torve.domain.vocabulary import (
+    Character,
+    CheckState,
+    EntryAction,
+    EntryClass,
+    EntryGrade,
+    EntryKind,
+    Grade,
+    Implementation,
+    Kind,
+    QuestionStatus,
+    Status,
+)
 
 # ----------------------- #
 
 SCHEMA_VERSION = 4  # S-0058/D-4: the typed anatomy and phasing.yaml; 3 was the flat section list
-
-Coverage = Literal["governed", "ungoverned", "retired"]
-CheckState = Literal["shadow", "blocking"]
-QuestionStatus = Literal["open", "settled"]
 
 FINGERPRINT_LENGTH = 16
 
@@ -128,7 +137,10 @@ def rule_fingerprint(grade: str, paths: list[str]) -> str:
 
 
 class Item(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """The base of every item a document's files hold: extras refused, and each
+    field's docstring carried into the schema `torve init` derives (S-0059/D-6)."""
+
+    model_config = STRICT
 
 
 # ....................... #
@@ -140,19 +152,30 @@ class Decision(Item):
     citations, check and the stamp the tool last wrote on it."""
 
     id: str
+    """`D-n` inside its own document, `S-NNNN/D-n` in memory (S-0058/D-1)."""
     grade: Grade
+    """LOCKED, ASSUMED or OPEN (S-0007/D-13)."""
     text: str
+    """The decision itself — the sentence a contract copies at mint."""
     paths: list[str] = Field(default_factory=list)
+    """The area the row governs; a LOCKED row must declare one."""
     consequence: str = ""
+    """What follows from the decision — the reason handed to the executor beside the rule."""
     rationale: str = ""
+    """Why the row was decided this way; never copied onto a contract."""
     cites: list[str] = Field(default_factory=list)
-    check: str | None = None  # authored, never derived (S-0053/D-15)
-    check_state: CheckState = "shadow"  # promoted per row by amendment (S-0054/D-4)
-    check_twin: str | None = None  # the test that proves the check can fail (S-0054/D-4)
+    """The identifiers this row builds on."""
+    check: str | None = None
+    """A command whose exit code judges the row; authored, never derived (S-0053/D-15)."""
+    check_state: CheckState = "shadow"
+    """The check's gate state, promoted per row by amendment (S-0054/D-4)."""
+    check_twin: str | None = None
+    """The test that proves the check can fail (S-0054/D-4)."""
     superseded_by: str | None = None
-    # `<content>/<rule>` as `stamp` writes it, empty until the tool has
-    # changed the row once; `fingerprint_drift` reads it (S-0053/D-5).
+    """The row that replaced this one, once it is retired."""
     fingerprint: str = ""
+    """`<content>/<rule>` as `stamp` writes it, empty until the tool has changed
+    the row once; `fingerprint_drift` reads it (S-0053/D-5)."""
 
     def content_fingerprint(self) -> str:
         return fingerprint(self.text, self.grade, self.paths)
@@ -171,9 +194,13 @@ class Invariant(Item):
     it."""
 
     id: str
+    """`I-n` inside its own document, `S-NNNN/I-n` in memory."""
     statement: str
+    """What must hold, over the paths."""
     paths: list[str] = Field(default_factory=list)
+    """Where it holds."""
     check: str
+    """The command that proves it; exit 0 is holding."""
 
 
 # ....................... #
@@ -184,8 +211,11 @@ class Alternative(Item):
     when nobody told it the option was closed."""
 
     option: str
+    """The option that was on the table."""
     rejected_because: str
+    """Why it was closed."""
     cites: list[str] = Field(default_factory=list)
+    """The identifiers the rejection rests on."""
 
 
 # ....................... #
@@ -195,9 +225,13 @@ class Question(Item):
     """One entry of a `yaml questions` fence."""
 
     id: str
+    """`Q-n` inside its own document, `S-NNNN/Q-n` in memory."""
     text: str
+    """The question left open."""
     status: QuestionStatus = "open"
+    """`open` until something settles it."""
     settled_by: str | None = None
+    """The amendment or row that settled it."""
 
 
 # ....................... #
@@ -208,9 +242,13 @@ class Change(Item):
     amendment time, which is the only moment it exists."""
 
     subject: str
+    """The identifier the edit changed."""
     field: str
+    """The field that moved."""
     before: Any = None
+    """The prior value, read at amendment time."""
     after: Any = None
+    """The value after."""
 
 
 # ....................... #
@@ -221,10 +259,15 @@ class Amendment(Item):
     execution finding that changed nothing typed), and the words."""
 
     id: str
-    at: str = Field(default="", pattern=f"^$|{INSTANT_PATTERN}")  # the instant (S-0058/D-7)
+    """`A-n`, numbered per document (S-0058/D-1)."""
+    at: str = Field(default="", pattern=f"^$|{INSTANT_PATTERN}")
+    """The instant it was appended, `YYYY-MM-DDTHH:MM:SSZ` (S-0058/D-7)."""
     title: str = ""
+    """What the amendment did, in a line."""
     changes: list[Change] = Field(default_factory=list)
+    """The typed diff; empty for an execution finding that changed nothing typed."""
     md: str = ""
+    """The entry's own words, markdown."""
 
 
 # ....................... #
@@ -236,7 +279,9 @@ class DesignSection(Item):
     number is the position (S-0057/D-2); order is the list's."""
 
     key: str
+    """The key a log cites, `S-NNNN/<key>`; the heading is derived from it."""
     md: str = ""
+    """The markdown body the engine never parses."""
 
 
 HEADINGS = {"non-goals": "Non-goals", "out-of-scope": "Out of scope"}
@@ -290,13 +335,6 @@ def routing_line(summary: str) -> str:
 
 # ....................... #
 
-# The divergence vocabulary as the log spells it (S-0001/decisions); the same
-# words `domain/events.py` validates a recorded entry against.
-EntryGrade = Literal["LOCKED", "ASSUMED", "OPEN", "UNLISTED"]
-EntryKind = Literal["contradicted", "departed", "resolved", "blocked"]
-EntryClass = Literal["discovery", "spec-gap", "drift", "irreducible"]
-EntryAction = Literal["halted", "departed", "decided"]
-
 
 class LogEntry(Item):
     """One divergence entry as the task log carries it and a landing keeps
@@ -304,19 +342,36 @@ class LogEntry(Item):
     the executor did. `class` is the log's key; the field is `entry_class`
     because the word is Python's."""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True, serialize_by_alias=True)
+    # STRICT plus the alias options: `class` is the log's key (S-0059/D-6)
+    model_config = ConfigDict(
+        extra="forbid",
+        use_attribute_docstrings=True,
+        validate_by_name=True,
+        serialize_by_alias=True,
+    )
 
     decision: str
+    """The row the entry cites, `S-NNNN/D-n`; local inside the row's own document."""
     grade: EntryGrade
+    """The row's grade as the executor read it, or UNLISTED when no document lists it."""
     kind: EntryKind = "resolved"
+    """What happened: contradicted, departed, resolved or blocked."""
     entry_class: EntryClass = Field(default="discovery", alias="class")
+    """`class` in the log: discovery, spec-gap, drift or irreducible."""
     at: str = ""
+    """The instant the entry was written (S-0058/D-7)."""
     attempt: int = Field(default=1, ge=1)
+    """The attempt that wrote it."""
     claim: str
+    """What reality said."""
     evidence: str
+    """A `path:line` citation or a backticked command with its output (S-0005/D-4)."""
     action: EntryAction
+    """What the executor did: halted, departed or decided."""
     proposal: str = ""
+    """The row the executor proposes for the author to append."""
     notes: str = ""
+    """Anything else the reader of the log should know."""
 
 
 class Landing(Item):
@@ -326,13 +381,21 @@ class Landing(Item):
     so it leaves the field empty), when, by whom, and the log's entries."""
 
     task: str
+    """The task that landed, `T-NNNN`."""
     phase: int = 0
+    """The phase its contract was minted from; 0 when none was."""
     attempt: int = Field(default=1, ge=1)
-    base: str = ""  # the commit the attempt built on, from the log's pin (S-0058/D-12)
-    commit: str = ""  # the commit the landing rides in, when the lander knows it
-    at: str = Field(pattern=INSTANT_PATTERN)  # the instant (S-0058/D-7)
+    """The attempt that landed."""
+    base: str = ""
+    """The commit the attempt built on, from the log's pin (S-0058/D-12)."""
+    commit: str = ""
+    """The commit the work landed in, when the lander knew it (S-0058/D-12)."""
+    at: str = Field(pattern=INSTANT_PATTERN)
+    """The instant of the landing, `YYYY-MM-DDTHH:MM:SSZ` (S-0058/D-7)."""
     agent: str = ""
+    """Who landed it — the agent identity the runner composes, or a session."""
     entries: list[LogEntry] = Field(default_factory=list)
+    """The task log's entries, kept here beside the rows they cite (S-0057/D-7)."""
 
     def file_name(self) -> str:
         """`<task>-<attempt>-<instant>.yaml`, the landing's own file under
@@ -347,11 +410,17 @@ class TaskLog(Item):
     init` writes the log's schema from (S-0057/D-5)."""
 
     schema_version: int
+    """The log's shape version: 2 says `base` (S-0059/D-8); 1 said `base_sha`."""
     task: str
+    """The task the log belongs to, `T-NNNN`."""
     repo: str = ""
-    base_sha: str = ""
+    """The repository the evidence resolves against, `owner/name` — the pin (S-0001/D-36)."""
+    base: str = ""
+    """The commit the work started from — the pin's other half (S-0001/D-36)."""
     drift_count: int = 0
+    """The entries classed drift, declared so the gate can compare its own count."""
     entries: list[LogEntry] = Field(default_factory=list)
+    """The divergence entries, in the order they were written."""
 
 
 # ....................... #
@@ -362,13 +431,21 @@ class Phase(Item):
     contract from."""
 
     phase: int = Field(ge=1)
+    """The phase number; the tasks of one phase are disjoint and may run in parallel."""
     title: str = Field(min_length=1)
+    """The contract's short name (S-0007/A-1)."""
     intent: str = Field(min_length=1)
+    """One paragraph: what changes and why — never steps (S-0001/D-7)."""
     scope: list[str] = Field(min_length=1)
+    """The allow globs the contract gets; a LOCKED row's paths must fit inside them."""
     acceptance: list[str] = Field(default_factory=list)
+    """The acceptance commands the contract gets; exit 0 is satisfied."""
     depends_on: list[int] = Field(default_factory=list)
+    """The phases that must land first."""
     tier_variant: str = ""
-    character: Literal["", "structural", "routine"] = ""
+    """The seat variant the contract routes to, when one is named (S-0027/D-3)."""
+    character: Character | None = None
+    """The phase's structural or routine character, copied onto its contracts (S-0034/D-1)."""
 
 
 # ....................... #
@@ -383,46 +460,78 @@ class Document(Item):
     written."""
 
     id: str = Field(pattern=DOCUMENT_ID.pattern)
+    """`S-NNNN`, minted once and never reused (S-0016/D-17)."""
     title: str
+    """The document's title."""
     kind: Kind = "design"
+    """A design, or a convention that owes its summary alone (S-0055/A-2)."""
     status: Status
+    """draft, accepted or superseded; only an accepted document mints or inherits."""
     implementation: Implementation = "none"
+    """A judgement of what landed, never progress (S-0016/D-21)."""
     depends_on: list[str] = Field(default_factory=list)
+    """The documents this one builds on; an archived one is a warning (S-0053/D-8)."""
     informed_by: list[str] = Field(default_factory=list)
+    """The documents this one read without depending on them."""
     supersedes: list[str] = Field(default_factory=list)
+    """The documents this one replaces."""
     superseded_by: str | None = None
+    """The document that replaced this one."""
     retired: list[str] = Field(default_factory=list)
+    """This document's own rows that no longer stand."""
     owner: str
+    """Who answers for the document."""
     schema_version: int = SCHEMA_VERSION
+    """The document's shape version: 4 is the typed anatomy (S-0058/D-4)."""
     path: str = Field(default="", exclude=True)
+    """The directory the document was loaded from; the loader's, never written."""
     archived: bool = Field(default=False, exclude=True)
+    """Whether the document was loaded from the archive (S-0053/D-8); the loader's."""
 
     # The prose, typed (S-0058/D-4): required of an accepted document but
     # `docs` and `out_of_scope`; `design` a keyed list with at least one
     # entry once accepted; `sections` the extras, at most EXTRAS_CAP.
     summary: str = ""
+    """What the document decides; its first sentence routes (S-0058/D-4)."""
     motivation: str = ""
+    """Why now — the defect or the gap, with what it costs."""
     current_state: str = ""
+    """The tree as it stands, measured: files, lines, numbers."""
     goals: str = ""
+    """What the document sets out to make true."""
     non_goals: str = ""
+    """What it deliberately leaves alone."""
     design: list[DesignSection] = Field(default_factory=list)
+    """The design, a keyed list of sections; at least one once accepted."""
     tests: str = ""
+    """What proves it, by test file."""
     docs: str = ""
+    """The pages and skills that change."""
     out_of_scope: str = ""
+    """What a reader might expect here and will not find."""
     risks: str = ""
+    """What could go wrong, each with its mitigation."""
     sections: list[DesignSection] = Field(default_factory=list)
+    """The extra sections, at most EXTRAS_CAP."""
     decisions: list[Decision] = Field(default_factory=list)
+    """The rows a contract inherits."""
     invariants: list[Invariant] = Field(default_factory=list)
+    """What must hold, each with the command that proves it."""
     alternatives: list[Alternative] = Field(default_factory=list)
+    """The options that were closed, and why."""
     questions: list[Question] = Field(default_factory=list)
+    """What is left open, for the owner."""
     phasing: list[Phase] = Field(default_factory=list)
+    """The mintable units `torve plan` derives contracts from."""
     contract_example: Task | None = None
+    """One contract as the planner would mint it, for the reader."""
     amendments: list[Amendment] = Field(default_factory=list)
-    # The editorial lane's record (S-0053/D-4): `torve spec fix` appends the
-    # before and after here, never an amendment number.
+    """The amendments, in order; an accepted document changes through them alone."""
     editorial: list[Change] = Field(default_factory=list)
-    # What execution found (S-0057/D-7): appended at landing, never by hand.
+    """The editorial lane's record (S-0053/D-4): `torve spec fix` appends the before
+    and after here, never an amendment number."""
     landings: list[Landing] = Field(default_factory=list)
+    """What execution found (S-0057/D-7): the execution directory's files, read by the loader."""
 
     @model_validator(mode="after")
     def _qualify(self) -> Document:

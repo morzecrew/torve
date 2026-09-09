@@ -23,7 +23,6 @@ from typing import Any, cast
 import yaml
 from pydantic import ValidationError
 
-from torve.domain.rfc import GRADES
 from torve.domain.spec import (
     AMENDMENTS_FILE,
     DECISIONS_FILE,
@@ -47,6 +46,7 @@ from torve.domain.spec import (
     prose_key,
     qualify,
 )
+from torve.domain.vocabulary import GRADES
 
 # ----------------------- #
 

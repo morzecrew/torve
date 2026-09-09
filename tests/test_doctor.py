@@ -148,13 +148,21 @@ def test_doctor_names_a_lagging_schema_and_a_missing_ignore_pattern(tmp_path: Pa
     before = _init_checks(root, None)
 
     # never initialised: a hint, not a red — as `spec check` only warns
-    assert [(name, ok) for name, ok, _ in before] == [("schemas", True), ("ignore", True)]
+    assert [(name, ok) for name, ok, _ in before] == [
+        ("schemas", True),
+        ("ignore", True),
+        ("standing", True),
+    ]
     assert "not written yet" in before[0][2] and "not written yet" in before[1][2]
 
     assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
     after = _init_checks(root, None)
 
-    assert [(name, ok) for name, ok, _ in after] == [("schemas", True), ("ignore", True)]
+    assert [(name, ok) for name, ok, _ in after] == [
+        ("schemas", True),
+        ("ignore", True),
+        ("standing", True),
+    ]
 
     write(root / ".torve" / "schemas" / "gates.json", "{}\n")
     ignore = root / ".torve" / ".gitignore"

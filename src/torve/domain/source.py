@@ -14,11 +14,10 @@ for parsing (S-0044/D-8): `Task.spec` names the document by identifier
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+
+from torve.domain.vocabulary import SourceKind
 
 # ----------------------- #
-
-SourceKind = Literal["specification", "incident", "audit", "review", "operator"]
 
 
 @dataclass(frozen=True)

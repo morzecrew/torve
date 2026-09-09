@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from torve.base.shell import run_command
 from torve.config.manifest import Gate
-from torve.domain.attempt import GateOutcome
+from torve.domain.vocabulary import GateOutcome
 from torve.gates.context import GateContext
 from torve.gates.contract import BuiltinOutcome
 

@@ -17,6 +17,7 @@ from typing import Any
 
 import typer
 
+from torve.application.standing import StandingContract
 from torve.cli.console import STYLE_DIM, STYLE_PASS, closing, out
 from torve.cli.options import ConfigOption, RootOption, load_config
 from torve.config import layout
@@ -64,6 +65,7 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     texts[where / "log.json"] = _json(TaskLog.model_json_schema())
     texts[where / "config.json"] = _json(RunnerConfig.model_json_schema())
     texts[where / "gates.json"] = _json(Manifest.model_json_schema())
+    texts[where / "standing.json"] = _json(StandingContract.model_json_schema())  # S-0059/D-7
 
     return texts
 
@@ -152,10 +154,16 @@ def init_cmd(
 
     where = schemas_dir(corpus)
 
-    for target, schema in (
+    lined = [
         (layout.config_file(root), where / "config.json"),
         (layout.gates_file(root), where / "gates.json"),
-    ):
+    ]
+    # S-0059/D-7: every standing contract names its schema too.
+    lined += [
+        (path, where / "standing.json") for path in sorted(layout.standing_dir(root).glob("*.yaml"))
+    ]
+
+    for target, schema in lined:
         if _add_header(target, schema):
             console.print(f"  {target.name}  schema line added", style=STYLE_PASS)
             written.append(target.name)

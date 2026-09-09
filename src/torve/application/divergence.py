@@ -61,10 +61,11 @@ ENTRY_ORDER = (
     "proposal",
     "notes",
 )
-DOCUMENT_ORDER = ("schema_version", "task", "repo", "base_sha", "drift_count", "entries")
+DOCUMENT_ORDER = ("schema_version", "task", "repo", "base", "drift_count", "entries")
 # Engine scratch, generated and never committed (S-0013/what-does-not-belong-in-either).
 PIN_FILE = "pin.json"
-SCHEMA_VERSION = 1
+# The log's own shape version: 2 says `base`, the landing's word (S-0059/D-8); 1 said `base_sha`.
+SCHEMA_VERSION = 2
 LOG_SCHEMA_LINE = "# yaml-language-server: $schema=../../schemas/log.json"
 
 
@@ -115,7 +116,7 @@ def _pin(root: Path) -> dict[str, str]:
 
             return {
                 "repo": str(carried.get("repo") or ""),
-                "base_sha": str(carried.get("base_sha") or ""),
+                "base": str(carried.get("base") or carried.get("base_sha") or ""),
             }
 
     remote = _git(root, "config", "--get", "remote.origin.url")
@@ -126,7 +127,7 @@ def _pin(root: Path) -> dict[str, str]:
         parts = trimmed.replace(":", "/").split("/")
         repo = "/".join(parts[-2:]) if len(parts) >= 2 else ""
 
-    return {"repo": repo, "base_sha": _git(root, "rev-parse", "HEAD")}
+    return {"repo": repo, "base": _git(root, "rev-parse", "HEAD")}
 
 
 # ....................... #
@@ -181,7 +182,7 @@ def render(document: dict[str, Any]) -> str:
 # ....................... #
 
 
-def seed(root: Path, task_id: str, *, base_sha: str | None = None) -> Path:
+def seed(root: Path, task_id: str, *, base: str | None = None) -> Path:
     """Write the log's pin where the intake can read it, before the agent
     runs.
 
@@ -198,8 +199,8 @@ def seed(root: Path, task_id: str, *, base_sha: str | None = None) -> Path:
 
     pin = dict(_pin(root))
 
-    if base_sha:
-        pin["base_sha"] = base_sha
+    if base:
+        pin["base"] = base
 
     path = root / layout.TORVE_DIR / "tmp" / PIN_FILE
     path.parent.mkdir(parents=True, exist_ok=True)

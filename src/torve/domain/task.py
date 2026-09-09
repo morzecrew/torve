@@ -7,11 +7,12 @@ modelled — ReviewFeedback arrives with S-0005.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 
-from torve.domain.rfc import Grade
+from torve.base.model import STRICT
+from torve.domain.vocabulary import Character, CheckState, Grade, Role, Tier
 
 # ----------------------- #
 
@@ -34,10 +35,12 @@ class Scope(BaseModel):
     """allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty
     allow means unconstrained (S-0002/scope-in-detail)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     allow: list[str] = Field(default_factory=list)
+    """Globs of what the task may touch, gitwildmatch; empty means unconstrained."""
     deny: list[str] = Field(default_factory=list)
+    """Globs the task may not touch; deny wins over allow."""
 
 
 # ....................... #
@@ -52,27 +55,40 @@ class InheritedDecision(BaseModel):
     that proves the check can fail (S-0054/D-4). A contract minted before
     S-0054 loads with the four defaults, which is the old behaviour."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     id: str
+    """The row's global identifier, `S-NNNN/D-n`."""
     grade: Grade
+    """The row's grade as it stood at mint — copied, so the executor reads what the author settled."""
     text: str
-    paths: list[str] = Field(default_factory=list)  # declared area; enables the silence check
+    """The decision's text as it stood at mint."""
+    paths: list[str] = Field(default_factory=list)
+    """The area the row governs, declared; what enables the silence check."""
     consequence: str = ""
+    """Why the row exists — the reason beside the rule, so the executor gets both (S-0054/D-1)."""
     check: str | None = None
-    check_state: Literal["shadow", "blocking"] = "shadow"
+    """A command whose exit code judges the row, run as the `decision:<id>` gate (S-0054/D-4)."""
+    check_state: CheckState = "shadow"
+    """The check's gate state: `shadow` until an amendment promotes it (S-0054/D-4)."""
     check_twin: str | None = None
+    """The test that proves the check can fail (S-0054/D-4)."""
 
 
 # ....................... #
 
 
 class Budget(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """What an attempt may spend (S-0001/domain); None on an axis is no bound there."""
+
+    model_config = STRICT
 
     iterations: int | None = None
+    """The most attempts the loop makes before it escalates; a drafting run's drafts."""
     wallclock_minutes: int | None = None
+    """The wall-clock bound of an attempt, in minutes — declared, read by no leg yet."""
     tokens: int | None = None
+    """The tokens the broker lets an attempt spend, enforced mid-run (S-0045/D-4)."""
 
 
 # ....................... #
@@ -95,52 +111,58 @@ class Task(BaseModel):
     from "the field was forgotten".
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
+
     schema_version: int = CONTRACT_SCHEMA_VERSION
+    """The contract's shape version: 2 names the document as `spec` (S-0059/D-1)."""
     id: str
-    # S-0059/D-1: the document the contract was minted from, by identifier and
-    # never by path — `document_dir` is the one lookup that finds it. None is
-    # the document-less lane: an operator's ask, a standing job.
+    """`T-NNNN`, minted once and never reused."""
     spec: str | None = Field(default=None, pattern=SPEC_PATTERN)
+    """The document the contract was minted from, by identifier and never by path
+    (S-0059/D-1) — `document_dir` is the one lookup that finds it. None is the
+    document-less lane: an operator's ask, a standing job."""
     phase: int = 0
-    role: Literal["implement", "review", "revert", "draft"] = "implement"
-
-    # A short human name (S-0007/A-1): the landing subject and every board row
-    # read it; empty falls back to the intent's first line. The planner
-    # mints it from the phase title; a drafter may set it.
+    """The phasing entry the contract was minted from; 0 when no phase minted it."""
+    role: Role = "implement"
+    """What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft (S-0020)."""
     title: str = ""
-    # One paragraph: what changes and why — never steps (S-0001/D-7, S-0001/A-4).
-    # Optional until the S-0001/A-4 execution makes minting enforce it; contracts
-    # minted before the amendment carry none.
+    """A short human name (S-0007/A-1): the landing subject and every board row read
+    it; empty falls back to the intent's first line. The planner mints it from the
+    phase title; a drafter may set it."""
     intent: str = ""
+    """One paragraph: what changes and why — never steps (S-0001/D-7, S-0001/A-4).
+    Optional until the S-0001/A-4 execution makes minting enforce it; contracts
+    minted before the amendment carry none."""
     depends_on: list[str] = Field(default_factory=list)
-
-    # Set only at adoption of a decomposition's children (S-0026 S-0026/D-5):
-    # projections group by it; dispatch, lane and store never read it —
-    # ordering stays depends_on alone.
+    """The tasks that must land before this one dispatches."""
     parent: str | None = None
-
-    # The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the tasks/shas a
-    # revert undoes (S-0010/revert-as-a-role): the contract shape is parameterised by
-    # role, no new mechanism. Only those two roles may carry targets.
+    """Set only at adoption of a decomposition's children (S-0026/D-5): projections
+    group by it; dispatch, lane and store never read it — ordering stays
+    depends_on alone."""
     targets: list[str] = Field(default_factory=list)
+    """The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the
+    tasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape
+    is parameterised by role, no new mechanism. Only those two roles carry targets."""
     scope: Scope = Field(default_factory=Scope)
-    acceptance: list[str] = Field(default_factory=list)  # shell commands; exit 0 == satisfied
+    """What the attempt may and may not touch (S-0002/scope-in-detail)."""
+    acceptance: list[str] = Field(default_factory=list)
+    """Shell commands; exit 0 is satisfied."""
     decisions: list[InheritedDecision]
+    """The rows inherited at mint, grade and paths copied (S-0007/D-5); an empty
+    list is legal but must be explicit."""
     budget: Budget = Field(default_factory=Budget)
-    tier: Literal["planner", "executor", "reviewer"] = "executor"
-
-    # S-0027/D-3: an optional dotted variant under the seat above, resolved as
-    # `tier.variant` in the tiers mapping — a variant refines a seat, never
-    # invents one, and role semantics still key on `tier` alone. Naming a
-    # variant that is not configured is a refused dispatch, not a fallback.
+    """What an attempt may spend."""
+    tier: Tier = "executor"
+    """The seat that runs it — planner, executor or reviewer (S-0004)."""
     tier_variant: str | None = None
-
-    # S-0034 S-0034/D-1/D-34.2: the phase's declared structural|routine
-    # character, copied verbatim from the Phasing entry at mint. Absent by
-    # default — a task with no character declared routes on the seat alone,
-    # same as one with no tier_variant.
-    character: Literal["structural", "routine"] | None = None
+    """An optional dotted variant under the seat (S-0027/D-3), resolved as
+    `tier.variant` in the tiers mapping — a variant refines a seat, never invents
+    one, and role semantics still key on `tier` alone. Naming a variant that is
+    not configured is a refused dispatch, not a fallback."""
+    character: Character | None = None
+    """The phase's declared structural or routine character, copied verbatim from
+    the phasing entry at mint (S-0034/D-1). Absent by default — a task with no
+    character routes on the seat alone, same as one with no tier_variant."""
 
     # ....................... #
 

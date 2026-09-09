@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import pathspec
 
-from torve.domain.attempt import GateOutcome
+from torve.domain.vocabulary import GateOutcome
 
 # ----------------------- #
 

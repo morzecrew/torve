@@ -37,11 +37,12 @@ from torve.application.telemetry import TOKEN_FIELDS, record_row
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout, spec
-from torve.config.manifest import GATE_AXES, UNLABELED_AXIS, Manifest, load_manifest
+from torve.config.manifest import UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.domain.events import EventKind
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import DISPATCHABLE_ROLES, SCHEMA_VERSION, Task
+from torve.domain.vocabulary import GATE_AXES
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence

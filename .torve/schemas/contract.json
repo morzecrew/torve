@@ -2,6 +2,7 @@
   "$defs": {
     "Budget": {
       "additionalProperties": false,
+      "description": "What an attempt may spend (S-0001/domain); None on an axis is no bound there.",
       "properties": {
         "iterations": {
           "anyOf": [
@@ -13,6 +14,7 @@
             }
           ],
           "default": null,
+          "description": "The most attempts the loop makes before it escalates; a drafting run's drafts.",
           "title": "Iterations"
         },
         "tokens": {
@@ -25,6 +27,7 @@
             }
           ],
           "default": null,
+          "description": "The tokens the broker lets an attempt spend, enforced mid-run (S-0045/D-4).",
           "title": "Tokens"
         },
         "wallclock_minutes": {
@@ -37,6 +40,7 @@
             }
           ],
           "default": null,
+          "description": "The wall-clock bound of an attempt, in minutes \u2014 declared, read by no leg yet.",
           "title": "Wallclock Minutes"
         }
       },
@@ -57,10 +61,12 @@
             }
           ],
           "default": null,
+          "description": "A command whose exit code judges the row, run as the `decision:<id>` gate (S-0054/D-4).",
           "title": "Check"
         },
         "check_state": {
           "default": "shadow",
+          "description": "The check's gate state: `shadow` until an amendment promotes it (S-0054/D-4).",
           "enum": [
             "shadow",
             "blocking"
@@ -78,14 +84,17 @@
             }
           ],
           "default": null,
+          "description": "The test that proves the check can fail (S-0054/D-4).",
           "title": "Check Twin"
         },
         "consequence": {
           "default": "",
+          "description": "Why the row exists \u2014 the reason beside the rule, so the executor gets both (S-0054/D-1).",
           "title": "Consequence",
           "type": "string"
         },
         "grade": {
+          "description": "The row's grade as it stood at mint \u2014 copied, so the executor reads what the author settled.",
           "enum": [
             "LOCKED",
             "ASSUMED",
@@ -95,10 +104,12 @@
           "type": "string"
         },
         "id": {
+          "description": "The row's global identifier, `S-NNNN/D-n`.",
           "title": "Id",
           "type": "string"
         },
         "paths": {
+          "description": "The area the row governs, declared; what enables the silence check.",
           "items": {
             "type": "string"
           },
@@ -106,6 +117,7 @@
           "type": "array"
         },
         "text": {
+          "description": "The decision's text as it stood at mint.",
           "title": "Text",
           "type": "string"
         }
@@ -123,6 +135,7 @@
       "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
       "properties": {
         "allow": {
+          "description": "Globs of what the task may touch, gitwildmatch; empty means unconstrained.",
           "items": {
             "type": "string"
           },
@@ -130,6 +143,7 @@
           "type": "array"
         },
         "deny": {
+          "description": "Globs the task may not touch; deny wins over allow.",
           "items": {
             "type": "string"
           },
@@ -145,6 +159,7 @@
   "description": "The task contract, `.torve/tasks/T-NNNN/contract.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
   "properties": {
     "acceptance": {
+      "description": "Shell commands; exit 0 is satisfied.",
       "items": {
         "type": "string"
       },
@@ -152,7 +167,8 @@
       "type": "array"
     },
     "budget": {
-      "$ref": "#/$defs/Budget"
+      "$ref": "#/$defs/Budget",
+      "description": "What an attempt may spend."
     },
     "character": {
       "anyOf": [
@@ -168,9 +184,11 @@
         }
       ],
       "default": null,
+      "description": "The phase's declared structural or routine character, copied verbatim from\nthe phasing entry at mint (S-0034/D-1). Absent by default \u2014 a task with no\ncharacter routes on the seat alone, same as one with no tier_variant.",
       "title": "Character"
     },
     "decisions": {
+      "description": "The rows inherited at mint, grade and paths copied (S-0007/D-5); an empty\nlist is legal but must be explicit.",
       "items": {
         "$ref": "#/$defs/InheritedDecision"
       },
@@ -178,6 +196,7 @@
       "type": "array"
     },
     "depends_on": {
+      "description": "The tasks that must land before this one dispatches.",
       "items": {
         "type": "string"
       },
@@ -185,11 +204,13 @@
       "type": "array"
     },
     "id": {
+      "description": "`T-NNNN`, minted once and never reused.",
       "title": "Id",
       "type": "string"
     },
     "intent": {
       "default": "",
+      "description": "One paragraph: what changes and why \u2014 never steps (S-0001/D-7, S-0001/A-4).\nOptional until the S-0001/A-4 execution makes minting enforce it; contracts\nminted before the amendment carry none.",
       "title": "Intent",
       "type": "string"
     },
@@ -203,15 +224,18 @@
         }
       ],
       "default": null,
+      "description": "Set only at adoption of a decomposition's children (S-0026/D-5): projections\ngroup by it; dispatch, lane and store never read it \u2014 ordering stays\ndepends_on alone.",
       "title": "Parent"
     },
     "phase": {
       "default": 0,
+      "description": "The phasing entry the contract was minted from; 0 when no phase minted it.",
       "title": "Phase",
       "type": "integer"
     },
     "role": {
       "default": "implement",
+      "description": "What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft (S-0020).",
       "enum": [
         "implement",
         "review",
@@ -223,11 +247,13 @@
     },
     "schema_version": {
       "default": 2,
+      "description": "The contract's shape version: 2 names the document as `spec` (S-0059/D-1).",
       "title": "Schema Version",
       "type": "integer"
     },
     "scope": {
-      "$ref": "#/$defs/Scope"
+      "$ref": "#/$defs/Scope",
+      "description": "What the attempt may and may not touch (S-0002/scope-in-detail)."
     },
     "spec": {
       "anyOf": [
@@ -240,9 +266,11 @@
         }
       ],
       "default": null,
+      "description": "The document the contract was minted from, by identifier and never by path\n(S-0059/D-1) \u2014 `document_dir` is the one lookup that finds it. None is the\ndocument-less lane: an operator's ask, a standing job.",
       "title": "Spec"
     },
     "targets": {
+      "description": "The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the\ntasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape\nis parameterised by role, no new mechanism. Only those two roles carry targets.",
       "items": {
         "type": "string"
       },
@@ -251,6 +279,7 @@
     },
     "tier": {
       "default": "executor",
+      "description": "The seat that runs it \u2014 planner, executor or reviewer (S-0004).",
       "enum": [
         "planner",
         "executor",
@@ -269,10 +298,12 @@
         }
       ],
       "default": null,
+      "description": "An optional dotted variant under the seat (S-0027/D-3), resolved as\n`tier.variant` in the tiers mapping \u2014 a variant refines a seat, never invents\none, and role semantics still key on `tier` alone. Naming a variant that is\nnot configured is a refused dispatch, not a fallback.",
       "title": "Tier Variant"
     },
     "title": {
       "default": "",
+      "description": "A short human name (S-0007/A-1): the landing subject and every board row read\nit; empty falls back to the intent's first line. The planner mints it from the\nphase title; a drafter may set it.",
       "title": "Title",
       "type": "string"
     }

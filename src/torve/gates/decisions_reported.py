@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 
 from torve.config.manifest import Gate
+from torve.domain.vocabulary import ENTRY_ACTIONS, ENTRY_CLASSES, ENTRY_GRADES, ENTRY_KINDS
 from torve.gates.context import GateContext
 from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
 from torve.gates.evidence import BACKTICKED, CITATION, locate
@@ -44,10 +45,11 @@ RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(?:Z|\+00:00)
 CITATION_PREFIX = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?")
 REQUIRED = ("decision", "grade", "at", "attempt", "claim", "evidence", "action")
 OPTIONAL = ("kind", "class", "proposal", "notes")
-GRADES = {"LOCKED", "ASSUMED", "OPEN", "UNLISTED"}
-KINDS = {"contradicted", "departed", "resolved", "blocked"}
-CLASSES = {"discovery", "spec-gap", "drift", "irreducible"}
-ACTIONS = {"halted", "departed", "decided"}
+# The one vocabulary's words as sets (S-0059/D-5) — the log's, the record's and this gate's.
+GRADES = frozenset(ENTRY_GRADES)
+KINDS = frozenset(ENTRY_KINDS)
+CLASSES = frozenset(ENTRY_CLASSES)
+ACTIONS = frozenset(ENTRY_ACTIONS)
 LEGAL = {"LOCKED": "halted", "ASSUMED": "departed", "OPEN": "decided", "UNLISTED": "decided"}
 BYPASS_FIELDS = {"gate", "reason", "author", "commit", "at"}
 
@@ -386,7 +388,7 @@ SHA_SHAPE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
 def check_pin(document: dict[str, Any]) -> list[str]:
-    """S-0001/D-36 (S-0021/A-1): the log opens with `repo` and `base_sha`, so its
+    """S-0001/D-36 (S-0021/A-1): the log opens with `repo` and `base`, so its
     path:line evidence resolves against the commit the work started from.
     Public for the same reason `check_entry` is: the intake checks the
     document it is about to write, so a pin this gate would convict is
@@ -402,15 +404,15 @@ def check_pin(document: dict[str, Any]) -> list[str]:
             "its evidence resolves against"
         )
 
-    base = str(document.get("base_sha") or "").strip()
+    base = str(document.get("base") or "").strip()
 
     if not base:
         problems.append(
-            "log carries no base_sha — evidence resolves against the commit the "
+            "log carries no base — evidence resolves against the commit the "
             "work started from; the prompt hands you the pin verbatim"
         )
     elif not SHA_SHAPE.match(base):
-        problems.append(f"base_sha {base!r} is not a commit sha")
+        problems.append(f"base {base!r} is not a commit sha")
 
     return problems
 

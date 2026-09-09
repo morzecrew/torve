@@ -16,7 +16,7 @@ import pytest
 from torve.application.skills import available, materialize, skills_root
 from torve.config.runconfig import RunnerConfig
 from torve.config.spec import DOCUMENT_DIRNAME, load_document
-from torve.domain.rfc import GRADES, STATUSES
+from torve.domain.vocabulary import GRADES, STATUSES
 
 
 def test_the_four_specialised_skills_ship():

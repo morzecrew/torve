@@ -423,13 +423,15 @@ def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
     assert [d.id for d in rows] == ["S-0090/D-1"]
 
 
-def test_a_phase_defaults_tier_variant_and_character_to_empty(tmp_path):
+def test_a_phase_defaults_tier_variant_and_character_to_absent(tmp_path):
     """S-0034 S-0034/D-2: absent means no character, the same
-    absent-means-default shape tier_variant carries."""
+    absent-means-default shape tier_variant carries. Since S-0059/D-5 the
+    phase and the contract share one `Character`, so absent is None on
+    both rather than the empty string on one of them."""
 
     doc = loaded(tmp_path, phasing=PHASING)
     assert [e.tier_variant for e in doc.phasing] == ["", "", ""]
-    assert [e.character for e in doc.phasing] == ["", "", ""]
+    assert [e.character for e in doc.phasing] == [None, None, None]
 
 
 def test_the_loader_accepts_a_tier_variant(tmp_path):
@@ -453,7 +455,7 @@ def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
 def test_the_loader_accepts_the_closed_character_vocabulary(tmp_path, character):
     doc = loaded(tmp_path, phasing=phasing(character=character))
     assert doc.phasing[0].character == character
-    assert doc.phasing[1].character == ""
+    assert doc.phasing[1].character is None
 
 
 def test_the_loader_refuses_a_character_outside_the_vocabulary(tmp_path):

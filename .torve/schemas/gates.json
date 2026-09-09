@@ -15,6 +15,7 @@
             }
           ],
           "default": null,
+          "description": "The date the entry landed in the manifest, recorded for the reader; the engine\nreads nothing from it.",
           "title": "Added"
         },
         "axis": {
@@ -33,9 +34,11 @@
             }
           ],
           "default": null,
+          "description": "The optional conviction label (S-0034/D-4): what a red result from this gate means.\nDerived for unlabeled entries, functional.",
           "title": "Axis"
         },
         "commands": {
+          "description": "The acceptance fallback for runs with no task file; only applies to\n@acceptance.",
           "items": {
             "type": "string"
           },
@@ -58,17 +61,21 @@
             }
           ],
           "default": null,
+          "description": "Derived for builtins; defaults to worktree for shell gates.",
           "title": "Input"
         },
         "name": {
+          "description": "The entry's name, unique across the manifest \u2014 how a gate is reported and\nquarantined.",
           "title": "Name",
           "type": "string"
         },
         "origin": {
+          "description": "structural | leak/<task> | a citation (S-0059/D-4) \u2014 why this gate exists. Required\non every entry (S-0002/D-19): provenance is unrecoverable later.",
           "title": "Origin",
           "type": "string"
         },
         "run": {
+          "description": "A shell command, or an `@`-prefixed builtin reference such as `@task.acceptance` or\n`@scope`.",
           "title": "Run",
           "type": "string"
         },
@@ -82,9 +89,11 @@
             }
           ],
           "default": null,
+          "description": "The twin's CASES family or test path (S-0036/D-3) \u2014 the evidence that this gate can\nconvict. Must be a non-blank reference.",
           "title": "Sabotage"
         },
         "state": {
+          "description": "Required on every entry (S-0002/D-19): `shadow` and `quarantined` gates run and\nreport but never affect the exit code (\u00a77.3).",
           "enum": [
             "shadow",
             "blocking",
@@ -103,6 +112,7 @@
             }
           ],
           "default": null,
+          "description": "Seconds; derived for builtins, 600 for shell gates.",
           "title": "Timeout"
         }
       },
@@ -120,6 +130,7 @@
       "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
       "properties": {
         "allow": {
+          "description": "Globs of what the task may touch, gitwildmatch; empty means unconstrained.",
           "items": {
             "type": "string"
           },
@@ -127,6 +138,7 @@
           "type": "array"
         },
         "deny": {
+          "description": "Globs the task may not touch; deny wins over allow.",
           "items": {
             "type": "string"
           },
@@ -142,6 +154,7 @@
       "description": "`allow_patterns` are regexes that suppress a match on the line they\nmatch. Reviewed configuration, not a bypass: the manifest arrives in a\npull request, and S-0002/D-8 stays intact because no signature at run time can\nwiden it.",
       "properties": {
         "allow_patterns": {
+          "description": "Regexes that suppress a secrets match on the line they match.",
           "items": {
             "type": "string"
           },
@@ -156,6 +169,7 @@
       "additionalProperties": false,
       "properties": {
         "patterns": {
+          "description": "The globs that say which files are tests, for the no-test-tampering gate.",
           "items": {
             "type": "string"
           },
@@ -170,6 +184,7 @@
   "additionalProperties": false,
   "properties": {
     "gates": {
+      "description": "The battery itself: every gate entry, run in the order the resolver puts them\nin.",
       "items": {
         "$ref": "#/$defs/Gate"
       },
@@ -177,6 +192,7 @@
       "type": "array"
     },
     "quarantine": {
+      "description": "Acceptance commands that flake; their failures are recorded but stop blocking until\nfixed (S-0002/three-outcomes-gates-need-beyond-pass-and-fail). Maintained by humans\nfrom the flake counters in telemetry until a store exists (S-0003).",
       "items": {
         "type": "string"
       },
@@ -184,23 +200,28 @@
       "type": "array"
     },
     "schema_version": {
-      "default": 2,
+      "default": 1,
+      "description": "The engine's shape version this manifest is read under.",
       "title": "Schema Version",
       "type": "integer"
     },
     "scope": {
-      "$ref": "#/$defs/Scope"
+      "$ref": "#/$defs/Scope",
+      "description": "The repository-wide scope the scope gate judges a diff against when the run carries\nno task file of its own."
     },
     "secrets": {
-      "$ref": "#/$defs/SecretsConfig"
+      "$ref": "#/$defs/SecretsConfig",
+      "description": "The reviewed allowances the secrets gate honours."
     },
     "telemetry": {
       "default": ".torve/telemetry.jsonl",
+      "description": "The path, relative to the repository root, the gate run appends its telemetry\nrecords to.",
       "title": "Telemetry",
       "type": "string"
     },
     "tests": {
-      "$ref": "#/$defs/TestsConfig"
+      "$ref": "#/$defs/TestsConfig",
+      "description": "Which files count as tests, for the no-test-tampering gate."
     }
   },
   "title": "Manifest",

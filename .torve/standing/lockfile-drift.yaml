@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schemas/standing.json
 # S-0023 §5.6.1 — the first standing contract, verbatim off the RFC's
 # own example: `uv lock --check` exits non-zero exactly when uv.lock has
 # drifted from pyproject.toml's constraints.

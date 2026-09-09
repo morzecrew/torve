@@ -194,9 +194,7 @@ def test_the_grade_compared_is_the_one_copied_at_mint_time(tmp_path):
 
 
 def test_populations_are_keyed_by_identifier_not_document(tmp_path):
-    write_contract(
-        tmp_path, "T-0001", spec="S-0001", decisions=[("S-0001/D-1", "ASSUMED", [])]
-    )
+    write_contract(tmp_path, "T-0001", spec="S-0001", decisions=[("S-0001/D-1", "ASSUMED", [])])
     write_contract(tmp_path, "T-0002", spec=None, decisions=[("S-0001/D-1", "ASSUMED", [])])
     report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "S-0001/D-1")

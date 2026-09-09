@@ -57,8 +57,8 @@ from torve.cli.console import (
     out,
 )
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
-from torve.domain.rfc import KINDS
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
+from torve.domain.vocabulary import KINDS
 
 if TYPE_CHECKING:
     from torve.config.spec import CheckReport
@@ -780,7 +780,7 @@ def _show_lines(found: dict[str, Any]) -> list[tuple[str, str]]:
             ("implementation", str(found["implementation"])),
             ("depends on", joined("depends_on")),
             ("amended by", joined("amended_by")),
-            ("description", str(found["description"])),
+            ("summary", str(found["description"])),
             ("sections", joined("sections")),
             ("phases", ", ".join(f"{e['phase']}: {e['title']}" for e in phases)),
             ("archived", "yes" if found.get("archived") else ""),
@@ -1003,7 +1003,7 @@ def new(
     write_document(directory, doc)
     console = out()
     console.print(f"created {directory}")
-    console.print("next: write the description, the summary section and the first rows")
+    console.print("next: write the summary, the motivation and the first rows")
 
 
 def _git_user(root: Path) -> str:

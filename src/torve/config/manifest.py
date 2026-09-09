@@ -7,25 +7,20 @@ from __future__ import annotations
 import warnings
 from datetime import date
 from pathlib import Path
-from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from torve.domain.attempt import GateInput, GateState
+from torve.base.model import STRICT
 from torve.domain.spec import is_citation
 from torve.domain.task import SCHEMA_VERSION, Scope
+from torve.domain.vocabulary import GateAxis, GateInput, GateState
 
 # ----------------------- #
 
-# What a conviction from this gate means (S-0034/D-4). The tuple is the vocabulary
-# in the order the corpus lists it — retry selection reads it as a severity
-# order, but that reading is the runner's rule, not this file's. An unlabeled
-# gate resolves to UNLABELED_AXIS in `resolved_gates()`: the fail-safe routes
-# its retry to the heaviest rung, so a missing label costs money, never
-# correctness.
-GateAxis = Literal["functional", "boundary", "compliance", "form"]
-GATE_AXES: tuple[GateAxis, ...] = ("functional", "boundary", "compliance", "form")
+# An unlabeled gate resolves to UNLABELED_AXIS in `resolved_gates()` (S-0034/D-4):
+# the fail-safe routes its retry to the heaviest rung, so a missing label
+# costs money, never correctness.
 UNLABELED_AXIS: GateAxis = "functional"
 
 
@@ -57,17 +52,35 @@ class Gate(BaseModel):
     repository test that pins the shipped battery.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
     name: str
+    """The entry's name, unique across the manifest — how a gate is reported and
+    quarantined."""
     run: str
+    """A shell command, or an `@`-prefixed builtin reference such as `@task.acceptance` or
+    `@scope`."""
     state: GateState
-    origin: str  # structural | leak/<task> | a citation (S-0059/D-4) — why this gate exists
+    """Required on every entry (S-0002/D-19): `shadow` and `quarantined` gates run and
+    report but never affect the exit code (§7.3)."""
+    origin: str
+    """structural | leak/<task> | a citation (S-0059/D-4) — why this gate exists. Required
+    on every entry (S-0002/D-19): provenance is unrecoverable later."""
     added: date | None = None
-    input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
-    timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
-    axis: GateAxis | None = None  # derived for unlabeled entries, functional
-    sabotage: str | None = None  # the twin's CASES family or test path (S-0036/D-3)
+    """The date the entry landed in the manifest, recorded for the reader; the engine
+    reads nothing from it."""
+    input: GateInput | None = None
+    """Derived for builtins; defaults to worktree for shell gates."""
+    timeout: float | None = None
+    """Seconds; derived for builtins, 600 for shell gates."""
+    axis: GateAxis | None = None
+    """The optional conviction label (S-0034/D-4): what a red result from this gate means.
+    Derived for unlabeled entries, functional."""
+    sabotage: str | None = None
+    """The twin's CASES family or test path (S-0036/D-3) — the evidence that this gate can
+    convict. Must be a non-blank reference."""
     commands: list[str] = Field(default_factory=list)
+    """The acceptance fallback for runs with no task file; only applies to
+    @acceptance."""
 
     # ....................... #
 
@@ -173,9 +186,10 @@ DEFAULT_TEST_PATTERNS = [
 
 
 class TestsConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     patterns: list[str] = Field(default_factory=lambda: list(DEFAULT_TEST_PATTERNS))
+    """The globs that say which files are tests, for the no-test-tampering gate."""
 
 
 # ....................... #
@@ -187,27 +201,37 @@ class SecretsConfig(BaseModel):
     pull request, and S-0002/D-8 stays intact because no signature at run time can
     widen it."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     allow_patterns: list[str] = Field(default_factory=list)
+    """Regexes that suppress a secrets match on the line they match."""
 
 
 # ....................... #
 
 
 class Manifest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
     schema_version: int = SCHEMA_VERSION
+    """The engine's shape version this manifest is read under."""
     scope: Scope = Field(default_factory=Scope)
+    """The repository-wide scope the scope gate judges a diff against when the run carries
+    no task file of its own."""
     tests: TestsConfig = Field(default_factory=TestsConfig)
+    """Which files count as tests, for the no-test-tampering gate."""
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
+    """The reviewed allowances the secrets gate honours."""
 
-    # Acceptance commands that flake; their failures are recorded but stop
-    # blocking until fixed (S-0002/three-outcomes-gates-need-beyond-pass-and-fail). Maintained by humans from the flake
-    # counters in telemetry until a store exists (S-0003).
     quarantine: list[str] = Field(default_factory=list)
+    """Acceptance commands that flake; their failures are recorded but stop blocking until
+    fixed (S-0002/three-outcomes-gates-need-beyond-pass-and-fail). Maintained by humans
+    from the flake counters in telemetry until a store exists (S-0003)."""
     telemetry: str = ".torve/telemetry.jsonl"
+    """The path, relative to the repository root, the gate run appends its telemetry
+    records to."""
     gates: list[Gate] = Field(default_factory=list)
+    """The battery itself: every gate entry, run in the order the resolver puts them
+    in."""
 
     # ....................... #
 

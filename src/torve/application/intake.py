@@ -42,6 +42,7 @@ from torve.application.review import SchemaRefusal, schema_refusal
 from torve.application.runstate import RunState
 from torve.application.telemetry import broker_block, engine_event
 from torve.base import naming
+from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.runconfig import (
     RunnerConfig,
@@ -76,7 +77,7 @@ ADOPTED_FILE = "adopted.json"
 
 
 class Draft(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
 
     ref: str
     intent: str = ""

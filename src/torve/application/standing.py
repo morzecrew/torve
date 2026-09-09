@@ -32,12 +32,13 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from torve.application.ports import Runtime, SandboxSpec
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
+from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.states import TaskState
@@ -63,11 +64,19 @@ class Trigger(BaseModel):
     inline script would have to re-parse them with less than the engine
     knows."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
     kind: Literal["command", "path-digest", "flake-threshold"] = "command"
+    """Which predicate the tick evaluates: `command`, `path-digest` or `flake-threshold`
+    (S-0023/D-8, S-0023/A-1)."""
     run: str = ""
+    """The shell line a `command` predicate runs in the sandbox, exit code as the answer;
+    a command predicate with none is refused."""
     paths: list[str] = Field(default_factory=list)
+    """The gitwildmatch patterns a `path-digest` predicate digests — the same dialect
+    `Scope.allow` uses; a path-digest predicate with none is refused."""
     threshold: int = 3
+    """The count a `flake-threshold` predicate is due at: a command not already in the gate
+    manifest's quarantine list whose summed `flaky_count_by_command` crosses this."""
 
     # ....................... #
 
@@ -96,20 +105,35 @@ class StandingContract(BaseModel):
     below across firings, so two files must never share one (S-0023/D-5's
     comparability depends on it)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = STRICT
     name: str
+    """The job's name, which keys the bounds below across firings, so two files must never
+    share one (S-0023/D-5's comparability depends on it)."""
     trigger: Trigger
+    """The deterministic predicate the tick evaluates to decide whether this job is due —
+    where a phasing block would be."""
     intent: str = ""
+    """The intent the minted contract carries, exactly as a task contract's does."""
     scope: Scope = Field(default_factory=Scope)
+    """The scope the minted contract carries, exactly as a task contract's does."""
     acceptance: list[str] = Field(default_factory=list)
+    """The acceptance commands the minted contract carries, exactly as a task contract's
+    do."""
     decisions_from: str | None = None
+    """The document the minted instance inherits its decisions from, by number or
+    identifier; a job naming a document that is not in the corpus is refused before
+    adoption."""
     cooldown_hours: float = 0.0
+    """How long after the job's last firing it may fire again, in hours; 0 imposes no
+    wait."""
     max_open: int = 1
-    # S-0023/D-6's fourth bound: self-disable after this many consecutive
-    # non-landings. S-0023 names it as a global `standing.strike_limit`
-    # default; this phase's scope excludes src/torve/config/runconfig.py,
-    # so it lives here instead, per job (departed, S-0023/D-6, see log.yaml).
+    """How many of this job's instances may be unresolved — neither landed nor abandoned —
+    before the tick stops minting more (S-0023/D-11)."""
     strike_limit: int = 3
+    """S-0023/D-6's fourth bound: self-disable after this many consecutive non-landings.
+    S-0023 names it as a global `standing.strike_limit` default; this phase's scope
+    excludes src/torve/config/runconfig.py, so it lives here instead, per job (departed,
+    S-0023/D-6, see log.yaml)."""
 
     # ....................... #
 

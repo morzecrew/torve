@@ -636,7 +636,7 @@ def test_the_attempt_burns_into_the_log_and_its_divergences_land_after(tmp_path,
                 "schema_version": 1,
                 "task": "T-0001",
                 "repo": "morzecrew/torve",
-                "base_sha": "b" * 40,
+                "base": "b" * 40,
                 "drift_count": 1,
                 "entries": [
                     {
