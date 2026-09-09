@@ -62,6 +62,14 @@ Every task directory whose contract names an archived document is deleted, not a
 - Consequence: Git keeps the history and the record keeps the landings; nothing standing cites a task log
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### D-57.5 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+`torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent, never a configuration or a manifest; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
+
+- Paths: `.torve/schemas/**` `.torve/.gitignore` `.gitignore` `src/torve/cli/init.py` `src/torve/cli/doctor.py`
+- Consequence: An editor validates any torve YAML as it is typed; an adopting repository ignores the right files without copying a block; `init` is the initialisation there is
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over the repository root
 
 - **I-55.1** (RFC 0055): The five layer contracts hold over the whole package
@@ -86,7 +94,7 @@ and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
 - `pages/` — 1 decision(s)
 - `pages/docs/` — 0 decision(s)
 - `pages/docs/architecture/` — 0 decision(s)
-- `skills/` — 2 decision(s)
+- `skills/` — 3 decision(s)
 - `skills/corpus-bootstrap/` — 0 decision(s)
 - `skills/rfc-writer/` — 0 decision(s)
 - `src/torve/` — 3 decision(s)
@@ -96,10 +104,10 @@ and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
 - `src/torve/adapters/broker/` — 1 decision(s)
 - `src/torve/adapters/runtime/` — 1 decision(s)
 - `src/torve/adapters/vcs/` — 1 decision(s)
-- `src/torve/application/` — 56 decision(s)
-- `src/torve/cli/` — 16 decision(s)
-- `src/torve/config/` — 18 decision(s)
-- `src/torve/domain/` — 16 decision(s)
+- `src/torve/application/` — 59 decision(s)
+- `src/torve/cli/` — 22 decision(s)
+- `src/torve/config/` — 24 decision(s)
+- `src/torve/domain/` — 18 decision(s)
 - `src/torve/gates/` — 17 decision(s)
 - `tests/` — 1 decision(s)
 - `web/` — 1 decision(s)

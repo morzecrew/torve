@@ -121,4 +121,49 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 - Paths: `src/torve/cli/rfc.py`
 - Consequence: The index is a query, not a file
 
+### D-57.4 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+`torve spec` absorbs every `torve rfc` verb and `cli/rfc.py` is deleted; the gate is `spec-valid`; the skill is `spec-writer`; `rfc_emit.py` becomes `spec_emit.py`; new prose says specification or document
+
+- Paths: `src/torve/cli/spec.py` `src/torve/cli/rfc.py` `src/torve/config/rfc_emit.py` `skills/**` `.torve/gates.yaml`
+- Consequence: One namespace for the corpus; old prose and test file names keep the old word
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.5 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+`torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent, never a configuration or a manifest; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
+
+- Paths: `.torve/schemas/**` `.torve/.gitignore` `.gitignore` `src/torve/cli/init.py` `src/torve/cli/doctor.py`
+- Consequence: An editor validates any torve YAML as it is typed; an adopting repository ignores the right files without copying a block; `init` is the initialisation there is
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.7 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+`execution.yaml` holds landings — task, phase, attempt, commit, time, agent, the log's entries typed as `LogEntry` — appended by one function the runner calls before the merge commit and `torve log land` exposes; a contract naming no document lands nowhere and says so
+
+- Paths: `src/torve/application/divergence.py` `src/torve/application/runner.py` `src/torve/cli/log.py`
+- Consequence: Every clone carries what execution found, beside the rows it informs; the task directory carries nothing git keeps
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.8 — `ASSUMED` (RFC 0057 — The specification is a directory)
+
+`torve decisions import` reads every execution file, live and archived, and records the divergence and landing events the record lacks, idempotent by task, attempt, decision and time; the attempt-time `ingest` is unchanged
+
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/decisions.py`
+- Consequence: A clone without a store rebuilds the same record from the tree
+
+### D-57.10 — `ASSUMED` (RFC 0057 — The specification is a directory)
+
+`torve spec cites IDENT` lists the code lines, landings, amendments and documents that cite an identifier
+
+- Paths: `src/torve/cli/spec.py`
+- Consequence: The row's side of the link is a query, not a grep
+
+### D-57.13 — `OPEN` (RFC 0057 — The specification is a directory)
+
+Whether `spec cites` also reads the `Torve-Decisions` trailers of the commit history
+
+- Paths: `src/torve/cli/spec.py`
+- Consequence: Decided by whoever executes phase 4, logged
+
 <!-- /torve:managed -->

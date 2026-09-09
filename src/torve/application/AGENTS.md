@@ -412,4 +412,26 @@ Whether phase 4 gives `traces/` and `regimes/` a retention window or leaves them
 - Paths: `src/torve/application/reaper.py`
 - Consequence: Decided by whoever executes phase 4, logged
 
+### D-57.7 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+`execution.yaml` holds landings — task, phase, attempt, commit, time, agent, the log's entries typed as `LogEntry` — appended by one function the runner calls before the merge commit and `torve log land` exposes; a contract naming no document lands nowhere and says so
+
+- Paths: `src/torve/application/divergence.py` `src/torve/application/runner.py` `src/torve/cli/log.py`
+- Consequence: Every clone carries what execution found, beside the rows it informs; the task directory carries nothing git keeps
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.8 — `ASSUMED` (RFC 0057 — The specification is a directory)
+
+`torve decisions import` reads every execution file, live and archived, and records the divergence and landing events the record lacks, idempotent by task, attempt, decision and time; the attempt-time `ingest` is unchanged
+
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/decisions.py`
+- Consequence: A clone without a store rebuilds the same record from the tree
+
+### D-57.12 — `ASSUMED` (RFC 0057 — The specification is a directory)
+
+The colocated sections, the pack and the skills change in no shape but the word and the gate name; they render the same model
+
+- Paths: `src/torve/application/colocation.py` `src/torve/application/contextpack.py`
+- Consequence: Nothing a harness reads changes shape
+
 <!-- /torve:managed -->

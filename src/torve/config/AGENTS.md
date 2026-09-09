@@ -137,4 +137,51 @@ With a store configured, `plan` mints into the record and writes no file; dispat
 - Consequence: The board is the only place a task is; the file exists for the attempt that reads it
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### D-57.1 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+A specification is a directory `NNNN-slug/` of `document.yaml`, `decisions.yaml`, `amendments.yaml` and `execution.yaml`, split by who writes each; an absent file is an empty list; the loader joins them into the one `Document` every reader keeps reading; `schema_version` 3, and 2 is refused
+
+- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py` `src/torve/config/rfc_emit.py`
+- Consequence: The author's file changes only by the author; `amended_by` is derived and gone; `Document.path` names a directory
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.2 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+A section is `key` and `md`; the heading is rendered from the key and the number from the position; `check` refuses a section with an empty body, a typed-kind fence, the decisions table header or an amendment identifier as its key
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
+- Consequence: A typed list exists in one place; a heading cannot disagree with its key
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.3 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+The corpus is `.torve/specs/` and the archive `.torve/archive/`; the configuration key is `specs.path` and `rfcs.path` is refused naming it
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/config/layout.py` `.torve/specs/**` `.torve/archive/**`
+- Consequence: Every input torve reads is under `.torve/`; the root carries no torve directory
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.4 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+`torve spec` absorbs every `torve rfc` verb and `cli/rfc.py` is deleted; the gate is `spec-valid`; the skill is `spec-writer`; `rfc_emit.py` becomes `spec_emit.py`; new prose says specification or document
+
+- Paths: `src/torve/cli/spec.py` `src/torve/cli/rfc.py` `src/torve/config/rfc_emit.py` `skills/**` `.torve/gates.yaml`
+- Consequence: One namespace for the corpus; old prose and test file names keep the old word
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.9 — `LOCKED` (RFC 0057 — The specification is a directory)
+
+`spec check` resolves every citation-shaped identifier in tracked files under `src/**`, `pages/**` and every `AGENTS.md`, `CLAUDE.md` and `README.md` over the corpus and the archive: unknown is a problem naming `file:line`, retired a warning, archived clean; tests and skills are not scanned
+
+- Paths: `src/torve/config/spec.py`
+- Consequence: A comment that cites a row is checked like a `cites` list; an identifier can never be invented in the code
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-57.11 — `ASSUMED` (RFC 0057 — The specification is a directory)
+
+`spec check` warns when `implementation: complete` names a phase no landing covers, and when every phase has a landing and `implementation` is not complete
+
+- Paths: `src/torve/config/spec.py`
+- Consequence: The status field and the execution file cannot drift apart silently
+
 <!-- /torve:managed -->
