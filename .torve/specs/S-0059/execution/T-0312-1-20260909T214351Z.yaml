@@ -1,0 +1,139 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0312
+phase: 1
+base: d6fed3043ed8e6977927e69b5fd7c2d0e155d0a0
+commit: 848ae867cbcd32875c0722daf73655793ae093c3
+at: '2026-09-09T21:43:51Z'
+agent: session/claude-fable-5.1
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-09T21:38:47Z'
+    claim: >-
+      `Task.spec` is validated by `SPEC_PATTERN`, `rfc` is refused with the hint,
+      every minter writes `spec` and the 27 local contracts are rewritten; the contract's
+      version is `CONTRACT_SCHEMA_VERSION = 2` while the engine's shared `SCHEMA_VERSION`
+      stays 1, because telemetry, run state, the manifest, gate results and the projections
+      borrow it — bumping it moved every envelope
+    evidence: >-
+      src/torve/domain/task.py:104 - the field, its pattern and the refusal below
+      it
+    action: decided
+    notes: >-
+      the shared constant is a phase-2 alignment finding: each shape should own its
+      version
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-09T21:38:47Z'
+    claim: >-
+      `document_dir` resolves the document in `decisions.land`, intake's adoption
+      and the standing loop; the gate context carries `specs` and the scope gate builds
+      the exemption prefix from the identifier with no lookup; the runner passes `config.specs.path`,
+      `torve gates run` and the lane use the default
+    evidence: >-
+      src/torve/gates/context.py:80 - the corpus path on the context
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-09T21:38:48Z'
+    claim: >-
+      a task's source id is `task.spec or "operator"`; `manager.current_shape` folds
+      a recorded `rfc` into `spec` through `document_id` for the board fold and the
+      why envelope; `CORPUS_NAMESPACE` is gone and the record is not rewritten
+    evidence: >-
+      src/torve/application/manager.py:155 - the fold's shim
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-09T21:38:48Z'
+    claim: >-
+      `Gate.origin` accepts a citation through `is_citation`; the runner's decision
+      gates carry `row.id`; the manifest's six `rfc/NNNN` origins and the sabotage
+      fixtures are `S-NNNN`
+    evidence: >-
+      src/torve/config/manifest.py:77 - the origin shape
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-09T21:38:48Z'
+    claim: >-
+      phase 2's vocabulary module: this phase touches files under its paths without
+      changing what it decides; the finding in D-1's entry (the shared `SCHEMA_VERSION`)
+      is its input
+    evidence: >-
+      src/torve/domain/task.py:104 - the one model this phase reshaped
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-09T21:38:49Z'
+    claim: >-
+      phase 2's shared model configuration and docstrings: this phase touches files
+      under its paths without changing what it decides; the finding in D-1's entry
+      (the shared `SCHEMA_VERSION`) is its input
+    evidence: >-
+      src/torve/domain/task.py:104 - the one model this phase reshaped
+    action: decided
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-09T21:38:49Z'
+    claim: >-
+      phase 2's standing schema: this phase touches files under its paths without
+      changing what it decides; the finding in D-1's entry (the shared `SCHEMA_VERSION`)
+      is its input
+    evidence: >-
+      src/torve/domain/task.py:104 - the one model this phase reshaped
+    action: decided
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-09T21:38:49Z'
+    claim: >-
+      phase 2's `base` rename: this phase touches files under its paths without changing
+      what it decides; the finding in D-1's entry (the shared `SCHEMA_VERSION`) is
+      its input
+    evidence: >-
+      src/torve/domain/task.py:104 - the one model this phase reshaped
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-09T21:38:50Z'
+    claim: >-
+      phase 3's two commits: the runner's `land`, the trailers and every reader of
+      them are untouched here; only `decisions.land` resolves the document by identifier
+      now
+    evidence: >-
+      src/torve/application/runner.py:609 - the landing path this phase left as it
+      was
+    action: decided
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-09T21:38:50Z'
+    claim: >-
+      phase 3's trailer removal: the runner's `land`, the trailers and every reader
+      of them are untouched here; only `decisions.land` resolves the document by identifier
+      now
+    evidence: >-
+      src/torve/application/runner.py:609 - the landing path this phase left as it
+      was
+    action: decided
+  - decision: D-11
+    grade: LOCKED
+    at: '2026-09-09T21:38:50Z'
+    claim: >-
+      phase 3's `.torve/execution/`: the runner's `land`, the trailers and every reader
+      of them are untouched here; only `decisions.land` resolves the document by identifier
+      now
+    evidence: >-
+      src/torve/application/runner.py:609 - the landing path this phase left as it
+      was
+    action: decided
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-09T21:38:51Z'
+    claim: >-
+      phase 3's readers: the runner's `land`, the trailers and every reader of them
+      are untouched here; only `decisions.land` resolves the document by identifier
+      now
+    evidence: >-
+      src/torve/application/runner.py:609 - the landing path this phase left as it
+      was
+    action: decided
