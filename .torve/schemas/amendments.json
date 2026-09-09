@@ -387,6 +387,11 @@
           "title": "Attempt",
           "type": "integer"
         },
+        "base": {
+          "default": "",
+          "title": "Base",
+          "type": "string"
+        },
         "commit": {
           "default": "",
           "title": "Commit",

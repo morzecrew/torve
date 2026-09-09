@@ -179,4 +179,12 @@ The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.c
 - Consequence: A timeline over amendments, landings and entries sorts on one string
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0058/D-12 — `LOCKED` (One grammar and the anatomy)
+
+A landing names its `base` — the commit the attempt built on, read from the log's pin — beside the `commit` it rides in when the lander knows it; a landing made by hand is made after the work commit, with `torve log land --commit`, in a commit of its own
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/decisions.py` `src/torve/cli/log.py`
+- Consequence: Where an implementation started is on the landing, not only in a log git never carries; the trailer join stays for the runner's commit
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

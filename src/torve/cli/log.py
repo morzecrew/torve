@@ -307,12 +307,13 @@ def land_cmd(
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Append this task's landing to the execution file of the document its
-    contract names: the task, its phase and attempt, when, by whom, the
-    commit when known, and the log's entries — the worktree's log, or the
-    record's when a partition is given. Staged, so the commit that lands
-    the task carries it. A contract naming no document lands nowhere, and
-    this says so."""
+    """Write this task's landing into the execution directory of the
+    document its contract names: the task, its phase and attempt, the base
+    it built on, when, by whom, the commit it rides in, and the log's
+    entries — the worktree's log, or the record's when a partition is
+    given. Run it after the work commit, naming that commit, and commit
+    the landing on its own. A contract naming no document lands nowhere,
+    and this says so."""
     # S-0057 S-0057/D-7: the by-hand lander; the runner calls the same function.
 
     from torve.application import decisions, divergence

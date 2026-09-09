@@ -645,6 +645,7 @@ def test_land_appends_the_worktree_log_to_the_documents_execution_file(tmp_path)
         ("T-0001", 1, 1, "", "session/x")
     ]
     assert landings[0].entries[0].claim == "the rule held"
+    assert landings[0].base == ""  # the log carried no pin
 
     # the record's entries, when given, stand in for the file's
     land(tmp_path, spec_dir, task, attempt=2, commit="abc", entries=[{**ENTRY, "claim": "again"}])
@@ -731,3 +732,24 @@ def test_a_rendered_log_opens_with_its_schema_line_and_still_reads_back(tmp_path
 
     assert text.startswith("# yaml-language-server: $schema=../../schemas/log.json\n")
     assert yaml.safe_load(text)["entries"][0]["claim"] == "the rule held"
+
+
+def test_land_names_the_base_the_log_pinned(tmp_path):
+    from torve.application.decisions import land
+    from torve.config.spec import load_document
+
+    spec_dir, task = _landing_repo(tmp_path)
+    log_path = layout.log_file(tmp_path, task.id)
+    log_path.parent.mkdir(parents=True)
+    log_path.write_text(
+        yaml.safe_dump(
+            {"schema_version": 1, "task": task.id, "base_sha": "b" * 40, "entries": [ENTRY]}
+        ),
+        encoding="utf-8",
+    )
+
+    land(tmp_path, spec_dir, task, attempt=1, commit="c" * 40, at="2026-09-09T00:00:00Z")
+    landing = load_document(spec_dir / "S-0001").landings[0]
+
+    # S-0058/D-12: where the attempt started, and where it landed
+    assert (landing.base, landing.commit) == ("b" * 40, "c" * 40)

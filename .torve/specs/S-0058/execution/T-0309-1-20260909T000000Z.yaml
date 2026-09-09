@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=../../../schemas/landing.json
 task: T-0309
 phase: 2
+base: b1b75d1ffd7c6ed1dcda4cd05c02368c7eaeedd3
+commit: 3365230f93f017c63985031ba288ac3848dcf03a
 at: '2026-09-09T00:00:00Z'
 agent: session/claude-fable-5.1
 entries:

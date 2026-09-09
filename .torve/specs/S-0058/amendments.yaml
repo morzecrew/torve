@@ -56,3 +56,31 @@ amendments:
     title: phase 3 names the tests that exist
     md: |
       The phase's acceptance named `tests/test_telemetry.py` and `tests/test_runstate.py`, and neither exists: telemetry is tested in `tests/test_attempt_record.py`, the run state in `tests/test_domain.py` and `tests/test_reaper.py`. The acceptance names what exists, and the context-pack test, whose amendment carries an instant now, joins the scope. Scope and acceptance only; no row changes.
+  - id: A-7
+    at: '2026-09-09T20:34:41Z'
+    title: a landing names its base
+    changes:
+      - subject: D-12
+        field: grade
+        before: OPEN
+        after: LOCKED
+      - subject: D-12
+        field: paths
+        before: []
+        after:
+          - src/torve/domain/spec.py
+          - src/torve/application/decisions.py
+          - src/torve/cli/log.py
+      - subject: D-12
+        field: text
+        before: <decision>
+        after: >-
+          A landing names its `base` — the commit the attempt built on, read from
+          the log's pin — beside the `commit` it rides in when the lander knows it;
+          a landing made by hand is made after the work commit, with `torve log land
+          --commit`, in a commit of its own
+      - subject: D-12
+        field: fingerprint
+        after: 48739fd823f47011/05757260b6b75611
+    md: |
+      The owner opened T-0310's landing and found no commit on it and no base: the lander dropped the log's pin, and a landing made in the same commit as the work cannot name that commit. D-12 puts the base on the landing from the pin, always known, and makes the by-hand landing follow the work commit in a commit of its own, so `commit` is real; the runner's stays empty and the trailer join stands (S-0057/A-5). The existing landing files are backfilled once from the local logs and the trailers, which is the one rewrite a landing ever gets.

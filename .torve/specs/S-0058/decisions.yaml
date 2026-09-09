@@ -149,6 +149,25 @@ decisions:
       the release notes naming the renumbering
     paths: [.torve/archive/**]
     consequence: Decided at the first release, logged
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      A landing names its `base` — the commit the attempt built on, read from the
+      log's pin — beside the `commit` it rides in when the lander knows it; a landing
+      made by hand is made after the work commit, with `torve log land --commit`,
+      in a commit of its own
+    paths:
+      - src/torve/domain/spec.py
+      - src/torve/application/decisions.py
+      - src/torve/cli/log.py
+    consequence: >-
+      Where an implementation started is on the landing, not only in a log git never
+      carries; the trailer join stays for the runner's commit
+    rationale: >-
+      the first landing files of this document carried neither base nor commit: the
+      log's pin was dropped and the file was written before the commit it wanted to
+      name
+    fingerprint: 48739fd823f47011/05757260b6b75611
 invariants:
   - id: I-1
     statement: >-

@@ -707,12 +707,14 @@ def land(
         )
 
     doc = spec.load_document(directory)
-    carried = open_log(root, task.id)["entries"] if entries is None else entries
+    log_document = open_log(root, task.id)
+    carried = log_document["entries"] if entries is None else entries
     landing = Landing.model_validate(
         {
             "task": task.id,
             "phase": task.phase,
             "attempt": attempt,
+            "base": str(log_document.get("base_sha") or ""),  # S-0058/D-12
             "commit": commit,
             "at": at or stamp(),
             "agent": agent,

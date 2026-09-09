@@ -327,7 +327,8 @@ class Landing(Item):
     task: str
     phase: int = 0
     attempt: int = Field(default=1, ge=1)
-    commit: str = ""
+    base: str = ""  # the commit the attempt built on, from the log's pin (S-0058/D-12)
+    commit: str = ""  # the commit the landing rides in, when the lander knows it
     at: str = Field(pattern=INSTANT_PATTERN)  # the instant (S-0058/D-7)
     agent: str = ""
     entries: list[LogEntry] = Field(default_factory=list)

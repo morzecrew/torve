@@ -472,4 +472,12 @@ The skill and its template, the schemas `torve init` writes, the projections bes
 - Paths: `skills/**` `src/torve/application/colocation.py` `src/torve/cli/init.py` `pages/docs/operating.md`
 - Consequence: Nothing a harness or a person reads names an identifier the check refuses
 
+### S-0058/D-12 — `LOCKED` (One grammar and the anatomy)
+
+A landing names its `base` — the commit the attempt built on, read from the log's pin — beside the `commit` it rides in when the lander knows it; a landing made by hand is made after the work commit, with `torve log land --commit`, in a commit of its own
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/decisions.py` `src/torve/cli/log.py`
+- Consequence: Where an implementation started is on the landing, not only in a log git never carries; the trailer join stays for the runner's commit
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->
