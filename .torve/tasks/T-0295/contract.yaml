@@ -1,0 +1,29 @@
+# Minted by hand on the document-less lane (RFC 0030): a test whose premise the archive changed. No standing row's paths cross a test file, so the decision list is empty and explicit (D-7.5).
+schema_version: 1
+id: T-0295
+rfc: null
+role: implement
+title: the parity test counts the archive
+intent: Phase 1's parity test parametrised over the corpus path alone and asserted that the loader's corpus
+  had exactly that many documents; once the archive landed the loader correctly returned the archive too
+  and the assertion read the difference as a defect. The test now walks corpus and archive together, expects
+  an archived document to load marked archived, and asserts that only corpus-path documents stand. No
+  code changes.
+depends_on: []
+parent: null
+targets: []
+scope:
+  allow:
+  - tests/test_spec_load.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_spec_load.py tests/test_spec.py
+- uv run torve rfc check
+decisions: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: routine

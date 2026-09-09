@@ -77,14 +77,22 @@ def _corpus(tmp_path: Path, **docs: str) -> Path:
 
 # ----------------------- #
 
-REAL_DOCUMENTS = sorted(rfc_parse.rfc_files(RFCS).items()) if RFCS.is_dir() else []
+# Parity holds over the archive too: an archived document is the same
+# format, read by the same loader, marked archived (D-53.8).
+REAL_DOCUMENTS = (
+    sorted({**rfc_parse.rfc_files(RFCS), **rfc_parse.archive_files(RFCS)}.items())
+    if RFCS.is_dir()
+    else []
+)
 
 
 @pytest.mark.parametrize(("number", "path"), REAL_DOCUMENTS, ids=[n for n, _ in REAL_DOCUMENTS])
 def test_parity_with_the_parser_over_the_real_corpus(number: str, path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    doc = load_document(path)
+    doc = load_document(path, archived=path.parent != RFCS)
     fm = rfc_parse.parse_frontmatter(text) or {}
+
+    assert doc.archived == (path.parent != RFCS)
 
     assert doc.id == number == str(fm["id"])
     assert doc.title == fm["title"]
@@ -119,6 +127,8 @@ def test_the_real_corpus_loads_as_one_and_resolves_every_citation() -> None:
 
     assert len(corpus.documents) == len(REAL_DOCUMENTS)
     assert corpus.decision("D-53.1") is not None
+    assert all(d.archived for d in corpus.documents if Path(d.path).parent != RFCS)
+    assert {d.id for d in corpus.standing()} <= set(rfc_parse.rfc_files(RFCS))
 
 
 def test_the_fenced_kinds_of_rfc_0053_load_non_empty() -> None:
